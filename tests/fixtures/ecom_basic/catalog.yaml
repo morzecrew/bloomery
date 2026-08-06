@@ -18,6 +18,16 @@ canonical_fields:
     unit: count
     recipes:
       - {id: direct, requires: [quantity]}
+  # Deliberately unmapped by the fixture's mappings: `margin` requiring it is
+  # the corpus's unreachable-metric case (RFC 0005 §5.3 — "you can't get
+  # margin because cogs is missing").
+  cogs:
+    entity: order_item
+    type: decimal(12,4)
+    unit: currency
+    tax_basis: net
+    recipes:
+      - {id: direct, requires: [cogs]}
 
 canonical_relationships:
   - {from: order_item, to: order, via: order_id, cardinality: many_to_one}

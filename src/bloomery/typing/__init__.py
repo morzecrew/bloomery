@@ -1,10 +1,10 @@
-"""The type layer (RFC 0004): the closed ``LogicalType`` set.
+"""The type layer (RFC 0004): the closed ``LogicalType`` set and the typecheck
+stage that walks every transform chain (``typecheck_chain`` and its batched
+form ``typecheck_chains``)."""
 
-The typecheck *stage* (transform-chain checking) lands in M2; this package
-currently hosts only the logical types, ``parse_type``, and ``assignable``.
-"""
-
+from bloomery.typing.check import ChainCheck, typecheck_chain, typecheck_chains
 from bloomery.typing.types import (
+    ArgKind,
     BoolType,
     DateType,
     DecimalType,
@@ -18,7 +18,9 @@ from bloomery.typing.types import (
 )
 
 __all__ = [
+    "ArgKind",
     "BoolType",
+    "ChainCheck",
     "DateType",
     "DecimalType",
     "IntType",
@@ -28,4 +30,6 @@ __all__ = [
     "VariantType",
     "assignable",
     "parse_type",
+    "typecheck_chain",
+    "typecheck_chains",
 ]

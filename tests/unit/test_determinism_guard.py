@@ -1,6 +1,8 @@
 """Named determinism guard (RFC 0003 §5.6, RFC 0009 §5.6): parse the minimal
-fixture, build a hand-constructed IR, and fingerprint it in two subprocesses
-with different ``PYTHONHASHSEED`` values — stdout must be byte-identical."""
+fixture, build a hand-constructed IR, fingerprint it, and run the full
+``compile_project`` pipeline — all in two subprocesses with different
+``PYTHONHASHSEED`` values; stdout (including every artifact's full content)
+must be byte-identical."""
 
 from __future__ import annotations
 
@@ -23,7 +25,8 @@ import json
 import pathlib
 import sys
 
-from bloomery import load_project, project_fingerprint
+from bloomery import Target, compile_project, load_project, project_fingerprint
+from bloomery import build_project_ir as build_real_ir
 from support.ir_factory import build_project_ir
 
 fixture_dir = pathlib.Path(sys.argv[1])
@@ -35,6 +38,12 @@ for mapping in project.mappings:
     print(json.dumps(mapping.model_dump(by_alias=True), default=str))
 print(json.dumps(project.entity_model.model_dump(by_alias=True), default=str))
 print(project_fingerprint(build_project_ir()))
+
+# The full pipeline (M2+): spec -> resolve -> typecheck -> IR -> artifacts.
+print(project_fingerprint(build_real_ir(project)))
+for artifact in compile_project(project, target=Target.SQLMESH, dialect="duckdb"):
+    print(artifact.path, artifact.kind, artifact.checksum)
+    print(artifact.content)
 """
 
 

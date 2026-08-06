@@ -1,5 +1,6 @@
-"""Package-surface smoke test: the M1 public API is exactly what RFCs 0002 and
-0003 promise, and ``__all__`` stays sorted."""
+"""Package-surface smoke test: the public API is exactly what spec §8 and the
+stage RFCs promise (M2–M3 adds compile/resolve/build and the extension
+points), and ``__all__`` stays sorted."""
 
 from __future__ import annotations
 
@@ -13,9 +14,16 @@ pytestmark = pytest.mark.unit
 def test_public_api_surface() -> None:
     assert bloomery.__all__ == [
         "BloomeryError",
+        "Resolution",
+        "Target",
+        "build_project_ir",
+        "compile_project",
         "load_catalog",
         "load_project",
         "project_fingerprint",
+        "register_emitter",
+        "register_transform",
+        "resolve",
     ]
 
 

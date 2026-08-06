@@ -15,11 +15,13 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from enum import StrEnum
 
 from bloomery.errors import TypeCheckError
 from bloomery.spec.common import TYPE_STRING_PATTERN
 
 __all__ = [
+    "ArgKind",
     "BoolType",
     "DateType",
     "DecimalType",
@@ -31,6 +33,23 @@ __all__ = [
     "assignable",
     "parse_type",
 ]
+
+
+class ArgKind(StrEnum):
+    """Parse-level shape of one transform argument (RFC 0004 §5.2).
+
+    Declared by a :class:`~bloomery.transforms.TransformSpec` per argument
+    position and enforced by the typecheck stage (RFC 0004 §5.4) before the
+    builder ever sees the value. Lives in the type layer so both the transform
+    registry and the typechecker consume one vocabulary without a cycle.
+    """
+
+    STR = "str"
+    INT = "int"
+    #: An int or a decimal-parseable string — literal arithmetic operands.
+    NUMBER = "number"
+    #: A str or an int — literals mirrored into SQL as-is (coalesce/nullif).
+    LITERAL = "literal"
 
 
 @dataclass(frozen=True, slots=True)

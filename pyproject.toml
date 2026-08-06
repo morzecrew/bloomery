@@ -201,30 +201,43 @@ root_packages = ["bloomery"]
 exclude_type_checking_imports = true
 
 [[tool.importlinter.contracts]]
+# M2/M3 reordering (RFC 0004): `transforms` sits above `typing` because a
+# TransformSpec's input domain and output-type functions need the LogicalType
+# classes at runtime; the typecheck stage consumes the registry by parameter
+# only (TYPE_CHECKING imports, excluded from the contract). `naming` sits just
+# below the emit side (RFC 0008: EmitContext carries the policy; it reads only
+# `Layer` from the IR). `compile` is the thin orchestration top that may see
+# both specs and emitters.
 name = "Layered bloomery compile pipeline"
 type = "layers"
 layers = [
+    "(bloomery.compile)",
     "(bloomery.emit) | (bloomery.dialects)",
+    "(bloomery.naming)",
     "(bloomery.plan)",
     "(bloomery.guardrails)",
     "(bloomery.resolve)",
     "(bloomery.ir)",
-    "(bloomery.typing)",
     "(bloomery.transforms)",
+    "(bloomery.typing)",
     "(bloomery.spec)",
     "(bloomery.errors)",
 ]
 
 [[tool.importlinter.contracts]]
 # The layers contract above allows any higher layer to reach any lower one, so
-# it alone would permit an emitter to read specs. This closes that hole: `|`
-# siblings in one layer are mutually independent, so the emit side consumes IR
-# (and typing/errors below it), never the spec layer — "emitters consume IR,
-# not specs" is the whole point of having an IR. (A `forbidden` contract would
-# say the same, but it cannot mark not-yet-landed modules optional; this can.)
+# it alone would permit an emitter to read specs. This closes that hole: the
+# emit side consumes IR, never the spec layer — "emitters consume IR, not
+# specs" is the whole point of having an IR. Direct imports only: the type
+# layer legitimately shares the spec grammar constant (typing → spec.common,
+# RFC 0002 §5.5), so every emit-side module transitively reaches `spec`
+# through ir → typing; the property worth enforcing mechanically is that no
+# emitter reads spec *models*, i.e. no direct import.
 name = "Emitters never import the spec layer"
-type = "layers"
-layers = ["(bloomery.emit) | (bloomery.dialects) | (bloomery.spec)"]
+type = "forbidden"
+source_modules = ["bloomery.emit", "bloomery.dialects"]
+forbidden_modules = ["bloomery.spec"]
+allow_indirect_imports = true
 
 # ....................... #
 # Dead code
@@ -255,13 +268,8 @@ exclude_dirs = ["tests", ".venv"]
 known_first_party = ["bloomery"]
 ignore_notebooks = true
 
-[tool.deptry.per_rule_ignores]
-DEP002 = [
-    # Scaffold-time only: declared before any module imports it. Remove when
-    # the emit layer lands (M6, RFC 0008). pydantic/pyyaml (spec, M1) and
-    # sqlglot (ir, M1) have landed and are no longer ignored.
-    "jinja2",
-]
+# jinja2 (emit, M2) has landed alongside pydantic/pyyaml (spec, M1) and
+# sqlglot (ir, M1); no scaffold-time ignores remain.
 
 # ....................... #
 # Ruff configuration

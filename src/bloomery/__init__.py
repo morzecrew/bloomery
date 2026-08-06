@@ -1,18 +1,32 @@
 """Entity-first spec compiler: declarative entity/mapping/metric specs compiled
 deterministically into SQLMesh, dbt, and Cube artifacts.
 
-Public API so far (M1): the pure loaders (``load_catalog``, ``load_project``),
-the IR content hash (``project_fingerprint``), and the total error hierarchy
-rooted at ``BloomeryError`` (import leaves from :mod:`bloomery.errors`).
+Public API (spec §8): the pure loaders (``load_catalog``, ``load_project``),
+compilation (``compile_project`` with ``Target``), analysis without emission
+(``resolve`` / ``Resolution``, ``build_project_ir``, ``project_fingerprint``),
+the extension points (``register_transform``, ``register_emitter``), and the
+total error hierarchy rooted at ``BloomeryError`` (import leaves from
+:mod:`bloomery.errors`).
 """
 
+from bloomery.compile import Target, compile_project
+from bloomery.emit import register_emitter
 from bloomery.errors import BloomeryError
 from bloomery.ir import project_fingerprint
+from bloomery.resolve import Resolution, build_project_ir, resolve
 from bloomery.spec import load_catalog, load_project
+from bloomery.transforms import register_transform
 
 __all__ = [
     "BloomeryError",
+    "Resolution",
+    "Target",
+    "build_project_ir",
+    "compile_project",
     "load_catalog",
     "load_project",
     "project_fingerprint",
+    "register_emitter",
+    "register_transform",
+    "resolve",
 ]

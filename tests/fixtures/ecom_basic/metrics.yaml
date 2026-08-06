@@ -8,5 +8,14 @@ metrics:
     agg: count
     expr: "order_id"
   average_order_value:
+    requires_metrics: [gross_revenue, order_count]
     additivity: non_additive
     ratio: {numerator: gross_revenue, denominator: order_count}
+  # Unreachable on purpose: no mapping supplies `cogs`, so resolution reports
+  # this metric with the specific missing leaf (RFC 0005 §5.3).
+  margin:
+    requires: [unit_price, cogs]
+    grain: order_item
+    additivity: additive
+    agg: sum
+    expr: "unit_price - cogs"
