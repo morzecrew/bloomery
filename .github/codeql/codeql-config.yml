@@ -1,0 +1,9 @@
+paths:
+  - src
+  - tests
+
+paths-ignore:
+  - pages
+  - rfcs
+  - "**/*.md"
+  - ".vscode"

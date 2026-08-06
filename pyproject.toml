@@ -1,0 +1,302 @@
+[project]
+name = "bloomery"
+dynamic = ["version"]
+requires-python = ">=3.12,<3.15"
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Code Generators",
+    "Development Status :: 2 - Pre-Alpha",
+]
+description = "Entity-first spec compiler: declarative entity/mapping/metric specs → SQLMesh, dbt, and Cube artifacts"
+readme = { file = "README.md", content-type = "text/markdown" }
+authors = [{ name = "Lev Litvinov", email = "misery7100@gmail.com" }]
+maintainers = [{ name = "Lev Litvinov", email = "misery7100@gmail.com" }]
+keywords = [
+    "analytics",
+    "compiler",
+    "cube",
+    "data-engineering",
+    "dbt",
+    "semantic-layer",
+    "sqlglot",
+    "sqlmesh",
+]
+
+# ....................... #
+# Dependencies
+
+dependencies = [
+    "jinja2>=3.1",
+    "pydantic>=2.9",
+    "pyyaml>=6",
+    # Exact-pinned in uv.lock; the metadata bound tracks one major so a sqlglot
+    # bump is always a deliberate event that regenerates goldens in a dedicated
+    # PR (RFC 0003 D2 §5.5). The floor is the newest sqlglot the dev group's
+    # sqlmesh pin admits (sqlmesh constrains sqlglot to a narrow band), so the
+    # lockfile stays co-resolvable with the e2e target it must round-trip through.
+    "sqlglot>=30.8.0,<31",
+]
+
+[dependency-groups]
+dev = [
+    "bandit>=1.8",
+    "deptry>=0.23",
+    "duckdb>=1.1",
+    "hypothesis>=6.130",
+    "import-linter>=2.3",
+    "mypy[faster-cache]>=1.15",
+    "pre-commit>=4.1",
+    "pytest>=8",
+    "pytest-cov>=6",
+    "pytest-mock>=3.14",
+    "pytest-snapshot>=0.9",
+    "pytest-timeout>=2.3",
+    "pytest-xdist>=3.6",
+    "radon>=6.0.1",
+    "ruff>=0.11",
+    "sqlmesh>=0.150",
+    "types-pyyaml>=6.0.12",
+    "vulture>=2.14",
+    "zizmor>=1.5",
+]
+# Tier-5 engine matrix (RFC 0009 §5.2): opt-in, needs Docker. Kept out of `dev`
+# so the default sync stays light on machines without Docker.
+engines = ["testcontainers[postgres]>=4.9"]
+docs = [
+    "mike",
+    "pygments>=2.19",
+    "pymdown-extensions>=10.14",
+    "zensical>=0.0.43",
+]
+
+[tool.uv.sources]
+# Zensical's mike fork (no PyPI release). Pin the exact commit: an unpinned git
+# source tracks the default branch's HEAD, so any later `uv lock` (e.g. bumping
+# another dep) would silently re-resolve mike — a docs-build change with no diff
+# in this file. Bump deliberately by updating the rev. (== the current uv.lock.)
+mike = { git = "https://github.com/squidfunk/mike", rev = "2d4ad799442f4592db8ad53b179bfb33db8c69ac" }
+
+# ....................... #
+
+[project.urls]
+homepage = "https://github.com/morzecrew/bloomery"
+documentation = "https://morzecrew.github.io/bloomery/"
+changelog = "https://github.com/morzecrew/bloomery/blob/main/CHANGELOG.md"
+
+# ....................... #
+# Build
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src",
+    "pyproject.toml",
+    "README.md",
+    "uv.lock",
+    "tests",
+    "CHANGELOG.md",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bloomery"]
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/bloomery/_version.py"
+
+# ....................... #
+# Pytest
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+pythonpath = ["src", "tests"]
+addopts = ["--tb=short", "--strict-markers", "--strict-config"]
+# Safety net: no test may hang the run indefinitely. On timeout, dump all thread
+# stacks and kill the process (the `thread` method guarantees the run can't
+# stick). Generous enough for container startup on a cold runner (engine tier).
+timeout = 300
+timeout_method = "thread"
+# Six tiers, fastest first (RFC 0009 D1): `just test` runs unit/golden/property/
+# execution; engine and e2e are opt-in (Docker), perf is reserved.
+markers = [
+    "unit: Tier 1 — pure unit test, milliseconds, mirrors src/bloomery",
+    "golden: Tier 2 — checked-in artifact snapshot per (fixture × target × dialect)",
+    "property: Tier 3 — Hypothesis property test over generated valid projects",
+    "execution: Tier 4 — in-process DuckDB execution of compiled SQL",
+    "engine(name): Tier 5 — testcontainers engine matrix; requires Docker; opt-in",
+    "e2e: Tier 6 — target-framework acceptance (sqlmesh/dbt/cube); opt-in",
+    "perf: Performance benchmark — reserved, no suite ships in v0.1 (RFC 0009)",
+]
+
+# ....................... #
+# Coverage
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+# Relative paths so data files combine cleanly across CI matrix jobs.
+relative_files = true
+omit = [
+    "*/tests/*",
+    "*/_version.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+sort = "cover"
+precision = 1
+# Global floor: enforced in CI (see .github/workflows/ci.yml). The 100% branch
+# floor for bloomery/guardrails/ (RFC 0009 D9) is ratcheted in once the package
+# exists — a thin new module must not hide behind the well-covered core.
+fail_under = 80
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.",
+    "if TYPE_CHECKING:",
+    # ``@overload`` stubs (and their ``...`` bodies) are type-checker-only: the
+    # runtime impl follows them, so they are never executed. Excluding them keeps
+    # branch coverage honest instead of penalizing typed overloaded signatures.
+    "@overload",
+    "@(typing\\.)?overload",
+    "^\\s*\\.\\.\\.$",
+    # Inline ellipsis stub bodies (``def f(...) -> T: ...``, including the closing
+    # line of a multi-line signature) are the same type-checker-only stubs as the
+    # own-line ``...`` above. The formatter collapses Protocol/overload bodies to
+    # this inline form, so match the terminating ``: ...`` to keep branch coverage
+    # honest for inline-stub Protocols.
+    ": \\.\\.\\.\\s*$",
+]
+
+# ....................... #
+# Mypy configuration
+
+[tool.mypy]
+strict = true
+
+# ....................... #
+# Import contracts
+#
+# The compiler's layering, made mechanical (RFC 0001 D5, spec §10): emitters
+# consume IR, never specs; the spec layer knows nothing internal but errors.
+# Every layer is optional (parenthesised) until its module lands — the contract
+# is authored before the code so the code arrives through the gate.
+
+[tool.importlinter]
+root_packages = ["bloomery"]
+exclude_type_checking_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Layered bloomery compile pipeline"
+type = "layers"
+layers = [
+    "(bloomery.emit) | (bloomery.dialects)",
+    "(bloomery.plan)",
+    "(bloomery.guardrails)",
+    "(bloomery.resolve)",
+    "(bloomery.ir)",
+    "(bloomery.typing)",
+    "(bloomery.transforms)",
+    "(bloomery.spec)",
+    "(bloomery.errors)",
+]
+
+[[tool.importlinter.contracts]]
+# The layers contract above allows any higher layer to reach any lower one, so
+# it alone would permit an emitter to read specs. This closes that hole: `|`
+# siblings in one layer are mutually independent, so the emit side consumes IR
+# (and typing/errors below it), never the spec layer — "emitters consume IR,
+# not specs" is the whole point of having an IR. (A `forbidden` contract would
+# say the same, but it cannot mark not-yet-landed modules optional; this can.)
+name = "Emitters never import the spec layer"
+type = "layers"
+layers = ["(bloomery.emit) | (bloomery.dialects) | (bloomery.spec)"]
+
+# ....................... #
+# Dead code
+
+[tool.vulture]
+paths = ["src/bloomery"]
+sort_by_size = true
+min_confidence = 80
+
+# ....................... #
+# Maintainability and complexity
+
+[tool.radon]
+exclude = ["tests/**"]
+cc_min = "C"
+mi_min = "B"
+
+# ....................... #
+# Security
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
+
+# ....................... #
+# Dependency analysis
+
+[tool.deptry]
+known_first_party = ["bloomery"]
+ignore_notebooks = true
+
+[tool.deptry.per_rule_ignores]
+DEP002 = [
+    # Scaffold-time only: the package is a placeholder, so the runtime deps are
+    # declared before any module imports them. Remove each entry as the module
+    # that uses it lands (spec → pydantic/pyyaml, ir/emit → sqlglot, emit → jinja2).
+    "jinja2",
+    "pydantic",
+    "pyyaml",
+    "sqlglot",
+]
+
+# ....................... #
+# Ruff configuration
+
+[tool.ruff]
+line-length = 100
+# hatch-vcs writes _version.py at build/sync time (gitignored) with its own
+# quoting style; generated code is not ours to format or lint.
+extend-exclude = ["src/bloomery/_version.py"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort (import sorting)
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "RUF", # ruff-specific rules
+    "C4",  # flake8-comprehensions
+    "ISC", # flake8-implicit-str-concat
+    "PIE", # flake8-pie
+    "T20", # flake8-print
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501", # line length is owned by `ruff format` (code is wrapped at 100); the remaining long
+    # lines are unwrappable prose — single-token Sphinx :class: refs and
+    # `type: ignore`/`nosec` justification comments
+    "ISC001", # single-line implicit concat: conflicts with `ruff format`
+    "RUF001", # ambiguous unicode: docs deliberately use typographic/math notation (×, −, ∪, –)
+    "RUF002", # see RUF001
+    "RUF003", # see RUF001
+    "RUF022", # __all__ is deliberately grouped by category (mirrors export tables), not sorted
+]

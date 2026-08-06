@@ -1,0 +1,72 @@
+name: Deploy released documentation
+
+# Publishes a released minor's docs to the gh-pages branch.
+#
+#   - tag push `vX.Y.Z`  → deploy version `X.Y`; if it's the newest released
+#     minor, move the `latest` alias and the root redirect to it. A backport tag
+#     on an older minor refreshes that minor in place without touching `latest`.
+#   - workflow_dispatch  → re-polish the *current latest* minor in place. Run it
+#     on the matching `release/vX.Y.*` branch (so released docs + fixes publish,
+#     not main's unreleased changes). Polishing an older minor is refused.
+#
+# `dev` (main's in-progress docs) is handled by docs-dev.yaml.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# Shared with docs-dev.yaml so deploys to gh-pages serialize. Never cancel mid-push.
+concurrency:
+  group: docs-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Publish released docs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # mike pushes the built site to the gh-pages branch
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] credentials are needed by `mike deploy --push` to gh-pages
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # full history
+          fetch-tags: true # need every tag to find the newest released minor
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2 # zizmor: ignore[cache-poisoning] docs build does not publish runtime artifacts to a release
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Install dependencies
+        run: uv sync --group docs
+
+      - name: Configure git identity
+        run: bash .github/scripts/configure-git-identity.sh
+
+      - name: Resolve target version
+        id: ver
+        run: bash .github/scripts/resolve-docs-version.sh
+
+      - name: Deploy version
+        env:
+          MINOR: ${{ steps.ver.outputs.minor }}
+          MOVE_LATEST: ${{ steps.ver.outputs.move_latest }}
+        run: >-
+          bash .github/scripts/deploy-docs-version.sh
+          "$MINOR"
+          "$MOVE_LATEST"

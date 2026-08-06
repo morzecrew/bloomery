@@ -1,0 +1,63 @@
+name: Deploy dev documentation
+
+# Continuously publishes main's in-progress docs to the `dev` version on the
+# gh-pages branch. `dev` is never the default and never carries the `latest`
+# alias, so this never disturbs the released docs. Released versions are handled
+# by docs-release.yaml (tag push / manual polish).
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'pages/**'
+  workflow_dispatch:
+
+# Share one group with docs-release.yaml so concurrent mike deploys (which all
+# mutate gh-pages) serialize instead of racing. Never cancel a deploy mid-push.
+concurrency:
+  group: docs-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Publish dev docs
+    # `dev` always tracks main. `push` is already main-only (trigger filter); this
+    # also pins manual `workflow_dispatch` to main, so it can't be run from a stray
+    # feature/release branch and silently overwrite main's docs under `dev`.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # mike pushes the built site to the gh-pages branch
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] credentials are needed by `mike deploy --push` to gh-pages
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # full history; mike reads/updates the gh-pages branch
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Install dependencies
+        run: uv sync --group docs
+
+      - name: Configure git identity
+        run: bash .github/scripts/configure-git-identity.sh
+
+      - name: Deploy dev version
+        working-directory: pages
+        run: uv run mike deploy --push --branch gh-pages dev

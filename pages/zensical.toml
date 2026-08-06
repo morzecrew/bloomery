@@ -1,0 +1,135 @@
+[project]
+site_name = "Bloomery"
+site_url = "https://morzecrew.github.io/bloomery/"
+site_description = "Entity-first spec compiler: declarative entity/mapping/metric specs → SQLMesh, dbt, and Cube artifacts"
+site_author = "Lev Litvinov"
+copyright = "&copy; 2026 Lev Litvinov and contributors"
+
+# ....................... #
+# Repo
+
+repo_url = "https://github.com/morzecrew/bloomery"
+repo_name = "bloomery"
+
+# ....................... #
+# Navigation
+#
+# Diátaxis (RFC 0001 §5.5): Get Started teaches, Concepts explain, How-to
+# guides, Reference looks up. Stub pages fill the tree until each milestone's
+# docs land (RFCs 0002–0009 carry their own Docs sections).
+
+nav = [
+    { "Home" = "index.md" },
+    { "Get Started" = [
+        "get-started/introduction.md",
+        "get-started/installation.md",
+        "get-started/quickstart.md",
+    ] },
+    { "Concepts" = [
+        "concepts/specs-and-catalog.md",
+        "concepts/compile-pipeline.md",
+        "concepts/determinism.md",
+        "concepts/guardrails.md",
+    ] },
+    { "How-to" = [
+        "how-to/emit-sqlmesh.md",
+        "how-to/emit-cube.md",
+        "how-to/emit-dbt.md",
+        "how-to/evolve-a-spec.md",
+    ] },
+    { "Reference" = [
+        "reference/spec-schemas.md",
+        "reference/transforms.md",
+        "reference/errors.md",
+        "reference/api.md",
+    ] },
+]
+
+# ....................... #
+# Development
+
+dev_addr = "localhost:8046"
+
+# ....................... #
+# Theme
+
+[project.theme]
+features = [
+    "search.highlight",
+    "navigation.footer",
+    "navigation.instant",
+    "navigation.instant.progress",
+    "navigation.tabs",
+    "navigation.sections",
+    "navigation.path",
+    "navigation.top",
+    "toc.follow",
+    "content.code.copy",
+    "content.code.select",
+    "content.code.annotate",
+    "content.tooltips",
+]
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+
+[[project.theme.palette]]
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+primary = "blue grey"
+accent = "deep orange"
+
+[[project.theme.palette]]
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+primary = "blue grey"
+accent = "deep orange"
+
+# ....................... #
+# Extensions
+
+[project.markdown_extensions.pymdownx.snippets]
+base_path = ["docs", "..", "."]
+check_paths = true
+
+[project.markdown_extensions.abbr]
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.md_in_html]
+
+# Diagrams are mermaid, not d2 (RFC 0001 D1) — fenced ```mermaid blocks render
+# client-side, no CI binary and no build step.
+[project.markdown_extensions.pymdownx.superfences]
+[[project.markdown_extensions.pymdownx.superfences.custom_fences]]
+name = "mermaid"
+class = "mermaid"
+format = "pymdownx.superfences.fence_code_format"
+
+[project.markdown_extensions.pymdownx.emoji]
+emoji_index = "zensical.extensions.emoji.twemoji"
+emoji_generator = "zensical.extensions.emoji.to_svg"
+
+[project.markdown_extensions.tables]
+
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true
+
+[project.markdown_extensions.toc]
+permalink = true
+
+[project.markdown_extensions.pymdownx.highlight]
+[project.markdown_extensions.pymdownx.inlinehilite]
+
+# ....................... #
+# Versioning
+
+[project.extra.version]
+provider = "mike"
+# Root redirects to whatever carries the "latest" alias (the newest released
+# minor). Patch releases refresh the same minor; `dev` (from main) is a separate,
+# never-default channel. See .github/workflows/docs-*.yaml.
+default = "latest"
+alias = true

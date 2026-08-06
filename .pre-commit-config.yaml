@@ -1,0 +1,42 @@
+exclude: ^(\.agents/)?skills/
+repos:
+- repo: https://github.com/gitleaks/gitleaks
+  rev: v8.30.0
+  hooks:
+  - id: gitleaks
+- repo: https://github.com/jumanjihouse/pre-commit-hooks
+  rev: 3.0.0
+  hooks:
+  - id: forbid-binary
+    exclude: \.(png|jpg|jpeg|gif|svg|webp)$
+  - id: shfmt
+  - id: shellcheck
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.4.0
+  hooks:
+  - id: end-of-file-fixer
+  - id: trailing-whitespace
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  # Keep in sync with the ruff version pinned in uv.lock
+  rev: v0.16.1
+  hooks:
+  - id: ruff-check
+    files: ^src/.*\.py$
+  - id: ruff-format
+    files: ^src/.*\.py$
+- repo: local
+  hooks:
+  - id: no-nondeterminism-sources
+    name: Ban nondeterminism sources in src (clock/uuid/env)
+    # RFC 0001 D6 / RFC 0003 §5.5: compilation is a pure function — timestamps,
+    # ids and environment are inputs, never ambient reads.
+    entry: datetime\.now|uuid4|time\.time\(|os\.environ
+    language: pygrep
+    files: ^src/bloomery/.*\.py$
+  - id: quality
+    name: Run quality checks
+    entry: just quality
+    pass_filenames: false
+    language: system
+    stages: [pre-commit]
+    args: [-s]
