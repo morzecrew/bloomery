@@ -1,6 +1,11 @@
 # RFC 0011 — Native planner: MetricRequest → QueryPlan
 
-- **Status:** 📝 Draft
+- **Status:** 📝 Draft — amended by the MetricFlow pivot
+  ([`_bloomery-metricflow-pivot.md`](_bloomery-metricflow-pivot.md)): the
+  request/`QueryPlan` contract, refusal policy, `RowPolicy` semantics, `Explanation`
+  shape, and error taxonomy in this RFC remain binding; the native SQL assembly,
+  additivity lowering, and mart-selection internals (§algorithm steps 2–4) are
+  superseded by [RFC 0013](0013-metricflow-backend.md).
 - **Scope:** The in-process query planner (`bloomery/planner/` — `request.py`, `select.py`,
   `build.py`, `additivity.py`, `policy.py`, `explain.py`): the `Planner` port, the
   `MetricRequest`/`QueryPlan` request/response types, the six-step planning algorithm,
@@ -9,7 +14,10 @@
   answers at request time, thousands of times per second, where emitters run once per spec
   version. Does not cover mart modelling (RFC 0010), the serializable `CompiledSemantic`
   artifact the planner will hydrate from (RFC 0012), or execution — the planner returns SQL
-  text and never runs it.
+  text and never runs it. The shipped backend behind the `Planner` port is now the
+  MetricFlow adapter (RFC 0013, `MetricFlowPlanner`); this RFC defines the stable planner
+  contract — request/response types, refusals, policy — that makes that backend choice
+  reversible.
 - **Related:** [`rfcs/_bloomery-changes.md`](_bloomery-changes.md) D1, D3, D4, D8, D9;
   RFC 0003 (IR, `SqlExpr`), RFC 0004 (types, difflib suggestions), RFC 0006 (additivity
   guardrail — compile-time half of this RFC's request-time half), RFC 0008 (`DialectPort`),
@@ -152,6 +160,13 @@ the row shape in advance. Never return bare rows without it.
 
 ### 5.3 Algorithm and refusals
 
+*(Steps 2–4 superseded by RFC 0013 — retained as the specification of required behavior;
+MetricFlow now produces the SQL, and these semantics are enforced via the R1 mapping +
+execution tests rather than hand-written lowering. Step 2's mart selection survives as
+the coverage precheck (RFC 0013 R3), which runs before any request is delegated to
+MetricFlow — refusal before delegation. The refusal messages, hard rules, and error
+taxonomy below remain binding.)*
+
 Six steps, in order:
 
 ```
@@ -199,6 +214,10 @@ interactive and fixes one request at a time, and validation is the first step, s
 failures are singular anyway. First failure wins.
 
 ### 5.4 Additivity lowering (D4 — implement exactly)
+
+*(Superseded by RFC 0013 — retained as the specification of required behavior; MetricFlow
+now produces the SQL, and these semantics are enforced via the R1 mapping + execution
+tests rather than hand-written lowering.)*
 
 **Additive** → `SUM(expr)` at whatever grain was requested.
 
@@ -294,11 +313,13 @@ added to the `just quality` gate (RFC 0001 D4).
   hard-coded assertions per D4: inventory 100/80/90 over Jan 1–3 → **90, not 270**;
   warehouses A 90 + B 40 on Jan 3 → **130** (summing across non-`over` dims is correct);
   AOV over 10 orders/100 000 + 100 orders/200 000 → **2727.27, never 6000 or 12000**.
-- **Equivalence:** the planner-vs-Cube suite (D7) is RFC 0009's amended scope — ~40
-  golden requests executed through both, nightly; native refusals must be refused by Cube
-  too or listed in a reviewed `known_divergences.yaml`.
-- **Unit:** every algorithm step — validation suggestions, 0/1/N mart selection with
-  tie-breaks, each lowering rule, clamping warning, every `PlannerError` leaf.
+- **Equivalence:** RFC 0009's amended scope — now three-way, MetricFlow ↔ Cube ↔
+  hand-written reference SQL (RFC 0009 §5.8), nightly; planner refusals must be refused
+  by Cube too or listed in a reviewed `known_divergences.yaml`.
+- **Unit:** validation suggestions, coverage-precheck 0/1/N selection with tie-breaks,
+  clamping warning, every `PlannerError` leaf. *(Unit tests of our own lowering and
+  SQLGlot build are superseded by RFC 0013 — those modules are not built; the lowering
+  semantics of §5.4 are asserted by execution tests against MetricFlow-generated SQL.)*
 - **Property:** planner SQL always parses under the requested dialect;
   `plan(ir, req)` called twice → identical `QueryPlan` (determinism, RFC 0003).
 
@@ -326,9 +347,9 @@ feature, not a gap, so nobody "fixes" it.
 - *Policy predicate parse failures at request time* (bad predicate string) — surfaced as
   `InvalidRequest` naming the predicate, never silently dropped (dropping a row policy
   fails open).
-- *Per-request IR traversal too slow at thousands of rps* — RFC 0012's
-  `CompiledSemantic` (hydration < 5 ms) is the designed answer; the port signature already
-  anticipates it.
+- *Per-request IR traversal too slow at thousands of rps* — hydration caching is the
+  designed answer (RFC 0012's `CompiledSemantic`, budgets revised by RFC 0014 to 50 ms
+  cold / 10 ms warm); the port signature already anticipates it.
 
 ## 10. Unresolved questions
 
@@ -351,10 +372,15 @@ feature, not a gap, so nobody "fixes" it.
 | 8 | `Explanation` is deterministic, generated from the plan, never from an LLM; dataclass + `render()` per D8. Product requirement: every number ships with how it was computed. |
 | 9 | Errors: `PlannerError(BloomeryError)` with leaves `UnknownMember`, `UnreachableAtGrain`, `AmbiguousDimension`, `InvalidRequest`, all declared in `bloomery/errors.py` (RFC 0002 D3). Planner errors are **not batched** — deviation from compile-time batching, justified: the interactive caller fixes one request, and validation-first means failures are mostly singular. |
 | 10 | Mandatory pre-merge test: row-policy-survives-every-path, asserted on the **parsed AST** (predicate present in every table scan), never on a SQL substring — "a string check passes on `-- tenant_id = 'acme'`" (D1). |
+| 11 | **Supersession split (MetricFlow pivot):** the request/`QueryPlan` contract, refusal policy, `RowPolicy` semantics, `Explanation` shape, and error taxonomy (D1–D2, D4, D6–D10) remain binding on the backend; the native SQL assembly, additivity lowering, and mart-selection internals (D3 steps 2–4, D5) are superseded by RFC 0013. Mart selection survives as the coverage precheck (RFC 0013 R3) — refusal before delegation. |
+| 12 | Additivity lowering correctness (§5.4's semantics — 90-not-270, 130 across warehouses, 2727.27) is now asserted by **execution tests against MetricFlow-generated SQL** (RFC 0009 §5.10), not by unit tests of our own lowering code — no such code exists under RFC 0013. |
 
 ## 12. Phasing
 
-Ships in M5 alongside marts (RFC 0010) and additivity policies — deliberately early, so
-mart selection, grain typing, and role resolution surface IR design problems while the IR
-is cheap to change. The equivalence suite (D7) lands at M9 with the Cube emitter;
-`CompiledSemantic` hydration (M6, RFC 0012) slots into the already-shaped `plan()` input.
+Per the pivot's milestone table (`_bloomery-metricflow-pivot.md` §8): verification tasks
+V1–V4 land at M4.5, the MetricFlow emitter (RFC 0013 R1) at M6, and the planner ships at
+**M7** — `MetricFlowPlanner` plus the coverage precheck, name bridging, filter rendering,
+and row policy, with every fixture assertion green against DuckDB, filter fuzzing green,
+and the policy AST test green. Hydration and caching (RFC 0014) land at M8 and slot into
+the already-shaped `plan()` input; the three-way equivalence suite lands at M11, after
+the Cube emitter (M10).

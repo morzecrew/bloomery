@@ -88,7 +88,12 @@ rfcs/                    # COMMITTED (unlike forze) — the RFC corpus is a deli
   tests 3.12–3.14.
 - Runtime deps (RFC 0002 D5 adds PyYAML to the spec's list): `pydantic>=2.9`,
   `sqlglot` (exact-pinned in `uv.lock`, `>=X,<X+1` in metadata per RFC 0003 D2 §5.5),
-  `jinja2>=3.1`, `pyyaml>=6`.
+  `jinja2>=3.1`, `pyyaml>=6`. *(Amended for the MetricFlow pivot, RFC 0013:)*
+  `metricflow==0.211.*` joins as a runtime dependency at M4.5, pinned tightly — we depend
+  on internals with no stability guarantee. If metricflow's supported Python range is
+  narrower than `>=3.12,<3.15`, `requires-python` narrows to match (verification task V1,
+  RFC 0013); its sqlglot constraint may also tighten our sqlglot window — resolved at
+  V1, recorded in the lockfile PR.
 - `[dependency-groups]` — `dev`: pytest (+cov, xdist, timeout, mock), hypothesis,
   pytest-snapshot, duckdb, sqlmesh, ruff, mypy[faster-cache], import-linter, vulture,
   deptry, bandit, pre-commit, zizmor, radon; `engines`: testcontainers[postgres];
@@ -210,6 +215,7 @@ milestone per the Docs sections of RFCs 0002–0009.
 | 6 | Determinism bans (`datetime.now`, `uuid4`, `time.time`, `os.environ` in `src/bloomery/`) are pre-commit pygrep hooks, not review vigilance. |
 | 7 | All workflow actions SHA-pinned + harden-runner in every job; `required-ci` aggregator is the only branch-protection check. |
 | 8 | Docs: zensical + mike under `pages/`, Diátaxis nav, versioned per minor release. |
+| 9 | (Amended for `_bloomery-metricflow-pivot.md`) `metricflow==0.211.*` becomes a tightly pinned runtime dependency at M4.5; V1 may narrow `requires-python` and the sqlglot window. Bumping metricflow is a deliberate PR with goldens regenerated (RFC 0013). |
 
 ## 12. Phasing
 

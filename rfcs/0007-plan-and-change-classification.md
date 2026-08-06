@@ -253,8 +253,9 @@ plainly that unannotated renames are drop+add.
 
 ## 12. Phasing
 
-Ships in M7 (renumbered per `_bloomery-changes.md` D10 — marts/planner moved into M5–M6
-because evolution is a month-two problem): "done when `evolution_v1..v5` classified
+Ships in M9 (renumbered again per `_bloomery-metricflow-pivot.md` §8; previously M7 per
+`_bloomery-changes.md` D10 — marts/planner/hydration moved ahead because evolution is a
+month-two problem): "done when `evolution_v1..v5` classified
 correctly; contract violation caught." Depends on the IR (M1, RFC 0003) and on
 resolution/typing filling `recipe_id`, `depends_on`, and resolved `materialization`
 (M2–M4). The `ColumnIR.renamed_from` field lands with M1's IR shape so no IR migration is

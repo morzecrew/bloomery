@@ -197,6 +197,7 @@ property, what the fingerprint is and is not (not cross-version stable), how gol
 | 6 | Unreachable metrics are IR members (`unreachable` tuple with missing leaves), not log lines — they are product-facing output. |
 | 7 | Determinism is enforced by subprocess tests with differing `PYTHONHASHSEED`, not by convention. |
 | 8 | (Amended for `_bloomery-changes.md`) `ProjectIR.marts` (`MartIR`, RFC 0010) and `DimensionRef` join the IR and are fingerprint-covered; `MetricIR` carries the typed additivity policy (`SemiAdditivePolicy` / `RatioSpec`, RFC 0011). `bloomery/ir/` additionally hosts the serializable `CompiledSemantic` planner artifact (RFC 0012) — the IR itself remains non-serialized internal surface. |
+| 9 | (Amended for `_bloomery-metricflow-pivot.md`) Row 8's `CompiledSemantic` clause is superseded: the planner artifact is now MetricFlow's transformed manifest, produced by the `emit/metricflow` emitter (RFC 0013) and cached by `bloomery/runtime/` (RFC 0014). `bloomery/ir/` hosts no serialization; the fingerprint's role grows — it keys the hydration cache (`HydrationKey.spec_fingerprint`). |
 
 ## 12. Phasing
 

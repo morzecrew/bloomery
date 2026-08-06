@@ -84,9 +84,11 @@ class NamingPolicy(Protocol):
 class TargetCapabilities:
     supported: frozenset[Feature]   # membership-checked; any output-reaching iteration is sorted()
 
-class Feature(StrEnum):            # amended per _bloomery-changes.md D6
+class Feature(StrEnum):            # amended per _bloomery-changes.md D6 + pivot R8
     SEMI_ADDITIVE      = "semi_additive"
     NON_ADDITIVE       = "non_additive"
+    CUMULATIVE         = "cumulative"          # pivot R8
+    DERIVED_METRIC     = "derived_metric"      # pivot R8
     ROLE_PLAYING_DIM   = "role_playing_dim"
     MULTI_FACT         = "multi_fact"
     QUERY_TIME_JOIN    = "query_time_join"
@@ -115,13 +117,15 @@ Declared support (amended per `_bloomery-changes.md` D6): SQLMesh — `SCD_TYPE_
 `VARIANT_COLUMN`, `INCREMENTAL`, `AUDITS`, all additivity features; Cube —
 `QUERY_TIME_JOIN`, `MULTI_FACT`, `ROW_LEVEL_SECURITY`, `ROLE_PLAYING_DIM` (semi-additive
 support verified empirically before the equivalence suite trusts it, RFC 0009); dbt —
-most, with `SCD_TYPE_2` lowered to a snapshot. The **native planner (RFC 0011) is a
-fourth port**, not a `TargetEmitter` — different lifecycle (request-time, hot path) — but
-it declares capabilities in the same vocabulary: semi/non-additive, role-playing, RLS,
-and deliberately *not* `QUERY_TIME_JOIN`/`MULTI_FACT`. That absence is a feature, not a
-gap — it is what makes fan-out structurally impossible; its docstring says so, so nobody
-"fixes" it later. Unsupported combinations raise `UnsupportedByTarget` at compile time.
-Never degrade silently.
+most, with `SCD_TYPE_2` lowered to a snapshot. The **planner (RFC 0011 contract,
+RFC 0013 MetricFlow backend) is a fourth port**, not a `TargetEmitter` — different
+lifecycle (request-time, hot path) — but it declares capabilities in the same vocabulary:
+semi/non-additive, cumulative, derived, role-playing, RLS, and *not*
+`MULTI_FACT`/`QUERY_TIME_JOIN`. Nuance per the pivot: MetricFlow *can* plan query-time
+joins; bloomery refuses them by policy at the coverage precheck (RFC 0013 R3) — a
+deliberate policy, not a limitation; the capability docstring says so, so nobody "fixes"
+it later. Unsupported combinations raise `UnsupportedByTarget` at compile time. Never
+degrade silently.
 
 ### 5.2 Lowering
 
@@ -181,9 +185,12 @@ artifacts and specs is detectable downstream.
   stream; a native registration API is deliberately out of scope until a real deployment
   demands it. Locks us to text artifacts; revisiting means a second emit method, not a
   rewrite.
-- **#3 Date dimension:** not emitted in v0.1. It is catalog-level and tempting, but it is
-  the only artifact with no tenant spec driving it, which would special-case every emitter.
-  Demand-gated; the catalog schema reserves nothing for it.
+- **#3 Date dimension:** ~~not emitted in v0.1~~ — **reversed by the MetricFlow pivot
+  (D13 below):** bloomery owns the date dimension. MetricFlow requires a declared time
+  spine; the SQLMesh emitter builds `gold.dim_date` from a single catalog definition and
+  the manifest's `PydanticTimeSpine` points at it (RFC 0013 R1 rule 4). The original
+  reasoning (no tenant spec drives it) is answered: the *catalog* drives it, which is
+  exactly the vertical-level home it needed.
 - **#5 Quarantine:** an emitter-level convention, not IR entities.
   `on_unmapped_enum: quarantine` lowers to a `<entity>__quarantine` model artifact holding
   rejected rows; the IR carries only the mapping's declared policy. IR-as-entities would be
@@ -253,11 +260,14 @@ for `EmittedArtifact` / capabilities / naming policies.
 | 9 | Every artifact carries a header comment with the project fingerprint — applied-vs-spec drift detection downstream. |
 | 10 | (Amended for `_bloomery-changes.md` D6) `TargetCapabilities` is a `frozenset[Feature]` over a closed `Feature` StrEnum — membership-checked, sorted at any output-reaching iteration. The native planner (RFC 0011) is a fourth port sharing this vocabulary; its lack of `QUERY_TIME_JOIN`/`MULTI_FACT` is the fan-out-impossibility property, documented as a feature. |
 | 11 | (Amended, RFC 0010) The SQLMesh emitter also builds marts: one gold-layer model per `MartIR`, the only join-emitting path for marts. |
+| 12 | (Amended for `_bloomery-metricflow-pivot.md` R8) `Feature` gains `CUMULATIVE` and `DERIVED_METRIC`. The planner's declared capabilities are RFC 0013's; `QUERY_TIME_JOIN` is refused **by policy** at the coverage precheck even though MetricFlow supports it. |
+| 13 | (Reverses D6) Bloomery owns the date dimension: one catalog definition emits both the SQLMesh `gold.dim_date` model and the MetricFlow time-spine declaration (RFC 0013 R1). D6's demand-gate is satisfied — MetricFlow is the demand. |
+| 14 | (Amended, RFC 0013) A sixth artifact consumer joins the emit family: `emit/metricflow` produces a `PydanticSemanticManifest` (an object, not text — the one emitter whose output is data for `runtime/` hydration rather than an `EmittedArtifact` file; manifest JSON goldens keep it reviewable). |
 
 ## 12. Phasing
 
 M2: SQLMesh emitter + DuckDB dialect (minimal `FULL` models). M3–M4 extend lowering
-(recipes, audits). M5 adds mart build emission (RFC 0010). M8 (renumbered per
-`_bloomery-changes.md` D10): Trino + Postgres dialects, Cube emitter, dbt emitter — the
-port validation milestone; do not defer past it (a second target discovered late means an
-IR rewrite, spec §11).
+(recipes, audits). M5 adds mart build emission (RFC 0010); M6 the MetricFlow manifest
+emitter (RFC 0013). M10 (renumbered per `_bloomery-metricflow-pivot.md` §8): Trino +
+Postgres dialects, Cube emitter, dbt emitter — the port validation milestone; do not
+defer past it (a second target discovered late means an IR rewrite, spec §11).

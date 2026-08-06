@@ -14,7 +14,10 @@
   RFC 0002 (spec layer the fixtures load through), RFC 0003 §5.6 (determinism tests housed
   here), RFC 0007 (`plan()` invariants), RFC 0008 (emitters the goldens pin), RFC 0010
   (marts/role-playing the new fixtures exercise), RFC 0011 (planner obligations §5.10),
-  RFC 0012 (hydration benchmark §5.9).
+  RFC 0012 (hydration benchmark §5.9);
+  [`rfcs/_bloomery-metricflow-pivot.md`](_bloomery-metricflow-pivot.md) R10, §8;
+  RFC 0013 (MetricFlow backend — the planner under test), RFC 0014 (hydration,
+  supersedes RFC 0012's budgets).
 - **Origin:** Tier structure from the original spec §7; house conventions from the sibling
   project `forze` (`tests/README.md`, strict markers, unit-mirrors-src, coverage floors).
 
@@ -24,9 +27,10 @@
 
 Seven tiers, fastest first: unit, golden snapshots, Hypothesis properties, in-process
 DuckDB execution, testcontainers engine matrix, target-framework e2e, and planner
-equivalence (native vs Cube, §5.8) — all exercising one shared corpus of fourteen YAML
-fixture projects loaded through the public `load_project`/`load_catalog` API; outside
-the tiers, `tests/bench/` runs the scheduled hydration benchmark (§5.9, RFC 0012).
+equivalence (three-way: MetricFlow ↔ Cube ↔ reference SQL, §5.8) — all exercising one
+shared corpus of fourteen YAML fixture projects loaded through the public
+`load_project`/`load_catalog` API; outside
+the tiers, `tests/bench/` runs the scheduled hydration benchmark (§5.9, RFC 0014).
 `just test` runs tiers 1–4 per commit; engines, e2e, and equivalence are opt-in markers,
 nightly. Golden diffs are reviewed like source code; determinism and tenant-agnosticism
 are proven by named guard tests, not by convention.
@@ -66,7 +70,7 @@ trees here.
 - Testing SQLGlot itself — beyond "parses and round-trips", dialect rendering correctness
   is SQLGlot's job; ours is feeding it deterministic ASTs.
 - Performance benchmarks beyond hydration — `tests/bench/` ships exactly one asserted
-  benchmark, the `CompiledSemantic` hydration ceiling (§5.9, RFC 0012); broader perf
+  benchmark, the manifest-hydration ceiling (§5.9, RFC 0014); broader perf
   suites wait until compilation cost is observed to matter.
 - Data-quality testing of tenant data — the compiler emits audits; targets run them.
 
@@ -82,8 +86,8 @@ tests/
   execution/    # tier 4 — DuckDB in-process, incl. fan-out regression suite
   engines/      # tier 5 — testcontainers matrix
   e2e/          # tier 6 — sqlmesh / dbt / cube acceptance
-  equivalence/  # tier 7 — native planner vs Cube on golden requests (§5.8)
-  bench/        # perf lane — hydration benchmark (§5.9, RFC 0012), scheduled
+  equivalence/  # tier 7 — three-way: MetricFlow ↔ Cube ↔ reference SQL (§5.8)
+  bench/        # perf lane — hydration benchmark (§5.9, RFC 0014), scheduled
   fixtures/     # the corpus (§5.3) — YAML spec files only, no Python
   support/      # shared helpers: strategies.py, seeding, artifact/SQL extraction
   README.md     # tier table + how to run each (the forze pattern)
@@ -102,12 +106,12 @@ failing test names its module.
 | Tier | Cadence | Contract |
 | --- | --- | --- |
 | 1 unit | per-commit | Pure, milliseconds. Parse errors (type + `source_path` asserted, RFC 0002), transform typing, DAG resolution, guardrail triggers, diff classification. 90%+ of test count; 100% of guardrail branches (§5.7). |
-| 2 golden | per-commit | Every (fixture × target × dialect) cell byte-compared against checked-in files; `pytest --snapshot-update` regenerates (§5.4). |
+| 2 golden | per-commit | Every (fixture × target × dialect) cell byte-compared against checked-in files, plus a `metricflow/manifest.json` per fixture; `pytest --snapshot-update` regenerates (§5.4 — note the planner-SQL vs compiler-artifact doctrine split). |
 | 3 property | per-commit | Hypothesis over random *valid* projects (invalid inputs are unit-tier explicit cases); invariants §5.5. |
 | 4 execution | per-commit | In-process DuckDB: seed bronze rows, execute every compiled SELECT, assert numeric results with `Decimal` (never float — RFC 0003 D5). Houses the fan-out regression suite (spec §7.4): shipping-cost-duplicated-across-line-items, asserted numerically against `fanout_trap` — plus the hard-coded additivity assertions (§5.10). |
 | 5 engines | postgres per-commit; trino+iceberg+minio (compose), spark nightly | Tier-4 assertions against real engines via testcontainers; `@pytest.mark.engine("trino")` etc.; deselected by default. |
 | 6 e2e | nightly | Artifacts are valid *input to the target*, not just valid SQL: `sqlmesh.Context` parses them, applies a plan, and a replan asserts `plan.has_changes == False` — the strongest single test in the suite (compiler and SQLMesh agree on what the models mean). Equivalents: `dbt parse`; a cube container's `/meta` returns the expected measures/dimensions. |
-| 7 equivalence | nightly | Native planner vs Cube (§5.8): every request in `golden_requests.yaml` executed both ways; result frames equal within `atol=0.01`. Refusals must match or carry a reviewed justification in `known_divergences.yaml`. |
+| 7 equivalence | nightly | Three-way (§5.8): MetricFlow ↔ Cube on every request in `golden_requests.yaml`, result frames equal within `atol=0.01`; hand-written reference SQL for the ~15 hardest requests is the tiebreaker when the engines disagree. Refusals must match or carry a reviewed justification in `known_divergences.yaml`. |
 
 ### 5.3 Fixture corpus
 
@@ -147,10 +151,13 @@ tests/golden/ecom_basic/
   sqlmesh/trino/models/silver/order_item.sql
   dbt/postgres/models/silver/order_item.sql
   cube/model/cubes/order_item.yml
+  metricflow/manifest.json
   planner/duckdb/revenue_by_month.sql
 ```
 
-The `planner/` cells pin the native planner's rendered SQL per (fixture × dialect) for
+Every fixture adds `metricflow/manifest.json` — the emitted semantic manifest (RFC 0013
+R1), serialized as sorted-keys JSON so diffs stay local and reviewable. The `planner/`
+cells pin the planner's rendered SQL per (fixture × dialect) for
 the requests in `golden_requests.yaml` (§5.8) — `QueryPlan` rendering gets the same
 review bar as emitted models.
 
@@ -158,6 +165,15 @@ Contract: **golden diffs are reviewed like source code** — an unexplained gold
 fails review; it means the compiler changed behaviour whether or not a test broke. The one
 sanctioned mass-regeneration is a `sqlglot` pin bump, done in a dedicated PR (RFC 0003 D2)
 so the rendering delta is reviewable in isolation.
+
+**Doctrine split (pivot R10):** the unexplained-diff-fails rule applies in full to
+compiler-emitted goldens — `sqlmesh/`, `dbt/`, `cube/`, and `metricflow/manifest.json`.
+For `planner/` SQL goldens, MetricFlow generates the SQL and its rendering churns across
+versions, so on a MetricFlow version bump a planner-SQL golden diff is a **review aid,
+not a failure**, provided the execution tests (tier 4) still pass — execution tests are
+the primary correctness gate for planner SQL. Outside a version bump, an unexplained
+planner-SQL diff still fails review. MetricFlow pin bumps regenerate planner goldens in a
+dedicated PR, same as `sqlglot` bumps.
 
 ### 5.5 Property invariants
 
@@ -180,6 +196,23 @@ def test_self_plan_is_empty_and_compile_is_stable(project):
 Plus: `plan(a, b)` classifying nothing as BREAKING implies b's columns ⊇ a's referenced
 columns. This tier finds what goldens can't — shapes nobody thought to write down.
 
+Two pivot-mandated invariants, both **merge-blocking**:
+
+```python
+@given(projects())
+def test_metricflow_names_round_trip(project):
+    ...  # every dimension the MetricFlow emitter produces round-trips through
+         # planner/names.py — dunder name out, bloomery name back (pivot R4;
+         # keeps R1 emission and R3/R4 planning in agreement)
+
+@given(adversarial_filter_values())
+def test_filter_fuzz(expr):
+    ...  # adversarial FilterExpr values (' OR 1=1 --, {{ Dimension('x') }},
+         # unicode quote variants, embedded newlines) → the rendered SQL parses
+         # via sqlglot with predicate structure unchanged and the scanned
+         # relations exactly the expected mart (pivot R6)
+```
+
 ### 5.6 Guard tests: determinism and tenant-agnosticism
 
 RFC 0003 §5.6's enforcement lives in `tests/unit/test_determinism_guard.py` — a named
@@ -194,6 +227,14 @@ second named guard, alongside it: `grep -ri tenant src/bloomery/` must return on
 (`tests/unit/test_tenant_guard.py`) so `just test` catches it locally — the package must
 remain something you could open-source with no multi-tenancy showing through.
 
+The third named guard is the **version-drift canary**
+(`tests/unit/test_metricflow_api_surface.py`, pivot R10): it asserts the MetricFlow
+internal surfaces the backend depends on still exist — `MetricFlowQueryRequest.create`,
+`MetricFlowExplainResult.sql_statement`, `SemanticManifestLookup`, and every `SqlClient`
+protocol member. MetricFlow offers no stability guarantee for embedded use; the canary
+turns a silent breakage on a version bump into a loud, named failure. Runs per-commit in
+tier 1 alongside the determinism and tenant guards.
+
 ### 5.7 Coverage
 
 `fail_under = 80` overall, branch coverage on, per-package floors ratcheting upward as
@@ -202,35 +243,44 @@ hide behind the well-covered core). One floor is pinned from day one:
 **`bloomery/guardrails/` requires 100% branch coverage** — every refusal path is the
 product; an untested guardrail branch is an unshipped guardrail.
 
-### 5.8 Equivalence tier — native planner vs Cube
+### 5.8 Equivalence tier — three-way: MetricFlow ↔ Cube ↔ reference SQL
 
-The strongest correctness evidence available: two independent implementations agreeing
-([`_bloomery-changes.md`](_bloomery-changes.md) D7).
+The strongest correctness evidence available: independent implementations agreeing
+([`_bloomery-changes.md`](_bloomery-changes.md) D7, amended by the pivot R10 to
+three-way).
 
 ```text
 tests/equivalence/
-  test_native_vs_cube.py
+  test_three_way.py
   golden_requests.yaml          # ~40 MetricRequests across the fixture corpus
+  reference_sql/                # hand-written SQL for the ~15 hardest requests
   known_divergences.yaml        # reviewed exceptions, each with a written justification
 ```
 
-Every request in `golden_requests.yaml` is planned by the native planner (RFC 0011) and
+Every request in `golden_requests.yaml` is planned by the MetricFlow-backed planner
+(RFC 0011 contract, RFC 0013 backend) and
 executed on DuckDB, and issued to a Cube container built from the Cube emitter's output;
 the two result frames must be equal within `atol=0.01`
-(`assert_frame_equal(..., check_like=True)`). Tests are `engine("cube")`-marked and run
-nightly — they need containers. Requests the native planner refuses with
+(`assert_frame_equal(..., check_like=True)`). For the ~15 hardest requests —
+semi-additive, ratio, cumulative, role-played grains — a hand-written reference SQL file
+in `reference_sql/` is executed as the third leg: **when the two engines disagree, the
+reference SQL is the tiebreaker** that says which one is wrong. Tests are
+`engine("cube")`-marked and run
+nightly — they need containers. Requests the planner refuses with
 `UnreachableAtGrain` must be *either* refused by Cube too *or* listed in the reviewed
 `known_divergences.yaml` with a written justification — a silent divergence is a bug in
-one of the two implementations.
+one of the implementations.
 
 ### 5.9 Benchmark lane — `tests/bench/`
 
-`tests/bench/test_hydration.py` asserts RFC 0012's hydration ceiling: `loads` of a
-realistic `CompiledSemantic` under 5 ms, so a regression fails the lane instead of
-surfacing as production latency. Marked `perf`, excluded from `just test`, run as a
+`tests/bench/test_hydration.py` asserts RFC 0014's hydration ceilings — **50 ms cold**
+(manifest `parse_raw` + `SemanticManifestLookup`) and **10 ms warm** (L1 cache hit) —
+so a regression fails the lane instead of surfacing as production latency. These
+supersede RFC 0012's 5 ms `CompiledSemantic` target, which is neither achievable nor
+needed under the MetricFlow backend. Marked `perf`, excluded from `just test`, run as a
 scheduled CI job. The only benchmark in v0.1 (§4).
 
-### 5.10 Planner test obligations (RFC 0011)
+### 5.10 Planner test obligations (RFCs 0011/0013)
 
 Three obligations from the planner RFC land in the tiers here and are mandatory, not
 aspirational:
@@ -247,7 +297,12 @@ aspirational:
   suite, against `semi_additive_inventory` and `non_additive_aov`: inventory over
   1–3 Jan is 90 (never 270); warehouses A 90 + B 40 on one day sum to 130; AOV is
   2727.27 (never 6000 or 12000). Hard-coded on purpose — they are the exact failure
-  modes that make a BI product untrustworthy.
+  modes that make a BI product untrustworthy. Under the MetricFlow backend these
+  assertions test *our mapping into MetricFlow* (RFC 0013 R1) rather than our own SQL
+  generation — a wrong `window_choice` or a measure emitted where a ratio metric belongs
+  fails here. There is no lowering, SQLGlot-build, or mart-selection module of ours to
+  unit-test; the coverage precheck's 0/1/N selection and refusals are unit-tested, and
+  lowering semantics are proven at the execution tier.
 
 ## 6. Tests
 
@@ -306,15 +361,26 @@ move goldens and eval baselines, so they get the same review bar.
 | 12 | The corpus grows to fourteen fixtures (D7): `role_playing_dates`, `semi_additive_inventory` (the former `semi_additive`, renamed and extended), `non_additive_aov`, and `multi_mart_refusal` join the spec §7.7 set; `fanout_trap` now proves the compile-time `GrainViolation` (RFC 0006) and keeps its execution-level wrong-sum proof. |
 | 13 | `tests/bench/` ships the hydration benchmark (RFC 0012): `loads` under 5 ms asserted, `perf`-marked, run as a scheduled job — the only benchmark in v0.1. |
 | 14 | Tenant-agnosticism is a named guard alongside the determinism guard (D9): `grep -ri tenant src/bloomery/` returns only `naming.py` docstrings, enforced as a CI quality gate and a unit-tier guard test. |
+| 15 | **Three-way equivalence (pivot R10, amends D11):** tier 7 is MetricFlow ↔ Cube ↔ hand-written reference SQL. Reference SQL in `tests/equivalence/reference_sql/` for the ~15 hardest golden requests is the tiebreaker when the two engines disagree; the `known_divergences.yaml` rule is unchanged. |
+| 16 | **Golden-doctrine split (pivot R10, amends D5):** compiler-emitted goldens (`sqlmesh/`, `dbt/`, `cube/`, `metricflow/manifest.json`) keep the strict unexplained-diff-fails rule. Planner-SQL golden diffs on a MetricFlow version bump are review aids, not failures, provided execution tests pass — execution tests are the primary correctness gate for planner SQL. Every fixture gains a sorted-keys `metricflow/manifest.json` golden (RFC 0013 R1). |
+| 17 | Two new **merge-blocking** property invariants (pivot R4/R6): every dimension the MetricFlow emitter produces round-trips through `planner/names.py`; adversarial `FilterExpr` values render to SQL that parses with unchanged predicate structure and exactly the expected scanned relations. |
+| 18 | **Version-drift canary (pivot R10):** `tests/unit/test_metricflow_api_surface.py` is a third named guard beside the determinism and tenant guards — it pins the MetricFlow internal API surface the backend depends on, turning a silent breakage on a version bump into a loud failure. Per-commit, tier 1. |
+| 19 | **Bench budgets revised (RFC 0014, supersedes D13's 5 ms):** `tests/bench/test_hydration.py` asserts 50 ms cold / 10 ms warm hydration; still `perf`-marked, scheduled, and the only benchmark in v0.1. |
 
 ## 12. Phasing
 
-Tiers land with their milestones (_bloomery-changes.md D10): M1 ships the layout,
-markers, `minimal` fixture, and the determinism and tenant guards; M2 the first goldens
-and execution tests; M3–M4 grow the corpus (`ecom_basic`, `fanout_trap`,
-`semi_additive_inventory`, `messy_types`) with their guardrails; M5 adds the planner
-fixtures (`role_playing_dates`, `non_additive_aov`, `multi_mart_refusal`) with their
-execution tests and the planner obligations (§5.10); M6 the hydration benchmark (§5.9);
-M7 `evolution_v1..v5` for `plan()`; M8 fills the golden matrix (second target, second
-dialect) and `multi_source`, turning on the engine lanes; M9 turns on the e2e lanes and
-the equivalence tier (§5.8).
+Tiers land with the pivot's milestone table
+([`_bloomery-metricflow-pivot.md`](_bloomery-metricflow-pivot.md) §8, superseding
+`_bloomery-changes.md` D10): M1 ships the layout, markers, `minimal` fixture, and the
+determinism and tenant guards; M2 the first goldens and execution tests; M3–M4 grow the
+corpus (`ecom_basic`, `fanout_trap`, `semi_additive_inventory`, `messy_types`) with
+their guardrails; M4.5 answers verification tasks V1–V4 in writing before any pivot code
+merges; M5 adds `role_playing_dates` with marts and role-playing; M6 the MetricFlow
+emitter goldens — every fixture emits a `metricflow/manifest.json` that
+`SemanticManifestLookup` accepts — plus the API-surface canary (§5.6); M7 the remaining
+planner fixtures (`non_additive_aov`, `multi_mart_refusal`) with their execution tests
+and the planner obligations (§5.10) — coverage precheck, names round-trip, filter fuzz,
+and policy fixtures all green; M8 the hydration benchmark (§5.9, 50 ms cold / 10 ms
+warm); M9 `evolution_v1..v5` for `plan()` and plan-diff classification; M10 fills the
+golden matrix (Trino dialect, Cube emitter) and `multi_source`, turning on the engine
+lanes; M11 turns on the e2e lanes and the three-way equivalence tier (§5.8).

@@ -170,6 +170,10 @@ the *resolved* column set, never the flatten recipe.
 3. Post-prefix column collisions are errors, never auto-renamed.
 4. `date:` roles must be unique per mart; source columns date/timestamp typed.
 5. Measures must be reachable metrics (RFC 0005) whose entities are the mart's base.
+6. *(Amended for the MetricFlow pivot, RFC 0013:)* a mart that carries measures must
+   declare at least one date role — MetricFlow requires `agg_time_dimension` on every
+   measure and fails obscurely without it, so its absence is a compile-time
+   `MartMissingTimeDimension` (a `GuardrailError` leaf) with a clear message.
 
 The SQLMesh emitter lowers each `MartIR` to a gold-layer model
 (`NamingPolicy.relation(name, Layer.GOLD)`): base entity SELECT joined once per `via:`
@@ -227,6 +231,7 @@ role-playing explanation with the `ordered_*`/`shipped_*` example.
 | 6 | Mart flattening is resolved at IR build (`bloomery/marts/`, pure): consumers see the wide schema, never the recipe. `ProjectIR.marts` is fingerprint-covered. |
 | 7 | Marts are optional: a project without a `marts:` document compiles silver only; the planner then refuses everything with `UnreachableAtGrain` (no marts, no serving surface). |
 | 8 | `cost_hint` (int, default 1) is a tie-breaking scan-cost hint only; selection ties break lexicographically (RFC 0003 determinism). |
+| 9 | (Amended for `_bloomery-metricflow-pivot.md`) Marts are the emission source for MetricFlow semantic models — one mart = exactly one semantic model (RFC 0013 R1); a measure-carrying mart must declare a date role (`MartMissingTimeDimension` otherwise). Marts and role-playing are *more* load-bearing after the pivot, not less. |
 
 ## 12. Phasing
 

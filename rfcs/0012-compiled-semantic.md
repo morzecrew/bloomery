@@ -1,6 +1,6 @@
 # RFC 0012 — CompiledSemantic: serializable planner artifact
 
-- **Status:** 📝 Draft
+- **Status:** ❌ Superseded by [RFC 0014](0014-hydration-and-caching.md) — the MetricFlow pivot (_bloomery-metricflow-pivot.md R5) replaced the bespoke CompiledSemantic artifact with MetricFlow's transformed manifest; the surviving principles (deterministic serialization, never-migrate, LRU scaling) carry over to RFC 0014.
 - **Scope:** `bloomery/ir/semantic.py`: the `CompiledSemantic` artifact — everything the
   `NativePlanner` (RFC 0011) needs and nothing else — plus `compile_semantic(ir)`,
   `dumps(cs) -> bytes`, `loads(data) -> CompiledSemantic`, the `IncompatibleArtifact` error

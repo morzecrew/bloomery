@@ -215,6 +215,7 @@ mirroring the model fields exactly). An explanation page on the error model and 
 | 7 | `materialization` is explicit-with-derived-default (settles original open question #4); the resolved value is IR-recorded and diffable. |
 | 8 | Catalog is passed separately from `Project` (vertical-level vs tenant-level), matching spec §8's `compile_project(..., catalog=...)`. |
 | 9 | (Amended for `_bloomery-changes.md`) A fifth spec kind `marts:` joins the four (RFC 0010); `semi_additive` metrics carry a typed `SemiAdditivePolicy` and `non_additive` metrics a `RatioSpec` (RFC 0011 D5). Spec-layer scope is still shape/grammar only. |
+| 10 | (Amended for `_bloomery-metricflow-pivot.md`) `metric_time` is a reserved dimension/field name, rejected at spec validation with a clear message (RFC 0013 R4). The `Metric` model reserves optional `cumulative:` (window / grain_to_date) and derived-expression forms lowered per RFC 0013's mapping table; both are additive spec surface, parse-validated only. |
 
 ## 12. Phasing
 
