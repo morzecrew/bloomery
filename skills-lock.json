@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "skills": {
+    "altitude-docs": {
+      "source": "morzecrew/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/altitude-docs/SKILL.md",
+      "computedHash": "dc3112d5e9b57756fe3987e18443c06ce682ac583bae3623e8c84b6711f18c2c"
+    },
+    "distill-the-rule": {
+      "source": "morzecrew/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/distill-the-rule/SKILL.md",
+      "computedHash": "c6dee11c62067364885e55a031a1d8aad11911dbb808f24f7d9890b2708a46ac"
+    },
+    "gitmoji-conventional": {
+      "source": "morzecrew/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/gitmoji-conventional/SKILL.md",
+      "computedHash": "aceb5716cff3076fce1983c7a6620ccc6e94743664968e8c6c6c978a4a32c49f"
+    },
+    "keep-a-changelog": {
+      "source": "morzecrew/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/keep-a-changelog/SKILL.md",
+      "computedHash": "f6e94f1db1dde6eb1cf8bec97fabdeea8f58c7e9c61fdb2221cd369a7aaec7b6"
+    },
+    "less-code-same-behavior": {
+      "source": "morzecrew/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/less-code-same-behavior/SKILL.md",
+      "computedHash": "14db69483122391c9825e1e0076fe727bcb6fad2be4c044eac19e9dc93687eb7"
+    },
+    "pr-review-loop": {
+      "source": "morzecrew/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/pr-review-loop/SKILL.md",
+      "computedHash": "760c529d294bcb35fdaa9d582a034bb4ef0359ffa439444f0b74b012ca98d94a"
+    },
+    "reading-isnt-proof": {
+      "source": "morzecrew/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/reading-isnt-proof/SKILL.md",
+      "computedHash": "fbbb0d9f4bc984c85ffb4c26eb7eb1f9ef26e90a506a6d08679a4c27add628c2"
+    },
+    "reproduce-then-fix": {
+      "source": "morzecrew/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/reproduce-then-fix/SKILL.md",
+      "computedHash": "ba24875d5cad7cd2dc0202574a24e17506787776678e695509f64eba81382c9e"
+    },
+    "rfc-writer": {
+      "source": "morzecrew/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/rfc-writer/SKILL.md",
+      "computedHash": "208c61bd6667e63ca4fb2bc0cc3d94de55aadafc1467d35c70539b0dcd8cf632"
+    },
+    "self-audit": {
+      "source": "morzecrew/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/self-audit/SKILL.md",
+      "computedHash": "38b933ee8be6d9f65aa19a53d06e51203eb1925cc999cf4be0ad03f4fc0c1c98"
+    }
+  }
+}
