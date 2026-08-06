@@ -1,6 +1,8 @@
 # RFC 0013 — MetricFlow backend: manifest emitter and planner adapter
 
-- **Status:** 📝 Draft
+- **Status:** 📝 Draft — **M4.5 verification (V1–V4) complete, ALL PASS (2026-08-07):**
+  see [`spikes/metricflow/VERIFICATION.md`](../spikes/metricflow/VERIFICATION.md); the
+  design is cleared for implementation.
 - **Scope:** Replaces the hand-written lowering half of RFC 0011 with an embedded MetricFlow
   backend: a new emitter `bloomery/emit/metricflow/` (IR → `PydanticSemanticManifest`), the
   reshaped `bloomery/planner/` (coverage precheck, name bridging, filter rendering, the
@@ -59,7 +61,10 @@ emission source for semantic models. The additivity *policy* half (compile-time 
 stored non-additive measures, `GrainViolation`) stays in `guardrails/` per RFC 0006 —
 MetricFlow lowers additivity, it does not stop wrong modelling. The pivot doc §2 reference
 implementation runs today against `metricflow==0.211.0` and records the gotchas: mandatory
-`PydanticSemanticManifestTransformer.transform()`; factory is `MetricFlowQueryRequest.create`;
+`PydanticSemanticManifestTransformer.transform()` — verified: skipping it fails **loudly**
+(`MetricFlowInternalError: A simple metric is missing 'metric_aggregation_params'` at
+`explain()` time), not by silent misresolution as the pivot doc feared; factory is
+`MetricFlowQueryRequest.create`;
 SQL at `explain_result.sql_statement.sql`; group-by names keyed on the primary *entity*, not
 the model name; a time spine required for any `metric_time__*`.
 
@@ -284,6 +289,10 @@ generate **multiple subqueries** over the mart (the semi-additive plan emits an
 **V4** (§10) verifies MetricFlow actually pushes where-constraints into inner scans; if it
 does not, that is a **security defect** for us, and the escape hatch — named, not built —
 is tenant-filtered node relations emitted per tenant: a change to §5.2, not to the approach.
+*(V4 answered PASS, 2026-08-07: the predicate reaches every scan pre-aggregation — both
+semi-additive branches and the ratio plan; note the AST test must assert "predicate present
+in **every** scan", not "in both component subqueries" — under the default optimization
+level the ratio collapses to one shared scan. See §5.9.)*
 
 ### 5.8 Explanations
 
@@ -291,6 +300,31 @@ Built from the **structured** `MetricFlowExplainResult.dataflow_plan` and `.quer
 typed objects — never scraped from the SQL comments MetricFlow also emits (comments are a
 rendering detail and change between versions). Output shape unchanged from RFC 0011 §5.6,
 translated back into bloomery names via `names.py`; `render()` output locked by goldens.
+
+### 5.9 Verified implementation notes (M4.5 amendment, 2026-08-07)
+
+Facts established by the verification spike
+([`spikes/metricflow/VERIFICATION.md`](../spikes/metricflow/VERIFICATION.md)), binding for
+R1–R10 implementation:
+
+- **(a) MSI-internal circular import.**
+  `metricflow_semantic_interfaces.implementations.node_relation` must **not** be the first
+  `metricflow_semantic_interfaces` import — as the first MSI import it raises
+  `ImportError: cannot import name 'NodeRelation' from partially initialized module`
+  (circular import via `protocols`). `emit/metricflow` must order its imports so a module
+  that finishes `metricflow_semantic_interfaces.protocols` loads first (e.g.
+  `…implementations.semantic_manifest`), with a comment saying why.
+- **(b) Top-level shim module.** The metricflow wheel installs a **top-level**
+  `msi_pydantic_shim.py` at site-packages root — global-namespace pollution to account for
+  in deptry/vulture configuration (RFC 0001).
+- **(c) Escape-hatch shape.** `PydanticNodeRelation` has **no `sql` field** (only `alias`,
+  `schema_name`, `database`, `relation_name`) — the §5.7/§8 escape hatch, if ever needed,
+  is a **per-tenant filtered VIEW name** (verified working end-to-end), never an inline SQL
+  body.
+- **(d) Row-policy AST test wording.** The §5.7 test asserts "predicate present in
+  **every** scan", not "in both component subqueries" — the optimizer may collapse a ratio
+  to one shared scan (verified: the predicate reaches every scan pre-aggregation in both
+  semi-additive branches and in the ratio plan).
 
 ## 6. Tests
 
@@ -328,6 +362,8 @@ limitation") is load-bearing.
 - **`PydanticSavedQuery` for hot dashboard queries** — possible caching win; deferred until
   after M11 and real usage data.
 - **Per-tenant filtered node relations** — the V4 escape hatch, built only if V4 fails.
+  *(V4 passed; stays unbuilt. If ever needed its shape is known — a per-tenant filtered
+  view name, not an inline SQL body: `PydanticNodeRelation` has no `sql` field, §5.9.)*
 
 ## 9. Risks
 
@@ -341,7 +377,12 @@ limitation") is load-bearing.
 - **Semi-additive grouping defect** — issue #241 reported grouping *by* the non-additive
   dimension filters to first/last instead of the full series; old, may be fixed. *High if
   unfixed* — "balance by warehouse by month" is a query users will run. Gated on V2.
-- **pydantic v1-shim/v2 coexistence.** *Medium.* Gated on V1.
+  **RETIRED (V2 PASS, 2026-08-07): fixed in 0.211.0** — by-month grouping returns one
+  last-value row per month (three rows over three months, verified against executed
+  DuckDB). The version-drift canary stays: the fix is verified only at this pin.
+- **pydantic v1-shim/v2 coexistence.** *Medium.* Gated on V1. **Verified clear (V1 PASS,
+  2026-08-07):** joint resolution and coexistence confirmed on Python 3.12/3.13/3.14 in
+  both import orders, no metaclass conflicts, no `requires-python` change.
 - **Jinja where-constraints** — string construction on the query path. *High.* §5.6,
   fuzz-tested, merge-blocking.
 - **SQL churn between MetricFlow versions** breaking goldens. *Low.* Execution tests are
@@ -362,6 +403,10 @@ scan of ratio/semi-additive SQL (blocking any production use; failure triggers �
 escape hatch). Implementation-settled: the exact `translate_mf_error` classification table;
 which flattened FK columns are "worth" FOREIGN entities.
 
+**Answered (2026-08-07): V1–V4 ALL PASS** —
+[`spikes/metricflow/VERIFICATION.md`](../spikes/metricflow/VERIFICATION.md) is the written
+record; the M4.5 gate is cleared (facts folded into §3, §5.7, §5.9, §9, D14).
+
 ## 11. Decisions
 
 | # | Decision |
@@ -379,6 +424,7 @@ which flattened FK columns are "worth" FOREIGN entities.
 | 11 | Version-drift canary `test_metricflow_api_surface` is mandatory — we depend on internals with no stability guarantee; upgrades are deliberate PRs with goldens regenerated. |
 | 12 | V1–V4 form milestone M4.5: merge nothing until all four are answered in writing; the reference implementation lands as `spikes/metricflow/` first. `metricflow` becomes a **runtime** dependency; if its supported Python range is narrower than `>=3.12,<3.15`, `requires-python` narrows to match (RFC 0001 amended) — V1 answers this. |
 | 13 | Planner-package DELETE list (`select.py`, `build.py`, `additivity.py`, `policy.py`): if they contain work, delete it — no second implementation kept "just in case"; salvage only fixtures. The Cube equivalence suite is the second opinion. |
+| 14 | **M4.5 complete (2026-08-07): V1–V4 all answered PASS** ([`spikes/metricflow/VERIFICATION.md`](../spikes/metricflow/VERIFICATION.md)) — V1: joint resolution succeeds on Python 3.12/3.13/3.14, no `requires-python` change, v1-shim/v2 coexistence clean in both import orders; V2: issue #241 fixed in 0.211.0 (by-month returns the full series); V3: cold hydration 10.5 ms median, 1.54 MB/lookup (RFC 0014 budgets confirmed); V4: row-policy predicate in every scan pre-aggregation, escape hatch unneeded. `metricflow==0.211.*` is **confirmed** as the runtime pin — it resolves jointly with the sqlmesh dev tooling (sqlmesh 0.236.1, sqlglot stays `>=30.8,<31` resolving 30.8.0). Design cleared for implementation (M6+). |
 
 ## 12. Phasing
 

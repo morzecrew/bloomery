@@ -127,7 +127,7 @@ must exercise the surface callers use.
 | `ecom_basic` | catalog derivation (recipes), ratio metrics, date dimension |
 | `fanout_trap` | order-grain measure on an item-grain mart — compile-time `GrainViolation` (RFC 0006), with the execution-level wrong-sum proof kept |
 | `role_playing_dates` | **new** — `ordered_*` vs `shipped_*` roles give different, correct results (RFC 0010) |
-| `semi_additive_inventory` | **new** — 100/80/90 over three days → 90, never 270; warehouses A 90 + B 40 on one day → 130 |
+| `semi_additive_inventory` | **new** — warehouse A balances 100/80/90 over Jan 1–3 → A-scoped 3-day answer **90**, never 270; warehouse B 40 on Jan 3 → global Jan-3 answer A 90 + B 40 = **130** (which is also the *unscoped* 3-day answer — the global MAX date is Jan 3); by-month over three months → **three rows** (seed erratum, V2 — see §5.10) |
 | `non_additive_aov` | **new** — AOV recomputed from additive components: 2727.27, never 6000 or 12000 |
 | `multi_mart_refusal` | **new** — cross-grain request refused with a named conflict (`UnreachableAtGrain`, RFC 0011) |
 | `messy_types` | string numerics, mixed date formats, dirty enums — transform chains |
@@ -289,15 +289,23 @@ aspirational:
   exhaustive request matrix (limits, ordering, filters, all grains), the parsed AST of
   every plan's SQL contains the `RowPolicy` predicate in every scan. Asserted on the
   **parsed AST**, never a substring — a string check passes on a commented-out
-  predicate.
+  predicate. Assert "predicate in **every scan**", never a fixed subquery count: the
+  optimizer may collapse a ratio's component subqueries into one shared scan (verified
+  in V4 — the predicate reaches every scan pre-aggregation; RFC 0013 §5.9).
 - **Planner determinism** — property-tier invariant: planning the same `MetricRequest`
   twice against the same IR yields an identical `QueryPlan` (SQL bytes, columns,
   fingerprint) — the planner-side companion of §5.6.
 - **Additivity numerics** — D4's three hard-coded assertions live in the execution
   suite, against `semi_additive_inventory` and `non_additive_aov`: inventory over
-  1–3 Jan is 90 (never 270); warehouses A 90 + B 40 on one day sum to 130; AOV is
-  2727.27 (never 6000 or 12000). Hard-coded on purpose — they are the exact failure
-  modes that make a BI product untrustworthy. Under the MetricFlow backend these
+  1–3 Jan **scoped to warehouse A** is 90 (never 270); warehouses A 90 + B 40 on Jan 3
+  sum to 130 — which is also the **unscoped** 1–3 Jan answer, since the global MAX date
+  in the window is Jan 3 (V2 seed erratum: with B=40 present on Jan 3, "unscoped 3-day
+  → 90" and "Jan 3 → 130" are unsatisfiable on one seed; the paired assertions above
+  are the satisfiable form, both verified against executed DuckDB); by-month over
+  three months returns three rows. DuckDB returns month-grain rows as `TIMESTAMP`s
+  (`DATE_TRUNC('month', DATE)` → `TIMESTAMP`) — the test helper normalizes before
+  comparing. AOV is 2727.27 (never 6000 or 12000). Hard-coded on purpose — they are
+  the exact failure modes that make a BI product untrustworthy. Under the MetricFlow backend these
   assertions test *our mapping into MetricFlow* (RFC 0013 R1) rather than our own SQL
   generation — a wrong `window_choice` or a measure emitted where a ratio metric belongs
   fails here. There is no lowering, SQLGlot-build, or mart-selection module of ours to
@@ -366,6 +374,7 @@ move goldens and eval baselines, so they get the same review bar.
 | 17 | Two new **merge-blocking** property invariants (pivot R4/R6): every dimension the MetricFlow emitter produces round-trips through `planner/names.py`; adversarial `FilterExpr` values render to SQL that parses with unchanged predicate structure and exactly the expected scanned relations. |
 | 18 | **Version-drift canary (pivot R10):** `tests/unit/test_metricflow_api_surface.py` is a third named guard beside the determinism and tenant guards — it pins the MetricFlow internal API surface the backend depends on, turning a silent breakage on a version bump into a loud failure. Per-commit, tier 1. |
 | 19 | **Bench budgets revised (RFC 0014, supersedes D13's 5 ms):** `tests/bench/test_hydration.py` asserts 50 ms cold / 10 ms warm hydration; still `perf`-marked, scheduled, and the only benchmark in v0.1. |
+| 20 | **Semi-additive fixture seed erratum (V2, 2026-08-07 — [`spikes/metricflow/VERIFICATION.md`](../spikes/metricflow/VERIFICATION.md)):** the pivot's paired assertions ("unscoped Jan 1–3 → 90" and "Jan 3 → A 90 + B 40 = 130") are unsatisfiable on one seed — with B=40 on Jan 3 the global MAX date is Jan 3, so the unscoped 3-day answer is 130. `semi_additive_inventory` keeps 100/80/90 as **warehouse-A** balances (A-scoped 3-day → 90), B=40 on Jan 3 (global Jan-3 and unscoped 3-day → 130), and asserts by-month over three months → three rows (issue #241 fixed in metricflow 0.211.0). Month-grain DuckDB results are `TIMESTAMP`s — normalized in the test helper. §5.3/§5.10 amended accordingly; the row-policy AST test asserts "predicate in every scan", not a fixed subquery count. |
 
 ## 12. Phasing
 

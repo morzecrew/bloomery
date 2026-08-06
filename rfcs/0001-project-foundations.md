@@ -88,12 +88,18 @@ rfcs/                    # COMMITTED (unlike forze) — the RFC corpus is a deli
   tests 3.12–3.14.
 - Runtime deps (RFC 0002 D5 adds PyYAML to the spec's list): `pydantic>=2.9`,
   `sqlglot` (exact-pinned in `uv.lock`, `>=X,<X+1` in metadata per RFC 0003 D2 §5.5),
-  `jinja2>=3.1`, `pyyaml>=6`. *(Amended for the MetricFlow pivot, RFC 0013:)*
-  `metricflow==0.211.*` joins as a runtime dependency at M4.5, pinned tightly — we depend
-  on internals with no stability guarantee. If metricflow's supported Python range is
-  narrower than `>=3.12,<3.15`, `requires-python` narrows to match (verification task V1,
-  RFC 0013); its sqlglot constraint may also tighten our sqlglot window — resolved at
-  V1, recorded in the lockfile PR.
+  `jinja2>=3.1`, `pyyaml>=6`. *(Amended for the MetricFlow pivot, RFC 0013; V1 verified
+  2026-08-07 — [`spikes/metricflow/VERIFICATION.md`](../spikes/metricflow/VERIFICATION.md):)*
+  `metricflow==0.211.*` joins `[project].dependencies` directly — no separate extra/group
+  needed; joint resolution with the `dev` group (sqlmesh 0.236.1, duckdb, pydantic 2.13.4)
+  verified on Python 3.12, 3.13, and 3.14. `requires-python` stays `">=3.12,<3.15"` —
+  metricflow 0.211.0 declares `>=3.10,<3.15`, the same upper bound; no narrowing. The
+  sqlglot window is unchanged (`>=30.8,<31`, resolving 30.8.0 under sqlmesh's `~=30.8.0`;
+  metricflow's `>=20.0.0` intersects trivially). deptry configuration will need the new
+  transitive runtime packages recorded where relevant (jsonschema, more-itertools,
+  rapidfuzz, referencing, tabulate, python-dateutil, importlib-metadata) plus the
+  **top-level `msi_pydantic_shim` module** the metricflow wheel installs at site-packages
+  root.
 - `[dependency-groups]` — `dev`: pytest (+cov, xdist, timeout, mock), hypothesis,
   pytest-snapshot, duckdb, sqlmesh, ruff, mypy[faster-cache], import-linter, vulture,
   deptry, bandit, pre-commit, zizmor, radon; `engines`: testcontainers[postgres];
@@ -216,6 +222,7 @@ milestone per the Docs sections of RFCs 0002–0009.
 | 7 | All workflow actions SHA-pinned + harden-runner in every job; `required-ci` aggregator is the only branch-protection check. |
 | 8 | Docs: zensical + mike under `pages/`, Diátaxis nav, versioned per minor release. |
 | 9 | (Amended for `_bloomery-metricflow-pivot.md`) `metricflow==0.211.*` becomes a tightly pinned runtime dependency at M4.5; V1 may narrow `requires-python` and the sqlglot window. Bumping metricflow is a deliberate PR with goldens regenerated (RFC 0013). |
+| 10 | **Supersedes D9's conditional wording — V1 answered (PASS, 2026-08-07):** no narrowing needed. `metricflow==0.211.*` joins `[project].dependencies` directly (no separate group; joint resolution with the dev group verified on Python 3.12–3.14); `requires-python` stays `">=3.12,<3.15"`; the sqlglot window is unchanged (`>=30.8,<31`, resolving 30.8.0). deptry gains the transitive metricflow packages and the top-level `msi_pydantic_shim` module (§5.2). Deliberate-PR-per-bump rule from D9 stands. |
 
 ## 12. Phasing
 
