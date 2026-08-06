@@ -1,0 +1,25 @@
+{
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true,
+        ".agent": true,
+        ".claude": true,
+        ".benchmarks": true,
+        "dist": true,
+        "acceptance.profile": true,
+        "union.out": true,
+        "coverage.out": true,
+        "morzer": true,
+        "morzer.key": true,
+        "CODEOWNERS": true,
+        "CODE_OF_CONDUCT.md": true,
+        "docker.out": true,
+        "go.sum": true,
+        "LICENSE": true,
+        "SECURITY.md": true,
+        "tmp": true,
+    }
+}
