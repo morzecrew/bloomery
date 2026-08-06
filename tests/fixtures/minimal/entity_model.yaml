@@ -1,0 +1,10 @@
+# The smoke floor for every tier (RFC 0009): one entity, one mapping, direct fields.
+spec_version: 1
+entities:
+  event:
+    grain: one row per event
+    key: [event_id]
+    fields:
+      event_id: {type: string, required: true}
+      kind: {type: string}
+      occurred_at: {type: timestamp}

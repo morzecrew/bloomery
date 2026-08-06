@@ -1,0 +1,7 @@
+mapping_version: 1
+source: shopify__orders
+target: order
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  customer_id: {from: "$.customer.id", transform: [to_string]}

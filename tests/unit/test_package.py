@@ -1,8 +1,7 @@
-"""Scaffold smoke test: the package imports and exposes an (empty) public API.
+"""Package-surface smoke test: the M1 public API is exactly what RFCs 0002 and
+0003 promise, and ``__all__`` stays sorted."""
 
-Exists so the test/coverage lane is exercised from the first commit; real
-tier-1 suites replace its significance as RFCs 0002–0009 land.
-"""
+from __future__ import annotations
 
 import pytest
 
@@ -11,5 +10,16 @@ import bloomery
 pytestmark = pytest.mark.unit
 
 
-def test_package_has_empty_public_api() -> None:
-    assert bloomery.__all__ == []
+def test_public_api_surface() -> None:
+    assert bloomery.__all__ == [
+        "BloomeryError",
+        "load_catalog",
+        "load_project",
+        "project_fingerprint",
+    ]
+
+
+def test_all_is_sorted_and_resolvable() -> None:
+    assert bloomery.__all__ == sorted(bloomery.__all__)
+    for name in bloomery.__all__:
+        assert getattr(bloomery, name) is not None

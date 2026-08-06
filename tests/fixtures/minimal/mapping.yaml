@@ -1,0 +1,8 @@
+mapping_version: 1
+source: raw__events
+target: event
+key:
+  event_id: {from: "$.id", transform: [to_string]}
+fields:
+  kind: {from: "$.kind"}
+  occurred_at: {from: "$.ts"}

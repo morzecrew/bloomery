@@ -257,13 +257,10 @@ ignore_notebooks = true
 
 [tool.deptry.per_rule_ignores]
 DEP002 = [
-    # Scaffold-time only: the package is a placeholder, so the runtime deps are
-    # declared before any module imports them. Remove each entry as the module
-    # that uses it lands (spec → pydantic/pyyaml, ir/emit → sqlglot, emit → jinja2).
+    # Scaffold-time only: declared before any module imports it. Remove when
+    # the emit layer lands (M6, RFC 0008). pydantic/pyyaml (spec, M1) and
+    # sqlglot (ir, M1) have landed and are no longer ignored.
     "jinja2",
-    "pydantic",
-    "pyyaml",
-    "sqlglot",
 ]
 
 # ....................... #

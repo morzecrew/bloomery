@@ -1,0 +1,13 @@
+# Wide-mart gold layer (RFC 0010 §5.1). A measure-carrying mart must declare a
+# date role (MartMissingTimeDimension otherwise — RFC 0010 D9).
+marts_version: 1
+marts:
+  order_items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: item_of_order, prefix: order_}
+      - {date: order_date, role: ordered}
+    measures: [gross_revenue]
+    partition_by: [days(ordered_day)]
+    cost_hint: 2

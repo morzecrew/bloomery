@@ -1,0 +1,35 @@
+# Vertical-level catalog (original spec §3.2): canonical fields with recipes,
+# canonical relationships, metric templates (incl. a non-additive ratio).
+catalog_version: 1
+vertical: ecom_retail
+
+canonical_fields:
+  unit_price:
+    entity: order_item
+    type: decimal(12,4)
+    unit: currency
+    tax_basis: net
+    recipes:
+      - {id: direct, requires: [unit_price]}
+      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+  quantity:
+    entity: order_item
+    type: int
+    unit: count
+    recipes:
+      - {id: direct, requires: [quantity]}
+
+canonical_relationships:
+  - {from: order_item, to: order, via: order_id, cardinality: many_to_one}
+
+metric_templates:
+  gross_revenue:
+    requires: [unit_price, quantity]
+    grain: order_item
+    additivity: additive
+    agg: sum
+    expr: "unit_price * quantity"
+  average_order_value:
+    requires_metrics: [gross_revenue, order_count]
+    additivity: non_additive
+    ratio: {numerator: gross_revenue, denominator: order_count}
