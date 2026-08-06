@@ -30,6 +30,7 @@ nav = [
         "concepts/compile-pipeline.md",
         "concepts/determinism.md",
         "concepts/guardrails.md",
+        "concepts/wide-marts.md",
     ] },
     { "How-to" = [
         "how-to/emit-sqlmesh.md",

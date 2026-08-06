@@ -1,13 +1,27 @@
 # Bloomery
 
-**Entity-first spec compiler: declarative entity/mapping/metric specs, compiled
-deterministically into SQLMesh, dbt, and Cube artifacts.**
+Bloomery is an entity-first spec compiler and metric planner, built as a pure function
+library: declarative specs go in, byte-reproducible SQL artifacts and query plans come
+out. It is deterministic, fail-closed, and tenant-agnostic — the same specs compile to
+the same bytes forever, anything plausible-but-wrong is refused with a named error, and
+the compiler never knows what a tenant is.
 
-bloomery is a pure function library: sources, entities, mappings, and metrics go in;
-stable-sorted, byte-reproducible models, audits, and semantic-layer definitions come out.
-Fail-closed guardrails turn grain fan-out, additivity violations, and contract breaks into
-compile errors instead of silently wrong numbers.
+It does three things:
 
-The project is pre-0.1 and spec-driven — the design lives as RFCs in the repository's
-`rfcs/` directory, and documentation pages land here with each implementation milestone.
-Start with [Introduction](get-started/introduction.md).
+- **Compiles specs into artifacts** — Catalog, EntityModel, Mapping, MetricSet, and
+  Marts specs become SQLMesh, dbt, and Cube models, audits, and MetricFlow semantic
+  manifests.
+- **Plans metric queries** — a `MetricRequest` becomes SQL over a wide, pre-joined
+  mart, with no query-time joins and no execution. Behind the stable request/plan
+  contract sits an embedded, render-only MetricFlow — pinned, driven entirely
+  in-process, never connected to a database.
+- **Diffs spec versions** — two compiled versions produce a plan in which every change
+  is classified (additive, widening, rename, restating, breaking), with backfill scope
+  and downstream impact computed from the dependency graph.
+
+New here? Start with the [Introduction](get-started/introduction.md) to see the problem
+bloomery solves and how the spec kinds fit together, then read the
+[Concepts](concepts/specs-and-catalog.md) pages for the domain model, the
+[compile pipeline](concepts/compile-pipeline.md), the
+[wide-mart gold layer](concepts/wide-marts.md), and the
+[guardrails](concepts/guardrails.md) that make fail-closed concrete.
