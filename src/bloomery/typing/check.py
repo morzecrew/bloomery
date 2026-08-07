@@ -59,8 +59,9 @@ def _arg_matches(kind: ArgKind, value: str | int) -> bool:
         return isinstance(value, int) and not isinstance(value, bool)
     if kind is ArgKind.NUMBER:
         return _is_number(value)
-    # ArgKind.LITERAL — a str or an int, mirrored into SQL as-is.
-    return isinstance(value, str) or (isinstance(value, int) and not isinstance(value, bool))
+    # ArgKind.LITERAL — a str or an int, mirrored into SQL as-is (a non-str
+    # value is an int by the parameter type; only bool must be excluded).
+    return isinstance(value, str) or not isinstance(value, bool)
 
 
 def _check_args(spec: TransformSpec, args: tuple[str | int, ...], *, source_path: str) -> None:

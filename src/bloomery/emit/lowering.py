@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from sqlglot import exp, parse_one
+from sqlglot.expressions.core import Expression
 
 from bloomery.ir import (
     AuditIR,
@@ -71,19 +72,19 @@ def _column_owner(mart: MartIR, column: MartColumnIR) -> str:
     )
 
 
-def _mart_projection(mart: MartIR, column: MartColumnIR) -> exp.Expression:
+def _mart_projection(mart: MartIR, column: MartColumnIR) -> Expression:
     source = exp.column(column.source_column, table=_column_owner(mart, column))
     if column.ref is None:
         # ``alias_`` is annotated with the ``Expr`` base, but always returns
         # an ``Expression`` here (cf. ir.nodes on ``parse_one``).
-        return cast("exp.Expression", exp.alias_(source, column.name))
+        return cast("Expression", exp.alias_(source, column.name))
     # Date-role bucket (RFC 0010 D4): DATE_TRUNC over the base source column,
     # cast to DATE so the emitted column has the declared IR type everywhere.
     # Built via ``exp.func`` — ``exp.DateTrunc``'s custom ``__init__`` is
     # untyped in this sqlglot version.
     bucketed = exp.func("DATE_TRUNC", exp.Literal.string(column.ref.dimension), source)
     return cast(
-        "exp.Expression", exp.alias_(exp.cast(bucketed, exp.DataType.build("DATE")), column.name)
+        "Expression", exp.alias_(exp.cast(bucketed, exp.DataType.build("DATE")), column.name)
     )
 
 
@@ -146,13 +147,13 @@ _DIM_DATE_BODY = (
 )
 
 
-def dim_date_select(dim: DateDimensionIR) -> exp.Expression:
+def dim_date_select(dim: DateDimensionIR) -> Expression:
     """The deterministic ``dim_date`` calendar SELECT — a generate-series
     calendar over the catalog's year bounds, no clock involved."""
     body = _DIM_DATE_BODY.format(start_year=dim.start_year, end_year=dim.end_year)
     # ``parse_one`` is annotated with the ``Expr`` base, but every node it
     # returns is an ``Expression`` (cf. ir.nodes).
-    return cast("exp.Expression", parse_one(body))
+    return cast("Expression", parse_one(body))
 
 
 # ....................... #
@@ -164,7 +165,7 @@ def column_type(entity: EntityIR, name: str) -> LogicalType:
     return next(column.type for column in entity.columns if column.name == name)
 
 
-def _bound_literal(value: str, bound_type: LogicalType) -> exp.Expression:
+def _bound_literal(value: str, bound_type: LogicalType) -> Expression:
     """A typed literal for an audit bound: numeric columns take number
     literals, everything else a string literal cast to the column type (so
     temporal comparisons never rely on engine coercion)."""
@@ -173,14 +174,14 @@ def _bound_literal(value: str, bound_type: LogicalType) -> exp.Expression:
     return exp.cast(exp.Literal.string(value), generic_type(bound_type))
 
 
-def enum_literal(value: str, member_type: LogicalType) -> exp.Expression:
+def enum_literal(value: str, member_type: LogicalType) -> Expression:
     """An ``accepted_values`` member literal, typed by the audited column."""
     if isinstance(member_type, IntType):
         return exp.Literal.number(value)
     return exp.Literal.string(value)
 
 
-def audit_predicate(entity: EntityIR, audit: AuditIR, *, violations: bool) -> exp.Expression:
+def audit_predicate(entity: EntityIR, audit: AuditIR, *, violations: bool) -> Expression:
     """The predicate for one custom-bodied audit kind (``min``/``max``/
     ``regex``/``reconcile``).
 

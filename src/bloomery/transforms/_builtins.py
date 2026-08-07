@@ -15,6 +15,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from sqlglot import exp
+from sqlglot.expressions.core import Expression
 
 from bloomery.errors import TypeCheckError
 from bloomery.transforms.registry import OutputType, transform
@@ -49,14 +50,14 @@ _ISO8601 = "ISO8601"
 _PRECISION_CAP = 38
 
 
-def _literal(value: str | int) -> exp.Expression:
+def _literal(value: str | int) -> Expression:
     """A spec-level literal arg as a SQLGlot literal node."""
     if isinstance(value, int):
         return exp.Literal.number(value)
     return exp.Literal.string(value)
 
 
-def _number(value: str | int) -> exp.Expression:
+def _number(value: str | int) -> Expression:
     """A NUMBER-kind arg as a SQLGlot numeric literal node."""
     return exp.Literal.number(value)
 
@@ -102,17 +103,17 @@ def _arith_output(name: str) -> OutputType:
 
 
 @transform("trim", arity=0, input=(StringType,), output=StringType())
-def trim(col: exp.Expression) -> exp.Expression:
+def trim(col: Expression) -> Expression:
     return exp.Trim(this=col)
 
 
 @transform("upper", arity=0, input=(StringType,), output=StringType())
-def upper(col: exp.Expression) -> exp.Expression:
+def upper(col: Expression) -> Expression:
     return exp.Upper(this=col)
 
 
 @transform("lower", arity=0, input=(StringType,), output=StringType())
-def lower(col: exp.Expression) -> exp.Expression:
+def lower(col: Expression) -> Expression:
     return exp.Lower(this=col)
 
 
@@ -123,7 +124,7 @@ def lower(col: exp.Expression) -> exp.Expression:
     input=(StringType,),
     output=StringType(),
 )
-def split_part(col: exp.Expression, delimiter: str, index: int) -> exp.Expression:
+def split_part(col: Expression, delimiter: str, index: int) -> Expression:
     return exp.SplitPart(
         this=col,
         delimiter=exp.Literal.string(delimiter),
@@ -138,7 +139,7 @@ def split_part(col: exp.Expression, delimiter: str, index: int) -> exp.Expressio
     input=(StringType,),
     output=StringType(),
 )
-def regex_extract(col: exp.Expression, pattern: str, group: int) -> exp.Expression:
+def regex_extract(col: Expression, pattern: str, group: int) -> Expression:
     return exp.RegexpExtract(
         this=col,
         expression=exp.Literal.string(pattern),
@@ -149,7 +150,7 @@ def regex_extract(col: exp.Expression, pattern: str, group: int) -> exp.Expressi
 @transform(
     "strip_prefix", arity=1, arg_kinds=(ArgKind.STR,), input=(StringType,), output=StringType()
 )
-def strip_prefix(col: exp.Expression, prefix: str) -> exp.Expression:
+def strip_prefix(col: Expression, prefix: str) -> Expression:
     return exp.Case(
         ifs=[
             exp.If(
@@ -164,7 +165,7 @@ def strip_prefix(col: exp.Expression, prefix: str) -> exp.Expression:
 @transform(
     "strip_suffix", arity=1, arg_kinds=(ArgKind.STR,), input=(StringType,), output=StringType()
 )
-def strip_suffix(col: exp.Expression, suffix: str) -> exp.Expression:
+def strip_suffix(col: Expression, suffix: str) -> Expression:
     remaining = exp.Sub(
         this=exp.Length(this=col.copy()),
         expression=exp.Literal.number(len(suffix)),
@@ -181,7 +182,7 @@ def strip_suffix(col: exp.Expression, suffix: str) -> exp.Expression:
 
 
 @transform("concat", arity=1, arg_kinds=(ArgKind.STR,), input=(StringType,), output=StringType())
-def concat(col: exp.Expression, text: str) -> exp.Expression:
+def concat(col: Expression, text: str) -> Expression:
     return exp.DPipe(this=col, expression=exp.Literal.string(text))
 
 
@@ -193,7 +194,7 @@ def concat(col: exp.Expression, text: str) -> exp.Expression:
     output=StringType(),
     variadic=True,
 )
-def enum_map(col: exp.Expression, *pairs: str) -> exp.Expression:
+def enum_map(col: Expression, *pairs: str) -> Expression:
     """``{enum_map: [raw, mapped, ...]}`` — flat from/to pairs. Values outside
     the map pass through; the ``on_unmapped_enum`` policy is an emitter
     concern (RFC 0008 D7), not a chain concern."""
@@ -209,12 +210,12 @@ def enum_map(col: exp.Expression, *pairs: str) -> exp.Expression:
 
 
 @transform("to_string", arity=0, input=_ALL_TYPES, output=StringType())
-def to_string(col: exp.Expression) -> exp.Expression:
+def to_string(col: Expression) -> Expression:
     return exp.cast(col, exp.DataType.build("TEXT"))
 
 
 @transform("to_int", arity=0, input=(StringType, IntType, DecimalType, BoolType), output=IntType())
-def to_int(col: exp.Expression) -> exp.Expression:
+def to_int(col: Expression) -> Expression:
     return exp.cast(col, exp.DataType.build("BIGINT"))
 
 
@@ -236,26 +237,26 @@ def _to_decimal_output(_t: LogicalType, args: tuple[str | int, ...]) -> LogicalT
     input=(StringType, IntType, DecimalType),
     output=_to_decimal_output,
 )
-def to_decimal(col: exp.Expression, precision: int, scale: int) -> exp.Expression:
+def to_decimal(col: Expression, precision: int, scale: int) -> Expression:
     return exp.cast(col, exp.DataType.build(f"DECIMAL({precision}, {scale})"))
 
 
 @transform("to_bool", arity=0, input=(StringType, IntType, BoolType), output=BoolType())
-def to_bool(col: exp.Expression) -> exp.Expression:
+def to_bool(col: Expression) -> Expression:
     return exp.cast(col, exp.DataType.build("BOOLEAN"))
 
 
 @transform(
     "parse_ts", arity=1, arg_kinds=(ArgKind.STR,), input=(StringType,), output=TimestampType()
 )
-def parse_ts(col: exp.Expression, fmt: str) -> exp.Expression:
+def parse_ts(col: Expression, fmt: str) -> Expression:
     if fmt == _ISO8601:
         return exp.cast(col, exp.DataType.build("TIMESTAMP"))
     return exp.StrToTime(this=col, format=exp.Literal.string(fmt))
 
 
 @transform("parse_date", arity=1, arg_kinds=(ArgKind.STR,), input=(StringType,), output=DateType())
-def parse_date(col: exp.Expression, fmt: str) -> exp.Expression:
+def parse_date(col: Expression, fmt: str) -> Expression:
     if fmt == _ISO8601:
         return exp.cast(col, exp.DataType.build("DATE"))
     return exp.StrToDate(this=col, format=exp.Literal.string(fmt))
@@ -264,7 +265,7 @@ def parse_date(col: exp.Expression, fmt: str) -> exp.Expression:
 @transform(
     "to_utc", arity=1, arg_kinds=(ArgKind.STR,), input=(TimestampType,), output=TimestampType()
 )
-def to_utc(col: exp.Expression, zone: str) -> exp.Expression:
+def to_utc(col: Expression, zone: str) -> Expression:
     """Interpret a zoneless local timestamp in ``zone`` — the only door into
     the always-UTC ``timestamp`` type (RFC 0004 §5.1)."""
     return exp.AtTimeZone(this=col, zone=exp.Literal.string(zone))
@@ -277,14 +278,14 @@ def to_utc(col: exp.Expression, zone: str) -> exp.Expression:
 @transform(
     "coalesce", arity=1, arg_kinds=(ArgKind.LITERAL,), input=_ALL_TYPES, output=lambda t, _args: t
 )
-def coalesce(col: exp.Expression, fallback: str | int) -> exp.Expression:
+def coalesce(col: Expression, fallback: str | int) -> Expression:
     return exp.Coalesce(this=col, expressions=[_literal(fallback)])
 
 
 @transform(
     "nullif", arity=1, arg_kinds=(ArgKind.LITERAL,), input=_ALL_TYPES, output=lambda t, _args: t
 )
-def nullif(col: exp.Expression, sentinel: str | int) -> exp.Expression:
+def nullif(col: Expression, sentinel: str | int) -> Expression:
     return exp.Nullif(this=col, expression=_literal(sentinel))
 
 
@@ -295,7 +296,7 @@ def nullif(col: exp.Expression, sentinel: str | int) -> exp.Expression:
     input=(VariantType, StringType),
     output=VariantType(),
 )
-def json_path(col: exp.Expression, path: str) -> exp.Expression:
+def json_path(col: Expression, path: str) -> Expression:
     return exp.JSONExtract(this=col, expression=exp.Literal.string(path))
 
 
@@ -310,7 +311,7 @@ def json_path(col: exp.Expression, path: str) -> exp.Expression:
     input=(DecimalType,),
     output=_arith_output("multiply"),
 )
-def multiply(col: exp.Expression, factor: str | int) -> exp.Expression:
+def multiply(col: Expression, factor: str | int) -> Expression:
     return exp.Mul(this=col, expression=_number(factor))
 
 
@@ -321,7 +322,7 @@ def multiply(col: exp.Expression, factor: str | int) -> exp.Expression:
     input=(DecimalType,),
     output=_arith_output("divide"),
 )
-def divide(col: exp.Expression, divisor: str | int) -> exp.Expression:
+def divide(col: Expression, divisor: str | int) -> Expression:
     return exp.Div(this=col, expression=_number(divisor))
 
 
@@ -350,12 +351,12 @@ def _round_output(t: LogicalType, args: tuple[str | int, ...]) -> LogicalType:
     input=(IntType, DecimalType),
     output=_round_output,
 )
-def round_(col: exp.Expression, digits: int) -> exp.Expression:
+def round_(col: Expression, digits: int) -> Expression:
     return exp.Round(this=col, decimals=exp.Literal.number(digits))
 
 
 @transform("abs", arity=0, input=(IntType, DecimalType), output=lambda t, _args: t)
-def abs_(col: exp.Expression) -> exp.Expression:
+def abs_(col: Expression) -> Expression:
     return exp.Abs(this=col)
 
 
@@ -366,7 +367,7 @@ def abs_(col: exp.Expression) -> exp.Expression:
 @transform(
     "convert", arity=1, arg_kinds=(ArgKind.STR,), input=(DecimalType,), output=lambda t, _args: t
 )
-def convert(col: exp.Expression, currency: str) -> exp.Expression:
+def convert(col: Expression, currency: str) -> Expression:
     """The explicit conversion marker the currency guardrail requires for
     mixed-currency arithmetic (RFC 0006). Typechecks decimal → decimal; the
     rate source and target-currency semantics are guardrail/emit concerns."""

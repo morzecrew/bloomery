@@ -32,10 +32,13 @@ from metricflow.sql.render.duckdb_renderer import DuckDbSqlPlanRenderer
 
 from metricflow_semantic_interfaces.implementations.elements.dimension import PydanticDimension
 from metricflow_semantic_interfaces.implementations.node_relation import PydanticNodeRelation
+from metricflow_semantic_interfaces.implementations.semantic_manifest import (
+    PydanticSemanticManifest,
+)
 from metricflow_semantic_interfaces.transformations.semantic_manifest_transformer import (
     PydanticSemanticManifestTransformer,
 )
-from metricflow_semantic_interfaces.type_enums import DimensionType
+from metricflow_semantic_interfaces.type_enums.dimension_type import DimensionType
 from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifestLookup
 
 import spike
@@ -46,7 +49,7 @@ POLICY_VALUE = "acme"
 POLICY_COLUMN = "tenant_key"
 
 
-def build_engine(manifest) -> MetricFlowEngine:
+def build_engine(manifest: PydanticSemanticManifest) -> MetricFlowEngine:
     manifest = PydanticSemanticManifestTransformer.transform(manifest)
     return MetricFlowEngine(
         semantic_manifest_lookup=SemanticManifestLookup(manifest),
@@ -125,13 +128,23 @@ def report(label: str, sql: str, mart_relation: str) -> bool:
 
 
 def main() -> None:
-    results = []
+    results: list[bool] = []
 
     # (a) RATIO metric. Add tenant_key to the order_items model first.
+    # (``dimensions`` is typed ``Sequence`` on the MSI model — rebuild the
+    # list instead of mutating through the read-only type.)
     ratio_manifest = spike.build_manifest()
-    ratio_manifest.semantic_models[0].dimensions.append(
-        PydanticDimension(name=POLICY_COLUMN, type=DimensionType.CATEGORICAL)
-    )
+    ratio_manifest.semantic_models[0].dimensions = [
+        *ratio_manifest.semantic_models[0].dimensions,
+        PydanticDimension(
+            name=POLICY_COLUMN,
+            type=DimensionType.CATEGORICAL,
+            description=None,
+            type_params=None,
+            metadata=None,
+            config=None,
+        ),
+    ]
     engine = build_engine(ratio_manifest)
     sql = engine.explain(
         MetricFlowQueryRequest.create(
@@ -172,8 +185,6 @@ def main() -> None:
                           sql, "gold.mart_inventory"))
 
     # Escape hatch: node_relation pointing at a per-tenant filtered VIEW.
-    import duckdb
-
     con = v2_semi_additive.seed_duckdb()
     con.execute(
         "CREATE VIEW gold.mart_inventory_acme AS "

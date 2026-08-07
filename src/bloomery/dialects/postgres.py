@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import ClassVar
 
 from sqlglot import exp
+from sqlglot.expressions.core import Expression
 
 from bloomery.dialects.base import SQLGlotDialect
 from bloomery.typing import (
@@ -72,7 +73,7 @@ class PostgresDialect(SQLGlotDialect):
         VariantType: "JSONB",
     }
 
-    def render(self, node: exp.Expression) -> str:
+    def render(self, node: Expression) -> str:
         """Render with reserved identifiers quoted and JSON extraction made
         ``jsonb``-safe — the input node is never mutated (the port contract
         shares ASTs across dialects).

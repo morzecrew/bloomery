@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from sqlglot import exp, parse_one
+from sqlglot.expressions.core import Expression
 
 from bloomery.errors import CurrencyMismatch, GuardrailError, TaxBasisMismatch, UnitMismatch
 from bloomery.guardrails.operands import OperandMeta, operand_meta
@@ -64,7 +65,7 @@ class _Side:
     converted: bool
 
 
-def _summarize(node: exp.Expression, lookup: dict[str, OperandMeta]) -> _Side:
+def _summarize(node: Expression, lookup: dict[str, OperandMeta]) -> _Side:
     names = dict.fromkeys(col.name for col in node.find_all(exp.Column) if col.name in lookup)
     converted = any(
         str(call.this).upper() == _CONVERT_MARKER for call in node.find_all(exp.Anonymous)
@@ -149,7 +150,7 @@ def _walk(sql: str, lookup: dict[str, OperandMeta], source_path: str) -> list[Gu
     """One expression's violations — at most one per rule (first offending
     node in deterministic walk order)."""
     found: dict[type[GuardrailError], GuardrailError] = {}
-    tree = cast("exp.Expression", parse_one(sql))
+    tree = cast("Expression", parse_one(sql))
     for node in tree.find_all(exp.Add, exp.Sub, exp.Mul, exp.Div):
         op = _OPS[type(node)]
         left = _summarize(node.this, lookup)

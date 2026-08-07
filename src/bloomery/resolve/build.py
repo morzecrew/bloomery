@@ -34,6 +34,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING, cast
 
 from sqlglot import exp, parse_one
+from sqlglot.expressions.core import Expression
 
 from bloomery.errors import ResolutionError
 from bloomery.guardrails import check_guardrails
@@ -102,7 +103,7 @@ def _lower_chain(
     reg: Registry,
     *,
     source_path: str,
-) -> exp.Expression:
+) -> Expression:
     node = extraction(path)
     if not steps:
         return exp.cast(node, generic_type(declared))
@@ -157,7 +158,7 @@ def _column_ir(
     name: str,
     field: Field,
     declared: LogicalType,
-    expr: exp.Expression,
+    expr: Expression,
     catalog: Catalog | None,
     *,
     recipe_id: str | None = None,
@@ -184,7 +185,7 @@ def _recipe_expr(
     field_name: str,
     project: Project,
     catalog: Catalog | None,
-) -> tuple[exp.Expression, str]:
+) -> tuple[Expression, str]:
     recipe = resolve_recipe(mapping, field_name, field_mapping, project, catalog)
     if recipe.expr is None:
         # Identity recipe: the single required alias, cast to the declared type.
@@ -192,7 +193,7 @@ def _recipe_expr(
     else:
         parsed = parse_one(recipe.expr)
 
-        def substitute(node: exp.Expression) -> exp.Expression:
+        def substitute(node: Expression) -> Expression:
             if isinstance(node, exp.Column) and not node.table and node.name in field_mapping.from_:
                 return extraction(field_mapping.from_[node.name])
             return node
@@ -337,7 +338,7 @@ def _build_metrics(
                 expr=(
                     # ``parse_one`` is annotated with the ``Expr`` base, but
                     # every node it returns is an ``Expression`` (cf. ir.nodes).
-                    canon(cast("exp.Expression", parse_one(metric.expr)))
+                    canon(cast("Expression", parse_one(metric.expr)))
                     if metric.expr is not None
                     else None
                 ),

@@ -25,7 +25,7 @@ from bloomery.errors import TransformRegistrationError
 from bloomery.typing import ArgKind, LogicalType
 
 if TYPE_CHECKING:
-    from sqlglot import exp
+    from sqlglot.expressions.core import Expression
 
 __all__ = [
     "Builder",
@@ -43,7 +43,7 @@ __all__ = [
 type OutputType = Callable[[LogicalType, tuple[str | int, ...]], LogicalType]
 
 #: ``(column AST, *spec-level args) -> dialect-neutral SQLGlot AST``.
-type Builder = Callable[..., "exp.Expression"]
+type Builder = Callable[..., "Expression"]
 
 #: The read surface every consumer sees: an immutable name → spec mapping.
 type Registry = Mapping[str, TransformSpec]
@@ -118,8 +118,10 @@ def transform(
         else:
             fixed = output
 
-            def output_type(_t: LogicalType, _args: tuple[str | int, ...]) -> LogicalType:
+            def constant_output(_t: LogicalType, _args: tuple[str | int, ...]) -> LogicalType:
                 return fixed
+
+            output_type = constant_output
 
         spec = TransformSpec(
             name=name,

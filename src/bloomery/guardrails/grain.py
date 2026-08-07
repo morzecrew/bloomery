@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from sqlglot import exp, parse_one
+from sqlglot.expressions.core import Expression
 
 from bloomery.errors import GrainMismatch, GuardrailError
 from bloomery.guardrails.operands import operand_meta
@@ -57,7 +58,7 @@ def _relationship_between(draft: ProjectIR, from_entity: str, to_entity: str) ->
     return "no declared relationship"
 
 
-def _fully_aggregated(tree: exp.Expression, name: str) -> bool:
+def _fully_aggregated(tree: Expression, name: str) -> bool:
     """Every occurrence of ``name`` in the expression sits under an explicit
     aggregation — the sanctioned way to bring a foreign grain in (D5)."""
     occurrences = [col for col in tree.find_all(exp.Column) if col.name == name]
@@ -97,9 +98,7 @@ def check_grain(
     violations: list[GuardrailError] = []
     for derivation in derivations:
         tree = (
-            cast("exp.Expression", parse_one(derivation.expr))
-            if derivation.expr is not None
-            else None
+            cast("Expression", parse_one(derivation.expr)) if derivation.expr is not None else None
         )
         for operand in derivation.operands:
             meta = operand_meta(operand, catalog)

@@ -27,6 +27,8 @@ How to run (spike env lives OUTSIDE the repo; see spike.py header):
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 import duckdb
 from metricflow_semantic_interfaces.implementations.elements.dimension import (
     PydanticDimension,
@@ -57,13 +59,11 @@ from metricflow_semantic_interfaces.implementations.time_spine import (
 from metricflow_semantic_interfaces.transformations.semantic_manifest_transformer import (
     PydanticSemanticManifestTransformer,
 )
-from metricflow_semantic_interfaces.type_enums import (
-    AggregationType,
-    DimensionType,
-    EntityType,
-    MetricType,
-    TimeGranularity,
-)
+from metricflow_semantic_interfaces.type_enums.aggregation_type import AggregationType
+from metricflow_semantic_interfaces.type_enums.dimension_type import DimensionType
+from metricflow_semantic_interfaces.type_enums.entity_type import EntityType
+from metricflow_semantic_interfaces.type_enums.metric_type import MetricType
+from metricflow_semantic_interfaces.type_enums.time_granularity import TimeGranularity
 from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifestLookup
 
 from metricflow.engine.metricflow_engine import MetricFlowEngine, MetricFlowQueryRequest
@@ -71,6 +71,9 @@ from metricflow.protocols.sql_client import SqlEngine
 from metricflow.sql.render.duckdb_renderer import DuckDbSqlPlanRenderer
 
 from spike import RenderOnlySqlClient  # same directory
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 SEED_ROWS = [
     ("2024-01-01", "A", 100),
@@ -85,11 +88,21 @@ SEED_ROWS = [
 
 
 def build_manifest(window_groupings: list[str] | None = None) -> PydanticSemanticManifest:
+    # MSI's pydantic-v1 models declare optional fields without explicit
+    # defaults, which pyright reads as required constructor arguments — every
+    # unused optional field is pinned to its None default explicitly.
     inventory = PydanticSemanticModel(
         name="inventory",
         node_relation=PydanticNodeRelation(alias="mart_inventory", schema_name="gold"),
         entities=[
-            PydanticEntity(name="inventory", type=EntityType.PRIMARY, expr="snapshot_id"),
+            PydanticEntity(
+                name="inventory",
+                type=EntityType.PRIMARY,
+                expr="snapshot_id",
+                description=None,
+                role=None,
+                config=None,
+            ),
         ],
         measures=[
             PydanticMeasure(
@@ -102,6 +115,10 @@ def build_manifest(window_groupings: list[str] | None = None) -> PydanticSemanti
                     window_choice=AggregationType.MAX,
                     window_groupings=window_groupings or [],
                 ),
+                description=None,
+                create_metric=None,
+                agg_params=None,
+                metadata=None,
             ),
         ],
         dimensions=[
@@ -109,10 +126,32 @@ def build_manifest(window_groupings: list[str] | None = None) -> PydanticSemanti
                 name="snapshot_date",
                 type=DimensionType.TIME,
                 type_params=PydanticDimensionTypeParams(time_granularity=TimeGranularity.DAY),
+                description=None,
+                metadata=None,
+                config=None,
             ),
-            PydanticDimension(name="warehouse", type=DimensionType.CATEGORICAL),
-            PydanticDimension(name="tenant_key", type=DimensionType.CATEGORICAL),
+            PydanticDimension(
+                name="warehouse",
+                type=DimensionType.CATEGORICAL,
+                description=None,
+                type_params=None,
+                metadata=None,
+                config=None,
+            ),
+            PydanticDimension(
+                name="tenant_key",
+                type=DimensionType.CATEGORICAL,
+                description=None,
+                type_params=None,
+                metadata=None,
+                config=None,
+            ),
         ],
+        defaults=None,
+        description=None,
+        primary_entity=None,
+        metadata=None,
+        config=None,
     )
     return PydanticSemanticManifest(
         semantic_models=[inventory],
@@ -121,8 +160,21 @@ def build_manifest(window_groupings: list[str] | None = None) -> PydanticSemanti
                 name="inventory_balance",
                 type=MetricType.SIMPLE,
                 type_params=PydanticMetricTypeParams(
-                    measure=PydanticMetricInputMeasure(name="balance")
+                    measure=PydanticMetricInputMeasure(name="balance", filter=None, alias=None),
+                    numerator=None,
+                    denominator=None,
+                    expr=None,
+                    window=None,
+                    grain_to_date=None,
+                    metrics=None,
+                    conversion_type_params=None,
+                    cumulative_type_params=None,
+                    metric_aggregation_params=None,
                 ),
+                description=None,
+                filter=None,
+                metadata=None,
+                config=None,
             ),
         ],
         project_configuration=PydanticProjectConfiguration(
@@ -166,11 +218,17 @@ def seed_duckdb() -> duckdb.DuckDBPyConnection:
     return con
 
 
-def explain_sql(engine: MetricFlowEngine, **kwargs) -> str:
+def explain_sql(engine: MetricFlowEngine, **kwargs: Any) -> str:
     return engine.explain(MetricFlowQueryRequest.create(**kwargs)).sql_statement.sql
 
 
-def run_case(con, engine, label, expected, **kwargs) -> bool:
+def run_case(
+    con: duckdb.DuckDBPyConnection,
+    engine: MetricFlowEngine,
+    label: str,
+    expected: Sequence[tuple[object, ...]],
+    **kwargs: Any,
+) -> bool:
     sql = explain_sql(engine, **kwargs)
     rows = con.execute(sql).fetchall()
     ok = rows == expected
@@ -189,7 +247,7 @@ def main() -> None:
         "{{ TimeDimension('inventory__snapshot_date', 'day') }}"
         " BETWEEN '2024-01-01' AND '2024-01-03'"
     )
-    results = []
+    results: list[bool] = []
 
     # (a) no time group-by, Jan 1-3 filter — global and warehouse-A-scoped variants.
     results.append(

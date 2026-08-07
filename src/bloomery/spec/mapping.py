@@ -43,10 +43,14 @@ class TransformStep(SpecModel):
         if isinstance(value, AbcMapping):
             mapping = cast("AbcMapping[object, object]", value)
             if set(mapping.keys()) in ({"name"}, {"name", "args"}):
-                return value  # already-normalized form (round-trips)
+                return mapping  # already-normalized form (round-trips)
             if len(mapping) == 1:
                 ((name, raw_args),) = mapping.items()
-                args = tuple(raw_args) if isinstance(raw_args, (list, tuple)) else (raw_args,)
+                args: tuple[object, ...] = (
+                    tuple(cast("list[object] | tuple[object, ...]", raw_args))
+                    if isinstance(raw_args, (list, tuple))
+                    else (raw_args,)
+                )
                 return {"name": name, "args": args}
             msg = (
                 "a transform step is a bare name or a single-key mapping "

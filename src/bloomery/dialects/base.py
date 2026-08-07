@@ -12,7 +12,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import ClassVar, Protocol
 
-from sqlglot import exp
+from sqlglot.expressions.core import Expression
 
 from bloomery.typing import (
     BoolType,
@@ -46,7 +46,7 @@ class DialectPort(Protocol):
 
     name: str
 
-    def render(self, node: exp.Expression) -> str: ...
+    def render(self, node: Expression) -> str: ...
 
     def physical_type(self, t: LogicalType) -> str: ...
 
@@ -72,7 +72,7 @@ class SQLGlotDialect:
         VariantType: "JSON",
     }
 
-    def render(self, node: exp.Expression) -> str:
+    def render(self, node: Expression) -> str:
         """Render a dialect-neutral AST as this dialect's SQL text."""
         return node.sql(dialect=self.sqlglot_dialect, pretty=True)
 

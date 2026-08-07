@@ -15,6 +15,7 @@ from __future__ import annotations
 import re
 
 from sqlglot import exp
+from sqlglot.expressions.core import Expression
 
 from bloomery.ir.nodes import PartitionSpec, SqlExpr
 from bloomery.spec.common import PARTITION_SPEC_PATTERN
@@ -57,12 +58,12 @@ def generic_type(t: LogicalType) -> exp.DataType:
     return exp.DataType.build(_GENERIC_TYPES[type(t)])
 
 
-def canon(node: exp.Expression) -> SqlExpr:
+def canon(node: Expression) -> SqlExpr:
     """Canonical dialect-neutral text (RFC 0003 §5.2)."""
     return SqlExpr(node.sql(pretty=False))
 
 
-def extraction(path: str) -> exp.Expression:
+def extraction(path: str) -> Expression:
     """Lower a JSONPath-lite ``$.a.b`` against the bronze relation: the first
     segment is the physical column, deeper segments are JSON extraction."""
     segments = path.removeprefix("$.").split(".")

@@ -52,7 +52,7 @@ Deterministic choices pinned here (RFC 0013 R1; each is golden/unit-tested):
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 # RFC 0013 §5.9a: metricflow_semantic_interfaces has an internal circular
 # import — ``implementations.node_relation`` raises ``ImportError`` whenever
@@ -76,6 +76,7 @@ from metricflow_semantic_interfaces.implementations.elements.measure import (
 )
 from metricflow_semantic_interfaces.implementations.metric import (
     PydanticMetric,
+    PydanticMetricInput,
     PydanticMetricInputMeasure,
     PydanticMetricTypeParams,
 )
@@ -238,6 +239,13 @@ def _day_columns(mart: MartIR) -> dict[str, str]:
     return day_by_source
 
 
+# MSI's pydantic-v1-shim models declare their optional fields without explicit
+# defaults (pydantic's implicit-optional), which strict type checkers read as
+# *required* constructor arguments. Every unused optional field below is
+# therefore pinned to its ``None`` default explicitly — identical runtime
+# models and bytes, but honest under strict typing.
+
+
 def _entities(
     mart: MartIR, base: EntityIR
 ) -> tuple[list[PydanticEntity], str | None, frozenset[str]]:
@@ -246,7 +254,16 @@ def _entities(
     entities: list[PydanticEntity] = []
     primary_entity: str | None = None
     if len(base.key) == 1:
-        entities.append(PydanticEntity(name=mart.grain, type=EntityType.PRIMARY, expr=base.key[0]))
+        entities.append(
+            PydanticEntity(
+                name=mart.grain,
+                type=EntityType.PRIMARY,
+                expr=base.key[0],
+                description=None,
+                role=None,
+                config=None,
+            )
+        )
     else:
         # Composite key: no single natural key column exists, so the primary
         # entity is declared name-only on the model (RFC 0013 D3).
@@ -261,7 +278,16 @@ def _entities(
         if name in used:
             continue
         used.add(name)
-        entities.append(PydanticEntity(name=name, type=EntityType.FOREIGN, expr=join.on[0][0]))
+        entities.append(
+            PydanticEntity(
+                name=name,
+                type=EntityType.FOREIGN,
+                expr=join.on[0][0],
+                description=None,
+                role=None,
+                config=None,
+            )
+        )
     entities.sort(key=lambda e: e.name)
     return entities, primary_entity, frozenset(join_keys)
 
@@ -281,6 +307,8 @@ def _dimensions(
                     type=DimensionType.TIME,
                     type_params=PydanticDimensionTypeParams(time_granularity=TimeGranularity.DAY),
                     description=description,
+                    metadata=None,
+                    config=None,
                 )
             )
         elif column.name not in join_keys:
@@ -289,6 +317,9 @@ def _dimensions(
                     name=column.name,
                     type=DimensionType.CATEGORICAL,
                     description=description,
+                    type_params=None,
+                    metadata=None,
+                    config=None,
                 )
             )
     return dimensions
@@ -322,6 +353,10 @@ def _measures(
                 expr=metric.expr.sql,
                 agg_time_dimension=_agg_time_dimension(mart),
                 non_additive_dimension=non_additive,
+                description=None,
+                create_metric=None,
+                agg_params=None,
+                metadata=None,
             )
         )
     return measures
@@ -363,6 +398,41 @@ def _semantic_model(
         entities=entities,
         dimensions=_dimensions(mart, join_keys, descriptions),
         measures=_measures(mart, owners, metrics_by_name, _day_columns(mart)),
+        defaults=None,
+        description=None,
+        metadata=None,
+        config=None,
+    )
+
+
+def _metric_input(name: str) -> PydanticMetricInput:
+    """A name-only ratio component. MSI coerces a ``PydanticMetricInputMeasure``
+    into exactly this shape at validation time; constructing it directly says
+    what is meant (and is byte-identical in the serialized manifest)."""
+    return PydanticMetricInput(
+        name=name, filter=None, alias=None, offset_window=None, offset_to_grain=None
+    )
+
+
+def _type_params(
+    *,
+    measure: PydanticMetricInputMeasure | None = None,
+    numerator: PydanticMetricInput | None = None,
+    denominator: PydanticMetricInput | None = None,
+) -> PydanticMetricTypeParams:
+    """``PydanticMetricTypeParams`` with every unused optional field pinned to
+    its ``None`` default (see the implicit-optional note above)."""
+    return PydanticMetricTypeParams(
+        measure=measure,
+        numerator=numerator,
+        denominator=denominator,
+        expr=None,
+        window=None,
+        grain_to_date=None,
+        metrics=None,
+        conversion_type_params=None,
+        cumulative_type_params=None,
+        metric_aggregation_params=None,
     )
 
 
@@ -381,9 +451,14 @@ def _metrics(ir: ProjectIR, owners: dict[str, MartIR]) -> list[PydanticMetric]:
                     name=metric.name,
                     description=metric.description,
                     type=MetricType.SIMPLE,
-                    type_params=PydanticMetricTypeParams(
-                        measure=PydanticMetricInputMeasure(name=metric.name)
+                    type_params=_type_params(
+                        measure=PydanticMetricInputMeasure(
+                            name=metric.name, filter=None, alias=None
+                        )
                     ),
+                    filter=None,
+                    metadata=None,
+                    config=None,
                 )
             )
         elif (
@@ -397,10 +472,13 @@ def _metrics(ir: ProjectIR, owners: dict[str, MartIR]) -> list[PydanticMetric]:
                     name=metric.name,
                     description=metric.description,
                     type=MetricType.RATIO,
-                    type_params=PydanticMetricTypeParams(
-                        numerator=PydanticMetricInputMeasure(name=metric.ratio.numerator),
-                        denominator=PydanticMetricInputMeasure(name=metric.ratio.denominator),
+                    type_params=_type_params(
+                        numerator=_metric_input(metric.ratio.numerator),
+                        denominator=_metric_input(metric.ratio.denominator),
                     ),
+                    filter=None,
+                    metadata=None,
+                    config=None,
                 )
             )
     return metrics
@@ -503,6 +581,8 @@ def emit_manifest(ir: ProjectIR, *, naming: NamingPolicy) -> PydanticSemanticMan
 def manifest_json(manifest: PydanticSemanticManifest, *, indent: int | None = None) -> str:
     """Deterministic sorted-keys JSON for a (transformed) manifest — the
     golden/caching serialization (RFC 0014 D5: never pickle). MetricFlow's
-    manifest objects are pydantic-v1-shim models, hence ``.json()`` (typed
-    ``Any`` through the shim, so the return is pinned here)."""
-    return cast("str", manifest.json(sort_keys=True, indent=indent))
+    manifest objects are pydantic-v1-shim models, hence ``.json()`` (mypy sees
+    ``Any`` through the shim, so the result is pinned via annotation — a
+    ``cast`` would be flagged as unnecessary by pyright, which sees ``str``)."""
+    payload: str = manifest.json(sort_keys=True, indent=indent)
+    return payload

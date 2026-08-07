@@ -12,7 +12,8 @@ nothing internal but errors (import-linter contract).
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from collections.abc import Hashable
+from typing import Annotated, Any, Literal, cast
 
 import yaml
 from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints
@@ -172,10 +173,17 @@ class _StrictSafeLoader(yaml.SafeLoader):
     failure the spec layer exists to prevent (RFC 0002 D5).
     """
 
-    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[object, object]:
+    def _construct_key(self, node: yaml.Node) -> object:
+        """``construct_object`` pinned to ``object`` — types-PyYAML leaves it untyped."""
+        return cast(
+            "object",
+            self.construct_object(node, deep=True),  # pyright: ignore[reportUnknownMemberType]
+        )
+
+    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Hashable, Any]:
         seen: set[object] = set()
         for key_node, _value_node in node.value:
-            key = self.construct_object(key_node, deep=True)
+            key = self._construct_key(key_node)
             if isinstance(key, (dict, list)):  # unhashable — SafeLoader rejects later
                 continue
             if key in seen:
@@ -203,13 +211,14 @@ def load_yaml_mapping(text: str, *, document: str) -> dict[str, object]:
             f"a spec document must be a YAML mapping, got {type(data).__name__}",
             source_path=document,
         )
-    bad_keys = [key for key in data if not isinstance(key, str)]
+    mapping = cast("dict[object, object]", data)
+    bad_keys = [key for key in mapping if not isinstance(key, str)]
     if bad_keys:
         raise SpecParseError(
             f"spec document keys must be strings, got {bad_keys[0]!r}",
             source_path=document,
         )
-    return {str(key): value for key, value in data.items()}
+    return {str(key): value for key, value in mapping.items()}
 
 
 def flatten_collected(errors: list[BloomeryError]) -> tuple[BloomeryError, ...]:

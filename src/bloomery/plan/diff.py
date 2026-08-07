@@ -101,14 +101,16 @@ class _Acc:
     """Mutable diff-walk accumulator; every set is consumed through
     ``sorted()`` or membership only, never iterated into output."""
 
-    changes: list[Change] = field(default_factory=list)
-    backfill: set[str] = field(default_factory=set)
+    changes: list[Change] = field(default_factory=list[Change])
+    backfill: set[str] = field(default_factory=set[str])
     #: Names whose meaning/shape changed — the downstream-impact seeds.
-    seeds: set[str] = field(default_factory=set)
+    seeds: set[str] = field(default_factory=set[str])
     #: Dropped/narrowed fields: (display name, kind, reference names).
-    contract_fields: list[tuple[str, str, frozenset[str]]] = field(default_factory=list)
+    contract_fields: list[tuple[str, str, frozenset[str]]] = field(
+        default_factory=list[tuple[str, str, frozenset[str]]]
+    )
     #: Measures removed from marts: (mart name, measure name).
-    dropped_measures: list[tuple[str, str]] = field(default_factory=list)
+    dropped_measures: list[tuple[str, str]] = field(default_factory=list[tuple[str, str]])
 
 
 # ....................... #

@@ -14,6 +14,7 @@ import dataclasses
 import hashlib
 from decimal import Decimal
 from enum import Enum
+from typing import cast
 
 from bloomery.ir.nodes import ProjectIR
 
@@ -45,8 +46,9 @@ def _write(out: bytearray, value: object) -> None:
     elif isinstance(value, Decimal):
         _write_tagged(out, b"D", str(value).encode("ascii"))
     elif isinstance(value, tuple):
-        out += b"T" + str(len(value)).encode("ascii") + b":"
-        for item in value:
+        items = cast("tuple[object, ...]", value)
+        out += b"T" + str(len(items)).encode("ascii") + b":"
+        for item in items:
             _write(out, item)
     elif dataclasses.is_dataclass(value) and not isinstance(value, type):
         fields = dataclasses.fields(value)

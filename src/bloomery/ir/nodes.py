@@ -17,7 +17,8 @@ from enum import StrEnum
 from functools import lru_cache
 from typing import cast
 
-from sqlglot import exp, parse_one
+from sqlglot import parse_one
+from sqlglot.expressions.core import Expression
 
 from bloomery.typing import LogicalType
 
@@ -129,7 +130,7 @@ class SemiAdditiveRule(StrEnum):
 
 
 @lru_cache(maxsize=512)
-def _parse_sql(sql: str) -> exp.Expression:
+def _parse_sql(sql: str) -> Expression:
     """Parse canonical dialect-neutral SQL once per distinct string.
 
     The cached AST is never handed out directly — :meth:`SqlExpr.ast` returns
@@ -137,7 +138,7 @@ def _parse_sql(sql: str) -> exp.Expression:
     """
     # ``parse_one`` is annotated with the ``Expr`` base, but every node it can
     # return (including multi-statement ``Block``) is an ``Expression``.
-    return cast("exp.Expression", parse_one(sql))
+    return cast("Expression", parse_one(sql))
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,7 +149,7 @@ class SqlExpr:
 
     sql: str
 
-    def ast(self) -> exp.Expression:
+    def ast(self) -> Expression:
         """A fresh SQLGlot AST for this expression — always a copy; mutating
         the returned tree never affects other callers."""
         return _parse_sql(self.sql).copy()

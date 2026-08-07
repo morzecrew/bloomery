@@ -25,6 +25,7 @@ from __future__ import annotations
 import statistics
 import time
 import tracemalloc
+from typing import TYPE_CHECKING
 
 from metricflow_semantic_interfaces.implementations.elements.dimension import (
     PydanticDimension,
@@ -52,13 +53,11 @@ from metricflow_semantic_interfaces.implementations.time_spine import (
 from metricflow_semantic_interfaces.transformations.semantic_manifest_transformer import (
     PydanticSemanticManifestTransformer,
 )
-from metricflow_semantic_interfaces.type_enums import (
-    AggregationType,
-    DimensionType,
-    EntityType,
-    MetricType,
-    TimeGranularity,
-)
+from metricflow_semantic_interfaces.type_enums.aggregation_type import AggregationType
+from metricflow_semantic_interfaces.type_enums.dimension_type import DimensionType
+from metricflow_semantic_interfaces.type_enums.entity_type import EntityType
+from metricflow_semantic_interfaces.type_enums.metric_type import MetricType
+from metricflow_semantic_interfaces.type_enums.time_granularity import TimeGranularity
 from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifestLookup
 
 from metricflow.engine.metricflow_engine import MetricFlowEngine, MetricFlowQueryRequest
@@ -67,6 +66,9 @@ from metricflow.sql.render.duckdb_renderer import DuckDbSqlPlanRenderer
 
 from spike import RenderOnlySqlClient  # same directory
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 N_MODELS = 30
 MEASURES_PER_MODEL = 3  # 90 measures -> 90 simple metrics
 DIMS_PER_MODEL = 6  # 1 time dim + 5 categorical
@@ -74,7 +76,11 @@ RUNS = 25
 
 
 def build_synthetic_manifest() -> PydanticSemanticManifest:
-    models, metrics = [], []
+    # MSI's pydantic-v1 models declare optional fields without explicit
+    # defaults, which pyright reads as required constructor arguments — every
+    # unused optional field is pinned to its None default explicitly.
+    models: list[PydanticSemanticModel] = []
+    metrics: list[PydanticMetric] = []
     for m in range(N_MODELS):
         name = f"mart_{m:02d}"
         entity = f"entity_{m:02d}"
@@ -84,6 +90,10 @@ def build_synthetic_manifest() -> PydanticSemanticManifest:
                 agg=AggregationType.SUM,
                 expr=f"col_{k}",
                 agg_time_dimension="event_at",
+                description=None,
+                create_metric=None,
+                agg_params=None,
+                metadata=None,
             )
             for k in range(MEASURES_PER_MODEL)
         ]
@@ -92,18 +102,42 @@ def build_synthetic_manifest() -> PydanticSemanticManifest:
                 name="event_at",
                 type=DimensionType.TIME,
                 type_params=PydanticDimensionTypeParams(time_granularity=TimeGranularity.DAY),
+                description=None,
+                metadata=None,
+                config=None,
             )
         ] + [
-            PydanticDimension(name=f"dim_{d}", type=DimensionType.CATEGORICAL)
+            PydanticDimension(
+                name=f"dim_{d}",
+                type=DimensionType.CATEGORICAL,
+                description=None,
+                type_params=None,
+                metadata=None,
+                config=None,
+            )
             for d in range(DIMS_PER_MODEL - 1)
         ]
         models.append(
             PydanticSemanticModel(
                 name=name,
                 node_relation=PydanticNodeRelation(alias=name, schema_name="gold"),
-                entities=[PydanticEntity(name=entity, type=EntityType.PRIMARY, expr="pk")],
+                entities=[
+                    PydanticEntity(
+                        name=entity,
+                        type=EntityType.PRIMARY,
+                        expr="pk",
+                        description=None,
+                        role=None,
+                        config=None,
+                    )
+                ],
                 measures=measures,
                 dimensions=dims,
+                defaults=None,
+                description=None,
+                primary_entity=None,
+                metadata=None,
+                config=None,
             )
         )
         metrics.extend(
@@ -112,8 +146,22 @@ def build_synthetic_manifest() -> PydanticSemanticManifest:
                 type=MetricType.SIMPLE,
                 description=f"Synthetic metric {k} on {name}, for hydration benchmarking.",
                 type_params=PydanticMetricTypeParams(
-                    measure=PydanticMetricInputMeasure(name=f"{name}_measure_{k}")
+                    measure=PydanticMetricInputMeasure(
+                        name=f"{name}_measure_{k}", filter=None, alias=None
+                    ),
+                    numerator=None,
+                    denominator=None,
+                    expr=None,
+                    window=None,
+                    grain_to_date=None,
+                    metrics=None,
+                    conversion_type_params=None,
+                    cumulative_type_params=None,
+                    metric_aggregation_params=None,
                 ),
+                filter=None,
+                metadata=None,
+                config=None,
             )
             for k in range(MEASURES_PER_MODEL)
         )
@@ -133,8 +181,8 @@ def build_synthetic_manifest() -> PydanticSemanticManifest:
     )
 
 
-def bench(label: str, fn, runs: int = RUNS) -> float:
-    times = []
+def bench(label: str, fn: Callable[[], object], runs: int = RUNS) -> float:
+    times: list[float] = []
     for _ in range(runs):
         t0 = time.perf_counter()
         fn()
@@ -161,7 +209,7 @@ def main() -> None:
     parsed = PydanticSemanticManifest.parse_raw(payload)
     t_lookup = bench("SemanticManifestLookup()", lambda: SemanticManifestLookup(parsed))
 
-    def cold():
+    def cold() -> None:
         SemanticManifestLookup(PydanticSemanticManifest.parse_raw(payload))
 
     t_cold = bench("cold hydration (parse_raw + lookup)", cold)
