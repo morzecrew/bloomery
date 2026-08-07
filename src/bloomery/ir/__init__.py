@@ -4,6 +4,9 @@ normalized IR nodes plus the ``blm1:`` content fingerprint."""
 from bloomery.ir.fingerprint import project_fingerprint
 from bloomery.ir.lower import canon, extraction, generic_type, partition_specs
 from bloomery.ir.nodes import (
+    FLAGS_COLUMN,
+    OK_COLUMN,
+    REJECT_SUFFIX,
     Additivity,
     AuditIR,
     Cardinality,
@@ -41,6 +44,9 @@ from bloomery.ir.nodes import (
 )
 
 __all__ = [
+    "FLAGS_COLUMN",
+    "OK_COLUMN",
+    "REJECT_SUFFIX",
     "Additivity",
     "AuditIR",
     "Cardinality",

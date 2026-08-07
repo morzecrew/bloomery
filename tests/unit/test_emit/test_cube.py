@@ -198,7 +198,9 @@ def test_measure_meta_propagates_additivity_and_grain() -> None:
 
 
 def test_semi_additive_measure_carries_its_policy_in_meta() -> None:
-    (artifact, _view) = compile_fixture("semi_additive_inventory", target=Target.CUBE)
+    artifacts = compile_fixture("semi_additive_inventory", target=Target.CUBE)
+    # The fixture also emits the quality mart's cube (RFC 0016 §5.8).
+    artifact = next(a for a in artifacts if a.path == "model/cubes/inventory.yml")
     (cube,) = cast("dict[str, list[dict[str, object]]]", yaml.safe_load(artifact.content))["cubes"]
     (measure,) = cast("list[dict[str, object]]", cube["measures"])
     assert measure["name"] == "stock_on_hand"

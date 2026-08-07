@@ -14,7 +14,7 @@ import sqlglot
 from sqlglot import expressions as exp
 
 from bloomery import MetricFlowPlanner, build_project_ir
-from bloomery.ir import ProjectIR
+from bloomery.ir import MartIR, ProjectIR
 from bloomery.naming import DefaultNaming
 from bloomery.runtime import LruManifestHydrator
 from support.compiling import load_fixture
@@ -22,6 +22,7 @@ from support.compiling import load_fixture
 __all__ = [
     "audit_scans",
     "fixture_ir",
+    "fixture_mart",
     "make_planner",
     "normalize_month",
     "quantized",
@@ -32,6 +33,17 @@ __all__ = [
 def fixture_ir(name: str) -> ProjectIR:
     project, catalog = load_fixture(name)
     return build_project_ir(project, catalog)
+
+
+def fixture_mart(fixture: str, name: str) -> MartIR:
+    """One mart of a fixture, **by name**.
+
+    Never by index: every quality-carrying fixture also carries the
+    bloomery-owned ``data_quality`` mart (RFC 0016 §5.8), which sorts first
+    among ``ProjectIR.marts`` — so ``marts[0]`` silently means something else
+    there than it did before M12.
+    """
+    return next(mart for mart in fixture_ir(fixture).marts if mart.name == name)
 
 
 def make_planner(**kwargs: object) -> MetricFlowPlanner:

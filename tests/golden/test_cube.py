@@ -30,8 +30,13 @@ EXPECTED_PATHS = {
         "model/cubes/orders.yml",
         "model/views/orders_view.yml",
     ],
+    # Cube consumes the quality mart like any other mart (RFC 0016 §5.4):
+    # nothing target-specific about it, which is the point of §5.8's "ordinary
+    # semantic model".
     "semi_additive_inventory": [
+        "model/cubes/data_quality.yml",
         "model/cubes/inventory.yml",
+        "model/views/data_quality_view.yml",
         "model/views/inventory_view.yml",
     ],
 }

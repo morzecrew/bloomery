@@ -22,3 +22,16 @@ entities:
     quality:
       - {rule: expression, name: stock_level_not_negative,
          expr: "stock_level >= 0", on_fail: flag}
+
+# A reconcile check (RFC 0016 §5.3) over the one entity this fixture declares:
+# the per-key aggregate must equal the per-key value. That is only true while
+# exactly one row survives per (warehouse, day) — so this is the *executable*
+# statement of what dedupe promises, in the same shape as the RFC's
+# order/order_item example. Non-blocking by construction: a WMS that starts
+# re-sending corrections under a new _source_row_id shows up here as a
+# disagreement, not as a stopped pipeline.
+reconcile:
+  - {name: stock_level_matches_snapshot,
+     left: "sum(inventory_level.stock_level) by warehouse_id, stock_date",
+     right: "inventory_level.stock_level",
+     tolerance: "0.01", on_fail: flag}

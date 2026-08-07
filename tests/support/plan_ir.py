@@ -13,6 +13,7 @@ from bloomery.ir import (
     AuditIR,
     ColumnIR,
     DateDimensionIR,
+    DedupeIR,
     EntityIR,
     MartColumnIR,
     MartDimensionIR,
@@ -20,9 +21,13 @@ from bloomery.ir import (
     MartJoinIR,
     Materialization,
     MetricIR,
+    OnFail,
     PartitionSpec,
     ProjectIR,
+    QualityRuleIR,
+    QuarantineIR,
     Ratio,
+    ReconcileIR,
     RelationshipIR,
     SCDKind,
     SemiAdditivePolicy,
@@ -32,6 +37,7 @@ from bloomery.ir import (
     TaxBasis,
     Unit,
     UnreachableMetric,
+    quality_sort_key,
 )
 from bloomery.typing import LogicalType, StringType
 
@@ -75,6 +81,9 @@ def entity(
     relation: str = "raw__items",
     source_fields: tuple[SourceFieldIR, ...] = (),
     audits: tuple[AuditIR, ...] = (),
+    quality: tuple[QualityRuleIR, ...] = (),
+    dedupe: DedupeIR | None = None,
+    quarantine: QuarantineIR | None = None,
 ) -> EntityIR:
     resolved = columns if columns is not None else (column("id", required=True),)
     return EntityIR(
@@ -90,6 +99,24 @@ def entity(
             fields=tuple(sorted(source_fields, key=lambda f: (f.target_field, f.source_path))),
         ),
         audits=audits,
+        quality=tuple(sorted(quality, key=quality_sort_key)),
+        dedupe=dedupe,
+        quarantine=quarantine,
+    )
+
+
+def quality_rule(
+    name: str = "amount_range_min",
+    *,
+    kind: str = "range",
+    column_name: str | None = "amount",
+    on_fail: OnFail | None = OnFail.QUARANTINE,
+    params: tuple[tuple[str, str], ...] = (("min", "0"),),
+) -> QualityRuleIR:
+    """One lowered quality rule, shaped the way ``lower_quality`` shapes them
+    (RFC 0016 §5.3) — the knob the plan-stage classification tests turn."""
+    return QualityRuleIR(
+        name=name, kind=kind, column=column_name, on_fail=on_fail, params=tuple(sorted(params))
     )
 
 
@@ -168,6 +195,7 @@ def project(
     relationships: tuple[RelationshipIR, ...] = (),
     marts: tuple[MartIR, ...] = (),
     date_dimension: DateDimensionIR | None = None,
+    reconcile: tuple[ReconcileIR, ...] = (),
 ) -> ProjectIR:
     return ProjectIR(
         bloomery_ir_version=2,
@@ -177,4 +205,5 @@ def project(
         relationships=tuple(sorted(relationships, key=lambda r: r.name)),
         marts=tuple(sorted(marts, key=lambda m: m.name)),
         date_dimension=date_dimension,
+        reconcile=tuple(sorted(reconcile, key=lambda check: check.name)),
     )

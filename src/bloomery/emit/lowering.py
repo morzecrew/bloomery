@@ -22,7 +22,7 @@ from sqlglot import exp, parse_one
 from sqlglot.expressions.core import Expression
 
 from bloomery.dialects import DialectFeature
-from bloomery.errors import UnsupportedByTarget
+from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.ir import (
     AuditIR,
     DateDimensionIR,
@@ -31,25 +31,36 @@ from bloomery.ir import (
     MartColumnIR,
     MartIR,
     OnFail,
+    ProjectIR,
     QualityRuleIR,
+    ReconcileIR,
+    SCDKind,
     SqlExpr,
     generic_type,
 )
+from bloomery.marts import DATE_BUCKETS, HAS_QUALITY_FLAGS
 from bloomery.quality import (
     FLAGS_COLUMN,
     INGESTION_METADATA,
     OK_COLUMN,
+    QUALITY_MEASURE_COLUMNS,
+    QUALITY_RUN_ROLE,
+    RECONCILE_SUFFIX,
     REJECT_SUFFIX,
     ROW_ID_COLUMN,
+    ReconcileSide,
+    RunContext,
     conjunction,
     dedupe_order,
     disjunction,
     disposition,
     empty_flags,
+    flag_member,
     flags_expression,
     grouped,
     indexed_params,
     params_of,
+    parse_side,
     payload_key,
     quality_ok,
     ref_alias,
@@ -74,6 +85,11 @@ __all__ = [
     "ROW_ID_COUNT_COLUMN",
     "ingestion_audit_predicate",
     "mart_select",
+    "quality_mart_select",
+    "reconcile_audit_predicate",
+    "reconcile_keys",
+    "reconcile_relation",
+    "reconcile_select",
     "reject_relation",
     "reject_select",
     "replay_statements",
@@ -637,14 +653,432 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
 
 
 # ....................... #
+# Reconcile (RFC 0016 §5.3/§5.4): one model plus a non-blocking audit per
+# check — "the check that catches a *correct formula over wrong data*". The
+# two sides come from the closed grammar in :mod:`bloomery.quality.reconcile`
+# and are built as a SQLGlot AST like everything else here; no string SQL ever
+# reaches an artifact.
+
+_LEFT_ALIAS = "_left"
+_RIGHT_ALIAS = "_right"
+_LEFT_VALUE = "left_value"
+_RIGHT_VALUE = "right_value"
+
+_AGGREGATES: dict[str, type[exp.AggFunc]] = {
+    "avg": exp.Avg,
+    "count": exp.Count,
+    "max": exp.Max,
+    "min": exp.Min,
+    "sum": exp.Sum,
+}
+
+
+def reconcile_relation(check: ReconcileIR) -> str:
+    """``<check>__reconcile`` — one relation per check, mirroring the reject
+    table's naming (RFC 0016 §5.3)."""
+    return f"{check.name}{RECONCILE_SUFFIX}"
+
+
+def _resolved_side(text: str, ir: ProjectIR) -> tuple[ReconcileSide, EntityIR, tuple[str, ...]]:
+    """One side parsed and bound to its entity, with the keys it compares by.
+
+    Both grammar shapes produce the same thing — one value per key — which is
+    what makes the comparison a plain join. The aggregate shape is keyed by
+    its ``by`` columns; the plain-column shape by the entity's declared key.
+    """
+    side = parse_side(text)
+    entity = next(
+        (e for e in ir.entities if side is not None and e.name == side.entity),
+        None,
+    )
+    if side is None or entity is None:  # pragma: no cover — the guardrail stage refuses both
+        msg = (
+            f"reconcile side {text!r} did not parse or names an unbuilt entity — the "
+            "guardrail stage should have refused this (RFC 0016 §5.3)"
+        )
+        raise EmitError(msg)
+    return side, entity, side.by if side.aggregated else tuple(entity.key)
+
+
+def reconcile_keys(check: ReconcileIR, ir: ProjectIR) -> tuple[str, ...]:
+    """The grain of a check's model: the columns its left side compares by
+    (the guardrail stage has already refused sides keyed differently)."""
+    _side, _entity, keys = _resolved_side(check.left, ir)
+    return keys
+
+
+def _reconcile_side(
+    text: str, ir: ProjectIR, ctx: EmitContext, *, value: str
+) -> tuple[exp.Select, tuple[str, ...]]:
+    """One side lowered to a keyed value relation: ``(select, key columns)``."""
+    side, _entity, keys = _resolved_side(text, ir)
+    namespace, relation = ctx.naming.relation(side.entity, Layer.SILVER)
+    select = exp.Select().from_(exp.table_(relation, db=namespace))
+    if side.agg is None:
+        return (
+            select.select(
+                *(exp.column(key) for key in keys),
+                exp.alias_(exp.column(side.column), value),
+            ),
+            keys,
+        )
+    aggregated = _AGGREGATES[side.agg](this=exp.column(side.column))
+    return (
+        select.select(*(exp.column(key) for key in keys), exp.alias_(aggregated, value)).group_by(
+            *(exp.column(key) for key in keys)
+        ),
+        keys,
+    )
+
+
+def reconcile_select(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> exp.Select:
+    """The ``<check>__reconcile`` model: both sides, their difference, and the
+    tolerance verdict, one row per compared key.
+
+    A **FULL** join, deliberately: a key present on one side only is the
+    loudest disagreement there is, and an inner join would hide exactly that
+    by returning fewer rows instead of a failing one. Its ``difference`` is
+    NULL and ``within_tolerance`` is FALSE — the ``COALESCE`` collapses the
+    three-valued comparison at this one seam, the same way the routing
+    predicate does (§5.4), because a verdict column has to be a verdict.
+    """
+    left, left_keys = _reconcile_side(check.left, ir, ctx, value=_LEFT_VALUE)
+    right, right_keys = _reconcile_side(check.right, ir, ctx, value=_RIGHT_VALUE)
+    # The guardrail stage has already refused sides keyed differently, so the
+    # two key sets agree; join on the sorted order for deterministic bytes and
+    # project in the left side's authored order.
+    joined = sorted(set(left_keys) & set(right_keys))
+    difference = exp.Abs(
+        this=exp.Sub(
+            this=exp.column(_LEFT_VALUE, table=_LEFT_ALIAS),
+            expression=exp.column(_RIGHT_VALUE, table=_RIGHT_ALIAS),
+        )
+    )
+    within = exp.Coalesce(
+        this=grouped(
+            exp.LTE(
+                this=difference.copy(),
+                # ``tolerance`` is a Decimal in the IR (RFC 0003 D5): it
+                # reaches SQL as a numeric *literal*, never a float.
+                expression=exp.Literal.number(str(check.tolerance)),
+            )
+        ),
+        expressions=[exp.false()],
+    )
+    projections: list[Expression] = [
+        cast(
+            "Expression",
+            exp.alias_(
+                exp.Coalesce(
+                    this=exp.column(key, table=_LEFT_ALIAS),
+                    expressions=[exp.column(key, table=_RIGHT_ALIAS)],
+                ),
+                key,
+            ),
+        )
+        for key in left_keys
+    ]
+    projections.extend(
+        (
+            exp.column(_LEFT_VALUE, table=_LEFT_ALIAS),
+            exp.column(_RIGHT_VALUE, table=_RIGHT_ALIAS),
+            cast("Expression", exp.alias_(difference.copy(), "difference")),
+            cast("Expression", exp.alias_(within, "within_tolerance")),
+        )
+    )
+    return (
+        exp.Select()
+        .select(*projections)
+        .from_(left.subquery(alias=_LEFT_ALIAS))
+        .join(
+            right.subquery(alias=_RIGHT_ALIAS),
+            on=conjunction(
+                [
+                    exp.EQ(
+                        this=exp.column(key, table=_LEFT_ALIAS),
+                        expression=exp.column(key, table=_RIGHT_ALIAS),
+                    )
+                    for key in joined
+                ]
+            ),
+            join_type="FULL OUTER",
+        )
+    )
+
+
+def reconcile_audit_predicate() -> Expression:
+    """The violating-row predicate of a check's audit: rows outside tolerance.
+
+    The audit is **non-blocking** (§5.3): a reconcile disagreement means the
+    numbers are wrong, which is exactly when a human needs to see the table —
+    stopping the run would withhold the evidence. ``within_tolerance`` is
+    already two-valued, so ``NOT`` is total here.
+    """
+    return exp.Not(this=exp.column("within_tolerance"))
+
+
+# ....................... #
+# The quality mart (RFC 0016 §5.8): every rule evaluation as one row of an
+# ordinary gold model. Counts only — the reject *rows* are never exposed
+# through the semantic layer (§7.4), and nothing here reads a clock.
+
+_QUALITY_CTE_PREFIX = "_quality_rows_"
+_FLAGS_ALIAS = "_flags"
+_QUARANTINED_ALIAS = "_quarantined"
+_EVALUATIONS_ALIAS = "_evaluations"
+_STAMPED_ALIAS = "_stamped"
+#: The per-evaluation columns a branch projects, in §5.8's schema order.
+_BRANCH_COLUMNS = (
+    "entity",
+    "mapping",
+    "rule",
+    "disposition",
+    *(column for column, _metric in QUALITY_MEASURE_COLUMNS),
+)
+
+
+def _mapping_identity(entity: EntityIR) -> str:
+    """The ``mapping`` dimension's value — the same string the reject table
+    records, so the two surfaces name one mapping the same way."""
+    return f"{entity.source.relation}->{entity.name}"
+
+
+def _quality_rows_cte(entity: EntityIR, ctx: EmitContext) -> exp.Select | exp.Union:
+    """Every row the entity's rules were evaluated over, with the flag
+    collection each carries and which side of the split it landed on.
+
+    The union of the entity and its **unresolved** rejects is exactly §6's
+    conservation-law population: a replayed row lives in the entity and its
+    reject row is retained as audit history with ``resolved_at`` set, so
+    excluding resolved rejects is what makes a replayed row count once.
+    """
+    namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
+    kept = (
+        exp.Select()
+        .select(
+            exp.alias_(exp.column(FLAGS_COLUMN), _FLAGS_ALIAS),
+            exp.alias_(exp.false(), _QUARANTINED_ALIAS),
+        )
+        .from_(exp.table_(relation, db=namespace))
+    )
+    if entity.quarantine is None:
+        return kept
+    reject_namespace, reject_rel = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
+    diverted = (
+        exp.Select()
+        .select(
+            exp.alias_(exp.column("failed_rules"), _FLAGS_ALIAS),
+            exp.alias_(exp.true(), _QUARANTINED_ALIAS),
+        )
+        .from_(exp.table_(reject_rel, db=reject_namespace))
+        .where(exp.Is(this=exp.column("resolved_at"), expression=exp.null()))
+    )
+    return exp.union(kept, diverted, distinct=False)
+
+
+def _counted(predicate: Expression) -> Expression:
+    """``SUM(CASE WHEN <predicate> THEN 1 ELSE 0 END)`` — a count that is 0,
+    never NULL, on an empty or never-matching partition."""
+    return exp.Sum(
+        this=exp.Case(
+            ifs=[exp.If(this=predicate, true=exp.Literal.number(1))],
+            default=exp.Literal.number(0),
+        )
+    )
+
+
+def _rows_deduped(entity: EntityIR, ctx: EmitContext) -> Expression:
+    """Rows dedupe removed before the rules ran — §6's conservation residual.
+
+    ``bronze rows − (entity rows + unresolved rejects)``: everything that
+    entered the pipeline and is in neither surviving surface was dropped by
+    the stage-3 ``QUALIFY``. It is an entity-level quantity repeated on each of
+    that entity's rule rows, because dedupe happens once, before any rule.
+
+    Zero where it cannot be measured honestly: an entity without ``dedupe``
+    loses nothing (the subtraction would always yield 0 anyway, at the cost of
+    a bronze scan), and an SCD type 2 entity stores version history rather than
+    one row per source row, so the difference would not be a dedupe count.
+    """
+    if entity.dedupe is None or entity.scd is SCDKind.TYPE2:
+        return exp.Literal.number(0)
+    namespace, relation = ctx.naming.relation(entity.source.relation, Layer.BRONZE)
+    bronze = (
+        exp.Select()
+        .select(exp.Count(this=exp.Star()))
+        .from_(exp.table_(relation, db=namespace))
+        .subquery()
+    )
+    return exp.Sub(this=bronze, expression=exp.Count(this=exp.Star()))
+
+
+def _rule_branch(
+    entity: EntityIR, rule: QualityRuleIR, ctx: EmitContext, *, arrays: bool
+) -> exp.Select:
+    """One row of the quality mart: what one rule did to one entity's rows.
+
+    Counts are read back off the **recorded** flag names (D23), never by
+    re-evaluating the rule: the rule already ran upstream, the reject table no
+    longer carries the source columns a re-evaluation would need, and a second
+    implementation of a predicate is a second thing to keep in agreement.
+
+    An ``on_fail: fail`` rule therefore reports ``rows_failed = 0``, which is
+    the truth for every run that produced a mart at all: its lowering is a
+    **blocking** audit, so a firing rule stops the run before this model is
+    built (§5.4).
+    """
+    fired = flag_member(exp.column(_FLAGS_ALIAS), rule.name, arrays=arrays)
+    quarantined: Expression = exp.Literal.number(0)
+    if disposition(rule) is OnFail.QUARANTINE:
+        quarantined = _counted(
+            exp.And(this=grouped(fired.copy()), expression=exp.column(_QUARANTINED_ALIAS))
+        )
+    values: list[Expression] = [
+        exp.Literal.string(entity.name),
+        exp.Literal.string(_mapping_identity(entity)),
+        exp.Literal.string(rule.name),
+        exp.Literal.string(str(disposition(rule))),
+        exp.Count(this=exp.Star()),
+        _counted(fired),
+        quarantined,
+        _rows_deduped(entity, ctx),
+    ]
+    return (
+        exp.Select()
+        .select(
+            *(
+                cast("Expression", exp.alias_(value, name))
+                for name, value in zip(_BRANCH_COLUMNS, values, strict=True)
+            )
+        )
+        .from_(exp.table_(f"{_QUALITY_CTE_PREFIX}{entity.name}"))
+    )
+
+
+def _reconcile_branch(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> exp.Select:
+    """One row per reconcile check, read off its own model.
+
+    Reconcile names share the rule-name grammar precisely so they can land in
+    this ``rule`` dimension (see ``RULE_NAME_PATTERN``). ``entity`` and
+    ``mapping`` name the check's **left** side: a reconcile relates two
+    entities, and the left is the one whose aggregate is under test.
+    """
+    _side, entity, _keys = _resolved_side(check.left, ir)
+    namespace, relation = ctx.naming.relation(reconcile_relation(check), Layer.SILVER)
+    values: list[Expression] = [
+        exp.Literal.string(entity.name),
+        exp.Literal.string(_mapping_identity(entity)),
+        exp.Literal.string(check.name),
+        exp.Literal.string(str(check.on_fail)),
+        exp.Count(this=exp.Star()),
+        _counted(reconcile_audit_predicate()),
+        exp.Literal.number(0),  # a reconcile check routes no row (§5.3)
+        exp.Literal.number(0),
+    ]
+    return (
+        exp.Select()
+        .select(
+            *(
+                cast("Expression", exp.alias_(value, name))
+                for name, value in zip(_BRANCH_COLUMNS, values, strict=True)
+            )
+        )
+        .from_(exp.table_(relation, db=namespace))
+    )
+
+
+def _run_column(macro: str | None, name: str, type_name: str) -> Expression:
+    """One run-context column: the engine's expression, or declared-but-NULL.
+
+    bloomery never reads a clock (RFC 0003), so neither value can be computed
+    here. Where the target framework offers a macro, its literal text is
+    substituted; where it does not, the column is emitted as a typed NULL
+    carrying an inline comment naming what the caller supplies — the schema
+    §5.8 promises, with no pretence that a value is present.
+    """
+    if macro is not None:
+        return cast("Expression", exp.alias_(exp.cast(exp.var(macro), type_name), name))
+    column = cast(
+        "Expression", exp.alias_(exp.cast(exp.null(), exp.DataType.build(type_name)), name)
+    )
+    column.comments = [
+        (
+            f" {name}: supplied by the executing engine's run context (RFC 0016 §5.8); "
+            "the pinned target exposes no macro for it — fill this column in your runner "
+        )
+    ]
+    return column
+
+
+def quality_mart_select(ir: ProjectIR, ctx: EmitContext, run: RunContext) -> exp.Select:
+    """``gold.mart_data_quality`` (RFC 0016 §5.8): one row per rule
+    evaluation, plus one per reconcile check.
+
+    Three nested levels, so each concern is readable on its own: the branches
+    count, the middle level stamps the run context once, and the outer level
+    buckets ``run_date`` into the date role's columns the way any mart's date
+    role is bucketed. Each quality-carrying entity's population is a CTE, so
+    an entity with ten rules is one scan, not ten.
+    """
+    arrays = _arrays(ctx)
+    branches: list[exp.Select] = []
+    entities = [entity for entity in ir.entities if entity.quality]
+    for entity in entities:  # sorted on ProjectIR; rules sorted on EntityIR
+        branches.extend(_rule_branch(entity, rule, ctx, arrays=arrays) for rule in entity.quality)
+    branches.extend(_reconcile_branch(check, ir, ctx) for check in ir.reconcile)
+    evaluations: exp.Select | exp.Union = branches[0]
+    for branch in branches[1:]:
+        evaluations = exp.union(evaluations, branch, distinct=False)
+
+    stamped = (
+        exp.Select()
+        .select(
+            *(exp.column(name, table=_EVALUATIONS_ALIAS) for name in _BRANCH_COLUMNS),
+            _run_column(run.run_id, "run_id", "TEXT"),
+            _run_column(run.run_date, "run_date", "DATE"),
+        )
+        .from_(evaluations.subquery(alias=_EVALUATIONS_ALIAS))
+    )
+    run_date = exp.column("run_date", table=_STAMPED_ALIAS)
+    projections: dict[str, Expression] = {
+        name: exp.column(name, table=_STAMPED_ALIAS)
+        for name in (*_BRANCH_COLUMNS, "run_id", "run_date")
+    }
+    for bucket in DATE_BUCKETS:
+        bucketed = exp.func("DATE_TRUNC", exp.Literal.string(bucket), run_date.copy())
+        projections[f"{QUALITY_RUN_ROLE}_{bucket}"] = cast(
+            "Expression",
+            exp.alias_(
+                exp.cast(bucketed, exp.DataType.build("DATE")), f"{QUALITY_RUN_ROLE}_{bucket}"
+            ),
+        )
+    select = (
+        exp.Select()
+        # Sorted by column name, exactly as ``mart_select`` projects a mart's
+        # own (sorted) columns — the emitted SELECT and ``MartIR.columns``
+        # agree position by position.
+        .select(*(projections[name] for name in sorted(projections)))
+        .from_(stamped.subquery(alias=_STAMPED_ALIAS))
+    )
+    for entity in entities:
+        select = select.with_(
+            f"{_QUALITY_CTE_PREFIX}{entity.name}", as_=_quality_rows_cte(entity, ctx)
+        )
+    return select
+
+
+# ....................... #
 # Mart lowering (RFC 0010 / RFC 0008 D11) — the only join-emitting path.
 
 
 def _column_owner(mart: MartIR, column: MartColumnIR) -> str:
     """The join alias owning a flattened column: the base entity for its own
-    (and date-role) columns, else the prefix of the join that flattened it."""
+    (and date-role, and ``has_quality_flags``) columns, else the prefix of the
+    join that flattened it."""
     if column.source_entity == mart.base and (
-        column.ref is not None or column.name == column.source_column
+        column.ref is not None
+        or column.name == column.source_column
+        or column.name == HAS_QUALITY_FLAGS
     ):
         return mart.base
     return next(
@@ -657,6 +1091,12 @@ def _column_owner(mart: MartIR, column: MartColumnIR) -> str:
 
 def _mart_projection(mart: MartIR, column: MartColumnIR) -> Expression:
     source = exp.column(column.source_column, table=_column_owner(mart, column))
+    if column.name == HAS_QUALITY_FLAGS:
+        # RFC 0016 §5.5: an ordinary dimension, *derived* from the base's
+        # generated ``_quality_ok`` (D23) rather than re-evaluated. ``NOT`` is
+        # two-valued here by construction — ``_quality_ok`` is generated from
+        # a never-NULL flag collection, so it is never NULL either.
+        return cast("Expression", exp.alias_(exp.Not(this=source), column.name))
     if column.ref is None:
         # ``alias_`` is annotated with the ``Expr`` base, but always returns
         # an ``Expression`` here (cf. ir.nodes on ``parse_one``).

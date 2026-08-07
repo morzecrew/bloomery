@@ -9,14 +9,27 @@ asserted here is that the artifacts say what the RFC says they say.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 from sqlglot import exp, parse_one
 
 from bloomery import Target, build_project_ir, compile_project
-from bloomery.emit import ArtifactKind
+from bloomery.dialects import get_dialect
+from bloomery.emit import ArtifactKind, EmitContext
+from bloomery.emit.lowering import mart_select
 from bloomery.errors import UnsupportedByTarget
+from bloomery.ir import MartJoinIR
+from bloomery.marts import HAS_QUALITY_FLAGS
+from bloomery.naming import DefaultNaming
 from bloomery.quality import FLAGS_COLUMN, INGESTION_METADATA, OK_COLUMN
+from bloomery.typing import BoolType
 from support.compiling import compile_fixture, extract_select, load_fixture
+from support.plan_ir import column as plan_column
+from support.plan_ir import entity as plan_entity
+from support.plan_ir import mart as plan_mart
+from support.plan_ir import mart_column as plan_mart_column
+from support.plan_ir import quality_rule as plan_rule
 
 pytestmark = pytest.mark.unit
 
@@ -35,8 +48,10 @@ def _artifact(path: str, *, dialect: str = "duckdb") -> str:
 @pytest.mark.parametrize("fixture", ["minimal", "ecom_basic", FIXTURE])
 def test_every_silver_model_carries_the_two_generated_columns(fixture: str) -> None:
     for artifact in compile_fixture(fixture):
-        if not artifact.path.startswith("models/silver/") or artifact.path.endswith("__reject.sql"):
-            continue
+        if not artifact.path.startswith("models/silver/") or artifact.path.endswith(
+            ("__reject.sql", "__reconcile.sql")
+        ):
+            continue  # neither is an entity model: one holds rejected rows, one a comparison
         select = parse_one(extract_select(artifact.content), dialect="duckdb")
         assert isinstance(select, exp.Select)
         aliases = {projection.alias_or_name for projection in select.expressions}
@@ -215,12 +230,31 @@ def test_replay_candidates_pass_the_same_rules_the_pipeline_applies() -> None:
 
 def test_dbt_refuses_the_reject_and_replay_artifacts() -> None:
     project, catalog = load_fixture(FIXTURE)
+    # The fixture also declares a reconcile check, which dbt refuses *first*
+    # (it is a project-level check, made before any entity is walked), so this
+    # test drops it to reach the entity-level refusal it is about.
+    without_reconcile = replace(
+        project,
+        entity_model=project.entity_model.model_copy(update={"reconcile": ()}),
+    )
     with pytest.raises(UnsupportedByTarget) as excinfo:
-        compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
+        compile_project(without_reconcile, target=Target.DBT, dialect="duckdb", catalog=catalog)
     message = str(excinfo.value)
     assert "inventory_level__reject" in message
     assert "compatibility target, minimal but honest" in message
     assert excinfo.value.source_path == "entity_model: entities.inventory_level.quarantine"
+
+
+def test_dbt_refuses_reconcile_naming_the_checks() -> None:
+    """The second honest refusal (RFC 0016 §5.4): a reconcile check lowers to
+    a model *and* a non-blocking audit, and dbt has no non-blocking test —
+    approximating it would turn "report the disagreement" into "fail the
+    build"."""
+    project, catalog = load_fixture(FIXTURE)
+    with pytest.raises(UnsupportedByTarget) as excinfo:
+        compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
+    assert "stock_level_matches_snapshot" in str(excinfo.value)
+    assert excinfo.value.source_path == "entity_model: reconcile"
 
 
 def test_dbt_still_emits_a_flag_only_quality_entity() -> None:
@@ -251,3 +285,48 @@ def test_the_ir_still_compiles_for_every_dialect() -> None:
     """The refusal is an *emit* concern: the IR itself is dialect-neutral."""
     project, catalog = load_fixture(FIXTURE)
     assert build_project_ir(project, catalog).entities[0].quarantine is not None
+
+
+# ....................... #
+# has_quality_flags on a mart that also joins (RFC 0016 §5.5)
+
+
+def test_the_quality_dimension_projects_from_the_base_alongside_joins() -> None:
+    """The derived column is owned by the **base** join alias, so it renders
+    correctly on a mart that flattens other entities too — the case no fixture
+    combines, and the one where a wrong owner would silently qualify
+    ``_quality_ok`` with a joined alias."""
+    base = plan_entity(
+        name="order_item",
+        key=("order_id",),
+        columns=(plan_column("order_id"), plan_column("amount")),
+        quality=(plan_rule(),),
+    )
+    joined = plan_entity(name="order", key=("id",), columns=(plan_column("id"),))
+    mart = plan_mart(
+        name="items",
+        base="order_item",
+        grain="order_item",
+        columns=(
+            plan_mart_column("order_id"),
+            plan_mart_column("amount"),
+            plan_mart_column(
+                HAS_QUALITY_FLAGS, type_=BoolType(), source_column=OK_COLUMN
+            ),
+            plan_mart_column("o_id", source_entity="order", source_column="id"),
+        ),
+        joins=(
+            MartJoinIR(
+                relationship="item_of_order", entity="order", prefix="o_", on=(("order_id", "id"),)
+            ),
+        ),
+    )
+    context = EmitContext(
+        dialect=get_dialect("duckdb"), naming=DefaultNaming(), fingerprint="blm1:test"
+    )
+    rendered = context.dialect.render(
+        mart_select(mart, context)  # the shared lowering both SQL targets use
+    )
+    assert "NOT order_item._quality_ok AS has_quality_flags" in rendered
+    assert 'LEFT JOIN silver."order" AS o_' in rendered
+    assert "order_item.order_id = o_.id" in rendered

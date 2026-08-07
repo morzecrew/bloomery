@@ -18,7 +18,7 @@ from bloomery.planner import TimeGrain
 from bloomery.planner.filters import to_where
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import Clause
-from support.planning import fixture_ir
+from support.planning import fixture_ir, fixture_mart
 
 pytestmark = pytest.mark.unit
 
@@ -237,7 +237,7 @@ def test_type_mismatches_are_refused(clause: Predicate, resolved: ResolvedDimens
 
 
 def test_int_dimension_refuses_bool() -> None:
-    inventory = fixture_ir("semi_additive_inventory").marts[0]
+    inventory = fixture_mart("semi_additive_inventory", "inventory")
     stock = ResolvedDimension(name="stock_level")
     with pytest.raises(FilterTypeMismatch, match="an int"):
         to_where(

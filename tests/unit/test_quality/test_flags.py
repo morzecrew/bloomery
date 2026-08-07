@@ -18,6 +18,7 @@ from bloomery.ir import OnFail
 from bloomery.quality import (
     DELIMITER,
     empty_flags,
+    flag_member,
     flags_expression,
     quality_ok,
     violation,
@@ -129,3 +130,52 @@ def test_rule_names_never_need_escaping() -> None:
     assert "',zeta_rule'" in rendered
     assert rendered.endswith(", ',')")  # the LTRIM argument
     assert rendered.count(DELIMITER) == len(_pairs()) + 2  # two names, the trim, its separator
+
+
+# ....................... #
+# Reading a stored collection back (the quality mart's per-rule counts, §5.8)
+
+
+def test_flag_membership_reads_both_shapes_the_same_way() -> None:
+    """One rule name, two stored shapes, one answer — the read side of the D23
+    contract. Executed rather than string-matched: what matters is that both
+    lowerings agree on the *set*, which is exactly what the dialect-matrix tier
+    asserts for the write side."""
+    stored = ("alpha_rule", "zeta_rule")
+    connection = duckdb.connect(":memory:")
+    try:
+        for name, expected in (("alpha_rule", True), ("zeta_rule", True), ("beta_rule", False)):
+            array_sql = flag_member(
+                exp.cast(
+                    exp.Array(expressions=[exp.Literal.string(flag) for flag in stored]),
+                    exp.DataType.build("TEXT[]"),
+                ),
+                name,
+                arrays=True,
+            ).sql(dialect="duckdb")
+            string_sql = flag_member(
+                exp.Literal.string(DELIMITER.join(stored)), name, arrays=False
+            ).sql(dialect="duckdb")
+            assert connection.execute(f"SELECT {array_sql}").fetchone() == (expected,)
+            assert connection.execute(f"SELECT {string_sql}").fetchone() == (expected,)
+    finally:
+        connection.close()
+
+
+def test_the_delimited_shape_is_not_fooled_by_underscores_or_prefixes() -> None:
+    """Rule names contain ``_``, which is ``LIKE``'s single-character wildcard
+    — matching by position instead is what keeps ``stock_level`` from being
+    reported present when the row carries ``stockXlevel``. And delimiting both
+    sides is what keeps ``,a,`` out of ``,ab,``."""
+    connection = duckdb.connect(":memory:")
+    try:
+        for stored, name, expected in (
+            ("stockXlevel", "stock_level", False),
+            ("alpha_rule_two", "alpha_rule", False),
+            ("two_alpha_rule", "alpha_rule", False),
+            ("alpha_rule", "alpha_rule", True),
+        ):
+            sql = flag_member(exp.Literal.string(stored), name, arrays=False).sql(dialect="duckdb")
+            assert connection.execute(f"SELECT {sql}").fetchone() == (expected,), (stored, name)
+    finally:
+        connection.close()

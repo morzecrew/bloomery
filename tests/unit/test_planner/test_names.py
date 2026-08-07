@@ -21,7 +21,7 @@ from bloomery.planner.names import (
     to_mf_order,
 )
 from bloomery.typing import DateType, DecimalType, IntType, StringType
-from support.planning import fixture_ir, make_planner
+from support.planning import fixture_ir, fixture_mart, make_planner
 
 pytestmark = pytest.mark.unit
 
@@ -34,7 +34,7 @@ def test_entity_key_is_the_grain_entity_not_the_mart_name() -> None:
     ``order`` keys dunders on ``order`` — for both key shapes."""
     aov = fixture_ir("non_additive_aov").marts[0]
     assert (aov.name, entity_key(aov)) == ("orders", "order")
-    inventory = fixture_ir("semi_additive_inventory").marts[0]  # composite key
+    inventory = fixture_mart("semi_additive_inventory", "inventory")  # composite key
     assert (inventory.name, entity_key(inventory)) == ("inventory", "inventory_level")
 
 

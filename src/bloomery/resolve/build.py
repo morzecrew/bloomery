@@ -65,6 +65,7 @@ from bloomery.ir import (
 )
 from bloomery.marts import lower_marts
 from bloomery.quality import (
+    attach_quality_mart,
     lower_dedupe,
     lower_quality,
     lower_quarantine,
@@ -470,4 +471,10 @@ def build_project_ir(project: Project, catalog: Catalog | None = None) -> Projec
     # GuardrailError (mart-level leaves included, RFC 0006 D10) before any
     # artifact is emitted, and amends only via path-conflict shadows and
     # lowered assert: audits (RFC 0006 D9).
-    return check_guardrails(draft, project=project, catalog=catalog)
+    checked = check_guardrails(draft, project=project, catalog=catalog)
+    # The quality mart (RFC 0016 §5.8) is bloomery-owned, like the dim_date
+    # calendar: synthesized from the finished IR rather than authored, so it
+    # attaches *after* the refusals — there is nothing about it for a
+    # guardrail to refuse. What the stage does check, from the spec alone, is
+    # that no authored metric claimed one of its reserved names.
+    return attach_quality_mart(checked)

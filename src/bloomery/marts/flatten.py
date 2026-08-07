@@ -36,6 +36,8 @@ from bloomery.errors import (
     MartMissingTimeDimension,
 )
 from bloomery.ir import (
+    OK_COLUMN,
+    REJECT_SUFFIX,
     Cardinality,
     DimensionRef,
     MartColumnIR,
@@ -63,6 +65,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "DATE_BUCKETS",
+    "HAS_QUALITY_FLAGS",
     "MartLowering",
     "lower_marts",
 ]
@@ -70,6 +73,16 @@ __all__ = [
 #: The bucket set a date role expands into — exactly the RFC 0011 ``TimeGrain``
 #: set minus ``hour``, which is deliberately not expanded (RFC 0010 D4).
 DATE_BUCKETS = ("day", "week", "month", "quarter", "year")
+
+#: The quality dimension every mart over a quality-carrying entity flattens in
+#: (RFC 0016 §5.5, D9 — the RFC 0010 amendment). It is an **ordinary
+#: dimension**, which is the whole point: "revenue excluding flagged rows"
+#: becomes a plain ``MetricRequest`` filter, not a new planner concept. It is
+#: *derived* from the base entity's generated ``_quality_ok`` per the D23
+#: physical contract (``has_quality_flags = NOT _quality_ok``) — never by
+#: re-evaluating the rules over the mart, which would be a second
+#: implementation of the same predicate and the two would drift.
+HAS_QUALITY_FLAGS = "has_quality_flags"
 
 _TYPE_NAMES: dict[type[LogicalType], str] = {
     StringType: "string",
@@ -243,6 +256,43 @@ def _flatten_date(
     return violations
 
 
+def _flatten_quality(base: EntityIR, path: str, state: _Flatten) -> list[GuardrailError]:
+    """Flatten ``has_quality_flags`` when the base entity carries rules
+    (RFC 0016 §5.5 — the RFC 0010 amendment).
+
+    Only the **base** contributes it: a mart is a fact table at exactly its
+    base grain, so "was this row suspect" is a statement about the base row.
+    Joined dimension entities keep their own flags on their own silver models
+    (their generated columns are not ``EntityIR.columns`` and so never flatten
+    through a ``via:`` step at all).
+
+    An entity with no rules gets no column rather than a constant ``FALSE``
+    one: the dimension would then be present-but-meaningless on marts whose
+    base never evaluates anything, and a request filtering on it would read as
+    "no flagged rows" instead of "nothing to flag".
+    """
+    if not base.quality:
+        return []
+    existing = state.columns.get(HAS_QUALITY_FLAGS)
+    if existing is not None:
+        msg = (
+            f"base entity {base.name!r} declares quality rules, so the mart flattens in the "
+            f"reserved dimension {HAS_QUALITY_FLAGS!r} (RFC 0016 §5.5) — but the base already "
+            f"has a column of that name. Collisions are errors, never auto-renamed "
+            f"(RFC 0010 D3). Fix: rename the entity field"
+        )
+        return [GuardrailError(msg, source_path=f"{path}.base")]
+    state.columns[HAS_QUALITY_FLAGS] = MartColumnIR(
+        name=HAS_QUALITY_FLAGS,
+        type=BoolType(),
+        source_entity=base.name,
+        # Traced to the generated ``_quality_ok`` (D23), not re-derived: the
+        # mart projection is ``NOT <base>._quality_ok``.
+        source_column=OK_COLUMN,
+    )
+    return []
+
+
 def _check_measures(
     mart: Mart,
     path: str,
@@ -320,11 +370,39 @@ def _mart_ir(name: str, mart: Mart, state: _Flatten) -> MartIR:
     )
 
 
+def _reject_base(mart: Mart) -> str | None:
+    """The message refusing a mart based on a reject table, or ``None``.
+
+    RFC 0016 D15: a mart's ``base`` must be a **silver entity**, never a
+    ``<entity>__reject`` table. Reject tables hold raw source payloads under
+    their own retention and are deliberately *not* an analytic surface (§7.4:
+    they are never exposed through ``MetricRequest``) — a mart over one would
+    publish quarantined PII through the semantic layer and report numbers
+    built from rows the pipeline decided to withhold.
+
+    Refused on the *name*, before the "no mapping lowers this entity" fallback,
+    so the author reads why rather than a generic missing-entity message.
+    """
+    if not mart.base.endswith(REJECT_SUFFIX):
+        return None
+    entity = mart.base.removesuffix(REJECT_SUFFIX)
+    return (
+        f"mart base names the reject table {mart.base!r}: a mart's base must be a silver "
+        f"entity, never a quarantine surface (RFC 0016 §5.5, D15). Reject rows hold raw "
+        "source payloads under their own retention and are deliberately not queryable "
+        f"through the semantic layer (§7.4). Fix: base the mart on {entity!r}, and read "
+        "quarantine volume from the gold.mart_data_quality mart (§5.8)"
+    )
+
+
 def _lower_mart(
     name: str, mart: Mart, draft: ProjectIR
 ) -> tuple[MartIR | None, list[GuardrailError]]:
     path = f"marts: marts.{name}"
     entities = {e.name: e for e in draft.entities}
+    rejected = _reject_base(mart)
+    if rejected is not None:
+        return None, [GuardrailError(rejected, source_path=f"{path}.base")]
     base = entities.get(mart.base)
     if base is None:
         msg = (
@@ -356,6 +434,7 @@ def _lower_mart(
         joins=[],
         roles=[],
     )
+    violations.extend(_flatten_quality(base, path, state))
     for index, step in enumerate(mart.flatten):
         if isinstance(step, ViaStep):
             violations.extend(_flatten_via(step, index, path, draft, entities, state))

@@ -7,11 +7,18 @@ the bronze ingestion-metadata contract, and the six pipeline stages. A
 consumer that invents its own list is exactly how a rule ships lowered but
 untested (RFC 0016 §6: the matrix is ``product(ALL_RULES, ALL_DISPOSITIONS)``
 over *these* tuples).
+
+Three of those names — ``FLAGS_COLUMN``, ``OK_COLUMN``, ``REJECT_SUFFIX`` —
+are *defined* one layer down, in :mod:`bloomery.ir.nodes`, and re-exported
+here so this module stays the single place to read them from. They have to
+live below this package because ``bloomery/marts`` needs them too (the
+``has_quality_flags`` derivation and the reject-table mart refusal, §5.5/D15)
+and the import contract forbids ``marts → quality``.
 """
 
 from __future__ import annotations
 
-from bloomery.ir import OnFail
+from bloomery.ir import FLAGS_COLUMN, OK_COLUMN, REJECT_SUFFIX, OnFail
 
 __all__ = [
     "ALL_DISPOSITIONS",
@@ -64,21 +71,12 @@ ALL_ON_MISSING: tuple[str, ...] = ("flag", "quarantine", "unknown_member")
 #: project refuses.
 UNKNOWN_MEMBER = "__unknown__"
 
-#: The generated silver columns (RFC 0016 §5.5, D9/D23). Both are reserved
-#: member names at spec parse, so an authored field can never collide.
-FLAGS_COLUMN = "_quality_flags"
-OK_COLUMN = "_quality_ok"
-
 #: The bronze ingestion-metadata contract (RFC 0016 §5.6, D21), sorted. An
 #: entity using ``quarantine`` or ``dedupe`` requires all three; absence is the
 #: compile error ``IngestionMetadataMissing``, and the NOT NULL/uniqueness
 #: properties — data facts no compiler can check — become a generated blocking
 #: audit.
 INGESTION_METADATA: tuple[str, ...] = ("_ingested_at", "_load_id", "_source_row_id")
-
-#: The reject relation's suffix: one ``<entity>__reject`` per entity, never per
-#: mapping (RFC 0016 §5.6, D10).
-REJECT_SUFFIX = "__reject"
 
 #: The fixed pipeline order (RFC 0016 §5.4, D7) — declared once, never
 #: per-field, never configurable. Dedupe sits *before* the rules deliberately:

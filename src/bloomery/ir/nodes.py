@@ -24,6 +24,9 @@ from sqlglot.expressions.core import Expression
 from bloomery.typing import LogicalType
 
 __all__ = [
+    "FLAGS_COLUMN",
+    "OK_COLUMN",
+    "REJECT_SUFFIX",
     "Additivity",
     "AuditIR",
     "Cardinality",
@@ -59,6 +62,24 @@ __all__ = [
     "UnreachableMetric",
     "quality_sort_key",
 ]
+
+# ....................... #
+# The physical names the data-quality nodes imply (RFC 0016 §5.5–§5.6,
+# D9/D23/D10). They live in the IR layer rather than in
+# :mod:`bloomery.quality.catalogue` (which re-exports them, so every consumer
+# keeps its shipped import path) because they are needed on *both* sides of a
+# layer boundary: ``quality/`` builds the two generated columns, ``marts/``
+# derives ``has_quality_flags`` from ``_quality_ok`` and refuses a mart based
+# on a reject table — and the import contract forbids ``marts → quality``.
+
+#: The generated silver flag collection; never NULL (empty array / empty
+#: string per :attr:`~bloomery.dialects.DialectFeature.ARRAY`).
+FLAGS_COLUMN = "_quality_flags"
+#: The generated boolean, ``cardinality(_quality_flags) = 0`` per shape.
+OK_COLUMN = "_quality_ok"
+#: One ``<entity>__reject`` per entity, never per mapping (D10).
+REJECT_SUFFIX = "__reject"
+
 
 # ....................... #
 # Enums (values are the spec-layer vocabulary; fingerprint encodes by value)

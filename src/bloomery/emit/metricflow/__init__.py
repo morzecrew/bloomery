@@ -247,13 +247,19 @@ def _day_columns(mart: MartIR) -> dict[str, str]:
 
 
 def _entities(
-    mart: MartIR, base: EntityIR
+    mart: MartIR, base: EntityIR | None
 ) -> tuple[list[PydanticEntity], str | None, frozenset[str]]:
     """The model's entity elements, its ``primary_entity`` (composite-key
-    marts only), and the join-key columns consumed as entity expressions."""
+    marts only), and the join-key columns consumed as entity expressions.
+
+    ``base`` is ``None`` for the quality mart (RFC 0016 §5.8): it has no
+    silver entity underneath it, so there is no natural key column to make a
+    PRIMARY entity's ``expr`` — it takes the same name-only ``primary_entity``
+    the composite-key case does, which MetricFlow accepts.
+    """
     entities: list[PydanticEntity] = []
     primary_entity: str | None = None
-    if len(base.key) == 1:
+    if base is not None and len(base.key) == 1:
         entities.append(
             PydanticEntity(
                 name=mart.grain,
@@ -388,7 +394,7 @@ def _semantic_model(
     descriptions: dict[tuple[str, str], str | None],
     naming: NamingPolicy,
 ) -> PydanticSemanticModel:
-    base = next(entity for entity in ir.entities if entity.name == mart.base)
+    base = next((entity for entity in ir.entities if entity.name == mart.base), None)
     namespace, relation = naming.relation(mart.name, Layer.GOLD)
     entities, primary_entity, join_keys = _entities(mart, base)
     return PydanticSemanticModel(

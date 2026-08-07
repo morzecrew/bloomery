@@ -2,6 +2,243 @@
   "metrics": [
     {
       "config": null,
+      "description": "Quarantined rows as a share of rows evaluated.",
+      "filter": null,
+      "label": null,
+      "metadata": null,
+      "name": "quality_quarantine_rate",
+      "time_granularity": null,
+      "type": "ratio",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": null,
+        "denominator": {
+          "alias": null,
+          "filter": null,
+          "name": "quality_rows_evaluated",
+          "offset_to_grain": null,
+          "offset_window": null
+        },
+        "expr": null,
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "quality_rows_evaluated"
+          },
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "quality_rows_quarantined"
+          }
+        ],
+        "is_private": false,
+        "join_to_timespine": false,
+        "measure": null,
+        "metric_aggregation_params": null,
+        "metrics": null,
+        "numerator": {
+          "alias": null,
+          "filter": null,
+          "name": "quality_rows_quarantined",
+          "offset_to_grain": null,
+          "offset_window": null
+        },
+        "window": null
+      }
+    },
+    {
+      "config": null,
+      "description": "Rows dedupe removed before the rules ran (per entity).",
+      "filter": null,
+      "label": null,
+      "metadata": null,
+      "name": "quality_rows_deduped",
+      "time_granularity": null,
+      "type": "simple",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": null,
+        "denominator": null,
+        "expr": "rows_deduped",
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "quality_rows_deduped"
+          }
+        ],
+        "is_private": false,
+        "join_to_timespine": false,
+        "measure": {
+          "alias": null,
+          "fill_nulls_with": null,
+          "filter": null,
+          "join_to_timespine": false,
+          "name": "quality_rows_deduped"
+        },
+        "metric_aggregation_params": {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "run_day",
+          "non_additive_dimension": null,
+          "semantic_model": "data_quality"
+        },
+        "metrics": null,
+        "numerator": null,
+        "window": null
+      }
+    },
+    {
+      "config": null,
+      "description": "Rows the rule was evaluated over (survivors of dedupe).",
+      "filter": null,
+      "label": null,
+      "metadata": null,
+      "name": "quality_rows_evaluated",
+      "time_granularity": null,
+      "type": "simple",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": null,
+        "denominator": null,
+        "expr": "rows_evaluated",
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "quality_rows_evaluated"
+          }
+        ],
+        "is_private": false,
+        "join_to_timespine": false,
+        "measure": {
+          "alias": null,
+          "fill_nulls_with": null,
+          "filter": null,
+          "join_to_timespine": false,
+          "name": "quality_rows_evaluated"
+        },
+        "metric_aggregation_params": {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "run_day",
+          "non_additive_dimension": null,
+          "semantic_model": "data_quality"
+        },
+        "metrics": null,
+        "numerator": null,
+        "window": null
+      }
+    },
+    {
+      "config": null,
+      "description": "Rows whose violation predicate fired, whatever its disposition.",
+      "filter": null,
+      "label": null,
+      "metadata": null,
+      "name": "quality_rows_failed",
+      "time_granularity": null,
+      "type": "simple",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": null,
+        "denominator": null,
+        "expr": "rows_failed",
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "quality_rows_failed"
+          }
+        ],
+        "is_private": false,
+        "join_to_timespine": false,
+        "measure": {
+          "alias": null,
+          "fill_nulls_with": null,
+          "filter": null,
+          "join_to_timespine": false,
+          "name": "quality_rows_failed"
+        },
+        "metric_aggregation_params": {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "run_day",
+          "non_additive_dimension": null,
+          "semantic_model": "data_quality"
+        },
+        "metrics": null,
+        "numerator": null,
+        "window": null
+      }
+    },
+    {
+      "config": null,
+      "description": "Rows this rule diverted to the entity's reject table.",
+      "filter": null,
+      "label": null,
+      "metadata": null,
+      "name": "quality_rows_quarantined",
+      "time_granularity": null,
+      "type": "simple",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": null,
+        "denominator": null,
+        "expr": "rows_quarantined",
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "quality_rows_quarantined"
+          }
+        ],
+        "is_private": false,
+        "join_to_timespine": false,
+        "measure": {
+          "alias": null,
+          "fill_nulls_with": null,
+          "filter": null,
+          "join_to_timespine": false,
+          "name": "quality_rows_quarantined"
+        },
+        "metric_aggregation_params": {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "run_day",
+          "non_additive_dimension": null,
+          "semantic_model": "data_quality"
+        },
+        "metrics": null,
+        "numerator": null,
+        "window": null
+      }
+    },
+    {
+      "config": null,
       "description": null,
       "filter": null,
       "label": null,
@@ -82,6 +319,213 @@
       "defaults": null,
       "description": null,
       "dimensions": [
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "disposition",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "entity",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "mapping",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "rows_deduped",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "rows_evaluated",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "rows_failed",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "rows_quarantined",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "rule",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "run_date",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "run_day",
+          "type": "time",
+          "type_params": {
+            "time_granularity": "day",
+            "validity_params": null
+          }
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "run_id",
+          "type": "categorical",
+          "type_params": null
+        }
+      ],
+      "entities": [],
+      "label": null,
+      "measures": [
+        {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "run_day",
+          "config": null,
+          "create_metric": null,
+          "description": null,
+          "expr": "rows_deduped",
+          "label": null,
+          "metadata": null,
+          "name": "quality_rows_deduped",
+          "non_additive_dimension": null
+        },
+        {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "run_day",
+          "config": null,
+          "create_metric": null,
+          "description": null,
+          "expr": "rows_evaluated",
+          "label": null,
+          "metadata": null,
+          "name": "quality_rows_evaluated",
+          "non_additive_dimension": null
+        },
+        {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "run_day",
+          "config": null,
+          "create_metric": null,
+          "description": null,
+          "expr": "rows_failed",
+          "label": null,
+          "metadata": null,
+          "name": "quality_rows_failed",
+          "non_additive_dimension": null
+        },
+        {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "run_day",
+          "config": null,
+          "create_metric": null,
+          "description": null,
+          "expr": "rows_quarantined",
+          "label": null,
+          "metadata": null,
+          "name": "quality_rows_quarantined",
+          "non_additive_dimension": null
+        }
+      ],
+      "metadata": null,
+      "name": "data_quality",
+      "node_relation": {
+        "alias": "mart_data_quality",
+        "database": null,
+        "relation_name": "gold.mart_data_quality",
+        "schema_name": "gold"
+      },
+      "primary_entity": "data_quality"
+    },
+    {
+      "config": null,
+      "defaults": null,
+      "description": null,
+      "dimensions": [
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "has_quality_flags",
+          "type": "categorical",
+          "type_params": null
+        },
         {
           "config": null,
           "description": null,

@@ -29,6 +29,41 @@ Ambiguities RFC 0007 §10 leaves to the implementation, settled here:
 - ``required`` tightening (optional → required) is BREAKING per D7 but does
   not trigger the expand/contract refusal: it constrains writes, not the
   reads a metric performs; only type narrowing and drops do.
+
+RFC 0016 §5.7 amends the stage with the data-quality surface. Its rules, and
+the three questions §5.7 leaves open, settled here (each classification is
+unit-tested per branch):
+
+- **Rules and dedupe are RESTATING.** Adding, removing, or changing any
+  quality rule, changing a disposition in **either** direction, and changing
+  ``dedupe.keep``/``field``/``tie_break`` all change which rows the entity
+  stores and what its history means — RESTATING, backfilling the entity.
+- **Replay is narrower than backfill.** ``Plan.replay_scope`` names the
+  entities whose ``<entity>__reject`` tables must be drained, and is populated
+  only where a relaxation can actually free rows: a rule whose **old**
+  disposition was ``quarantine`` is removed, or changed at all (``quarantine
+  → flag`` is §5.7's named case; a widened bound on a still-quarantining rule
+  is the same situation and is included rather than silently dropped). A
+  tightening (``flag → quarantine``) backfills and never replays: nothing sits
+  in the reject table on that rule's account, so a replay would be a no-op —
+  and a scope naming entities with nothing to replay is a scope nobody can
+  act on.
+- **``quarantine:`` retention is metadata; widening ``redact:`` is not.**
+  Retention governs *deletion policy*, not any stored value → ADDITIVE.
+  Narrowing ``redact:`` (redacting fewer paths) is ADDITIVE too — more payload
+  is kept from now on, nothing stored changes. **Widening** it is RESTATING:
+  it destroys payload going forward, so the reject table's ``raw`` means
+  something different after the change than before. It carries **no** backfill
+  and **no** replay, deliberately: neither can restore a payload the write
+  path is now destroying, and pretending otherwise would send a caller to run
+  jobs that cannot help.
+- **``reconcile`` changes are RESTATING at the check, never at an entity.** A
+  reconcile check materializes its own model over history (§5.3), so changing
+  or removing one changes every historical row of that model — but it routes
+  no row and invalidates no entity, so ``backfill_scope.entities`` stays
+  empty. Adding one is ADDITIVE, not RESTATING: RFC 0007 D2's initial-deploy
+  property (``plan(None, ir)`` is all-ADDITIVE) is normative, and an initial
+  deploy adds every reconcile check there is.
 """
 
 from __future__ import annotations
@@ -37,7 +72,9 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from bloomery.errors import ContractViolation, PlanError, RenameTargetMissing
-from bloomery.plan.model import BackfillScope, Change, ChangeClass, Plan
+from bloomery.ir import OnFail
+from bloomery.plan.model import BackfillScope, Change, ChangeClass, Plan, ReplayScope
+from bloomery.quality import disposition
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -53,10 +90,14 @@ from bloomery.typing import (
 if TYPE_CHECKING:
     from bloomery.ir import (
         ColumnIR,
+        DedupeIR,
         EntityIR,
         MartIR,
         MetricIR,
         ProjectIR,
+        QualityRuleIR,
+        QuarantineIR,
+        ReconcileIR,
         TransformStepIR,
     )
 
@@ -103,6 +144,8 @@ class _Acc:
 
     changes: list[Change] = field(default_factory=list[Change])
     backfill: set[str] = field(default_factory=set[str])
+    #: Entities whose reject tables a relaxation frees rows from (RFC 0016 §5.7).
+    replay: set[str] = field(default_factory=set[str])
     #: Names whose meaning/shape changed — the downstream-impact seeds.
     seeds: set[str] = field(default_factory=set[str])
     #: Dropped/narrowed fields: (display name, kind, reference names).
@@ -425,8 +468,218 @@ def _column_pair(
         )
 
 
+# ....................... #
+# Data quality (RFC 0016 §5.7 — the RFC 0007 amendment). Read the module
+# docstring's four bullets: this section implements exactly them.
+
+
+def _rule_identity(rule: QualityRuleIR) -> tuple[str, str, str]:
+    """What makes two rules *the same rule* across two IRs.
+
+    Names are generated deterministically from the rule's kind, column and
+    shape, so ``(kind, column, name)`` matches a rule to its successor across
+    a settings change (``range min: 0`` → ``min: 5`` keeps its name) while a
+    rule that changed shape (``min`` → ``max``) reads as one rule removed and
+    another added — which is what it is.
+    """
+    return (rule.kind, rule.column or "", rule.name)
+
+
+def _rule_settings(rule: QualityRuleIR) -> tuple[tuple[str, str], ...]:
+    """The rule's params minus its disposition, which is reported separately.
+
+    ``referential`` carries ``on_missing`` *as* a param, so leaving it in
+    would report a disposition change twice, in two different vocabularies.
+    """
+    return tuple((name, value) for name, value in rule.params if name != "on_missing")
+
+
+def _restates(acc: _Acc, entity: EntityIR, subject: str, detail: str, **reprs: str | None) -> None:
+    """One RESTATING quality change: recompute the entity, and seed the
+    downstream impact — every metric reading these columns reports different
+    numbers after it."""
+    acc.changes.append(
+        Change(
+            entity.name,
+            subject,
+            ChangeClass.RESTATING,
+            detail,
+            old=reprs.get("old"),
+            new=reprs.get("new"),
+        )
+    )
+    acc.backfill.add(entity.name)
+    acc.seeds |= _entity_columns_refs(entity)
+
+
+def _quality_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
+    """Rule add / remove / change, and the replay scope a relaxation opens."""
+    old_rules = {_rule_identity(rule): rule for rule in old_e.quality}
+    new_rules = {_rule_identity(rule): rule for rule in new_e.quality}
+    for identity in sorted(old_rules.keys() | new_rules.keys()):
+        kind, _column, name = identity
+        subject = f"quality:{name}"
+        old_rule = old_rules.get(identity)
+        new_rule = new_rules.get(identity)
+        if old_rule is None and new_rule is not None:
+            _restates(
+                acc,
+                new_e,
+                subject,
+                f"quality rule added ({kind})",
+                new=str(disposition(new_rule)),
+            )
+            continue
+        if old_rule is not None and new_rule is None:
+            _restates(
+                acc,
+                new_e,
+                subject,
+                f"quality rule removed ({kind})",
+                old=str(disposition(old_rule)),
+            )
+            _replay_if_quarantining(old_rule, new_e, acc)
+            continue
+        if old_rule is None or new_rule is None:  # pragma: no cover — one map held it
+            continue
+        old_disposition, new_disposition = disposition(old_rule), disposition(new_rule)
+        facets: list[str] = []
+        if old_disposition is not new_disposition:
+            facets.append("disposition")
+        if _rule_settings(old_rule) != _rule_settings(new_rule):
+            facets.append("settings")
+        if not facets:
+            continue
+        _restates(
+            acc,
+            new_e,
+            subject,
+            f"quality rule changed ({', '.join(facets)})",
+            old=str(old_disposition),
+            new=str(new_disposition),
+        )
+        _replay_if_quarantining(old_rule, new_e, acc)
+
+
+def _replay_if_quarantining(old_rule: QualityRuleIR, entity: EntityIR, acc: _Acc) -> None:
+    """A rule that *used to* quarantine has rows sitting in the reject table;
+    any change to it may let them back in, and they are not in bronze's
+    incremental window, so a backfill alone cannot recover them (§5.7)."""
+    if disposition(old_rule) is OnFail.QUARANTINE:
+        acc.replay.add(entity.name)
+
+
+def _dedupe_repr(dedupe: DedupeIR | None) -> tuple[str, str, str]:
+    if dedupe is None:
+        return ("", "", "")
+    return (dedupe.keep, dedupe.field, ", ".join(dedupe.tie_break))
+
+
+def _dedupe_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
+    """``keep``/``field``/``tie_break`` decide *which row wins* per key, so a
+    change to any of them changes stored history (§5.7). Adding or removing
+    the block is the same statement in the limit."""
+    old_repr, new_repr = _dedupe_repr(old_e.dedupe), _dedupe_repr(new_e.dedupe)
+    if old_repr == new_repr:
+        return
+    facets = [
+        label
+        for label, old_part, new_part in zip(
+            ("keep", "field", "tie_break"), old_repr, new_repr, strict=True
+        )
+        if old_part != new_part
+    ]
+    _restates(
+        acc,
+        new_e,
+        f"dedupe:{new_e.name}",
+        f"dedupe changed ({', '.join(facets)})",
+        old=" / ".join(old_repr) or None,
+        new=" / ".join(new_repr) or None,
+    )
+
+
+def _quarantine_repr(quarantine: QuarantineIR | None) -> tuple[str, frozenset[str]]:
+    if quarantine is None:
+        return ("", frozenset())
+    return (quarantine.retention, frozenset(quarantine.redact))
+
+
+def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
+    """Retention is deletion *policy* → ADDITIVE; a widened ``redact:``
+    destroys payload going forward → RESTATING with no backfill and no replay
+    (neither can restore what the write path now removes)."""
+    subject = f"quarantine:{new_e.name}"
+    old_retention, old_redact = _quarantine_repr(old_e.quarantine)
+    new_retention, new_redact = _quarantine_repr(new_e.quarantine)
+    if old_retention != new_retention:
+        acc.changes.append(
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.ADDITIVE,
+                "quarantine retention changed (policy only)",
+                old=old_retention or None,
+                new=new_retention or None,
+            )
+        )
+    widened = sorted(new_redact - old_redact)
+    narrowed = sorted(old_redact - new_redact)
+    if widened:
+        acc.changes.append(
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.RESTATING,
+                f"quarantine redact widened ({', '.join(widened)}) — reject payloads written "
+                "from now on carry less than the stored ones; no backfill or replay can "
+                "restore a redacted path",
+            )
+        )
+    elif narrowed:
+        acc.changes.append(
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.ADDITIVE,
+                f"quarantine redact narrowed ({', '.join(narrowed)})",
+            )
+        )
+
+
+def _reconcile_definition(check: ReconcileIR) -> tuple[str, str, str, str]:
+    return (check.left, check.right, str(check.tolerance), str(check.on_fail))
+
+
+def _diff_reconcile(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
+    """Reconcile checks are project-level: they relate two entities and belong
+    to neither, so they never enter ``backfill_scope`` (§5.7)."""
+    old_map = {check.name: check for check in old.reconcile} if old is not None else {}
+    new_map = {check.name: check for check in new.reconcile}
+    for name in sorted(old_map.keys() | new_map.keys()):
+        subject = f"reconcile:{name}"
+        if name not in old_map:
+            acc.changes.append(Change(None, subject, ChangeClass.ADDITIVE, "reconcile check added"))
+        elif name not in new_map:
+            acc.changes.append(
+                Change(None, subject, ChangeClass.RESTATING, "reconcile check removed")
+            )
+        elif _reconcile_definition(old_map[name]) != _reconcile_definition(new_map[name]):
+            acc.changes.append(
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.RESTATING,
+                    "reconcile check changed — every row it recorded restates",
+                )
+            )
+
+
 def _entity_pair(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
     _entity_level_changes(old_e, new_e, acc)
+    _quality_changes(old_e, new_e, acc)
+    _dedupe_changes(old_e, new_e, acc)
+    _quarantine_changes(old_e, new_e, acc)
     renames = _rename_map(old_e, new_e)
     renamed_targets = set(renames.values())
     old_cols = {column.name: column for column in old_e.columns}
@@ -772,7 +1025,10 @@ def plan(old: ProjectIR | None, new: ProjectIR) -> Plan:
     """Diff two project IRs into a classified :class:`Plan` (RFC 0007).
 
     ``plan(None, new)`` is the initial deploy — everything ADDITIVE with an
-    empty backfill scope; ``plan(ir, ir)`` is the empty plan (D2). Raises
+    empty backfill *and* replay scope; ``plan(ir, ir)`` is the empty plan
+    (D2). Data-quality changes classify per RFC 0016 §5.7 and populate
+    :attr:`Plan.replay_scope` where a relaxation frees quarantined rows a
+    backfill cannot reach (see the module docstring). Raises
     :class:`RenameTargetMissing` on a stale ``renamed_from`` annotation (D3)
     and :class:`ContractViolation` on an expand/contract breach (D5) — every
     other change, BREAKING included, is classified and returned.
@@ -789,6 +1045,7 @@ def plan(old: ProjectIR | None, new: ProjectIR) -> Plan:
     _diff_marts(old, new, acc)
     _diff_relationships(old, new, acc)
     _diff_date_dimension(old, new, acc)
+    _diff_reconcile(old, new, acc)
     _enforce_contract(old, new, acc)
     changes = tuple(sorted(acc.changes, key=_sort_key))
     return Plan(
@@ -800,4 +1057,5 @@ def plan(old: ProjectIR | None, new: ProjectIR) -> Plan:
             ),
         ),
         downstream_impact=_downstream_impact(new, acc.seeds),
+        replay_scope=ReplayScope(entities=tuple(sorted(acc.replay))),
     )

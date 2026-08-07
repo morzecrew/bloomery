@@ -31,11 +31,20 @@ def conn() -> Iterator[duckdb.DuckDBPyConnection]:
     connection.close()
 
 
+def _build_order(artifact: EmittedArtifact) -> tuple[bool, bool]:
+    """Dependency order for a CREATE TABLE sweep: entity and reject models
+    first, then the reconcile models that read them (RFC 0016 §5.3), then gold
+    — which reads all of the above (the quality mart reads the reject tables
+    and the reconcile models alike, §5.8)."""
+    path = PurePosixPath(artifact.path)
+    return (path.parent.name != "silver", path.stem.endswith("__reconcile"))
+
+
 def materialize(conn: duckdb.DuckDBPyConnection, artifacts: tuple[EmittedArtifact, ...]) -> None:
     """CREATE TABLE per model artifact — silver before gold, because mart
     SELECTs read the silver relations the entity models create."""
     models = [a for a in artifacts if a.kind is ArtifactKind.MODEL]
-    for artifact in sorted(models, key=lambda a: (PurePosixPath(a.path).parent.name != "silver",)):
+    for artifact in sorted(models, key=_build_order):
         path = PurePosixPath(artifact.path)
         namespace, relation = path.parent.name, path.stem
         conn.execute(f"CREATE TABLE {namespace}.{relation} AS {extract_select(artifact.content)}")

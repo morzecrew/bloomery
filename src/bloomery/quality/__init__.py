@@ -21,6 +21,10 @@ Modules:
   (D20), shared by the pipeline and the replay merge;
 - :mod:`~bloomery.quality.reject` — ``reject_id`` as canon bytes in SQL (D21);
 - :mod:`~bloomery.quality.pattern` — per-dialect ``pattern`` validation;
+- :mod:`~bloomery.quality.reconcile` — the closed ``reconcile:`` side grammar
+  (§5.3);
+- :mod:`~bloomery.quality.mart` — ``gold.mart_data_quality`` as an ordinary
+  mart + metrics (§5.8, D12);
 - :mod:`~bloomery.quality.lower` — spec → IR.
 """
 
@@ -49,6 +53,7 @@ from bloomery.quality.flags import (
     DELIMITER,
     FLAG_ARRAY_TYPE,
     empty_flags,
+    flag_member,
     flags_expression,
     quality_ok,
 )
@@ -60,6 +65,17 @@ from bloomery.quality.lower import (
     lower_reconcile,
     mapped_fields,
     opts_in,
+)
+from bloomery.quality.mart import (
+    QUALITY_MART,
+    QUALITY_MART_COLUMNS,
+    QUALITY_MEASURE_COLUMNS,
+    QUALITY_METRICS,
+    QUALITY_RUN_ROLE,
+    RunContext,
+    attach_quality_mart,
+    is_quality_mart,
+    quality_mart_ir,
 )
 from bloomery.quality.pattern import unsupported_dialects
 from bloomery.quality.predicates import (
@@ -76,6 +92,13 @@ from bloomery.quality.predicates import (
     unknown_member_case,
     violation,
     worst,
+)
+from bloomery.quality.reconcile import (
+    RECONCILE_AGGREGATES,
+    RECONCILE_SUFFIX,
+    SUPPORTED_SHAPES,
+    ReconcileSide,
+    parse_side,
 )
 from bloomery.quality.reject import REJECT_COLUMNS, canon_literal, canon_prefixed, reject_id
 
@@ -103,6 +126,7 @@ __all__ = [
     "DELIMITER",
     "FLAG_ARRAY_TYPE",
     "empty_flags",
+    "flag_member",
     "flags_expression",
     "quality_ok",
     # lowering
@@ -113,8 +137,24 @@ __all__ = [
     "lower_reconcile",
     "mapped_fields",
     "opts_in",
+    # the quality mart (§5.8)
+    "QUALITY_MART",
+    "QUALITY_MART_COLUMNS",
+    "QUALITY_MEASURE_COLUMNS",
+    "QUALITY_METRICS",
+    "QUALITY_RUN_ROLE",
+    "RunContext",
+    "attach_quality_mart",
+    "is_quality_mart",
+    "quality_mart_ir",
     # pattern portability
     "unsupported_dialects",
+    # the reconcile grammar (§5.3)
+    "RECONCILE_AGGREGATES",
+    "RECONCILE_SUFFIX",
+    "SUPPORTED_SHAPES",
+    "ReconcileSide",
+    "parse_side",
     # predicates
     "conjunction",
     "disjunction",

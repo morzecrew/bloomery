@@ -40,6 +40,7 @@ __all__ = [
     "DELIMITER",
     "FLAG_ARRAY_TYPE",
     "empty_flags",
+    "flag_member",
     "flags_expression",
     "quality_ok",
 ]
@@ -120,6 +121,34 @@ def flags_expression(pairs: Sequence[tuple[str, Expression]], *, arrays: bool) -
     """
     ordered = sorted(pairs, key=lambda pair: pair[0])
     return _array_flags(ordered) if arrays else _delimited_flags(ordered)
+
+
+def flag_member(flags: Expression, name: str, *, arrays: bool) -> Expression:
+    """Whether rule ``name`` fired on this row — read back off a *stored* flag
+    collection, in whichever shape the dialect stores it (D23).
+
+    The read side of :func:`flags_expression`, and the one place a stored
+    ``_quality_flags`` / ``failed_rules`` value is interrogated: the quality
+    mart counts per rule (RFC 0016 §5.8) over rows whose predicates were
+    already evaluated upstream, so it *must* read the recorded names rather
+    than re-evaluate — re-evaluating would be a second implementation of every
+    rule, and the reject table no longer carries the source columns to do it
+    with anyway.
+
+    The delimited shape is matched by position, not ``LIKE``: rule names
+    legitimately contain ``_``, which is ``LIKE``'s single-character wildcard,
+    so a pattern match would report ``stock_level`` present when the row
+    carries ``stockXlevel``. Wrapping both sides in the delimiter is what makes
+    a substring search exact — ``,a,`` cannot occur inside ``,ab,``.
+    """
+    if arrays:
+        return exp.ArrayContains(this=flags, expression=exp.Literal.string(name))
+    delimiter = exp.Literal.string(DELIMITER)
+    haystack = exp.func("CONCAT", delimiter.copy(), flags, delimiter.copy())
+    needle = exp.Literal.string(f"{DELIMITER}{name}{DELIMITER}")
+    return exp.GT(
+        this=exp.StrPosition(this=haystack, substr=needle), expression=exp.Literal.number(0)
+    )
 
 
 def quality_ok(column: str = FLAGS_COLUMN, *, table: str | None = None, arrays: bool) -> Expression:

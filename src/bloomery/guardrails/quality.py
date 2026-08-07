@@ -9,7 +9,7 @@ declared in ``errors.py`` (RFC 0002 D3) and returned — never raised — so the
 batch into the stage's single aggregate and an author fixes a spec in one
 round-trip (RFC 0006 D2).
 
-The seven checks:
+The checks:
 
 ======================================  ==============================
 ``DedupeTieBreakMissing``               §5.3, D6
@@ -19,17 +19,20 @@ The seven checks:
 ``RedactionConflict``                   §5.6, D10
 ``pattern`` portability                 §5.3, D5 (bare ``GuardrailError``)
 ``unknown_member`` on a non-string fk   §5.4, D6 (bare ``GuardrailError``)
+``reconcile`` grammar and resolution    §5.3 (bare ``GuardrailError``)
+quality-mart metric-name collision      §5.8, D12 (bare ``GuardrailError``)
 ======================================  ==============================
 
-The last two are bare :class:`GuardrailError` deliberately: §5.9 enumerates
-exactly five *named* new leaves, and both refusals are stated in the RFC prose
-without minting one ("a compile-time ``GuardrailError`` naming the
-alternatives", §5.4). Inventing a sixth and seventh leaf would put names in
-``errors.py`` the design authority does not have.
+Everything past the fifth row is a bare :class:`GuardrailError` deliberately:
+§5.9 enumerates exactly five *named* new leaves, and the remaining refusals
+are stated in the RFC prose without minting one ("a compile-time
+``GuardrailError`` naming the alternatives", §5.4). Inventing more leaves
+would put names in ``errors.py`` the design authority does not have.
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from bloomery.errors import (
@@ -43,10 +46,14 @@ from bloomery.errors import (
 from bloomery.ir import OnFail
 from bloomery.quality import (
     INGESTION_METADATA,
+    QUALITY_METRICS,
+    SUPPORTED_SHAPES,
+    ReconcileSide,
     disposition,
     lower_quality,
     mapped_fields,
     params_of,
+    parse_side,
     payload_key,
     unsupported_dialects,
 )
@@ -276,6 +283,115 @@ def _check_unknown_member(
     return errors
 
 
+def _reconcile_path(check_name: str, suffix: str) -> str:
+    return f"entity_model: reconcile.{check_name}.{suffix}"
+
+
+def _resolve_side(
+    check_name: str, side: str, text: str, entities: dict[str, Entity]
+) -> tuple[ReconcileSide | None, list[GuardrailError]]:
+    """Parse one side and resolve it against the declared model.
+
+    Three refusals, all decidable from the spec alone (§5.9's test): the shape
+    is outside the closed grammar, the entity is not declared, or a named
+    column is not one of its fields. The keys a side compares by come back on
+    the resolved value — ``by`` columns for the aggregate shape, the entity's
+    declared key for the plain-column shape.
+    """
+    path = _reconcile_path(check_name, side)
+    parsed = parse_side(text)
+    if parsed is None:
+        msg = (
+            f"reconcile check {check_name!r} has an unparseable {side} side {text!r} "
+            f"(RFC 0016 §5.3): {SUPPORTED_SHAPES}. A reconcile side is a declared shape, "
+            "not SQL — specs describe, specs never contain implementations (D1)"
+        )
+        return None, [GuardrailError(msg, source_path=path)]
+    entity = entities.get(parsed.entity)
+    if entity is None:
+        msg = (
+            f"reconcile check {check_name!r} {side} side names entity {parsed.entity!r}, "
+            f"which the entity model does not declare; declared: {sorted(entities)}"
+        )
+        return None, [GuardrailError(msg, source_path=path)]
+    missing = sorted({parsed.column, *parsed.by} - set(entity.fields) - set(entity.key))
+    if missing:
+        msg = (
+            f"reconcile check {check_name!r} {side} side reads {', '.join(missing)} on entity "
+            f"{parsed.entity!r}, which declares no such field(s); known: "
+            f"{sorted(entity.fields)}"
+        )
+        return None, [GuardrailError(msg, source_path=path)]
+    if parsed.aggregated:
+        return parsed, []
+    # The plain-column shape compares one value per key, and the entity says
+    # which columns that is (see ``bloomery.quality.reconcile``).
+    return replace(parsed, by=tuple(entity.key)), []
+
+
+def _check_reconcile(project: Project) -> list[GuardrailError]:
+    """The ``reconcile:`` block: grammar, resolution, key agreement, and name
+    uniqueness (RFC 0016 §5.3).
+
+    **Key agreement** is the one rule the grammar cannot express: two sides
+    join on their comparison keys, so ``sum(order_item.line_total) by
+    order_id`` reconciles against ``order.total_amount`` precisely because the
+    ``by`` column and ``order``'s key are the same column name. Sides that
+    disagree would either fan out or compare nothing at all — refused, with
+    both key lists named, rather than emitted as a join nobody can read.
+    """
+    entities = project.entity_model.entities
+    errors: list[GuardrailError] = []
+    seen: set[str] = set()
+    for check in project.entity_model.reconcile:
+        if check.name in seen:
+            msg = (
+                f"reconcile check {check.name!r} is declared more than once — each check "
+                "emits its own model and audit, so names must be unique"
+            )
+            errors.append(GuardrailError(msg, source_path=_reconcile_path(check.name, "name")))
+            continue
+        seen.add(check.name)
+        left, left_errors = _resolve_side(check.name, "left", check.left, entities)
+        right, right_errors = _resolve_side(check.name, "right", check.right, entities)
+        errors.extend(left_errors)
+        errors.extend(right_errors)
+        if left is None or right is None:
+            continue
+        if sorted(left.by) != sorted(right.by):
+            msg = (
+                f"reconcile check {check.name!r} compares sides keyed differently: left by "
+                f"{sorted(left.by)}, right by {sorted(right.by)} (RFC 0016 §5.3). The two "
+                "sides join on their keys, so they must be the same columns — a plain "
+                "'<entity>.<column>' side is keyed by that entity's declared key. Fix: change "
+                "the 'by' columns to match, or reconcile against an entity keyed that way"
+            )
+            errors.append(GuardrailError(msg, source_path=_reconcile_path(check.name, "left")))
+    return errors
+
+
+def _check_reserved_metric_names(project: Project) -> list[GuardrailError]:
+    """The quality mart's metrics live in the project's flat metric namespace
+    (RFC 0016 §5.8), so their names are reserved.
+
+    Checked unconditionally rather than only for quality-carrying projects: a
+    name that is reserved sometimes is a name nobody can rely on, and adding a
+    single ``quality:`` block later must not break an unrelated metric.
+    """
+    if project.metric_set is None:
+        return []
+    clashing = sorted(set(project.metric_set.metrics) & set(QUALITY_METRICS))
+    if not clashing:
+        return []
+    msg = (
+        f"metric(s) {', '.join(clashing)} collide with the reserved names of the quality "
+        f"mart's own metrics (RFC 0016 §5.8, D12): {', '.join(QUALITY_METRICS)}. They are "
+        "emitted into the same flat metric namespace, where two definitions of one name is "
+        "not a merge but a silent winner. Fix: rename the project metric"
+    )
+    return [GuardrailError(msg, source_path="metrics: metrics")]
+
+
 def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     """Every data-quality guardrail over the whole project, in one pass.
 
@@ -302,4 +418,8 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
         # quality system, so they are silently satisfied there.
         errors.extend(_check_retention(entity_name, entity, mapping, relationships))
         errors.extend(_check_unknown_member(entity_name, entity, mapping, relationships))
+    # Project-level, not per entity: a reconcile check relates two entities and
+    # belongs to neither, and the reserved metric names are one flat namespace.
+    errors.extend(_check_reconcile(project))
+    errors.extend(_check_reserved_metric_names(project))
     return errors

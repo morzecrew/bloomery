@@ -35,13 +35,19 @@ EXPECTED_PATHS = {
     # generated blocking audit on the ingestion metadata (D21) and one audit
     # per ``on_fail: fail`` rule, plus the reject model the quarantine
     # disposition routes into and the replay merge that drains it (§5.6).
+    # M12 phase 3 adds the reconcile model with its **non-blocking** audit
+    # (§5.3) and ``gold.mart_data_quality`` (§5.8) — an ordinary gold model,
+    # which is why it sits among the marts rather than in a surface of its own.
     "semi_additive_inventory": [
         "audits/inventory_level_ingestion_metadata.sql",
         "audits/inventory_level_stock_level_not_null.sql",
+        "audits/stock_level_matches_snapshot_reconcile.sql",
         "models/gold/dim_date.sql",
+        "models/gold/mart_data_quality.sql",
         "models/gold/mart_inventory.sql",
         "models/silver/inventory_level.sql",
         "models/silver/inventory_level__reject.sql",
+        "models/silver/stock_level_matches_snapshot__reconcile.sql",
         "replay/inventory_level.sql",
     ],
 }

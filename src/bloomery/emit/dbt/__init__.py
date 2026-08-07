@@ -66,6 +66,7 @@ from bloomery.ir import (
     ProjectIR,
     SCDKind,
 )
+from bloomery.quality import is_quality_mart
 from bloomery.typing import IntType
 
 __all__ = [
@@ -153,6 +154,27 @@ def _refuse_quarantine(entity: EntityIR) -> None:
     raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}.quarantine")
 
 
+def _refuse_reconcile(ir: ProjectIR) -> None:
+    """dbt lowers no reconcile artifacts in this wave (RFC 0016 §5.4).
+
+    Same honest-scope rule as ``_refuse_quarantine`` above: a reconcile check
+    is a model *and* a non-blocking audit, and dbt's test surface has no
+    non-blocking equivalent that would not silently change "report the
+    disagreement" into "fail the build". Refusing names the target that does
+    (RFC 0008 D3).
+    """
+    if not ir.reconcile:
+        return
+    names = ", ".join(check.name for check in ir.reconcile)
+    msg = (
+        f"project declares reconcile check(s) {names}, which lower to a model plus a "
+        "non-blocking audit (RFC 0016 §5.3); the dbt emitter lowers neither in this wave "
+        "— it is the compatibility target, minimal but honest (RFC 0008 §5.5). Fix: "
+        "compile this project for the sqlmesh target, or drop the reconcile block"
+    )
+    raise UnsupportedByTarget(msg, source_path="entity_model: reconcile")
+
+
 def _model_artifact(
     *, path: str, config_line: str, select: str, ctx: EmitContext
 ) -> EmittedArtifact:
@@ -204,6 +226,21 @@ def _dim_date_artifact(dim: DateDimensionIR, ctx: EmitContext) -> EmittedArtifac
 
 def _mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact:
     namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+    if is_quality_mart(mart):
+        # RFC 0016 §5.4 puts the quality mart in **SQLMesh's** set, and it is
+        # built from the surfaces dbt already refuses: the reject tables and
+        # the reconcile models. Counting rows in tables this target does not
+        # build would be a mart of zeroes — the silent degradation RFC 0008 D3
+        # exists to prevent. In practice the two refusals below fire first
+        # (the mart cannot exist without quality rules or a reconcile block);
+        # this is the branch that keeps that true if either ever narrows.
+        msg = (
+            "the data-quality mart (RFC 0016 §5.8) counts rule evaluations over the reject "
+            "tables and reconcile models, neither of which the dbt emitter lowers in this "
+            "wave — it is the compatibility target, minimal but honest (RFC 0008 §5.5). "
+            "Fix: compile this project for the sqlmesh target"
+        )
+        raise UnsupportedByTarget(msg, source_path="entity_model: quality")
     base = next(entity for entity in ir.entities if entity.name == mart.base)
     return _model_artifact(
         path=f"models/{namespace}/{relation}.sql",
@@ -359,6 +396,7 @@ class DbtEmitter:
         and the date dimension to gold models, audits to ``schema.yml``, plus
         the project scaffold and bronze sources; artifacts sorted by path,
         content ending in exactly one newline (RFC 0003 §5.5 rule 5)."""
+        _refuse_reconcile(ir)
         artifacts: list[EmittedArtifact] = [_project_artifact(ctx)]
         for entity in ir.entities:
             _refuse_quarantine(entity)

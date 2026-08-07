@@ -15,10 +15,15 @@ from bloomery.ir import (
     PartitionSpec,
     ProjectIR,
 )
-from bloomery.marts import DATE_BUCKETS, lower_marts
+from bloomery.ir import OK_COLUMN
+from bloomery.marts import DATE_BUCKETS, HAS_QUALITY_FLAGS, lower_marts
 from bloomery.spec import MartSet
-from bloomery.typing import DateType
+from bloomery.typing import BoolType, DateType
 from support.compiling import load_fixture
+from support.plan_ir import column as plan_column
+from support.plan_ir import entity as plan_entity
+from support.plan_ir import project as plan_project
+from support.plan_ir import quality_rule as plan_rule
 
 pytestmark = pytest.mark.unit
 
@@ -642,3 +647,85 @@ def test_measureless_mart_needs_no_date_role() -> None:
         _draft(),
     )
     assert lowering.violations == ()
+
+
+# ....................... #
+# The RFC 0016 §5.5 amendment: has_quality_flags, and the reject-table refusal
+
+
+def test_a_reject_table_can_never_be_a_mart_base() -> None:
+    """RFC 0016 D15. Refused on the *name*, ahead of the generic
+    "no mapping lowers this entity" message, so the author reads why rather
+    than a missing-entity puzzle."""
+    (violation,) = _violations(
+        "marts_version: 1\nmarts:\n"
+        "  rejects: {grain: order_item__reject, base: order_item__reject}\n"
+    )
+    assert type(violation) is GuardrailError
+    assert violation.source_path == "marts: marts.rejects.base"
+    message = str(violation)
+    assert "must be a silver entity, never a quarantine surface" in message
+    assert "not queryable through the semantic layer" in message
+    assert "base the mart on 'order_item'" in message
+    # And it points at the surface that *is* the analytic answer.
+    assert "gold.mart_data_quality" in message
+
+
+def test_a_mart_over_a_quality_carrying_base_flattens_has_quality_flags() -> None:
+    ir = build_project_ir(*load_fixture("semi_additive_inventory"))
+    inventory = next(mart for mart in ir.marts if mart.name == "inventory")
+    column = next(c for c in inventory.columns if c.name == HAS_QUALITY_FLAGS)
+    assert isinstance(column.type, BoolType)
+    # Derived from the generated ``_quality_ok`` (D23), never re-evaluated.
+    assert (column.source_entity, column.source_column) == ("inventory_level", OK_COLUMN)
+    # An ordinary dimension: that is what makes "revenue excluding flagged
+    # rows" a plain MetricRequest rather than a new planner concept.
+    assert any(
+        dimension.column == HAS_QUALITY_FLAGS and dimension.ref.role is None
+        for dimension in inventory.dimensions
+    )
+
+
+def test_a_quality_free_base_gets_no_quality_dimension() -> None:
+    """A constant-FALSE dimension on a mart whose base evaluates nothing would
+    read as "no flagged rows" instead of "nothing to flag"."""
+    lowering = lower_marts(
+        _mart_set(
+            "marts_version: 1\nmarts:\n  items: {grain: order_item, base: order_item}\n"
+        ),
+        _draft(),
+    )
+    (mart,) = lowering.marts
+    assert HAS_QUALITY_FLAGS not in {column.name for column in mart.columns}
+
+
+def test_a_base_column_colliding_with_the_quality_dimension_is_refused() -> None:
+    """Collisions are errors, never auto-renamed (RFC 0010 D3) — including
+    against the dimension RFC 0016 §5.5 reserves. Built from a hand-made draft
+    because the spec layer has no reason to reserve the name *and* the mart
+    layer has every reason to refuse it."""
+    draft = plan_project(
+        entities=(
+            plan_entity(
+                name="order_item",
+                grain="one row per line on an order",
+                key=("order_id",),
+                columns=(plan_column("order_id"), plan_column(HAS_QUALITY_FLAGS)),
+                quality=(plan_rule(),),
+            ),
+        )
+    )
+    marts = load_project(
+        {
+            **_SOURCES,
+            "marts": "marts_version: 1\nmarts:\n  items: {grain: order_item, base: order_item}\n",
+        }
+    ).marts
+    assert marts is not None
+    lowering = lower_marts(marts, draft)
+    assert lowering.marts == ()
+    (violation,) = lowering.violations
+    assert type(violation) is GuardrailError
+    assert violation.source_path == "marts: marts.items.base"
+    assert "already" in str(violation)
+    assert "never auto-renamed" in str(violation)

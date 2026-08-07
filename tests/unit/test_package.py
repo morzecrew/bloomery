@@ -30,6 +30,7 @@ def test_public_api_surface() -> None:
         "Plan",
         "Predicate",
         "QueryPlan",
+        "ReplayScope",
         "Resolution",
         "RowPolicy",
         "Target",
