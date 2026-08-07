@@ -144,12 +144,13 @@ class GuardrailError(BloomeryError):
 
 class UnitMismatch(GuardrailError):
     """Guardrail stage (RFC 0006 §5.2): operands of ``+``/``-`` with differing
-    or unknown ``unit`` metadata."""
+    *declared* ``unit`` metadata (currency + count is the bug)."""
 
 
 class TaxBasisMismatch(GuardrailError):
-    """Guardrail stage (RFC 0006 §5.2): ``net`` and ``gross`` (or unknown)
-    tax bases meeting in additive arithmetic."""
+    """Guardrail stage (RFC 0006 §5.2, worked example §5.7): ``net`` and
+    ``gross`` — or an unknown basis alongside a monetary operand — meeting in
+    additive arithmetic (unknown poisons, D3)."""
 
 
 class CurrencyMismatch(GuardrailError):

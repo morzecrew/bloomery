@@ -1,0 +1,235 @@
+"""The guardrail stage (RFC 0006 §5.1, D2, D9): batched project-wide
+aggregation sorted by (source_path, type name), purity/idempotence of the
+amendments, and the M4 acceptance — `fanout_trap` and
+`semi_additive_inventory` fail closed with useful messages."""
+
+from __future__ import annotations
+
+import pytest
+
+from bloomery import build_project_ir, load_project
+from bloomery.errors import (
+    AdditivityViolation,
+    GrainMismatch,
+    GuardrailError,
+    NonAdditiveWithoutComponents,
+    SpecParseError,
+)
+from bloomery.guardrails import check_guardrails
+from support.compiling import fixture_sources, load_fixture
+
+pytestmark = pytest.mark.unit
+
+
+# ....................... #
+# Acceptance: fanout_trap fails closed (RFC 0006 §12)
+
+
+def test_fanout_trap_fails_closed_with_both_grains_named() -> None:
+    project, catalog = load_fixture("fanout_trap")
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(project, catalog)
+    error = excinfo.value
+    assert [type(leaf) for leaf in error.collected] == [GrainMismatch, GrainMismatch]
+    message = str(error)
+    assert "one row per line on an order" in message
+    assert "one row per order" in message
+    assert "relationship 'item_of_order' (many_to_one)" in message
+    assert "Fix: add an explicit aggregation/allocation over 'order_item'" in message
+
+
+def test_fanout_trap_violations_sort_by_source_path() -> None:
+    project, catalog = load_fixture("fanout_trap")
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(project, catalog)
+    paths = [leaf.source_path for leaf in excinfo.value.collected]
+    assert paths == [
+        "mapping[wms__order_lines->order_item]: fields.landed_cost",
+        "metrics: metrics.landed_revenue",
+    ]
+    assert paths == sorted(p or "" for p in paths)
+
+
+# ....................... #
+# Acceptance: semi_additive_inventory refusal variants (RFC 0006 §12)
+
+
+def _inventory_sources(metrics: str) -> dict[str, str]:
+    sources = dict(fixture_sources("semi_additive_inventory"))
+    sources["metrics"] = metrics
+    return sources
+
+
+def test_semi_additive_inventory_base_fixture_compiles_clean() -> None:
+    project, catalog = load_fixture("semi_additive_inventory")
+    ir = build_project_ir(project, catalog)
+    (metric,) = ir.metrics
+    assert metric.name == "stock_on_hand"
+    assert metric.semi_additive is not None
+    assert metric.semi_additive.over.dimension == "stock_date"
+    assert metric.semi_additive.rule == "last"
+
+
+def test_missing_over_rule_policy_fails_closed() -> None:
+    _project, catalog = load_fixture("semi_additive_inventory")
+    broken = load_project(
+        _inventory_sources(
+            """\
+metrics_version: 1
+metrics:
+  stock_on_hand:
+    requires: [stock_level]
+    grain: inventory_level
+    additivity: semi_additive
+    agg: sum
+    expr: "stock_level"
+"""
+        )
+    )
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(broken, catalog)
+    (leaf,) = excinfo.value.collected
+    assert isinstance(leaf, AdditivityViolation)
+    assert leaf.source_path == "metrics: metrics.stock_on_hand"
+    assert "semi_additive: {over, rule}" in str(leaf)
+
+
+def test_missing_rule_is_a_parse_error() -> None:
+    with pytest.raises(SpecParseError) as excinfo:
+        load_project(
+            _inventory_sources(
+                """\
+metrics_version: 1
+metrics:
+  stock_on_hand:
+    requires: [stock_level]
+    grain: inventory_level
+    additivity: semi_additive
+    agg: sum
+    expr: "stock_level"
+    semi_additive: {over: stock_date}
+"""
+            )
+        )
+    assert "metrics: metrics.stock_on_hand.semi_additive.rule" in str(excinfo.value.source_path)
+
+
+def test_non_additive_average_without_ratio_fails_closed() -> None:
+    _project, catalog = load_fixture("semi_additive_inventory")
+    broken = load_project(
+        _inventory_sources(
+            """\
+metrics_version: 1
+metrics:
+  stock_on_hand:
+    requires: [stock_level]
+    grain: inventory_level
+    additivity: semi_additive
+    agg: sum
+    expr: "stock_level"
+    semi_additive: {over: stock_date, rule: last}
+  average_stock:
+    requires: [stock_level]
+    grain: inventory_level
+    additivity: non_additive
+"""
+        )
+    )
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(broken, catalog)
+    (leaf,) = excinfo.value.collected
+    assert isinstance(leaf, NonAdditiveWithoutComponents)
+    assert "'average_stock'" in str(leaf)
+    assert "add ratio: {numerator, denominator}" in str(leaf)
+
+
+# ....................... #
+# Batching and ordering (RFC 0006 D2)
+
+
+def test_violations_with_one_source_path_sort_by_type_name() -> None:
+    # One metric, two rules at one source path: net/gross across grains gives
+    # GrainMismatch < TaxBasisMismatch, sorted by type name (RFC 0006 D2).
+    catalog_text = """\
+catalog_version: 1
+vertical: v
+canonical_fields:
+  price: {entity: order_item, type: "decimal(12,4)", unit: currency, tax_basis: net}
+  ship: {entity: order, type: "decimal(12,4)", unit: currency, tax_basis: gross}
+"""
+    model = """\
+spec_version: 1
+entities:
+  order_item:
+    grain: one row per line on an order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      price: {type: "decimal(12,4)", canonical: price}
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      ship: {type: "decimal(12,4)", canonical: ship}
+"""
+    mapping_items = """\
+mapping_version: 1
+source: src_items
+target: order_item
+key:
+  order_id: {from: "$.oid", transform: [to_string]}
+fields:
+  price: {from: "$.price", transform: [{to_decimal: [12, 4]}]}
+"""
+    mapping_orders = """\
+mapping_version: 1
+source: src_orders
+target: order
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  ship: {from: "$.ship", transform: [{to_decimal: [12, 4]}]}
+"""
+    metrics = """\
+metrics_version: 1
+metrics:
+  broken:
+    requires: [price, ship]
+    grain: order_item
+    additivity: additive
+    agg: sum
+    expr: "price + ship"
+"""
+    from bloomery import load_catalog
+
+    project = load_project(
+        {
+            "entity_model": model,
+            "mapping_items": mapping_items,
+            "mapping_orders": mapping_orders,
+            "metrics": metrics,
+        }
+    )
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(project, load_catalog(catalog_text))
+    leaves = excinfo.value.collected
+    assert [type(leaf).__name__ for leaf in leaves] == ["GrainMismatch", "TaxBasisMismatch"]
+    assert {leaf.source_path for leaf in leaves} == {"metrics: metrics.broken"}
+
+
+# ....................... #
+# Purity and idempotence (RFC 0006 D9)
+
+
+def test_stage_is_identity_on_a_clean_project() -> None:
+    project, catalog = load_fixture("minimal")
+    draft = build_project_ir(project, catalog)
+    assert check_guardrails(draft, project=project, catalog=catalog) is draft
+
+
+def test_stage_is_idempotent_on_amended_projects() -> None:
+    for name in ("ecom_basic", "path_conflict"):
+        project, catalog = load_fixture(name)
+        amended = build_project_ir(project, catalog)
+        assert check_guardrails(amended, project=project, catalog=catalog) is amended

@@ -2,6 +2,7 @@
 normalized IR nodes plus the ``blm1:`` content fingerprint."""
 
 from bloomery.ir.fingerprint import project_fingerprint
+from bloomery.ir.lower import canon, extraction, generic_type
 from bloomery.ir.nodes import (
     Additivity,
     AuditIR,
@@ -58,5 +59,8 @@ __all__ = [
     "TransformStepIR",
     "Unit",
     "UnreachableMetric",
+    "canon",
+    "extraction",
+    "generic_type",
     "project_fingerprint",
 ]

@@ -1,0 +1,11 @@
+# The same trap at metric level: `requires` span entities with different
+# grains, combined additively with no aggregation — a second GrainMismatch,
+# batched with the derivation's into one GuardrailError (RFC 0006 D2).
+metrics_version: 1
+metrics:
+  landed_revenue:
+    requires: [unit_price, shipping_cost]
+    grain: order_item
+    additivity: additive
+    agg: sum
+    expr: "unit_price + shipping_cost"

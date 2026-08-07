@@ -1,0 +1,10 @@
+catalog_version: 1
+vertical: ecom_retail
+
+canonical_fields:
+  stock_level:
+    entity: inventory_level
+    type: int
+    unit: count
+    recipes:
+      - {id: direct, requires: [stock_level]}

@@ -1,0 +1,30 @@
+# The `naive_join` recipe is the trap: it combines an order-grain operand
+# (`shipping_cost`, entity: order) into a line-grain derivation with no
+# aggregation — the grain guardrail refuses it at compile time (RFC 0006 D5).
+catalog_version: 1
+vertical: ecom_retail
+
+canonical_fields:
+  unit_price:
+    entity: order_item
+    type: decimal(12,4)
+    unit: currency
+    tax_basis: net
+    recipes:
+      - {id: direct, requires: [unit_price]}
+  shipping_cost:
+    entity: order
+    type: decimal(12,4)
+    unit: currency
+    tax_basis: net
+    recipes:
+      - {id: direct, requires: [shipping_cost]}
+  landed_cost:
+    entity: order_item
+    type: decimal(12,4)
+    unit: currency
+    tax_basis: net
+    recipes:
+      - id: naive_join
+        requires: [unit_price, shipping_cost]
+        expr: "unit_price + shipping_cost"

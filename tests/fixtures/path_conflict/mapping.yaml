@@ -1,0 +1,14 @@
+# `direct:` records that the source also carries the field directly — the
+# path-conflict state. The recipe stays the recorded decision; the direct
+# path becomes the `__direct` shadow plus a reconcile audit (RFC 0006 D7).
+mapping_version: 1
+source: shop__items
+target: item
+key:
+  item_id: {from: "$.id", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.total", quantity: "$.qty"}
+    direct: "$.price"
+  quantity: {from: "$.qty", transform: [to_int]}

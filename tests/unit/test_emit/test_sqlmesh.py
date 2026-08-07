@@ -1,13 +1,27 @@
 """The SQLMesh emitter (RFC 0008 §5.3): artifact shape, path ordering,
-fingerprint headers, kind mapping, naming-policy routing."""
+fingerprint headers, kind mapping, naming-policy routing, and audit lowering
+(builtin-style in the MODEL block; custom bodies under ``audits/``)."""
 
 from __future__ import annotations
 
 import pytest
 
 from bloomery import Target, build_project_ir, compile_project, project_fingerprint
-from bloomery.emit import ArtifactKind
-from bloomery.naming import PrefixNaming
+from bloomery.dialects import get_dialect
+from bloomery.emit import ArtifactKind, EmitContext
+from bloomery.emit.sqlmesh import SQLMeshEmitter
+from bloomery.ir import (
+    AuditIR,
+    ColumnIR,
+    EntityIR,
+    Materialization,
+    ProjectIR,
+    SCDKind,
+    SourceIR,
+    SqlExpr,
+)
+from bloomery.naming import DefaultNaming, PrefixNaming
+from bloomery.typing import DateType, DecimalType, IntType, LogicalType, StringType
 from support.compiling import compile_fixture, extract_select, load_fixture
 
 pytestmark = pytest.mark.unit
@@ -108,3 +122,125 @@ key:
         dialect="duckdb",
     )
     assert "kind INCREMENTAL_BY_UNIQUE_KEY (unique_key (event_id, kind))," in artifact.content
+
+
+# ....................... #
+# Audit lowering (RFC 0006 §5.6/D7 → RFC 0008 §5.3)
+
+
+def _column(name: str, column_type: LogicalType) -> ColumnIR:
+    return ColumnIR(
+        name=name,
+        type=column_type,
+        canonical=None,
+        unit=None,
+        tax_basis=None,
+        expr=SqlExpr(name),
+        recipe_id=None,
+        renamed_from=None,
+        required=False,
+    )
+
+
+def _audited_entity(*audits: AuditIR) -> EntityIR:
+    return EntityIR(
+        name="item",
+        grain="one row per item",
+        key=("item_id",),
+        scd=SCDKind.TYPE1,
+        materialization=Materialization.FULL,
+        partition_by=(),
+        columns=(
+            _column("amount", DecimalType(12, 4)),
+            _column("item_id", StringType()),
+            _column("net_price", DecimalType(12, 4)),
+            _column("net_price__direct", DecimalType(12, 4)),
+            _column("qty", IntType()),
+            _column("shipped_on", DateType()),
+            _column("status", StringType()),
+        ),
+        source=SourceIR(relation="src"),
+        audits=tuple(sorted(audits, key=lambda a: (a.kind, a.column))),
+    )
+
+
+def _emit(*audits: AuditIR) -> tuple[str, dict[str, str]]:
+    """The MODEL artifact content plus {path: content} of the audit artifacts."""
+    ctx = EmitContext(
+        dialect=get_dialect("duckdb"), naming=DefaultNaming(), fingerprint="blm1:test"
+    )
+    artifacts = SQLMeshEmitter().emit(ProjectIR(entities=(_audited_entity(*audits),)), ctx)
+    model = next(a for a in artifacts if a.kind is ArtifactKind.MODEL)
+    audits_by_path = {a.path: a.content for a in artifacts if a.kind is ArtifactKind.AUDIT}
+    return model.content, audits_by_path
+
+
+def test_not_null_lowers_builtin_style_into_the_model_block() -> None:
+    model, custom = _emit(AuditIR(kind="not_null", column="item_id"))
+    assert "audits (not_null(columns := (item_id)))" in model
+    assert custom == {}
+
+
+def test_enum_lowers_as_accepted_values_with_typed_literals() -> None:
+    model, custom = _emit(
+        AuditIR(kind="enum", column="status", params=(("value_0000", "a"), ("value_0001", "b"))),
+        AuditIR(kind="enum", column="qty", params=(("value_0000", "1"), ("value_0001", "2"))),
+    )
+    # int columns take number literals, string columns string literals.
+    assert "accepted_values(column := qty, is_in := (1, 2))" in model
+    assert "accepted_values(column := status, is_in := ('a', 'b'))" in model
+    assert custom == {}
+
+
+def test_min_max_lower_as_custom_audit_artifacts() -> None:
+    model, custom = _emit(
+        AuditIR(kind="min", column="amount", params=(("value", "0"),)),
+        AuditIR(kind="max", column="qty", params=(("value", "10"),)),
+    )
+    assert "audits (item_qty_max, item_amount_min)" in model
+    assert "SELECT * FROM @this_model WHERE amount < 0" in custom["audits/item_amount_min.sql"]
+    assert "SELECT * FROM @this_model WHERE qty > 10" in custom["audits/item_qty_max.sql"]
+    assert "AUDIT (\n  name item_amount_min\n);" in custom["audits/item_amount_min.sql"]
+    assert "-- fingerprint: blm1:test" in custom["audits/item_amount_min.sql"]
+
+
+def test_temporal_bounds_cast_the_literal() -> None:
+    _model, custom = _emit(AuditIR(kind="min", column="shipped_on", params=(("value", "2020-01-01"),)))
+    content = custom["audits/item_shipped_on_min.sql"]
+    assert "WHERE shipped_on < CAST('2020-01-01' AS DATE)" in content
+
+
+def test_regex_lowers_as_a_custom_audit() -> None:
+    _model, custom = _emit(AuditIR(kind="regex", column="status", params=(("pattern", "^[a-z]+$"),)))
+    content = custom["audits/item_status_regex.sql"]
+    assert "WHERE NOT REGEXP_MATCHES(status, '^[a-z]+$')" in content
+
+
+def test_reconcile_lowers_as_an_is_distinct_from_audit() -> None:
+    model, custom = _emit(
+        AuditIR(kind="reconcile", column="net_price", params=(("shadow", "net_price__direct"),))
+    )
+    assert "audits (item_net_price_reconcile)" in model
+    content = custom["audits/item_net_price_reconcile.sql"]
+    assert "WHERE net_price IS DISTINCT FROM net_price__direct" in content
+
+
+def test_audit_artifacts_sort_before_models_and_end_in_one_newline() -> None:
+    ctx = EmitContext(
+        dialect=get_dialect("duckdb"), naming=DefaultNaming(), fingerprint="blm1:test"
+    )
+    entity = _audited_entity(
+        AuditIR(kind="min", column="amount", params=(("value", "0"),)),
+        AuditIR(kind="not_null", column="item_id"),
+    )
+    artifacts = SQLMeshEmitter().emit(ProjectIR(entities=(entity,)), ctx)
+    assert [a.path for a in artifacts] == ["audits/item_amount_min.sql", "models/silver/item.sql"]
+    for artifact in artifacts:
+        assert artifact.content.endswith("\n")
+        assert not artifact.content.endswith("\n\n")
+
+
+def test_entities_without_audits_render_no_audits_property() -> None:
+    model, custom = _emit()
+    assert "audits" not in model
+    assert custom == {}

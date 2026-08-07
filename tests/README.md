@@ -23,7 +23,8 @@ just test tests/unit               # one tier / path
 uv run pytest -m 'engine'          # tier 5 only
 uv run pytest -m e2e               # tier 6 only
 just snapshot-update               # regenerate goldens (tier 2)
-just coverage                      # tiers 1–4 with the coverage floor enforced
+just coverage                      # tiers 1–4 with the coverage floors enforced
+                                   # (80 overall; bloomery/guardrails/ at 100% branch — RFC 0009 D9)
 ```
 
 ## Conventions

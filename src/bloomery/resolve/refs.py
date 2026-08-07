@@ -18,6 +18,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from bloomery.errors import BloomeryError, MissingReference, ResolutionError
+from bloomery.spec.mapping import mapping_doc
 
 if TYPE_CHECKING:
     from bloomery.spec.catalog import Catalog
@@ -28,11 +29,6 @@ __all__ = [
     "mapping_doc",
     "validate_references",
 ]
-
-
-def mapping_doc(mapping: Mapping) -> str:
-    """The deterministic source-path label for one mapping document."""
-    return f"mapping[{mapping.source}->{mapping.target}]"
 
 
 def _check_mapping(mapping: Mapping, project: Project, errors: list[BloomeryError]) -> None:

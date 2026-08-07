@@ -1,0 +1,13 @@
+# The path-conflict fixture (RFC 0006 §5.5, D7): `net_price` has both a
+# recorded derivation and a direct source column. The compiler emits both —
+# the derived column, the `net_price__direct` shadow, and a reconcile audit —
+# and never picks one silently.
+spec_version: 1
+entities:
+  item:
+    grain: one row per item
+    key: [item_id]
+    fields:
+      item_id: {type: string, required: true}
+      net_price: {type: "decimal(12,4)", canonical: net_price}
+      quantity: {type: int, canonical: quantity}

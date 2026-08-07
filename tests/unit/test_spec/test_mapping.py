@@ -109,6 +109,32 @@ def test_bad_jsonpath_grammar() -> None:
     assert excinfo.value.source_path == "mappings/orders: key.k.from"
 
 
+def test_recipe_mapping_records_an_optional_direct_path() -> None:
+    # The path-conflict state (RFC 0006 D7): recipe + direct source column.
+    mapping = parse(
+        "mapping_version: 1\nsource: s\ntarget: t\nkey: {}\n"
+        'fields:\n  f: {recipe: from_total, from: {a: "$.a"}, direct: "$.f"}\n'
+    )
+    field = mapping.fields["f"]
+    assert isinstance(field, RecipeFieldMapping)
+    assert field.direct == "$.f"
+
+
+def test_recipe_mapping_direct_defaults_to_none() -> None:
+    field = parse(HAPPY).fields["unit_price"]
+    assert isinstance(field, RecipeFieldMapping)
+    assert field.direct is None
+
+
+def test_recipe_mapping_direct_must_be_a_jsonpath() -> None:
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(
+            "mapping_version: 1\nsource: s\ntarget: t\nkey: {}\n"
+            'fields:\n  f: {recipe: from_total, from: {a: "$.a"}, direct: not_a_path}\n'
+        )
+    assert "fields.f.recipe.direct" in str(excinfo.value.source_path)
+
+
 def test_recipe_mapping_requires_alias_paths() -> None:
     with pytest.raises(SpecParseError) as excinfo:
         parse(

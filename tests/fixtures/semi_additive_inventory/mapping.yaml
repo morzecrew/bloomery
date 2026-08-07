@@ -1,0 +1,10 @@
+mapping_version: 1
+source: wms__stock_levels
+target: inventory_level
+key:
+  warehouse_id: {from: "$.warehouse", transform: [to_string]}
+  stock_date: {from: "$.day", transform: [{parse_date: ISO8601}]}
+fields:
+  stock_level:
+    recipe: direct
+    from: {stock_level: "$.on_hand"}

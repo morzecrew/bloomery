@@ -19,9 +19,10 @@ Lowering rules pinned here:
   ``incremental_by_partition`` when ``partition_by`` is present, else ``full``.
 
 Marts are not lowered here — mart flattening is the M5 milestone (RFC 0010);
-``ProjectIR.marts`` stays empty. Audits stay empty too: M4 wires ``assert:``
-clauses into real audits. The guardrail stage (RFC 0006, M4) slots in at the
-marked seam below, between typecheck and lowering.
+``ProjectIR.marts`` stays empty. The guardrail stage (RFC 0006) runs over the
+draft IR at the seam below — after typecheck and lowering, before the IR
+leaves the builder — refusing before any artifact is emitted and amending the
+draft with path-conflict shadows and lowered ``assert:`` audits.
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ from typing import TYPE_CHECKING, cast
 from sqlglot import exp, parse_one
 
 from bloomery.errors import ResolutionError
+from bloomery.guardrails import check_guardrails
 from bloomery.ir import (
     Additivity,
     Cardinality,
@@ -49,10 +51,12 @@ from bloomery.ir import (
     SemiAdditiveRule,
     SourceFieldIR,
     SourceIR,
-    SqlExpr,
     TaxBasis,
     TransformStepIR,
     Unit,
+    canon,
+    extraction,
+    generic_type,
 )
 from bloomery.resolve.metrics import effective_metrics
 from bloomery.resolve.recipes import resolve_recipe
@@ -62,15 +66,9 @@ from bloomery.spec.common import PARTITION_SPEC_PATTERN
 from bloomery.spec.mapping import RecipeFieldMapping
 from bloomery.transforms import registry
 from bloomery.typing import (
-    BoolType,
     ChainCheck,
-    DateType,
-    DecimalType,
-    IntType,
     LogicalType,
     StringType,
-    TimestampType,
-    VariantType,
     parse_type,
     typecheck_chain,
     typecheck_chains,
@@ -89,40 +87,6 @@ __all__ = [
 
 _PARTITION_RE = re.compile(PARTITION_SPEC_PATTERN)
 
-_GENERIC_TYPES: dict[type[LogicalType], str] = {
-    StringType: "TEXT",
-    IntType: "BIGINT",
-    BoolType: "BOOLEAN",
-    DateType: "DATE",
-    TimestampType: "TIMESTAMP",
-    VariantType: "JSON",
-}
-
-
-def _generic_type(t: LogicalType) -> exp.DataType:
-    """The dialect-neutral SQLGlot type for a logical type. Physical DDL
-    types are the dialect port's job (RFC 0008); this cast is rendered per
-    dialect at emit from the neutral AST."""
-    if isinstance(t, DecimalType):
-        return exp.DataType.build(f"DECIMAL({t.precision}, {t.scale})")
-    return exp.DataType.build(_GENERIC_TYPES[type(t)])
-
-
-def _canon(node: exp.Expression) -> SqlExpr:
-    """Canonical dialect-neutral text (RFC 0003 §5.2)."""
-    return SqlExpr(node.sql(pretty=False))
-
-
-def _extraction(path: str) -> exp.Expression:
-    """Lower a JSONPath-lite ``$.a.b`` against the bronze relation: the first
-    segment is the physical column, deeper segments are JSON extraction."""
-    segments = path.removeprefix("$.").split(".")
-    column = exp.column(segments[0])
-    if len(segments) == 1:
-        return column
-    remainder = "$." + ".".join(segments[1:])
-    return exp.JSONExtractScalar(this=column, expression=exp.Literal.string(remainder))
-
 
 def _field_type(entity_name: str, field_name: str, field: Field) -> LogicalType:
     path = f"entity_model: entities.{entity_name}.fields.{field_name}.type"
@@ -137,14 +101,14 @@ def _lower_chain(
     *,
     source_path: str,
 ) -> exp.Expression:
-    node = _extraction(path)
+    node = extraction(path)
     if not steps:
-        return exp.cast(node, _generic_type(declared))
+        return exp.cast(node, generic_type(declared))
     for step in steps:
         node = reg[step.name].builder(node, *step.args)
     terminal = typecheck_chain(StringType(), steps, declared, registry=reg, source_path=source_path)
     if terminal != declared:
-        node = exp.cast(node, _generic_type(declared))
+        node = exp.cast(node, generic_type(declared))
     return node
 
 
@@ -201,7 +165,7 @@ def _column_ir(
         canonical=field.canonical,
         unit=unit,
         tax_basis=tax_basis,
-        expr=_canon(expr),
+        expr=canon(expr),
         recipe_id=recipe_id,
         renamed_from=field.renamed_from,
         required=field.required,
@@ -219,17 +183,17 @@ def _recipe_expr(
     recipe = resolve_recipe(mapping, field_name, field_mapping, project, catalog)
     if recipe.expr is None:
         # Identity recipe: the single required alias, cast to the declared type.
-        body = _extraction(field_mapping.from_[recipe.requires[0]])
+        body = extraction(field_mapping.from_[recipe.requires[0]])
     else:
         parsed = parse_one(recipe.expr)
 
         def substitute(node: exp.Expression) -> exp.Expression:
             if isinstance(node, exp.Column) and not node.table and node.name in field_mapping.from_:
-                return _extraction(field_mapping.from_[node.name])
+                return extraction(field_mapping.from_[node.name])
             return node
 
         body = parsed.transform(substitute)
-    return exp.cast(body, _generic_type(declared)), recipe.id
+    return exp.cast(body, generic_type(declared)), recipe.id
 
 
 def _partition_specs(entries: tuple[str, ...]) -> tuple[PartitionSpec, ...]:
@@ -332,7 +296,7 @@ def _build_entity(
             relation=mapping.source,
             fields=tuple(sorted(source_fields, key=lambda f: (f.target_field, f.source_path))),
         ),
-        audits=(),  # M4 wires assert: clauses into real audits (RFC 0006 D8)
+        audits=(),  # populated by the guardrail stage: assert: lowering + reconcile (RFC 0006)
     )
 
 
@@ -379,7 +343,7 @@ def _build_metrics(
                 expr=(
                     # ``parse_one`` is annotated with the ``Expr`` base, but
                     # every node it returns is an ``Expression`` (cf. ir.nodes).
-                    _canon(cast("exp.Expression", parse_one(metric.expr)))
+                    canon(cast("exp.Expression", parse_one(metric.expr)))
                     if metric.expr is not None
                     else None
                 ),
@@ -418,17 +382,14 @@ def build_project_ir(project: Project, catalog: Catalog | None = None) -> Projec
 
     Pure function: resolution (RFC 0005) and the batched typecheck (RFC 0004)
     run first, so lowering only ever sees a reference-clean, well-typed
-    project. Marts are not lowered until M5 (RFC 0010); audits until M4.
+    project; the guardrail stage (RFC 0006) refuses last, over the finished
+    draft. Marts are not lowered until M5 (RFC 0010).
     """
     resolution = resolve(project, catalog)
     reg = registry()
     _typecheck_project(project, reg)
 
-    # ── M4 guardrail seam ──────────────────────────────────────────────
-    # The guardrail stage (RFC 0006) runs here, over (project, catalog,
-    # resolution), refusing before any artifact-bound lowering happens.
-
-    return ProjectIR(
+    draft = ProjectIR(
         bloomery_ir_version=1,
         entities=_build_entities(project, catalog, reg),
         metrics=_build_metrics(project, catalog, resolution.reachable_metrics),
@@ -436,3 +397,9 @@ def build_project_ir(project: Project, catalog: Catalog | None = None) -> Projec
         relationships=_build_relationships(project),
         marts=(),  # mart flattening is M5 (RFC 0010)
     )
+
+    # ── Guardrail seam (RFC 0006 §5.1) ─────────────────────────────────
+    # Stage four: pure over the draft — refuses with one batched
+    # GuardrailError before any artifact is emitted, and amends only via
+    # path-conflict shadows and lowered assert: audits (RFC 0006 D9).
+    return check_guardrails(draft, project=project, catalog=catalog)

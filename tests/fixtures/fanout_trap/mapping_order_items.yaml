@@ -1,0 +1,15 @@
+# Binds order-level shipping (duplicated per line in bronze — the classic
+# denormalized export) straight into a line-grain derivation.
+mapping_version: 1
+source: wms__order_lines
+target: order_item
+key:
+  order_id: {from: "$.order_id", transform: [to_string]}
+  line_no: {from: "$.line_no", transform: [to_int]}
+fields:
+  unit_price:
+    recipe: direct
+    from: {unit_price: "$.price"}
+  landed_cost:
+    recipe: naive_join
+    from: {unit_price: "$.price", shipping_cost: "$.shipping"}

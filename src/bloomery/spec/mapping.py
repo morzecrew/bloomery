@@ -23,6 +23,7 @@ __all__ = [
     "RecipeFieldMapping",
     "SimpleFieldMapping",
     "TransformStep",
+    "mapping_doc",
 ]
 
 
@@ -73,10 +74,18 @@ class SimpleFieldMapping(SpecModel):
 class RecipeFieldMapping(SpecModel):
     """Recipe field mapping: a recorded catalog recipe id (chosen upstream,
     reproduced here — RFC 0005 D2) plus the alias→path bindings its
-    ``requires`` names."""
+    ``requires`` names.
+
+    ``direct`` records that the source *also* carries the field directly — the
+    path-conflict state (RFC 0006 §5.5, D7): the compiler then emits the
+    derived column, a ``<name>__direct`` shadow, and a reconciliation audit.
+    It never picks one silently, and omitting the direct path to silence the
+    shadow is a recorded upstream decision, not a compiler default.
+    """
 
     recipe: str
     from_: dict[str, JsonPath] = Field(alias="from")
+    direct: JsonPath | None = None
 
 
 def _field_mapping_tag(value: object) -> str:
@@ -107,3 +116,10 @@ class Mapping(SpecModel):
     # A closed vocabulary that starts at one value: loosening a refusal later
     # is backward-compatible, tightening one is not (RFC 0010 §9).
     on_unmapped_enum: Literal["quarantine"] = "quarantine"
+
+
+def mapping_doc(mapping: Mapping) -> str:
+    """The deterministic source-path label for one mapping document — parsed
+    models do not retain their document names (RFC 0002 §5.3), so both the
+    resolve and guardrail stages address a mapping by this label."""
+    return f"mapping[{mapping.source}->{mapping.target}]"

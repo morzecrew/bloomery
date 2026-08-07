@@ -1,0 +1,9 @@
+mapping_version: 1
+source: wms__orders
+target: order
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  shipping_cost:
+    recipe: direct
+    from: {shipping_cost: "$.shipping"}

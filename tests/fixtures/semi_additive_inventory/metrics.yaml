@@ -1,0 +1,12 @@
+# A semi-additive balance: sum across warehouses, `last` along stock_date
+# (RFC 0006 D11 — SemiAdditivePolicy(over, rule); the query-time lowering of
+# `rule` is RFC 0011's). 100/80/90 over three days → 90, never 270.
+metrics_version: 1
+metrics:
+  stock_on_hand:
+    requires: [stock_level]
+    grain: inventory_level
+    additivity: semi_additive
+    agg: sum
+    expr: "stock_level"
+    semi_additive: {over: stock_date, rule: last}

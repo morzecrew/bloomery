@@ -1,0 +1,14 @@
+# Inventory balances (RFC 0009 §5.3): a stock level is a point-in-time
+# balance — additive across warehouses, never across days. The valid base
+# fixture compiles clean at M4; the guardrail refusals are asserted on
+# broken variants (missing over/rule, non-additive without components), and
+# the 90/130 execution numbers are M7 planner scope (RFC 0009 §5.10).
+spec_version: 1
+entities:
+  inventory_level:
+    grain: one row per warehouse per day
+    key: [warehouse_id, stock_date]
+    fields:
+      warehouse_id: {type: string, required: true}
+      stock_date: {type: date, required: true}
+      stock_level: {type: int, canonical: stock_level}

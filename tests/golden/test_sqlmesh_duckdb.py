@@ -19,6 +19,8 @@ GOLDEN = Path(__file__).resolve().parent
 EXPECTED_PATHS = {
     "minimal": ["models/silver/event.sql"],
     "ecom_basic": ["models/silver/order.sql", "models/silver/order_item.sql"],
+    "path_conflict": ["audits/item_net_price_reconcile.sql", "models/silver/item.sql"],
+    "semi_additive_inventory": ["models/silver/inventory_level.sql"],
 }
 
 

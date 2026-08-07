@@ -161,8 +161,9 @@ skip_covered = true
 sort = "cover"
 precision = 1
 # Global floor: enforced in CI (see .github/workflows/ci.yml). The 100% branch
-# floor for bloomery/guardrails/ (RFC 0009 D9) is ratcheted in once the package
-# exists — a thin new module must not hide behind the well-covered core.
+# floor for bloomery/guardrails/ (RFC 0009 D9) is enforced by `just coverage`
+# (a scoped `coverage report --fail-under=100` over src/bloomery/guardrails/) —
+# a thin new module must not hide behind the well-covered core.
 fail_under = 80
 exclude_lines = [
     "pragma: no cover",
@@ -208,6 +209,10 @@ exclude_type_checking_imports = true
 # below the emit side (RFC 0008: EmitContext carries the policy; it reads only
 # `Layer` from the IR). `compile` is the thin orchestration top that may see
 # both specs and emitters.
+# M4 reordering (RFC 0006 §5.1): `guardrails` sits *below* `resolve` because
+# the stage is invoked from `build_project_ir`'s seam — resolve consumes the
+# guardrail stage, while the stage itself reads only ir/typing/spec/errors
+# (spec models at runtime for recipe/assert clauses; never resolve).
 name = "Layered bloomery compile pipeline"
 type = "layers"
 layers = [
@@ -215,8 +220,8 @@ layers = [
     "(bloomery.emit) | (bloomery.dialects)",
     "(bloomery.naming)",
     "(bloomery.plan)",
-    "(bloomery.guardrails)",
     "(bloomery.resolve)",
+    "(bloomery.guardrails)",
     "(bloomery.ir)",
     "(bloomery.transforms)",
     "(bloomery.typing)",
@@ -267,6 +272,10 @@ exclude_dirs = ["tests", ".venv"]
 [tool.deptry]
 known_first_party = ["bloomery"]
 ignore_notebooks = true
+# The M4.5 verification spikes (spikes/, pivot §8) import MetricFlow from a
+# throwaway environment by design — exploratory code outside the package, not
+# a dependency surface. Excluded so the quality gate tracks src/ only.
+extend_exclude = ["spikes"]
 
 # jinja2 (emit, M2) has landed alongside pydantic/pyyaml (spec, M1) and
 # sqlglot (ir, M1); no scaffold-time ignores remain.

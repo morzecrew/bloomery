@@ -14,7 +14,7 @@ from support.compiling import compile_fixture, extract_select, fixture_sources, 
 
 pytestmark = pytest.mark.property
 
-FIXTURE_NAMES = ["ecom_basic", "minimal"]
+FIXTURE_NAMES = ["ecom_basic", "minimal", "path_conflict", "semi_additive_inventory"]
 
 
 @settings(max_examples=10, deadline=None)
@@ -29,7 +29,9 @@ def test_compile_twice_yields_identical_bytes(name: str) -> None:
 @given(name=st.sampled_from(FIXTURE_NAMES))
 def test_emitted_select_parses_under_the_duckdb_dialect(name: str) -> None:
     for artifact in compile_fixture(name):
-        select = extract_select(artifact.content)
+        # Audit bodies select from SQLMesh's @this_model macro — substitute a
+        # plain relation so the SELECT itself must still parse (RFC 0008 D4).
+        select = extract_select(artifact.content).replace("@this_model", "silver.model")
         parsed = parse_one(select, dialect="duckdb")
         assert isinstance(parsed, exp.Select)
 
