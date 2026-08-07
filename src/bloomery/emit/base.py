@@ -30,8 +30,9 @@ __all__ = [
 
 class Feature(StrEnum):
     """The closed capability vocabulary (RFC 0008 D10, amended by pivot R8
-    with :attr:`CUMULATIVE` and :attr:`DERIVED_METRIC`). Shared by targets
-    and, later, the planner port (RFC 0011/0013)."""
+    with :attr:`CUMULATIVE` and :attr:`DERIVED_METRIC`, and by RFC 0015
+    D-Q6 with :attr:`SORT_NULLS_PLACEMENT`). Shared by targets and the
+    planner port (RFC 0011/0013)."""
 
     SEMI_ADDITIVE = "semi_additive"
     NON_ADDITIVE = "non_additive"
@@ -41,6 +42,11 @@ class Feature(StrEnum):
     MULTI_FACT = "multi_fact"
     QUERY_TIME_JOIN = "query_time_join"
     ROW_LEVEL_SECURITY = "row_level_security"
+    #: RFC 0015 D-Q6: NULLS FIRST/LAST ordering control. Deliberately
+    #: **not** declared by the MetricFlow planner capabilities —
+    #: ``order_by_names`` is direction-only, so a non-default placement is
+    #: refused (``UnsupportedSortNulls``), never silently dropped.
+    SORT_NULLS_PLACEMENT = "sort_nulls_placement"
     VARIANT_COLUMN = "variant_column"
     SCD_TYPE_2 = "scd_type_2"
     INCREMENTAL = "incremental"

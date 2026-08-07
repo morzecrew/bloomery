@@ -376,6 +376,7 @@ feature, not a gap, so nobody "fixes" it.
 | 10 | Mandatory pre-merge test: row-policy-survives-every-path, asserted on the **parsed AST** (predicate present in every table scan), never on a SQL substring — "a string check passes on `-- tenant_id = 'acme'`" (D1). |
 | 11 | **Supersession split (MetricFlow pivot):** the request/`QueryPlan` contract, refusal policy, `RowPolicy` semantics, `Explanation` shape, and error taxonomy (D1–D2, D4, D6–D10) remain binding on the backend; the native SQL assembly, additivity lowering, and mart-selection internals (D3 steps 2–4, D5) are superseded by RFC 0013. Mart selection survives as the coverage precheck (RFC 0013 R3) — refusal before delegation. |
 | 12 | Additivity lowering correctness (§5.4's semantics — 90-not-270, 130 across warehouses, 2727.27) is now asserted by **execution tests against MetricFlow-generated SQL** (RFC 0009 §5.10), not by unit tests of our own lowering code — no such code exists under RFC 0013. |
+| 13 | *(Appended 2026-08-07, M14 — RFC 0015.)* D2's request/filter types are superseded by RFC 0015's query vocabulary: `FilterExpr` is renamed `Predicate` with the closed `Op` set (`between`/`contains` removed; `like`/`ilike` added; `is_null` takes exactly one bool), filters are CNF (`Clause = Predicate \| AnyOf`, implicit AND, one disjunction level), `Scalar` widens with the string carrier and the non-finite guard, and `RowPolicy.as_filter()` renames to `as_clause()`. The rest of this contract — `QueryPlan`, refusal policy, `Explanation` shape, D4/D6–D10 — is untouched. |
 
 ## 12. Phasing
 

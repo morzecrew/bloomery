@@ -72,6 +72,23 @@ print(plan.sql)
 print(plan.explanation.render())
 ```
 
+Filters are typed CNF clauses (`Predicate` / `AnyOf` — implicit AND, one level of OR), and
+`bloomery.planner.parse_filter_json` is a public front door for the Mongo-flavoured JSON
+grammar (`$and`/`$or`/`$not`, field maps): it normalizes (De Morgan → complement inversion
+→ capped CNF) before refusing, and refuses only from the closed, drift-guarded list
+exported as `bloomery.planner.KNOWN_UNSUPPORTED`:
+
+```python
+from bloomery.planner import parse_filter_json
+
+filters = parse_filter_json(
+    {
+        "customer_id": {"$neq": "internal"},
+        "$or": [{"ordered_month": {"$gte": "2024-01-01"}}, {"ordered_month": "2023-12-01"}],
+    }
+)  # → (Predicate(…), AnyOf(…)) — pass straight to MetricRequest(filters=…)
+```
+
 The runnable version of both snippets lives in
 [`examples/quickstart/`](examples/quickstart/):
 
@@ -84,9 +101,10 @@ uv run python examples/quickstart/run.py
 Pre-0.1. All core milestones (M1–M10) are implemented behind the quality gate: spec
 layer, deterministic IR, transforms and typecheck, resolution, guardrails, wide marts
 with role-playing dates, the SQLMesh/Cube/dbt emitters over DuckDB/Trino/Postgres, the
-MetricFlow-backed planner with manifest hydration, and spec-diff planning — 1041 tests
-across the default tiers. The end-to-end and cross-target equivalence tiers are still
-landing. **The API is not stable yet** — anything may change before 0.1.
+MetricFlow-backed planner with manifest hydration, spec-diff planning, and the CNF query
+vocabulary with its JSON filter front door — 1200+ tests across the default tiers. The
+end-to-end and cross-target equivalence tiers are still landing. **The API is not
+stable yet** — anything may change before 0.1.
 
 The design lives as RFCs in [`rfcs/`](rfcs/INDEX.md); code that contradicts an accepted
 RFC is the bug, not the RFC.

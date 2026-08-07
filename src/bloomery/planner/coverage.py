@@ -40,7 +40,7 @@ from bloomery.errors import (
 from bloomery.ir import Additivity, Layer
 from bloomery.marts import DATE_BUCKETS
 from bloomery.planner.names import ResolvedDimension
-from bloomery.planner.request import TimeGrain
+from bloomery.planner.request import TimeGrain, clause_predicates
 
 if TYPE_CHECKING:
     from bloomery.ir import MartIR, MetricIR, ProjectIR
@@ -63,11 +63,16 @@ _REMEDIATION = (
 @dataclass(frozen=True, slots=True)
 class Coverage:
     """The precheck's product: the single covering mart and every dimension
-    reference resolved against it (request order preserved)."""
+    reference resolved against it (request order preserved).
+
+    ``filter_dimensions`` holds one inner tuple per filter *clause*
+    (RFC 0015 D-Q3), pairing positionally with that clause's predicates —
+    a bare ``Predicate`` clause yields a 1-tuple, an ``AnyOf`` group one
+    entry per member."""
 
     mart: MartIR
     dimensions: tuple[ResolvedDimension, ...]
-    filter_dimensions: tuple[ResolvedDimension, ...]
+    filter_dimensions: tuple[tuple[ResolvedDimension, ...], ...]
     policy_dimension: ResolvedDimension | None
 
 
@@ -199,7 +204,11 @@ def resolve_request(
         for name in request.dimensions
     )
     filter_dimensions = tuple(
-        _resolve_dimension(mart, f.dimension, apply_grain=None) for f in request.filters
+        tuple(
+            _resolve_dimension(mart, predicate.dimension, apply_grain=None)
+            for predicate in clause_predicates(clause)
+        )
+        for clause in request.filters
     )
     policy_dimension = (
         _resolve_dimension(mart, policy.dimension, apply_grain=None) if policy is not None else None

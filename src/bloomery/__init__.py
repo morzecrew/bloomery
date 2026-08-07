@@ -19,11 +19,13 @@ from bloomery.errors import BloomeryError
 from bloomery.ir import project_fingerprint
 from bloomery.plan import BackfillScope, Change, ChangeClass, Plan, plan
 from bloomery.planner import (
+    AnyOf,
     ColumnDescriptor,
-    FilterExpr,
     MetricFlowPlanner,
     MetricRequest,
+    Op,
     OrderSpec,
+    Predicate,
     QueryPlan,
     RowPolicy,
     TimeGrain,
@@ -34,18 +36,20 @@ from bloomery.spec import load_catalog, load_project
 from bloomery.transforms import register_transform
 
 __all__ = [
+    "AnyOf",
     "BackfillScope",
     "BloomeryError",
     "Change",
     "ChangeClass",
     "ColumnDescriptor",
-    "FilterExpr",
     "HydrationKey",
     "LruManifestHydrator",
     "MetricFlowPlanner",
     "MetricRequest",
+    "Op",
     "OrderSpec",
     "Plan",
+    "Predicate",
     "QueryPlan",
     "Resolution",
     "RowPolicy",

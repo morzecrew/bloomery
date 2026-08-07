@@ -16,7 +16,7 @@ from metricflow_semantics.errors.error_classes import (
     UnknownMetricError,
 )
 
-from bloomery import MetricRequest, OrderSpec, RowPolicy
+from bloomery import AnyOf, MetricRequest, Op, OrderSpec, Predicate, RowPolicy
 from bloomery.errors import (
     AmbiguousDimension,
     InvalidRequest,
@@ -24,7 +24,7 @@ from bloomery.errors import (
     UnknownMember,
     UnreachableAtGrain,
 )
-from bloomery.planner import FilterExpr, TimeGrain
+from bloomery.planner import TimeGrain
 from bloomery.planner.metricflow_planner import translate_mf_error
 from support.planning import fixture_ir, make_planner
 
@@ -202,22 +202,41 @@ def test_day_column_falls_back_to_the_source_column_name() -> None:
     assert _day_column(mart, "not_a_date_source") == "not_a_date_source"
 
 
-def test_human_filter_prose_covers_every_operator() -> None:
-    from bloomery.planner.explain import _human_filter
+def test_human_predicate_prose_covers_every_operator() -> None:
+    from bloomery.planner.explain import _human_predicate
 
-    assert _human_filter(FilterExpr("store", "is_null"), "store") == "store is null"
-    assert _human_filter(FilterExpr("store", "in", ("A", "B")), "store") == (
+    assert _human_predicate(Predicate("store", Op.IS_NULL, (True,)), "store") == (
+        "store is null"
+    )
+    assert _human_predicate(Predicate("store", Op.IS_NULL, (False,)), "store") == (
+        "store is not null"
+    )
+    assert _human_predicate(Predicate("store", Op.IN, ("A", "B")), "store") == (
         "store in ('A', 'B')"
     )
-    assert _human_filter(FilterExpr("store", "not_in", ("A",)), "store") == (
+    assert _human_predicate(Predicate("store", Op.NOT_IN, ("A",)), "store") == (
         "store not in ('A')"
     )
-    assert _human_filter(FilterExpr("store", "contains", ("dh",)), "store") == (
-        "store contains 'dh'"
+    assert _human_predicate(Predicate("store", Op.LIKE, ("%dh%",)), "store") == (
+        "store like '%dh%'"
     )
-    assert _human_filter(FilterExpr("flag", "eq", (True,)), "flag") == "flag = true"
-    assert _human_filter(FilterExpr("flag", "ne", (False,)), "flag") == "flag != false"
-    assert _human_filter(FilterExpr("amount", "gt", (5,)), "amount") == "amount > 5"
+    # Multi-pattern like/ilike is an OR of repeated predicates — the prose
+    # says what the renderer executes (RFC 0015 §5.1), never a value list
+    # that hides the disjunction.
+    assert _human_predicate(Predicate("store", Op.ILIKE, ("a%", "b%")), "store") == (
+        "store ilike 'a%' OR store ilike 'b%'"
+    )
+    assert _human_predicate(Predicate("store", Op.LIKE, ("a%", "b%", "c%")), "store") == (
+        "store like 'a%' OR store like 'b%' OR store like 'c%'"
+    )
+    assert _human_predicate(Predicate("flag", Op.EQ, (True,)), "flag") == "flag = true"
+    assert _human_predicate(Predicate("flag", Op.NE, (False,)), "flag") == "flag != false"
+    assert _human_predicate(Predicate("amount", Op.GT, (5,)), "amount") == "amount > 5"
+    # The remaining comparison symbols — all eleven Op members are asserted
+    # here, so the _SYMBOLS lookup is locked for every one of them.
+    assert _human_predicate(Predicate("amount", Op.LT, (5,)), "amount") == "amount < 5"
+    assert _human_predicate(Predicate("amount", Op.LTE, (5,)), "amount") == "amount <= 5"
+    assert _human_predicate(Predicate("amount", Op.GTE, (5,)), "amount") == "amount >= 5"
 
 
 def test_ratio_explanation_render() -> None:
@@ -226,19 +245,36 @@ def test_ratio_explanation_render() -> None:
         MetricRequest(
             metrics=("average_order_value",),
             dimensions=("store",),
-            filters=(FilterExpr("ordered_month", "between", ("2024-01-01", "2024-03-01")),),
+            filters=(
+                Predicate("ordered_month", Op.GTE, ("2024-01-01",)),
+                Predicate("ordered_month", Op.LTE, ("2024-03-01",)),
+            ),
         ),
         dialect="duckdb",
-        policy=RowPolicy("store", "eq", "A"),
+        policy=RowPolicy("store", Op.EQ, "A"),
     )
     assert plan.explanation.render() == (
         "average_order_value\n"
         "  mart:     gold.mart_orders (grain: order)\n"
         "  measure:  average_order_value = revenue / order_count\n"
         "            [non-additive ratio — recomputed at the requested grain, not summed]\n"
-        "  filters:  ordered_month between '2024-01-01' and '2024-03-01'\n"
+        "  filters:  ordered_month >= '2024-01-01'; ordered_month <= '2024-03-01'\n"
         "  policy:   applied"
     )
+
+
+def test_any_of_explanation_shows_one_entry_with_or() -> None:
+    plan = PLANNER.plan(
+        fixture_ir("non_additive_aov"),
+        MetricRequest(
+            metrics=("revenue",),
+            filters=(
+                AnyOf((Predicate("store", Op.EQ, ("A",)), Predicate("store", Op.EQ, ("B",)))),
+            ),
+        ),
+        dialect="duckdb",
+    )
+    assert plan.explanation.filters == ("store = 'A' OR store = 'B'",)
 
 
 def test_semi_additive_explanation_render() -> None:

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Planner filter vocabulary is now CNF (breaking, pre-0.1): `FilterExpr` becomes `Predicate`, filters accept one level of OR via `AnyOf` groups, `between` and `contains` are removed (compose `gte`+`lte`; write `like`/`ilike` patterns with your own wildcards), `is_null` takes exactly one bool, and `RowPolicy.as_filter()` is renamed `as_clause()`.
+
+- Float filter values are now accepted and normalized to exact decimals at the request boundary instead of being refused; non-finite values (`NaN`/`Infinity`, in float or string form) are rejected with a typed `InvalidLiteral`.
+
 ### Fixed
 
 - Docs site root no longer 404s before the first release: the dev docs deploy
@@ -39,3 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spec-diff planning (`plan`): every change between two compiled versions classified as additive, widening, rename, restating, or breaking, with backfill scope, downstream metric impact, and an enforced expand/contract workflow.
 
 - Documentation site: get-started, concepts, how-to guides for every target and the planner, full spec/transform/error/API references, and a runnable `examples/quickstart/` project.
+
+- JSON filter front door: `bloomery.planner.parse_filter_json` parses Mongo-flavoured filter documents into typed clauses, normalizing (De Morgan, complement inversion, capped CNF distribution) before refusing, with `parse_sort_json` and `parse_page_json` alongside.
+
+- Closed refusal list for the query vocabulary: unsupported constructs raise a typed `UnsupportedFilter` with a stable reason code, and the complete set of raisable codes is exported as `bloomery.planner.KNOWN_UNSUPPORTED`.

@@ -17,8 +17,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from bloomery import MetricRequest, OrderSpec, RowPolicy, TimeGrain
-from bloomery.planner import FilterExpr
+from bloomery import AnyOf, MetricRequest, Op, OrderSpec, Predicate, RowPolicy, TimeGrain
+from bloomery.planner.request import Clause
 from support.planning import audit_scans, fixture_ir, make_planner
 
 pytestmark = pytest.mark.unit
@@ -34,39 +34,52 @@ class Scenario:
     metrics: tuple[str, ...]
     dimension: str
     time_dimension: str
-    filter_expr: FilterExpr
+    clauses: tuple[Clause, ...]
 
 
 SCENARIOS = [
-    # Semi-additive: the MAX-join plan scans the mart more than once.
+    # Semi-additive: the MAX-join plan scans the mart more than once. The
+    # shipped `between` range is now a composed gte+lte pair — two clauses,
+    # ANDed, exactly what a caller migrating a range writes (RFC 0015 D-Q1).
     Scenario(
         fixture="semi_additive_inventory",
         relation="gold.mart_inventory",
-        policy=RowPolicy("warehouse_id", "eq", "A"),
+        policy=RowPolicy("warehouse_id", Op.EQ, "A"),
         metrics=("stock_on_hand",),
         dimension="warehouse_id",
         time_dimension="snapshot_month",
-        filter_expr=FilterExpr("snapshot_day", "between", ("2024-01-01", "2024-01-03")),
+        clauses=(
+            Predicate("snapshot_day", Op.GTE, ("2024-01-01",)),
+            Predicate("snapshot_day", Op.LTE, ("2024-03-31",)),
+        ),
     ),
     # Ratio: components may collapse to one shared scan — audit every scan.
     Scenario(
         fixture="non_additive_aov",
         relation="gold.mart_orders",
-        policy=RowPolicy("store", "eq", "acme"),
+        policy=RowPolicy("store", Op.EQ, "acme"),
         metrics=("average_order_value",),
         dimension="store",
         time_dimension="ordered_month",
-        filter_expr=FilterExpr("ordered_day", "gte", ("2024-01-01",)),
+        clauses=(Predicate("ordered_day", Op.GTE, ("2024-01-01",)),),
     ),
-    # Plain additive, multi-metric.
+    # Plain additive, multi-metric, with a disjunction clause (RFC 0015):
+    # the policy must still reach every scan alongside the AnyOf group.
     Scenario(
         fixture="non_additive_aov",
         relation="gold.mart_orders",
-        policy=RowPolicy("store", "eq", "acme"),
+        policy=RowPolicy("store", Op.EQ, "acme"),
         metrics=("order_count", "revenue"),
         dimension="store",
         time_dimension="ordered_month",
-        filter_expr=FilterExpr("ordered_day", "lt", ("2024-06-01",)),
+        clauses=(
+            AnyOf(
+                (
+                    Predicate("ordered_day", Op.LT, ("2024-06-01",)),
+                    Predicate("store", Op.EQ, ("outlet",)),
+                )
+            ),
+        ),
     ),
 ]
 
@@ -79,7 +92,7 @@ def _requests(scenario: Scenario) -> list[MetricRequest]:
         (scenario.time_dimension,),
         (scenario.dimension, scenario.time_dimension),
     ]
-    filter_options: list[tuple[FilterExpr, ...]] = [(), (scenario.filter_expr,)]
+    filter_options: list[tuple[Clause, ...]] = [(), scenario.clauses]
     grain_options: list[TimeGrain | None] = [None, TimeGrain.MONTH, TimeGrain.YEAR]
     tail_options: list[tuple[tuple[OrderSpec, ...], int | None]] = [
         ((), None),
@@ -131,7 +144,7 @@ def test_policy_alone_still_reaches_every_scan() -> None:
         ir,
         MetricRequest(metrics=("stock_on_hand",)),
         dialect="duckdb",
-        policy=RowPolicy("warehouse_id", "eq", "A"),
+        policy=RowPolicy("warehouse_id", Op.EQ, "A"),
     )
     verdicts = audit_scans(plan.sql, "gold.mart_inventory", "warehouse_id", "A")
     assert verdicts and all(protected for _scan, protected in verdicts)

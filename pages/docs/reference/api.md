@@ -97,23 +97,38 @@ the policy the artifacts were emitted with.
 **`.plan(ir, request, *, dialect, policy=None) -> QueryPlan`** — validate the request,
 check mart coverage, and render SQL; nothing is executed. Refusals raise the planner
 error taxonomy (`UnknownMember`, `UnreachableAtGrain`, `AmbiguousDimension`,
-`InvalidRequest`, `FilterTypeMismatch`). See
+`InvalidRequest`, `FilterTypeMismatch`, and the `UnsupportedFilter` family). See
 [Plan a metric request](../how-to/plan-a-metric-request.md).
 
 ### `MetricRequest(metrics, dimensions=(), filters=(), time_grain=None, order_by=(), limit=None)`
 
 A structured metric request. Construction enforces the structural rules (at least one
-metric, no duplicates, order over requested members only, `limit >= 1`).
+metric, no duplicates, order over requested members only, `limit >= 1`). `filters` is
+CNF: a tuple of clauses (implicit AND), each a `Predicate` or one `AnyOf` group.
 
-### `FilterExpr(dimension, op, values=())`
+### `Predicate(dimension, op, values=())`
 
-One typed filter. `op` ∈ `eq`, `ne`, `in`, `not_in`, `gt`, `gte`, `lt`, `lte`,
-`between`, `contains`, `is_null`; value arity is checked per operator, and floats are
-refused (use `Decimal` or strings).
+One typed single-dimension filter (RFC 0015). `op` is an `Op` member; value arity is
+checked per operator (`is_null` takes exactly one bool; `like`/`ilike` take one or
+more patterns). Floats are accepted and normalized to `Decimal(str(value))` at
+construction; non-finite numerics raise `InvalidLiteral`.
+
+### `AnyOf(predicates)`
+
+One disjunction group — OR across its predicates, AND with every other clause.
+Exactly one level: members are `Predicate` only, and may span different dimensions.
+
+### `Op`
+
+The closed filter-operator vocabulary: `EQ`, `NE`, `GT`, `GTE`, `LT`, `LTE`, `IN`,
+`NOT_IN`, `IS_NULL`, `LIKE`, `ILIKE`. A string enum, so `op="eq"` also works.
+`like`/`ilike` operands are SQL `LIKE` patterns — caller-owned wildcards with `\` as
+the escape character; nothing is auto-wrapped.
 
 ### `OrderSpec(field, direction="asc")`
 
-One ordering term over a requested metric or dimension — never arbitrary SQL.
+One ordering term over a requested metric or dimension — never arbitrary SQL. Carries
+no nulls placement (non-default placements are refused at the JSON front door).
 
 ### `TimeGrain`
 
@@ -123,9 +138,10 @@ day–year buckets).
 
 ### `RowPolicy(dimension, op, value)`
 
-A row-level scoping filter — dimension, operator, scalar or scalar tuple — rendered
-through the same escaping pipeline as user filters and prepended to them. Deciding
-whose policy applies is upstream work.
+A row-level scoping filter — dimension, `Op`, scalar or scalar tuple — rendered
+through the same escaping pipeline as user filters (via `as_clause()`) and prepended
+to them, reaching every scan. A policy is one predicate; range policies compose into
+the request filters instead. Deciding whose policy applies is upstream work.
 
 ### `QueryPlan`
 
@@ -136,6 +152,50 @@ The planner's product: `sql`, `columns` (tuple of `ColumnDescriptor`), `mart`,
 
 One output column in bloomery names: `name`, logical `type`, `role`
 (`"dimension"` or `"measure"`), optional `label`.
+
+### `bloomery.planner.parse_filter_json(payload, *, clause_cap=64) -> tuple[Clause, ...]`
+
+The public JSON front door for the Mongo-flavoured filter grammar (`$and`/`$or`/
+`$not`, field maps `{field: scalar | {op: value} | [array]}`, spellings `$eq $neq $gt
+$gte $lt $lte $in $nin $null $like $ilike`). Normalizes before refusing — De Morgan
+push-down, complement inversion, CNF distribution with the clause cap enforced during
+distribution — and refuses only with `UnsupportedFilter` leaves carrying stable
+`.reason` codes.
+
+Two failure classes, deliberately distinct. A construct the vocabulary reviewed and
+declined — a set relation, a hierarchy operator, `$regex`, an over-cap CNF expansion, a
+non-invertible negation — raises `UnsupportedFilter` with a `.reason` from
+`KNOWN_UNSUPPORTED`. Refusals fire wherever the parser reaches them: operator refusals,
+non-finite literals, and the nesting-depth cap during tree construction;
+`UnsupportedNegation` and the CNF clause cap after the rewrite. `.normalized` is set
+wherever it says something useful — the form the document had reached for
+`UnsupportedNegation`, a size sentinel (`>64 levels deep`, `>64 clauses`) for the two
+caps. A *malformed* document — a non-mapping payload, a
+field map of the wrong shape, an unknown `$op`, an operand of the wrong type — raises
+`InvalidRequest`: it never reaches the closed list, because malformed input is a schema
+error, not a reviewed gap. The same split holds for `parse_sort_json` and
+`parse_page_json`: only a well-formed placement or a well-formed non-zero offset reaches
+`UnsupportedSortNulls`/`UnsupportedPagination`; anything else is `InvalidRequest`.
+
+### `bloomery.planner.parse_sort_json(payload) -> tuple[OrderSpec, ...]`
+
+Sort documents (`{field: "asc" | "desc" | {"dir": …, "nulls": …}}`) to order terms. A
+`nulls` equal to the canonical default (`first` for asc, `last` for desc) is dropped; a
+well-formed non-default placement raises `UnsupportedSortNulls`. A *present* `nulls` key
+must hold exactly `"first"` or `"last"` — a wrong type, an explicit `null`, or an unknown
+word is `InvalidRequest`; omitting the key is the canonical default.
+
+### `bloomery.planner.parse_page_json(payload) -> int | None`
+
+Pagination documents (`{"limit": …, "offset": …}`) to the request limit. Non-zero
+offsets and cursor keys (`after`/`before`) raise `UnsupportedPagination`; a malformed
+payload — a non-mapping document, an unknown key, a non-int `limit`/`offset` — raises
+`InvalidRequest`.
+
+### `bloomery.planner.KNOWN_UNSUPPORTED: frozenset[str]`
+
+The closed refusal list: exactly the `.reason` codes the three parse functions can
+raise, drift-guarded by test. Adapters assert their refusal handling covers this set.
 
 ### `LruManifestHydrator(naming, *, max_entries=500, fetch_l2=None, prewarm=False)`
 
