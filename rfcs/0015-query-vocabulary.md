@@ -135,19 +135,25 @@ class MetricRequest:
 | `eq` `ne` `gt` `gte` `lt` `lte` | exactly 1 |
 | `in` `not_in` | 1 or more |
 | `is_null` | exactly 1, a `bool` (`False` renders `IS NOT NULL`) |
-| `like` `ilike` | 1 or more patterns, OR semantics (matching upstream) |
+| `like` `ilike` | 1 or more SQL `LIKE` patterns, passed verbatim (caller-owned wildcards, matching upstream `$like`), OR semantics |
 
 Migration from the shipped shape (pre-0.1, no deprecation cycle): `FilterExpr` renames to
 `Predicate`; **`between` removed** (compose `gte`+`lte`; a dialect-preferred `BETWEEN` is a
 rendering detail, not a DSL concept — D-Q1); **`contains` splits into `like`/`ilike`** (a single
 `contains` forces a case-sensitivity guess whose wrong answer is a silently wrong number —
-D-Q2); **`is_null` changes arity 0 → exactly one bool**, giving `$not $null` a complement.
+D-Q2), and its substring convenience (auto-`%…%` wrapping with wildcard escaping) is
+removed with it — callers write `%needle%` themselves; **`is_null` changes arity 0 →
+exactly one bool**, giving `$not $null` a complement.
 Naming stays plain `eq`, not `$eq` — the *semantics* must match upstream, not the spelling.
 
-`Scalar` (D-Q5): a `str` operand for an ordering operator is cast per the dimension's declared
-type at render time — the carrier for values JSON numbers cannot express exactly (a `Decimal`
-money bound, an ISO datetime). **`NaN`/`Infinity`/`-Infinity` are refused on ordering
-operators** even though they parse as `Decimal`: Postgres sorts `'NaN'::numeric` above every
+`Scalar` (D-Q5): a `str` operand for an ordering operator is the carrier for values JSON
+numbers cannot express exactly (a `Decimal` money bound, an ISO datetime). String-carrier
+operands are parsed and **validated against the resolved dimension's `LogicalType` at
+request-validation time, before any rendering**: a carrier that does not parse as the
+dimension's type is `FilterTypeMismatch`; a non-finite value is `InvalidLiteral`. **No SQL
+cast is ever emitted** — by the time a literal is rendered it is already a value in the
+dimension's declared type, so the renderer never coerces. **`NaN`/`Infinity`/`-Infinity` are
+refused on ordering operators** even though they parse as `Decimal`: Postgres sorts `'NaN'::numeric` above every
 number, so `lt "NaN"` fails *open* and matches every row — exactly the bug class this project
 exists to prevent. `UUID` renders as a string literal against string-typed dimensions — no UUID
 `LogicalType` exists and none is added.
@@ -186,10 +192,17 @@ unsupported are supported after it:
 2. Invert negated leaves through the complement table: `$not $eq → ne`, `$not $in → not_in`,
    `$not $gt → lte`, `$not $null:true → is_null false`, … A leaf with no complement
    (`like`/`ilike`) stays negated → `UnsupportedNegation`.
-3. Distribute to CNF.
-4. Cap the blow-up: CNF is worst-case exponential — refuse with `FilterTooComplex` above a
-   configurable clause count (default **64**) rather than hanging.
-5. Validate each clause against the operator set and the single-field rule.
+3. Distribute to CNF, enforcing the clause cap **during** distribution: the moment the
+   partial clause count exceeds the configured cap (default **64**), distribution
+   short-circuits and refuses with `FilterTooComplex` — the full expansion is never
+   materialized. CNF is worst-case exponential; capping only after materializing would make
+   the parser itself the DoS vector the cap exists to remove.
+4. The cap counts **clauses** only: predicates per clause are bounded by the input's leaf
+   count, so no separate predicate cap is needed.
+5. Validate each predicate against the operator set and the single-field rule (each
+   `Predicate` names exactly one dimension). An `AnyOf` group **may span different
+   dimensions** — CNF distribution routinely produces mixed-dimension groups, MetricFlow
+   renders them, and refusing them would reject common BI shapes.
 
 `parse_sort_json` and `parse_page_json` ship alongside for symmetry — each a dozen lines,
 carrying the D-Q6/D-Q7 refusals. Typed constructors remain the primary path.
@@ -207,20 +220,30 @@ no Forze present:
 | `$descendant_of` `$ancestor_of` | `UnsupportedHierarchy` | Backend-specific (`ltree`), capability-gated even upstream. Model hierarchy as flattened level columns on the mart. |
 | `$regex` | `UnsupportedTextOperator` | Dialect-divergent syntax, unbounded cost. `like`/`ilike` cover the BI cases; revisit only with demonstrated need. |
 | `$empty` | `UnsupportedTextOperator` | Ambiguous across types. Express as `eq ""` or `is_null true` explicitly. |
-| Nesting deeper than AND-of-`AnyOf` | `UnsupportedNesting` | D-Q3. Message includes the normalization result so the caller sees the shape it reached. |
-| CNF expansion above the clause cap | `FilterTooComplex` | §5.2 step 4. |
+| CNF expansion above the clause cap | `FilterTooComplex` | §5.2 step 3 — refused during distribution. |
 | Negated leaf with no complement | `UnsupportedNegation` | e.g. `$not $like`. Add `not_like` only if real usage demands it. |
 | Non-finite numeric operand | `InvalidLiteral` | D-Q5 — fails open if permitted. |
 | `nulls` placement other than the canonical default | `UnsupportedSortNulls` | D-Q6 below. |
 | `offset` ≠ 0, or cursor pagination | `UnsupportedPagination` | D-Q7 below. |
+
+**No nesting refusal exists.** After D-Q4 normalization every boolean tree reaches
+AND-of-`AnyOf` form — `AnyOf` groups may span different dimensions (§5.2 step 5) — so deep
+nesting is always representable; the refusals actually reachable on that path are
+`FilterTooComplex` (the cap) and `UnsupportedNegation` (a non-invertible negated leaf). The
+typed constructors make deeper nesting unrepresentable by construction, so no refusal is
+needed there either.
 
 **Migration note (`InvalidLiteral`):** shipped `filters.py` already refuses non-finite
 values — as `FilterTypeMismatch`. This RFC re-homes that refusal to `InvalidLiteral`, a
 vocabulary-level concern checked at request validation, before rendering;
 `FilterTypeMismatch` remains the type-vs-dimension mismatch error.
 
-**Owned by the app adapter** — Forze-specific constructs bloomery's parser never sees, declared
-alongside so the conformance test checks one union:
+**Owned by the app adapter** — Forze-specific constructs bloomery's parser never sees. Their
+reason codes form `APP_UNSUPPORTED`, a set the **adapter** owns: the two rows below are
+declared in this RFC's closed-list table for review completeness, but their codes are
+explicitly **not** part of bloomery's `KNOWN_UNSUPPORTED` export — the two reason-code sets
+are disjoint. Adapter conformance tests assert totality against
+`KNOWN_UNSUPPORTED | APP_UNSUPPORTED`:
 
 | Construct | Refusal | Why |
 |---|---|---|
@@ -232,7 +255,10 @@ planner errors unbatched per RFC 0011 D9), carrying `.reason` (stable string cod
 `.source_path`, and where relevant `.normalized` — actionable, not merely correct. **Flagged
 divergence:** the source doc declares `UnsupportedFilter(BloomeryError)`; this RFC chooses
 `UnsupportedFilter(PlannerError)` to match `errors.py`'s stage grouping — still a
-`BloomeryError` transitively. `KNOWN_UNSUPPORTED` is the union of reason codes raisable by
+`BloomeryError` transitively. The *classes* for the adapter codes are likewise declared in
+bloomery's `errors.py` so the adapter can raise them; their *reason codes* still live only
+in the adapter's `APP_UNSUPPORTED`, never in bloomery's export. `KNOWN_UNSUPPORTED`
+contains only bloomery-raisable codes — the union of reason codes raisable by
 all **three** parse functions — `parse_filter_json`, `parse_sort_json`, `parse_page_json` —
 which is why `UnsupportedSortNulls` and `UnsupportedPagination` legitimately sit in the
 export even though the filter parser never raises them. The drift-guard test asserts exact
@@ -266,8 +292,11 @@ Every `AnyOf` is parenthesized, always: `policy AND a OR b` leaks every row matc
 correctness bug, not a style choice, and both forms parse fine. All shipped R6 safety rules are
 unchanged and remain merge-blocking: dimension names only from validated resolutions via
 `names.py`; literals only through the typed dialect-aware renderer, never `f"'{value}'"`;
-`like`/`ilike` escape `%`/`_`/`\` with an `ESCAPE` clause; type mismatches are
-`FilterTypeMismatch`, never a cast. `Explanation.filters` is built from the `Clause` objects —
+`like`/`ilike` operands are **SQL `LIKE` patterns rendered verbatim** as type-checked quoted
+literals with a fixed `ESCAPE '\'` clause — nothing inside the pattern is escaped beyond
+what injection safety requires (quote doubling, NUL refusal): `%`/`_` pass through as
+caller-owned wildcards, and a caller wanting a literal `%` or `_` writes `\%` / `\_`
+(documented); type mismatches are `FilterTypeMismatch`, never a cast. `Explanation.filters` is built from the `Clause` objects —
 never by parsing rendered SQL. `RowPolicy` itself stays single-predicate and gains nothing
 from this migration: a policy is one object, so a `between`-shaped policy has no
 post-migration form as two policy clauses — callers with range policies compose the range
@@ -285,9 +314,9 @@ practical payoff of owning the parser.
 | Unit | Every bloomery-owned §5.3 refusal: right type, message contains the normalized form |
 | Unit | Drift guard: `KNOWN_UNSUPPORTED` == the union of codes the three parse functions (`parse_filter_json`/`parse_sort_json`/`parse_page_json`) actually raise, introspected across all three |
 | Property | Non-finite literals (`NaN`/`Infinity`/`-Infinity` and string forms) refused on all six ordering operators |
-| Property | CNF normalization terminates and respects the clause cap on adversarial nesting |
+| Property | CNF normalization terminates on adversarial nesting, short-circuiting on the clause cap during distribution; arbitrarily deep input either reaches AND-of-`AnyOf` or refuses with `FilterTooComplex`/`UnsupportedNegation` — never a nesting refusal |
 | Property | Parse totality: any generated document parses or raises a `KNOWN_UNSUPPORTED` reason; parsed output checked by `semantically_equivalent` — **evaluated against generated rows**, never structural comparison (structural comparison after normalization is circular) |
-| Property (R6) | Shipped filter fuzz extended to `like`/`ilike` wildcards: adversarial values render to SQL with unchanged predicate structure and exactly the expected scanned mart |
+| Property (R6) | Shipped filter fuzz extended to `like`/`ilike`: adversarial `%`/`_` are now pattern characters, passing through verbatim; injection assertions unchanged — quote doubling, NUL refusal, unchanged predicate structure, exactly the expected scanned mart |
 | Execution | An `AnyOf` clause returns the same rows as two separate queries UNIONed |
 | Execution | Policy + `AnyOf`: policy predicate in every scan, `AnyOf` parenthesized — asserted on the parsed AST |
 
@@ -316,17 +345,14 @@ framing (a reviewed gap, not drift); D-Q6/D-Q7 wording says "refused", never "un
 - *The float amendment read as weakening RFC 0003 D5* — mitigated by restating the invariant at
   its actual target (no float reaches rendering or emission) and unit-testing the boundary
   normalization (`Decimal(str(f))`, non-finite refused).
-- *`like`/`ilike` silently changing shipped `contains` semantics* (substring-wrap vs raw
-  pattern) — flagged in §10; the fuzz corpus is extended, not merely renamed.
+- *`like`/`ilike` changing shipped `contains` semantics* (raw patterns replace
+  substring-wrapping — resolved, decision 13) — a caller migrating a `contains` writes
+  `%needle%` explicitly, and the docs say so; the fuzz corpus is extended, not merely renamed.
 - *Refusal-list ossification* — the drift guard makes additions deliberate, which is the point;
   the cost is a PR per new operator, accepted.
 
 ## 10. Unresolved questions
 
-- `like`/`ilike` pattern semantics at the boundary: shipped `contains` escapes wildcards and
-  wraps `%…%` (substring); upstream `$like` passes patterns. Whether caller wildcards pass
-  through (escaping only the escape char) or stay literal substrings is implementation-settled
-  against upstream semantics — §5.4's escaping rules bind either way.
 - Exact `JsonDict` alias and clause-cap plumbing (constructor arg vs module constant) —
   implementation-settled.
 
@@ -336,16 +362,18 @@ framing (a reviewed gap, not drift); D-Q6/D-Q7 wording says "refused", never "un
 | --- | --- |
 | 1 | **D-Q1:** `between` removed — callers compose `gte`+`lte`; `BETWEEN` is a rendering detail a dialect may re-derive, never a DSL concept. Shipped `FilterExpr.between` (arity 2) is deleted in the migration. |
 | 2 | **D-Q2:** `contains` splits into `like`/`ilike` (1+ patterns, OR semantics, matching upstream) — a single `contains` forces a case-sensitivity guess whose wrong answer is a silently wrong number. `regex` is not adopted (`UnsupportedTextOperator`). |
-| 3 | **D-Q3:** filters are CNF — `Clause = Predicate \| AnyOf`, `MetricRequest.filters: tuple[Clause, ...]` implicit AND, exactly one level of disjunction. Covers every filter a BI UI builds; each clause is one `where_constraints` entry, independently renderable and explainable. Deeper nesting → `UnsupportedNesting` with the normalization result in the message. |
-| 4 | **D-Q4:** normalize before refusing, in new public `planner/parse.py`: De Morgan → complement inversion table → CNF distribution → clause cap (default 64, `FilterTooComplex`) → per-clause validation. Pure, deterministic, zero new dependencies. |
-| 5 | **D-Q5:** string-carrier scalars — `str` operands on ordering operators cast per the dimension's declared type at render time; `NaN`/`Infinity`/`-Infinity` refused (`InvalidLiteral`) even though they parse as `Decimal` — `lt "NaN"` fails open on Postgres and matches every row. `UUID` renders as a string literal against string-typed dimensions; no UUID `LogicalType` is added. |
+| 3 | **D-Q3:** filters are CNF — `Clause = Predicate \| AnyOf`, `MetricRequest.filters: tuple[Clause, ...]` implicit AND, exactly one level of disjunction. Covers every filter a BI UI builds; each clause is one `where_constraints` entry, independently renderable and explainable. Each `Predicate` is single-field; the `AnyOf` group is unrestricted and may span different dimensions. After D-Q4 normalization every boolean tree reaches AND-of-`AnyOf` form, and the typed constructors make deeper nesting unrepresentable by construction — no nesting refusal exists (decision 14). |
+| 4 | **D-Q4:** normalize before refusing, in new public `planner/parse.py`: De Morgan → complement inversion table → capped CNF distribution (the cap — default 64, counting clauses — is enforced *during* distribution, refusing `FilterTooComplex` the moment the partial clause count exceeds it, never after materializing the expansion) → per-predicate validation. Pure, deterministic, zero new dependencies. |
+| 5 | **D-Q5:** string-carrier scalars — `str` operands on ordering operators are parsed and validated against the resolved dimension's `LogicalType` at request-validation time, before any rendering: invalid → `FilterTypeMismatch`, non-finite → `InvalidLiteral`; **no SQL cast is ever emitted** (rendered literals are already in the dimension's type). `NaN`/`Infinity`/`-Infinity` refused even though they parse as `Decimal` — `lt "NaN"` fails open on Postgres and matches every row. `UUID` renders as a string literal against string-typed dimensions; no UUID `LogicalType` is added. |
 | 6 | **Float amendment (RFC 0003 D5):** floats accepted at the request boundary (JSON numbers parse to float; refusing cripples `parse_filter_json`), normalized to `Decimal` via `str(float)` at validation — no float ever reaches literal rendering or emission, the ban's actual target. Reverses shipped `_check_scalar`'s outright refusal. |
 | 7 | **D-Q6:** `OrderSpec` carries no `nulls` field — accepting-and-dropping is worse than refusing. Placements equal to the canonical default (`first`/asc, `last`/desc) translate and drop; anything else → `UnsupportedSortNulls`. `Feature.SORT_NULLS_PLACEMENT` added (RFC 0008 vocabulary) and declared unsupported by `MetricFlowPlanner`. |
 | 8 | **D-Q7:** pagination is limit-only. Non-zero `offset` and cursor pagination → `UnsupportedPagination`; paging aggregates belongs to the serving layer (materialize, then page). |
-| 9 | The §5.3 closed list is the deliverable: nine bloomery-owned refusal types + two app-adapter codes (`UnsupportedFieldCompare`, `UnsupportedQuantifier`) declared alongside, all subclassing new `UnsupportedFilter(PlannerError)` with `.reason` (stable code), `.source_path`, optional `.normalized`. `KNOWN_UNSUPPORTED: frozenset[str]` exported from `bloomery.planner` as the union of codes raisable by all three parse functions (`parse_filter_json`/`parse_sort_json`/`parse_page_json`); drift-guard test: export == that union, introspected across all three. Anything not on the list must translate. |
+| 9 | The §5.3 closed list is the deliverable: eight bloomery-owned refusal types + two app-adapter codes (`UnsupportedFieldCompare`, `UnsupportedQuantifier` — the adapter-owned `APP_UNSUPPORTED`, declared in the table for review completeness but never part of bloomery's export; the reason-code sets are disjoint, though the error *classes* live in `errors.py` so the adapter can raise them), all subclassing new `UnsupportedFilter(PlannerError)` with `.reason` (stable code), `.source_path`, optional `.normalized`. `KNOWN_UNSUPPORTED: frozenset[str]` exported from `bloomery.planner` contains only bloomery-raisable codes — the union raisable by the three parse functions (`parse_filter_json`/`parse_sort_json`/`parse_page_json`); drift-guard test: export == that union, introspected across all three; adapter conformance asserts against `KNOWN_UNSUPPORTED \| APP_UNSUPPORTED`. Anything not on the list must translate. |
 | 10 | `parse.py` is a public feature (Mongo-flavoured grammar front door: `$and`/`$or`/`$not` + field maps, scalar = `$eq` shortcut, array = `$in` shortcut, null = `is_null true`), with `parse_sort_json`/`parse_page_json` for symmetry. Typed constructors remain the primary path. The Forze adapter (~30 lines) lives in the application — out of bloomery scope. |
 | 11 | Rendering: one `where_constraints` entry per `Clause`; `AnyOf` **always** parenthesized (`policy AND a OR b` leaks every row matching `b`); policy first via `RowPolicy.as_clause()` (renaming `as_filter()`; `RowPolicy` stays single-predicate, its op space narrowing with `Op` — `between`/`contains` policies are invalid post-migration, and range policies move into the request filters or become gte-only/lte-only policies); all shipped RFC 0013 §5.6 safety rules unchanged and merge-blocking; `Explanation.filters` built from `Clause` objects, never from parsing SQL. |
 | 12 | Migration is pre-0.1, no deprecation cycle: `FilterExpr` → `Predicate`; `between`/`contains` removed; `is_null` arity 0 → exactly one bool (gaining `IS NOT NULL`). Affected shipped tests (fuzz corpus, request validation, execution filters) renamed/extended in the implementing wave. |
+| 13 | `like`/`ilike` operands are SQL `LIKE` patterns **verbatim** — caller-owned wildcards, matching upstream `$like` semantics (the vocabulary-alignment point of this RFC). Rendering emits a type-checked quoted literal with a fixed `ESCAPE '\'` clause and escapes nothing inside the pattern beyond injection safety (quote doubling, NUL refusal); a caller wanting a literal `%` or `_` writes `\%` / `\_` (documented). The shipped `contains` substring convenience (auto-`%…%` wrapping with wildcard escaping) is removed with the operator — callers write `%needle%`. Resolves the former §10 pattern-semantics question. |
+| 14 | **`UnsupportedNesting` removed as a dead refusal** (review finding, credited): after D-Q4 normalization every boolean tree reaches AND-of-`AnyOf` form — `AnyOf` groups may span different dimensions (CNF distribution produces such groups; MetricFlow renders them; refusing them would reject common BI shapes) — so deep nesting is always representable. The refusals actually reachable on that path are `FilterTooComplex` (cap, enforced during distribution) and `UnsupportedNegation` (non-invertible negated leaf); the typed constructors make deeper nesting unrepresentable by construction. Removed from the §5.3 closed list and from `KNOWN_UNSUPPORTED`. |
 
 ## 12. Phasing
 
