@@ -29,7 +29,8 @@
 Cleansing becomes spec surface under one principle: **specs describe, specs reference
 implementations, specs never contain implementations.** A closed rule catalogue
 attaches to mappings and entities; every rule carries an explicit disposition —
-`repair | flag | quarantine | fail`, never a global default, deliberately no `drop`.
+`flag | quarantine | fail`, never a global default, deliberately no `drop`, and no
+`repair` in v1 (deferred, §10).
 Coercion failure becomes the implicit `coercible` rule, retiring
 `Mapping.on_unmapped_enum` and RFC 0008 D7 in one move. Failing rows route to one
 replayable `<entity>__reject` table per entity with mandatory retention; flags flow
@@ -98,13 +99,13 @@ its quarantined rows land in the dependent entity's own `__reject`.
 
 ```python
 class OnFail(StrEnum):
-    REPAIR     = "repair"      # deterministic fix applied; recorded in _quality_flags
     FLAG       = "flag"        # row passes unchanged; recorded in _quality_flags
     QUARANTINE = "quarantine"  # row diverted to <entity>__reject; replayable
     FAIL       = "fail"        # blocking audit; the run stops
 ```
 
-Explicit per rule, never a global default. **There is deliberately no `DROP`**:
+Explicit per rule, never a global default. There is no `REPAIR` in v1 — deferred to §10,
+demand-gated on a repair-recipe contract (decision 17). **There is deliberately no `DROP`**:
 silently discarding rows is the fastest way for a BI product to lose trust
 permanently, and it is the disposition everyone reaches for first. `QUARANTINE` is
 `DROP` plus recoverability — which matters because most quarantined rows return after
@@ -145,6 +146,8 @@ fields:                                # mapping-level field rules
 entities:                              # entity-level
   order_item:
     dedupe: {keep: latest_by, field: _ingested_at, tie_break: [_load_id]}
+    quarantine: {retention: 90d}       # required — quarantine dispositions exist above, so
+                                       # omitting this is QuarantineRetentionMissing (§5.6)
     quality:
       - {rule: expression, name: discount_not_exceeding_gross,
          expr: "discount <= unit_price * quantity", on_fail: flag}
@@ -160,9 +163,14 @@ Closed field-rule catalogue: `coercible` (implicit), `not_null`, `range`, `lengt
 quantifiers; no lookaround, no named groups — compile-time validated against every
 target dialect via sqlglot, because a regex that works on DuckDB and silently means
 something else on Trino is exactly the bug this project exists to prevent),
-`in_enum`, `in_set`, `unique` (restricted to the incremental window; full-partition
-uniqueness is explicitly out of scope, and sampling is rejected per Document 5 §11.3 —
-a probabilistic result in an otherwise exact system).
+`in_enum`, `in_set`, `unique`. `unique` evaluates within the model's **incremental
+processing scope**: for incremental materializations, the partition slice(s) being
+(re)computed in the batch; for full materializations, the whole table. Cross-window
+duplicates are explicitly **not** detected by `unique` — that is key-based dedupe's job,
+and a late-arriving duplicate key lands on `dedupe`, not `unique`. Backfill/incremental
+equivalence holds because the same per-partition evaluation applies in both modes.
+Sampling is rejected per Document 5 §11.3 — a probabilistic result in an otherwise exact
+system.
 
 `tie_break` is mandatory under `keep: latest_by` — its absence is the compile error
 `DedupeTieBreakMissing`: two rows sharing a timestamp
@@ -194,13 +202,36 @@ a user-declared weaker disposition on such a field is the compile error
 
 | Spec | Generated |
 |---|---|
-| `dedupe` | `QUALIFY ROW_NUMBER() OVER (PARTITION BY key ORDER BY field DESC, tie_break DESC) = 1` |
-| `on_fail: repair` | `CASE` expression in the SELECT + flag appended |
+| `dedupe` | `QUALIFY ROW_NUMBER() OVER (PARTITION BY key ORDER BY field DESC NULLS LAST, tie_break… DESC NULLS LAST, _source_row_id DESC) = 1` |
 | `on_fail: flag` | predicate evaluated into `_quality_flags` — all flag rules in **one** array-construct pass, never N scans |
 | `on_fail: quarantine` | predicate drives a two-way split into entity / reject |
 | `on_fail: fail` | SQLMesh **blocking** audit on the model |
-| `referential: unknown_member` | `LEFT JOIN` + `COALESCE(fk, '__unknown__')` + reserved dimension row |
+| `referential: unknown_member` | `LEFT JOIN` + `CASE WHEN ref.<pk> IS NULL AND fk IS NOT NULL THEN '__unknown__' ELSE fk END` + reserved dimension row |
 | `reconcile` | separate model + non-blocking audit |
+
+**The dedupe order is total.** After `field` DESC and the `tie_break` columns, the final
+sort key is the stable source-row identity `_source_row_id` (§5.6's ingestion metadata
+contract), so the winner is unique by construction — no two rows can compare equal. Null
+ordering is pinned: `NULLS LAST` for the recency field and every tie-break column — a null
+recency loses to any non-null one.
+
+**Disposition precedence.** A row can fail several rules carrying different dispositions;
+severity order is `fail > quarantine > flag`. Any failing `fail` rule stops the run (the
+blocking audit); otherwise any failing `quarantine` rule diverts the row to the reject
+table — with **all** failed rule names recorded in the reject's `failed_rules`, its
+flag-level failures included; otherwise flags accumulate in `_quality_flags`. The outcome
+is deterministic for every combination, so no compile-time rejection of rule/disposition
+combinations is needed.
+
+**Three-valued logic.** Each rule defines a *violation predicate*, and a rule fires only
+when that predicate is definitively TRUE: a NULL-involved comparison evaluating to SQL
+`UNKNOWN` does **not** fire. Nulls are owned by `not_null` and `coercible` — declare those
+if nulls are invalid. This applies to `range`, `length`, `pattern`, `in_enum`, `in_set`,
+`expression`, and `referential` alike: a NULL fk is not an orphan — it is `not_null`'s
+business. This is also why the referential lowering is the `CASE` above, not Document 5's
+bare `COALESCE(fk, '__unknown__')` — that sketch was wrong, mapping a NULL fk to the
+unknown member; only a non-null fk with no referenced row is an orphan (correction
+recorded, decision 19).
 
 `QUALIFY` is DuckDB-native; Postgres and any engine without it get the equivalent
 `ROW_NUMBER`-in-a-subquery lowering through the shared dialect-neutral AST — one AST,
@@ -219,7 +250,15 @@ rows" becomes a plain `MetricRequest`. **Deliberate divergence from Document 5
 §5.3:** the doc places the array capability in `TargetCapabilities`; array support is
 an *engine* property (SQLMesh-on-DuckDB and dbt-on-DuckDB share it — the RFC 0008 D1
 split), so it lands as `DialectFeature.ARRAY`; dialects without it lower
-`_quality_flags` to a delimited string. Two mart rules follow: a mart's `base` must be
+`_quality_flags` to a delimited string. The physical contract is pinned per shape so
+the two lowerings agree observably: rule names are identifier-constrained at spec
+parse (`[a-z0-9_]+`, so no escaping is ever needed in either form); `_quality_flags`
+is **never NULL** — a clean row carries the empty array (array dialects: DuckDB
+`STRING[]`, Postgres `TEXT[]`, Trino `ARRAY(VARCHAR)`) or the empty string (delimited
+fallback, joined with `,` in lexicographic rule-name order for deterministic bytes);
+`_quality_ok` is generated per shape as `cardinality(_quality_flags) = 0` /
+`_quality_flags = ''`. Equality of the two lowerings' flag *sets* is asserted in the
+dialect-matrix execution tier (§6). Two mart rules follow: a mart's `base` must be
 a silver entity — never a reject table; a mart declared over `<entity>__reject` is a
 compile error. And mart rowcounts legitimately differ from bronze — quarantined rows
 never reach marts; the conservation audit (§6) is what makes that difference
@@ -232,7 +271,7 @@ into the small-file problem and make replay N-way):
 
 ```sql
 CREATE TABLE <ns>.<entity>__reject (
-  reject_id       STRING,     -- sha256(source, load_id, source_row_id): stable, idempotent replay
+  reject_id       STRING,     -- sha256 over the canonical (source, _load_id, _source_row_id) triple; stable, idempotent replay
   mapping         STRING,
   mapping_version INT,
   failed_rules    ARRAY<STRING>,
@@ -240,20 +279,35 @@ CREATE TABLE <ns>.<entity>__reject (
   raw             VARIANT,    -- the bronze payload
   _load_id        STRING,
   _ingested_at    TIMESTAMP,
+  _source_row_id  STRING,     -- stable per-source-row identity (ingestion metadata contract)
   first_seen      TIMESTAMP,
   last_seen       TIMESTAMP,
   resolved_at     TIMESTAMP   -- set on successful replay; never deleted by replay
 )
 ```
 
+**Ingestion metadata contract.** Entities using `quarantine` or `dedupe` require the bronze
+ingestion metadata columns `_load_id`, `_ingested_at`, and `_source_row_id` — a stable
+per-source-row identity supplied by the ingestion layer. Their absence is the compile error
+`IngestionMetadataMissing`, a `GuardrailError` leaf declared in `errors.py` per RFC 0002 D3
+(§5.9). `reject_id` is the sha256 over the **length-prefixed utf-8 triple** (source
+relation, `_load_id`, `_source_row_id`) — canonical serialization per the RFC 0003
+canon-bytes doctrine — so it is stable across retries by construction.
+
 `raw` holds source payloads — quarantine tables hold PII. When any rule carries a
 `quarantine` disposition, the entity **must** declare a `quarantine:` block with
 `retention:`; absence is a compile error (`QuarantineRetentionMissing`), not a default — "this is the sort of thing
 that is trivial now and a legal problem in eighteen months." Optional `redact:`
-JSONPath list applies to `raw` at **write** time. Replay re-runs the current mapping
+JSONPath list applies to `raw` — and identically to `key_values` — at **write** time;
+`retention:` governs the whole reject row. Replay re-runs the current mapping
 against `raw` for unresolved rows, merging passers into the entity by key and
-updating `failed_rules`/`last_seen` on the rest; it is idempotent — running it twice
-changes nothing. A replayed row lives in the entity from then on; its reject row is
+updating `failed_rules`/`last_seen` on the rest. **Replay merges by the same dedupe
+ordering as the pipeline**: a replayed candidate wins or loses against an incumbent row by
+the dedupe total order (recency field, tie-breaks, `_source_row_id`), and multiple rejects
+resolving to one entity key are ordered the same way. The per-entity replay batch is one
+atomic MERGE — transactionality belongs to the executing engine; bloomery emits the
+artifact. Idempotence follows from the total order: re-running replay re-derives the same
+winners, so running it twice changes nothing. A replayed row lives in the entity from then on; its reject row is
 retained purely as audit history — `resolved_at` set, never deleted — and drops out of
 the conservation accounting, which counts only unresolved rejects
 (`resolved_at IS NULL`; §6). Bloomery emits the reject model and replay merge artifact;
@@ -302,7 +356,7 @@ knows what fails when:
 **A guardrail says the model is wrong. A quality rule says the data is wrong.**
 Nothing that can be decided from the spec alone belongs in `quality/`. The compile
 errors this RFC adds — `QuarantineRetentionMissing` (§5.6), `DedupeTieBreakMissing`
-(§5.3), `DedupeDispositionConflict` (§5.4) — are guardrails by this table's
+(§5.3), `DedupeDispositionConflict` (§5.4), `IngestionMetadataMissing` (§5.6) — are guardrails by this table's
 definition: `GuardrailError` leaves declared in `errors.py` per RFC 0002 D3.
 
 ## 6. Tests (RFC 0009 amendment)
@@ -312,6 +366,10 @@ definition: `GuardrailError` leaves declared in `errors.py` per RFC 0002 D3.
   adds a row; the regression suite that makes cleansing changes safe.
 - **Unit** — the rule × disposition lowering matrix, covered **exhaustively** via
   `product(ALL_RULES, ALL_DISPOSITIONS)`: a missing pair is exactly the gap that ships.
+- **Three-valued logic** — per-rule tests assert the §5.4 semantics: NULL-involved
+  comparisons evaluating to SQL `UNKNOWN` do **not** fire for
+  `range`/`length`/`pattern`/`in_enum`/`in_set`/`expression`/`referential` (a NULL fk is
+  not an orphan); `not_null` and `coercible` are the rules that own nulls.
 - **Execution** — seed dirty fixtures, run the models, assert survivors **and
   quarantine contents** (`reject_id`, `failed_rules`): a test that only checks what
   passed cannot tell "correctly quarantined" from "silently dropped".
@@ -341,8 +399,8 @@ reference pages for the rule catalogue and `quarantine:` block; the
 
 ## 8. Out of scope
 
-- **Repair recipe library** — inline per rule in v1; the catalog route couples
-  quality to the catalog earlier than necessary (§10).
+- **Repair** — the disposition itself is deferred out of v1, demand-gated on a
+  repair-recipe contract (§10, decision 17).
 - **Mart-level quality rules** — blurs into reconciliation; deferred until a real case.
 - **Retention/redaction execution** — bloomery emits schema and policy; deletion jobs
   are the caller's.
@@ -359,7 +417,11 @@ reference pages for the rule catalogue and `quarantine:` block; the
 
 ## 10. Unresolved questions
 
-- Repair recipes: inline forever, or catalog-referenced once a recipe library exists?
+- **Repair** (deferred out of v1 — decision 17): the disposition returns only
+  demand-gated on a repair-recipe contract; inline vs catalog-referenced recipes is part
+  of that contract question. Constraint discovered in review (credit: cubic): when repair
+  lands it must carry a **distinct marker** separating "repaired, now correct" from
+  "currently flagged bad", so `has_quality_flags` keeps meaning "currently suspect".
 - Mart-level rules ("no month has zero revenue") — reconcile-shaped or new surface?
 - Sampling for `pattern` on huge partitions — **lean no**: a probabilistic result in
   an otherwise exact system (for `unique` it is rejected outright — D5, Document 5
@@ -372,13 +434,13 @@ reference pages for the rule catalogue and `quarantine:` block; the
 | # | Decision |
 | --- | --- |
 | 1 | The governing principle: **specs describe, specs reference implementations, specs never contain implementations.** Bronze gets no cleansing (replay source); gold gets none (rebuildable). |
-| 2 | `OnFail = repair \| flag \| quarantine \| fail`, explicit per rule, never a global default. Deliberately no `drop`: quarantine is drop plus recoverability; deletion happens via retention policy, with a paper trail. |
+| 2 | `OnFail = flag \| quarantine \| fail` (v1 — `repair` deferred, decision 17), explicit per rule, never a global default. Deliberately no `drop`: quarantine is drop plus recoverability; deletion happens via retention policy, with a paper trail. |
 | 3 | Coercion failure is a rule: transform chains lower to failure-marker form (`TRY_CAST`-style per dialect); the implicit, overridable `coercible` rule (default `quarantine`) disposes of it. Retires `Mapping.on_unmapped_enum` (RFC 0002 amendment — absorbed into `in_enum`/`coercible`) and supersedes RFC 0008 D7's never-implemented emitter convention with the modeled reject table. |
 | 4 | `assert:` clauses (RFC 0006 D8) remain as compile-to-audit, non-row-routing checks ("alert me"); `quality:` rules are the row-disposition system ("act on the row"). A field may carry both; docs state when to use which. |
 | 5 | Closed field-rule catalogue: `coercible`, `not_null`, `range`, `length`, `pattern` (portable regex subset, compile-time validated per target dialect via sqlglot), `in_enum`, `in_set`, `unique` (restricted to the incremental window; full-partition uniqueness explicitly out of scope, sampling rejected per Document 5 §11.3). New rules are RFC amendments, not config. |
 | 6 | Entity-level `dedupe` requires `tie_break` under `keep: latest_by` (nondeterministic winners violate the core invariant); dedupe-referenced fields' `coercible` is forced to `fail`. Row rules `expression` and `referential` (`on_missing ∈ {unknown_member, quarantine, flag}`; `unknown_member` keeps aggregates correct via a reserved member row); `reconcile` blocks emit model + non-blocking audit. |
 | 7 | Fixed pipeline order — extract → transform → dedupe → field rules → row rules → route — never configurable. Dedupe before rules: validating first silently replaces a corrupt latest row with a stale clean one — data loss disguised as data quality. |
-| 8 | Lowering per §5.4's table: `QUALIFY ROW_NUMBER` dedupe, `CASE` repairs, all flag rules in one `_quality_flags` array pass, two-way entity/reject split, blocking audit for `fail`. |
+| 8 | Lowering per §5.4's table: `QUALIFY ROW_NUMBER` dedupe over the pinned total order, all flag rules in one `_quality_flags` array pass, two-way entity/reject split, blocking audit for `fail`. |
 | 9 | Silver gains `_quality_flags`/`_quality_ok`; marts gain `has_quality_flags` (RFC 0010 amendment). Array capability is `DialectFeature.ARRAY` — an engine property, deliberately diverging from Document 5's `TargetCapabilities` placement; dialects without it lower to a delimited string. |
 | 10 | One `<entity>__reject` table per entity with the §5.6 schema (stable sha256 `reject_id` for idempotent replay). Retention is **required** whenever any quarantine disposition exists — missing retention is a compile error; `redact:` paths apply at write time. Bloomery emits the reject/replay artifacts and never executes them. |
 | 11 | RFC 0007 amendment (dated when implemented): quality rule add/remove/change, disposition changes in both directions, and dedupe changes classify `RESTATING`; `Plan` gains `replay_scope` alongside `backfill_scope` — `quarantine → flag` needs replay, not just backfill. |
@@ -387,6 +449,13 @@ reference pages for the rule catalogue and `quarantine:` block; the
 | 14 | Testing per §6 (RFC 0009 amendment): dirty corpus, exhaustive rule×disposition matrix, quarantine-contents assertions, the conservation-law property doubled as a runtime audit, idempotence + backfill-equivalence merge gates, replay tests, dialect-matrix emphasis, quarterly chaos meta-test. |
 | 15 | A mart's `base` must be a silver entity, never a reject table — a mart over `<entity>__reject` is a compile error. Mart rowcounts legitimately differ from bronze (quarantined rows never reach marts); the conservation audit is what makes the difference explainable. |
 | 16 | New compile errors: `QuarantineRetentionMissing` (quarantine disposition without `retention:`), `DedupeTieBreakMissing` (`keep: latest_by` without `tie_break`), `DedupeDispositionConflict` (user-declared weaker disposition on a dedupe-referenced field where `coercible` is forced to `fail`) — all `GuardrailError` leaves declared in `errors.py` per RFC 0002 D3. |
+| 17 | **Repair deferred out of v1** (amends rows 2 and 8 as originally drafted): dispositions v1 = `flag \| quarantine \| fail`; `repair` moves to §10, demand-gated on a repair-recipe contract. Constraint recorded from review (credit: cubic): when repair lands it must carry a **distinct marker** separating "repaired, now correct" from "currently flagged bad", so `has_quality_flags` keeps meaning "currently suspect". |
+| 18 | Disposition precedence for a row failing multiple rules — severity order `fail > quarantine > flag`: any failing `fail` rule stops the run (blocking audit); else any failing `quarantine` rule diverts the row, with **all** failed rule names recorded in the reject's `failed_rules` (flag-level failures included); else flags accumulate in `_quality_flags`. Deterministic for every combination — no compile-time rejection of rule/disposition combinations needed. |
+| 19 | Three-valued logic: each rule defines a violation predicate and fires only when it is definitively TRUE — NULL-involved comparisons evaluating to SQL `UNKNOWN` do **not** fire (`not_null`/`coercible` own nulls; declare them if nulls are invalid). Applies to `range`/`length`/`pattern`/`in_enum`/`in_set`/`expression`/`referential` — a NULL fk is not an orphan. Corrects Document 5's referential lowering: the bare `COALESCE(fk, '__unknown__')` sketch was wrong (it maps a NULL fk to the unknown member); the lowering is `CASE WHEN ref.<pk> IS NULL AND fk IS NOT NULL THEN '__unknown__' ELSE fk END`. |
+| 20 | Dedupe is a total order: after `field` DESC and the `tie_break` columns, the final sort key is the stable source-row identity `_source_row_id` — the winner is unique by construction. Null ordering pinned: `NULLS LAST` for the recency field and every tie-break column (a null recency loses). |
+| 21 | Ingestion metadata contract: entities using `quarantine` or `dedupe` require bronze `_load_id`, `_ingested_at`, `_source_row_id` (a stable per-source-row identity supplied by the ingestion layer); absence is the new compile error `IngestionMetadataMissing` (`GuardrailError` leaf, `errors.py` per RFC 0002 D3). `reject_id` = sha256 over the length-prefixed utf-8 triple (source relation, `_load_id`, `_source_row_id`) — canonical serialization per the RFC 0003 canon-bytes doctrine; stable across retries by construction. |
+| 22 | Replay merge semantics: replay applies the **same dedupe ordering** as the pipeline — a replayed candidate merges by entity key and wins/loses against an incumbent by the dedupe total order (recency, tie-breaks, `_source_row_id`); multiple rejects resolving to one key are ordered the same way. The per-entity replay batch is one atomic MERGE (transactionality is the executing engine's; bloomery emits the artifact); idempotence follows from the total order — re-running replay re-derives the same winners. |
+| 23 | `_quality_flags` physical contract: rule names identifier-constrained at parse (no escaping in any lowering); the column is never NULL (empty array / empty delimited string per `DialectFeature.ARRAY`); delimited fallback joins with `,` in lexicographic rule-name order; `_quality_ok` generated per shape; flag-set equality across lowerings asserted in the dialect-matrix tier. |
 
 ## 12. Phasing
 
