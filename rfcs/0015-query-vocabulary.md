@@ -1,8 +1,10 @@
 # RFC 0015 — Query vocabulary: filters, sort, pagination
 
-- **Status:** 🚧 In progress — implementation landing (this PR, wave M14). Design locked; the
-  migration of the shipped pre-0.1 surface (M7's `FilterExpr` planner contract) lands without a
-  deprecation cycle because the API is not yet stable.
+- **Status:** ✅ Complete — shipped 2026-08-07 (wave M14): the CNF vocabulary, the public
+  `planner/parse.py` front door with its closed refusal list, and the rendering amendments
+  landed as designed; the migration of the shipped pre-0.1 surface (M7's `FilterExpr`
+  planner contract) went without a deprecation cycle because the API is not yet stable.
+  The Forze app adapter (§4, §8) stays out — a deliberate non-goal, not a remainder.
 - **Scope:** The filter/sort/pagination DSL of the planner contract: `planner/request.py`
   (`FilterExpr` → `Predicate`/`AnyOf`/`Clause`, operator set, `Scalar`, `OrderSpec`), a **new
   public module** `planner/parse.py` (Mongo-flavoured JSON grammar → typed clauses, with
