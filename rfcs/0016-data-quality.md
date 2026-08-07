@@ -1,6 +1,26 @@
 # RFC 0016 — Data quality: declarative cleansing, dispositions, quarantine
 
-- **Status:** 📝 Draft
+- **Status:** ✅ Complete — shipped 2026-08-08 (wave M12). Landed: the
+  `quality:`/`dedupe:`/`quarantine:`/`reconcile:` spec sub-schemas with the closed
+  rule catalogue and portable regex
+  subset; `bloomery/quality/` lowering the rules to dialect-neutral predicates under
+  the three-valued discipline (D19), the `_quality_flags`/`failed_rules` physical
+  contract (D23), and the dedupe total order (D20); ten compile-time guardrail checks
+  (the five named `errors.py` leaves plus five bare `GuardrailError` refusals);
+  SQLMesh emission of the dedupe `QUALIFY`, the two-way entity/reject split, the
+  `<entity>__reject` model, the D21 metadata audit, per-`fail`-rule blocking audits,
+  the per-entity conservation audit and the replay `MERGE` artifact (dbt raises
+  `UnsupportedByTarget` for reject/replay); `_quality_flags`/`_quality_ok` on every
+  silver model and `has_quality_flags` on marts; `gold.mart_data_quality` as an
+  ordinary mart; `Plan.replay_scope`; `DialectFeature.ARRAY` and
+  `DialectFeature.TRY_CAST`; `Mapping.on_unmapped_enum` retired and
+  `bloomery_ir_version` bumped to 2; the dirty-data corpus with its execution,
+  conservation-property, replay and chaos tiers. **Divergences from the design as
+  drafted are D24–D30**, appended dated below: implicit `coercible` is opt-in per
+  entity (D24), the D21 audit owes a castability assertion on `_ingested_at` (D25),
+  two recorded corpus gaps (D26, D28), `referential` onto the entity itself is
+  refused (D27), the conservation audit's shape and its one skipped case (D29), and
+  Postgres cannot host quality-carrying entities at all (D30).
 - **Scope:** Run-time data quality as declarative spec surface: the `quality:` /
   `dedupe:` / `quarantine:` / `reconcile:` sub-schemas, the `OnFail` disposition
   model, the closed rule catalogue, the fixed pipeline order and its lowering, the
@@ -120,6 +140,12 @@ always-present, overridable `coercible` rule (default `quarantine`) disposes of 
 One mechanism, one reject table, one disposition vocabulary — unifying
 `on_unmapped_enum`, transform failures, and explicit rules:
 
+> **Amended 2026-08-08 (D24):** "always present" shipped as **opt-in per entity**.
+> An entity joins the quality system when it declares `quality:`, `quarantine:`, or
+> any field-level `quality:` — `dedupe:` alone does not — and only then does the
+> implicit `coercible` rule exist. Read the paragraph above as scoped to
+> quality-carrying entities.
+
 - **RFC 0002 amendment:** `Mapping.on_unmapped_enum` is retired, absorbed into
   `in_enum`/`coercible` (an unmapped enum value simply fails `in_enum`). Removed
   pre-0.1, no migration owed.
@@ -206,6 +232,14 @@ declared disposition — an uncastable recency field makes dedupe ordering undef
 a user-declared weaker disposition on such a field is the compile error
 `DedupeDispositionConflict`.
 
+> **Amended 2026-08-08 (D25):** the forcing reaches *mapped fields* only. The usual
+> `dedupe.field` is `_ingested_at`, which is ingestion metadata rather than a mapped
+> field, so no `coercible` rule is generated for it and the D21 audit checks only a
+> null or duplicated `_source_row_id` — an uncastable `_ingested_at` leaves dedupe
+> ordering silently undefined. The decided contract: the D21 blocking audit **also**
+> asserts `_ingested_at` is castable to timestamp. Not yet implemented; the gap is
+> held open by a strict-`xfail` execution test (`keys.csv::uncastable_ingested_at`).
+
 | Spec | Generated |
 |---|---|
 | `dedupe` | `QUALIFY ROW_NUMBER() OVER (PARTITION BY key ORDER BY field DESC NULLS LAST, tie_break… DESC NULLS LAST, _source_row_id DESC NULLS LAST) = 1` |
@@ -248,6 +282,15 @@ Declaring `on_missing: unknown_member` on a non-string fk is a compile-time
 string. Typed per-key sentinels are explicitly rejected — a sentinel like `-1` colliding
 with a legal key value is exactly the silent wrongness this project refuses.
 
+> **Amended 2026-08-08 (D27):** every `referential` lowering above is a `LEFT JOIN`
+> *inside the dependent entity's own model*, so a rule whose relationship points back
+> at that same entity is unexecutable — a model cannot join the table it is being
+> built from. Declaring one is a compile-time `GuardrailError` naming the two
+> alternatives: model the referenced side as a separate entity built from the same
+> source, or express the check as a `reconcile:` block, which runs silver→mart against
+> finished tables. Self-referencing *data* (a parent-order fk) is still expressible —
+> it is the single-entity *shape* that is refused.
+
 `QUALIFY` is DuckDB-native; Postgres and any engine without it get the equivalent
 `ROW_NUMBER`-in-a-subquery lowering through the shared dialect-neutral AST — one AST,
 per-dialect legal rendering, the same doctrine as RFC 0008. Target coverage:
@@ -255,6 +298,17 @@ per-dialect legal rendering, the same doctrine as RFC 0008. Target coverage:
 quality mart); **dbt** initially raises `UnsupportedByTarget` for the reject/replay
 artifacts (honest port-proof scope); **Cube/MetricFlow** consume the quality mart like
 any mart.
+
+> **Amended 2026-08-08 (D30):** dialect coverage is narrower than target coverage.
+> The `coercible` lowering needs a real NULL-on-failure cast, which is
+> `DialectFeature.TRY_CAST`; Postgres has none (sqlglot renders `TRY_CAST` as a plain
+> `CAST`, which aborts the run instead of marking the row), so **Postgres cannot host
+> a quality-carrying entity at all** — compiling one raises `UnsupportedByTarget`.
+> DuckDB and Trino carry the feature. Consequence for §6's dialect matrix: there is no
+> Postgres dirty-corpus tier to add until either sqlglot renders a real `TRY_CAST` or
+> the lowering grows a `CASE`-based fallback per type. The fallback is named as the
+> escape hatch, not built — it is a per-type regex/`CASE` cascade whose semantics must
+> be proven equal to `TRY_CAST`'s on the corpus before it is worth the surface.
 
 ### 5.5 Schema additions and the array capability
 
@@ -404,6 +458,18 @@ definition: `GuardrailError` leaves declared in `errors.py` per RFC 0002 D3.
 - **Dirty-data corpus** — `tests/fixtures/dirty/` (numerics, dates, enums, keys,
   refs, unicode, extremes), grown from redacted production incidents: every incident
   adds a row; the regression suite that makes cleansing changes safe.
+
+  > **Amended 2026-08-08 (D26, D28):** two families depart from "every row is
+  > asserted", both recorded rather than hidden. `unicode.csv`'s `flag` marks encode
+  > "contains an invisible or deceptive character", which no v1 rule expresses — the
+  > portable regex subset (D5) forbids exactly the codepoint-class constructs that
+  > separating NFC from NFD from emoji would need. That family asserts the class
+  > invariant §5.1 actually promises (**flagged, never dropped**) plus whatever a
+  > declared rule decides; expressing the rest needs a future `normalize`/`confusables`
+  > rule, demand-gated, not built (D26). And no corpus row casts cleanly and *then*
+  > violates a declared bound, so `range` fires on nothing — closing that needs a
+  > castable-but-out-of-bounds specimen, and the suite asserts the absence rather than
+  > hiding it (D28).
 - **Unit** — the rule × disposition lowering matrix, covered **exhaustively** via
   `product(ALL_RULES, ALL_DISPOSITIONS)`: a missing pair is exactly the gap that ships.
   `referential` contributes its own axis — one row per `on_missing` disposition
@@ -420,6 +486,15 @@ definition: `GuardrailError` leaves declared in `errors.py` per RFC 0002 D3.
   rows cannot vanish. Resolved reject rows are audit history, excluded from the
   accounting — a replayed row counts once, in the entity, never twice. Also emitted
   as a **runtime audit** on every production run, not only a test.
+
+  > **Amended 2026-08-08 (D29):** the emitted per-entity audit reads exactly two
+  > relations — the bronze source and `@this_model` — because SQLMesh does not rewrite
+  > model references inside an `AUDIT` body, so a body naming a sibling silver entity
+  > would resolve against whatever that name means outside the plan. It is therefore
+  > **skipped** for the one shape an audit body cannot express: `referential` with
+  > `on_missing: quarantine`, whose routing predicate reads a sibling entity. The skip
+  > is asserted in a unit test rather than silently dropped, and the conservation
+  > *property* still covers that shape.
 - **Merge gates** — idempotence and backfill equivalence (full refresh ≡ incremental
   history): the executable determinism invariant; catches nondeterministic tie-breaks
   and order-dependent rules.
@@ -430,6 +505,12 @@ definition: `GuardrailError` leaves declared in `errors.py` per RFC 0002 D3.
 - **Dialect matrix emphasis** — cleansing is where dialects diverge most (regex
   flavours, `ROW_NUMBER` null ordering, decimal rounding, array construction,
   empty-string-vs-null); tier 5 runs the execution assertions per engine.
+
+  > **Amended 2026-08-08 (D30):** the matrix has one engine for cleansing, not three.
+  > Postgres lacks `DialectFeature.TRY_CAST` and so cannot host a quality-carrying
+  > entity at all, and the Trino engine tier is RFC 0009's outstanding work — the
+  > dirty-corpus tier runs on DuckDB, and the two flag lowerings' set-equality (D23)
+  > is asserted at the unit/golden level instead.
 - **Quarterly chaos meta-test** — mutate the lowering (invert a comparison, drop a
   stage, swap a disposition); at least one test must fail per mutation, or the dirty
   corpus has a hole.
@@ -466,6 +547,11 @@ reference pages for the rule catalogue and `quarantine:` block; the
   of that contract question. Constraint discovered in review (credit: cubic): when repair
   lands it must carry a **distinct marker** separating "repaired, now correct" from
   "currently flagged bad", so `has_quality_flags` keeps meaning "currently suspect".
+- **A `normalize`/`confusables` rule** (added 2026-08-08, D26): the deceptive-character
+  class `unicode.csv` encodes is outside the portable regex subset by construction, so
+  expressing it needs a rule that names a Unicode normal form and/or a confusables
+  table and evaluates outside the regex engine. Demand-gated on a real incident — the
+  corpus records the gap in the meantime.
 - Mart-level rules ("no month has zero revenue") — reconcile-shaped or new surface?
 - Sampling for `pattern` on huge partitions — **lean no**: a probabilistic result in
   an otherwise exact system (for `unique` it is rejected outright — D5, Document 5
@@ -500,6 +586,13 @@ reference pages for the rule catalogue and `quarantine:` block; the
 | 21 | Ingestion metadata contract: entities using `quarantine` or `dedupe` require bronze `_load_id`, `_ingested_at`, `_source_row_id` (a stable per-source-row identity supplied by the ingestion layer, **NOT NULL and unique per source row** — data properties no compiler can check, so the lowering emits a generated **blocking audit** on the metadata columns: a null or duplicated `_source_row_id` stops the run); column absence is the new compile error `IngestionMetadataMissing` (`GuardrailError` leaf, `errors.py` per RFC 0002 D3). `reject_id` = sha256 over the length-prefixed utf-8 **pair** (`source_relation`, `_source_row_id`) — canonical serialization per the RFC 0003 canon-bytes doctrine. This supersedes the triple this row first carried (this round's own earlier decision): `_load_id` is removed from the identity and becomes an attribute (the latest observing load) — re-deliveries of the same source row across loads must land on the **same** reject row (that is what `first_seen`/`last_seen` track); a per-load identity would mint a new row per retry and violate replay idempotence. A re-delivery updates `last_seen`/`_load_id`/`failed_rules` on the existing row. |
 | 22 | Replay merge semantics: replay applies the **same dedupe ordering** as the pipeline — a replayed candidate merges by entity key and wins/loses against an incumbent by the dedupe total order (recency, tie-breaks, `_source_row_id`); multiple rejects resolving to one key are ordered the same way. The per-entity replay batch is one atomic MERGE (transactionality is the executing engine's; bloomery emits the artifact); idempotence follows from the total order — re-running replay re-derives the same winners — and is defined over **semantic state** (winners merged, `resolved_at` transitions), observability columns excluded: `last_seen` updates only when a row is actually re-evaluated. |
 | 23 | `_quality_flags` **and** `failed_rules` share one physical contract: rule names identifier-constrained at parse (no escaping in any lowering); the column is never NULL (empty array / empty delimited string per `DialectFeature.ARRAY`); delimited fallback joins with `,` in lexicographic rule-name order; `_quality_ok` generated per shape; flag-set equality across lowerings asserted in the dialect-matrix tier. The reject table's `failed_rules` lowers by exactly this contract — array where `DialectFeature.ARRAY`, else the lexicographic comma-delimited string. |
+| 24 | *(2026-08-08, M12)* **The implicit `coercible` rule is opt-in per entity**, diverging from §5.2's "implicit, always present". An entity joins the quality system by declaring `quality:`, `quarantine:`, or any field-level `quality:`; `dedupe:` alone does not. Rationale: applying it universally gives every field in every existing project a `quarantine` disposition, which makes every project fail `QuarantineRetentionMissing` on its next compile — a break §12 budgets for `_quality_flags`'s schema churn but not for a hard compile refusal. Consequence: a project that wants coercion routing must opt in explicitly, and an entity with no quality surface keeps the shipped produce-or-raise transform lowering. |
+| 25 | *(2026-08-08, M12)* **The ingestion-metadata columns carry no `coercible` rule, and the D21 audit must close the gap.** D6 forces `coercible` to `fail` on any field the dedupe order reads, but `_ingested_at`/`_load_id`/`_source_row_id` are ingestion metadata, not mapped fields — no rule is generated for them, and the D21 blocking audit asserts only that `_source_row_id` is non-null and unique. An uncastable `_ingested_at` therefore survives with dedupe ordering silently undefined. **Decided contract:** the D21 audit additionally asserts `_ingested_at` is castable to timestamp, blocking the run when it is not. Unimplemented as of M12 and held open by a strict-`xfail` execution test (`keys.csv::uncastable_ingested_at`) rather than a comment. |
+| 26 | *(2026-08-08, M12)* **`unicode.csv`'s flag expectations are not expressible in v1.** They encode "contains an invisible or deceptive character"; the portable regex subset (D5) has no lookaround, no named groups and no property classes, so it cannot separate NFC from NFD, a homoglyph from its Latin twin, or an astral emoji from a ZWJ sequence. The corpus rows are asserted for the class invariant the disposition model actually promises — **flagged, never dropped** (D2) — plus whatever a declared rule (`length`, `pattern`) decides. Expressing the rest needs a new rule shape: a `normalize`/`confusables` rule taking a Unicode normal form and/or a confusables table, evaluated outside the regex engine. Demand-gated, not built — new rules are RFC amendments, not config (D5). |
+| 27 | *(2026-08-08, M12)* **`referential` on a self-relationship is refused at compile time.** The lowering is a `LEFT JOIN` inside the dependent entity's own model (§5.4), so a rule whose relationship's `to` side is the declaring entity is unexecutable — a model cannot join the table it is being built from, and the emitted SQL would either fail or resolve against a stale previous version and answer the wrong question. It is a `GuardrailError` (bare, per §5.9's five-named-leaves rule) naming both alternatives: model the referenced side as a separate entity built from the same source, or express the check as a `reconcile:` block, which runs silver→mart against finished tables. Self-referencing *data* stays expressible; the single-entity *shape* does not. |
+| 28 | *(2026-08-08, M12)* **The corpus has no `range` specimen** — a recorded gap, not a rule defect. Every out-of-bounds row it carries is also uncastable, so `coercible` reaches the value first and `range` evaluates over the resulting NULL, staying `UNKNOWN` and never firing (D19). Closing it needs a row that casts cleanly and *then* violates a declared bound. The suite asserts the absence explicitly (zero rows failed, zero diverted) rather than leaving a rule that silently covers nothing, so the day a specimen lands the assertion is what changes. |
+| 29 | *(2026-08-08, M12)* **Conservation audit shape.** The emitted per-entity audit reads exactly two relations — the bronze source and `@this_model` — because SQLMesh does not rewrite model references inside an `AUDIT` body, so a body naming a sibling silver entity would resolve against whatever that name means outside the plan. It is therefore **skipped** for the one shape an audit body cannot express: `referential` with `on_missing: quarantine`, whose routing predicate reads a sibling entity. The skip is asserted in a unit test rather than silently dropped, and §6's conservation *property* still covers that shape. |
+| 30 | *(2026-08-08, M12)* **Postgres cannot host quality-carrying entities.** `coercible` needs a real NULL-on-failure cast (`DialectFeature.TRY_CAST`); sqlglot renders `TRY_CAST` on Postgres as a plain `CAST`, which aborts the run instead of marking the row, so the dialect declares the feature gap and compiling a quality-carrying entity for it raises `UnsupportedByTarget` — loud, never a silent degradation into an aborted run. Consequence for §6's dialect matrix: there is no Postgres dirty-corpus tier to add until either sqlglot renders a real `TRY_CAST` or the lowering grows a per-type `CASE`-based fallback whose semantics are proven equal to `TRY_CAST`'s on the corpus. Named as the escape hatch, not built. |
 
 ## 12. Phasing
 

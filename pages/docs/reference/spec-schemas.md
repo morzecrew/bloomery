@@ -20,9 +20,17 @@ load it with `load_catalog` and pass it separately.
 | Source path | JSONPath-lite: `$` followed by dotted identifiers only | `$.customer.id` |
 | Currency code | Three uppercase letters (ISO 4217) | `EUR` |
 | Member name | Any identifier except the reserved names | — |
+| Rule name | `[a-z0-9_]+` — identifier-constrained so no flag lowering ever needs escaping | `discount_not_exceeding_gross` |
+| Retention duration | A positive integer (no leading zero, ≤ 5 digits) plus one unit of `h` / `d` / `w` | `90d` |
 
-**Reserved:** `metric_time` may not be used as a field, dimension, or role name — the
-planner owns it as the canonical query-time dimension.
+**Reserved names.** `metric_time` may not be used as a field, dimension, or role name —
+the planner owns it as the canonical query-time dimension. The generated data-quality
+and ingestion-metadata columns are reserved on the same terms: `_quality_flags`,
+`_quality_ok`, `_load_id`, `_ingested_at`, `_source_row_id`, `has_quality_flags`.
+
+**Retention units.** Months and years are deliberately absent — they are not fixed
+durations, and a retention window that means something different in February is a legal
+problem rather than a convenience. Minutes are absent because `m` would read as either.
 
 ## Catalog (`catalog_version`)
 
@@ -93,6 +101,7 @@ Exactly one per project.
 | `spec_version` | int ≥ 1 | yes | Document version key |
 | `entities` | map name → Entity | yes | The project's entities |
 | `relationships` | list of Relationship | no (`[]`) | Declared relationships |
+| `reconcile` | list of Reconcile | no (`[]`) | Cross-entity reconciliation checks — see [Reconcile](#reconcile) |
 
 ### Entity
 
@@ -104,6 +113,9 @@ Exactly one per project.
 | `partition_by` | list of partition specs | no (`[]`) | Physical partitioning |
 | `materialization` | `full` \| `incremental_by_key` \| `incremental_by_partition` | no | Explicit wins; default is `incremental_by_partition` when `partition_by` is set, else `full` |
 | `fields` | map name → Field | yes | Typed fields (`metric_time` reserved) |
+| `quality` | list of entity quality rules | no (`[]`) | Row rules — see [Entity quality rules](#entity-quality-rules) |
+| `dedupe` | Dedupe | no | Keep one row per key — see [Dedupe](#dedupe) |
+| `quarantine` | Quarantine | no | Reject-table policy — see [Quarantine](#quarantine) |
 
 ### Field
 
@@ -138,6 +150,72 @@ custom audit artifacts.
 | `via` | map from-column → to-column | yes | Join columns |
 | `cardinality` | `many_to_one` \| `one_to_one` \| `one_to_many` | yes | Checked by the fan-out guardrail |
 
+### Entity quality rules
+
+Row rules, discriminated on `rule`. Both read more than one column, which is why they
+sit on the entity rather than on a mapping field.
+
+| `rule` | Field | Type | Required | Meaning |
+|---|---|---|---|---|
+| `expression` | `name` | rule name | yes | Reaches `_quality_flags` and the quality mart, so it is authored, never generated |
+| `expression` | `expr` | string | yes | Boolean predicate over the entity's own columns |
+| `expression` | `on_fail` | `flag` \| `quarantine` \| `fail` | yes | Disposition |
+| `referential` | `via` | relationship name | yes | The declared relationship to probe |
+| `referential` | `on_missing` | `unknown_member` \| `quarantine` \| `flag` | yes | Disposition for a non-null fk with no matching row |
+
+`referential` carries `on_missing`, not `on_fail`: `unknown_member` is a disposition no
+other rule has (the row passes with its fk rewritten to the reserved `'__unknown__'`
+member), and `fail` is deliberately unavailable — a pipeline-stopping orphan gate is a
+`reconcile` check instead. `unknown_member` requires a string-typed fk; the relationship's
+`to` side may not be the declaring entity.
+
+### Dedupe
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `keep` | `latest_by` | yes | Closed vocabulary, one value today |
+| `field` | column name | yes | The recency column, ordered descending |
+| `tie_break` | list of column names | no (`[]`) | Further sort keys, authored order kept |
+
+Partitions by the entity's `key`. `tie_break` is optional in the grammar and **mandatory
+in a model**: its absence under `keep: latest_by` is the compile error
+`DedupeTieBreakMissing`. The order finishes with `_source_row_id`, with `NULLS LAST`
+pinned on every sort key, so the winner is unique by construction.
+
+### Quarantine
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `retention` | retention duration | yes | How long reject rows live; the only deleter |
+| `redact` | list of source paths | no (`[]`) | JSONPaths stripped from `raw` and `key_values` at write time |
+
+The block is required whenever any rule can quarantine — `QuarantineRetentionMissing`
+otherwise, never a default, because reject rows hold raw source payloads. A `redact:`
+path may not intersect a path the mapping reads (`RedactionConflict`): replay re-runs the
+mapping against `raw`, and a redacted path is gone by then.
+
+### Reconcile
+
+Document-level, a sibling of `entities:` — a check relates two entities and belongs to
+neither.
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `name` | rule name | yes | Unique per project; each check emits its own model and audit |
+| `left` / `right` | reconcile side | yes | The two sides, keyed on the same columns |
+| `tolerance` | quoted decimal ≥ 0 | yes | Absolute tolerance; an unquoted YAML number is a float and refused |
+| `on_fail` | `flag` \| `quarantine` \| `fail` | yes | Disposition |
+
+A side is one of two closed shapes:
+
+```yaml
+left:  "sum(order_item.line_total) by order_id"   # <agg>(<entity>.<column>) by <columns>
+right: "order.total_amount"                       # <entity>.<column>, keyed by that entity's key
+```
+
+Both sides must key on the same columns, since they join on their keys. Anything outside
+the grammar is a `GuardrailError` — a reconcile side is a declared shape, not SQL.
+
 ## Mapping (`mapping_version`)
 
 One document per (source, target entity) pair.
@@ -150,7 +228,11 @@ One document per (source, target entity) pair.
 | `key` | map key-column → KeyField | yes | Key lowering |
 | `fields` | map field → FieldMapping | no (`{}`) | Field lowering |
 | `unmapped` | list of source paths | no (`[]`) | The explicitly unmapped tail |
-| `on_unmapped_enum` | `quarantine` | no (`quarantine`) | Policy for unmapped enum values (closed vocabulary, one value today) |
+
+An entity that uses `quarantine:` or `dedupe:` requires the bronze ingestion-metadata
+columns `_load_id`, `_ingested_at`, and `_source_row_id`. They are reserved names, so a
+mapping states they exist by listing them in `unmapped:`; their absence is
+`IngestionMetadataMissing`.
 
 ### KeyField
 
@@ -177,9 +259,11 @@ unit_price:
 |---|---|---|---|---|
 | simple | `from` | source path | yes | Source column path |
 | simple | `transform` | transform chain | no (`[]`) | Steps applied in order |
+| simple | `quality` | list of field quality rules | no (`[]`) | See [Field quality rules](#field-quality-rules) |
 | recipe | `recipe` | string | yes | Catalog recipe id, chosen upstream and recorded here |
 | recipe | `from` | map alias → source path | yes | Bindings for every name in the recipe's `requires` — exactly, no more, no fewer |
 | recipe | `direct` | source path | no | The source *also* carries the field directly — emits a `<name>__direct` shadow column and a reconciliation audit |
+| recipe | `quality` | list of field quality rules | no (`[]`) | See [Field quality rules](#field-quality-rules) |
 
 ### Transform steps
 
@@ -193,6 +277,56 @@ transform: [{to_decimal: [12, 4]}]        # multiple args
 
 The available names are the closed whitelist in the
 [transforms reference](transforms.md); existence is checked at typecheck, not parse.
+
+### Field quality rules
+
+A closed catalogue, discriminated on `rule`. New rules are RFC amendments, never config.
+Every rule requires `on_fail` ∈ `flag` \| `quarantine` \| `fail` — there is no
+project-wide default, and there is deliberately no `drop` and no `repair` in v1.
+
+| `rule` | Parameters | Fires when |
+|---|---|---|
+| `coercible` | — | The transform chain produced a coercion-failure marker |
+| `not_null` | — | The value is NULL |
+| `range` | `min` and/or `max` (int, decimal, or string; ≥ 1 of the two) | The value falls outside a declared bound |
+| `length` | `min` and/or `max` (int ≥ 0; ≥ 1 of the two) | The character count falls outside a declared bound |
+| `pattern` | `regex` (portable subset) | The value does not match |
+| `in_enum` | — | The value survived its `enum_map` chain unmapped |
+| `in_set` | `values` (list of strings/ints, ≥ 1) | The value is outside the literal set |
+| `unique` | — | The value repeats within the partition slice |
+
+Notes that change how you write them:
+
+- **`coercible` is implicit and opt-in per entity.** An entity joins the quality system
+  by declaring `quality:`, `quarantine:`, or any field-level `quality:` — `dedupe:`
+  alone does not. Every mapped field of a quality-carrying entity then gets a `coercible`
+  rule at `quarantine` unless you declare one explicitly to override the disposition.
+  It is forced to `fail` on any field named by `dedupe.field`/`tie_break`
+  (`DedupeDispositionConflict` otherwise).
+- **Bounds are separate rules.** `range`/`length` take one or both bounds, and two bounds
+  needing different dispositions are simply two rules.
+- **`in_enum` takes no values.** The admissible set *is* the chain's `enum_map` targets;
+  restating it here would let the two drift.
+- **`unique` is per partition slice**, in both full and incremental runs — for an
+  unpartitioned entity the slice is the whole table. Cross-partition duplicates are
+  key-based `dedupe`'s job, in every mode.
+- **Nulls belong to `not_null` and `coercible` only.** Every other rule's violation
+  predicate must be definitively TRUE to fire; a NULL-involved comparison evaluates to
+  SQL `UNKNOWN` and stays silent.
+
+`assert:` on an entity field and `quality:` on a mapping field are different tools:
+`assert:` is "alert me" (an audit that observes), `quality:` is "act on the row" (the
+disposition system that routes). A field may carry both.
+
+#### The portable regex subset
+
+`pattern` regexes are restricted to what every target dialect agrees on — character
+classes, anchors, quantifiers. Rejected at parse: lookahead `(?=`, negative lookahead
+`(?!`, lookbehind `(?<=`, negative lookbehind `(?<!`, named groups `(?P<` and `(?<`, and
+named backreferences `(?P=`. Escaped parens and character classes are scanned around, so
+`\(?=` and `[(?=]` are literals, not lookahead. Each surviving pattern is then validated
+against every registered dialect at the guardrail stage; a regex no dialect can express
+is a `GuardrailError`.
 
 ## MetricSet (`metrics_version`)
 

@@ -2,9 +2,15 @@
 
 This page explains the checks that refuse plausible-but-wrong arithmetic: expressions
 that parse, typecheck, survive code review, and produce a number that is wrong. Seven
-guardrails run as a pure stage over the draft IR after typechecking; six raise, one
-deliberately does not. They target the bug class where the formula is right, the data
-is right, and the answer is 3× wrong.
+arithmetic guardrails run as a pure stage over the draft IR after typechecking; six
+raise, one deliberately does not. They target the bug class where the formula is right,
+the data is right, and the answer is 3× wrong.
+
+A second family joined the same stage with data quality: refusals of `quality:`,
+`dedupe:`, `quarantine:` and `reconcile:` declarations that cannot mean anything
+(below). Both families share the definition — **a guardrail says the model is wrong**,
+decidable from the spec alone, at compile time. What a rule does to a *row* at run time
+is [data quality](data-quality.md)'s business, not this stage's.
 
 !!! danger "Errors, never warnings"
 
@@ -151,6 +157,32 @@ Optional per-field `assert:` clauses — `min`, `max`, `not_null`, `enum` member
 validates each clause statically against the field's logical type: `min`/`max` on a
 string field, or a `regex` on a numeric one, is `AssertLoweringError` — an assertion
 that can never run is a silent hole in the audit net.
+
+## Data-quality declarations
+
+Declaring what happens to a bad *row* is run-time work, but declaring it **incoherently**
+is a model error, so these refusals live here:
+
+| Refusal | What the spec got wrong |
+|---|---|
+| `DedupeTieBreakMissing` | `keep: latest_by` with no `tie_break` — rows sharing a timestamp make the winner arbitrary, and a nondeterministic model makes backfills disagree with the runs they replace |
+| `DedupeDispositionConflict` | A `coercible` rule weaker than `fail` on a column the dedupe order reads; an uncastable value there leaves the order undefined, so the weaker disposition is a contradiction rather than a preference |
+| `QuarantineRetentionMissing` | A rule can quarantine but no `quarantine:` block says for how long. Reject rows hold raw source payloads — this is the sort of thing that is trivial now and a legal problem in eighteen months |
+| `IngestionMetadataMissing` | An entity using `quarantine:`/`dedupe:` whose mapping neither maps nor acknowledges `_load_id`, `_ingested_at`, `_source_row_id` |
+| `RedactionConflict` | A `redact:` path the mapping also reads — you cannot both require a field and destroy it at write time, because replay re-runs the mapping against `raw` |
+
+Four more refuse as bare `GuardrailError`s: a `pattern` regex no registered dialect can
+express, `unknown_member` on a non-string foreign key, a `referential` rule pointing back
+at its own entity, and a malformed or unresolvable `reconcile` side. The
+[errors reference](../reference/errors.md#data-quality-refusals-without-their-own-class)
+lists each with its trigger.
+
+The pattern check is worth singling out, because it is the same principle as the
+arithmetic guards applied to text. A regex using lookahead works on Postgres and means
+something quietly different under RE2 on DuckDB and Trino — the expression compiles, the
+pipeline is green, and a subset of rows is judged by a rule nobody wrote. Refusing at
+compile time costs an author one edit; not refusing costs someone a quarter of wrong
+dashboards.
 
 The grain and additivity guards are the highest-value part of the package; the
 [wide-mart gold layer](wide-marts.md) shows how the mart design makes the same

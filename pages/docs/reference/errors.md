@@ -25,7 +25,12 @@ BloomeryError
 │   ├── GrainViolation
 │   ├── FanoutRisk
 │   ├── NonAdditiveWithoutComponents
-│   └── MartMissingTimeDimension
+│   ├── MartMissingTimeDimension
+│   ├── QuarantineRetentionMissing
+│   ├── DedupeTieBreakMissing
+│   ├── DedupeDispositionConflict
+│   ├── IngestionMetadataMissing
+│   └── RedactionConflict
 ├── PlanError
 │   ├── ContractViolation
 │   └── RenameTargetMissing
@@ -73,6 +78,11 @@ BloomeryError
 | `FanoutRisk` | guardrails | A mart `via:` flatten step over a `one_to_many` relationship |
 | `NonAdditiveWithoutComponents` | guardrails | A non-additive metric with no ratio/additive decomposition to recompute from |
 | `MartMissingTimeDimension` | guardrails | A measure-carrying mart that declares no date role |
+| `QuarantineRetentionMissing` | guardrails | An entity with a `quarantine` disposition and no `quarantine:` block — reject rows hold raw payloads, so retention is required and never defaulted |
+| `DedupeTieBreakMissing` | guardrails | `dedupe: {keep: latest_by}` without `tie_break` — rows sharing a timestamp would make the winner arbitrary |
+| `DedupeDispositionConflict` | guardrails | A `coercible` rule weaker than `fail` on a field named by `dedupe.field`/`tie_break`, where an uncastable value leaves the dedupe order undefined |
+| `IngestionMetadataMissing` | guardrails | An entity using `quarantine:`/`dedupe:` whose mapping neither maps nor acknowledges `_load_id`, `_ingested_at`, `_source_row_id` |
+| `RedactionConflict` | guardrails | A `quarantine.redact` path intersecting a path the mapping reads — replay re-runs the mapping against `raw`, which the redaction has already destroyed |
 | `PlanError` | plan | A spec diff that cannot produce a safe migration plan (including IR-version mismatch) |
 | `ContractViolation` | plan | Dropping or narrowing a field still referenced by a reachable metric — expand/contract enforced |
 | `RenameTargetMissing` | plan | A `renamed_from` annotation whose old name is absent from the old IR |
@@ -95,6 +105,27 @@ BloomeryError
 | `UnsupportedPagination` | planner | A non-zero `offset` or cursor pagination — paging aggregates belongs to the serving layer |
 | `UnsupportedFieldCompare` | adapter | `$fields` field-to-field compare — declared here so app adapters can raise it; never raised by bloomery, and not part of `KNOWN_UNSUPPORTED` |
 | `UnsupportedQuantifier` | adapter | `$any`/`$all`/`$none` element quantifiers — declared here so app adapters can raise it; never raised by bloomery, and not part of `KNOWN_UNSUPPORTED` |
+
+## Data-quality refusals without their own class
+
+Five data-quality guardrails have named leaves (above). The rest raise a bare
+`GuardrailError` — the design authority names five, and minting further classes would
+put names in `bloomery.errors` no RFC has decided on. Each is still a distinct,
+addressed message inside the same batched aggregate:
+
+| Refusal | Raised when |
+|---|---|
+| Pattern portability | A `pattern` regex no registered dialect can express — a regex that works on DuckDB and silently means something else on Trino is the bug the check exists to prevent |
+| `unknown_member` on a non-string fk | `referential: {on_missing: unknown_member}` where the foreign key is not string-typed; the reserved member is the *string* `'__unknown__'`, and typed sentinels like `-1` could collide with a legal key |
+| Self-referencing `referential` | A `referential` rule whose relationship's `to` side is the declaring entity — the rule lowers to a `LEFT JOIN` inside that entity's own model, and a model cannot join the table it is being built from |
+| Reconcile grammar and resolution | A side outside the closed shape, an undeclared entity, an unknown column, sides keyed on different columns, or a duplicate check name |
+| Reserved metric name | A project metric colliding with one the quality mart owns (`quality_rows_evaluated`, `quality_rows_failed`, `quality_rows_quarantined`, `quality_rows_deduped`, `quality_quarantine_rate`) — one flat namespace, and two definitions of one name is a silent winner, not a merge |
+
+Two data-quality refusals happen at emit time rather than compile time, and both are
+`UnsupportedByTarget`: compiling an entity with `coercible` rules for a dialect without
+a NULL-on-failure cast (Postgres), and compiling a `quarantine:` block or a `reconcile:`
+check for the dbt target, which lowers neither in this wave. Both name the target or
+dialect that does support the construct.
 
 ## The closed refusal list
 

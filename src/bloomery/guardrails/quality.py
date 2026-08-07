@@ -19,6 +19,7 @@ The checks:
 ``RedactionConflict``                   §5.6, D10
 ``pattern`` portability                 §5.3, D5 (bare ``GuardrailError``)
 ``unknown_member`` on a non-string fk   §5.4, D6 (bare ``GuardrailError``)
+``referential`` onto the entity itself  §5.4, D27 (bare ``GuardrailError``)
 ``reconcile`` grammar and resolution    §5.3 (bare ``GuardrailError``)
 quality-mart metric-name collision      §5.8, D12 (bare ``GuardrailError``)
 ======================================  ==============================
@@ -58,7 +59,7 @@ from bloomery.quality import (
     unsupported_dialects,
 )
 from bloomery.spec.mapping import RecipeFieldMapping, mapping_doc
-from bloomery.spec.quality import CoercibleRule, PatternRule
+from bloomery.spec.quality import CoercibleRule, PatternRule, ReferentialRule
 from bloomery.typing import StringType, parse_type
 
 if TYPE_CHECKING:
@@ -283,6 +284,39 @@ def _check_unknown_member(
     return errors
 
 
+def _check_self_referential(
+    entity_name: str, entity: Entity, relationships: tuple[Relationship, ...]
+) -> list[GuardrailError]:
+    """A ``referential`` rule may not probe the entity it is declared on
+    (RFC 0016 D27).
+
+    The lowering is a ``LEFT JOIN`` **inside** the dependent entity's own
+    model (§5.4), and a model cannot join the table it is being built from —
+    the relation does not exist yet. Left unchecked the emitted SQL either
+    fails at run time or, worse, resolves against a stale previous version of
+    the table and silently answers the wrong question. Decidable from the spec
+    alone (the relationship's ``to`` side is the entity's own name), so it is a
+    guardrail by the §5.9 definition, not a run-time disposition.
+    """
+    by_name = {relationship.name: relationship for relationship in relationships}
+    errors: list[GuardrailError] = []
+    for rule in entity.quality:
+        # Resolution (RFC 0005) has already refused a ``via`` naming no
+        # relationship, so the lookup is total by the time this stage runs.
+        if not isinstance(rule, ReferentialRule) or by_name[rule.via].to != entity_name:
+            continue
+        msg = (
+            f"referential rule via {rule.via!r} on entity {entity_name!r} references "
+            f"{entity_name!r} itself — the rule lowers to a LEFT JOIN inside that entity's "
+            "own model (RFC 0016 §5.4), and a model cannot join the table it is being built "
+            "from. Fix: model the referenced side as a separate entity built from the same "
+            "source, or express the check as a reconcile: block, which runs silver→mart "
+            "against finished tables"
+        )
+        errors.append(GuardrailError(msg, source_path=_entity_path(entity_name, "quality")))
+    return errors
+
+
 def _reconcile_path(check_name: str, suffix: str) -> str:
     return f"entity_model: reconcile.{check_name}.{suffix}"
 
@@ -413,6 +447,7 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
         errors.extend(_check_ingestion_metadata(entity_name, entity, mapping))
         errors.extend(_check_redaction(entity_name, entity, mapping))
         errors.extend(_check_patterns(entity_name, mapping))
+        errors.extend(_check_self_referential(entity_name, entity, relationships))
         # Both of these read the *lowered* rules rather than the opt-in flag:
         # ``lower_quality`` is empty for an entity that never joined the
         # quality system, so they are silently satisfied there.

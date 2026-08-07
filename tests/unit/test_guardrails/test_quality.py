@@ -383,6 +383,82 @@ def test_unknown_member_on_a_string_fk_is_accepted() -> None:
 
 
 # ....................... #
+# referential onto the entity itself (§5.4, D24)
+
+
+SELF_REFERENTIAL_PROJECT = """
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    quarantine: {{retention: 30d}}
+    quality:
+      - {{rule: referential, via: {via}, on_missing: flag}}
+    fields:
+      order_id: {{type: string, required: true}}
+      parent_order_id: {{type: string}}
+  order_parent:
+    grain: one row per order, as the parent side
+    key: [order_id]
+    fields:
+      order_id: {{type: string, required: true}}
+relationships:
+  - name: order_of_parent_self
+    from: order
+    to: order
+    via: {{parent_order_id: order_id}}
+    cardinality: many_to_one
+  - name: order_of_parent
+    from: order
+    to: order_parent
+    via: {{parent_order_id: order_id}}
+    cardinality: many_to_one
+"""
+
+SELF_REFERENTIAL_MAPPINGS = {
+    "mapping_order": f"""
+mapping_version: 1
+source: oms__orders
+target: order
+key:
+  order_id: {{from: "$.id", transform: [to_string]}}
+fields:
+  parent_order_id: {{from: "$.parent_id", transform: [to_string]}}
+unmapped: {METADATA}
+""",
+    "mapping_parent": f"""
+mapping_version: 1
+source: oms__orders
+target: order_parent
+key:
+  order_id: {{from: "$.id", transform: [to_string]}}
+unmapped: {METADATA}
+""",
+}
+
+
+def test_a_referential_rule_onto_the_entity_itself_is_refused() -> None:
+    documents = {
+        "entity_model": SELF_REFERENTIAL_PROJECT.format(via="order_of_parent_self"),
+        **SELF_REFERENTIAL_MAPPINGS,
+    }
+    message = _message(documents)
+    assert "a model cannot join the table it is being built from" in message
+    assert "model the referenced side as a separate entity" in message
+
+
+def test_a_referential_rule_onto_a_sibling_entity_is_accepted() -> None:
+    """The alternative the refusal names: the same parent relation modeled as
+    its own entity, built from the same source."""
+    documents = {
+        "entity_model": SELF_REFERENTIAL_PROJECT.format(via="order_of_parent"),
+        **SELF_REFERENTIAL_MAPPINGS,
+    }
+    build_project_ir(load_project(documents))
+
+
+# ....................... #
 # One aggregate (RFC 0006 D2)
 
 
