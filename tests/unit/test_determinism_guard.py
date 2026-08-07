@@ -25,8 +25,10 @@ import json
 import pathlib
 import sys
 
-from bloomery import Target, compile_project, load_project, project_fingerprint
+from bloomery import Target, compile_project, load_catalog, load_project, project_fingerprint
 from bloomery import build_project_ir as build_real_ir
+from bloomery.emit.metricflow import emit_manifest, manifest_json
+from bloomery.naming import DefaultNaming
 from support.ir_factory import build_project_ir
 
 fixture_dir = pathlib.Path(sys.argv[1])
@@ -44,6 +46,18 @@ print(project_fingerprint(build_real_ir(project)))
 for artifact in compile_project(project, target=Target.SQLMESH, dialect="duckdb"):
     print(artifact.path, artifact.kind, artifact.checksum)
     print(artifact.content)
+
+# The MetricFlow manifest (M6): the transformed manifest's sorted-keys JSON
+# is the RFC 0014 cache payload — its bytes must be hash-seed-independent.
+ecom_dir = fixture_dir.parent / "ecom_basic"
+ecom_sources = {
+    path.stem: path.read_text()
+    for path in sorted(ecom_dir.glob("*.yaml"))
+    if path.stem != "catalog"
+}
+ecom_catalog = load_catalog((ecom_dir / "catalog.yaml").read_text())
+ecom_ir = build_real_ir(load_project(ecom_sources), catalog=ecom_catalog)
+print(manifest_json(emit_manifest(ecom_ir, naming=DefaultNaming())))
 """
 
 

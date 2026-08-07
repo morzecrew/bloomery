@@ -25,8 +25,13 @@ EXPECTED_PATHS = {
         "models/silver/order_item.sql",
     ],
     "path_conflict": ["audits/item_net_price_reconcile.sql", "models/silver/item.sql"],
-    "role_playing_dates": ["models/gold/mart_orders.sql", "models/silver/order.sql"],
+    "role_playing_dates": [
+        "models/gold/dim_date.sql",
+        "models/gold/mart_orders.sql",
+        "models/silver/order.sql",
+    ],
     "semi_additive_inventory": [
+        "models/gold/dim_date.sql",
         "models/gold/mart_inventory.sql",
         "models/silver/inventory_level.sql",
     ],

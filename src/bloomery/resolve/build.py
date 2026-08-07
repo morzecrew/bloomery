@@ -142,13 +142,15 @@ def _typecheck_project(project: Project, reg: Registry) -> None:
     typecheck_chains(checks, registry=reg)
 
 
-def _catalog_metadata(field: Field, catalog: Catalog | None) -> tuple[Unit | None, TaxBasis | None]:
+def _catalog_metadata(
+    field: Field, catalog: Catalog | None
+) -> tuple[Unit | None, TaxBasis | None, str | None]:
     if field.canonical is None or catalog is None:
-        return None, None
+        return None, None, None
     canonical_field = catalog.canonical_fields[field.canonical]
     unit = Unit(canonical_field.unit) if canonical_field.unit is not None else None
     tax = TaxBasis(canonical_field.tax_basis) if canonical_field.tax_basis is not None else None
-    return unit, tax
+    return unit, tax, canonical_field.description
 
 
 def _column_ir(
@@ -160,7 +162,7 @@ def _column_ir(
     *,
     recipe_id: str | None = None,
 ) -> ColumnIR:
-    unit, tax_basis = _catalog_metadata(field, catalog)
+    unit, tax_basis, description = _catalog_metadata(field, catalog)
     return ColumnIR(
         name=name,
         type=declared,
@@ -171,6 +173,7 @@ def _column_ir(
         recipe_id=recipe_id,
         renamed_from=field.renamed_from,
         required=field.required,
+        description=description,
     )
 
 
@@ -344,6 +347,7 @@ def _build_metrics(
                     else None
                 ),
                 semi_additive=semi_additive,
+                description=metric.description,
                 depends_on=tuple(sorted({*metric.requires, *metric.requires_metrics})),
             )
         )

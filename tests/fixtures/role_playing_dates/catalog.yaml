@@ -1,0 +1,11 @@
+# Minimal catalog for the role-playing fixture: the date dimension is required
+# once the mart is served through MetricFlow (RFC 0013 R1 rule 4 — a project
+# with marts and no catalog date_dimension is an EmitError at manifest time).
+catalog_version: 1
+vertical: ecom_retail
+
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2020
+  end_year: 2030

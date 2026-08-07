@@ -1,0 +1,165 @@
+{
+  "metrics": [
+    {
+      "config": null,
+      "description": null,
+      "filter": null,
+      "label": null,
+      "metadata": null,
+      "name": "stock_on_hand",
+      "time_granularity": null,
+      "type": "simple",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": null,
+        "denominator": null,
+        "expr": "stock_level",
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "stock_on_hand"
+          }
+        ],
+        "is_private": false,
+        "join_to_timespine": false,
+        "measure": {
+          "alias": null,
+          "fill_nulls_with": null,
+          "filter": null,
+          "join_to_timespine": false,
+          "name": "stock_on_hand"
+        },
+        "metric_aggregation_params": {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "snapshot_day",
+          "non_additive_dimension": {
+            "name": "snapshot_day",
+            "window_choice": "max",
+            "window_groupings": []
+          },
+          "semantic_model": "inventory"
+        },
+        "metrics": null,
+        "numerator": null,
+        "window": null
+      }
+    }
+  ],
+  "project_configuration": {
+    "dsi_package_version": {
+      "major_version": "0",
+      "minor_version": "211",
+      "patch_version": "0"
+    },
+    "metadata": null,
+    "time_spine_table_configurations": [],
+    "time_spines": [
+      {
+        "custom_granularities": [],
+        "node_relation": {
+          "alias": "dim_date",
+          "database": null,
+          "relation_name": "gold.dim_date",
+          "schema_name": "gold"
+        },
+        "primary_column": {
+          "name": "date_day",
+          "time_granularity": "day"
+        }
+      }
+    ]
+  },
+  "saved_queries": [],
+  "semantic_models": [
+    {
+      "config": null,
+      "defaults": null,
+      "description": null,
+      "dimensions": [
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "snapshot_day",
+          "type": "time",
+          "type_params": {
+            "time_granularity": "day",
+            "validity_params": null
+          }
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "stock_date",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "stock_level",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "warehouse_id",
+          "type": "categorical",
+          "type_params": null
+        }
+      ],
+      "entities": [],
+      "label": null,
+      "measures": [
+        {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "snapshot_day",
+          "config": null,
+          "create_metric": null,
+          "description": null,
+          "expr": "stock_level",
+          "label": null,
+          "metadata": null,
+          "name": "stock_on_hand",
+          "non_additive_dimension": {
+            "name": "snapshot_day",
+            "window_choice": "max",
+            "window_groupings": []
+          }
+        }
+      ],
+      "metadata": null,
+      "name": "inventory",
+      "node_relation": {
+        "alias": "mart_inventory",
+        "database": null,
+        "relation_name": "gold.mart_inventory",
+        "schema_name": "gold"
+      },
+      "primary_entity": "inventory_level"
+    }
+  ]
+}

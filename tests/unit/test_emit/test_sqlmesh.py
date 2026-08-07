@@ -368,4 +368,6 @@ def test_dim_date_emits_a_deterministic_calendar_from_the_catalog() -> None:
 
 
 def test_projects_without_a_date_dimension_emit_no_dim_date() -> None:
-    assert not any("dim_date" in a.path for a in compile_fixture("role_playing_dates"))
+    # `minimal` has no catalog at all — the only fixture left without a date
+    # dimension now that every mart fixture declares one (RFC 0013 R1 rule 4).
+    assert not any("dim_date" in a.path for a in compile_fixture("minimal"))

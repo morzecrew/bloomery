@@ -42,6 +42,7 @@ class EffectiveMetric:
     expr: str | None
     ratio: RatioSpec | None
     semi_additive: SemiAdditivePolicy | None
+    description: str | None
     source_path: str
 
 
@@ -61,6 +62,7 @@ def _merge(name: str, metric: Metric, template: MetricTemplate | None) -> Effect
         expr=metric.expr or (template.expr if template else None),
         ratio=metric.ratio or (template.ratio if template else None),
         semi_additive=metric.semi_additive or (template.semi_additive if template else None),
+        description=metric.description or (template.description if template else None),
         source_path=source_path,
     )
 

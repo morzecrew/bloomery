@@ -8,3 +8,11 @@ canonical_fields:
     unit: count
     recipes:
       - {id: direct, requires: [stock_level]}
+
+# Required once the mart is served through MetricFlow (RFC 0013 R1 rule 4):
+# the time spine points at the same gold dim_date the SQLMesh emitter builds.
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2020
+  end_year: 2030

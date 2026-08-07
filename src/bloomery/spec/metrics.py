@@ -53,6 +53,7 @@ class Metric(SpecModel):
     """
 
     template: str | None = None
+    description: str | None = None
     requires: tuple[str, ...] = ()
     requires_metrics: tuple[str, ...] = ()
     grain: str | None = None

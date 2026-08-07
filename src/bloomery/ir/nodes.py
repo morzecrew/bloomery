@@ -205,7 +205,9 @@ class SourceIR:
 
 @dataclass(frozen=True, slots=True)
 class ColumnIR:
-    """One entity column with its lowered expression and catalog metadata."""
+    """One entity column with its lowered expression and catalog metadata.
+    ``description`` comes from the canonical field, when one is bound — it is
+    carried into semantic-layer emissions (RFC 0013 R1)."""
 
     name: str
     type: LogicalType
@@ -216,6 +218,7 @@ class ColumnIR:
     recipe_id: str | None
     renamed_from: str | None
     required: bool
+    description: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -272,7 +275,9 @@ class Ratio:
 @dataclass(frozen=True, slots=True)
 class MetricIR:
     """One reachable metric; ``depends_on`` keeps the DAG edges sorted for
-    ``plan()``'s downstream-impact computation (RFC 0003 §5.1)."""
+    ``plan()``'s downstream-impact computation (RFC 0003 §5.1).
+    ``description`` (authored or template-merged) is carried into semantic-
+    layer emissions (RFC 0013 R1) — it grounds the Query Agent."""
 
     name: str
     grain: str
@@ -281,6 +286,7 @@ class MetricIR:
     expr: SqlExpr | None
     ratio: Ratio | None
     semi_additive: SemiAdditivePolicy | None
+    description: str | None = None
     depends_on: tuple[str, ...] = ()
 
 

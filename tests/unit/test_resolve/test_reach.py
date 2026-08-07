@@ -29,6 +29,7 @@ def _metric(
         expr=None,
         ratio=None,
         semi_additive=None,
+        description=None,
         source_path=f"metrics: metrics.{name}",
     )
 

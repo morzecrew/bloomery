@@ -10,36 +10,11 @@ from hypothesis import strategies as st
 
 from bloomery import Target, build_project_ir, compile_project, load_project
 from bloomery.marts import lower_marts
-from support.compiling import compile_fixture, fixture_sources, load_fixture
+from support.compiling import compile_fixture, load_fixture
+from support.mart_permutations import MART_BLOCKS as _MART_BLOCKS
+from support.mart_permutations import sources_with_marts as _sources_with_marts
 
 pytestmark = pytest.mark.property
-
-# Two independent marts over the role_playing_dates entities; the document is
-# reassembled with the marts in every permutation.
-_MART_BLOCKS = {
-    "by_ordered": """\
-  by_ordered:
-    grain: order
-    base: order
-    flatten:
-      - {date: order_date, role: ordered}
-    measures: [revenue]
-""",
-    "by_shipped": """\
-  by_shipped:
-    grain: order
-    base: order
-    flatten:
-      - {date: ship_date, role: shipped}
-    measures: [revenue]
-""",
-}
-
-
-def _sources_with_marts(order: list[str]) -> dict[str, str]:
-    sources = fixture_sources("role_playing_dates")
-    sources["marts"] = "marts_version: 1\nmarts:\n" + "".join(_MART_BLOCKS[name] for name in order)
-    return sources
 
 
 @settings(max_examples=10, deadline=None)

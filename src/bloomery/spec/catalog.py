@@ -44,10 +44,13 @@ class Recipe(SpecModel):
 
 class CanonicalField(SpecModel):
     """A canonical domain field: its home entity, logical type, monetary
-    metadata (drives the guardrails, RFC 0006 §5.2), and recipes."""
+    metadata (drives the guardrails, RFC 0006 §5.2), and recipes. The optional
+    ``description`` is carried through the IR into semantic-layer emissions
+    (RFC 0013 R1) — it grounds the Query Agent."""
 
     entity: str
     type: TypeString
+    description: str | None = None
     unit: Literal["currency", "count"] | None = None
     tax_basis: Literal["net", "gross", "unknown"] | None = None
     currency: CurrencyCode | None = None
@@ -84,8 +87,10 @@ class DateDimension(SpecModel):
 
 class MetricTemplate(SpecModel):
     """A catalog-level metric template a project metric may instantiate via
-    ``template:`` (RFC 0002 §5.5)."""
+    ``template:`` (RFC 0002 §5.5). ``description`` merges like every other
+    template value: the metric's own wins, the template's is the fallback."""
 
+    description: str | None = None
     requires: tuple[str, ...] = ()
     requires_metrics: tuple[str, ...] = ()
     grain: str | None = None

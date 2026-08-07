@@ -33,6 +33,7 @@ keywords = [
 
 dependencies = [
     "jinja2>=3.1",
+    "metricflow==0.211.*",
     "pydantic>=2.9",
     "pyyaml>=6",
     # Exact-pinned in uv.lock; the metadata bound tracks one major so a sqlglot
@@ -186,6 +187,10 @@ exclude_lines = [
 # ....................... #
 # Mypy configuration
 
+# metricflow / metricflow_semantics / metricflow_semantic_interfaces all ship
+# py.typed, so strict mode checks our usage against their real signatures —
+# no overrides needed (verified at the 0.211.* pin); the canary test
+# (RFC 0013 D11) guards the runtime surfaces the checker cannot.
 [tool.mypy]
 strict = true
 
@@ -217,10 +222,16 @@ exclude_type_checking_imports = true
 # the flattener's mart-level violations into its aggregate (guardrails →
 # marts), while `resolve` consumes the flattened MartIRs directly (resolve →
 # marts); the flattener itself reads only ir/typing/spec/errors.
+# M6 (RFC 0013 §5.3, RFC 0014 §layering): `runtime` is request-time planner
+# infrastructure (the render-only SqlClient), not a compile stage — it sits as
+# an independent *sibling* of `compile` in the top layer, so the compile path
+# can never import runtime and runtime can never import the compile
+# orchestration (siblings in one layer are mutually independent). It may read
+# only the shared lower layers (errors today).
 name = "Layered bloomery compile pipeline"
 type = "layers"
 layers = [
-    "(bloomery.compile)",
+    "(bloomery.compile) | (bloomery.runtime)",
     "(bloomery.emit) | (bloomery.dialects)",
     "(bloomery.naming)",
     "(bloomery.plan)",
