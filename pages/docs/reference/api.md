@@ -164,9 +164,11 @@ distribution — and refuses only with `UnsupportedFilter` leaves carrying stabl
 
 Two failure classes, deliberately distinct. A construct the vocabulary reviewed and
 declined — a set relation, a hierarchy operator, `$regex`, an over-cap CNF expansion, a
-non-invertible negation — raises `UnsupportedFilter` **after normalization**, with a
-`.reason` from `KNOWN_UNSUPPORTED` (and `.normalized`, the post-normalization form, where
-the refusal happens after rewriting). A *malformed* document — a non-mapping payload, a
+non-invertible negation — raises `UnsupportedFilter` with a `.reason` from
+`KNOWN_UNSUPPORTED`. Refusals fire wherever the parser reaches them: operator refusals and
+the nesting-depth cap during tree construction, `UnsupportedNegation` and the CNF clause
+cap after the rewrite — the two post-rewrite refusals carry `.normalized`, the form the
+document had reached. A *malformed* document — a non-mapping payload, a
 field map of the wrong shape, an unknown `$op`, an operand of the wrong type — raises
 `InvalidRequest`: it never reaches the closed list, because malformed input is a schema
 error, not a reviewed gap. The same split holds for `parse_sort_json` and

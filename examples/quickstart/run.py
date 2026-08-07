@@ -26,8 +26,9 @@ HERE = Path(__file__).parent
 OUT = HERE / "out"
 
 #: The Mongo-flavoured filter document the front door parses: one field map
-#: (the `$eq` scalar shortcut) plus a disjunction. It normalizes to two CNF
-#: clauses — an implicit AND of a `Predicate` and one `AnyOf` group.
+#: (the `$neq` operator form — a bare value like `"customer_id": "internal"`
+#: would be the `$eq` scalar shortcut) plus a disjunction. It normalizes to two
+#: CNF clauses — an implicit AND of a `Predicate` and one `AnyOf` group.
 FILTER_JSON = {
     "customer_id": {"$neq": "internal"},
     "$or": [{"ordered_month": {"$gte": "2024-01-01"}}, {"ordered_month": "2023-12-01"}],
@@ -57,8 +58,10 @@ def main() -> None:
 
     # Filters can arrive as JSON: parse_filter_json normalizes the
     # Mongo-flavoured document (De Morgan, complement inversion, capped CNF)
-    # into typed clauses, refusing only from the closed KNOWN_UNSUPPORTED
-    # list. The typed constructors remain the primary path.
+    # into typed clauses. Reviewed-but-unsupported constructs raise
+    # UnsupportedFilter with a reason from KNOWN_UNSUPPORTED; malformed input
+    # raises InvalidRequest/InvalidLiteral, which are never in that list.
+    # The typed constructors remain the primary path.
     filters = parse_filter_json(FILTER_JSON)
     print(f"\nparsed {len(filters)} filter clause(s) from JSON")
     for clause in filters:

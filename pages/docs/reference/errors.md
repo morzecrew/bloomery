@@ -108,8 +108,8 @@ assert their own refusal sets against the export. Anything not on the list must
 translate; growing the list is a reviewed decision, never an accident.
 
 A refusal is not the same thing as malformed input. The parse functions raise
-`UnsupportedFilter` only for constructs the vocabulary reviewed and declined, and only
-*after* normalization — a document that is simply ill-formed (a non-mapping payload, a
+`UnsupportedFilter` only for constructs the vocabulary reviewed and declined (some during
+tree construction, some after the rewrite — see the API reference) — a document that is simply ill-formed (a non-mapping payload, a
 field map of the wrong shape, an unknown `$op`, an operand of the wrong type, a `nulls`
 value that is neither `"first"` nor `"last"`, a non-int `limit`) raises `InvalidRequest`
 and never carries a `.reason` from the closed list. Handle the two separately: a

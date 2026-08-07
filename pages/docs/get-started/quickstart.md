@@ -140,7 +140,9 @@ structured `MetricRequest` into SQL over the mart — rendered, never executed:
 
 Filters can arrive as a Mongo-flavoured JSON document — `parse_filter_json` is the public
 front door that normalizes it (De Morgan push-down, complement inversion, capped CNF) into
-typed clauses, refusing only from a closed, reviewed list:
+typed clauses. Constructs the vocabulary reviewed and declined raise `UnsupportedFilter`
+with a `.reason` from the closed `KNOWN_UNSUPPORTED` list; malformed documents raise
+`InvalidRequest` (or `InvalidLiteral` for a bad literal), which never carry such a reason:
 
 ```python
 from bloomery.planner import parse_filter_json
