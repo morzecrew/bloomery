@@ -171,9 +171,11 @@ exception; and registry **build** — caller-side tooling — verifies each `ent
 resolves before the registry ever reaches `compile_project`.
 
 The constructor snapshots its mappings into an immutable, canonically sorted internal form
-(tuple-of-pairs over a copied dict) at construction: mutating a caller's dict after
-construction cannot affect compilation, and byte-identical compilation is guaranteed from
-the snapshot alone.
+(tuple-of-pairs over a copied dict) at construction, and `StepManifest` — with every type
+it nests (inputs, outputs, parameters) — is itself a frozen model, so the shallow snapshot
+is sufficient: the copied structure blocks dict-level mutation, and frozen leaves block
+value-level mutation. Together (and only together) they make compilation independent of
+anything the caller does after construction; a snapshot over mutable manifests would not.
 
 ### 5.4 Trust the declaration, verify at runtime
 
@@ -271,13 +273,21 @@ contract assertion.
 **Multi-output emission** (resolved; supersedes the draft's execute-exactly-once
 constraint — see decision 16): each declared output gets its **own generated wrapper
 model**; each wrapper imports the entrypoint, executes the step, and returns its own
-output. Re-execution across the output models is semantically safe **by construction**:
-nondeterministic steps are compile-refused and seeded steps re-execute with the same
-recorded seed, so pure/seeded ⇒ identical results. `assert_step_contract` runs in
-**every** wrapper against **all** declared outputs — cheap, and it catches a
-partial-output lie wherever the run starts. The cost — N executions for N outputs — is
-documented; a single-execution staging optimization is a demand-gated, named escape
-hatch, not built.
+output. Re-execution across the output models is semantically safe **for correctly
+declared steps**: nondeterministic steps are compile-refused and seeded steps re-execute
+with the same recorded seed, so pure/seeded ⇒ identical results. **Residual risk, stated
+honestly:** the determinism declaration is trusted at compile and caught *behaviorally*
+(§6's backfill-equivalence gate), so a step misdeclared as pure can slip through — and
+where exactly-once would still have produced one internally consistent result per run,
+N independent executions can produce *disagreeing sibling outputs within a single run*
+(e.g. a `customer_xref` that references canonical ids the `customer` execution never
+minted), which a per-table gate does not detect. Accepted for v1 with the mitigation
+named: a cross-output referential consistency audit between sibling step outputs is the
+demand-gated companion of the staging optimization — either lands if misdeclaration is
+observed in practice. `assert_step_contract` runs in **every** wrapper against **all**
+declared outputs — cheap, and it catches a partial-output lie wherever the run starts.
+The cost — N executions for N outputs — is documented; a single-execution staging
+optimization is a demand-gated, named escape hatch, not built.
 
 Step
 outputs are entities in the DAG, grain taken from the manifest: downstream mappings,
@@ -361,9 +371,9 @@ real costs; the reference page states parameterize-never-fork as policy.
 | 11 | Steps are IR and DAG citizens: `StepIR` nodes (ref, version, kind, determinism, `runtime_lock`, typed inputs/outputs) in a new `ProjectIR.steps` tuple (RFC 0003 amendment) and first-class `step.<ref>` DAG nodes (RFC 0005 amendment). Fingerprint coverage is the whole mechanism: any manifest change — `runtime_lock` included — shifts `project_fingerprint`; `plan()` sees an ordinary structural IR diff (no special-casing); the RFC 0014 hydration cache self-invalidates via `HydrationKey.spec_fingerprint`, no new key component. |
 | 12 | pandas never joins bloomery's runtime dependencies: `bloomery/steps/contract.py` is emitted-code-facing and imports pandas lazily inside the generated wrapper's runtime path only; callers executing `python_model` steps install the `bloomery[steps]` extra (pandas and nothing else); compile-time use of the registry needs no pandas. |
 | 13 | Implementation binding: `StepRegistry` gains `sql_bodies: Mapping[tuple[str, int], str]` (`sql_model` bodies, parsed at compile like `macro_bodies`); `StepManifest` gains `entrypoint: str` (`"package.module:function"`) for `python_model`, and the generated wrapper imports it at **run time**. The no-dynamic-loading rule is scoped to compile time — bloomery never imports or executes step code while compiling (manifests and SQL text only); runtime import of platform-owned code by the generated model is the normal SQLMesh execution path, and registry build (caller-side) verifies the entrypoint resolves. |
-| 14 | `StepRegistry` snapshots its mappings into an immutable, canonically sorted internal form (tuple-of-pairs over a copied dict) at construction — mutation of caller dicts after construction cannot affect compilation; byte-identical compilation is guaranteed from the snapshot. |
+| 14 | `StepRegistry` snapshots its mappings into an immutable, canonically sorted internal form at construction, **and** `StepManifest` plus every nested type is frozen — the shallow snapshot blocks dict-level mutation, frozen leaves block value-level mutation; byte-identical compilation follows from the two together (a snapshot over mutable manifests would not suffice). |
 | 15 | `StepIR` additionally carries the resolved parameters (canonically sorted `(name, value)` pairs, `Decimal`-as-str per canon-bytes), the recorded seed for seeded steps, and the input/output wiring (sorted pairs) — all fingerprint-covered, so a parameter or seed change is a `RESTATING` diff exactly like a `runtime_lock` change. |
-| 16 | Multi-output emission resolved — **supersedes the draft §10 entry and its execute-exactly-once constraint** (recorded honestly: that constraint is dropped, not satisfied): each declared output gets its own generated wrapper model, each executing the step and returning its own output; safe by construction because nondeterministic steps are compile-refused and seeded steps re-execute with the same recorded seed (pure/seeded ⇒ identical results). `assert_step_contract` runs in every wrapper against **all** declared outputs, catching partial-output lies wherever the run starts. The N-executions-for-N-outputs cost is documented; a single-execution staging optimization is a demand-gated, named escape hatch — not built. |
+| 16 | Multi-output emission resolved — **supersedes the draft §10 entry and its execute-exactly-once constraint** (recorded honestly: that constraint is dropped, not satisfied): each declared output gets its own generated wrapper model, each executing the step and returning its own output; safe **for correctly declared steps** — nondeterministic steps are compile-refused and seeded steps re-execute with the same recorded seed (pure/seeded ⇒ identical results); residual risk recorded: a *misdeclared* step slips the compile check and, under N executions, can produce disagreeing sibling outputs within one run (behavioral gates catch run-to-run, not intra-run, divergence) — accepted for v1, with a cross-output consistency audit named as the demand-gated mitigation. `assert_step_contract` runs in every wrapper against **all** declared outputs, catching partial-output lies wherever the run starts. The N-executions-for-N-outputs cost is documented; a single-execution staging optimization is a demand-gated, named escape hatch — not built. |
 
 ## 12. Phasing
 

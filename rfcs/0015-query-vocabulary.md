@@ -135,7 +135,7 @@ class MetricRequest:
 | `eq` `ne` `gt` `gte` `lt` `lte` | exactly 1 |
 | `in` `not_in` | 1 or more |
 | `is_null` | exactly 1, a `bool` (`False` renders `IS NOT NULL`) |
-| `like` `ilike` | 1 or more SQL `LIKE` patterns, passed verbatim (caller-owned wildcards, matching upstream `$like`), OR semantics |
+| `like` `ilike` | 1 or more SQL `LIKE` patterns (caller-owned wildcards, `\`-escape language, matching upstream `$like`), OR semantics |
 
 Migration from the shipped shape (pre-0.1, no deprecation cycle): `FilterExpr` renames to
 `Predicate`; **`between` removed** (compose `gte`+`lte`; a dialect-preferred `BETWEEN` is a
@@ -292,11 +292,15 @@ Every `AnyOf` is parenthesized, always: `policy AND a OR b` leaks every row matc
 correctness bug, not a style choice, and both forms parse fine. All shipped R6 safety rules are
 unchanged and remain merge-blocking: dimension names only from validated resolutions via
 `names.py`; literals only through the typed dialect-aware renderer, never `f"'{value}'"`;
-`like`/`ilike` operands are **SQL `LIKE` patterns rendered verbatim** as type-checked quoted
-literals with a fixed `ESCAPE '\'` clause — nothing inside the pattern is escaped beyond
-what injection safety requires (quote doubling, NUL refusal): `%`/`_` pass through as
-caller-owned wildcards, and a caller wanting a literal `%` or `_` writes `\%` / `\_`
-(documented); type mismatches are `FilterTypeMismatch`, never a cast. `Explanation.filters` is built from the `Clause` objects —
+`like`/`ilike` operands are **SQL `LIKE` patterns** (not verbatim strings — the escape
+character is part of the pattern language) rendered as type-checked quoted literals with a
+fixed `ESCAPE '\'` clause; the renderer escapes nothing beyond what injection safety
+requires (quote doubling, NUL refusal): `%`/`_` pass through as caller-owned wildcards, and
+literals are caller-escaped — `\%` for `%`, `\_` for `_`, and `\\` for a literal backslash
+(matching `C:\temp` means writing `C:\\temp`). Validation refuses a pattern ending in an
+unpaired trailing `\` with `InvalidLiteral` (a dangling escape is invalid SQL on several
+dialects — refusal beats engine-dependent behavior); type mismatches are
+`FilterTypeMismatch`, never a cast. `Explanation.filters` is built from the `Clause` objects —
 never by parsing rendered SQL. `RowPolicy` itself stays single-predicate and gains nothing
 from this migration: a policy is one object, so a `between`-shaped policy has no
 post-migration form as two policy clauses — callers with range policies compose the range
@@ -372,7 +376,7 @@ framing (a reviewed gap, not drift); D-Q6/D-Q7 wording says "refused", never "un
 | 10 | `parse.py` is a public feature (Mongo-flavoured grammar front door: `$and`/`$or`/`$not` + field maps, scalar = `$eq` shortcut, array = `$in` shortcut, null = `is_null true`), with `parse_sort_json`/`parse_page_json` for symmetry. Typed constructors remain the primary path. The Forze adapter (~30 lines) lives in the application — out of bloomery scope. |
 | 11 | Rendering: one `where_constraints` entry per `Clause`; `AnyOf` **always** parenthesized (`policy AND a OR b` leaks every row matching `b`); policy first via `RowPolicy.as_clause()` (renaming `as_filter()`; `RowPolicy` stays single-predicate, its op space narrowing with `Op` — `between`/`contains` policies are invalid post-migration, and range policies move into the request filters or become gte-only/lte-only policies); all shipped RFC 0013 §5.6 safety rules unchanged and merge-blocking; `Explanation.filters` built from `Clause` objects, never from parsing SQL. |
 | 12 | Migration is pre-0.1, no deprecation cycle: `FilterExpr` → `Predicate`; `between`/`contains` removed; `is_null` arity 0 → exactly one bool (gaining `IS NOT NULL`). Affected shipped tests (fuzz corpus, request validation, execution filters) renamed/extended in the implementing wave. |
-| 13 | `like`/`ilike` operands are SQL `LIKE` patterns **verbatim** — caller-owned wildcards, matching upstream `$like` semantics (the vocabulary-alignment point of this RFC). Rendering emits a type-checked quoted literal with a fixed `ESCAPE '\'` clause and escapes nothing inside the pattern beyond injection safety (quote doubling, NUL refusal); a caller wanting a literal `%` or `_` writes `\%` / `\_` (documented). The shipped `contains` substring convenience (auto-`%…%` wrapping with wildcard escaping) is removed with the operator — callers write `%needle%`. Resolves the former §10 pattern-semantics question. |
+| 13 | `like`/`ilike` operands are SQL `LIKE` **patterns** — caller-owned wildcards with `\` as the pattern-escape character (fixed `ESCAPE '\'`), matching upstream `$like` semantics (the vocabulary-alignment point of this RFC). Not verbatim strings: literal `%`/`_`/`\` are caller-escaped as `\%`/`\_`/`\\`; an unpaired trailing `\` is refused with `InvalidLiteral`. The renderer adds nothing beyond injection safety (quote doubling, NUL refusal). The shipped `contains` substring convenience (auto-`%…%` wrapping that escaped `%`/`_`/`\`) is removed with the operator — callers write `%needle%` and own their escapes. Resolves the former §10 pattern-semantics question. |
 | 14 | **`UnsupportedNesting` removed as a dead refusal** (review finding, credited): after D-Q4 normalization every boolean tree reaches AND-of-`AnyOf` form — `AnyOf` groups may span different dimensions (CNF distribution produces such groups; MetricFlow renders them; refusing them would reject common BI shapes) — so deep nesting is always representable. The refusals actually reachable on that path are `FilterTooComplex` (cap, enforced during distribution) and `UnsupportedNegation` (non-invertible negated leaf); the typed constructors make deeper nesting unrepresentable by construction. Removed from the §5.3 closed list and from `KNOWN_UNSUPPORTED`. |
 
 ## 12. Phasing

@@ -202,7 +202,7 @@ a user-declared weaker disposition on such a field is the compile error
 
 | Spec | Generated |
 |---|---|
-| `dedupe` | `QUALIFY ROW_NUMBER() OVER (PARTITION BY key ORDER BY field DESC NULLS LAST, tie_break… DESC NULLS LAST, _source_row_id DESC) = 1` |
+| `dedupe` | `QUALIFY ROW_NUMBER() OVER (PARTITION BY key ORDER BY field DESC NULLS LAST, tie_break… DESC NULLS LAST, _source_row_id DESC NULLS LAST) = 1` |
 | `on_fail: flag` | predicate evaluated into `_quality_flags` — all flag rules in **one** array-construct pass, never N scans |
 | `on_fail: quarantine` | predicate drives a two-way split into entity / reject |
 | `on_fail: fail` | SQLMesh **blocking** audit on the model |
@@ -288,11 +288,15 @@ CREATE TABLE <ns>.<entity>__reject (
 
 **Ingestion metadata contract.** Entities using `quarantine` or `dedupe` require the bronze
 ingestion metadata columns `_load_id`, `_ingested_at`, and `_source_row_id` — a stable
-per-source-row identity supplied by the ingestion layer. Their absence is the compile error
-`IngestionMetadataMissing`, a `GuardrailError` leaf declared in `errors.py` per RFC 0002 D3
-(§5.9). `reject_id` is the sha256 over the **length-prefixed utf-8 triple** (source
-relation, `_load_id`, `_source_row_id`) — canonical serialization per the RFC 0003
-canon-bytes doctrine — so it is stable across retries by construction.
+per-source-row identity supplied by the ingestion layer, **NOT NULL and unique per source
+row**. Column absence is the compile error `IngestionMetadataMissing`, a `GuardrailError`
+leaf declared in `errors.py` per RFC 0002 D3 (§5.9); the NOT NULL/uniqueness properties are
+data facts no compiler can check, so the lowering emits a generated **blocking audit** on
+the metadata columns — a null or duplicated `_source_row_id` stops the run rather than
+silently corrupting dedupe order or `reject_id`. `reject_id` is the sha256 over the
+**length-prefixed utf-8 triple** (source relation, `_load_id`, `_source_row_id`) —
+canonical serialization per the RFC 0003 canon-bytes doctrine — so it is stable across
+retries by construction.
 
 `raw` holds source payloads — quarantine tables hold PII. When any rule carries a
 `quarantine` disposition, the entity **must** declare a `quarantine:` block with
@@ -452,7 +456,7 @@ reference pages for the rule catalogue and `quarantine:` block; the
 | 17 | **Repair deferred out of v1** (amends rows 2 and 8 as originally drafted): dispositions v1 = `flag \| quarantine \| fail`; `repair` moves to §10, demand-gated on a repair-recipe contract. Constraint recorded from review (credit: cubic): when repair lands it must carry a **distinct marker** separating "repaired, now correct" from "currently flagged bad", so `has_quality_flags` keeps meaning "currently suspect". |
 | 18 | Disposition precedence for a row failing multiple rules — severity order `fail > quarantine > flag`: any failing `fail` rule stops the run (blocking audit); else any failing `quarantine` rule diverts the row, with **all** failed rule names recorded in the reject's `failed_rules` (flag-level failures included); else flags accumulate in `_quality_flags`. Deterministic for every combination — no compile-time rejection of rule/disposition combinations needed. |
 | 19 | Three-valued logic: each rule defines a violation predicate and fires only when it is definitively TRUE — NULL-involved comparisons evaluating to SQL `UNKNOWN` do **not** fire (`not_null`/`coercible` own nulls; declare them if nulls are invalid). Applies to `range`/`length`/`pattern`/`in_enum`/`in_set`/`expression`/`referential` — a NULL fk is not an orphan. Corrects Document 5's referential lowering: the bare `COALESCE(fk, '__unknown__')` sketch was wrong (it maps a NULL fk to the unknown member); the lowering is `CASE WHEN ref.<pk> IS NULL AND fk IS NOT NULL THEN '__unknown__' ELSE fk END`. |
-| 20 | Dedupe is a total order: after `field` DESC and the `tie_break` columns, the final sort key is the stable source-row identity `_source_row_id` — the winner is unique by construction. Null ordering pinned: `NULLS LAST` for the recency field and every tie-break column (a null recency loses). |
+| 20 | Dedupe is a total order: after `field` DESC and the `tie_break` columns, the final sort key is the stable source-row identity `_source_row_id` — the winner is unique by construction *given the metadata contract* (D21): `_source_row_id` is declared **NOT NULL and unique per source row**, an ingestion-layer obligation enforced at run time by a generated blocking audit on the metadata columns (a data property, not compile-checkable). Null ordering pinned: `NULLS LAST` on **every** sort key including `_source_row_id` (defense in depth — DESC defaults to NULLS FIRST on several engines, so an illegally-null identity must still lose, never win). |
 | 21 | Ingestion metadata contract: entities using `quarantine` or `dedupe` require bronze `_load_id`, `_ingested_at`, `_source_row_id` (a stable per-source-row identity supplied by the ingestion layer); absence is the new compile error `IngestionMetadataMissing` (`GuardrailError` leaf, `errors.py` per RFC 0002 D3). `reject_id` = sha256 over the length-prefixed utf-8 triple (source relation, `_load_id`, `_source_row_id`) — canonical serialization per the RFC 0003 canon-bytes doctrine; stable across retries by construction. |
 | 22 | Replay merge semantics: replay applies the **same dedupe ordering** as the pipeline — a replayed candidate merges by entity key and wins/loses against an incumbent by the dedupe total order (recency, tie-breaks, `_source_row_id`); multiple rejects resolving to one key are ordered the same way. The per-entity replay batch is one atomic MERGE (transactionality is the executing engine's; bloomery emits the artifact); idempotence follows from the total order — re-running replay re-derives the same winners. |
 | 23 | `_quality_flags` physical contract: rule names identifier-constrained at parse (no escaping in any lowering); the column is never NULL (empty array / empty delimited string per `DialectFeature.ARRAY`); delimited fallback joins with `,` in lexicographic rule-name order; `_quality_ok` generated per shape; flag-set equality across lowerings asserted in the dialect-matrix tier. |
