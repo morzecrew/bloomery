@@ -26,6 +26,23 @@ from bloomery.spec.mapping import (
 from bloomery.spec.marts import DateRoleStep, FlattenStep, Mart, MartSet, ViaStep
 from bloomery.spec.metrics import CumulativeSpec, Metric, MetricSet
 from bloomery.spec.project import Project, load_catalog, load_project
+from bloomery.spec.quality import (
+    CoercibleRule,
+    Dedupe,
+    EntityQualityRule,
+    ExpressionRule,
+    FieldQualityRule,
+    InEnumRule,
+    InSetRule,
+    LengthRule,
+    NotNullRule,
+    PatternRule,
+    Quarantine,
+    RangeRule,
+    Reconcile,
+    ReferentialRule,
+    UniqueRule,
+)
 
 __all__ = [
     # catalog
@@ -62,6 +79,22 @@ __all__ = [
     "CumulativeSpec",
     "Metric",
     "MetricSet",
+    # quality (RFC 0016)
+    "CoercibleRule",
+    "Dedupe",
+    "EntityQualityRule",
+    "ExpressionRule",
+    "FieldQualityRule",
+    "InEnumRule",
+    "InSetRule",
+    "LengthRule",
+    "NotNullRule",
+    "PatternRule",
+    "Quarantine",
+    "RangeRule",
+    "Reconcile",
+    "ReferentialRule",
+    "UniqueRule",
     # project + loaders
     "Project",
     "load_catalog",

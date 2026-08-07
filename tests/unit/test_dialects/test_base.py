@@ -11,11 +11,15 @@ from sqlglot import exp
 
 from bloomery.dialects import (
     DialectFeature,
+    DialectPort,
     DuckDBDialect,
+    PostgresDialect,
     SQLGlotDialect,
+    TrinoDialect,
     get_dialect,
     register_dialect,
 )
+from bloomery.emit.base import Feature
 from bloomery.errors import EmitError
 from bloomery.typing import DecimalType, StringType
 
@@ -70,3 +74,23 @@ def test_base_physical_types() -> None:
     dialect = _Custom()
     assert dialect.physical_type(StringType()) == "TEXT"
     assert dialect.physical_type(DecimalType(12, 4)) == "DECIMAL(12, 4)"
+
+
+@pytest.mark.parametrize(
+    "dialect",
+    [DuckDBDialect(), PostgresDialect(), TrinoDialect()],
+    ids=lambda dialect: dialect.name,
+)
+def test_every_shipped_dialect_has_arrays(dialect: DialectPort) -> None:
+    # RFC 0016 D9: array support is an *engine* property, so it is a
+    # DialectFeature rather than a target Feature — SQLMesh-on-DuckDB and
+    # dbt-on-DuckDB share it (the RFC 0008 D1 split). All three shipped
+    # engines have a first-class array type (DuckDB STRING[], Postgres
+    # TEXT[], Trino ARRAY(VARCHAR)), so none takes the delimited fallback.
+    assert dialect.supports(DialectFeature.ARRAY)
+
+
+def test_array_is_a_dialect_feature_not_a_target_feature() -> None:
+    # the deliberate divergence from Document 5 §5.3, recorded as a test
+    assert "array" in {feature.value for feature in DialectFeature}
+    assert "array" not in {feature.value for feature in Feature}

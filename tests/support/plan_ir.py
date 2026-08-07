@@ -170,7 +170,7 @@ def project(
     date_dimension: DateDimensionIR | None = None,
 ) -> ProjectIR:
     return ProjectIR(
-        bloomery_ir_version=1,
+        bloomery_ir_version=2,
         entities=tuple(sorted(entities, key=lambda e: e.name)),
         metrics=tuple(sorted(metrics, key=lambda m: m.name)),
         unreachable=tuple(sorted(unreachable, key=lambda u: u.name)),

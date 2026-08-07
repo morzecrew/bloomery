@@ -61,17 +61,31 @@ PARTITION_SPEC_PATTERN = (
 #: JSONPath-lite: ``$.a.b`` dotted paths only (RFC 0002 §5.5).
 JSONPATH_PATTERN = r"^\$(?:\.[A-Za-z_][A-Za-z0-9_]*)+$"
 
-#: ``metric_time`` is reserved as a field/dimension/role name (RFC 0002 D10,
-#: RFC 0013 R4) — MetricFlow owns it as the canonical query-time dimension.
-RESERVED_MEMBER_NAMES = ("metric_time",)
+#: Names the compiler generates, so an authored field/dimension/role may never
+#: claim one — the generated column would collide silently. ``metric_time`` is
+#: MetricFlow's canonical query-time dimension (RFC 0002 D10, RFC 0013 R4); the
+#: rest are the data-quality columns and the bronze ingestion-metadata contract
+#: (RFC 0016 §5.5, §5.6, D9/D21/D23). Each carries the reason its message
+#: quotes: a bare "reserved" tells an author nothing about which layer owns it.
+_RESERVED_MEMBER_REASONS: dict[str, str] = {
+    "metric_time": "RFC 0013 R4: the canonical query-time dimension",
+    "_quality_flags": "RFC 0016 D9: the generated silver quality-flag column",
+    "_quality_ok": "RFC 0016 D9: generated from _quality_flags",
+    "_load_id": "RFC 0016 D21: bronze ingestion metadata",
+    "_ingested_at": "RFC 0016 D21: bronze ingestion metadata",
+    "_source_row_id": "RFC 0016 D21: the stable source-row identity",
+    "has_quality_flags": "RFC 0016 D9: the generated mart dimension",
+}
+
+#: The reserved names, sorted — the message vocabulary lives in
+#: :data:`_RESERVED_MEMBER_REASONS`.
+RESERVED_MEMBER_NAMES = tuple(sorted(_RESERVED_MEMBER_REASONS))
 
 
 def _reject_reserved(name: str) -> str:
-    if name in RESERVED_MEMBER_NAMES:
-        msg = (
-            f"{name!r} is a reserved name (RFC 0013 R4: the canonical query-time "
-            "dimension); pick a different field/dimension/role name"
-        )
+    reason = _RESERVED_MEMBER_REASONS.get(name)
+    if reason is not None:
+        msg = f"{name!r} is a reserved name ({reason}); pick a different field/dimension/role name"
         raise ValueError(msg)
     return name
 

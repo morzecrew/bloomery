@@ -10,11 +10,29 @@ from enum import StrEnum
 
 import pytest
 
-from bloomery.ir import DimensionRef, ProjectIR, SqlExpr, Unit, project_fingerprint
+from bloomery.ir import (
+    DedupeIR,
+    DimensionRef,
+    EntityIR,
+    OnFail,
+    ProjectIR,
+    QualityRuleIR,
+    QuarantineIR,
+    ReconcileIR,
+    SqlExpr,
+    Unit,
+    project_fingerprint,
+    quality_sort_key,
+)
 from bloomery.ir.fingerprint import _canon_bytes
 from support.ir_factory import build_project_ir
 
 pytestmark = pytest.mark.unit
+
+
+def _with_entity(ir: ProjectIR, entity: EntityIR) -> ProjectIR:
+    """The project IR with its single entity replaced."""
+    return dataclasses.replace(ir, entities=(entity,))
 
 
 def test_fingerprint_shape() -> None:
@@ -42,7 +60,7 @@ def test_distinct_ir_distinct_bytes() -> None:
     base = build_project_ir()
     variants = [
         ProjectIR(),
-        ProjectIR(bloomery_ir_version=2),  # version change is loud (RFC 0003 D3)
+        ProjectIR(bloomery_ir_version=1),  # version change is loud (RFC 0003 D3)
         dataclasses.replace(base, marts=()),
         dataclasses.replace(base, metrics=base.metrics[:1]),
     ]
@@ -51,6 +69,101 @@ def test_distinct_ir_distinct_bytes() -> None:
         encoded = _canon_bytes(variant)
         assert encoded not in seen, variant
         seen.add(encoded)
+
+
+def test_quality_configuration_reaches_the_fingerprint() -> None:
+    # RFC 0016 §5.7: every quality change classifies RESTATING, which only
+    # works if the fingerprint sees it. The walker is type-driven, so the new
+    # nodes need no encoder — this test is what proves that claim.
+    base = build_project_ir()
+    entity = base.entities[0]
+    rule = QualityRuleIR("unit_price_range_min", "range", "unit_price", OnFail.QUARANTINE)
+    variants = [
+        _with_entity(base, dataclasses.replace(entity, quality=(rule,))),
+        # the same rule, a different disposition — both directions RESTATE
+        _with_entity(
+            base,
+            dataclasses.replace(
+                entity, quality=(dataclasses.replace(rule, on_fail=OnFail.FLAG),)
+            ),
+        ),
+        # the same rule, a different bound
+        _with_entity(
+            base,
+            dataclasses.replace(entity, quality=(dataclasses.replace(rule, params=(("min", "1"),)),)),
+        ),
+        # a referential rule, whose disposition lives in params
+        _with_entity(
+            base,
+            dataclasses.replace(
+                entity,
+                quality=(
+                    QualityRuleIR(
+                        "item_of_order",
+                        "referential",
+                        None,
+                        None,
+                        (("on_missing", "unknown_member"),),
+                    ),
+                ),
+            ),
+        ),
+        _with_entity(
+            base, dataclasses.replace(entity, dedupe=DedupeIR("latest_by", "_ingested_at"))
+        ),
+        _with_entity(
+            base,
+            dataclasses.replace(
+                entity, dedupe=DedupeIR("latest_by", "_ingested_at", ("_load_id",))
+            ),
+        ),
+        _with_entity(base, dataclasses.replace(entity, quarantine=QuarantineIR("90d"))),
+        _with_entity(base, dataclasses.replace(entity, quarantine=QuarantineIR("12h"))),
+        _with_entity(
+            base, dataclasses.replace(entity, quarantine=QuarantineIR("90d", ("$.a.email",)))
+        ),
+        dataclasses.replace(
+            base,
+            reconcile=(
+                ReconcileIR("totals", "sum(a)", "b", Decimal("0.01"), OnFail.FLAG),
+            ),
+        ),
+        dataclasses.replace(
+            base,
+            reconcile=(
+                ReconcileIR("totals", "sum(a)", "b", Decimal("0.010"), OnFail.FLAG),
+            ),
+        ),
+    ]
+    seen = {_canon_bytes(base)}
+    for variant in variants:
+        encoded = _canon_bytes(variant)
+        assert encoded not in seen, variant
+        seen.add(encoded)
+
+
+def test_permuted_quality_rules_sorted_are_identical() -> None:
+    # RFC 0003 §5.3: authored rule order carries nothing, so the canonical
+    # sort makes permuted input yield an equal IR — and equal bytes.
+    base = build_project_ir()
+    entity = base.entities[0]
+    unsorted = (
+        QualityRuleIR("r", "range", "unit_price", OnFail.FLAG, (("max", "1000000"),)),
+        QualityRuleIR("c", "coercible", "unit_price", OnFail.QUARANTINE),
+        QualityRuleIR("r", "range", "unit_price", OnFail.QUARANTINE, (("min", "0"),)),
+    )
+    first = _with_entity(
+        base, dataclasses.replace(entity, quality=tuple(sorted(unsorted, key=quality_sort_key)))
+    )
+    second = _with_entity(
+        base,
+        dataclasses.replace(
+            entity, quality=tuple(sorted(reversed(unsorted), key=quality_sort_key))
+        ),
+    )
+    assert first == second
+    assert _canon_bytes(first) == _canon_bytes(second)
+    assert project_fingerprint(first) == project_fingerprint(second)
 
 
 @dataclasses.dataclass(frozen=True, slots=True)

@@ -39,6 +39,14 @@ class DialectFeature(StrEnum):
     TIMEZONE_CONVERT = "timezone_convert"
     REGEXP_EXTRACT = "regexp_extract"
     VARIANT_TYPE = "variant_type"
+    #: A first-class array type (RFC 0016 D9). Deliberately a *dialect*
+    #: feature, not a target ``Feature``, diverging from Document 5 §5.3:
+    #: array support is an engine property, and SQLMesh-on-DuckDB and
+    #: dbt-on-DuckDB share it — the RFC 0008 D1 split. All three shipped
+    #: dialects have arrays (DuckDB ``STRING[]``, Postgres ``TEXT[]``, Trino
+    #: ``ARRAY(VARCHAR)``); a dialect without one lowers ``_quality_flags``
+    #: and ``failed_rules`` to the comma-delimited string fallback (D23).
+    ARRAY = "array"
 
 
 class DialectPort(Protocol):

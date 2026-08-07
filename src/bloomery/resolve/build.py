@@ -401,7 +401,7 @@ def build_project_ir(project: Project, catalog: Catalog | None = None) -> Projec
     _typecheck_project(project, reg)
 
     draft = ProjectIR(
-        bloomery_ir_version=1,
+        bloomery_ir_version=2,
         entities=_build_entities(project, catalog, reg),
         metrics=_build_metrics(project, catalog, resolution.reachable_metrics),
         unreachable=resolution.unreachable_metrics,

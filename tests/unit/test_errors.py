@@ -15,18 +15,23 @@ from bloomery.errors import (
     CircularDerivation,
     ContractViolation,
     CurrencyMismatch,
+    DedupeDispositionConflict,
+    DedupeTieBreakMissing,
     EmitError,
     FanoutRisk,
     FilterTypeMismatch,
     GrainMismatch,
     GrainViolation,
     GuardrailError,
+    IngestionMetadataMissing,
     InvalidRequest,
     MartMissingTimeDimension,
     MissingReference,
     NonAdditiveWithoutComponents,
     PlanError,
     PlannerError,
+    QuarantineRetentionMissing,
+    RedactionConflict,
     RenameTargetMissing,
     ResolutionError,
     SpecParseError,
@@ -88,6 +93,14 @@ def test_every_class_has_a_stage_docstring(cls: type[BloomeryError]) -> None:
         (FanoutRisk, GuardrailError),
         (NonAdditiveWithoutComponents, GuardrailError),
         (MartMissingTimeDimension, GuardrailError),
+        # RFC 0016 §5.9: a guardrail says the *model* is wrong (compile
+        # time, decidable from the spec alone); a quality rule says the
+        # *data* is wrong (run time). These five are the former.
+        (QuarantineRetentionMissing, GuardrailError),
+        (DedupeTieBreakMissing, GuardrailError),
+        (DedupeDispositionConflict, GuardrailError),
+        (IngestionMetadataMissing, GuardrailError),
+        (RedactionConflict, GuardrailError),
         (ContractViolation, PlanError),
         (RenameTargetMissing, PlanError),
         (UnsupportedByTarget, EmitError),
@@ -101,6 +114,12 @@ def test_every_class_has_a_stage_docstring(cls: type[BloomeryError]) -> None:
 )
 def test_stage_hierarchy(leaf: type[BloomeryError], parent: type[BloomeryError]) -> None:
     assert issubclass(leaf, parent)
+
+
+def test_step_contract_violation_belongs_to_rfc_0017() -> None:
+    # RFC 0016's guardrail leaves land here; the registered-step contract
+    # error is RFC 0017's (M13), deliberately not declared early.
+    assert not hasattr(errors_mod, "StepContractViolation")
 
 
 def test_retired_incompatible_artifact_is_absent() -> None:

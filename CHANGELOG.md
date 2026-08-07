@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Float filter values are now accepted and normalized to exact decimals at the request boundary instead of being refused; non-finite values (`NaN`/`Infinity`, in float or string form) are rejected with a typed `InvalidLiteral`.
 
+- `Mapping.on_unmapped_enum` is retired (breaking, pre-0.1): a spec still carrying the key is now refused as an unknown key. Unmapped enum values become a data-quality concern — they fail the `in_enum` rule and take that rule's disposition (RFC 0016, superseding RFC 0008 D7's never-implemented emitter convention).
+
+- `bloomery_ir_version` is now `2` — the IR gained the data-quality shape, so every artifact's `fingerprint:` header changes and `plan()` refuses to diff a v1 IR against a v2 one. No emitted SQL changed.
+
+- Reserved field/dimension/role names now cover the generated data-quality and ingestion-metadata columns (`_quality_flags`, `_quality_ok`, `_load_id`, `_ingested_at`, `_source_row_id`, `has_quality_flags`) alongside `metric_time`; the refusal message names the RFC that owns each.
+
 ### Fixed
 
 - Docs site root no longer 404s before the first release: the dev docs deploy

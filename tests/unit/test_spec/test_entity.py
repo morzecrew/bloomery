@@ -8,7 +8,7 @@ import pytest
 
 from bloomery.errors import SpecParseError
 from bloomery.spec import EntityModel
-from bloomery.spec.common import validate_document
+from bloomery.spec.common import RESERVED_MEMBER_NAMES, validate_document
 
 pytestmark = pytest.mark.unit
 
@@ -134,6 +134,42 @@ def test_reserved_metric_time_field_name() -> None:
         )
     assert excinfo.value.source_path == "entity_model: entities.e.fields.metric_time"
     assert "reserved" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("name", RESERVED_MEMBER_NAMES)
+def test_every_generated_column_name_is_reserved(name: str) -> None:
+    # RFC 0016 §5.5/§5.6 (D9, D21): the quality columns and the ingestion
+    # metadata are *generated*, so an authored field claiming one would
+    # collide silently — the whole reason `metric_time` was reserved first.
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(
+            "spec_version: 1\nentities:\n  e:\n    grain: g\n    key: [k]\n"
+            f"    fields:\n      {name}: {{type: string}}\n"
+        )
+    assert excinfo.value.source_path == f"entity_model: entities.e.fields.{name}"
+    assert "reserved name" in str(excinfo.value)
+
+
+def test_the_reserved_set_is_exactly_the_generated_names() -> None:
+    assert RESERVED_MEMBER_NAMES == (
+        "_ingested_at",
+        "_load_id",
+        "_quality_flags",
+        "_quality_ok",
+        "_source_row_id",
+        "has_quality_flags",
+        "metric_time",
+    )
+
+
+def test_reserved_message_names_the_owning_rfc() -> None:
+    # a bare "reserved" tells an author nothing about which layer owns it
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(
+            "spec_version: 1\nentities:\n  e:\n    grain: g\n    key: [k]\n"
+            "    fields:\n      _source_row_id: {type: string}\n"
+        )
+    assert "RFC 0016 D21" in str(excinfo.value)
 
 
 def test_bad_cardinality() -> None:

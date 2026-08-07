@@ -196,8 +196,8 @@ def concat(col: Expression, text: str) -> Expression:
 )
 def enum_map(col: Expression, *pairs: str) -> Expression:
     """``{enum_map: [raw, mapped, ...]}`` — flat from/to pairs. Values outside
-    the map pass through; the ``on_unmapped_enum`` policy is an emitter
-    concern (RFC 0008 D7), not a chain concern."""
+    the map pass through: disposing of them is the ``in_enum`` quality rule's
+    job (RFC 0016 §5.2, D3 — superseding RFC 0008 D7), not a chain concern."""
     ifs = [
         exp.If(this=exp.Literal.string(source), true=exp.Literal.string(mapped))
         for source, mapped in zip(pairs[0::2], pairs[1::2], strict=True)

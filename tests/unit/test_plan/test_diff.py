@@ -85,7 +85,7 @@ def test_plan_is_deterministic_for_the_same_pair() -> None:
 
 
 def test_ir_version_mismatch_is_refused() -> None:
-    old = replace(plan_ir.project(), bloomery_ir_version=2)
+    old = replace(plan_ir.project(), bloomery_ir_version=1)
     with pytest.raises(PlanError, match="IR version"):
         plan(old, plan_ir.project())
 

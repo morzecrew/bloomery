@@ -3,7 +3,9 @@
 What a project's data means: entities with grain, key, SCD kind, partitioning,
 optional explicit materialization (RFC 0002 D7 — explicit-with-derived-default),
 typed fields with optional ``canonical:`` links and ``assert:`` clauses
-(RFC 0006 D8), and relationships with cardinality.
+(RFC 0006 D8), relationships with cardinality, and the entity-level data-
+quality surface — ``quality:`` row rules, ``dedupe:``, ``quarantine:`` — plus
+the document-level ``reconcile:`` list (RFC 0016 §5.3).
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ from bloomery.spec.common import (
     SpecModel,
     TypeString,
 )
+from bloomery.spec.quality import Dedupe, EntityQualityRule, Quarantine, Reconcile
 
 __all__ = [
     "AssertClause",
@@ -57,8 +60,13 @@ class Field(SpecModel):
 
 class Entity(SpecModel):
     """One entity: grain, authored-order key, SCD kind, partitioning, optional
-    explicit materialization, and named fields (``metric_time`` reserved,
-    RFC 0002 D10)."""
+    explicit materialization, named fields (generated names reserved,
+    RFC 0002 D10 / RFC 0016 §5.5), and the entity-level quality surface.
+
+    ``dedupe`` partitions by this entity's ``key``; ``quality`` holds the row
+    rules (``expression``, ``referential``); ``quarantine`` governs the
+    ``<entity>__reject`` table (RFC 0016 §5.3, §5.6).
+    """
 
     grain: str
     key: tuple[str, ...] = PydanticField(min_length=1)
@@ -66,6 +74,9 @@ class Entity(SpecModel):
     partition_by: tuple[PartitionSpecString, ...] = ()
     materialization: MaterializationName | None = None
     fields: dict[MemberName, Field]
+    quality: tuple[EntityQualityRule, ...] = ()
+    dedupe: Dedupe | None = None
+    quarantine: Quarantine | None = None
 
 
 class Relationship(SpecModel):
@@ -81,8 +92,17 @@ class Relationship(SpecModel):
 
 class EntityModel(SpecModel):
     """The per-project entity model document (``spec_version``), exactly one
-    per project (RFC 0002 §5.5)."""
+    per project (RFC 0002 §5.5).
+
+    ``reconcile:`` sits here, at the document root, exactly where RFC 0016
+    §5.3's YAML puts it — a sibling of ``entities:``, not a member of one.
+    That placement is the schema, not a convenience: a reconcile check relates
+    *two* entities (``sum(order_item.line_total) by order_id`` against
+    ``order.total_amount``), so it belongs to no single entity, and this is the
+    one document a project is guaranteed to have exactly one of.
+    """
 
     spec_version: int = PydanticField(ge=1)
     entities: dict[str, Entity]
     relationships: tuple[Relationship, ...] = ()
+    reconcile: tuple[Reconcile, ...] = ()

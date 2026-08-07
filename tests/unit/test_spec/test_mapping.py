@@ -8,7 +8,7 @@ import yaml
 
 from bloomery.errors import SpecParseError
 from bloomery.spec import Mapping, RecipeFieldMapping, SimpleFieldMapping, TransformStep
-from bloomery.spec.common import validate_document
+from bloomery.spec.common import RESERVED_MEMBER_NAMES, validate_document
 
 pytestmark = pytest.mark.unit
 
@@ -33,7 +33,6 @@ fields:
     from: "$.created_at"
     transform: [{parse_ts: ISO8601}, {to_utc: Europe/Paris}]
 unmapped: ["$.note", "$.gift_wrap"]
-on_unmapped_enum: quarantine
 """
 
 
@@ -55,7 +54,6 @@ def test_happy_parse() -> None:
         TransformStep(name="to_utc", args=("Europe/Paris",)),
     )
     assert mapping.unmapped == ("$.note", "$.gift_wrap")
-    assert mapping.on_unmapped_enum == "quarantine"
 
 
 def test_transform_step_list_args() -> None:
@@ -144,13 +142,17 @@ def test_recipe_mapping_requires_alias_paths() -> None:
     assert "fields.f.recipe.from.alias" in str(excinfo.value.source_path)
 
 
-def test_unknown_on_unmapped_enum_policy() -> None:
+def test_retired_on_unmapped_enum_is_an_unknown_key() -> None:
+    # RFC 0016 §5.2 / D3 (an RFC 0002 amendment): the policy is retired, not
+    # renamed — an unmapped enum value now fails the `in_enum` quality rule.
+    # A spec still carrying it must be told, not silently accepted.
     with pytest.raises(SpecParseError) as excinfo:
         parse(
             "mapping_version: 1\nsource: s\ntarget: t\nkey: {}\nfields: {}\n"
-            "on_unmapped_enum: discard\n"
+            "on_unmapped_enum: quarantine\n"
         )
     assert excinfo.value.source_path == "mappings/orders: on_unmapped_enum"
+    assert "Extra inputs are not permitted" in str(excinfo.value)
 
 
 def test_unknown_top_level_key() -> None:
@@ -166,3 +168,15 @@ def test_reserved_metric_time_target_field() -> None:
             'fields:\n  metric_time: {from: "$.ts"}\n'
         )
     assert excinfo.value.source_path == "mappings/orders: fields.metric_time"
+
+
+@pytest.mark.parametrize("name", RESERVED_MEMBER_NAMES)
+def test_reserved_target_field_names(name: str) -> None:
+    # a mapping cannot land a source path on a generated column either
+    # (RFC 0016 §5.5, §5.6)
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(
+            "mapping_version: 1\nsource: s\ntarget: t\nkey: {}\n"
+            f'fields:\n  {name}: {{from: "$.x"}}\n'
+        )
+    assert excinfo.value.source_path == f"mappings/orders: fields.{name}"
