@@ -138,6 +138,29 @@ exact bytes ([determinism](../concepts/determinism.md)).
 The same specs also answer metric questions at request time. The planner turns a
 structured `MetricRequest` into SQL over the mart — rendered, never executed:
 
+Filters can arrive as a Mongo-flavoured JSON document — `parse_filter_json` is the public
+front door that normalizes it (De Morgan push-down, complement inversion, capped CNF) into
+typed clauses, refusing only from a closed, reviewed list:
+
+```python
+from bloomery.planner import parse_filter_json
+
+filters = parse_filter_json(
+    {
+        "customer_id": {"$neq": "internal"},
+        "$or": [{"ordered_month": {"$gte": "2024-01-01"}}, {"ordered_month": "2023-12-01"}],
+    }
+)
+print(f"parsed {len(filters)} filter clause(s) from JSON")
+```
+
+```text
+parsed 2 filter clause(s) from JSON
+```
+
+Two clauses, ANDed: one `Predicate`, and one `AnyOf` disjunction group. They go straight
+into the request:
+
 ```python
 from bloomery import LruManifestHydrator, MetricFlowPlanner, MetricRequest, build_project_ir
 from bloomery.naming import DefaultNaming
@@ -146,21 +169,22 @@ naming = DefaultNaming()
 planner = MetricFlowPlanner(LruManifestHydrator(naming), naming=naming)
 plan = planner.plan(
     build_project_ir(project, catalog=catalog),
-    MetricRequest(metrics=("revenue",), dimensions=("ordered_month",)),
+    MetricRequest(metrics=("revenue",), dimensions=("ordered_month",), filters=filters),
     dialect="duckdb",
 )
 print(plan.sql)
 print(plan.explanation.render())
 ```
 
-The plan carries runnable SQL plus a deterministic provenance record:
+The plan carries runnable SQL plus a deterministic provenance record — the filters
+explained from the clause objects, never scraped back out of the SQL:
 
 ```text
 revenue
   mart:     gold.mart_orders (grain: order)
   measure:  revenue = SUM(amount)
             [additive — SUM]
-  filters:  (none)
+  filters:  customer_id != 'internal'; ordered_month >= '2024-01-01' OR ordered_month = '2023-12-01'
   policy:   not applied
 ```
 

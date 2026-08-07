@@ -34,13 +34,13 @@ class Scenario:
     metrics: tuple[str, ...]
     dimension: str
     time_dimension: str
-    clause: Clause
+    clauses: tuple[Clause, ...]
 
 
 SCENARIOS = [
     # Semi-additive: the MAX-join plan scans the mart more than once. The
-    # shipped `between` range is now the gte-anchored clause of a composed
-    # range (RFC 0015 D-Q1).
+    # shipped `between` range is now a composed gte+lte pair — two clauses,
+    # ANDed, exactly what a caller migrating a range writes (RFC 0015 D-Q1).
     Scenario(
         fixture="semi_additive_inventory",
         relation="gold.mart_inventory",
@@ -48,7 +48,10 @@ SCENARIOS = [
         metrics=("stock_on_hand",),
         dimension="warehouse_id",
         time_dimension="snapshot_month",
-        clause=Predicate("snapshot_day", Op.GTE, ("2024-01-01",)),
+        clauses=(
+            Predicate("snapshot_day", Op.GTE, ("2024-01-01",)),
+            Predicate("snapshot_day", Op.LTE, ("2024-03-31",)),
+        ),
     ),
     # Ratio: components may collapse to one shared scan — audit every scan.
     Scenario(
@@ -58,7 +61,7 @@ SCENARIOS = [
         metrics=("average_order_value",),
         dimension="store",
         time_dimension="ordered_month",
-        clause=Predicate("ordered_day", Op.GTE, ("2024-01-01",)),
+        clauses=(Predicate("ordered_day", Op.GTE, ("2024-01-01",)),),
     ),
     # Plain additive, multi-metric, with a disjunction clause (RFC 0015):
     # the policy must still reach every scan alongside the AnyOf group.
@@ -69,11 +72,13 @@ SCENARIOS = [
         metrics=("order_count", "revenue"),
         dimension="store",
         time_dimension="ordered_month",
-        clause=AnyOf(
-            (
-                Predicate("ordered_day", Op.LT, ("2024-06-01",)),
-                Predicate("store", Op.EQ, ("outlet",)),
-            )
+        clauses=(
+            AnyOf(
+                (
+                    Predicate("ordered_day", Op.LT, ("2024-06-01",)),
+                    Predicate("store", Op.EQ, ("outlet",)),
+                )
+            ),
         ),
     ),
 ]
@@ -87,7 +92,7 @@ def _requests(scenario: Scenario) -> list[MetricRequest]:
         (scenario.time_dimension,),
         (scenario.dimension, scenario.time_dimension),
     ]
-    filter_options: list[tuple[Clause, ...]] = [(), (scenario.clause,)]
+    filter_options: list[tuple[Clause, ...]] = [(), scenario.clauses]
     grain_options: list[TimeGrain | None] = [None, TimeGrain.MONTH, TimeGrain.YEAR]
     tail_options: list[tuple[tuple[OrderSpec, ...], int | None]] = [
         ((), None),

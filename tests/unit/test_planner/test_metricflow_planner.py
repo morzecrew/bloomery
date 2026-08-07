@@ -220,12 +220,23 @@ def test_human_predicate_prose_covers_every_operator() -> None:
     assert _human_predicate(Predicate("store", Op.LIKE, ("%dh%",)), "store") == (
         "store like '%dh%'"
     )
+    # Multi-pattern like/ilike is an OR of repeated predicates — the prose
+    # says what the renderer executes (RFC 0015 §5.1), never a value list
+    # that hides the disjunction.
     assert _human_predicate(Predicate("store", Op.ILIKE, ("a%", "b%")), "store") == (
-        "store ilike ('a%', 'b%')"
+        "store ilike 'a%' OR store ilike 'b%'"
+    )
+    assert _human_predicate(Predicate("store", Op.LIKE, ("a%", "b%", "c%")), "store") == (
+        "store like 'a%' OR store like 'b%' OR store like 'c%'"
     )
     assert _human_predicate(Predicate("flag", Op.EQ, (True,)), "flag") == "flag = true"
     assert _human_predicate(Predicate("flag", Op.NE, (False,)), "flag") == "flag != false"
     assert _human_predicate(Predicate("amount", Op.GT, (5,)), "amount") == "amount > 5"
+    # The remaining comparison symbols — all eleven Op members are asserted
+    # here, so the _SYMBOLS lookup is locked for every one of them.
+    assert _human_predicate(Predicate("amount", Op.LT, (5,)), "amount") == "amount < 5"
+    assert _human_predicate(Predicate("amount", Op.LTE, (5,)), "amount") == "amount <= 5"
+    assert _human_predicate(Predicate("amount", Op.GTE, (5,)), "amount") == "amount >= 5"
 
 
 def test_ratio_explanation_render() -> None:

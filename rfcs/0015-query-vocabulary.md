@@ -161,7 +161,8 @@ exists to prevent. `UUID` renders as a string literal against string-typed dimen
 *Implementation note (2026-08-07):* the implementation extends the string carrier beyond D5's
 ordering-operator scope to `in`/`not_in` membership lists, for UX symmetry — refusing `"2"` on
 `in` while accepting it on `gt` would be gratuitous; the same parse-validate-never-cast
-discipline applies per member.
+discipline applies per member, non-finite refusal included. Recorded as **decision 15**, which
+supersedes D-Q5's operator scope.
 
 **Amendment note — `float` in `Scalar` (a real conflict, resolved).** The source doc's `Scalar`
 includes `float`; shipped `_check_scalar` refuses floats per RFC 0003 D5. Decision: floats
@@ -322,7 +323,7 @@ practical payoff of owning the parser.
 | Unit | Negation-complement table (`not eq → ne`, `not gt → lte`, `not is_null:true → is_null:false`, …) |
 | Unit | Every bloomery-owned §5.3 refusal: right type, message contains the normalized form |
 | Unit | Drift guard: `KNOWN_UNSUPPORTED` == the union of codes the three parse functions (`parse_filter_json`/`parse_sort_json`/`parse_page_json`) actually raise, introspected across all three |
-| Property | Non-finite literals (`NaN`/`Infinity`/`-Infinity` and string forms) refused on all six ordering operators |
+| Property | Non-finite literals (`NaN`/`Infinity`/`-Infinity` and string forms) refused on **every operator taking scalars** — the six ordering operators `eq`/`ne`/`gt`/`gte`/`lt`/`lte` **and** the `in`/`not_in` membership lists, per member (decision 15) |
 | Property | CNF normalization terminates on adversarial nesting, short-circuiting on the clause cap during distribution; arbitrarily deep input either reaches AND-of-`AnyOf` or refuses with `FilterTooComplex`/`UnsupportedNegation` — never a nesting refusal |
 | Property | Parse totality: any generated document parses or raises a `KNOWN_UNSUPPORTED` reason; parsed output checked by `semantically_equivalent` — **evaluated against generated rows**, never structural comparison (structural comparison after normalization is circular) |
 | Property (R6) | Shipped filter fuzz extended to `like`/`ilike`: adversarial `%`/`_` are now pattern characters, passing through verbatim; injection assertions unchanged — quote doubling, NUL refusal, unchanged predicate structure, exactly the expected scanned mart |
@@ -389,6 +390,7 @@ framing (a reviewed gap, not drift); D-Q6/D-Q7 wording says "refused", never "un
 | 12 | Migration is pre-0.1, no deprecation cycle: `FilterExpr` → `Predicate`; `between`/`contains` removed; `is_null` arity 0 → exactly one bool (gaining `IS NOT NULL`). Affected shipped tests (fuzz corpus, request validation, execution filters) renamed/extended in the implementing wave. |
 | 13 | `like`/`ilike` operands are SQL `LIKE` **patterns** — caller-owned wildcards with `\` as the pattern-escape character (fixed `ESCAPE '\'`), matching upstream `$like` semantics (the vocabulary-alignment point of this RFC). Not verbatim strings: literal `%`/`_`/`\` are caller-escaped as `\%`/`\_`/`\\`; an unpaired trailing `\` is refused with `InvalidLiteral`. The renderer adds nothing beyond injection safety (quote doubling, NUL refusal). The shipped `contains` substring convenience (auto-`%…%` wrapping that escaped `%`/`_`/`\`) is removed with the operator — callers write `%needle%` and own their escapes. Resolves the former §10 pattern-semantics question. |
 | 14 | **`UnsupportedNesting` removed as a dead refusal** (review finding, credited): after D-Q4 normalization every boolean tree reaches AND-of-`AnyOf` form — `AnyOf` groups may span different dimensions (CNF distribution produces such groups; MetricFlow renders them; refusing them would reject common BI shapes) — so deep nesting is always representable. The refusals actually reachable on that path are `FilterTooComplex` (cap, enforced during distribution) and `UnsupportedNegation` (non-invertible negated leaf); the typed constructors make deeper nesting unrepresentable by construction. Removed from the §5.3 closed list and from `KNOWN_UNSUPPORTED`. |
+| 15 | *(Appended 2026-08-07, M14 — implementation.)* **The string carrier and its non-finite refusal extend to `in`/`not_in`**, superseding D-Q5's ordering-operator *scope* (its row stands as the historical record; everything else in it is unchanged). Rationale — UX symmetry: refusing `"2"` on `in` while accepting it on `gt` is gratuitous, and a membership list carries the identical fail-open hazard (`in ('NaN')` on Postgres compares against a value that sorts above every number). Every member of an `in`/`not_in` list follows the same parse-validate-never-cast discipline: parsed against the resolved dimension's `LogicalType` at request-validation time, `FilterTypeMismatch` when it does not parse, `InvalidLiteral` when non-finite, **no SQL cast ever emitted**. The §6 non-finite property row now names all eight scalar-taking operators. |
 
 ## 12. Phasing
 

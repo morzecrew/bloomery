@@ -95,9 +95,10 @@ def _human_predicate(predicate: Predicate, resolved_name: str) -> str:
         keyword = "in" if op is Op.IN else "not in"
         return f"{resolved_name} {keyword} ({', '.join(_scalar(v) for v in values)})"
     if op in (Op.LIKE, Op.ILIKE):
-        if len(values) == 1:
-            return f"{resolved_name} {op.value} {_scalar(values[0])}"
-        return f"{resolved_name} {op.value} ({', '.join(_scalar(v) for v in values)})"
+        # Multi-pattern like/ilike is an OR of repeated predicates (RFC 0015
+        # §5.1) — the renderer emits exactly that, so the prose says it
+        # rather than hiding the disjunction behind a value list.
+        return " OR ".join(f"{resolved_name} {op.value} {_scalar(v)}" for v in values)
     return f"{resolved_name} {_SYMBOLS[op]} {_scalar(values[0])}"
 
 

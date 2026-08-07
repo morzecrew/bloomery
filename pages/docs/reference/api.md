@@ -162,16 +162,31 @@ push-down, complement inversion, CNF distribution with the clause cap enforced d
 distribution — and refuses only with `UnsupportedFilter` leaves carrying stable
 `.reason` codes.
 
+Two failure classes, deliberately distinct. A construct the vocabulary reviewed and
+declined — a set relation, a hierarchy operator, `$regex`, an over-cap CNF expansion, a
+non-invertible negation — raises `UnsupportedFilter` **after normalization**, with a
+`.reason` from `KNOWN_UNSUPPORTED` (and `.normalized`, the post-normalization form, where
+the refusal happens after rewriting). A *malformed* document — a non-mapping payload, a
+field map of the wrong shape, an unknown `$op`, an operand of the wrong type — raises
+`InvalidRequest`: it never reaches the closed list, because malformed input is a schema
+error, not a reviewed gap. The same split holds for `parse_sort_json` and
+`parse_page_json`: only a well-formed placement or a well-formed non-zero offset reaches
+`UnsupportedSortNulls`/`UnsupportedPagination`; anything else is `InvalidRequest`.
+
 ### `bloomery.planner.parse_sort_json(payload) -> tuple[OrderSpec, ...]`
 
 Sort documents (`{field: "asc" | "desc" | {"dir": …, "nulls": …}}`) to order terms. A
-`nulls` equal to the canonical default is dropped; anything else raises
-`UnsupportedSortNulls`.
+`nulls` equal to the canonical default (`first` for asc, `last` for desc) is dropped; a
+well-formed non-default placement raises `UnsupportedSortNulls`. A *present* `nulls` key
+must hold exactly `"first"` or `"last"` — a wrong type, an explicit `null`, or an unknown
+word is `InvalidRequest`; omitting the key is the canonical default.
 
 ### `bloomery.planner.parse_page_json(payload) -> int | None`
 
 Pagination documents (`{"limit": …, "offset": …}`) to the request limit. Non-zero
-offsets and cursor keys (`after`/`before`) raise `UnsupportedPagination`.
+offsets and cursor keys (`after`/`before`) raise `UnsupportedPagination`; a malformed
+payload — a non-mapping document, an unknown key, a non-int `limit`/`offset` — raises
+`InvalidRequest`.
 
 ### `bloomery.planner.KNOWN_UNSUPPORTED: frozenset[str]`
 

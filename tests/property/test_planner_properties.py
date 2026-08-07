@@ -9,6 +9,9 @@ merge-blocking invariants:
   literal. For ``like``/``ilike``, ``%``/``_`` are now *pattern characters*
   passing through verbatim (caller-owned wildcards); an unpaired trailing
   ``\\`` refuses at construction. NUL is refused.
+- **Non-finite refusal** (RFC 0015 D5, decision 15): ``NaN``/``Infinity``/
+  ``-Infinity`` — as floats and as string carriers — are refused on every
+  operator taking scalars, the ``in``/``not_in`` membership lists included.
 - **Names round-trip** (RFC 0013 D7): every dimension the emitter produces
   maps through ``group_by_name`` and back to the original bloomery name and
   grain — emitter and bridge cannot drift apart.
@@ -28,6 +31,7 @@ from bloomery import MetricRequest, Op, OrderSpec, Predicate, RowPolicy, TimeGra
 from bloomery.emit.metricflow import emit_manifest
 from bloomery.errors import InvalidLiteral, InvalidRequest
 from bloomery.naming import DefaultNaming
+from bloomery.planner.filters import to_where
 from bloomery.planner.names import (
     ResolvedDimension,
     bloomery_dimension_name,
@@ -108,7 +112,13 @@ def _scanned_relations(sql: str) -> set[str]:
 @example(value="' OR 1=1 --", op=Op.ILIKE)
 def test_adversarial_filter_values_stay_literals(value: str, op: Op) -> None:
     if "\x00" in value:
-        with pytest.raises((InvalidRequest, InvalidLiteral)):
+        # NUL is refused on both paths, but at different stages and with
+        # different types — assert the exact one per input class, never a
+        # union: a pattern refuses at construction (RFC 0015 decision 13,
+        # InvalidLiteral), a plain literal at rendering (RFC 0013 §5.6,
+        # InvalidRequest). A widened union would pass on either drift.
+        expected = InvalidLiteral if op in (Op.LIKE, Op.ILIKE) else InvalidRequest
+        with pytest.raises(expected, match="NUL"):
             _plan_sql(value, op)
         return
     if op in (Op.LIKE, Op.ILIKE) and not _pattern_is_valid(value):
@@ -137,6 +147,41 @@ def test_adversarial_filter_values_stay_literals(value: str, op: Op) -> None:
 def test_nul_byte_is_refused() -> None:
     with pytest.raises(InvalidRequest, match="NUL"):
         _plan_sql("acme\x00corp", Op.EQ)
+
+
+# ....................... #
+# Non-finite operands (RFC 0015 §6, D5 as extended by decision 15)
+
+#: Every operator that takes scalar operands — the six ordering operators
+#: plus the two membership operators, whose lists carry the same hazard.
+SCALAR_OPS = [Op.EQ, Op.NE, Op.GT, Op.GTE, Op.LT, Op.LTE, Op.IN, Op.NOT_IN]
+
+AOV_MART = fixture_ir("non_additive_aov").marts[0]
+AMOUNT = ResolvedDimension(name="amount")  # decimal(12,4) — the carrier target
+
+
+@settings(max_examples=60, deadline=None)
+@given(
+    op=st.sampled_from(SCALAR_OPS),
+    value=st.sampled_from(
+        [float("nan"), float("inf"), float("-inf"), "NaN", "Infinity", "-Infinity"]
+    ),
+)
+def test_non_finite_operands_refuse_on_every_scalar_op(op: Op, value: float | str) -> None:
+    """RFC 0015 D5 + decision 15: a non-finite operand fails open — ``lt
+    'NaN'`` matches every row on Postgres — so it is refused on every
+    operator taking scalars, membership lists included, in **both** carrier
+    forms. The float form refuses at construction; the string carrier is
+    parsed against the dimension's declared type at rendering, before any
+    SQL exists."""
+    if isinstance(value, float):
+        with pytest.raises(InvalidLiteral) as excinfo:
+            Predicate("amount", op, (value,))
+    else:
+        predicate = Predicate("amount", op, (value,))  # a carrier is well-formed here
+        with pytest.raises(InvalidLiteral) as excinfo:
+            to_where((predicate,), ((AMOUNT,),), mart=AOV_MART, entity="order")
+    assert excinfo.value.reason == "invalid_literal"
 
 
 # ....................... #

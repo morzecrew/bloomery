@@ -174,8 +174,12 @@ class Predicate:
     values: tuple[Scalar, ...] = ()
 
     def __post_init__(self) -> None:
-        if not self.dimension:
-            raise InvalidRequest("a filter needs a dimension name")
+        # The annotation is a promise untyped callers may break — validate
+        # at runtime (the same discipline OrderSpec applies to `field`).
+        dimension = cast("object", self.dimension)
+        if not isinstance(dimension, str) or not dimension:
+            msg = f"a filter needs a non-empty string dimension name, got {dimension!r}"
+            raise InvalidRequest(msg)
         try:
             op = Op(self.op)
         except ValueError:
@@ -235,6 +239,16 @@ class AnyOf:
     predicates: tuple[Predicate, ...]
 
     def __post_init__(self) -> None:
+        # The container itself is validated first: a list passes an
+        # emptiness check but stays mutable after construction, which a
+        # frozen value object may not be (RFC 0015 D-Q3).
+        predicates = cast("object", self.predicates)
+        if not isinstance(predicates, tuple):
+            msg = (
+                "an any_of group needs tuple predicate members — a mutable "
+                f"container is not a frozen value object, got {type(predicates).__name__!r}"
+            )
+            raise InvalidRequest(msg)
         if not self.predicates:
             raise InvalidRequest("an any_of group needs at least one predicate")
         for member in self.predicates:

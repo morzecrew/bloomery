@@ -85,9 +85,13 @@ def test_string_op_spellings_coerce_to_the_enum() -> None:
     assert predicate.op is Op.EQ
 
 
-def test_empty_dimension_is_refused() -> None:
-    with pytest.raises(InvalidRequest, match="dimension name"):
-        Predicate("", Op.EQ, ("A",))
+@pytest.mark.parametrize("dimension", ["", 123, None, ("store",)])
+def test_dimension_must_be_a_non_empty_string(dimension: object) -> None:
+    # The same runtime discipline OrderSpec applies to `field`: a truthy
+    # non-string (123) would otherwise sail past an emptiness check and
+    # reach name resolution as an ill-typed value.
+    with pytest.raises(InvalidRequest, match="non-empty string dimension name"):
+        Predicate(dimension, Op.EQ, ("A",))  # type: ignore[arg-type]
 
 
 def test_non_scalar_values_are_refused() -> None:
@@ -119,13 +123,17 @@ def test_floats_normalize_to_decimal_via_str() -> None:
         Decimal("-Infinity"),
     ],
 )
-@pytest.mark.parametrize("op", [Op.EQ, Op.NE, Op.GT, Op.GTE, Op.LT, Op.LTE])
-def test_non_finite_numerics_are_invalid_literals_on_every_ordering_op(
+@pytest.mark.parametrize(
+    "op", [Op.EQ, Op.NE, Op.GT, Op.GTE, Op.LT, Op.LTE, Op.IN, Op.NOT_IN]
+)
+def test_non_finite_numerics_are_invalid_literals_on_every_scalar_op(
     value: object, op: Op
 ) -> None:
-    """RFC 0015 D5's exhaustive matrix (with the string-carrier half in
-    ``test_filters``): a non-finite operand fails open — ``lt NaN`` matches
-    every row on Postgres — so every ordering operator refuses it."""
+    """RFC 0015 D5 + decision 15's exhaustive matrix (with the
+    string-carrier half in ``test_filters``): a non-finite operand fails
+    open — ``lt NaN`` matches every row on Postgres, and an ``in`` list
+    holding ``NaN`` is the same hazard — so every operator taking scalars
+    refuses it, membership lists included."""
     with pytest.raises(InvalidLiteral) as excinfo:
         Predicate("amount", op, (value,))  # type: ignore[arg-type]
     assert excinfo.value.reason == "invalid_literal"
@@ -164,6 +172,15 @@ def test_any_of_may_span_different_dimensions() -> None:
 def test_empty_any_of_is_refused() -> None:
     with pytest.raises(InvalidRequest, match="at least one predicate"):
         AnyOf(())
+
+
+def test_any_of_needs_a_tuple_container() -> None:
+    # A list passes the emptiness check but stays mutable after
+    # construction — a frozen value object may not hold one.
+    members = [Predicate("region", Op.EQ, ("EU",))]
+    with pytest.raises(InvalidRequest, match="tuple predicate members"):
+        AnyOf(members)  # type: ignore[arg-type]
+    assert AnyOf(tuple(members)).predicates == tuple(members)
 
 
 def test_nested_any_of_is_unrepresentable() -> None:

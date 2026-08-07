@@ -167,8 +167,12 @@ def test_string_carrier_parses_against_decimal_dimensions() -> None:
 
 
 @pytest.mark.parametrize("carrier", ["NaN", "Infinity", "-Infinity", "inf", "nan"])
-@pytest.mark.parametrize("op", [Op.EQ, Op.NE, Op.GT, Op.GTE, Op.LT, Op.LTE])
+@pytest.mark.parametrize(
+    "op", [Op.EQ, Op.NE, Op.GT, Op.GTE, Op.LT, Op.LTE, Op.IN, Op.NOT_IN]
+)
 def test_non_finite_string_carriers_are_invalid_literals(carrier: str, op: Op) -> None:
+    """RFC 0015 D5 + decision 15: the carrier's non-finite refusal covers
+    ``in``/``not_in`` membership members too, not only the ordering ops."""
     with pytest.raises(InvalidLiteral) as excinfo:
         render(Predicate("amount", op, (carrier,)), AMOUNT)
     assert excinfo.value.reason == "invalid_literal"

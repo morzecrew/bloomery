@@ -81,7 +81,12 @@ exported as `bloomery.planner.KNOWN_UNSUPPORTED`:
 ```python
 from bloomery.planner import parse_filter_json
 
-filters = parse_filter_json({"carrier": ["DHL", "UPS"], "$or": [{"region": "EU"}, {"region": "UK"}]})
+filters = parse_filter_json(
+    {
+        "customer_id": {"$neq": "internal"},
+        "$or": [{"ordered_month": {"$gte": "2024-01-01"}}, {"ordered_month": "2023-12-01"}],
+    }
+)  # → (Predicate(…), AnyOf(…)) — pass straight to MetricRequest(filters=…)
 ```
 
 The runnable version of both snippets lives in

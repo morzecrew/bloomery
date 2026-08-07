@@ -140,6 +140,11 @@ _REFUSED_OPERATORS: Final[dict[str, type[UnsupportedFilter]]] = {
     "$empty": UnsupportedTextOperator,
 }
 
+#: Absent-vs-explicit-null sentinel for the sort ``nulls`` key: an omitted
+#: key takes the canonical default, while an explicit ``"nulls": null`` is
+#: a malformed placement (``InvalidRequest``) — the two must not collapse.
+_ABSENT: Final = object()
+
 _REFUSAL_REASONS: Final[dict[str, str]] = {
     "$superset": "marts are flattened and scalar — no array columns exist to relate",
     "$subset": "marts are flattened and scalar — no array columns exist to relate",
@@ -439,9 +444,14 @@ def parse_sort_json(payload: Mapping[str, object]) -> tuple[OrderSpec, ...]:
     "nulls": …}}`` — into :class:`OrderSpec` terms, in document order.
 
     A ``nulls`` placement equal to the canonical default (``first`` for
-    asc, ``last`` for desc) is redundant and dropped; anything else refuses
-    with :class:`~bloomery.errors.UnsupportedSortNulls` (RFC 0015 D-Q6 —
+    asc, ``last`` for desc) is redundant and dropped; a well-formed
+    non-default placement refuses with
+    :class:`~bloomery.errors.UnsupportedSortNulls` (RFC 0015 D-Q6 —
     accepting-and-dropping a meaningful placement is worse than refusing).
+    A **present** ``nulls`` key must hold exactly ``"first"`` or ``"last"``:
+    a wrong type, an explicit ``null``, or an unknown word is malformed
+    input (:class:`~bloomery.errors.InvalidRequest`), not a reviewed
+    refusal. Omitting the key is the canonical default.
     """
     document = _require_mapping(payload, what="a sort document")
     specs: list[OrderSpec] = []
@@ -454,14 +464,16 @@ def parse_sort_json(payload: Mapping[str, object]) -> tuple[OrderSpec, ...]:
         direction: object
         nulls: object
         if isinstance(value, str):
-            direction, nulls = value, None
+            direction, nulls = value, _ABSENT
         elif isinstance(value, dict):
             spec_map = cast("dict[object, object]", value)
             unknown = sorted(str(key) for key in set(spec_map) - {"dir", "nulls"})
             if unknown:
                 raise InvalidRequest(f"sort on {field!r} has unknown keys {unknown}")
             direction = spec_map.get("dir", "asc")
-            nulls = spec_map.get("nulls")
+            # The sentinel keeps an omitted key (canonical default) distinct
+            # from an explicit `"nulls": null`, which is malformed input.
+            nulls = spec_map.get("nulls", _ABSENT)
         else:
             msg = f"sort on {field!r} must be 'asc', 'desc', or a dir/nulls mapping"
             raise InvalidRequest(msg)
@@ -470,13 +482,25 @@ def parse_sort_json(payload: Mapping[str, object]) -> tuple[OrderSpec, ...]:
             raise InvalidRequest(msg)
         literal_direction: Literal["asc", "desc"] = "asc" if direction == "asc" else "desc"
         canonical = "first" if literal_direction == "asc" else "last"
-        if nulls is not None and nulls != canonical:
-            msg = (
-                f"sort on {field!r} places nulls {nulls!r}, but the backend renders "
-                f"the canonical default only ({canonical!r} for {literal_direction!r}) — "
-                "refused rather than silently dropped (RFC 0015 D-Q6)"
-            )
-            raise UnsupportedSortNulls(msg, source_path=field)
+        if nulls is not _ABSENT:
+            # A present key must carry a well-formed placement: a wrong type,
+            # an explicit null, or an unknown word is malformed input, never
+            # a reviewed vocabulary refusal. Only a well-formed placement
+            # reaches the D-Q6 refusal below.
+            if nulls not in ("first", "last"):
+                msg = (
+                    f"sort on {field!r} sets nulls to {nulls!r} — a nulls "
+                    "placement is 'first' or 'last' (omit the key for the "
+                    "canonical default)"
+                )
+                raise InvalidRequest(msg)
+            if nulls != canonical:
+                msg = (
+                    f"sort on {field!r} places nulls {nulls!r}, but the backend renders "
+                    f"the canonical default only ({canonical!r} for {literal_direction!r}) — "
+                    "refused rather than silently dropped (RFC 0015 D-Q6)"
+                )
+                raise UnsupportedSortNulls(msg, source_path=field)
         specs.append(OrderSpec(field=field, direction=literal_direction))
     return tuple(specs)
 

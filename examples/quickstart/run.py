@@ -1,5 +1,6 @@
 """Quickstart: compile the specs in this directory to SQLMesh artifacts,
-write them to ./out, then plan one metric request against the same specs.
+write them to ./out, then plan one metric request — filters built through
+the JSON front door — against the same specs.
 
 Run from the repository root:
 
@@ -19,9 +20,18 @@ from bloomery import (
     load_project,
 )
 from bloomery.naming import DefaultNaming
+from bloomery.planner import parse_filter_json
 
 HERE = Path(__file__).parent
 OUT = HERE / "out"
+
+#: The Mongo-flavoured filter document the front door parses: one field map
+#: (the `$eq` scalar shortcut) plus a disjunction. It normalizes to two CNF
+#: clauses — an implicit AND of a `Predicate` and one `AnyOf` group.
+FILTER_JSON = {
+    "customer_id": {"$neq": "internal"},
+    "$or": [{"ordered_month": {"$gte": "2024-01-01"}}, {"ordered_month": "2023-12-01"}],
+}
 
 
 def main() -> None:
@@ -45,13 +55,22 @@ def main() -> None:
         destination.write_text(artifact.content)
         print(f"wrote {destination.relative_to(HERE)}")
 
+    # Filters can arrive as JSON: parse_filter_json normalizes the
+    # Mongo-flavoured document (De Morgan, complement inversion, capped CNF)
+    # into typed clauses, refusing only from the closed KNOWN_UNSUPPORTED
+    # list. The typed constructors remain the primary path.
+    filters = parse_filter_json(FILTER_JSON)
+    print(f"\nparsed {len(filters)} filter clause(s) from JSON")
+    for clause in filters:
+        print(f"  {clause}")
+
     # Plan one metric request over the mart the specs declared. The planner
     # renders SQL and never executes it — run plan.sql wherever you like.
     naming = DefaultNaming()
     planner = MetricFlowPlanner(LruManifestHydrator(naming), naming=naming)
     plan = planner.plan(
         build_project_ir(project, catalog=catalog),
-        MetricRequest(metrics=("revenue",), dimensions=("ordered_month",)),
+        MetricRequest(metrics=("revenue",), dimensions=("ordered_month",), filters=filters),
         dialect="duckdb",
     )
     print("\n-- plan.sql --")

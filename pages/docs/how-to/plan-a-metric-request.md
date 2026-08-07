@@ -107,11 +107,16 @@ request = MetricRequest(metrics=("revenue",), filters=clauses)
 ```
 
 Scalars are the `$eq` shortcut, arrays the `$in` shortcut, and `null` means
-`is_null: true`. What cannot cross is refused with a typed `UnsupportedFilter` carrying
-a stable `.reason` code from the closed list `bloomery.planner.KNOWN_UNSUPPORTED` —
-a reviewed gap, never drift. `parse_sort_json` and `parse_page_json` ship alongside
-(sort is direction-only; pagination is limit-only — non-default nulls placement,
-offsets, and cursors are refused, never silently dropped).
+`is_null: true`. What cannot cross is refused *after normalization* with a typed
+`UnsupportedFilter` carrying a stable `.reason` code from the closed list
+`bloomery.planner.KNOWN_UNSUPPORTED` — a reviewed gap, never drift. A **malformed**
+document is a different class: a non-mapping payload, a field map of the wrong shape, an
+unknown `$op`, an operand of the wrong type — these are `InvalidRequest`, because a
+schema error is not a reviewed refusal and never enters the closed list.
+`parse_sort_json` and `parse_page_json` ship alongside and split the same way (sort is
+direction-only; pagination is limit-only — a well-formed non-default nulls placement, a
+non-zero offset, and cursors are refused rather than silently dropped, while a
+malformed `nulls`, `limit`, or `offset` value is `InvalidRequest`).
 
 ## What comes back
 

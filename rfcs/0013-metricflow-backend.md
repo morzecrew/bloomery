@@ -296,6 +296,16 @@ fuzz test (`' OR 1=1 --`, `{{ Dimension('x') }}`, unicode quote variants, embedd
 newlines) asserts via sqlglot that the parsed SQL's predicate structure is unchanged and
 the scanned relations are exactly the expected mart. **Merge-blocking.**
 
+> **Superseded in part (2026-08-07, M14 — see D16 and RFC 0015 §5.4).** The paragraph
+> above is the historical M6 contract. The current normative renderer contract is D16:
+> rendering is per-`Clause` (`FilterExpr` is now `Predicate`/`AnyOf`/`Clause`, one
+> `where_constraints` entry per clause, an `AnyOf` group **always** parenthesized), and
+> rule **(4)** no longer holds — `contains` is removed, and `like`/`ilike` operands are
+> SQL `LIKE` **patterns** with caller-owned wildcards and a fixed `ESCAPE '\'`: the
+> renderer escapes nothing beyond injection safety. Rules (1), (2), (3), and (5) stand
+> verbatim and remain merge-blocking, with the non-finite refusal re-homed from
+> `FilterTypeMismatch` to `InvalidLiteral`.
+
 ### 5.7 Row policy
 
 `RowPolicy` stays a value object (RFC 0011 D7 tenant-agnosticism unchanged), applied as an
@@ -437,7 +447,7 @@ record; the M4.5 gate is cleared (facts folded into §3, §5.7, §5.9, §9, D14)
 | 5 | **Reverses RFC 0008 D6:** bloomery owns the date dimension. MetricFlow requires a declared time spine; the catalog defines the date dimension once; the SQLMesh emitter builds `gold.dim_date` and `PydanticTimeSpine` points at it. RFC 0008 amended in parallel. |
 | 6 | Mart-coverage precheck runs **before** delegation and preserves the refusal policy: all measures on one mart (else `UnreachableAtGrain` with RFC 0011's exact per-metric grain/mart message), all dimensions flattened onto it, multi-candidate → `cost_hint` then lexicographic. MetricFlow could plan multi-hop joins; we refuse first — refuse-don't-guess enforced twice (coverage, then MetricFlow's resolver). Belt and braces. |
 | 7 | `planner/names.py` owns the bidirectional bloomery↔dunder mapping (`{entity}__{dim}`, `{entity}__{time_dim}__{grain}`, `metric_time__{grain}`, `-metric` for desc), keyed on the **primary entity** name (not the semantic model name). Callers never see dunder names. `metric_time` is reserved, rejected at spec validation. Property test: every emitter-produced dimension round-trips through `names.py`. |
-| 8 | Filters (Jinja `where_constraints`) are the highest-risk surface: values never interpolated raw — typed per-dialect literal renderer or bind parameters; dimension names only from validated `DimensionRef`s via `names.py`; values type-checked against the dimension (`FilterTypeMismatch`); `contains`/`like` escape wildcards. Adversarial fuzz property test (injection strings, template syntax, unicode quotes, newlines) asserts parsed-SQL predicate structure unchanged and scanned relations exactly the expected mart — **merge-blocking**. |
+| 8 | Filters (Jinja `where_constraints`) are the highest-risk surface: values never interpolated raw — typed per-dialect literal renderer or bind parameters; dimension names only from validated `DimensionRef`s via `names.py`; values type-checked against the dimension (`FilterTypeMismatch`); `contains`/`like` escape wildcards. Adversarial fuzz property test (injection strings, template syntax, unicode quotes, newlines) asserts parsed-SQL predicate structure unchanged and scanned relations exactly the expected mart — **merge-blocking**. *(Superseded by D16 — see §5.6 note.)* |
 | 9 | `RowPolicy` stays a value object, applied as an additional where-constraint always prepended to user filters. The row-policy-survives-every-path AST test survives verbatim and stays merge-blocking, now explicitly covering ratio/semi-additive/cumulative requests (multiple subqueries — the predicate must appear in every scan). V4 verifies MetricFlow pushes constraints into inner scans; if not, that is a security defect and the escape hatch is per-tenant filtered node relations (a change to D3's emitter, not the approach). |
 | 10 | Explanations are built from the structured `MetricFlowExplainResult.dataflow_plan`/`query_spec`, never scraped from SQL comments; output shape unchanged from RFC 0011, translated to bloomery names. |
 | 11 | Version-drift canary `test_metricflow_api_surface` is mandatory — we depend on internals with no stability guarantee; upgrades are deliberate PRs with goldens regenerated. |
@@ -446,6 +456,11 @@ record; the M4.5 gate is cleared (facts folded into §3, §5.7, §5.9, §9, D14)
 | 14 | **M4.5 complete (2026-08-07): V1–V4 all answered PASS** ([`spikes/metricflow/VERIFICATION.md`](../spikes/metricflow/VERIFICATION.md)) — V1: joint resolution succeeds on Python 3.12/3.13/3.14, no `requires-python` change, v1-shim/v2 coexistence clean in both import orders; V2: issue #241 fixed in 0.211.0 (by-month returns the full series); V3: cold hydration 10.5 ms median, 1.54 MB/lookup (RFC 0014 budgets confirmed); V4: row-policy predicate in every scan pre-aggregation, escape hatch unneeded. `metricflow==0.211.*` is **confirmed** as the runtime pin — it resolves jointly with the sqlmesh dev tooling (sqlmesh 0.236.1, sqlglot stays `>=30.8,<31` resolving 30.8.0). Design cleared for implementation (M6+). |
 | 15 | *(Appended 2026-08-07, M6.)* Post-`transform()` re-sort of `input_measures`: MetricFlow's `AddInputMetricMeasuresRule` collects a metric's `input_measures` through a builtin `set` (hash-seed-dependent order, surfaced by RATIO metrics), so `emit_manifest` sorts `metric.type_params.input_measures` by measure name after `transform()` — the transformed manifest is hashed, cached (RFC 0014 D5), and golden-byte-compared (R1); without the re-sort, ordering drift would flake goldens and silently defeat the cache. The determinism guarantee is therefore ours, applied *after* the upstream transform, not assumed of it. |
 | 16 | *(Appended 2026-08-07, M14 — RFC 0015.)* §5.6/R6 rendering is now per-`Clause`: one `where_constraints` entry per clause, an `AnyOf` disjunction group **always** parenthesized (`policy AND a OR b` leaks every row matching `b`), policy first via `RowPolicy.as_clause()`. `like`/`ilike` operands are SQL `LIKE` patterns (caller-owned wildcards, fixed `ESCAPE '\'`; the shipped `contains` auto-`%…%` wrapping is removed); `ilike` lowers dialect-neutrally as `LOWER(x) LIKE LOWER(pattern)` (Trino has no `ILIKE`). All D8 safety rules — names only via `names.py`, typed literals, quote doubling, NUL refusal, `FilterTypeMismatch` never a cast — are unchanged and remain merge-blocking; the non-finite refusal re-homes from `FilterTypeMismatch` to `InvalidLiteral`. |
+
+*Supersession note (2026-08-07, M14).* Where **D8** and **D16** disagree — `FilterExpr` as
+the rendered unit, and `contains`/`like` wildcard escaping — **D16 is the normative
+contract** (see the §5.6 note and RFC 0015 §5.4/decision 13). D8's text is preserved as the
+historical M6 record, not amended in place; one contract, history intact.
 
 ## 12. Phasing
 

@@ -340,6 +340,15 @@ def test_sort_spec_form_with_default_nulls_is_dropped() -> None:
     ) == (OrderSpec("revenue", "desc"), OrderSpec("store", "asc"))
 
 
+def test_omitted_nulls_key_takes_the_canonical_default() -> None:
+    # Key omission is the canonical default — distinct from an explicit
+    # `"nulls": null`, which is malformed (see the malformed-sort matrix).
+    assert parse_sort_json({"revenue": {"dir": "desc"}, "store": {}}) == (
+        OrderSpec("revenue", "desc"),
+        OrderSpec("store", "asc"),
+    )
+
+
 @pytest.mark.parametrize(
     "spec", [{"dir": "asc", "nulls": "last"}, {"dir": "desc", "nulls": "first"}]
 )
@@ -349,10 +358,25 @@ def test_non_default_nulls_placement_is_refused(spec: dict[str, str]) -> None:
     assert excinfo.value.reason == "unsupported_sort_nulls"
 
 
-@pytest.mark.parametrize("spec", ["ascending", {"dir": "up"}, {"order": "asc"}, 1])
+@pytest.mark.parametrize(
+    "spec",
+    [
+        "ascending",
+        {"dir": "up"},
+        {"order": "asc"},
+        1,
+        # A *present* `nulls` key must hold exactly "first"/"last": a wrong
+        # type, an unknown word, or an explicit null is a schema error, not
+        # the reviewed D-Q6 refusal (which needs a well-formed placement).
+        {"dir": "asc", "nulls": 5},
+        {"dir": "asc", "nulls": "middle"},
+        {"dir": "asc", "nulls": None},
+    ],
+)
 def test_malformed_sort_is_invalid_request(spec: object) -> None:
-    with pytest.raises(InvalidRequest):
+    with pytest.raises(InvalidRequest) as excinfo:
         parse_sort_json({"revenue": spec})
+    assert not isinstance(excinfo.value, UnsupportedFilter)  # not a reviewed refusal
 
 
 @pytest.mark.parametrize("payload", [["revenue"], "revenue", 1])
