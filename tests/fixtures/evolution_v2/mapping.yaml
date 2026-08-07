@@ -1,0 +1,14 @@
+mapping_version: 1
+source: shop__order_lines
+target: order_item
+key:
+  order_id: {from: "$.order_id", transform: [to_string]}
+  line_no: {from: "$.index", transform: [to_int]}
+fields:
+  unit_price:
+    recipe: direct
+    from: {unit_price: "$.price"}
+  quantity: {from: "$.qty", transform: [to_int]}
+  discount:
+    recipe: direct
+    from: {discount: "$.discount"}

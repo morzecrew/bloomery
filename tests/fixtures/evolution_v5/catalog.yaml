@@ -1,0 +1,27 @@
+# Evolution-sequence catalog (RFC 0007 §5.5, RFC 0009): stable across
+# v1..v5 — the sequence evolves the project specs, never the vertical.
+catalog_version: 1
+vertical: ecom_retail
+
+canonical_fields:
+  unit_price:
+    entity: order_item
+    type: decimal(12,4)
+    unit: currency
+    tax_basis: net
+    recipes:
+      - {id: direct, requires: [unit_price]}
+      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+  quantity:
+    entity: order_item
+    type: int
+    unit: count
+    recipes:
+      - {id: direct, requires: [quantity]}
+  discount:
+    entity: order_item
+    type: decimal(12,4)
+    unit: currency
+    tax_basis: net
+    recipes:
+      - {id: direct, requires: [discount]}

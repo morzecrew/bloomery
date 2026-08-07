@@ -1,0 +1,16 @@
+# v3 — v2 plus: quantity → qty via the explicit renamed_from annotation
+# (RENAME, RFC 0007 D3); metrics gain net_revenue (ADDITIVE). The canonical
+# link stays `quantity` — metrics speak canonical names, so the column
+# rename never touches them.
+spec_version: 1
+entities:
+  order_item:
+    grain: one row per line on an order
+    key: [order_id, line_no]
+    scd: type1
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      unit_price: {type: "decimal(12,4)", canonical: unit_price}
+      qty: {type: int, canonical: quantity, renamed_from: quantity}
+      discount: {type: "decimal(12,4)", canonical: discount}

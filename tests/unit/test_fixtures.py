@@ -105,6 +105,25 @@ def test_role_playing_dates_loads_clean() -> None:
     assert mart.measures == ("revenue",)
 
 
+@pytest.mark.parametrize("version", [1, 2, 3, 4, 5])
+def test_evolution_versions_load_clean(version: int) -> None:
+    # The RFC 0007 §5.5 spec-evolution sequence (fixtures per RFC 0009).
+    project = load_fixture_project(f"evolution_v{version}")
+    assert set(project.entity_model.entities) == {"order_item"}
+    fields = project.entity_model.entities["order_item"].fields
+    assert ("discount" in fields) == (version >= 2)  # v2 adds the optional column
+    assert ("qty" in fields) == (version >= 3)  # v3 renames quantity → qty
+    if version == 3:
+        assert fields["qty"].renamed_from == "quantity"  # one-shot annotation…
+    if version >= 4:
+        assert fields["qty"].renamed_from is None  # …cleaned after it applies
+    assert project.metric_set is not None
+    assert ("net_revenue" in project.metric_set.metrics) == (version in {3, 4})
+    unit_price = project.mappings[0].fields["unit_price"]
+    assert isinstance(unit_price, RecipeFieldMapping)
+    assert unit_price.recipe == ("from_total" if version >= 4 else "direct")
+
+
 def test_path_conflict_loads_clean() -> None:
     project = load_fixture_project("path_conflict")
     net_price = project.mappings[0].fields["net_price"]

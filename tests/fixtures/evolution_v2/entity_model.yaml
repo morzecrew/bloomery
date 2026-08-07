@@ -1,0 +1,14 @@
+# v2 — v1 plus: optional discount added (ADDITIVE); unit_price widened
+# decimal(10,2) → decimal(12,4) (WIDENING per the RFC 0004 lattice).
+spec_version: 1
+entities:
+  order_item:
+    grain: one row per line on an order
+    key: [order_id, line_no]
+    scd: type1
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      unit_price: {type: "decimal(12,4)", canonical: unit_price}
+      quantity: {type: int, canonical: quantity}
+      discount: {type: "decimal(12,4)", canonical: discount}

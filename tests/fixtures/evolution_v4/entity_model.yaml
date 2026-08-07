@@ -1,0 +1,15 @@
+# v4 — v3 with the one-shot renamed_from annotation cleaned up (RFC 0007
+# D3) and unit_price switched to the from_total recipe in the mapping
+# (RESTATING: same name and type, different meaning).
+spec_version: 1
+entities:
+  order_item:
+    grain: one row per line on an order
+    key: [order_id, line_no]
+    scd: type1
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      unit_price: {type: "decimal(12,4)", canonical: unit_price}
+      qty: {type: int, canonical: quantity}
+      discount: {type: "decimal(12,4)", canonical: discount}

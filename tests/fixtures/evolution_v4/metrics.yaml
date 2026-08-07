@@ -1,0 +1,14 @@
+metrics_version: 1
+metrics:
+  gross_revenue:
+    requires: [unit_price, quantity]
+    grain: order_item
+    additivity: additive
+    agg: sum
+    expr: "unit_price * quantity"
+  net_revenue:
+    requires: [unit_price, quantity, discount]
+    grain: order_item
+    additivity: additive
+    agg: sum
+    expr: "unit_price * quantity - discount"

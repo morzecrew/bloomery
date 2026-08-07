@@ -1,0 +1,13 @@
+# v1 — the RFC 0007 §5.5 baseline: order_item with a direct-recipe
+# unit_price at decimal(10,2), plus quantity.
+spec_version: 1
+entities:
+  order_item:
+    grain: one row per line on an order
+    key: [order_id, line_no]
+    scd: type1
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      unit_price: {type: "decimal(10,2)", canonical: unit_price}
+      quantity: {type: int, canonical: quantity}

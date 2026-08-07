@@ -4,7 +4,8 @@ deterministically into SQLMesh, dbt, and Cube artifacts.
 Public API (spec §8): the pure loaders (``load_catalog``, ``load_project``),
 compilation (``compile_project`` with ``Target``), analysis without emission
 (``resolve`` / ``Resolution``, ``build_project_ir``, ``project_fingerprint``),
-the request-time planner (``MetricFlowPlanner`` with the ``MetricRequest`` /
+spec-diff planning (``plan`` with ``Plan`` / ``Change`` / ``ChangeClass`` /
+``BackfillScope`` — RFC 0007), the request-time planner (``MetricFlowPlanner`` with the ``MetricRequest`` /
 ``QueryPlan`` port types and ``RowPolicy`` — RFC 0011/0013), manifest
 hydration (``LruManifestHydrator``, ``HydrationKey`` — RFC 0014), the
 extension points (``register_transform``, ``register_emitter``), and the
@@ -16,6 +17,7 @@ from bloomery.compile import Target, compile_project
 from bloomery.emit import register_emitter
 from bloomery.errors import BloomeryError
 from bloomery.ir import project_fingerprint
+from bloomery.plan import BackfillScope, Change, ChangeClass, Plan, plan
 from bloomery.planner import (
     ColumnDescriptor,
     FilterExpr,
@@ -32,7 +34,10 @@ from bloomery.spec import load_catalog, load_project
 from bloomery.transforms import register_transform
 
 __all__ = [
+    "BackfillScope",
     "BloomeryError",
+    "Change",
+    "ChangeClass",
     "ColumnDescriptor",
     "FilterExpr",
     "HydrationKey",
@@ -40,6 +45,7 @@ __all__ = [
     "MetricFlowPlanner",
     "MetricRequest",
     "OrderSpec",
+    "Plan",
     "QueryPlan",
     "Resolution",
     "RowPolicy",
@@ -49,6 +55,7 @@ __all__ = [
     "compile_project",
     "load_catalog",
     "load_project",
+    "plan",
     "project_fingerprint",
     "register_emitter",
     "register_transform",

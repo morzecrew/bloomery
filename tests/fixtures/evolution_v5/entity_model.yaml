@@ -1,0 +1,17 @@
+# v5 — v4 with net_revenue removed (BREAKING, returned not raised) and
+# scd flipped type1 → type2 (entity-level BREAKING, RFC 0007 D7). The
+# discount column stays: dropping it while net_revenue still referenced it
+# is the v4 → v5′ ContractViolation case (D5) — deprecation lands here
+# first, the drop may follow in a later version.
+spec_version: 1
+entities:
+  order_item:
+    grain: one row per line on an order
+    key: [order_id, line_no]
+    scd: type2
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      unit_price: {type: "decimal(12,4)", canonical: unit_price}
+      qty: {type: int, canonical: quantity}
+      discount: {type: "decimal(12,4)", canonical: discount}
