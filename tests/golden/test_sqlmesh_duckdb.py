@@ -31,10 +31,18 @@ EXPECTED_PATHS = {
         "models/silver/order.sql",
     ],
     "scd2_customers": ["models/silver/customer.sql"],
+    # The quality-carrying fixture (RFC 0016): the entity model gains the
+    # generated blocking audit on the ingestion metadata (D21) and one audit
+    # per ``on_fail: fail`` rule, plus the reject model the quarantine
+    # disposition routes into and the replay merge that drains it (§5.6).
     "semi_additive_inventory": [
+        "audits/inventory_level_ingestion_metadata.sql",
+        "audits/inventory_level_stock_level_not_null.sql",
         "models/gold/dim_date.sql",
         "models/gold/mart_inventory.sql",
         "models/silver/inventory_level.sql",
+        "models/silver/inventory_level__reject.sql",
+        "replay/inventory_level.sql",
     ],
 }
 

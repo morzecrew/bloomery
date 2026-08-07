@@ -131,6 +131,28 @@ def _config_line(materialization: Materialization, key: tuple[str, ...]) -> str:
     return f"{{{{ config(materialized='incremental', {_unique_key(key)}) }}}}"
 
 
+def _refuse_quarantine(entity: EntityIR) -> None:
+    """dbt has no reject/replay lowering in this wave (RFC 0016 §5.4).
+
+    Target coverage is stated honestly rather than approximated: SQLMesh emits
+    the full quality set (split models, reject tables, replay merge), and dbt
+    raises here for the reject/replay artifacts — the port-proof scope
+    (RFC 0008 §5.5, D3: fail loud, never degrade silently). Flag-only quality
+    surfaces still emit, because ``_quality_flags`` is the *same* shared
+    SELECT both targets render.
+    """
+    if entity.quarantine is None:
+        return
+    msg = (
+        f"entity {entity.name!r} declares a quarantine policy, which needs the "
+        f"{entity.name}__reject model and its replay merge (RFC 0016 §5.6); the dbt "
+        "emitter lowers neither in this wave — it is the compatibility target, minimal "
+        "but honest (RFC 0008 §5.5). Fix: compile this project for the sqlmesh target, or "
+        "reduce the entity's rules to flag dispositions"
+    )
+    raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}.quarantine")
+
+
 def _model_artifact(
     *, path: str, config_line: str, select: str, ctx: EmitContext
 ) -> EmittedArtifact:
@@ -339,6 +361,7 @@ class DbtEmitter:
         content ending in exactly one newline (RFC 0003 §5.5 rule 5)."""
         artifacts: list[EmittedArtifact] = [_project_artifact(ctx)]
         for entity in ir.entities:
+            _refuse_quarantine(entity)
             if entity.scd is SCDKind.TYPE2:
                 artifacts.append(_snapshot_artifact(entity, ctx))
                 continue

@@ -9,9 +9,11 @@ import pytest
 import yaml
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from sqlglot import exp, parse_one
+from sqlglot import exp, parse, parse_one
 
 from bloomery import Target, compile_project, load_project
+from bloomery.emit import ArtifactKind, EmittedArtifact
+from bloomery.errors import UnsupportedByTarget
 from support.compiling import compile_fixture, extract_select, fixture_sources, load_fixture
 
 pytestmark = pytest.mark.property
@@ -26,6 +28,26 @@ FIXTURE_NAMES = [
 ]
 
 DIALECTS = ["duckdb", "postgres", "trino"]
+
+
+def compile_or_refusal(
+    name: str, target: Target, dialect: str
+) -> tuple[EmittedArtifact, ...] | str:
+    """Artifacts, or the refusal message for a cell that cannot be emitted.
+
+    Some (fixture × target × dialect) cells are *deliberately* unemittable:
+    ``semi_additive_inventory`` carries the RFC 0016 quality surface, which
+    dbt has no reject/replay lowering for (§5.4's target-coverage note) and
+    which Postgres cannot express the coercion-failure marker for (§5.2 — it
+    has no ``TRY_CAST``). Both refuse loudly rather than approximating
+    (RFC 0008 D3), and the refusal is as much a compile output as the SQL is —
+    so determinism has to cover it too.
+    """
+    try:
+        return compile_fixture(name, target=target, dialect=dialect)
+    except UnsupportedByTarget as refusal:
+        return str(refusal)
+
 
 CUBE_FIXTURES = [
     "ecom_basic",
@@ -42,8 +64,8 @@ CUBE_FIXTURES = [
     dialect=st.sampled_from(DIALECTS),
 )
 def test_compile_twice_yields_identical_bytes(name: str, target: Target, dialect: str) -> None:
-    first = compile_fixture(name, target=target, dialect=dialect)
-    second = compile_fixture(name, target=target, dialect=dialect)
+    first = compile_or_refusal(name, target, dialect)
+    second = compile_or_refusal(name, target, dialect)
     assert first == second  # paths, contents, and checksums — full byte identity
 
 
@@ -67,8 +89,20 @@ def _sql_body(target: Target, content: str) -> str:
 def test_emitted_sql_parses_under_the_target_dialect(
     name: str, target: Target, dialect: str
 ) -> None:
-    for artifact in compile_fixture(name, target=target, dialect=dialect):
+    emitted = compile_or_refusal(name, target, dialect)
+    if isinstance(emitted, str):
+        return  # a deliberate refusal — there is no SQL to parse
+    for artifact in emitted:
         if not artifact.path.endswith(".sql"):
+            continue
+        if artifact.kind is ArtifactKind.REPLAY:
+            # The replay artifact is a statement script, not a SELECT
+            # (RFC 0016 §5.6): the caller runs it, so what must hold is that
+            # every statement parses under the dialect it was rendered for.
+            body = artifact.content.partition("-- artifact and never")[2].partition("\n\n")[2]
+            statements = [node for node in parse(body, dialect=dialect) if node is not None]
+            assert statements
+            assert all(isinstance(node, (exp.Merge, exp.Update)) for node in statements)
             continue
         # Audit bodies select from SQLMesh's @this_model macro — substitute a
         # plain relation so the SELECT itself must still parse (RFC 0008 D4).
@@ -107,5 +141,11 @@ def test_minimal_select_columns_match_declared_fields_both_directions() -> None:
     parsed = parse_one(extract_select(artifact.content), dialect="duckdb")
     assert isinstance(parsed, exp.Select)
     emitted = {projection.alias_or_name for projection in parsed.expressions}
-    declared = set(project.entity_model.entities["event"].fields)
+    # Every silver entity also carries the two generated quality columns
+    # (RFC 0016 §5.5) — they are compiler-owned, reserved at spec parse, and
+    # therefore never declared fields.
+    declared = set(project.entity_model.entities["event"].fields) | {
+        "_quality_flags",
+        "_quality_ok",
+    }
     assert emitted == declared

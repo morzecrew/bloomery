@@ -47,6 +47,16 @@ class DialectFeature(StrEnum):
     #: ``ARRAY(VARCHAR)``); a dialect without one lowers ``_quality_flags``
     #: and ``failed_rules`` to the comma-delimited string fallback (D23).
     ARRAY = "array"
+    #: A cast that yields NULL instead of raising — the shape the
+    #: coercion-failure marker needs (RFC 0016 §5.2, D3: "``TRY_CAST``-shaped
+    #: lowering **per dialect**"). DuckDB and Trino have ``TRY_CAST``;
+    #: Postgres has no equivalent, and SQLGlot's postgres generator renders
+    #: :class:`sqlglot.exp.TryCast` as a plain ``CAST``. Silently accepting
+    #: that would turn "quarantine the uncastable row" into "abort the run" —
+    #: a degradation nobody asked for — so the capability is declared and an
+    #: entity carrying ``coercible`` rules refuses to emit on a dialect
+    #: without it (RFC 0008 D3: fail loud, never approximate).
+    TRY_CAST = "try_cast"
 
 
 class DialectPort(Protocol):

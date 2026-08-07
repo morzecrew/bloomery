@@ -9,7 +9,7 @@ from typing import ClassVar
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
-from bloomery.dialects.base import SQLGlotDialect
+from bloomery.dialects.base import DialectFeature, SQLGlotDialect
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -64,6 +64,14 @@ class PostgresDialect(SQLGlotDialect):
 
     name: str = "postgres"
     sqlglot_dialect: str = "postgres"
+    #: Everything but :attr:`DialectFeature.TRY_CAST`: Postgres has no
+    #: NULL-on-failure cast, and SQLGlot's postgres generator quietly renders
+    #: ``TRY_CAST`` as ``CAST``. Declaring the gap is what turns a silent
+    #: semantic downgrade of the coercion-failure marker (RFC 0016 §5.2) into
+    #: a loud :class:`~bloomery.errors.UnsupportedByTarget` at emit.
+    features: ClassVar[frozenset[DialectFeature]] = frozenset(DialectFeature) - {
+        DialectFeature.TRY_CAST
+    }
     scalar_types: ClassVar[dict[type[LogicalType], str]] = {
         StringType: "TEXT",
         IntType: "BIGINT",

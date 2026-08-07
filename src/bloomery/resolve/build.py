@@ -64,6 +64,13 @@ from bloomery.ir import (
     partition_specs,
 )
 from bloomery.marts import lower_marts
+from bloomery.quality import (
+    lower_dedupe,
+    lower_quality,
+    lower_quarantine,
+    lower_reconcile,
+    opts_in,
+)
 from bloomery.resolve.metrics import effective_metrics
 from bloomery.resolve.recipes import resolve_recipe
 from bloomery.resolve.refs import mapping_doc
@@ -94,6 +101,35 @@ __all__ = [
 def _field_type(entity_name: str, field_name: str, field: Field) -> LogicalType:
     path = f"entity_model: entities.{entity_name}.fields.{field_name}.type"
     return parse_type(field.type, source_path=path)
+
+
+def _identity_shape(node: Expression) -> Expression:
+    """The shipped produce-or-raise lowering: no marker, nothing rewritten."""
+    return node
+
+
+def _try_cast_shape(node: Expression) -> Expression:
+    """Rewrite every ``CAST`` in a lowered chain as ``TRY_CAST`` (RFC 0016
+    §5.2, D3).
+
+    Stage 2 of the fixed pipeline order changes from produce-or-raise to
+    "produce a value **or** a coercion-failure marker", and the marker is the
+    NULL a failed ``TRY_CAST`` yields. It is applied to the whole chain, not
+    only its terminal cast: an inner ``to_int`` that raises would abort the
+    run before the outer cast could mark anything, which is precisely the
+    behaviour the implicit ``coercible`` rule replaces.
+
+    Only entities that opt into the quality system are shaped this way (see
+    :func:`bloomery.quality.opts_in`); everything else keeps the shipped
+    produce-or-raise lowering.
+    """
+
+    def shaped(child: Expression) -> Expression:
+        if type(child) is exp.Cast:
+            return exp.TryCast(this=child.this, to=child.to)
+        return child
+
+    return node.transform(shaped)
 
 
 def _lower_chain(
@@ -222,6 +258,10 @@ def _build_entity(
     doc = mapping_doc(mapping)
     columns: list[ColumnIR] = []
     source_fields: list[SourceFieldIR] = []
+    # Stages 1–2 of the fixed pipeline order (RFC 0016 §5.4): extract, then
+    # transform. A quality-carrying entity's transforms lower to the
+    # coercion-failure-marker form, feeding the implicit ``coercible`` rule.
+    shape = _try_cast_shape if opts_in(entity, mapping) else _identity_shape
 
     for field_name in sorted(mapping.key):
         key_field = mapping.key[field_name]
@@ -234,7 +274,7 @@ def _build_entity(
             reg,
             source_path=f"{doc}: key.{field_name}",
         )
-        columns.append(_column_ir(field_name, field, declared, expr, catalog))
+        columns.append(_column_ir(field_name, field, declared, shape(expr), catalog))
         source_fields.append(
             SourceFieldIR(
                 target_field=field_name,
@@ -254,7 +294,7 @@ def _build_entity(
                 field_mapping, declared, mapping, field_name, project, catalog
             )
             columns.append(
-                _column_ir(field_name, field, declared, expr, catalog, recipe_id=recipe_id)
+                _column_ir(field_name, field, declared, shape(expr), catalog, recipe_id=recipe_id)
             )
             source_fields.extend(
                 SourceFieldIR(target_field=field_name, source_path=path)
@@ -268,7 +308,7 @@ def _build_entity(
                 reg,
                 source_path=f"{doc}: fields.{field_name}",
             )
-            columns.append(_column_ir(field_name, field, declared, expr, catalog))
+            columns.append(_column_ir(field_name, field, declared, shape(expr), catalog))
             source_fields.append(
                 SourceFieldIR(
                     target_field=field_name,
@@ -290,8 +330,17 @@ def _build_entity(
         source=SourceIR(
             relation=mapping.source,
             fields=tuple(sorted(source_fields, key=lambda f: (f.target_field, f.source_path))),
+            mapping_version=mapping.mapping_version,
+            unmapped=tuple(sorted(mapping.unmapped)),
         ),
         audits=(),  # populated by the guardrail stage: assert: lowering + reconcile (RFC 0006)
+        # Stages 3–6 (RFC 0016 §5.4): dedupe, field rules, row rules, route.
+        # The rules are one sorted tuple — the fixed pipeline order, not the
+        # node type, is what separates a field rule from a row rule, and
+        # emission renders the stages in that order.
+        quality=lower_quality(entity, mapping, project.entity_model.relationships),
+        dedupe=lower_dedupe(entity),
+        quarantine=lower_quarantine(entity),
     )
 
 
@@ -408,6 +457,9 @@ def build_project_ir(project: Project, catalog: Catalog | None = None) -> Projec
         relationships=_build_relationships(project),
         marts=(),  # attached below, once the flattener has the entity draft
         date_dimension=_build_date_dimension(catalog),
+        # Document-level reconcile checks (RFC 0016 §5.3): they relate two
+        # entities, so they belong to neither — they live on the root.
+        reconcile=lower_reconcile(project.entity_model),
     )
     # Mart flattening (RFC 0010 D6): pure, total — violations are re-derived
     # and raised by the guardrail stage below; only clean marts attach here.

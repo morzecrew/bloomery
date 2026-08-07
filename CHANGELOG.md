@@ -19,12 +19,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reserved field/dimension/role names now cover the generated data-quality and ingestion-metadata columns (`_quality_flags`, `_quality_ok`, `_load_id`, `_ingested_at`, `_source_row_id`, `has_quality_flags`) alongside `metric_time`; the refusal message names the RFC that owns each.
 
+- Every silver model now projects `_quality_flags` and `_quality_ok` (RFC 0016 §5.5). An entity with no quality rules carries the empty collection and `TRUE`, so the change is two projections, not a behaviour change — but it moves every silver golden, every dbt model, and every fingerprint.
+
+- An entity that declares any `quality:`/`quarantine:` surface lowers its transform chains `TRY_CAST`-shaped: a failed coercion produces the marker the implicit `coercible` rule disposes of, instead of aborting the run. Entities with no quality surface keep the shipped produce-or-raise lowering.
+
 ### Fixed
 
 - Docs site root no longer 404s before the first release: the dev docs deploy
   now sets the gh-pages root redirect while no released version exists.
 
 ### Added
+
+- Data quality, run-time half (RFC 0016 §5.3–§5.6): the new `bloomery/quality/` package lowers the closed rule catalogue into dialect-neutral predicates under a strict three-valued discipline (a NULL-involved comparison never fires — `not_null` and `coercible` are the only rules that own nulls), builds `_quality_flags`/`failed_rules` in one array-construct pass under one physical contract (array where the dialect has one, else the lexicographic comma-delimited string), and pins the dedupe total order.
+
+- SQLMesh emits the full quality set: the dedupe `QUALIFY` (one neutral AST, rendered natively on DuckDB and as a `ROW_NUMBER` subquery elsewhere), the two-way entity/reject split, a `<entity>__reject` model with a recomputable `reject_id`, a blocking audit on the bronze ingestion-metadata contract, a blocking audit per `on_fail: fail` rule, and a replay `MERGE` artifact bloomery emits and never executes. dbt raises `UnsupportedByTarget` for the reject/replay artifacts — the honest port-proof scope.
+
+- Seven compile-time data-quality guardrails, batched into the same aggregate as everything else: `DedupeTieBreakMissing`, `DedupeDispositionConflict`, `QuarantineRetentionMissing`, `IngestionMetadataMissing`, `RedactionConflict`, plus `pattern` regexes validated against every registered dialect and `unknown_member` refused on a non-string foreign key.
+
+- `DialectFeature.TRY_CAST`: Postgres has no NULL-on-failure cast, so compiling a coercible-carrying entity for it refuses loudly instead of silently degrading quarantine into an aborted run.
 
 - Initial project scaffold: packaging, quality gate, CI, docs infrastructure (RFC 0001).
 

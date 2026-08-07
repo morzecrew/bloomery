@@ -12,3 +12,13 @@ entities:
       warehouse_id: {type: string, required: true}
       stock_date: {type: date, required: true}
       stock_level: {type: int, canonical: stock_level}
+    # Data quality (RFC 0016). A WMS re-sends the same warehouse/day snapshot
+    # whenever an operator corrects it, so the entity deduplicates on ingestion
+    # recency; corrections occasionally arrive with a negative or uncastable
+    # level, which is what the dispositions below are for. All three
+    # dispositions appear on purpose — flag, quarantine, fail.
+    dedupe: {keep: latest_by, field: _ingested_at, tie_break: [_load_id]}
+    quarantine: {retention: 90d, redact: ["$.operator_note"]}
+    quality:
+      - {rule: expression, name: stock_level_not_negative,
+         expr: "stock_level >= 0", on_fail: flag}

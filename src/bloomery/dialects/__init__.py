@@ -26,6 +26,7 @@ __all__ = [
     "TrinoDialect",
     "get_dialect",
     "register_dialect",
+    "registered_dialects",
 ]
 
 _defaults: dict[str, DialectPort] = {
@@ -44,6 +45,20 @@ def register_dialect(dialect: DialectPort) -> None:
         msg = f"dialect {dialect.name!r} is already registered; shadowing is not allowed"
         raise EmitError(msg)
     _overlay[dialect.name] = dialect
+
+
+def registered_dialects() -> tuple[DialectPort, ...]:
+    """Every dialect the process knows — defaults plus overlay — sorted by
+    name.
+
+    The compile stage validates ``pattern`` quality rules against **all** of
+    them (RFC 0016 §5.3): a regex that works on DuckDB and silently means
+    something else on Trino is the bug this project exists to prevent, and a
+    project is portable or it is not — the check cannot wait for the dialect
+    that happens to be selected at emit.
+    """
+    merged = dict(_DEFAULT_DIALECTS) | _overlay
+    return tuple(merged[name] for name in sorted(merged))
 
 
 def get_dialect(name: str) -> DialectPort:

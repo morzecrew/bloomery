@@ -25,6 +25,7 @@ from bloomery.guardrails.asserts import lower_asserts
 from bloomery.guardrails.conflict import path_conflict_amendments
 from bloomery.guardrails.grain import check_grain
 from bloomery.guardrails.operands import collect_derivations
+from bloomery.guardrails.quality import check_quality
 from bloomery.marts import lower_marts
 
 if TYPE_CHECKING:
@@ -58,7 +59,8 @@ def _amended_entity(
 
 
 def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | None) -> ProjectIR:
-    """Run all seven guardrails over the draft IR (RFC 0006 D9).
+    """Run all seven guardrails plus the data-quality leaves over the draft IR
+    (RFC 0006 D9; RFC 0016 §5.9).
 
     Raises one aggregated :class:`GuardrailError` if any violation exists;
     otherwise returns the draft amended only by path-conflict handling and
@@ -72,6 +74,9 @@ def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | N
     # Mart-level checks (RFC 0006 D10): the flattener re-runs here as a pure
     # sibling stage; its leaves batch into the same aggregate as the rest.
     violations.extend(lower_marts(project.marts, draft).violations)
+    # Data-quality leaves (RFC 0016 §5.9): the model-is-wrong half of this
+    # RFC, batched into the same aggregate as everything else.
+    violations.extend(check_quality(draft, project))
     assert_errors, lowered = lower_asserts(project, draft)
     violations.extend(assert_errors)
     if violations:

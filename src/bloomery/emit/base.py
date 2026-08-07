@@ -68,11 +68,20 @@ class ArtifactKind(StrEnum):
     """What an emitted artifact is, for callers routing the stream:
     ``MODEL`` for anything defining a relation or semantic surface, ``AUDIT``
     for custom audit bodies, ``CONFIG`` for framework scaffolding
-    (``dbt_project.yml``, ``sources.yml``, ``schema.yml``)."""
+    (``dbt_project.yml``, ``sources.yml``, ``schema.yml``), ``REPLAY`` for the
+    quarantine replay merge (RFC 0016 §5.6).
+
+    ``REPLAY`` is its own kind rather than a model because it is a *statement
+    the caller runs*, not a relation the framework maintains: bloomery emits
+    the merge artifact and **never** executes it (a hard invariant), and a
+    caller routing the stream must be able to tell "build this" from "run this
+    when you replay" without parsing SQL.
+    """
 
     MODEL = "model"
     AUDIT = "audit"
     CONFIG = "config"
+    REPLAY = "replay"
 
 
 @dataclass(frozen=True, slots=True)

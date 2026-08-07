@@ -225,10 +225,26 @@ class SourceFieldIR:
 @dataclass(frozen=True, slots=True)
 class SourceIR:
     """The bronze relation an entity is built from, with its field lowering
-    entries sorted by target field (minimal M1 surface)."""
+    entries sorted by target field (minimal M1 surface).
+
+    ``mapping_version`` is the authored ``mapping_version:`` of the document
+    that produced this entity. It reaches the IR because the reject table's
+    schema carries it (RFC 0016 §5.6): a quarantined row records *which
+    version of which mapping* rejected it, or replay cannot tell a row that
+    still fails from a row the mapping has since learned to read.
+
+    ``unmapped`` is the acknowledged tail — bronze paths the mapping declares
+    exist and deliberately does not read, sorted. It reaches the IR for the
+    same reason: the reject table's ``raw`` column is *the bronze payload*,
+    not the mapped subset, and ``quarantine.redact`` only ever has something
+    to remove there (a redacted path that the mapping reads is the compile
+    error ``RedactionConflict``, RFC 0016 §5.6).
+    """
 
     relation: str
     fields: tuple[SourceFieldIR, ...] = ()
+    mapping_version: int = 1
+    unmapped: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
