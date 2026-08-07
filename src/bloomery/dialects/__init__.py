@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 
 from bloomery.dialects.base import DialectFeature, DialectPort, SQLGlotDialect
 from bloomery.dialects.duckdb import DuckDBDialect
+from bloomery.dialects.postgres import PostgresDialect
+from bloomery.dialects.trino import TrinoDialect
 from bloomery.errors import EmitError
 
 if TYPE_CHECKING:
@@ -19,12 +21,18 @@ __all__ = [
     "DialectFeature",
     "DialectPort",
     "DuckDBDialect",
+    "PostgresDialect",
     "SQLGlotDialect",
+    "TrinoDialect",
     "get_dialect",
     "register_dialect",
 ]
 
-_defaults: dict[str, DialectPort] = {"duckdb": DuckDBDialect()}
+_defaults: dict[str, DialectPort] = {
+    "duckdb": DuckDBDialect(),
+    "postgres": PostgresDialect(),
+    "trino": TrinoDialect(),
+}
 _DEFAULT_DIALECTS: Mapping[str, DialectPort] = MappingProxyType(_defaults)
 _overlay: dict[str, DialectPort] = {}
 

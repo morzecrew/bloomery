@@ -30,6 +30,7 @@ EXPECTED_PATHS = {
         "models/gold/mart_orders.sql",
         "models/silver/order.sql",
     ],
+    "scd2_customers": ["models/silver/customer.sql"],
     "semi_additive_inventory": [
         "models/gold/dim_date.sql",
         "models/gold/mart_inventory.sql",

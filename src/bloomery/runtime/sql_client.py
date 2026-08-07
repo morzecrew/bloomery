@@ -5,9 +5,10 @@ execution members raise :class:`NotImplementedError` so the impossibility is
 structural, not conventional.
 
 ``sql_client_for_dialect`` maps bloomery dialect names onto the (engine type,
-plan renderer) pairs MetricFlow ships in-package. Only ``duckdb`` is wired in
-v0.1 — trino/postgres arrive with the engine matrix (M10); the remaining
-renderers exist upstream and slot in here.
+plan renderer) pairs MetricFlow ships in-package. ``duckdb``, ``trino`` and
+``postgres`` are wired — the shipped dialect set (RFC 0008 D5, M10); the
+remaining upstream renderers (snowflake, bigquery, databricks, redshift)
+slot in here when a dialect port ships for them.
 
 This module lives in ``bloomery/runtime/`` — request-time planner
 infrastructure, deliberately *outside* the compile pipeline: the import
@@ -23,6 +24,8 @@ from typing import TYPE_CHECKING, NoReturn
 
 from metricflow.protocols.sql_client import SqlClient, SqlEngine
 from metricflow.sql.render.duckdb_renderer import DuckDbSqlPlanRenderer
+from metricflow.sql.render.postgres import PostgresSQLSqlPlanRenderer
+from metricflow.sql.render.trino import TrinoSqlPlanRenderer
 
 from bloomery.errors import PlannerError
 
@@ -68,12 +71,14 @@ class RenderOnlySqlClient(SqlClient):
         return f"${bind_parameter_key}"
 
 
-#: Dialect name → (engine type, plan-renderer class). Only duckdb ships in
-#: v0.1; the remaining upstream renderers (trino, postgres, snowflake,
-#: bigquery, databricks, redshift) slot in with the engine matrix (M10).
+#: Dialect name → (engine type, plan-renderer class): the shipped dialect
+#: set (RFC 0008 D5). The remaining upstream renderers (snowflake, bigquery,
+#: databricks, redshift) slot in alongside a matching dialect port.
 _DIALECTS: Mapping[str, tuple[SqlEngine, type[SqlPlanRenderer]]] = MappingProxyType(
     {
         "duckdb": (SqlEngine.DUCKDB, DuckDbSqlPlanRenderer),
+        "postgres": (SqlEngine.POSTGRES, PostgresSQLSqlPlanRenderer),
+        "trino": (SqlEngine.TRINO, TrinoSqlPlanRenderer),
     }
 )
 

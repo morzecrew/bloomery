@@ -68,7 +68,10 @@ dev = [
 ]
 # Tier-5 engine matrix (RFC 0009 §5.2): opt-in, needs Docker. Kept out of `dev`
 # so the default sync stays light on machines without Docker.
-engines = ["testcontainers[postgres]>=4.9"]
+engines = [
+    "psycopg[binary]>=3.2",
+    "testcontainers[postgres]>=4.9",
+]
 docs = [
     "mike",
     "pygments>=2.19",

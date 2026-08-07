@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 
 import pytest
+import sqlglot
 from metricflow_semantics.errors.error_classes import (
     InvalidQueryException,
     InvalidQuerySyntax,
@@ -272,3 +273,20 @@ def test_additive_explanation_render() -> None:
         "  filters:  (none)\n"
         "  policy:   not applied"
     )
+
+
+# ....................... #
+# Planner dialect smoke (M10): MetricFlow's shipped trino/postgres renderers
+# wired through sql_client_for_dialect — render-only, nothing executed.
+
+
+@pytest.mark.parametrize("dialect", ["postgres", "trino"])
+def test_plan_renders_legal_sql_for_the_second_dialects(dialect: str) -> None:
+    plan = PLANNER.plan(
+        fixture_ir("non_additive_aov"),
+        MetricRequest(metrics=("revenue",), dimensions=("store",)),
+        dialect=dialect,
+    )
+    assert "gold.mart_orders" in plan.sql
+    parsed = sqlglot.parse_one(plan.sql, dialect=dialect)
+    assert parsed is not None

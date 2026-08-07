@@ -124,6 +124,18 @@ def test_evolution_versions_load_clean(version: int) -> None:
     assert unit_price.recipe == ("from_total" if version >= 4 else "direct")
 
 
+def test_scd2_customers_loads_clean() -> None:
+    # The M10 SCD type 2 fixture: sqlmesh lowers it to a native SCD kind,
+    # dbt to a check-strategy snapshot (RFC 0008 §5.3/§5.5).
+    project = load_fixture_project("scd2_customers")
+    customer = project.entity_model.entities["customer"]
+    assert customer.scd == "type2"
+    assert customer.key == ("customer_id",)
+    segment = customer.fields["segment"]
+    assert segment.assert_ is not None
+    assert segment.assert_.enum == ("business", "consumer")
+
+
 def test_path_conflict_loads_clean() -> None:
     project = load_fixture_project("path_conflict")
     net_price = project.mappings[0].fields["net_price"]

@@ -15,6 +15,8 @@ from bloomery.emit.base import (
     TargetCapabilities,
     TargetEmitter,
 )
+from bloomery.emit.cube import CubeEmitter
+from bloomery.emit.dbt import DbtEmitter
 from bloomery.emit.sqlmesh import SQLMeshEmitter
 from bloomery.errors import EmitError
 
@@ -23,6 +25,8 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ArtifactKind",
+    "CubeEmitter",
+    "DbtEmitter",
     "EmitContext",
     "EmittedArtifact",
     "Feature",
@@ -33,7 +37,13 @@ __all__ = [
     "register_emitter",
 ]
 
-_DEFAULT_EMITTERS: Mapping[str, TargetEmitter] = MappingProxyType({"sqlmesh": SQLMeshEmitter()})
+_DEFAULT_EMITTERS: Mapping[str, TargetEmitter] = MappingProxyType(
+    {
+        "cube": CubeEmitter(),
+        "dbt": DbtEmitter(),
+        "sqlmesh": SQLMeshEmitter(),
+    }
+)
 _overlay: dict[str, TargetEmitter] = {}
 
 

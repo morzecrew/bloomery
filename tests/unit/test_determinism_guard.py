@@ -47,6 +47,23 @@ for artifact in compile_project(project, target=Target.SQLMESH, dialect="duckdb"
     print(artifact.path, artifact.kind, artifact.checksum)
     print(artifact.content)
 
+# The second targets (M10): cube YAML and dbt artifacts must be
+# hash-seed-independent too — every artifact's full bytes are compared.
+eb_dir = fixture_dir.parent / "ecom_basic"
+eb_sources = {
+    path.stem: path.read_text()
+    for path in sorted(eb_dir.glob("*.yaml"))
+    if path.stem != "catalog"
+}
+eb_project = load_project(eb_sources)
+eb_catalog = load_catalog((eb_dir / "catalog.yaml").read_text())
+for target in (Target.CUBE, Target.DBT):
+    for artifact in compile_project(
+        eb_project, target=target, dialect="postgres", catalog=eb_catalog
+    ):
+        print(artifact.path, artifact.kind, artifact.checksum)
+        print(artifact.content)
+
 # The MetricFlow manifest (M6): the transformed manifest's sorted-keys JSON
 # is the RFC 0014 cache payload — its bytes must be hash-seed-independent.
 # non_additive_aov is the regression fixture for transform()'s

@@ -29,9 +29,11 @@ def load_fixture(name: str) -> tuple[Project, Catalog | None]:
     return project, catalog
 
 
-def compile_fixture(name: str, *, dialect: str = "duckdb") -> tuple[EmittedArtifact, ...]:
+def compile_fixture(
+    name: str, *, target: Target | str = Target.SQLMESH, dialect: str = "duckdb"
+) -> tuple[EmittedArtifact, ...]:
     project, catalog = load_fixture(name)
-    return compile_project(project, target=Target.SQLMESH, dialect=dialect, catalog=catalog)
+    return compile_project(project, target=target, dialect=dialect, catalog=catalog)
 
 
 def extract_select(content: str) -> str:

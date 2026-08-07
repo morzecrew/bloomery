@@ -59,10 +59,14 @@ class TargetCapabilities:
 
 
 class ArtifactKind(StrEnum):
-    """What an emitted artifact is, for callers routing the stream."""
+    """What an emitted artifact is, for callers routing the stream:
+    ``MODEL`` for anything defining a relation or semantic surface, ``AUDIT``
+    for custom audit bodies, ``CONFIG`` for framework scaffolding
+    (``dbt_project.yml``, ``sources.yml``, ``schema.yml``)."""
 
     MODEL = "model"
     AUDIT = "audit"
+    CONFIG = "config"
 
 
 @dataclass(frozen=True, slots=True)

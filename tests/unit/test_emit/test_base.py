@@ -92,8 +92,9 @@ def test_get_emitter_returns_the_default() -> None:
 
 
 def test_unknown_target_lists_known_names() -> None:
-    with pytest.raises(EmitError, match=r"unknown target 'dbt': known targets are \['sqlmesh'\]"):
-        get_emitter("dbt")
+    expected = r"unknown target 'looker': known targets are \['cube', 'dbt', 'sqlmesh'\]"
+    with pytest.raises(EmitError, match=expected):
+        get_emitter("looker")
 
 
 def test_register_emitter_collision_is_an_error() -> None:

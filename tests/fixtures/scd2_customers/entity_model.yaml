@@ -1,0 +1,14 @@
+# The SCD type 2 fixture (M10, RFC 0009 §5.3): one dimension-like entity
+# whose history the targets keep natively — SQLMesh via SCD_TYPE_2_BY_COLUMN
+# (RFC 0008 §5.3), dbt via a check-strategy snapshot (RFC 0008 §5.5). The
+# asserts exercise snapshot-attached schema tests in the dbt lowering.
+spec_version: 1
+entities:
+  customer:
+    grain: one row per customer
+    key: [customer_id]
+    scd: type2
+    fields:
+      customer_id: {type: string, required: true}
+      email: {type: string, assert: {not_null: true}}
+      segment: {type: string, assert: {enum: [business, consumer]}}
