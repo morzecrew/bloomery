@@ -18,7 +18,7 @@
         <link rel="prev" href="../emit-cube/">
       
       
-        <link rel="next" href="../evolve-a-spec/">
+        <link rel="next" href="../plan-a-metric-request/">
       
       
         
@@ -833,6 +833,23 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit dbt artifacts
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="././" class="md-nav__link md-nav__link--active">
         
   
@@ -849,6 +866,119 @@
 
       </a>
       
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#compile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Compile
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-appears" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What appears
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#schema-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Schema tests
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-dbt-cannot-express" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What dbt cannot express
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#byte-identical-selects" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Byte-identical SELECTs
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Notes
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plan-a-metric-request/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan a metric request
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1070,6 +1200,11 @@
                       
                     
                     
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
                   
                   <div class="md-sidebar__inner">
                     
@@ -1081,6 +1216,80 @@
   
     
   
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#compile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Compile
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-appears" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What appears
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#schema-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Schema tests
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-dbt-cannot-express" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What dbt cannot express
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#byte-identical-selects" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Byte-identical SELECTs
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Notes
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -1152,8 +1361,151 @@
 
 
 <h1 id="emit-dbt-artifacts">Emit dbt artifacts<a class="headerlink" href="#emit-dbt-artifacts" title="Permanent link">&para;</a></h1>
-<p>Compile a spec project into dbt models and schema tests. This page lands with milestone
-M6 (second target, RFC 0008).</p>
+<p>You want the same compiled project as a dbt project — models, sources, snapshots, and
+schema tests. Be clear-eyed about what this target is: its job in the architecture is
+proving that emission is a real port, not a SQLMesh-shaped hole. It ships minimal but
+honest — every SELECT is byte-identical to what the SQLMesh emitter renders, and
+anything dbt cannot express faithfully is a loud error, never an approximation. Do not
+read it as production-grade dbt scaffolding.</p>
+<h2 id="compile">Compile<a class="headerlink" href="#compile" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">Target</span><span class="p">,</span> <span class="n">compile_project</span><span class="p">,</span> <span class="n">load_project</span>
+
+<span class="n">entity_model</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">spec_version: 1</span>
+<span class="s2">entities:</span>
+<span class="s2">  customer:</span>
+<span class="s2">    grain: one row per customer</span>
+<span class="s2">    key: [customer_id]</span>
+<span class="s2">    scd: type2</span>
+<span class="s2">    fields:</span>
+<span class="s2">      customer_id: {type: string, required: true}</span>
+<span class="s2">      email: {type: string, assert: {not_null: true}}</span>
+<span class="s2">      segment: {type: string, assert: {enum: [business, consumer]}}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+<span class="n">mapping</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">mapping_version: 1</span>
+<span class="s2">source: crm__customers</span>
+<span class="s2">target: customer</span>
+<span class="s2">key:</span>
+<span class="s2">  customer_id: {from: &quot;$.id&quot;, transform: [to_string]}</span>
+<span class="s2">fields:</span>
+<span class="s2">  email: {from: &quot;$.email&quot;, transform: [to_string]}</span>
+<span class="s2">  segment: {from: &quot;$.segment&quot;, transform: [to_string]}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+<span class="n">project</span> <span class="o">=</span> <span class="n">load_project</span><span class="p">({</span><span class="s2">&quot;entity_model.yaml&quot;</span><span class="p">:</span> <span class="n">entity_model</span><span class="p">,</span> <span class="s2">&quot;mapping.yaml&quot;</span><span class="p">:</span> <span class="n">mapping</span><span class="p">})</span>
+<span class="n">artifacts</span> <span class="o">=</span> <span class="n">compile_project</span><span class="p">(</span><span class="n">project</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">Target</span><span class="o">.</span><span class="n">DBT</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s2">&quot;duckdb&quot;</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">artifact</span> <span class="ow">in</span> <span class="n">artifacts</span><span class="p">:</span>
+    <span class="n">destination</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;dbt_repo&quot;</span><span class="p">)</span> <span class="o">/</span> <span class="n">artifact</span><span class="o">.</span><span class="n">path</span>
+    <span class="n">destination</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">destination</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">artifact</span><span class="o">.</span><span class="n">content</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="what-appears">What appears<a class="headerlink" href="#what-appears" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Kind</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dbt_project.yml</code></td>
+<td>config</td>
+<td>Minimal scaffold so <code>dbt parse</code> has a project</td>
+</tr>
+<tr>
+<td><code>models/sources.yml</code></td>
+<td>config</td>
+<td>Every bronze relation the entities read</td>
+</tr>
+<tr>
+<td><code>models/silver/&lt;entity&gt;.sql</code></td>
+<td>model</td>
+<td>One model per SCD type 1 entity, with a <code>{{ config(...) }}</code> header</td>
+</tr>
+<tr>
+<td><code>snapshots/&lt;entity&gt;_snapshot.sql</code></td>
+<td>model</td>
+<td>One snapshot per SCD type 2 entity (replaces its silver model)</td>
+</tr>
+<tr>
+<td><code>models/gold/mart_&lt;name&gt;.sql</code>, <code>models/gold/dim_date.sql</code></td>
+<td>model</td>
+<td>The same gold SELECTs SQLMesh emits</td>
+</tr>
+<tr>
+<td><code>models/schema.yml</code></td>
+<td>config</td>
+<td>Asserts lowered to schema tests</td>
+</tr>
+</tbody>
+</table>
+<p>For the SCD2 project above, the snapshot is dbt's native history mechanism:</p>
+<div class="highlight"><pre><span></span><code><span class="err">{</span><span class="o">%</span><span class="w"> </span><span class="n">snapshot</span><span class="w"> </span><span class="n">customer_snapshot</span><span class="w"> </span><span class="o">%</span><span class="err">}</span>
+<span class="err">{{</span><span class="w"> </span><span class="n">config</span><span class="p">(</span><span class="n">target_schema</span><span class="o">=</span><span class="s1">&#39;silver&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">unique_key</span><span class="o">=</span><span class="s1">&#39;customer_id&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">strategy</span><span class="o">=</span><span class="s1">&#39;check&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">check_cols</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">)</span><span class="w"> </span><span class="err">}}</span>
+
+<span class="k">SELECT</span>
+<span class="w">  </span><span class="k">CAST</span><span class="p">(</span><span class="n">id</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">customer_id</span><span class="p">,</span>
+<span class="w">  </span><span class="k">CAST</span><span class="p">(</span><span class="n">email</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">email</span><span class="p">,</span>
+<span class="w">  </span><span class="k">CAST</span><span class="p">(</span><span class="n">segment</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">segment</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">bronze</span><span class="p">.</span><span class="n">crm__customers</span>
+
+<span class="err">{</span><span class="o">%</span><span class="w"> </span><span class="n">endsnapshot</span><span class="w"> </span><span class="o">%</span><span class="err">}</span>
+</code></pre></div>
+<p>Strategy is <code>check</code> over all columns, because the specs declare no updated-at marker
+and a <code>timestamp</code> strategy would have to invent one.</p>
+<h2 id="schema-tests">Schema tests<a class="headerlink" href="#schema-tests" title="Permanent link">&para;</a></h2>
+<p><code>assert:</code> clauses land in <code>models/schema.yml</code>: <code>not_null</code> and <code>enum</code> map to dbt's
+builtin <code>not_null</code> and <code>accepted_values</code> tests; <code>min</code>, <code>max</code>, <code>regex</code>, and the
+path-conflict <code>reconcile</code> audit become <code>dbt_utils.expression_is_true</code> tests carrying
+the same row-level predicate the SQLMesh audits use. Tests for SCD2 entities attach
+under <code>snapshots:</code> rather than <code>models:</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="nt">snapshots</span><span class="p">:</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer_snapshot</span>
+<span class="w">  </span><span class="nt">columns</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">email</span>
+<span class="w">    </span><span class="nt">data_tests</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">not_null</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">segment</span>
+<span class="w">    </span><span class="nt">data_tests</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">accepted_values</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">values</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">business</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">consumer</span>
+</code></pre></div>
+<h2 id="what-dbt-cannot-express">What dbt cannot express<a class="headerlink" href="#what-dbt-cannot-express" title="Permanent link">&para;</a></h2>
+<p>Adaptation is loud, never silent (the port rule): where dbt has no faithful equivalent,
+compilation raises <code>UnsupportedByTarget</code> naming the entity and feature. The notable
+case is <strong>composite-key SCD2</strong>: dbt snapshot <code>unique_key</code> takes a single expression,
+and concatenating key parts would be a silent approximation, so:</p>
+<div class="highlight"><pre><span></span><code>UnsupportedByTarget: entity &#39;order_item&#39; is SCD type 2 with composite key
+(order_id, line_no) — dbt snapshot unique_key takes a single expression, and
+concatenating key parts would be a silent approximation (feature: scd_type_2)
+</code></pre></div>
+<p>The same entity compiles fine to <a href="../emit-sqlmesh/">SQLMesh</a>, whose native SCD2 kind
+supports composite keys. Materialization adapts honestly where an equivalent exists:
+<code>full</code> → <code>table</code>; both incremental kinds → <code>incremental</code> with the entity key as
+<code>unique_key</code>, since dbt has no time-range kind and merge-on-key can never silently
+duplicate rows.</p>
+<h2 id="byte-identical-selects">Byte-identical SELECTs<a class="headerlink" href="#byte-identical-selects" title="Permanent link">&para;</a></h2>
+<p>The SELECT inside every dbt model is rendered from the same lowered AST through the
+same dialect port as the SQLMesh target — only the envelope (Jinja config header vs
+<code>MODEL</code> block) differs. Diff a dbt model against its SQLMesh counterpart and the query
+text matches byte for byte. That equality is the point: it demonstrates the emitters
+share one lowering, so a semantics bug cannot exist in only one target's SQL.</p>
+<h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li>The scaffold assumes a profile named <code>bloomery</code>; wire your own <code>profiles.yml</code>.</li>
+<li><code>expression_is_true</code> tests require the <code>dbt_utils</code> package in your dbt project.</li>
+<li>Choose this target when your execution stack is dbt; if you are free to choose,
+  <a href="../emit-sqlmesh/">SQLMesh</a> is the primary target and expresses more of the IR.</li>
+</ul>
 
 
 
@@ -1208,13 +1560,13 @@ M6 (second target, RFC 0008).</p>
         
         
           
-          <a href="../evolve-a-spec/" class="md-footer__link md-footer__link--next" aria-label="Next: Evolve a spec safely">
+          <a href="../plan-a-metric-request/" class="md-footer__link md-footer__link--next" aria-label="Next: Plan a metric request">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Evolve a spec safely
+                Plan a metric request
               </div>
             </div>
             <div class="md-footer__button md-icon">

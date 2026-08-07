@@ -844,6 +844,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/plan-a-metric-request/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan a metric request
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/evolve-a-spec/" class="md-nav__link">
         
   
@@ -1023,6 +1050,23 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="././" class="md-nav__link md-nav__link--active">
         
   
@@ -1038,6 +1082,420 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#loading" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Loading
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Loading">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#load_catalogtext-str-catalog" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>load_catalog(text: str) -&gt; Catalog</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#load_projectsources-mappingstr-str-project" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>load_project(sources: Mapping[str, str]) -&gt; Project</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compiling" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Compiling
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compiling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#compile_projectproject-target-dialect-namingnone-catalognone-tupleemittedartifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>compile_project(project, *, target, dialect, naming=None, catalog=None) -&gt; tuple[EmittedArtifact, ...]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#target" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Target</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Analysis
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resolveproject-project-catalog-catalog-none-none-resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>resolve(project: Project, catalog: Catalog | None = None) -&gt; Resolution</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#build_project_irproject-project-catalog-catalog-none-none-projectir" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>build_project_ir(project: Project, catalog: Catalog | None = None) -&gt; ProjectIR</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#project_fingerprintir-projectir-str" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>project_fingerprint(ir: ProjectIR) -&gt; str</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spec-diff-planning" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Spec-diff planning
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Spec-diff planning">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#planold-projectir-none-new-projectir-plan" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>plan(old: ProjectIR | None, new: ProjectIR) -&gt; Plan</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plan" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Plan</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Change</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changeclass" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>ChangeClass</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backfillscope" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>BackfillScope</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#request-time-planning" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Request-time planning
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Request-time planning">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#metricflowplannerhydrator-max_limit50_000-default_limitnone-namingnone" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>MetricFlowPlanner(hydrator, max_limit=50_000, default_limit=None, *, naming=None)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metricrequestmetrics-dimensions-filters-time_grainnone-order_by-limitnone" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>MetricRequest(metrics, dimensions=(), filters=(), time_grain=None, order_by=(), limit=None)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filterexprdimension-op-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>FilterExpr(dimension, op, values=())</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#orderspecfield-directionasc" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>OrderSpec(field, direction="asc")</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timegrain" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>TimeGrain</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rowpolicydimension-op-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>RowPolicy(dimension, op, value)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#queryplan" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>QueryPlan</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#columndescriptor" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>ColumnDescriptor</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lrumanifesthydratornaming-max_entries500-fetch_l2none-prewarmfalse" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>LruManifestHydrator(naming, *, max_entries=500, fetch_l2=None, prewarm=False)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hydrationkey" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>HydrationKey</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extension-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Extension points
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Extension points">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#register_transformspec-transformspec-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>register_transform(spec: TransformSpec) -&gt; None</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#register_emitteremitter-targetemitter-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>register_emitter(emitter: TargetEmitter) -&gt; None</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Errors
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Errors">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryerror" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>BloomeryError</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1068,6 +1526,11 @@
                       
                     
                     
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
                   
                   <div class="md-sidebar__inner">
                     
@@ -1079,6 +1542,408 @@
   
     
   
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#loading" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Loading
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Loading">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#load_catalogtext-str-catalog" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>load_catalog(text: str) -&gt; Catalog</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#load_projectsources-mappingstr-str-project" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>load_project(sources: Mapping[str, str]) -&gt; Project</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compiling" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Compiling
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compiling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#compile_projectproject-target-dialect-namingnone-catalognone-tupleemittedartifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>compile_project(project, *, target, dialect, naming=None, catalog=None) -&gt; tuple[EmittedArtifact, ...]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#target" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Target</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Analysis
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resolveproject-project-catalog-catalog-none-none-resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>resolve(project: Project, catalog: Catalog | None = None) -&gt; Resolution</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#build_project_irproject-project-catalog-catalog-none-none-projectir" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>build_project_ir(project: Project, catalog: Catalog | None = None) -&gt; ProjectIR</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#project_fingerprintir-projectir-str" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>project_fingerprint(ir: ProjectIR) -&gt; str</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spec-diff-planning" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Spec-diff planning
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Spec-diff planning">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#planold-projectir-none-new-projectir-plan" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>plan(old: ProjectIR | None, new: ProjectIR) -&gt; Plan</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plan" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Plan</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Change</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changeclass" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>ChangeClass</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backfillscope" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>BackfillScope</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#request-time-planning" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Request-time planning
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Request-time planning">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#metricflowplannerhydrator-max_limit50_000-default_limitnone-namingnone" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>MetricFlowPlanner(hydrator, max_limit=50_000, default_limit=None, *, naming=None)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metricrequestmetrics-dimensions-filters-time_grainnone-order_by-limitnone" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>MetricRequest(metrics, dimensions=(), filters=(), time_grain=None, order_by=(), limit=None)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#filterexprdimension-op-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>FilterExpr(dimension, op, values=())</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#orderspecfield-directionasc" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>OrderSpec(field, direction="asc")</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timegrain" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>TimeGrain</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rowpolicydimension-op-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>RowPolicy(dimension, op, value)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#queryplan" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>QueryPlan</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#columndescriptor" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>ColumnDescriptor</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lrumanifesthydratornaming-max_entries500-fetch_l2none-prewarmfalse" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>LruManifestHydrator(naming, *, max_entries=500, fetch_l2=None, prewarm=False)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hydrationkey" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>HydrationKey</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extension-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Extension points
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Extension points">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#register_transformspec-transformspec-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>register_transform(spec: TransformSpec) -&gt; None</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#register_emitteremitter-targetemitter-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>register_emitter(emitter: TargetEmitter) -&gt; None</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Errors
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Errors">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryerror" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>BloomeryError</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -1150,9 +2015,119 @@
 
 
 <h1 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h1>
-<p>The public API surface: <code>load_catalog</code>, <code>load_project</code>, <code>compile_project</code>, <code>resolve</code>,
-<code>plan</code>, <code>project_fingerprint</code>, and the extension registration hooks. This page lands with
-milestone M1 and is kept in lockstep with the package's <code>__all__</code>.</p>
+<p>The public API — everything importable from <code>bloomery</code>, kept in lockstep with the
+package's <code>__all__</code>. Supporting types named in signatures (<code>Project</code>, <code>Catalog</code>,
+<code>ProjectIR</code>, <code>EmittedArtifact</code>, naming policies) live in their subpackages and are
+stable to import from there.</p>
+<h2 id="loading">Loading<a class="headerlink" href="#loading" title="Permanent link">&para;</a></h2>
+<h3 id="load_catalogtext-str-catalog"><code>load_catalog(text: str) -&gt; Catalog</code><a class="headerlink" href="#load_catalogtext-str-catalog" title="Permanent link">&para;</a></h3>
+<p>Parse a catalog document from YAML text. Pure — strings in, model out; all I/O belongs
+to the caller. Raises <code>SpecParseError</code> on YAML, shape, or kind failures.</p>
+<h3 id="load_projectsources-mappingstr-str-project"><code>load_project(sources: Mapping[str, str]) -&gt; Project</code><a class="headerlink" href="#load_projectsources-mappingstr-str-project" title="Permanent link">&para;</a></h3>
+<p>Parse a project from named YAML documents. Keys are document names (used as
+source-path prefixes in errors), values are YAML text. Each document self-identifies
+via its version key; documents are processed in sorted-name order, and all failures
+across all documents are batched into a single <code>SpecParseError</code>.</p>
+<h2 id="compiling">Compiling<a class="headerlink" href="#compiling" title="Permanent link">&para;</a></h2>
+<h3 id="compile_projectproject-target-dialect-namingnone-catalognone-tupleemittedartifact"><code>compile_project(project, *, target, dialect, naming=None, catalog=None) -&gt; tuple[EmittedArtifact, ...]</code><a class="headerlink" href="#compile_projectproject-target-dialect-namingnone-catalognone-tupleemittedartifact" title="Permanent link">&para;</a></h3>
+<p>Compile a parsed project into target artifacts — the whole pipeline (resolve,
+typecheck, guardrails, lower, emit) as one pure function. <code>target</code> is a <code>Target</code> or
+the string name of a registered extension emitter; <code>dialect</code> is <code>"duckdb"</code>,
+<code>"trino"</code>, or <code>"postgres"</code>; <code>naming</code> defaults to layer-based naming
+(<code>silver.&lt;entity&gt;</code>, <code>gold.mart_&lt;name&gt;</code>). Same specs in, byte-identical artifacts out.
+Each <code>EmittedArtifact</code> carries <code>path</code>, <code>content</code>, <code>kind</code>, and <code>checksum</code>.</p>
+<h3 id="target"><code>Target</code><a class="headerlink" href="#target" title="Permanent link">&para;</a></h3>
+<p>The shipped emit targets: <code>Target.SQLMESH</code>, <code>Target.CUBE</code>, <code>Target.DBT</code>. A string
+enum, so <code>target="sqlmesh"</code> also works.</p>
+<h2 id="analysis">Analysis<a class="headerlink" href="#analysis" title="Permanent link">&para;</a></h2>
+<h3 id="resolveproject-project-catalog-catalog-none-none-resolution"><code>resolve(project: Project, catalog: Catalog | None = None) -&gt; Resolution</code><a class="headerlink" href="#resolveproject-project-catalog-catalog-none-none-resolution" title="Permanent link">&para;</a></h3>
+<p>Run reference validation, recipe validation, and reachability without emitting
+anything. The <code>Resolution</code> carries <code>reachable_metrics</code>, <code>unreachable_metrics</code> (each
+with its specific missing leaves), per-field <code>provenance</code> (direct / recipe / native),
+and the deterministic topological order.</p>
+<h3 id="build_project_irproject-project-catalog-catalog-none-none-projectir"><code>build_project_ir(project: Project, catalog: Catalog | None = None) -&gt; ProjectIR</code><a class="headerlink" href="#build_project_irproject-project-catalog-catalog-none-none-projectir" title="Permanent link">&para;</a></h3>
+<p>Compile specs into the frozen intermediate representation without emitting — the
+input to <code>project_fingerprint</code>, <code>plan</code>, and <code>MetricFlowPlanner.plan</code>. Runs the same
+resolution, typecheck, and guardrail stages as <code>compile_project</code>, so a spec that
+builds an IR is a spec that compiles.</p>
+<h3 id="project_fingerprintir-projectir-str"><code>project_fingerprint(ir: ProjectIR) -&gt; str</code><a class="headerlink" href="#project_fingerprintir-projectir-str" title="Permanent link">&para;</a></h3>
+<p>The <code>blm1:</code>-prefixed SHA-256 content hash of a project IR — the value stamped into
+every emitted artifact's header. Stable within a bloomery version, deliberately not
+across versions.</p>
+<h2 id="spec-diff-planning">Spec-diff planning<a class="headerlink" href="#spec-diff-planning" title="Permanent link">&para;</a></h2>
+<h3 id="planold-projectir-none-new-projectir-plan"><code>plan(old: ProjectIR | None, new: ProjectIR) -&gt; Plan</code><a class="headerlink" href="#planold-projectir-none-new-projectir-plan" title="Permanent link">&para;</a></h3>
+<p>Diff two compiled IRs into a classified migration plan. <code>plan(None, new)</code> is the
+initial deploy; <code>plan(ir, ir)</code> is empty. Raises <code>RenameTargetMissing</code> on a stale
+<code>renamed_from</code> annotation and <code>ContractViolation</code> on an expand/contract breach; every
+other change, breaking included, is classified and returned. See
+<a href="../../how-to/evolve-a-spec/">Evolve a spec safely</a>.</p>
+<h3 id="plan"><code>Plan</code><a class="headerlink" href="#plan" title="Permanent link">&para;</a></h3>
+<p><code>changes</code> (sorted <code>Change</code> tuple), <code>backfill_scope</code> (<code>BackfillScope</code>), and
+<code>downstream_impact</code> (affected metric names). Properties: <code>has_changes</code>, <code>breaking</code>.</p>
+<h3 id="change"><code>Change</code><a class="headerlink" href="#change" title="Permanent link">&para;</a></h3>
+<p>One classified difference: <code>entity</code>, <code>subject</code> (<code>&lt;kind&gt;:&lt;name&gt;</code>), <code>change_class</code>,
+human-readable <code>detail</code>, and compact <code>old</code>/<code>new</code> value reprs.</p>
+<h3 id="changeclass"><code>ChangeClass</code><a class="headerlink" href="#changeclass" title="Permanent link">&para;</a></h3>
+<p>The closed classification vocabulary: <code>ADDITIVE</code>, <code>WIDENING</code>, <code>RENAME</code>, <code>RESTATING</code>,
+<code>BREAKING</code>.</p>
+<h3 id="backfillscope"><code>BackfillScope</code><a class="headerlink" href="#backfillscope" title="Permanent link">&para;</a></h3>
+<p><code>entities</code> — the sorted entities whose stored rows a plan invalidates — and
+<code>restates_history</code>, true when any RESTATING change is present.</p>
+<h2 id="request-time-planning">Request-time planning<a class="headerlink" href="#request-time-planning" title="Permanent link">&para;</a></h2>
+<h3 id="metricflowplannerhydrator-max_limit50_000-default_limitnone-namingnone"><code>MetricFlowPlanner(hydrator, max_limit=50_000, default_limit=None, *, naming=None)</code><a class="headerlink" href="#metricflowplannerhydrator-max_limit50_000-default_limitnone-namingnone" title="Permanent link">&para;</a></h3>
+<p>The planner port backed by an embedded, render-only MetricFlow. <code>naming</code> must match
+the policy the artifacts were emitted with.</p>
+<p><strong><code>.plan(ir, request, *, dialect, policy=None) -&gt; QueryPlan</code></strong> — validate the request,
+check mart coverage, and render SQL; nothing is executed. Refusals raise the planner
+error taxonomy (<code>UnknownMember</code>, <code>UnreachableAtGrain</code>, <code>AmbiguousDimension</code>,
+<code>InvalidRequest</code>, <code>FilterTypeMismatch</code>). See
+<a href="../../how-to/plan-a-metric-request/">Plan a metric request</a>.</p>
+<h3 id="metricrequestmetrics-dimensions-filters-time_grainnone-order_by-limitnone"><code>MetricRequest(metrics, dimensions=(), filters=(), time_grain=None, order_by=(), limit=None)</code><a class="headerlink" href="#metricrequestmetrics-dimensions-filters-time_grainnone-order_by-limitnone" title="Permanent link">&para;</a></h3>
+<p>A structured metric request. Construction enforces the structural rules (at least one
+metric, no duplicates, order over requested members only, <code>limit &gt;= 1</code>).</p>
+<h3 id="filterexprdimension-op-values"><code>FilterExpr(dimension, op, values=())</code><a class="headerlink" href="#filterexprdimension-op-values" title="Permanent link">&para;</a></h3>
+<p>One typed filter. <code>op</code> ∈ <code>eq</code>, <code>ne</code>, <code>in</code>, <code>not_in</code>, <code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code>,
+<code>between</code>, <code>contains</code>, <code>is_null</code>; value arity is checked per operator, and floats are
+refused (use <code>Decimal</code> or strings).</p>
+<h3 id="orderspecfield-directionasc"><code>OrderSpec(field, direction="asc")</code><a class="headerlink" href="#orderspecfield-directionasc" title="Permanent link">&para;</a></h3>
+<p>One ordering term over a requested metric or dimension — never arbitrary SQL.</p>
+<h3 id="timegrain"><code>TimeGrain</code><a class="headerlink" href="#timegrain" title="Permanent link">&para;</a></h3>
+<p>Requestable grains: <code>HOUR</code>, <code>DAY</code>, <code>WEEK</code>, <code>MONTH</code>, <code>QUARTER</code>, <code>YEAR</code>. Applies to
+every date-role dimension in the request; <code>HOUR</code> is refused at coverage (marts carry
+day–year buckets).</p>
+<h3 id="rowpolicydimension-op-value"><code>RowPolicy(dimension, op, value)</code><a class="headerlink" href="#rowpolicydimension-op-value" title="Permanent link">&para;</a></h3>
+<p>A row-level scoping filter — dimension, operator, scalar or scalar tuple — rendered
+through the same escaping pipeline as user filters and prepended to them. Deciding
+whose policy applies is upstream work.</p>
+<h3 id="queryplan"><code>QueryPlan</code><a class="headerlink" href="#queryplan" title="Permanent link">&para;</a></h3>
+<p>The planner's product: <code>sql</code>, <code>columns</code> (tuple of <code>ColumnDescriptor</code>), <code>mart</code>,
+<code>warnings</code>, <code>explanation</code> (with <code>.render()</code>), and <code>fingerprint</code> (<code>sha256(sql)</code>).</p>
+<h3 id="columndescriptor"><code>ColumnDescriptor</code><a class="headerlink" href="#columndescriptor" title="Permanent link">&para;</a></h3>
+<p>One output column in bloomery names: <code>name</code>, logical <code>type</code>, <code>role</code>
+(<code>"dimension"</code> or <code>"measure"</code>), optional <code>label</code>.</p>
+<h3 id="lrumanifesthydratornaming-max_entries500-fetch_l2none-prewarmfalse"><code>LruManifestHydrator(naming, *, max_entries=500, fetch_l2=None, prewarm=False)</code><a class="headerlink" href="#lrumanifesthydratornaming-max_entries500-fetch_l2none-prewarmfalse" title="Permanent link">&para;</a></h3>
+<p>The default in-process manifest cache behind the planner: an LRU of hydrated semantic
+manifests keyed by <code>HydrationKey</code>. On a miss it consults the caller-injected
+<code>fetch_l2</code> callable (your storage, your I/O), falling back to rebuilding from the IR.
+<code>hits</code>/<code>misses</code>/<code>hit_rate</code> are plain counters to poll into your metrics system.
+<strong><code>.get(ir)</code></strong> returns the hydrated lookup for a project.</p>
+<h3 id="hydrationkey"><code>HydrationKey</code><a class="headerlink" href="#hydrationkey" title="Permanent link">&para;</a></h3>
+<p>The cache key covering all three invalidation axes: <code>spec_fingerprint</code>,
+<code>bloomery_version</code>, <code>metricflow_version</code>. A spec edit or a version bump changes the
+key, so stale entries are a miss, never an error.</p>
+<h2 id="extension-points">Extension points<a class="headerlink" href="#extension-points" title="Permanent link">&para;</a></h2>
+<h3 id="register_transformspec-transformspec-none"><code>register_transform(spec: TransformSpec) -&gt; None</code><a class="headerlink" href="#register_transformspec-transformspec-none" title="Permanent link">&para;</a></h3>
+<p>Register an extension transform into the process-global overlay consulted after the
+built-in whitelist. Name collisions raise <code>TransformRegistrationError</code>. See
+<a href="../transforms/#custom-transforms">Transforms</a>.</p>
+<h3 id="register_emitteremitter-targetemitter-none"><code>register_emitter(emitter: TargetEmitter) -&gt; None</code><a class="headerlink" href="#register_emitteremitter-targetemitter-none" title="Permanent link">&para;</a></h3>
+<p>Register an extension target emitter; the emitter's <code>name</code> becomes a valid <code>target=</code>
+string for <code>compile_project</code>. Collisions raise <code>EmitError</code>.</p>
+<h2 id="errors">Errors<a class="headerlink" href="#errors" title="Permanent link">&para;</a></h2>
+<h3 id="bloomeryerror"><code>BloomeryError</code><a class="headerlink" href="#bloomeryerror" title="Permanent link">&para;</a></h3>
+<p>The base of every error the package raises — <code>str(exc)</code> is the human message,
+<code>exc.source_path</code> addresses the offending spec node, <code>exc.collected</code> holds individual
+failures on batched aggregates. The full tree lives in <a href="../errors/">Errors</a>.</p>
 
 
 

@@ -846,6 +846,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/plan-a-metric-request/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan a metric request
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/evolve-a-spec/" class="md-nav__link">
         
   
@@ -998,6 +1025,23 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Errors
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="././" class="md-nav__link md-nav__link--active">
         
   
@@ -1013,6 +1057,70 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The hierarchy
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Per class
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#source_path" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>source_path</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#batching" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Batching
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1070,6 +1178,11 @@
                       
                     
                     
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
                   
                   <div class="md-sidebar__inner">
                     
@@ -1081,6 +1194,58 @@
   
     
   
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-hierarchy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The hierarchy
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Per class
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#source_path" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>source_path</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#batching" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Batching
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -1152,8 +1317,220 @@
 
 
 <h1 id="errors">Errors<a class="headerlink" href="#errors" title="Permanent link">&para;</a></h1>
-<p>Every error type the compiler can raise, with its trigger and the spec location it names.
-This page lands with milestone M1 (error taxonomy, RFC 0002) and grows with each stage.</p>
+<p>Every failure bloomery raises derives from <code>BloomeryError</code> — one <code>except BloomeryError</code>
+catches everything — and every class lives in <code>bloomery.errors</code>, importable without
+pulling in any pipeline stage.</p>
+<h2 id="the-hierarchy">The hierarchy<a class="headerlink" href="#the-hierarchy" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>BloomeryError
+├── SpecParseError
+├── UnknownTransformError
+├── TypeCheckError
+├── TransformRegistrationError
+├── ResolutionError
+│   ├── CircularDerivation
+│   └── MissingReference
+├── GuardrailError
+│   ├── UnitMismatch
+│   ├── TaxBasisMismatch
+│   ├── CurrencyMismatch
+│   ├── GrainMismatch
+│   ├── AdditivityViolation
+│   ├── AssertLoweringError
+│   ├── GrainViolation
+│   ├── FanoutRisk
+│   ├── NonAdditiveWithoutComponents
+│   └── MartMissingTimeDimension
+├── PlanError
+│   ├── ContractViolation
+│   └── RenameTargetMissing
+├── EmitError
+│   └── UnsupportedByTarget
+└── PlannerError
+    ├── UnknownMember
+    ├── UnreachableAtGrain
+    ├── AmbiguousDimension
+    ├── InvalidRequest
+    └── FilterTypeMismatch
+</code></pre></div>
+<h2 id="per-class">Per class<a class="headerlink" href="#per-class" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>Stage</th>
+<th>Raised when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BloomeryError</code></td>
+<td>—</td>
+<td>Base class; carries <code>message</code>, <code>source_path</code>, and <code>collected</code></td>
+</tr>
+<tr>
+<td><code>SpecParseError</code></td>
+<td>parse</td>
+<td>YAML failures, duplicate keys, unknown keys, shape/grammar violations — batched per document</td>
+</tr>
+<tr>
+<td><code>UnknownTransformError</code></td>
+<td>typecheck</td>
+<td>A transform chain names a transform absent from the registry; message names the closest match</td>
+</tr>
+<tr>
+<td><code>TypeCheckError</code></td>
+<td>typecheck</td>
+<td>Unparsable type strings; a chain's terminal type not assignable to the declared type; precision-cap overflows</td>
+</tr>
+<tr>
+<td><code>TransformRegistrationError</code></td>
+<td>registration</td>
+<td><code>register_transform</code> given an invalid spec or a colliding name</td>
+</tr>
+<tr>
+<td><code>ResolutionError</code></td>
+<td>resolve</td>
+<td>Cross-spec reference and recipe failures over the dependency DAG — batched per stage</td>
+</tr>
+<tr>
+<td><code>CircularDerivation</code></td>
+<td>resolve</td>
+<td>Any cycle in the dependency DAG; message names the full cycle path</td>
+</tr>
+<tr>
+<td><code>MissingReference</code></td>
+<td>resolve</td>
+<td>A spec references a nonexistent entity, field, canonical field, template, or relationship end</td>
+</tr>
+<tr>
+<td><code>GuardrailError</code></td>
+<td>guardrails</td>
+<td>The batched aggregate of guardrail violations, sorted by <code>(source_path, type name)</code></td>
+</tr>
+<tr>
+<td><code>UnitMismatch</code></td>
+<td>guardrails</td>
+<td><code>+</code>/<code>-</code> operands with differing declared <code>unit</code> (currency + count)</td>
+</tr>
+<tr>
+<td><code>TaxBasisMismatch</code></td>
+<td>guardrails</td>
+<td><code>net</code> and <code>gross</code> — or an unknown basis beside a monetary operand — meeting in additive arithmetic</td>
+</tr>
+<tr>
+<td><code>CurrencyMismatch</code></td>
+<td>guardrails</td>
+<td>Two distinct declared currencies with no explicit <code>convert</code> step in the chain</td>
+</tr>
+<tr>
+<td><code>GrainMismatch</code></td>
+<td>guardrails</td>
+<td>An expression combining columns of different grains without explicit aggregation</td>
+</tr>
+<tr>
+<td><code>AdditivityViolation</code></td>
+<td>guardrails</td>
+<td>An aggregation contradicting the metric's declared additivity</td>
+</tr>
+<tr>
+<td><code>AssertLoweringError</code></td>
+<td>guardrails</td>
+<td>An <code>assert:</code> clause ill-typed against the field's logical type</td>
+</tr>
+<tr>
+<td><code>GrainViolation</code></td>
+<td>guardrails</td>
+<td>A mart measure whose grain does not strictly equal the mart grain</td>
+</tr>
+<tr>
+<td><code>FanoutRisk</code></td>
+<td>guardrails</td>
+<td>A mart <code>via:</code> flatten step over a <code>one_to_many</code> relationship</td>
+</tr>
+<tr>
+<td><code>NonAdditiveWithoutComponents</code></td>
+<td>guardrails</td>
+<td>A non-additive metric with no ratio/additive decomposition to recompute from</td>
+</tr>
+<tr>
+<td><code>MartMissingTimeDimension</code></td>
+<td>guardrails</td>
+<td>A measure-carrying mart that declares no date role</td>
+</tr>
+<tr>
+<td><code>PlanError</code></td>
+<td>plan</td>
+<td>A spec diff that cannot produce a safe migration plan (including IR-version mismatch)</td>
+</tr>
+<tr>
+<td><code>ContractViolation</code></td>
+<td>plan</td>
+<td>Dropping or narrowing a field still referenced by a reachable metric — expand/contract enforced</td>
+</tr>
+<tr>
+<td><code>RenameTargetMissing</code></td>
+<td>plan</td>
+<td>A <code>renamed_from</code> annotation whose old name is absent from the old IR</td>
+</tr>
+<tr>
+<td><code>EmitError</code></td>
+<td>emit</td>
+<td>The IR cannot be lowered to a target artifact; also unknown target/dialect names and emitter-registration collisions</td>
+</tr>
+<tr>
+<td><code>UnsupportedByTarget</code></td>
+<td>emit</td>
+<td>An IR construct the selected target or dialect cannot express — fail loud, never approximate</td>
+</tr>
+<tr>
+<td><code>PlannerError</code></td>
+<td>planner</td>
+<td>A malformed or unanswerable request; also the fallback for untranslated backend failures</td>
+</tr>
+<tr>
+<td><code>UnknownMember</code></td>
+<td>planner</td>
+<td>A request names a metric or dimension that does not exist; message carries a did-you-mean</td>
+</tr>
+<tr>
+<td><code>UnreachableAtGrain</code></td>
+<td>planner</td>
+<td>No single mart can answer the request at the requested grain — refused, never joined at plan time</td>
+</tr>
+<tr>
+<td><code>AmbiguousDimension</code></td>
+<td>planner</td>
+<td>An unqualified reference to a dimension with multiple roles; message names the roles</td>
+</tr>
+<tr>
+<td><code>InvalidRequest</code></td>
+<td>planner</td>
+<td>Bad filter/order/limit shapes, duplicates, floats as filter values</td>
+</tr>
+<tr>
+<td><code>FilterTypeMismatch</code></td>
+<td>planner</td>
+<td>A filter value whose type contradicts the dimension's logical type — refused before any SQL renders</td>
+</tr>
+</tbody>
+</table>
+<h2 id="source_path"><code>source_path</code><a class="headerlink" href="#source_path" title="Permanent link">&para;</a></h2>
+<p>Every error carries an optional <code>source_path</code> — a dotted/bracketed address into the
+authored document, prefixed with the document's name (the key you passed to
+<code>load_project</code>, or a deterministic label like <code>mapping[shop__orders-&gt;order]</code> where
+parsed models no longer know their file):</p>
+<div class="highlight"><pre><span></span><code>mappings/shopify.yaml: fields.unit_price.from
+</code></pre></div>
+<p>The parse stage always sets it; later stages set it best-effort.</p>
+<h2 id="batching">Batching<a class="headerlink" href="#batching" title="Permanent link">&para;</a></h2>
+<p>The parse, resolution, and guardrail stages <strong>batch</strong>: they collect every individual
+failure in the stage and raise one aggregate whose message lists every path, so a spec
+is fixed in one round-trip rather than one error at a time. On an aggregate,
+<code>exc.collected</code> holds the individual errors as a tuple for machine consumption;
+<code>BloomeryError.from_collected(errors)</code> is the constructor that builds one. A stage with
+a single failure raises that failure directly, uncollected.</p>
+<p>Planner errors are deliberately <strong>not</strong> batched — a request fails on its first problem,
+because request-time callers want one actionable refusal, not a report.</p>
 
 
 

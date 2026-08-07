@@ -12,13 +12,13 @@
         <meta name="author" content="Lev Litvinov">
       
       
-        <link rel="canonical" href="https://morzecrew.github.io/bloomery/dev/concepts/compile-pipeline/">
+        <link rel="canonical" href="https://morzecrew.github.io/bloomery/dev/how-to/plan-a-metric-request/">
       
       
-        <link rel="prev" href="../specs-and-catalog/">
+        <link rel="prev" href="../emit-dbt/">
       
       
-        <link rel="next" href="../determinism/">
+        <link rel="next" href="../evolve-a-spec/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>The compile pipeline - Bloomery</title>
+        <title>Plan a metric request - Bloomery</title>
       
     
     
@@ -85,7 +85,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#the-compile-pipeline" class="md-skip">
+        <a href="#plan-a-metric-request" class="md-skip">
           Skip to content
         </a>
       
@@ -123,7 +123,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              The compile pipeline
+              Plan a metric request
             
           </span>
         </div>
@@ -243,16 +243,14 @@
   
   
   
-    
-  
   
     
       
     
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../specs-and-catalog/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../concepts/specs-and-catalog/" class="md-tabs__link">
           
   
   Concepts
@@ -267,14 +265,16 @@
   
   
   
+    
+  
   
     
       
     
     
     
-      <li class="md-tabs__item">
-        <a href="../../how-to/emit-sqlmesh/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../emit-sqlmesh/" class="md-tabs__link">
           
   
   How-to
@@ -520,6 +520,198 @@
       
   
   
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Concepts
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Concepts
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/specs-and-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Specs and the catalog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/compile-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The compile pipeline
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/determinism/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Determinism
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Guardrails
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/wide-marts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The wide-mart gold layer
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
     
   
   
@@ -541,17 +733,17 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
   <span class="md-ellipsis">
     
   
-  Concepts
+  How-to
 
     
   </span>
@@ -561,12 +753,12 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
-  Concepts
+  How-to
 
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
@@ -578,14 +770,68 @@
   
   
     <li class="md-nav__item">
-      <a href="../specs-and-catalog/" class="md-nav__link">
+      <a href="../emit-sqlmesh/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-  Specs and the catalog
+  Emit SQLMesh artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../emit-cube/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit Cube artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../emit-dbt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit dbt artifacts
 
     
   </span>
@@ -621,7 +867,7 @@
   <span class="md-ellipsis">
     
   
-  The compile pipeline
+  Plan a metric request
 
     
   </span>
@@ -638,7 +884,7 @@
   <span class="md-ellipsis">
     
   
-  The compile pipeline
+  Plan a metric request
 
     
   </span>
@@ -664,93 +910,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-six-stages" class="md-nav__link">
+  <a href="#build-the-ir-and-the-planner" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The six stages
-      </span>
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The six stages">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#1-parse" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        1. Parse
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#2-resolve" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        2. Resolve
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#3-typecheck" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        3. Typecheck
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#4-guardrails" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        4. Guardrails
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#5-plan" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        5. Plan
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#6-lower-and-emit" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        6. Lower and emit
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-ir-the-frozen-hand-off" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        The IR: the frozen hand-off
+        Build the IR and the planner
       </span>
     </span>
   </a>
@@ -758,10 +921,65 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#four-ports" class="md-nav__link">
+  <a href="#make-a-request" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Four ports
+        Make a request
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-comes-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What comes back
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#refusals" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Refusals
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scope-rows-with-a-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Scope rows with a policy
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execute-the-sql-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Execute the SQL yourself
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Notes
       </span>
     </span>
   </a>
@@ -784,253 +1002,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../determinism/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  Determinism
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../guardrails/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  Guardrails
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../wide-marts/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  The wide-mart gold layer
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
-        
-          
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  How-to
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_4">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-  How-to
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../how-to/emit-sqlmesh/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  Emit SQLMesh artifacts
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../how-to/emit-cube/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  Emit Cube artifacts
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../how-to/emit-dbt/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  Emit dbt artifacts
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../how-to/plan-a-metric-request/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  Plan a metric request
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../how-to/evolve-a-spec/" class="md-nav__link">
+      <a href="../evolve-a-spec/" class="md-nav__link">
         
   
   
@@ -1263,93 +1235,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-six-stages" class="md-nav__link">
+  <a href="#build-the-ir-and-the-planner" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The six stages
-      </span>
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The six stages">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#1-parse" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        1. Parse
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#2-resolve" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        2. Resolve
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#3-typecheck" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        3. Typecheck
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#4-guardrails" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        4. Guardrails
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#5-plan" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        5. Plan
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#6-lower-and-emit" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        6. Lower and emit
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-ir-the-frozen-hand-off" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        The IR: the frozen hand-off
+        Build the IR and the planner
       </span>
     </span>
   </a>
@@ -1357,10 +1246,65 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#four-ports" class="md-nav__link">
+  <a href="#make-a-request" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Four ports
+        Make a request
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-comes-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What comes back
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#refusals" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Refusals
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scope-rows-with-a-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Scope rows with a policy
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execute-the-sql-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Execute the SQL yourself
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Notes
       </span>
     </span>
   </a>
@@ -1414,11 +1358,11 @@
     
     
       <li class="md-path__item">
-        <a href="../specs-and-catalog/" class="md-path__link">
+        <a href="../emit-sqlmesh/" class="md-path__link">
           
   
   <span class="md-ellipsis">
-    Concepts
+    How-to
   </span>
 
         </a>
@@ -1438,142 +1382,167 @@
   
 
 
-<h1 id="the-compile-pipeline">The compile pipeline<a class="headerlink" href="#the-compile-pipeline" title="Permanent link">&para;</a></h1>
-<p>This page explains how specs become artifacts: six pure stages, each of which either
-produces trusted output for the next or refuses with a typed error, meeting at a frozen
-intermediate representation (IR) that every consumer reads. Emitters and the planner
-consume the IR, never the specs — which is why the thing that builds a table and the
-thing that queries it can never disagree about what the table means.</p>
-<pre class="mermaid"><code>flowchart LR
-    S["specs&lt;br/&gt;(YAML text)"] --&gt; P[parse] --&gt; R[resolve] --&gt; T[typecheck] --&gt; G[guardrails]
-    G --&gt; IR[("ProjectIR&lt;br/&gt;frozen, fingerprinted")]
-    IR --&gt; PL["plan()&lt;br/&gt;spec diff"]
-    IR --&gt; LE["lower / emit"]
-    IR --&gt; Q["planner&lt;br/&gt;MetricRequest → QueryPlan"]
-    LE --&gt; A["SQLMesh · dbt · Cube&lt;br/&gt;artifacts"]
-    LE --&gt; M["MetricFlow&lt;br/&gt;semantic manifest"]
-    Q -.-&gt;|delegates to| MF["embedded MetricFlow&lt;br/&gt;(render-only)"]</code></pre>
-<p>Every stage is a pure function: data structures in, data structures out, no I/O, no
-clock, no randomness. A stage never patches over bad input from the one before it —
-each either succeeds completely or raises a <code>BloomeryError</code> subclass carrying a source
-path into the offending spec node.</p>
-<h2 id="the-six-stages">The six stages<a class="headerlink" href="#the-six-stages" title="Permanent link">&para;</a></h2>
-<h3 id="1-parse">1. Parse<a class="headerlink" href="#1-parse" title="Permanent link">&para;</a></h3>
-<p>YAML text becomes strict, frozen Pydantic models — the five spec kinds plus the
-<code>Project</code> container. Parse validates <em>shape</em>, not references: unknown keys, missing
-required fields, bad type grammar, and duplicate YAML keys are all refused, because a
-typo'd key that is silently ignored is the worst failure mode in a config-driven
-system. Failures are batched per document and raised as one <code>SpecParseError</code> listing
-every path, so authors fix a spec in one round trip.</p>
-<h3 id="2-resolve">2. Resolve<a class="headerlink" href="#2-resolve" title="Permanent link">&para;</a></h3>
-<p>The parsed specs become one dependency graph: source columns feed entity fields, entity
-fields feed canonical fields through <code>canonical:</code> links, canonical fields feed metrics,
-and metrics feed metrics. Resolve refuses dangling references (a mapping targeting a
-nonexistent entity, a <code>canonical:</code> link to a field the catalog does not define) and
-invalid recorded recipes — the compiler validates the recipe the mapping recorded but
-never chooses one itself. All failures are <code>ResolutionError</code>s, batched; a cycle
-anywhere in the graph raises <code>CircularDerivation</code> naming the full cycle path. Resolve
-also produces two things no later stage recomputes: the reachable/unreachable metric
-report (with the specific missing leaves) and the deterministic topological emission
-order, with ties broken lexicographically.</p>
-<h3 id="3-typecheck">3. Typecheck<a class="headerlink" href="#3-typecheck" title="Permanent link">&para;</a></h3>
-<p>Every transform chain is walked against a closed, versioned transform whitelist:
-<code>str → parse_ts → timestamp → to_utc → timestamp</code> passes; a chain whose terminal type
-is not assignable to the declared field type does not. Decimal precision is tracked —
-widening is implicit, narrowing must be explicit. An unknown transform name raises
-<code>UnknownTransformError</code> naming the closest match; a bad chain raises <code>TypeCheckError</code>.</p>
-<h3 id="4-guardrails">4. Guardrails<a class="headerlink" href="#4-guardrails" title="Permanent link">&para;</a></h3>
-<p>The stage that refuses arithmetic which parses, typechecks, and produces a wrong
-number: unit and tax-basis coherence, currency mixing, grain fan-out (including
-mart-level <code>GrainViolation</code> at the declaration site), and additivity policy. Violations
-across the whole project are collected and raised as a single <code>GuardrailError</code>
-aggregate. These are always errors, never warnings — the <a href="../guardrails/">guardrails</a>
-page walks each one with its failing spec and exact message.</p>
-<h3 id="5-plan">5. Plan<a class="headerlink" href="#5-plan" title="Permanent link">&para;</a></h3>
-<p><code>plan(old_ir, new_ir)</code> is a pure structural diff of two IRs. Every change is classified
-— <code>ADDITIVE</code>, <code>WIDENING</code>, <code>RENAME</code>, <code>RESTATING</code>, <code>BREAKING</code> — with backfill scope and
-downstream impact computed from the dependency edges the IR already carries. The stage
-refuses expand/contract violations: dropping or narrowing a field that a live metric
-still references raises <code>ContractViolation</code> (a <code>PlanError</code>); deprecation must come
-first.</p>
-<h3 id="6-lower-and-emit">6. Lower and emit<a class="headerlink" href="#6-lower-and-emit" title="Permanent link">&para;</a></h3>
-<p>The IR becomes target artifacts. Each <code>SELECT</code> is constructed as a SQLGlot AST and
-rendered per dialect — SQL is never built by string concatenation or Jinja; Jinja
-renders only the envelope (a SQLMesh <code>MODEL (...)</code> block, a dbt config header). A
-feature the target cannot express raises <code>UnsupportedByTarget</code> (an <code>EmitError</code>) naming
-the entity and feature — nothing silently degrades. Every artifact carries a header
-comment stamped with the project fingerprint, so drift between applied artifacts and
-specs is detectable downstream.</p>
-<h2 id="the-ir-the-frozen-hand-off">The IR: the frozen hand-off<a class="headerlink" href="#the-ir-the-frozen-hand-off" title="Permanent link">&para;</a></h2>
-<p>Everything between guardrails and emission is a single value: <code>ProjectIR</code>, a frozen
-dataclass tree designed so the deterministic thing is the only easy thing to write.</p>
+<h1 id="plan-a-metric-request">Plan a metric request<a class="headerlink" href="#plan-a-metric-request" title="Permanent link">&para;</a></h1>
+<p>You have compiled specs and a built mart, and you want SQL that answers "revenue by
+month for these countries" — correct at the requested grain, refused when it cannot be.
+The planner turns a structured <code>MetricRequest</code> into a <code>QueryPlan</code>: SQL text plus
+metadata, rendered by an embedded MetricFlow that never executes anything. For a
+runnable end-to-end script see
+<a href="https://github.com/morzecrew/bloomery/tree/main/examples/quickstart"><code>examples/quickstart/run.py</code></a>;
+the <a href="../../concepts/wide-marts/">wide-marts</a> page explains why requests are served from
+one mart with no query-time joins.</p>
+<h2 id="build-the-ir-and-the-planner">Build the IR and the planner<a class="headerlink" href="#build-the-ir-and-the-planner" title="Permanent link">&para;</a></h2>
+<p>The planner works on the compiled IR, not on specs, and gets its manifests through a
+hydrator — an in-process LRU that rebuilds (or loads caller-supplied bytes) whenever
+the specs, the bloomery version, or the MetricFlow version change:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">LruManifestHydrator</span><span class="p">,</span> <span class="n">MetricFlowPlanner</span><span class="p">,</span> <span class="n">build_project_ir</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">bloomery.naming</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultNaming</span>
+
+<span class="n">ir</span> <span class="o">=</span> <span class="n">build_project_ir</span><span class="p">(</span><span class="n">project</span><span class="p">,</span> <span class="n">catalog</span><span class="o">=</span><span class="n">catalog</span><span class="p">)</span>
+
+<span class="n">naming</span> <span class="o">=</span> <span class="n">DefaultNaming</span><span class="p">()</span>
+<span class="n">planner</span> <span class="o">=</span> <span class="n">MetricFlowPlanner</span><span class="p">(</span><span class="n">LruManifestHydrator</span><span class="p">(</span><span class="n">naming</span><span class="p">),</span> <span class="n">naming</span><span class="o">=</span><span class="n">naming</span><span class="p">)</span>
+</code></pre></div>
+<p>Two wiring rules:</p>
 <ul>
-<li><strong>All collections are tuples</strong>, explicitly sorted on stable identifiers — never sets,
-  never insertion-order dicts. The only unsorted fields are those whose authored order
-  is meaningful (keys, transform chains, mart flatten steps).</li>
-<li><strong>SQL is stored as <code>SqlExpr</code></strong> — canonical, dialect-neutral SQLGlot text. The string
-  is the value; dialect-specific rendering happens at emit time from a fresh parse,
-  which makes the IR trivially hashable and its equality independent of SQLGlot object
-  identity.</li>
-<li><strong><code>project_fingerprint(ir)</code></strong> is a <code>blm1:</code>-prefixed SHA-256 over a canonical byte
-  encoding of the whole tree. It is the cache key for compilation results, the header
-  stamp in every artifact, and the spec component of the planner's hydration cache
-  key — the <a href="../determinism/">determinism</a> page covers what it does and does not
-  promise.</li>
+<li><code>naming</code> must be the policy the artifacts were emitted with — it shapes the gold
+  relation names in the SQL, the refusals, and the explanations.</li>
+<li>Build the planner once and reuse it: the hydrator's cache is what makes repeated
+  planning cheap. If you persist manifests yourself, pass <code>fetch_l2=</code> to the hydrator;
+  a <code>None</code> return falls back to rebuilding from the IR.</li>
 </ul>
-<p>Unreachable metrics are IR members, not log lines: "you can't get margin because <code>cogs</code>
-is missing" is a product-facing answer, and it travels with the IR to whatever surface
-needs it.</p>
-<h2 id="four-ports">Four ports<a class="headerlink" href="#four-ports" title="Permanent link">&para;</a></h2>
-<p>Everything variable around the pure core is a port — a <code>typing.Protocol</code> an adapter
-satisfies without importing a base class.</p>
+<h2 id="make-a-request">Make a request<a class="headerlink" href="#make-a-request" title="Permanent link">&para;</a></h2>
+<p>A request is structured data — metrics, dimensions, typed filters, a time grain,
+ordering, a limit. There is no SQL string anywhere a caller could inject into:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">FilterExpr</span><span class="p">,</span> <span class="n">MetricRequest</span><span class="p">,</span> <span class="n">OrderSpec</span><span class="p">,</span> <span class="n">TimeGrain</span>
+
+<span class="n">request</span> <span class="o">=</span> <span class="n">MetricRequest</span><span class="p">(</span>
+    <span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;revenue&quot;</span><span class="p">,),</span>
+    <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;country&quot;</span><span class="p">,</span> <span class="s2">&quot;ordered_day&quot;</span><span class="p">),</span>
+    <span class="n">filters</span><span class="o">=</span><span class="p">(</span><span class="n">FilterExpr</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="s2">&quot;country&quot;</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="s2">&quot;in&quot;</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;FR&quot;</span><span class="p">,</span> <span class="s2">&quot;DE&quot;</span><span class="p">)),),</span>
+    <span class="n">time_grain</span><span class="o">=</span><span class="n">TimeGrain</span><span class="o">.</span><span class="n">MONTH</span><span class="p">,</span>
+    <span class="n">order_by</span><span class="o">=</span><span class="p">(</span><span class="n">OrderSpec</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="s2">&quot;revenue&quot;</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="s2">&quot;desc&quot;</span><span class="p">),),</span>
+    <span class="n">limit</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">plan</span> <span class="o">=</span> <span class="n">planner</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span><span class="n">ir</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s2">&quot;duckdb&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p>Structural rules, enforced at construction with <code>InvalidRequest</code>: at least one metric,
+no duplicates, <code>order_by</code> only over requested members, <code>limit &gt;= 1</code>, filter
+operator/value arity coherence, and no float filter values (send <code>Decimal</code> or a
+string). <code>time_grain</code> re-buckets every date-role dimension in the request — here
+<code>ordered_day</code> with <code>TimeGrain.MONTH</code> groups by the <code>ordered_month</code> bucket column.</p>
+<h2 id="what-comes-back">What comes back<a class="headerlink" href="#what-comes-back" title="Permanent link">&para;</a></h2>
+<p><code>QueryPlan</code> is the planner's whole product:</p>
 <table>
 <thead>
 <tr>
-<th>Port</th>
-<th>Varies over</th>
-<th>Knows nothing about</th>
+<th>Field</th>
+<th>What it carries</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>TargetEmitter</code></td>
-<td>SQLMesh, dbt, Cube, MetricFlow manifest</td>
-<td>SQL dialects</td>
+<td><code>sql</code></td>
+<td>The rendered SQL text — runnable as-is on the requested dialect</td>
 </tr>
 <tr>
-<td><code>DialectPort</code></td>
-<td>DuckDB, Postgres, Trino rendering and physical types</td>
-<td>targets</td>
+<td><code>columns</code></td>
+<td>Self-describing output envelope: one <code>ColumnDescriptor(name, type, role)</code> per output column, in bloomery names (<code>ordered_month</code>, never MetricFlow's internal names)</td>
 </tr>
 <tr>
-<td><code>NamingPolicy</code></td>
-<td>logical name → physical <code>(namespace, relation)</code></td>
-<td>everything else — the only tenant-shaped seam in the package</td>
+<td><code>mart</code></td>
+<td>The serving mart's logical name</td>
 </tr>
 <tr>
-<td><code>Planner</code></td>
-<td>the query-planning backend</td>
-<td>the caller's identity, connections, execution</td>
+<td><code>warnings</code></td>
+<td>Non-fatal notices: a clamped <code>limit</code>, a <code>time_grain</code> with nothing to apply to</td>
+</tr>
+<tr>
+<td><code>explanation</code></td>
+<td>Deterministic provenance — <code>explanation.render()</code> gives the human-readable block</td>
+</tr>
+<tr>
+<td><code>fingerprint</code></td>
+<td><code>sha256(sql)</code> — your result-cache key</td>
 </tr>
 </tbody>
 </table>
-<p>Target and dialect vary independently — SQLMesh-on-Trino and dbt-on-Trino share every
-line of dialect logic — so collapsing them would produce an N×M explosion of
-near-duplicate templates. This split is the most load-bearing design decision in the
-package.</p>
-<p>The planner is the fourth port, deliberately not a <code>TargetEmitter</code>: emitters run once
-per spec version, the planner answers at request time, thousands of times per second —
-different lifecycle, different envelope. Its contract is a pair of frozen types,
-<code>MetricRequest</code> in and <code>QueryPlan</code> out, and that contract is the stability boundary:
-behind it sits <code>MetricFlowPlanner</code>, which delegates SQL generation to an embedded,
-render-only MetricFlow (pinned tightly; it drives internal surfaces with no stability
-guarantee, so upgrades are deliberate, canary-tested events). Callers bind to
-<code>MetricRequest</code>/<code>QueryPlan</code> and never see a MetricFlow type — errors are translated
-into bloomery's taxonomy at the adapter, which is what makes the backend swappable. The
-<a href="../wide-marts/">wide-marts</a> page explains what the planner refuses and why.</p>
-<p>Determinism is what holds all six stages together — the same specs must produce the
-same bytes forever — and it gets its own page: <a href="../determinism/">Determinism</a>.</p>
+<p>The explanation is generated from the plan, never from a model — every number ships
+with how it was computed:</p>
+<div class="highlight"><pre><span></span><code>revenue
+  mart:     gold.mart_orders (grain: order)
+  measure:  revenue = SUM(amount)
+            [additive — SUM]
+  filters:  country in (&#39;FR&#39;, &#39;DE&#39;)
+  policy:   not applied
+</code></pre></div>
+<h2 id="refusals">Refusals<a class="headerlink" href="#refusals" title="Permanent link">&para;</a></h2>
+<p>The planner answers correctly or refuses with a typed error — never guesses. All
+planner errors subclass <code>PlannerError</code>; the first failure wins (they are not batched).
+The three you will design UX around:</p>
+<p><code>UnknownMember</code> — a name that does not exist, with a closest match:</p>
+<div class="highlight"><pre><span></span><code>unknown metric &#39;revenu&#39;; did you mean &#39;revenue&#39;?
+</code></pre></div>
+<p><code>UnreachableAtGrain</code> — no single mart can serve the request. Summing across grains
+would double-count, so the planner refuses rather than join at plan time:</p>
+<div class="highlight"><pre><span></span><code>metric &#39;order_count&#39; (grain: order) is served by no mart — no mart lists it as a measure.
+  Define a mart at grain &#39;order&#39; carrying it.
+</code></pre></div>
+<p><code>AmbiguousDimension</code> — an unqualified bucket where the mart has several date roles:</p>
+<div class="highlight"><pre><span></span><code>&#39;month&#39; has roles [&#39;ordered&#39;, &#39;shipped&#39;]. Use &#39;ordered_month&#39; or &#39;shipped_month&#39;.
+</code></pre></div>
+<p>The remaining two are <code>InvalidRequest</code> (structural problems, raised at request
+construction or planning) and <code>FilterTypeMismatch</code> (a filter value whose type
+contradicts the dimension's column type — refused before any SQL renders).</p>
+<h2 id="scope-rows-with-a-policy">Scope rows with a policy<a class="headerlink" href="#scope-rows-with-a-policy" title="Permanent link">&para;</a></h2>
+<p>Row-level scoping is a typed filter, not a predicate string. Deciding <em>whose</em> policy
+applies is your upstream concern; the planner takes the value and renders it through
+the same escaping pipeline as every other filter, prepended to the user's filters:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">RowPolicy</span>
+
+<span class="n">plan</span> <span class="o">=</span> <span class="n">planner</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span>
+    <span class="n">ir</span><span class="p">,</span>
+    <span class="n">MetricRequest</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;revenue&quot;</span><span class="p">,),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;ordered_month&quot;</span><span class="p">,)),</span>
+    <span class="n">dialect</span><span class="o">=</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span>
+    <span class="n">policy</span><span class="o">=</span><span class="n">RowPolicy</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="s2">&quot;country&quot;</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="s2">&quot;eq&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="s2">&quot;FR&quot;</span><span class="p">),</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>The rendered predicate reaches every scan of the mart relation, and
+<code>explanation.render()</code> reports <code>policy:   applied</code> — the plan itself records that
+scoping happened.</p>
+<h2 id="execute-the-sql-yourself">Execute the SQL yourself<a class="headerlink" href="#execute-the-sql-yourself" title="Permanent link">&para;</a></h2>
+<p>The planner never sees a connection — execution is your side of the line. <code>plan.sql</code>
+runs directly on the dialect you asked for; on DuckDB, with the mart table built (by
+the emitted SQLMesh models in real life, by hand here):</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">duckdb</span>
+
+<span class="n">con</span> <span class="o">=</span> <span class="n">duckdb</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
+<span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;CREATE SCHEMA gold&quot;</span><span class="p">)</span>
+<span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">    CREATE TABLE gold.mart_orders AS</span>
+<span class="s2">    SELECT * FROM (VALUES</span>
+<span class="s2">        (&#39;FR&#39;, DECIMAL &#39;10.00&#39;, DATE &#39;2024-01-05&#39;),</span>
+<span class="s2">        (&#39;DE&#39;, DECIMAL &#39;20.00&#39;, DATE &#39;2024-01-20&#39;),</span>
+<span class="s2">        (&#39;FR&#39;, DECIMAL &#39;5.00&#39;,  DATE &#39;2024-02-01&#39;)</span>
+<span class="s2">    ) AS t(country, amount, ordered_day)</span>
+<span class="s2">&quot;&quot;&quot;</span><span class="p">)</span>
+<span class="n">rows</span> <span class="o">=</span> <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">plan</span><span class="o">.</span><span class="n">sql</span><span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+</code></pre></div>
+<p>Pair the rows with <code>plan.columns</code> for names and types, and cache results under
+<code>plan.fingerprint</code> — identical requests over identical specs produce identical SQL,
+so the fingerprint is a sound cache key.</p>
+<h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>limit</code> is clamped to the planner's <code>max_limit</code> (default 50 000) with a warning on
+  the plan, and <code>default_limit</code> applies when a request carries none.</li>
+<li><code>TimeGrain.HOUR</code> is accepted by the contract but refused at coverage — marts expand
+  date roles to day–year buckets only.</li>
+<li>A non-additive ratio metric is planned from its additive components on the mart that
+  carries both; it is never read from storage. See
+  <a href="../../concepts/guardrails/#additivity">guardrails</a> for why.</li>
+<li>When specs change shape, re-run <code>build_project_ir</code> and hand the new IR to the same
+  planner — the hydrator treats it as a new cache key automatically.</li>
+</ul>
 
 
 
@@ -1611,7 +1580,7 @@ same bytes forever — and it gets its own page: <a href="../determinism/">Deter
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../specs-and-catalog/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Specs and the catalog">
+          <a href="../emit-dbt/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Emit dbt artifacts">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
@@ -1621,20 +1590,20 @@ same bytes forever — and it gets its own page: <a href="../determinism/">Deter
                 Previous
               </span>
               <div class="md-ellipsis">
-                Specs and the catalog
+                Emit dbt artifacts
               </div>
             </div>
           </a>
         
         
           
-          <a href="../determinism/" class="md-footer__link md-footer__link--next" aria-label="Next: Determinism">
+          <a href="../evolve-a-spec/" class="md-footer__link md-footer__link--next" aria-label="Next: Evolve a spec safely">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Determinism
+                Evolve a spec safely
               </div>
             </div>
             <div class="md-footer__button md-icon">

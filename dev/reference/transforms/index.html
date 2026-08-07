@@ -846,6 +846,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/plan-a-metric-request/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan a metric request
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/evolve-a-spec/" class="md-nav__link">
         
   
@@ -971,6 +998,23 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Transforms
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="././" class="md-nav__link md-nav__link--active">
         
   
@@ -986,6 +1030,92 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#string" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        String
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#casts-and-parses" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Casts and parses
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#null-handling-and-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Null handling and JSON
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#arithmetic" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Arithmetic
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#currency" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Currency
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom-transforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Custom transforms
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -1070,6 +1200,11 @@
                       
                     
                     
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
                   
                   <div class="md-sidebar__inner">
                     
@@ -1081,6 +1216,80 @@
   
     
   
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#string" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        String
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#casts-and-parses" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Casts and parses
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#null-handling-and-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Null handling and JSON
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#arithmetic" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Arithmetic
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#currency" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Currency
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom-transforms" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Custom transforms
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -1152,8 +1361,236 @@
 
 
 <h1 id="transforms">Transforms<a class="headerlink" href="#transforms" title="Permanent link">&para;</a></h1>
-<p>The built-in transform vocabulary — signatures, typing rules, and dialect rendering —
-plus how to register custom transforms. This page lands with milestone M3 (RFC 0004).</p>
+<p>The closed transform whitelist a mapping's <code>transform:</code> chains may draw from — 24
+built-ins, each typed with an input domain and an output type. Chains typecheck at
+compile: a step whose input type is outside its domain, or a chain whose terminal type
+is not assignable to the field's declared type, is a <code>TypeCheckError</code>; a name outside
+the whitelist is an <code>UnknownTransformError</code> naming the closest match.</p>
+<p>Chains start at <code>string</code> — source extraction yields text — and each step's output
+feeds the next step's input. Args are spec-level literals, written as a bare name
+(<code>trim</code>), a single-arg mapping (<code>{parse_ts: ISO8601}</code>), or a list
+(<code>{to_decimal: [12, 4]}</code>).</p>
+<h2 id="string">String<a class="headerlink" href="#string" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Args</th>
+<th>Input → output</th>
+<th>Usage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trim</code></td>
+<td>—</td>
+<td>string → string</td>
+<td><code>[trim]</code> — strip surrounding whitespace</td>
+</tr>
+<tr>
+<td><code>upper</code></td>
+<td>—</td>
+<td>string → string</td>
+<td><code>[upper]</code> — uppercase</td>
+</tr>
+<tr>
+<td><code>lower</code></td>
+<td>—</td>
+<td>string → string</td>
+<td><code>[lower]</code> — lowercase</td>
+</tr>
+<tr>
+<td><code>split_part</code></td>
+<td>delimiter (str), index (int)</td>
+<td>string → string</td>
+<td><code>[{split_part: ["-", 2]}]</code> — the nth delimited part</td>
+</tr>
+<tr>
+<td><code>regex_extract</code></td>
+<td>pattern (str), group (int)</td>
+<td>string → string</td>
+<td><code>[{regex_extract: ["ord-(\\d+)", 1]}]</code> — capture group</td>
+</tr>
+<tr>
+<td><code>strip_prefix</code></td>
+<td>prefix (str)</td>
+<td>string → string</td>
+<td><code>[{strip_prefix: "ord-"}]</code> — remove a leading prefix if present</td>
+</tr>
+<tr>
+<td><code>strip_suffix</code></td>
+<td>suffix (str)</td>
+<td>string → string</td>
+<td><code>[{strip_suffix: "-eu"}]</code> — remove a trailing suffix if present</td>
+</tr>
+<tr>
+<td><code>concat</code></td>
+<td>text (str)</td>
+<td>string → string</td>
+<td><code>[{concat: "-eu"}]</code> — append a literal</td>
+</tr>
+<tr>
+<td><code>enum_map</code></td>
+<td>from/to pairs (str…, variadic)</td>
+<td>string → string</td>
+<td><code>[{enum_map: [F, female, M, male]}]</code> — map values; unmapped values pass through</td>
+</tr>
+</tbody>
+</table>
+<h2 id="casts-and-parses">Casts and parses<a class="headerlink" href="#casts-and-parses" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Args</th>
+<th>Input → output</th>
+<th>Usage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>to_string</code></td>
+<td>—</td>
+<td>any → string</td>
+<td><code>[to_string]</code> — cast to text</td>
+</tr>
+<tr>
+<td><code>to_int</code></td>
+<td>—</td>
+<td>string, int, decimal, bool → int</td>
+<td><code>[to_int]</code> — cast to integer</td>
+</tr>
+<tr>
+<td><code>to_decimal</code></td>
+<td>precision (int), scale (int)</td>
+<td>string, int, decimal → decimal(p, s)</td>
+<td><code>[{to_decimal: [12, 2]}]</code> — cast with explicit shape</td>
+</tr>
+<tr>
+<td><code>to_bool</code></td>
+<td>—</td>
+<td>string, int, bool → bool</td>
+<td><code>[to_bool]</code> — cast to boolean</td>
+</tr>
+<tr>
+<td><code>parse_ts</code></td>
+<td>format (str)</td>
+<td>string → timestamp</td>
+<td><code>[{parse_ts: ISO8601}]</code> — parse a timestamp; <code>ISO8601</code> means the engine's native parse, any other string is an explicit format</td>
+</tr>
+<tr>
+<td><code>parse_date</code></td>
+<td>format (str)</td>
+<td>string → date</td>
+<td><code>[{parse_date: ISO8601}]</code> — parse a date</td>
+</tr>
+<tr>
+<td><code>to_utc</code></td>
+<td>zone (str)</td>
+<td>timestamp → timestamp</td>
+<td><code>[{to_utc: Europe/Paris}]</code> — interpret a zoneless local timestamp in <code>zone</code>; the only door into the always-UTC timestamp type</td>
+</tr>
+</tbody>
+</table>
+<h2 id="null-handling-and-json">Null handling and JSON<a class="headerlink" href="#null-handling-and-json" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Args</th>
+<th>Input → output</th>
+<th>Usage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>coalesce</code></td>
+<td>fallback (literal)</td>
+<td>any → same type</td>
+<td><code>[{coalesce: 0}]</code> — replace NULL with a literal</td>
+</tr>
+<tr>
+<td><code>nullif</code></td>
+<td>sentinel (literal)</td>
+<td>any → same type</td>
+<td><code>[{nullif: "N/A"}]</code> — turn a sentinel value into NULL</td>
+</tr>
+<tr>
+<td><code>json_path</code></td>
+<td>path (str)</td>
+<td>variant, string → variant</td>
+<td><code>[{json_path: "$.a.b"}]</code> — extract from a JSON value</td>
+</tr>
+</tbody>
+</table>
+<h2 id="arithmetic">Arithmetic<a class="headerlink" href="#arithmetic" title="Permanent link">&para;</a></h2>
+<p>Decimal precision and scale are tracked through arithmetic: <code>multiply</code>/<code>divide</code> widen
+to <code>decimal(p1+p2, s1+s2)</code>; crossing the 38-digit precision cap is a loud
+<code>TypeCheckError</code> telling you to narrow with an explicit <code>to_decimal</code> step.</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Args</th>
+<th>Input → output</th>
+<th>Usage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>multiply</code></td>
+<td>factor (number)</td>
+<td>decimal → widened decimal</td>
+<td><code>[{multiply: 100}]</code> — multiply by a literal</td>
+</tr>
+<tr>
+<td><code>divide</code></td>
+<td>divisor (number)</td>
+<td>decimal → widened decimal</td>
+<td><code>[{divide: 100}]</code> — divide by a literal</td>
+</tr>
+<tr>
+<td><code>round</code></td>
+<td>digits (int ≥ 0)</td>
+<td>int → int; decimal → decimal(·, digits)</td>
+<td><code>[{round: 2}]</code> — round to <code>digits</code> decimal places</td>
+</tr>
+<tr>
+<td><code>abs</code></td>
+<td>—</td>
+<td>int, decimal → same type</td>
+<td><code>[abs]</code> — absolute value</td>
+</tr>
+</tbody>
+</table>
+<h2 id="currency">Currency<a class="headerlink" href="#currency" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Args</th>
+<th>Input → output</th>
+<th>Usage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>convert</code></td>
+<td>currency (str)</td>
+<td>decimal → decimal</td>
+<td><code>[{convert: EUR}]</code> — the explicit conversion marker the currency guardrail requires for mixed-currency arithmetic; rate semantics live downstream</td>
+</tr>
+</tbody>
+</table>
+<h2 id="custom-transforms">Custom transforms<a class="headerlink" href="#custom-transforms" title="Permanent link">&para;</a></h2>
+<p><code>register_transform(spec)</code> adds an extension transform to a process-global overlay —
+a deployment-time act, typically an adapter package registering at import. A name
+collision with any existing transform, built-in or extension, raises
+<code>TransformRegistrationError</code>: shadowing a vetted transform silently would defeat the
+whitelist. A <code>TransformSpec</code> declares the name, arity and per-argument kinds, input
+type domain, output type (a fixed type or a function of input type and args), and a
+builder that produces a dialect-neutral SQLGlot AST — never string SQL. See the
+<a href="../api/#extension-points">API reference</a>.</p>
 
 
 
