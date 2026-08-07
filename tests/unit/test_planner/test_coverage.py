@@ -21,7 +21,7 @@ from bloomery.naming import DefaultNaming
 from bloomery.planner import TimeGrain
 from bloomery.planner.coverage import check, resolve_request
 from bloomery.planner.names import ResolvedDimension
-from bloomery.planner.request import FilterExpr
+from bloomery.planner.request import AnyOf, Op, Predicate
 from support.planning import fixture_ir
 
 pytestmark = pytest.mark.unit
@@ -125,10 +125,38 @@ def test_unknown_dimension_gets_a_suggestion() -> None:
 
 def test_filter_dimension_must_be_on_the_covering_mart() -> None:
     request = MetricRequest(
-        metrics=("stock_on_hand",), filters=(FilterExpr("nonexistent", "eq", ("x",)),)
+        metrics=("stock_on_hand",), filters=(Predicate("nonexistent", Op.EQ, ("x",)),)
     )
     with pytest.raises(UnknownMember, match="nonexistent"):
         _check(fixture_ir("semi_additive_inventory"), request)
+
+
+def test_every_any_of_member_dimension_must_resolve() -> None:
+    # RFC 0015 D-Q3: an AnyOf group resolves every member's dimension.
+    clause = AnyOf(
+        (Predicate("warehouse_id", Op.EQ, ("A",)), Predicate("nonexistent", Op.EQ, ("x",)))
+    )
+    request = MetricRequest(metrics=("stock_on_hand",), filters=(clause,))
+    with pytest.raises(UnknownMember, match="nonexistent"):
+        _check(fixture_ir("semi_additive_inventory"), request)
+
+
+def test_filter_dimensions_group_per_clause() -> None:
+    clause = AnyOf(
+        (Predicate("warehouse_id", Op.EQ, ("A",)), Predicate("stock_level", Op.GT, (10,)))
+    )
+    resolved = resolve_request(
+        fixture_ir("semi_additive_inventory"),
+        MetricRequest(
+            metrics=("stock_on_hand",),
+            filters=(Predicate("warehouse_id", Op.EQ, ("B",)), clause),
+        ),
+        naming=NAMING,
+    )
+    assert resolved.filter_dimensions == (
+        (ResolvedDimension(name="warehouse_id"),),
+        (ResolvedDimension(name="warehouse_id"), ResolvedDimension(name="stock_level")),
+    )
 
 
 def test_policy_dimension_must_be_on_the_covering_mart() -> None:
@@ -181,13 +209,13 @@ def test_time_grain_leaves_filter_dimensions_alone() -> None:
         MetricRequest(
             metrics=("revenue",),
             dimensions=("ordered_day",),
-            filters=(FilterExpr("shipped_day", "eq", ("2024-01-01",)),),
+            filters=(Predicate("shipped_day", Op.EQ, ("2024-01-01",)),),
             time_grain=TimeGrain.MONTH,
         ),
         naming=NAMING,
     )
     assert resolved.filter_dimensions == (
-        ResolvedDimension(name="shipped_day", role="shipped", grain=TimeGrain.DAY),
+        (ResolvedDimension(name="shipped_day", role="shipped", grain=TimeGrain.DAY),),
     )
 
 

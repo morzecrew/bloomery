@@ -1,5 +1,5 @@
 """``RowPolicy`` — the row-level scoping value object (RFC 0011 D7,
-RFC 0013 D9).
+RFC 0013 D9, vocabulary per RFC 0015 D11).
 
 A policy is a *typed filter* — dimension, operator, value — not a predicate
 string and not an identity, session, or security context: deciding whose
@@ -12,6 +12,12 @@ never string-appended, never templated with raw input. The mandatory
 ``test_row_policy_survives_every_path`` suite asserts, on the parsed AST,
 that the rendered predicate reaches every scan of the mart relation
 (RFC 0013 §5.9d).
+
+Migration note (RFC 0015 D11): ``as_filter()`` renamed to ``as_clause()``
+and the operator space narrowed with :class:`~bloomery.planner.request.Op` —
+a ``between``/``contains`` policy has no post-migration form. A policy stays
+a *single* predicate: callers with range policies compose the range into the
+request filters instead, or declare a gte-only/lte-only policy.
 """
 
 from __future__ import annotations
@@ -19,10 +25,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from bloomery.planner.request import FilterExpr
+from bloomery.planner.request import Predicate
 
 if TYPE_CHECKING:
-    from bloomery.planner.request import FilterOp, JsonScalar
+    from bloomery.planner.request import Op, Scalar
 
 __all__ = [
     "RowPolicy",
@@ -34,19 +40,20 @@ class RowPolicy:
     """One row-level scoping filter: ``dimension op value``.
 
     ``value`` may be a single scalar or a tuple of scalars for the
-    multi-value operators (``in``, ``not_in``, ``between``). Construction
-    validates the same structural rules as :class:`FilterExpr` — a malformed
-    policy fails immediately, never at plan time.
+    multi-value operators (``in``, ``not_in``, ``like``, ``ilike``).
+    Construction validates the same structural rules as :class:`Predicate` —
+    a malformed policy fails immediately, never at plan time.
     """
 
     dimension: str
-    op: FilterOp
-    value: JsonScalar | tuple[JsonScalar, ...]
+    op: Op
+    value: Scalar | tuple[Scalar, ...]
 
     def __post_init__(self) -> None:
-        self.as_filter()  # structural validation rides FilterExpr's
+        self.as_clause()  # structural validation rides Predicate's
 
-    def as_filter(self) -> FilterExpr:
-        """The policy as the :class:`FilterExpr` the filter pipeline renders."""
+    def as_clause(self) -> Predicate:
+        """The policy as the :class:`Predicate` the filter pipeline renders
+        (RFC 0015 D11 — renames the pre-vocabulary ``as_filter``)."""
         values = self.value if isinstance(self.value, tuple) else (self.value,)
-        return FilterExpr(dimension=self.dimension, op=self.op, values=values)
+        return Predicate(dimension=self.dimension, op=self.op, values=values)

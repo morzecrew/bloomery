@@ -1,7 +1,8 @@
-"""Filter rendering (RFC 0013 §5.6–§5.7, D8–D9) — the highest-risk surface
-of the MetricFlow pivot: ``where_constraints`` are Jinja-templated strings,
-i.e. string construction on the query path. Non-negotiable rules, all
-enforced here and fuzz-tested (merge-blocking):
+"""Filter rendering (RFC 0013 §5.6–§5.7, D8–D9; per-clause form per
+RFC 0015 §5.4) — the highest-risk surface of the MetricFlow pivot:
+``where_constraints`` are Jinja-templated strings, i.e. string construction
+on the query path. Non-negotiable rules, all enforced here and fuzz-tested
+(merge-blocking):
 
 1. values are **never** interpolated raw — every literal goes through the
    typed renderer below, validated against the mart column's declared
@@ -13,23 +14,49 @@ enforced here and fuzz-tested (merge-blocking):
 3. string literals double single quotes, refuse NUL, and neutralize Jinja
    delimiters character-by-character (``{`` → ``{{ "{" }}``) so template
    syntax inside a *value* survives as an inert SQL literal;
-4. ``contains`` escapes ``%``/``_``/``\\`` and carries an ``ESCAPE`` clause;
-5. numbers render through ``int``/``Decimal`` repr (floats never reach here
-   — request validation refused them), dates and timestamps are
-   ISO-validated then re-serialized.
+4. ``like``/``ilike`` operands are SQL ``LIKE`` **patterns** (RFC 0015
+   decision 13): caller-owned wildcards with a fixed ``ESCAPE '\\'`` clause;
+   the renderer adds nothing beyond injection safety — no auto-wrapping, no
+   wildcard escaping (callers write ``\\%``/``\\_``/``\\\\`` themselves);
+5. numbers render through ``int``/``Decimal`` repr (floats never survive
+   request construction — RFC 0015 D5); a ``str`` operand against a decimal
+   dimension is the string carrier (RFC 0015 D5): parsed as ``Decimal``
+   here, non-finite refused as ``InvalidLiteral``, and **no SQL cast is
+   ever emitted**; dates and timestamps are ISO-validated then
+   re-serialized.
+
+One ``where_constraints`` entry is emitted per :class:`Clause` (RFC 0015
+D11): an :class:`AnyOf` group renders as a parenthesized ``OR``-join —
+always parenthesized, because ``policy AND a OR b`` leaks every row
+matching ``b``. ``ilike`` lowers portably as ``LOWER(x) LIKE
+LOWER(pattern)``: DuckDB and Postgres have ``ILIKE`` but Trino does not,
+and the neutral lowering keeps one rendering per clause across all three
+dialects. This is a **portability choice**, not a claim of perfect
+equivalence: ``LOWER``/``LOWER`` and a native ``ILIKE`` can diverge on
+locale-dependent Unicode case folding (Turkish dotted ``İ``, German ``ß``);
+for ASCII data — the overwhelming BI case — they agree, and one rendering
+across all dialects beats per-dialect divergence (the ``\\`` escape
+character is caseless either way).
 
 The row policy is rendered through this exact pipeline and **prepended** to
-the user filters (RFC 0013 D9).
+the user filters (RFC 0013 D9), via ``RowPolicy.as_clause()``.
 """
 
 from __future__ import annotations
 
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
+from uuid import UUID
 
-from bloomery.errors import FilterTypeMismatch, InvalidRequest, PlannerError
+from bloomery.errors import (
+    FilterTypeMismatch,
+    InvalidLiteral,
+    InvalidRequest,
+    PlannerError,
+)
 from bloomery.planner.names import group_by_name
+from bloomery.planner.request import COMPARISON_OPS, AnyOf, Op, clause_predicates
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -43,7 +70,7 @@ if TYPE_CHECKING:
     from bloomery.ir import MartIR
     from bloomery.planner.names import ResolvedDimension
     from bloomery.planner.policy import RowPolicy
-    from bloomery.planner.request import FilterExpr, JsonScalar
+    from bloomery.planner.request import Clause, Predicate, Scalar
     from bloomery.typing import LogicalType
 
 __all__ = [
@@ -56,11 +83,18 @@ __all__ = [
 #: text inside a string literal, never as an evaluated template.
 _BRACES = {"{": '{{ "{" }}', "}": '{{ "}" }}'}
 
-_COMPARISONS = {"eq": "=", "ne": "<>", "gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
+_COMPARISONS = {
+    Op.EQ: "=",
+    Op.NE: "<>",
+    Op.GT: ">",
+    Op.GTE: ">=",
+    Op.LT: "<",
+    Op.LTE: "<=",
+}
 
 
 def _mismatch(
-    dimension: str, declared: LogicalType, value: JsonScalar, want: str
+    dimension: str, declared: LogicalType, value: Scalar, want: str
 ) -> FilterTypeMismatch:
     msg = (
         f"filter value {value!r} does not fit dimension {dimension!r} "
@@ -79,11 +113,31 @@ def _quoted(text: str, *, dimension: str) -> str:
     return f"'{neutral}'"
 
 
-def _literal(value: JsonScalar, declared: LogicalType, *, dimension: str) -> str:
+def _decimal_carrier(value: str, declared: LogicalType, *, dimension: str) -> Decimal:
+    """The string carrier (RFC 0015 D5): an exact decimal bound JSON numbers
+    cannot express, parsed here — never cast in SQL. Non-finite forms
+    (``NaN``/``Infinity``/``-Infinity``) are ``InvalidLiteral``: ``lt
+    'NaN'`` fails open on Postgres and matches every row."""
+    try:
+        parsed = Decimal(value)
+    except InvalidOperation as error:
+        raise _mismatch(dimension, declared, value, "a decimal number") from error
+    if not parsed.is_finite():
+        msg = (
+            f"filter value {value!r} for dimension {dimension!r} is non-finite — "
+            "NaN/Infinity comparisons fail open, refused (RFC 0015 D5)"
+        )
+        raise InvalidLiteral(msg)
+    return parsed
+
+
+def _literal(value: Scalar, declared: LogicalType, *, dimension: str) -> str:
     """One typed SQL literal (rules 1, 3, 5). Exhaustive over the closed
     ``LogicalType`` set; ``variant`` columns cannot be filtered."""
     match declared:
         case StringType():
+            if isinstance(value, UUID):
+                return _quoted(str(value), dimension=dimension)
             if not isinstance(value, str):
                 raise _mismatch(dimension, declared, value, "a string")
             return _quoted(value, dimension=dimension)
@@ -96,12 +150,22 @@ def _literal(value: JsonScalar, declared: LogicalType, *, dimension: str) -> str
                 raise _mismatch(dimension, declared, value, "an int")
             return str(value)
         case DecimalType():
+            if isinstance(value, str):
+                return str(_decimal_carrier(value, declared, dimension=dimension))
             if isinstance(value, bool) or not isinstance(value, (int, Decimal)):
-                raise _mismatch(dimension, declared, value, "an int or Decimal")
+                raise _mismatch(dimension, declared, value, "an int, Decimal, or carrier string")
             if isinstance(value, Decimal) and not value.is_finite():
-                raise _mismatch(dimension, declared, value, "a finite number")
+                msg = (
+                    f"filter value {value!r} for dimension {dimension!r} is non-finite — "
+                    "NaN/Infinity comparisons fail open, refused (RFC 0015 D5)"
+                )
+                raise InvalidLiteral(msg)
             return str(value)
         case DateType():
+            if isinstance(value, datetime):
+                raise _mismatch(dimension, declared, value, "an ISO date")
+            if isinstance(value, date):
+                return f"'{value.isoformat()}'"
             if not isinstance(value, str):
                 raise _mismatch(dimension, declared, value, "an ISO date string")
             try:
@@ -110,6 +174,8 @@ def _literal(value: JsonScalar, declared: LogicalType, *, dimension: str) -> str
                 raise _mismatch(dimension, declared, value, "an ISO date string") from error
             return f"'{parsed.isoformat()}'"
         case TimestampType():
+            if isinstance(value, datetime):
+                return f"'{value.isoformat(sep=' ')}'"
             if not isinstance(value, str):
                 raise _mismatch(dimension, declared, value, "an ISO timestamp string")
             try:
@@ -125,14 +191,14 @@ def _literal(value: JsonScalar, declared: LogicalType, *, dimension: str) -> str
             raise FilterTypeMismatch(msg)
 
 
-def _like_pattern(value: JsonScalar, declared: LogicalType, *, dimension: str) -> str:
-    """The ``contains`` pattern (rule 4): wildcards escaped with ``\\`` before
-    quoting, wrapped in ``%``, always paired with ``ESCAPE '\\'``."""
+def _pattern_literal(value: Scalar, declared: LogicalType, *, dimension: str) -> str:
+    """One ``like``/``ilike`` pattern (rule 4): the caller-owned pattern as a
+    quoted literal with the fixed ``ESCAPE`` clause appended by the caller —
+    nothing escaped here beyond injection safety (quote doubling, NUL,
+    Jinja neutralization)."""
     if not isinstance(declared, StringType) or not isinstance(value, str):
-        raise _mismatch(dimension, declared, value, "a string dimension and value")
-    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    quoted = _quoted(f"%{escaped}%", dimension=dimension)
-    return f"{quoted} ESCAPE '\\'"
+        raise _mismatch(dimension, declared, value, "a string dimension and pattern")
+    return _quoted(value, dimension=dimension)
 
 
 def _column_type(mart: MartIR, column: str) -> LogicalType:
@@ -144,54 +210,82 @@ def _column_type(mart: MartIR, column: str) -> LogicalType:
     )
 
 
-def _constraint(
-    filter_expr: FilterExpr,
+def _predicate(
+    predicate: Predicate,
     resolved: ResolvedDimension,
     *,
     mart: MartIR,
     entity: str,
 ) -> str:
-    """One rendered where-constraint: a ``{{ Dimension('<validated dunder>')
-    }}`` reference plus typed literals — nothing else ever enters the
-    template (rule 2)."""
+    """One rendered predicate: a ``{{ Dimension('<validated dunder>') }}``
+    reference plus typed literals — nothing else ever enters the template
+    (rule 2)."""
     reference = f"{{{{ Dimension('{group_by_name(resolved, entity=entity)}') }}}}"
     declared = _column_type(mart, resolved.name)
     dimension = resolved.name
-    op = filter_expr.op
-    values = filter_expr.values
-    if op in _COMPARISONS:
+    op = predicate.op
+    values = predicate.values
+    if op in COMPARISON_OPS:
         literal = _literal(values[0], declared, dimension=dimension)
         return f"{reference} {_COMPARISONS[op]} {literal}"
-    if op == "between":
-        low = _literal(values[0], declared, dimension=dimension)
-        high = _literal(values[1], declared, dimension=dimension)
-        return f"{reference} BETWEEN {low} AND {high}"
-    if op in ("in", "not_in"):
+    if op in (Op.IN, Op.NOT_IN):
         rendered = ", ".join(_literal(v, declared, dimension=dimension) for v in values)
-        keyword = "IN" if op == "in" else "NOT IN"
+        keyword = "IN" if op is Op.IN else "NOT IN"
         return f"{reference} {keyword} ({rendered})"
-    if op == "contains":
-        return f"{reference} LIKE {_like_pattern(values[0], declared, dimension=dimension)}"
-    if op == "is_null":
-        return f"{reference} IS NULL"
+    if op in (Op.LIKE, Op.ILIKE):
+        subject = reference if op is Op.LIKE else f"LOWER({reference})"
+        matches: list[str] = []
+        for value in values:
+            pattern = _pattern_literal(value, declared, dimension=dimension)
+            pattern = pattern if op is Op.LIKE else f"LOWER({pattern})"
+            matches.append(f"{subject} LIKE {pattern} ESCAPE '\\'")
+        if len(matches) == 1:
+            return matches[0]
+        return f"({' OR '.join(matches)})"  # multi-pattern OR semantics (RFC 0015 §5.1)
+    if op is Op.IS_NULL:
+        keyword = "IS NULL" if values[0] else "IS NOT NULL"
+        return f"{reference} {keyword}"
     msg = f"unknown filter operator {op!r}"  # pragma: no cover — request validation
     raise InvalidRequest(msg)  # pragma: no cover
 
 
+def _clause(
+    clause: Clause,
+    resolutions: tuple[ResolvedDimension, ...],
+    *,
+    mart: MartIR,
+    entity: str,
+) -> str:
+    """One rendered where-constraint per clause (RFC 0015 D11): an ``AnyOf``
+    group is a parenthesized ``OR``-join — **always** parenthesized, since
+    the constraints are ANDed and ``policy AND a OR b`` leaks every row
+    matching ``b``."""
+    predicates = clause_predicates(clause)
+    rendered = tuple(
+        _predicate(predicate, resolved, mart=mart, entity=entity)
+        for predicate, resolved in zip(predicates, resolutions, strict=True)
+    )
+    if isinstance(clause, AnyOf):
+        return f"({' OR '.join(rendered)})"
+    return rendered[0]  # a bare Predicate clause renders unwrapped
+
+
 def to_where(
-    filters: tuple[FilterExpr, ...],
-    filter_dimensions: tuple[ResolvedDimension, ...],
+    filters: tuple[Clause, ...],
+    filter_dimensions: tuple[tuple[ResolvedDimension, ...], ...],
     *,
     mart: MartIR,
     entity: str,
     policy: RowPolicy | None = None,
     policy_dimension: ResolvedDimension | None = None,
 ) -> tuple[str, ...]:
-    """Every where-constraint for the MetricFlow request, policy **first**
-    (RFC 0013 D9 — the policy is always prepended to user filters).
+    """Every where-constraint for the MetricFlow request — one entry per
+    clause (RFC 0015 D11), policy **first** (RFC 0013 D9 — the policy is
+    always prepended to user filters).
 
-    ``filter_dimensions`` pairs positionally with ``filters`` — both come
-    from :func:`bloomery.planner.coverage.resolve_request`.
+    ``filter_dimensions`` pairs positionally with ``filters`` — one inner
+    tuple of resolutions per clause, pairing with that clause's predicates —
+    both come from :func:`bloomery.planner.coverage.resolve_request`.
     """
     constraints: list[str] = []
     if policy is not None:
@@ -199,10 +293,10 @@ def to_where(
             msg = "a row policy requires its resolved dimension"
             raise PlannerError(msg)
         constraints.append(
-            _constraint(policy.as_filter(), policy_dimension, mart=mart, entity=entity)
+            _predicate(policy.as_clause(), policy_dimension, mart=mart, entity=entity)
         )
     constraints.extend(
-        _constraint(filter_expr, resolved, mart=mart, entity=entity)
-        for filter_expr, resolved in zip(filters, filter_dimensions, strict=True)
+        _clause(clause, resolutions, mart=mart, entity=entity)
+        for clause, resolutions in zip(filters, filter_dimensions, strict=True)
     )
     return tuple(constraints)

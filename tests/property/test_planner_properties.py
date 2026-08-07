@@ -1,11 +1,14 @@
-"""Planner properties (RFC 0013 §6, RFC 0009 §5.10) — three merge-blocking
-invariants:
+"""Planner properties (RFC 0013 §6, RFC 0009 §5.10, RFC 0015) — three
+merge-blocking invariants:
 
-- **Filter fuzz** (RFC 0013 D8): adversarial ``FilterExpr`` string values —
-  quote breakers, ``' OR 1=1 --``, Jinja template syntax, unicode quotes,
-  newlines, LIKE wildcards — always render to SQL that parses, scans exactly
-  the expected mart, keeps the predicate structure of a benign baseline, and
-  carries the adversarial value only as a string literal. NUL is refused.
+- **Filter fuzz** (RFC 0013 D8, extended per RFC 0015): adversarial
+  ``Predicate`` string values — quote breakers, ``' OR 1=1 --``, Jinja
+  template syntax, unicode quotes, newlines — always render to SQL that
+  parses, scans exactly the expected mart, keeps the predicate structure of
+  a benign baseline, and carries the adversarial value only as a string
+  literal. For ``like``/``ilike``, ``%``/``_`` are now *pattern characters*
+  passing through verbatim (caller-owned wildcards); an unpaired trailing
+  ``\\`` refuses at construction. NUL is refused.
 - **Names round-trip** (RFC 0013 D7): every dimension the emitter produces
   maps through ``group_by_name`` and back to the original bloomery name and
   grain — emitter and bridge cannot drift apart.
@@ -21,11 +24,10 @@ from hypothesis import example, given, settings
 from hypothesis import strategies as st
 from sqlglot import expressions as exp
 
-from bloomery import MetricRequest, OrderSpec, RowPolicy, TimeGrain
+from bloomery import MetricRequest, Op, OrderSpec, Predicate, RowPolicy, TimeGrain
 from bloomery.emit.metricflow import emit_manifest
-from bloomery.errors import InvalidRequest
+from bloomery.errors import InvalidLiteral, InvalidRequest
 from bloomery.naming import DefaultNaming
-from bloomery.planner import FilterExpr
 from bloomery.planner.names import (
     ResolvedDimension,
     bloomery_dimension_name,
@@ -45,7 +47,8 @@ ADVERSARIAL = [
     "{# comment #}",
     "’smart’ “quotes”",
     "line\nbreak",
-    "100% _done_ \\ backslash",
+    "100% _done_ \\\\ backslash",
+    "%wild%_card_\\%escaped",
     "🜚 unicode",
 ]
 
@@ -55,11 +58,25 @@ _value_strategy = st.one_of(
 )
 
 
-def _plan_sql(value: str, op: str) -> str:
+def _pattern_is_valid(value: str) -> bool:
+    """The RFC 0015 pattern-language validity rule (mirrors request.py):
+    no dangling escape at the end."""
+    index = 0
+    while index < len(value):
+        if value[index] == "\\":
+            if index + 1 >= len(value):
+                return False
+            index += 2
+        else:
+            index += 1
+    return True
+
+
+def _plan_sql(value: str, op: Op) -> str:
     request = MetricRequest(
         metrics=("revenue",),
         dimensions=("store",),
-        filters=(FilterExpr("store", op, (value,)),),  # type: ignore[arg-type]
+        filters=(Predicate("store", op, (value,)),),
     )
     return PLANNER.plan(fixture_ir("non_additive_aov"), request, dialect="duckdb").sql
 
@@ -82,14 +99,21 @@ def _scanned_relations(sql: str) -> set[str]:
     }
 
 
-@settings(max_examples=60, deadline=None)
-@given(value=_value_strategy, op=st.sampled_from(["eq", "contains"]))
-@example(value="' OR 1=1 --", op="eq")
-@example(value="{{ Dimension('order__store') }}", op="eq")
-@example(value="100% _done_ \\ backslash", op="contains")
-def test_adversarial_filter_values_stay_literals(value: str, op: str) -> None:
+@settings(max_examples=90, deadline=None)
+@given(value=_value_strategy, op=st.sampled_from([Op.EQ, Op.LIKE, Op.ILIKE]))
+@example(value="' OR 1=1 --", op=Op.EQ)
+@example(value="{{ Dimension('order__store') }}", op=Op.EQ)
+@example(value="100% _done_ \\\\ backslash", op=Op.LIKE)
+@example(value="%wild%_card_\\%escaped", op=Op.LIKE)
+@example(value="' OR 1=1 --", op=Op.ILIKE)
+def test_adversarial_filter_values_stay_literals(value: str, op: Op) -> None:
     if "\x00" in value:
-        with pytest.raises(InvalidRequest):
+        with pytest.raises((InvalidRequest, InvalidLiteral)):
+            _plan_sql(value, op)
+        return
+    if op in (Op.LIKE, Op.ILIKE) and not _pattern_is_valid(value):
+        # RFC 0015 decision 13: a dangling escape refuses at construction.
+        with pytest.raises(InvalidLiteral, match="unpaired escape"):
             _plan_sql(value, op)
         return
     sql = _plan_sql(value, op)
@@ -103,18 +127,16 @@ def test_adversarial_filter_values_stay_literals(value: str, op: str) -> None:
     # The adversarial value appears only inside string literals. Jinja
     # normalizes newline sequences in the constraint template (\r\n and \r
     # become \n) — a rendering normalization, not an injection; assert on
-    # the same normalization.
-    if op == "eq":
-        literals = {
-            literal.this for literal in tree.find_all(exp.Literal) if literal.is_string
-        }
-        normalized = value.replace("\r\n", "\n").replace("\r", "\n")
-        assert normalized in literals
+    # the same normalization. Patterns pass through verbatim — %/_ are
+    # caller-owned wildcards, never escaped by the renderer (RFC 0015).
+    normalized = value.replace("\r\n", "\n").replace("\r", "\n")
+    literals = {literal.this for literal in tree.find_all(exp.Literal) if literal.is_string}
+    assert normalized in literals
 
 
 def test_nul_byte_is_refused() -> None:
     with pytest.raises(InvalidRequest, match="NUL"):
-        _plan_sql("acme\x00corp", "eq")
+        _plan_sql("acme\x00corp", Op.EQ)
 
 
 # ....................... #
@@ -170,7 +192,10 @@ DETERMINISM_REQUESTS = {
     "semi_additive_inventory": MetricRequest(
         metrics=("stock_on_hand",),
         dimensions=("warehouse_id", "snapshot_day"),
-        filters=(FilterExpr("snapshot_day", "between", ("2024-01-01", "2024-03-31")),),
+        filters=(
+            Predicate("snapshot_day", Op.GTE, ("2024-01-01",)),
+            Predicate("snapshot_day", Op.LTE, ("2024-03-31",)),
+        ),
         time_grain=TimeGrain.MONTH,
         order_by=(OrderSpec("stock_on_hand", "desc"),),
         limit=10,
@@ -178,7 +203,7 @@ DETERMINISM_REQUESTS = {
     "non_additive_aov": MetricRequest(
         metrics=("average_order_value", "revenue"),
         dimensions=("store",),
-        filters=(FilterExpr("store", "ne", ("Z",)),),
+        filters=(Predicate("store", Op.NE, ("Z",)),),
         order_by=(OrderSpec("revenue", "desc"),),
         limit=25,
     ),
@@ -189,7 +214,9 @@ DETERMINISM_REQUESTS = {
 def test_same_request_twice_yields_identical_plans(fixture: str) -> None:
     ir = fixture_ir(fixture)
     request = DETERMINISM_REQUESTS[fixture]
-    policy = RowPolicy("store" if fixture == "non_additive_aov" else "warehouse_id", "eq", "A")
+    policy = RowPolicy(
+        "store" if fixture == "non_additive_aov" else "warehouse_id", Op.EQ, "A"
+    )
     first = PLANNER.plan(ir, request, dialect="duckdb", policy=policy)
     second = PLANNER.plan(ir, request, dialect="duckdb", policy=policy)
     assert first == second  # sql, columns, warnings, explanation — everything

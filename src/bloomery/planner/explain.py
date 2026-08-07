@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 
 from bloomery.errors import PlannerError
 from bloomery.ir import Additivity, Layer, SemiAdditiveRule
+from bloomery.planner.request import Op, clause_predicates
 from bloomery.planner.result import Explanation, MeasureExplanation
 
 if TYPE_CHECKING:
@@ -29,7 +30,8 @@ if TYPE_CHECKING:
     from bloomery.ir import MartIR, MetricIR, ProjectIR
     from bloomery.naming import NamingPolicy
     from bloomery.planner.coverage import Coverage
-    from bloomery.planner.request import FilterExpr, JsonScalar, MetricRequest
+    from bloomery.planner.names import ResolvedDimension
+    from bloomery.planner.request import Clause, MetricRequest, Predicate, Scalar
 
 __all__ = [
     "build",
@@ -71,7 +73,10 @@ def _measure_explanation(metric: MetricIR, mart: MartIR) -> MeasureExplanation:
     return MeasureExplanation(metric.name, expr, additivity, f"additive — {agg}")
 
 
-def _scalar(value: JsonScalar) -> str:
+_SYMBOLS = {Op.EQ: "=", Op.NE: "!=", Op.GT: ">", Op.GTE: ">=", Op.LT: "<", Op.LTE: "<="}
+
+
+def _scalar(value: Scalar) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, str):
@@ -79,22 +84,32 @@ def _scalar(value: JsonScalar) -> str:
     return str(value)
 
 
-def _human_filter(filter_expr: FilterExpr, resolved_name: str) -> str:
-    """One filter as prose in bloomery names (RFC 0011 §5.6's
-    ``ordered_month between 2026-01 and 2026-03`` shape)."""
-    op = filter_expr.op
-    values = filter_expr.values
-    if op == "is_null":
-        return f"{resolved_name} is null"
-    if op == "between":
-        return f"{resolved_name} between {_scalar(values[0])} and {_scalar(values[1])}"
-    if op in ("in", "not_in"):
-        keyword = "in" if op == "in" else "not in"
+def _human_predicate(predicate: Predicate, resolved_name: str) -> str:
+    """One predicate as prose in bloomery names (RFC 0011 §5.6 shape,
+    vocabulary per RFC 0015 §5.1)."""
+    op = predicate.op
+    values = predicate.values
+    if op is Op.IS_NULL:
+        return f"{resolved_name} is null" if values[0] else f"{resolved_name} is not null"
+    if op in (Op.IN, Op.NOT_IN):
+        keyword = "in" if op is Op.IN else "not in"
         return f"{resolved_name} {keyword} ({', '.join(_scalar(v) for v in values)})"
-    if op == "contains":
-        return f"{resolved_name} contains {_scalar(values[0])}"
-    symbols = {"eq": "=", "ne": "!=", "gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
-    return f"{resolved_name} {symbols[op]} {_scalar(values[0])}"
+    if op in (Op.LIKE, Op.ILIKE):
+        if len(values) == 1:
+            return f"{resolved_name} {op.value} {_scalar(values[0])}"
+        return f"{resolved_name} {op.value} ({', '.join(_scalar(v) for v in values)})"
+    return f"{resolved_name} {_SYMBOLS[op]} {_scalar(values[0])}"
+
+
+def _human_clause(clause: Clause, resolutions: tuple[ResolvedDimension, ...]) -> str:
+    """One clause as prose — always built from the ``Clause`` objects, never
+    by parsing rendered SQL (RFC 0015 D11); an ``AnyOf`` group joins its
+    members with `` OR ``."""
+    rendered = tuple(
+        _human_predicate(predicate, resolved.name)
+        for predicate, resolved in zip(clause_predicates(clause), resolutions, strict=True)
+    )
+    return " OR ".join(rendered)
 
 
 def build(
@@ -115,8 +130,8 @@ def build(
     )
     namespace, relation = naming.relation(coverage.mart.name, Layer.GOLD)
     filters = tuple(
-        _human_filter(filter_expr, resolved.name)
-        for filter_expr, resolved in zip(request.filters, coverage.filter_dimensions, strict=True)
+        _human_clause(clause, resolutions)
+        for clause, resolutions in zip(request.filters, coverage.filter_dimensions, strict=True)
     )
     return Explanation(
         mart=f"{namespace}.{relation}",

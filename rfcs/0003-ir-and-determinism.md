@@ -201,6 +201,7 @@ property, what the fingerprint is and is not (not cross-version stable), how gol
 | 7 | Determinism is enforced by subprocess tests with differing `PYTHONHASHSEED`, not by convention. |
 | 8 | (Amended for `_bloomery-changes.md`) `ProjectIR.marts` (`MartIR`, RFC 0010) and `DimensionRef` join the IR and are fingerprint-covered; `MetricIR` carries the typed additivity policy (`SemiAdditivePolicy` / `RatioSpec`, RFC 0011). `bloomery/ir/` additionally hosts the serializable `CompiledSemantic` planner artifact (RFC 0012) — the IR itself remains non-serialized internal surface. |
 | 9 | (Amended for `_bloomery-metricflow-pivot.md`) Row 8's `CompiledSemantic` clause is superseded: the planner artifact is now MetricFlow's transformed manifest, produced by the `emit/metricflow` emitter (RFC 0013) and cached by `bloomery/runtime/` (RFC 0014). `bloomery/ir/` hosts no serialization; the fingerprint's role grows — it keys the hydration cache (`HydrationKey.spec_fingerprint`). |
+| 10 | *(Appended 2026-08-07, M14 — RFC 0015 D5.)* D5's float ban is boundary-interpreted, not weakened: floats **are** accepted at the planner's request boundary (JSON numbers parse to float; refusing them would cripple `parse_filter_json`) and are normalized to `Decimal(str(value))` at request validation, with non-finite values (float or string form) refused as `InvalidLiteral`. The invariant holds at its actual target — no float ever reaches the IR, literal rendering, or any emission path. |
 
 ## 12. Phasing
 

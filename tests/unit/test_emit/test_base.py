@@ -33,7 +33,8 @@ def clean_overlay(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
 
 
 def test_feature_vocabulary_is_the_amended_closed_set() -> None:
-    """RFC 0008 D10 amended by pivot R8: CUMULATIVE and DERIVED_METRIC join."""
+    """RFC 0008 D10 amended by pivot R8 (CUMULATIVE, DERIVED_METRIC) and by
+    RFC 0015 D-Q6 (SORT_NULLS_PLACEMENT)."""
     assert sorted(f.value for f in Feature) == [
         "audits",
         "cumulative",
@@ -46,8 +47,18 @@ def test_feature_vocabulary_is_the_amended_closed_set() -> None:
         "row_level_security",
         "scd_type_2",
         "semi_additive",
+        "sort_nulls_placement",
         "variant_column",
     ]
+
+
+def test_sort_nulls_placement_is_not_a_metricflow_planner_capability() -> None:
+    """RFC 0015 D-Q6: MetricFlow's ``order_by_names`` is direction-only —
+    the planner refuses non-default placements rather than declaring the
+    feature."""
+    from bloomery.emit.metricflow import METRICFLOW_PLANNER_CAPABILITIES
+
+    assert not METRICFLOW_PLANNER_CAPABILITIES.supports(Feature.SORT_NULLS_PLACEMENT)
 
 
 def test_capabilities_are_membership_checked() -> None:

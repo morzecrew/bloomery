@@ -25,8 +25,7 @@ from decimal import Decimal
 import duckdb
 import pytest
 
-from bloomery import MetricRequest, OrderSpec
-from bloomery.planner import FilterExpr
+from bloomery import MetricRequest, Op, OrderSpec, Predicate
 from support.compiling import compile_fixture
 from support.planning import fixture_ir, make_planner, normalize_month, quantized
 
@@ -80,8 +79,12 @@ def _seed_inventory(conn: duckdb.DuckDBPyConnection) -> None:
     materialize(conn, compile_fixture("semi_additive_inventory"))
 
 
-JAN_1_TO_3 = FilterExpr("snapshot_day", "between", ("2024-01-01", "2024-01-03"))
-JAN_3 = FilterExpr("snapshot_day", "eq", ("2024-01-03",))
+# RFC 0015 D-Q1: the shipped `between` range is now a composed gte+lte pair.
+JAN_1_TO_3 = (
+    Predicate("snapshot_day", Op.GTE, ("2024-01-01",)),
+    Predicate("snapshot_day", Op.LTE, ("2024-01-03",)),
+)
+JAN_3 = Predicate("snapshot_day", Op.EQ, ("2024-01-03",))
 
 
 def test_semi_additive_warehouse_a_over_three_days_is_90_not_270(
@@ -90,7 +93,7 @@ def test_semi_additive_warehouse_a_over_three_days_is_90_not_270(
     _seed_inventory(conn)
     request = MetricRequest(
         metrics=("stock_on_hand",),
-        filters=(JAN_1_TO_3, FilterExpr("warehouse_id", "eq", ("A",))),
+        filters=(*JAN_1_TO_3, Predicate("warehouse_id", Op.EQ, ("A",))),
     )
     assert run(conn, "semi_additive_inventory", request) == [(90,)]
 
@@ -107,7 +110,7 @@ def test_semi_additive_global_jan_3_is_130(conn: duckdb.DuckDBPyConnection) -> N
     assert run(
         conn,
         "semi_additive_inventory",
-        MetricRequest(metrics=("stock_on_hand",), filters=(JAN_1_TO_3,)),
+        MetricRequest(metrics=("stock_on_hand",), filters=JAN_1_TO_3),
     ) == [(130,)]
 
 

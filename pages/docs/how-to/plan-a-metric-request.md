@@ -39,12 +39,12 @@ A request is structured data — metrics, dimensions, typed filters, a time grai
 ordering, a limit. There is no SQL string anywhere a caller could inject into:
 
 ```python
-from bloomery import FilterExpr, MetricRequest, OrderSpec, TimeGrain
+from bloomery import MetricRequest, Op, OrderSpec, Predicate, TimeGrain
 
 request = MetricRequest(
     metrics=("revenue",),
     dimensions=("country", "ordered_day"),
-    filters=(FilterExpr(dimension="country", op="in", values=("FR", "DE")),),
+    filters=(Predicate(dimension="country", op=Op.IN, values=("FR", "DE")),),
     time_grain=TimeGrain.MONTH,
     order_by=(OrderSpec(field="revenue", direction="desc"),),
     limit=100,
@@ -53,10 +53,65 @@ plan = planner.plan(ir, request, dialect="duckdb")
 ```
 
 Structural rules, enforced at construction with `InvalidRequest`: at least one metric,
-no duplicates, `order_by` only over requested members, `limit >= 1`, filter
-operator/value arity coherence, and no float filter values (send `Decimal` or a
-string). `time_grain` re-buckets every date-role dimension in the request — here
-`ordered_day` with `TimeGrain.MONTH` groups by the `ordered_month` bucket column.
+no duplicates, `order_by` only over requested members, `limit >= 1`, and filter
+operator/value arity coherence. Float filter values are accepted and normalized to
+`Decimal(str(value))` at the boundary — no float ever reaches the rendered SQL, and
+non-finite values (`NaN`/`Infinity`, float or string form) are refused with
+`InvalidLiteral`. `time_grain` re-buckets every date-role dimension in the request —
+here `ordered_day` with `TimeGrain.MONTH` groups by the `ordered_month` bucket column.
+
+### Filters are CNF clauses
+
+`filters` is an implicit AND across clauses; each clause is a single `Predicate` or one
+`AnyOf` disjunction group — exactly one level of OR, which covers every filter a BI UI
+builds ("carrier in [DHL, UPS] **and** (region = EU **or** region = UK)"):
+
+```python
+from bloomery import AnyOf, Op, Predicate
+
+filters = (
+    Predicate("carrier", Op.IN, ("DHL", "UPS")),
+    AnyOf((Predicate("region", Op.EQ, ("EU",)), Predicate("region", Op.EQ, ("UK",)))),
+)
+```
+
+The operators are `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `in`, `not_in`, `is_null`,
+`like`, and `ilike`. Three worth knowing:
+
+- `is_null` takes exactly one bool — `(True,)` renders `IS NULL`, `(False,)` renders
+  `IS NOT NULL`.
+- `like`/`ilike` (case-sensitive / case-insensitive) take one or more SQL `LIKE`
+  *patterns* with OR semantics. Wildcards are yours: write `%needle%` for a substring
+  match, and escape literal `%`/`_`/`\` as `\%`/`\_`/`\\` (a pattern ending in an
+  unpaired `\` is refused). There is no auto-wrapping.
+- Ranges compose from `gte` + `lte` as two clauses — there is no `between` operator.
+
+Each clause renders as its own `WHERE` constraint; an `AnyOf` group is always
+parenthesized, so a disjunction can never leak past a row policy.
+
+### The JSON front door
+
+If your filters arrive as a Mongo-flavoured JSON document (`$and`/`$or`/`$not`,
+field maps, `$eq $neq $gt $gte $lt $lte $in $nin $null $like $ilike`),
+`bloomery.planner.parse_filter_json` turns it into clauses, *normalizing before
+refusing* — De Morgan push-down, complement inversion (`$not $eq` → `ne`), then CNF
+distribution with a clause cap:
+
+```python
+from bloomery.planner import parse_filter_json
+
+clauses = parse_filter_json(
+    {"carrier": {"$in": ["DHL", "UPS"]}, "$or": [{"region": "EU"}, {"region": "UK"}]}
+)
+request = MetricRequest(metrics=("revenue",), filters=clauses)
+```
+
+Scalars are the `$eq` shortcut, arrays the `$in` shortcut, and `null` means
+`is_null: true`. What cannot cross is refused with a typed `UnsupportedFilter` carrying
+a stable `.reason` code from the closed list `bloomery.planner.KNOWN_UNSUPPORTED` —
+a reviewed gap, never drift. `parse_sort_json` and `parse_page_json` ship alongside
+(sort is direction-only; pagination is limit-only — non-default nulls placement,
+offsets, and cursors are refused, never silently dropped).
 
 ## What comes back
 
@@ -109,9 +164,14 @@ metric 'order_count' (grain: order) is served by no mart — no mart lists it as
 'month' has roles ['ordered', 'shipped']. Use 'ordered_month' or 'shipped_month'.
 ```
 
-The remaining two are `InvalidRequest` (structural problems, raised at request
-construction or planning) and `FilterTypeMismatch` (a filter value whose type
-contradicts the dimension's column type — refused before any SQL renders).
+The remaining refusals: `InvalidRequest` (structural problems, raised at request
+construction or planning), `FilterTypeMismatch` (a filter value whose type contradicts
+the dimension's column type — refused before any SQL renders), and the
+`UnsupportedFilter` family — the closed query-vocabulary list (set relations,
+hierarchy operators, `$regex`, over-cap CNF expansions, non-invertible negations,
+non-finite literals, non-default sort-nulls, offset/cursor paging), each with a
+stable `.reason` in `bloomery.planner.KNOWN_UNSUPPORTED`. See
+[Errors](../reference/errors.md).
 
 ## Scope rows with a policy
 
@@ -120,13 +180,13 @@ applies is your upstream concern; the planner takes the value and renders it thr
 the same escaping pipeline as every other filter, prepended to the user's filters:
 
 ```python
-from bloomery import RowPolicy
+from bloomery import Op, RowPolicy
 
 plan = planner.plan(
     ir,
     MetricRequest(metrics=("revenue",), dimensions=("ordered_month",)),
     dialect="duckdb",
-    policy=RowPolicy(dimension="country", op="eq", value="FR"),
+    policy=RowPolicy(dimension="country", op=Op.EQ, value="FR"),
 )
 ```
 

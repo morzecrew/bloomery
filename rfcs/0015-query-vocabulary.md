@@ -1,8 +1,8 @@
 # RFC 0015 — Query vocabulary: filters, sort, pagination
 
-- **Status:** 📝 Draft — design locked; implementation is the next planner wave (post-M11). The
-  source doc's "no milestone movement" predates M7 shipping: this is now a migration of shipped
-  pre-0.1 surface, acceptable without a deprecation cycle because the API is not yet stable.
+- **Status:** 🚧 In progress — implementation landing (this PR, wave M14). Design locked; the
+  migration of the shipped pre-0.1 surface (M7's `FilterExpr` planner contract) lands without a
+  deprecation cycle because the API is not yet stable.
 - **Scope:** The filter/sort/pagination DSL of the planner contract: `planner/request.py`
   (`FilterExpr` → `Predicate`/`AnyOf`/`Clause`, operator set, `Scalar`, `OrderSpec`), a **new
   public module** `planner/parse.py` (Mongo-flavoured JSON grammar → typed clauses, with
@@ -157,6 +157,11 @@ refused on ordering operators** even though they parse as `Decimal`: Postgres so
 number, so `lt "NaN"` fails *open* and matches every row — exactly the bug class this project
 exists to prevent. `UUID` renders as a string literal against string-typed dimensions — no UUID
 `LogicalType` exists and none is added.
+
+*Implementation note (2026-08-07):* the implementation extends the string carrier beyond D5's
+ordering-operator scope to `in`/`not_in` membership lists, for UX symmetry — refusing `"2"` on
+`in` while accepting it on `gt` would be gratuitous; the same parse-validate-never-cast
+discipline applies per member.
 
 **Amendment note — `float` in `Scalar` (a real conflict, resolved).** The source doc's `Scalar`
 includes `float`; shipped `_check_scalar` refuses floats per RFC 0003 D5. Decision: floats
@@ -323,6 +328,12 @@ practical payoff of owning the parser.
 | Property (R6) | Shipped filter fuzz extended to `like`/`ilike`: adversarial `%`/`_` are now pattern characters, passing through verbatim; injection assertions unchanged — quote doubling, NUL refusal, unchanged predicate structure, exactly the expected scanned mart |
 | Execution | An `AnyOf` clause returns the same rows as two separate queries UNIONed |
 | Execution | Policy + `AnyOf`: policy predicate in every scan, `AnyOf` parenthesized — asserted on the parsed AST |
+
+*Implementation note (2026-08-07):* the execution-tier parenthesization row is defense in
+depth, not the detection layer — MetricFlow itself parenthesizes each `where_constraints`
+entry, so that tier cannot detect a dropped-parens regression in bloomery's renderer; the
+unit rendering tests (`AnyOf` parenthesization in `tests/unit/test_planner/test_filters.py`)
+are the detection layer for the merge-blocking D11 guarantee.
 
 App-side tests (adapter totality over `KNOWN_UNSUPPORTED | APP_UNSUPPORTED`,
 `strip_values_wrapper` refusals) are the adapter's obligation, out of scope here.

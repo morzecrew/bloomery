@@ -48,6 +48,17 @@ __all__ = [
     "AmbiguousDimension",
     "InvalidRequest",
     "FilterTypeMismatch",
+    "UnsupportedFilter",
+    "UnsupportedSetRelation",
+    "UnsupportedHierarchy",
+    "UnsupportedTextOperator",
+    "FilterTooComplex",
+    "UnsupportedNegation",
+    "InvalidLiteral",
+    "UnsupportedSortNulls",
+    "UnsupportedPagination",
+    "UnsupportedFieldCompare",
+    "UnsupportedQuantifier",
 ]
 
 
@@ -258,3 +269,112 @@ class InvalidRequest(PlannerError):
 class FilterTypeMismatch(PlannerError):
     """Planner stage (RFC 0013 D8): a filter value whose type contradicts the
     dimension's logical type — refused before any SQL is rendered."""
+
+
+# ....................... #
+# Query vocabulary — RFC 0015 §5.3: the closed refusal list. Every leaf
+# carries a stable ``reason`` code; the union of codes the three parse
+# functions can raise is exported as ``bloomery.planner.KNOWN_UNSUPPORTED``.
+
+
+class UnsupportedFilter(PlannerError):
+    """Planner stage (RFC 0015 §5.3): a query-vocabulary construct bloomery
+    deliberately refuses — a *reviewed* gap, never drift.
+
+    Carries ``reason`` (the stable string code adapters key refusal handling
+    on), the inherited ``source_path``, and — where the refusal happened
+    after normalization — ``normalized``, the post-normalization form, so the
+    error is actionable rather than merely correct.
+    """
+
+    reason: str = "unsupported_filter"
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        source_path: str | None = None,
+        normalized: str | None = None,
+    ) -> None:
+        super().__init__(message, source_path=source_path)
+        self.normalized = normalized
+
+
+class UnsupportedSetRelation(UnsupportedFilter):
+    """RFC 0015 §5.3: ``$superset``/``$subset``/``$disjoint``/``$overlaps`` —
+    marts are flattened and scalar by construction; no array columns exist
+    to relate."""
+
+    reason = "unsupported_set_relation"
+
+
+class UnsupportedHierarchy(UnsupportedFilter):
+    """RFC 0015 §5.3: ``$descendant_of``/``$ancestor_of`` — backend-specific
+    (``ltree``), capability-gated even upstream; model hierarchy as
+    flattened level columns on the mart."""
+
+    reason = "unsupported_hierarchy"
+
+
+class UnsupportedTextOperator(UnsupportedFilter):
+    """RFC 0015 §5.3: ``$regex`` (dialect-divergent, unbounded cost) and
+    ``$empty`` (ambiguous across types) — express as ``like``/``ilike``,
+    ``eq ""``, or ``is_null true`` explicitly."""
+
+    reason = "unsupported_text_operator"
+
+
+class FilterTooComplex(UnsupportedFilter):
+    """RFC 0015 §5.2 step 3: CNF expansion exceeded the clause cap — refused
+    *during* distribution, before the expansion is ever materialized."""
+
+    reason = "filter_too_complex"
+
+
+class UnsupportedNegation(UnsupportedFilter):
+    """RFC 0015 §5.2 step 2: a negated leaf with no complement operator
+    (e.g. ``$not $like``) — ``not_like`` is added only on demonstrated
+    need."""
+
+    reason = "unsupported_negation"
+
+
+class InvalidLiteral(UnsupportedFilter):
+    """RFC 0015 D5: a non-finite numeric operand (``NaN``/``Infinity``/
+    ``-Infinity``, float or string form) or an invalid ``like`` pattern
+    (unpaired trailing ``\\``, NUL) — fails open if permitted."""
+
+    reason = "invalid_literal"
+
+
+class UnsupportedSortNulls(UnsupportedFilter):
+    """RFC 0015 D-Q6: a ``nulls`` placement other than the canonical default
+    (``first`` for asc, ``last`` for desc) — accepting-and-dropping would be
+    worse than refusing."""
+
+    reason = "unsupported_sort_nulls"
+
+
+class UnsupportedPagination(UnsupportedFilter):
+    """RFC 0015 D-Q7: a non-zero ``offset`` or cursor pagination — paging
+    aggregates belongs to the serving layer (materialize, then page)."""
+
+    reason = "unsupported_pagination"
+
+
+class UnsupportedFieldCompare(UnsupportedFilter):
+    """Adapter-owned (RFC 0015 §5.3): ``$fields`` field-to-field compare.
+    Declared here so adapters can raise it; **never raised by bloomery** and
+    its code is not part of ``KNOWN_UNSUPPORTED`` — it belongs to the
+    adapter's ``APP_UNSUPPORTED`` set."""
+
+    reason = "unsupported_field_compare"
+
+
+class UnsupportedQuantifier(UnsupportedFilter):
+    """Adapter-owned (RFC 0015 §5.3): ``$any``/``$all``/``$none`` element
+    quantifiers. Declared here so adapters can raise it; **never raised by
+    bloomery** and its code is not part of ``KNOWN_UNSUPPORTED`` — it
+    belongs to the adapter's ``APP_UNSUPPORTED`` set."""
+
+    reason = "unsupported_quantifier"

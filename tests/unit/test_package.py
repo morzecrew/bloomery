@@ -15,18 +15,20 @@ pytestmark = pytest.mark.unit
 
 def test_public_api_surface() -> None:
     assert bloomery.__all__ == [
+        "AnyOf",
         "BackfillScope",
         "BloomeryError",
         "Change",
         "ChangeClass",
         "ColumnDescriptor",
-        "FilterExpr",
         "HydrationKey",
         "LruManifestHydrator",
         "MetricFlowPlanner",
         "MetricRequest",
+        "Op",
         "OrderSpec",
         "Plan",
+        "Predicate",
         "QueryPlan",
         "Resolution",
         "RowPolicy",
