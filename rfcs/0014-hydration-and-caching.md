@@ -1,6 +1,10 @@
 # RFC 0014 — Hydration and caching of the planner artifact
 
-- **Status:** 📝 Draft
+- **Status:** ✅ Complete — shipped 2026-08-07 (M8): `HydrationKey`, the pure L2
+  codec, and `LruManifestHydrator` landed as designed (`bloomery/runtime/`); the
+  revised budgets (50 ms cold / 10 ms warm) are asserted in the bench lane
+  (`tests/bench/test_hydration.py`), with M4.5-measured 10.5 ms median cold /
+  ~1.54 MB per lookup comfortably inside them.
 - **Scope:** `bloomery/runtime/hydration.py`: the `HydrationKey`, the pure L2 codec
   (`build_manifest_bytes` / `hydrate_manifest`), the `ManifestHydrator` Protocol and its
   default `LruManifestHydrator`, the revised hydration budgets asserted in

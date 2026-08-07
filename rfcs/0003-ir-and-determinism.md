@@ -1,6 +1,9 @@
 # RFC 0003 — Intermediate representation and determinism contract
 
-- **Status:** 📝 Draft
+- **Status:** ✅ Complete — shipped 2026-08-07 (M1): frozen all-tuple IR, `blm1:`
+  fingerprint, and the determinism contract enforced by cross-`PYTHONHASHSEED`
+  subprocess tests, the pre-commit ambient-nondeterminism ban, and — since M11 —
+  the SQLMesh replan no-op e2e (byte-identical recompile plans zero changes).
 - **Scope:** The frozen, hashable IR that the compile pipeline produces and every emitter
   consumes (`bloomery/ir/`), the `project_fingerprint` content hash, and the package-wide
   determinism rules that make `compile(x) == compile(x)` byte-for-byte. Covers the IR data

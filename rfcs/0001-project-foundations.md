@@ -1,6 +1,9 @@
 # RFC 0001 — Project foundations: packaging, tooling, CI, docs
 
-- **Status:** 📝 Draft
+- **Status:** ✅ Complete — shipped 2026-08-07: scaffold, `just quality` single gate,
+  SHA-pinned workflows, and docs infrastructure all landed as designed; docs floors,
+  per-package coverage ratchets, and the perf gate remain deliberately deferred to
+  v0.1.0 per §8 (ratchets need something to ratchet).
 - **Scope:** Everything that is not compiler code: repository layout, packaging
   (uv + hatchling + hatch-vcs), quality tooling (ruff, mypy strict, import-linter, vulture,
   deptry, bandit, zizmor, pre-commit), the `justfile`, GitHub workflows, documentation

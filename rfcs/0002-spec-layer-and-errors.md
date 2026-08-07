@@ -1,6 +1,8 @@
 # RFC 0002 — Spec layer and error model
 
-- **Status:** 📝 Draft
+- **Status:** ✅ Complete — shipped 2026-08-07 (M1): the four spec kinds + `Project`,
+  pure text-in loaders, and the total batched `BloomeryError` hierarchy landed as
+  designed (`bloomery/spec/`, `bloomery/errors.py`).
 - **Scope:** The input boundary of the compiler: the four Pydantic spec kinds
   (`Catalog`, `EntityModel`, `Mapping`, `MetricSet`), the `Project` container, the pure
   loaders (`load_catalog`, `load_project`), and the total `BloomeryError` hierarchy with

@@ -1,6 +1,9 @@
 # RFC 0006 — Guardrails: refusing plausible-but-wrong arithmetic
 
-- **Status:** 📝 Draft
+- **Status:** ✅ Complete — shipped 2026-08-07 (M4, mart-level grain/fan-out and
+  additivity checks with M5): all seven guardrails batched as designed, including the
+  path-conflict double-emission with its reconciliation audit
+  (`bloomery/guardrails/`).
 - **Scope:** The guardrail stage (`bloomery/guardrails/`) — the compile-time checks that
   refuse arithmetic that parses, typechecks, and produces a number that is wrong: unit
   coherence, tax basis, currency, grain (fan-out), additivity, path conflict, and range

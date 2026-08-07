@@ -1,6 +1,10 @@
 # RFC 0008 — Ports and emitters: targets, dialects, naming
 
-- **Status:** 📝 Draft
+- **Status:** 🚧 In progress — shipped 2026-08-07 (M2–M10): all three ports, the
+  SQLMesh/Cube/dbt emitters and DuckDB/Postgres/Trino dialects, and the D6 reversal
+  (`gold.dim_date` emitted per RFC 0013 D5); remaining: emitted-SQL verification on
+  the engine matrix beyond Postgres (Trino) and the containerized target e2e tiers
+  (RFC 0009 nightly lane).
 - **Scope:** The three ports (`TargetEmitter`, `DialectPort`, `NamingPolicy`), the lowering
   stage that turns `ProjectIR` into `EmittedArtifact`s, and the concrete adapters shipped in
   v0.1: SQLMesh (primary target), Cube and dbt (secondary targets), DuckDB / Trino /

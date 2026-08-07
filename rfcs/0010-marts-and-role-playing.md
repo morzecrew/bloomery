@@ -1,6 +1,8 @@
 # RFC 0010 — Marts and role-playing dimensions
 
-- **Status:** 📝 Draft
+- **Status:** ✅ Complete — shipped 2026-08-07 (M5): the `marts:` spec kind,
+  build-time flattening, `DimensionRef` role-playing with date-role expansion, and
+  the compile-time fan-out refusal landed as designed (`bloomery/marts/`).
 - **Scope:** The wide-mart gold layer as a first-class spec and IR concept: the `marts:`
   spec kind, build-time flattening of relationships and date roles, `MartIR`, and
   `DimensionRef` — the role-playing dimension model consumed by the mart builder, the

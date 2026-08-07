@@ -1,6 +1,9 @@
 # RFC 0005 — Resolution: dependency DAG, recipes, reachability
 
-- **Status:** 📝 Draft
+- **Status:** ✅ Complete — shipped 2026-08-07 (M2–M3): the single dependency DAG,
+  recorded-recipe validation (the compiler never chooses), metric reachability with
+  missing leaves stored in IR, and cycle naming landed as designed
+  (`bloomery/resolve/`).
 - **Scope:** The resolve stage (`bloomery/resolve/`, spec §5.2) and the public
   `resolve(project, catalog) -> Resolution` analysis API (spec §8): building the single
   dependency DAG over source columns, mapped fields, catalog canonical fields with their

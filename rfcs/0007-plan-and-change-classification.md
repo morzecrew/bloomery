@@ -1,6 +1,11 @@
 # RFC 0007 — Plan: spec diff and change classification
 
-- **Status:** 📝 Draft
+- **Status:** ✅ Complete — shipped 2026-08-07 (M9): all five classes, explicit
+  rename, expand/contract enforcement, and the `evolution_v1..v5` table verified as
+  byte-compared plan snapshots (`bloomery/plan/`). Amended 2026-08-07: the latent
+  §5.3-vs-D2 contradiction (stale-annotation refusal vs. `plan(ir, ir)` empty for
+  *every* IR) is resolved in favor of identity — an annotation `old` already carries
+  on the same column is treated as applied, not stale (see §5.3 amendment, D8).
 - **Scope:** The plan stage (`bloomery/plan/`) and the public
   `plan(old_ir | None, new_ir) -> Plan`: a pure structural diff of two `ProjectIR`s
   that classifies every change (`ADDITIVE | WIDENING | RENAME | RESTATING | BREAKING`),
@@ -146,6 +151,20 @@ construction. Once a plan applies, the next `old` contains only the new name, so
 leftover annotation fails the very next `plan()` — staleness detection *forces* the
 spec cleanup rather than politely tolerating drift.
 
+> **Amendment (2026-08-07, shipped with M9).** As written, the staleness rule
+> contradicted D2: after a rename plan applies, the *new* IR still carries the
+> annotation, so `plan(ir, ir)` — required by D2 to be empty for **every** IR,
+> property-tested — would raise `RenameTargetMissing`. Execution resolved the
+> conflict in favor of identity (see the [`plan/diff.py`](../src/bloomery/plan/diff.py)
+> module docstring): an annotation that `old` already carries *on the same column* is
+> treated as **applied**, not stale; `RenameTargetMissing` fires only when the
+> annotation names a column absent from `old` that `old` does not already record —
+> including `old is None`. Consequence: the annotation is no longer forcibly one-shot
+> (a leftover annotation is tolerated as inert history rather than refused), and
+> §5.5's "replaying v3 against v3's own IR raises `RenameTargetMissing`" no longer
+> holds — that replay is now the empty identity plan
+> (`test_already_applied_annotation_is_identity_not_stale`). Recorded as D8.
+
 Without the annotation, a rename is what it structurally is: a drop (BREAKING) plus an
 add (ADDITIVE). Heuristic inference (match by type and position, edit distance) was
 considered and rejected: a wrong guess silently maps history onto an unrelated column,
@@ -238,6 +257,11 @@ plainly that unannotated renames are drop+add.
 - None blocking. Implementation is free to settle `detail` string wording and the
   exact `subject` grammar, provided both are deterministic and the §5.5 table's
   classifications hold verbatim.
+- *(Resolved 2026-08-07, discovered during M9.)* §5.3's staleness rule and D2's
+  identity law were contradictory for an IR that still carries an applied
+  `renamed_from` annotation. Resolved in favor of identity (§5.3 amendment, D8):
+  identity is the stronger, property-tested invariant; staleness detection survives
+  for genuinely dangling annotations.
 
 ## 11. Decisions
 
@@ -250,6 +274,7 @@ plainly that unannotated renames are drop+add.
 | 5 | Expand/contract is enforced in this stage: dropping/narrowing a field referenced by a metric reachable in `new`, or by an old-reachable metric that vanished in the same plan, raises `ContractViolation` (`PlanError`). Deprecation must land in a prior version. This is the stage's only refusal — BREAKING changes are classified and returned, not raised. |
 | 6 | `Plan` = ordered `Change` tuple + `BackfillScope` + `downstream_impact` (from `MetricIR.depends_on`) + `has_changes`/`breaking` conveniences. All ordering lexicographic per RFC 0003 — plans are byte-comparable. |
 | 7 | Entity-level `grain`/`key`/`scd`/`materialization` changes are BREAKING at the entity subject (they redefine the row); column diffs are still reported alongside. Type changes follow the RFC 0004 lattice: widening = WIDENING, narrowing (incl. optional→required) and new required fields = BREAKING. |
+| 8 | *(Appended 2026-08-07, M9.)* Identity beats staleness: a `renamed_from` annotation that `old` already carries on the same column is treated as applied, never stale — `plan(ir, ir)` is empty for **every** IR, including one still annotated (D2 wins over §5.3's one-shot forcing). `RenameTargetMissing` fires only for annotations naming a column absent from `old` that `old` does not already record, including `old is None`. Cost: leftover annotations become inert history instead of a forced cleanup. |
 
 ## 12. Phasing
 

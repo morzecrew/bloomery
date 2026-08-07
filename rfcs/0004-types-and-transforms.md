@@ -1,6 +1,9 @@
 # RFC 0004 — Logical types and the transform registry
 
-- **Status:** 📝 Draft
+- **Status:** ✅ Complete — shipped 2026-08-07 (M2): closed `LogicalType` set, the
+  versioned transform whitelist built as SQLGlot ASTs, and chain typechecking with
+  tracked decimal precision landed as designed (`bloomery/typing/`,
+  `bloomery/transforms/`).
 - **Scope:** The type layer of the compiler: the closed `LogicalType` set and the typecheck
   stage (`bloomery/typing/`, spec §5.3), and the closed, versioned transform whitelist
   (`bloomery/transforms/`, spec §3.5) — the security and reviewability boundary that bounds

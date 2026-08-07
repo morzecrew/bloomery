@@ -1,11 +1,13 @@
 # RFC 0011 — Native planner: MetricRequest → QueryPlan
 
-- **Status:** 📝 Draft — amended by the MetricFlow pivot
-  ([`_bloomery-metricflow-pivot.md`](_bloomery-metricflow-pivot.md)): the
+- **Status:** ✅ Complete as contract — shipped 2026-08-07 (M7): the
   request/`QueryPlan` contract, refusal policy, `RowPolicy` semantics, `Explanation`
-  shape, and error taxonomy in this RFC remain binding; the native SQL assembly,
-  additivity lowering, and mart-selection internals (§algorithm steps 2–4) are
-  superseded by [RFC 0013](0013-metricflow-backend.md).
+  shape, and error taxonomy all ship verbatim behind `MetricFlowPlanner`
+  (`bloomery/planner/`); the native SQL assembly, additivity lowering, and
+  mart-selection internals (§algorithm steps 2–4) remain superseded by
+  [RFC 0013](0013-metricflow-backend.md) per the MetricFlow pivot
+  ([`_bloomery-metricflow-pivot.md`](_bloomery-metricflow-pivot.md)) — this RFC
+  stays the binding behavior spec, not the implementation.
 - **Scope:** The in-process query planner (`bloomery/planner/` — `request.py`, `select.py`,
   `build.py`, `additivity.py`, `policy.py`, `explain.py`): the `Planner` port, the
   `MetricRequest`/`QueryPlan` request/response types, the six-step planning algorithm,

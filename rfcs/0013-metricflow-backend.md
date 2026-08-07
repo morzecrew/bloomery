@@ -1,8 +1,15 @@
 # RFC 0013 — MetricFlow backend: manifest emitter and planner adapter
 
-- **Status:** 📝 Draft — **M4.5 verification (V1–V4) complete, ALL PASS (2026-08-07):**
-  see [`spikes/metricflow/VERIFICATION.md`](../spikes/metricflow/VERIFICATION.md); the
-  design is cleared for implementation.
+- **Status:** ✅ Complete — shipped 2026-08-07 (M6–M7, hydration consumed per
+  RFC 0014 at M8): `emit_manifest`, `MetricFlowPlanner` with coverage precheck,
+  `names.py`, fuzz-tested filters, the row-policy AST tests, and the version-drift
+  canary — R1–R9 all landed; the R10 three-way equivalence oracle is deliberately
+  RFC 0009's nightly containerized tier and is tracked there (🚧), not here — this
+  RFC's own design surface is fully shipped. M4.5 verification (V1–V4) ALL PASS
+  (2026-08-07): [`spikes/metricflow/VERIFICATION.md`](../spikes/metricflow/VERIFICATION.md).
+  Amended 2026-08-07 for the one discovered upstream nondeterminism (ratio
+  `input_measures` via a builtin set in MetricFlow's `transform()` — re-sorted
+  post-transform; §5.2 amendment, D15).
 - **Scope:** Replaces the hand-written lowering half of RFC 0011 with an embedded MetricFlow
   backend: a new emitter `bloomery/emit/metricflow/` (IR → `PydanticSemanticManifest`), the
   reshaped `bloomery/planner/` (coverage precheck, name bridging, filter rendering, the
@@ -183,6 +190,18 @@ the SQLMesh emitter builds `gold.dim_date` from it, and `emit_manifest` points
 `PydanticTimeSpine` at that same relation. **This reverses RFC 0008 D6** ("date dimension
 not emitted in v0.1, demand-gated") — the demand arrived; RFC 0008 is amended in parallel.
 One definition, two emissions, no drift.
+
+> **Amendment (2026-08-07, discovered during M6).** Rule (3)'s "all collections sorted
+> before construction" is necessary but not sufficient: MetricFlow's **own**
+> `PydanticSemanticManifestTransformer.transform()` reintroduces nondeterminism — its
+> `AddInputMetricMeasuresRule` collects each metric's `input_measures` through a builtin
+> `set`, so their order is hash-seed dependent, surfaced by any RATIO metric (two input
+> measures). Since the emitter returns the *post-transform* manifest (what RFC 0014 D3
+> caches and RFC 0009 golden-byte-compares), `emit_manifest` re-sorts
+> `metric.type_params.input_measures` by measure name **after** `transform()`
+> ([`emit/metricflow/__init__.py`](../src/bloomery/emit/metricflow/__init__.py)) —
+> otherwise ordering drift would flake goldens and silently defeat the hydration cache.
+> Recorded as D15.
 
 ### 5.3 The adapter and the render-only client
 
@@ -425,6 +444,7 @@ record; the M4.5 gate is cleared (facts folded into §3, §5.7, §5.9, §9, D14)
 | 12 | V1–V4 form milestone M4.5: merge nothing until all four are answered in writing; the reference implementation lands as `spikes/metricflow/` first. `metricflow` becomes a **runtime** dependency; if its supported Python range is narrower than `>=3.12,<3.15`, `requires-python` narrows to match (RFC 0001 amended) — V1 answers this. |
 | 13 | Planner-package DELETE list (`select.py`, `build.py`, `additivity.py`, `policy.py`): if they contain work, delete it — no second implementation kept "just in case"; salvage only fixtures. The Cube equivalence suite is the second opinion. |
 | 14 | **M4.5 complete (2026-08-07): V1–V4 all answered PASS** ([`spikes/metricflow/VERIFICATION.md`](../spikes/metricflow/VERIFICATION.md)) — V1: joint resolution succeeds on Python 3.12/3.13/3.14, no `requires-python` change, v1-shim/v2 coexistence clean in both import orders; V2: issue #241 fixed in 0.211.0 (by-month returns the full series); V3: cold hydration 10.5 ms median, 1.54 MB/lookup (RFC 0014 budgets confirmed); V4: row-policy predicate in every scan pre-aggregation, escape hatch unneeded. `metricflow==0.211.*` is **confirmed** as the runtime pin — it resolves jointly with the sqlmesh dev tooling (sqlmesh 0.236.1, sqlglot stays `>=30.8,<31` resolving 30.8.0). Design cleared for implementation (M6+). |
+| 15 | *(Appended 2026-08-07, M6.)* Post-`transform()` re-sort of `input_measures`: MetricFlow's `AddInputMetricMeasuresRule` collects a metric's `input_measures` through a builtin `set` (hash-seed-dependent order, surfaced by RATIO metrics), so `emit_manifest` sorts `metric.type_params.input_measures` by measure name after `transform()` — the transformed manifest is hashed, cached (RFC 0014 D5), and golden-byte-compared (R1); without the re-sort, ordering drift would flake goldens and silently defeat the cache. The determinism guarantee is therefore ours, applied *after* the upstream transform, not assumed of it. |
 
 ## 12. Phasing
 

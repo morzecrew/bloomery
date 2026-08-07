@@ -1,6 +1,11 @@
 # RFC 0009 — Testing strategy and fixture corpus
 
-- **Status:** 📝 Draft
+- **Status:** 🚧 In progress — shipped 2026-08-07: tiers 1–4 (unit / golden matrix /
+  Hypothesis / DuckDB execution), the determinism and tenant-agnosticism guards, the
+  Postgres engine tier, the hydration bench lane, and the local SQLMesh replan no-op
+  e2e (`tests/e2e/test_sqlmesh_replan.py` — this RFC's strongest single test, no
+  containers needed); remaining: Trino/Spark engine containers, the Cube container
+  e2e, dbt parse, and the three-way equivalence suite (nightly tier).
 - **Scope:** The whole test suite: seven tiers (unit, golden, property, execution, engine
   matrix, target e2e, planner equivalence), the `tests/` layout and marker taxonomy, the
   shared fixture corpus, the golden-file review contract, the determinism and
