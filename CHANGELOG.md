@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The emitted quarantine-replay `MERGE` assigned to *qualified* target columns (`_target.col = …`), which DuckDB, Postgres and Trino all reject — the artifact could not run on any shipped dialect. The `SET` target is now the bare column standard SQL requires.
+
+- The replay `MERGE` for an entity that declares `quarantine:` without `dedupe:` rendered an empty row comparison (`WHEN MATCHED AND () > ()`), i.e. invalid SQL. Without a dedupe block the total order degenerates to its final sort key, the stable `_source_row_id`, and the comparison stays total.
+
 - Docs site root no longer 404s before the first release: the dev docs deploy
   now sets the gh-pages root redirect while no released version exists.
 
@@ -33,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Data quality, run-time half (RFC 0016 §5.3–§5.6): the new `bloomery/quality/` package lowers the closed rule catalogue into dialect-neutral predicates under a strict three-valued discipline (a NULL-involved comparison never fires — `not_null` and `coercible` are the only rules that own nulls), builds `_quality_flags`/`failed_rules` in one array-construct pass under one physical contract (array where the dialect has one, else the lexicographic comma-delimited string), and pins the dedupe total order.
 
 - SQLMesh emits the full quality set: the dedupe `QUALIFY` (one neutral AST, rendered natively on DuckDB and as a `ROW_NUMBER` subquery elsewhere), the two-way entity/reject split, a `<entity>__reject` model with a recomputable `reject_id`, a blocking audit on the bronze ingestion-metadata contract, a blocking audit per `on_fail: fail` rule, and a replay `MERGE` artifact bloomery emits and never executes. dbt raises `UnsupportedByTarget` for the reject/replay artifacts — the honest port-proof scope.
+
+- A blocking `<entity>_conservation` audit per entity with a reject table (RFC 0016 §6): every bronze row lands in exactly one of the entity, a quarantined row, or the deduped count, checked on every production run rather than only in the test suite. Skipped for the one shape an audit body cannot express — an entity whose routing predicate reads a sibling entity (`referential` with `on_missing: quarantine`).
 
 - Seven compile-time data-quality guardrails, batched into the same aggregate as everything else: `DedupeTieBreakMissing`, `DedupeDispositionConflict`, `QuarantineRetentionMissing`, `IngestionMetadataMissing`, `RedactionConflict`, plus `pattern` regexes validated against every registered dialect and `unknown_member` refused on a non-string foreign key.
 

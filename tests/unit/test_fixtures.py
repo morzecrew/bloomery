@@ -142,3 +142,37 @@ def test_path_conflict_loads_clean() -> None:
     assert isinstance(net_price, RecipeFieldMapping)
     assert net_price.recipe == "from_total"
     assert net_price.direct == "$.price"  # the recorded path-conflict state
+
+
+def test_dirty_corpus_loads_clean() -> None:
+    """The spec side of the dirty-data corpus (RFC 0016 §6). One entity per
+    failure family, plus the two sides ``refs.csv``'s ``_parent_status``
+    column asks a suite to stand up — the referenced customer and the
+    referenced parent order."""
+    project = load_fixture_project("dirty_corpus")
+    entities = project.entity_model.entities
+    assert set(entities) == {
+        "dirty_customer",
+        "dirty_date",
+        "dirty_decimal_extreme",
+        "dirty_integer_extreme",
+        "dirty_key",
+        "dirty_name",
+        "dirty_number",
+        "dirty_ref",
+        "dirty_ref_parent",
+        "dirty_status",
+        "dirty_text_extreme",
+        "dirty_timestamp_extreme",
+    }
+    # Every entity opts into the quality system, because every family is a set
+    # of specimens about dispositions.
+    assert all(entity.quarantine is not None for entity in entities.values())
+    # Only the identity family declares dedupe — deduplicating is not a
+    # statement about coercibility, and the two opt in separately.
+    assert [name for name, e in sorted(entities.items()) if e.dedupe is not None] == ["dirty_key"]
+    assert {r.name for r in project.entity_model.relationships} == {
+        "ref_of_customer",
+        "ref_of_parent",
+    }
+    assert [check.name for check in project.entity_model.reconcile] == ["key_amount_matches_row"]

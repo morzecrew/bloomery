@@ -1,0 +1,16 @@
+mapping_version: 1
+source: dirty__extremes_integer
+target: dirty_integer_extreme
+key:
+  case_name: {from: "$._case", transform: [to_string]}
+fields:
+  # int64_overflow fits decimal(38,9) and not BIGINT: the disposition depends
+  # on the DECLARED type, which is exactly the difference the row exists for.
+  value: {from: "$.raw_value", transform: [to_int]}
+unmapped:
+  - "$._load_id"
+  - "$._ingested_at"
+  - "$._source_row_id"
+  - "$.raw_kind"
+  - "$._expected"
+  - "$._note"

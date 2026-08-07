@@ -11,11 +11,28 @@ notice until a dashboard total drifted.
 
 ## These files are DATA, not tests
 
-There are no assertions here and no pytest files in this directory. The suites that
-consume the corpus — the execution tier's survivors-and-quarantine-contents assertions,
-the conservation-law property, the replay tests, the dialect matrix — land with the
-later M12 phases (RFC 0016 §12). Until then the corpus is a curated input waiting for
-its consumers, and it is versioned and reviewed like source code.
+There are no assertions here and no pytest files in this directory. The **policy** these
+values are judged under lives in [`../dirty_corpus/`](../dirty_corpus/) — one entity per
+failure family, declaring the default rule set the `_expected` column below is written
+against. The suites that consume both are:
+
+| Suite | What it asserts |
+| --- | --- |
+| [`tests/execution/test_dirty_corpus.py`](../../execution/test_dirty_corpus.py) | `_expected`, row by row, reading **both** sides of the quarantine split |
+| [`tests/execution/test_dedupe_and_audits.py`](../../execution/test_dedupe_and_audits.py) | `keys.csv`'s dedupe order and the D21 blocking audit |
+| [`tests/execution/test_merge_gates.py`](../../execution/test_merge_gates.py) | idempotence and full-refresh ≡ incremental |
+| [`tests/execution/test_quarantine_replay.py`](../../execution/test_quarantine_replay.py) | the enum-widening walkthrough, `enums.csv`'s two `valid_but_unmapped` rows |
+| [`tests/execution/test_quality_mart.py`](../../execution/test_quality_mart.py) | `gold.mart_data_quality`'s counts and the quarantine rate as a `MetricRequest` |
+| [`tests/property/test_conservation.py`](../../property/test_conservation.py) | the conservation law over generated batches |
+| [`tests/chaos/test_mutation_harness.py`](../../chaos/test_mutation_harness.py) | that the suites above would notice a deliberate lowering defect |
+
+Two departures from "every row is asserted", both recorded rather than hidden:
+`unicode.csv`'s `flag` marks encode a judgement about *deceptive characters* that no v1
+rule can express (the portable regex subset forbids exactly what a codepoint-class test
+would need), so that family asserts the rows a declared rule decides plus the invariant
+that no row is ever dropped; and no corpus row casts cleanly and *then* violates a
+declared `range` bound, so the `range` rule fires on nothing — a gap the next
+range-shaped incident should close.
 
 ## The rule
 

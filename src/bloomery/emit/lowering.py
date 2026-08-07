@@ -76,8 +76,11 @@ if TYPE_CHECKING:
     from bloomery.emit.base import EmitContext
 
 __all__ = [
+    "THIS_MODEL",
     "audit_predicate",
     "column_type",
+    "conservation_audit",
+    "conservation_audit_select",
     "dim_date_select",
     "entity_select",
     "enum_literal",
@@ -523,6 +526,145 @@ def ingestion_audit_predicate(entity: EntityIR) -> Expression:
     return disjunction(parts)
 
 
+#: The target-side macro standing for the audited model's own relation. Both
+#: shipped SQL targets spell it this way; the audit bodies below reference it
+#: rather than a naming-policy relation so an audit stays attached to whatever
+#: physical table the framework built (a dev/prod virtual layer moves it).
+THIS_MODEL = "@this_model"
+
+#: Aliases inside the conservation audit body. Named constants because the
+#: body references them across three nesting levels.
+_SURVIVORS_CTE = "_survivors"
+_CONSERVATION_ALIAS = "_conservation"
+_ENTITY_ALIAS = "_entity"
+
+
+def _this_model(alias: str) -> exp.Table:
+    """``@this_model AS <alias>`` with the macro left unquoted.
+
+    ``exp.table_`` would quote it — ``@`` is not an identifier character — and
+    a quoted macro is a table named ``@this_model``, which does not exist.
+    """
+    return exp.Table(this=exp.to_identifier(THIS_MODEL, quoted=False), alias=alias)
+
+
+def _count_of(relation: Expression) -> Expression:
+    return exp.Subquery(this=exp.Select().select(exp.Count(this=exp.Star())).from_(relation))
+
+
+def _counted_as(predicate: Expression, name: str) -> Expression:
+    """``SUM(CASE WHEN <predicate> THEN 1 ELSE 0 END) AS <name>``."""
+    case = exp.Case(
+        ifs=[exp.If(this=predicate, true=exp.Literal.number(1))], default=exp.Literal.number(0)
+    )
+    return cast("Expression", exp.alias_(exp.Sum(this=case), name))
+
+
+def conservation_audit(entity: EntityIR) -> bool:
+    """Whether the conservation audit can be emitted for this entity.
+
+    **A scope limit, recorded rather than worked around.** An audit body may
+    address exactly two relations: the audited model, through the target's
+    ``@this_model`` macro, and the model's external upstream. It may *not*
+    address a sibling model — SQLMesh rewrites model references inside a MODEL
+    query to the physical snapshot table but does **not** do so inside an AUDIT
+    body, so a literal ``silver.<sibling>`` there resolves to a virtual-layer
+    view that does not exist yet on a first plan, and the run fails at the very
+    audit that was meant to protect it.
+
+    That rules the audit out for exactly one shape: an entity whose *routing*
+    predicate reads a sibling entity, i.e. a ``referential`` rule carrying
+    ``on_missing: quarantine``. Everywhere else the law rides on bronze and the
+    model itself. The property tier covers the law for every shape (RFC 0016
+    §6); this is about what can be checked at run time, on this target.
+    """
+    if entity.quarantine is None:
+        return False
+    return not any(rule.kind == "referential" for rule in _rules(entity, OnFail.QUARANTINE))
+
+
+def conservation_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
+    """The conservation law as a **runtime** audit (RFC 0016 §6).
+
+    §6 does not merely ask for a property test — it asks for the law to be
+    "emitted as a runtime audit on every production run, not only a test",
+    which is the difference between knowing the compiler is right and knowing
+    *this* run was. The law: every bronze row lands in exactly one of the
+    entity, an unresolved reject, or the deduped count. Written over the two
+    quantities an audit body can reach::
+
+        entity_rows + diverted_rows = surviving_rows   (the split is total and
+                                                        disjoint — a row in
+                                                        neither leg is a row
+                                                        silently dropped)
+        surviving_rows <= bronze_rows                  (dedupe removes rows, it
+                                                        never invents any)
+
+    with ``deduped = bronze_rows - surviving_rows`` falling out as the third
+    leg. ``entity_rows`` is scoped to the source-row identities of *this* run's
+    survivors, which is what keeps the audit exact under an incremental entity
+    and stable across a replay: a replayed row's bronze identity has aged out
+    of the window, so it is outside the scope on both sides at once.
+
+    The reject table is deliberately **not** read — see
+    :func:`conservation_audit`. ``diverted_rows`` is recomputed from the same
+    routing predicate the reject model routes by, which is the same claim
+    without the cross-model reference.
+
+    Blocking, like the D21 metadata audit: silent row loss is the failure this
+    whole package exists to make impossible.
+    """
+    # The audited entity is addressed through THIS_MODEL, never through the
+    # naming policy: an audit must follow the model into whatever physical
+    # table the framework's virtual layer put it in.
+    bronze_namespace, bronze_rel = ctx.naming.relation(entity.source.relation, Layer.BRONZE)
+    diverted = _route_predicate(entity, _SURVIVORS_CTE, quarantined=True)
+    if diverted is None:  # pragma: no cover — a quarantine block implies rules
+        diverted = exp.false()
+
+    in_scope = exp.In(
+        this=exp.column(ROW_ID_COLUMN, table=_ENTITY_ALIAS),
+        query=exp.Select().select(exp.column(ROW_ID_COLUMN)).from_(_SURVIVORS_CTE).subquery(),
+    )
+    entity_rows = exp.Subquery(
+        this=exp.Select()
+        .select(exp.Count(this=exp.Star()))
+        .from_(_this_model(_ENTITY_ALIAS))
+        .where(in_scope)
+    )
+    counted = (
+        exp.Select()
+        .select(
+            cast("Expression", exp.alias_(exp.Count(this=exp.Star()), "surviving_rows")),
+            _counted_as(diverted, "diverted_rows"),
+            cast(
+                "Expression",
+                exp.alias_(_count_of(exp.table_(bronze_rel, db=bronze_namespace)), "bronze_rows"),
+            ),
+            cast("Expression", exp.alias_(entity_rows, "entity_rows")),
+        )
+        .from_(_SURVIVORS_CTE)
+    )
+    violated = disjunction(
+        [
+            exp.NEQ(
+                this=exp.Add(
+                    this=exp.column("entity_rows"), expression=exp.column("diverted_rows")
+                ),
+                expression=exp.column("surviving_rows"),
+            ),
+            exp.GT(this=exp.column("surviving_rows"), expression=exp.column("bronze_rows")),
+        ]
+    )
+    return (
+        exp.Select()
+        .with_(_SURVIVORS_CTE, as_=_extract_select(entity, ctx))
+        .select(exp.Star())
+        .from_(counted.subquery(alias=_CONSERVATION_ALIAS))
+        .where(violated)
+    )
+
+
 def fail_audits(entity: EntityIR) -> tuple[tuple[str, Expression], ...]:
     """``(audit name, violating-row predicate)`` per ``on_fail: fail`` rule.
 
@@ -559,8 +701,23 @@ def _replay_candidates(entity: EntityIR, ctx: EmitContext) -> exp.Select:
 
 
 def _dedupe_tuple(entity: EntityIR, table: str) -> exp.Tuple:
+    """The row constructor replay compares an incumbent and a candidate by.
+
+    An entity may carry ``quarantine:`` **without** ``dedupe:`` — deduplicating
+    is not a statement about coercibility, so the two opt in separately. The
+    total order does not disappear with the block: D20 makes the stable
+    source-row identity the *final* sort key, and D21 guarantees it exists and
+    is unique on any entity with a reject table. So the no-dedupe form of the
+    order is that last key alone, and the comparison stays total.
+
+    (Before this was spelled out, the tuple collapsed to ``()`` and the emitted
+    replay artifact read ``WHEN MATCHED AND () > ()`` — invalid SQL on every
+    dialect. The shipped golden fixture declares ``dedupe:``, so only the
+    execution tier over an entity without one could see it, RFC 0016 §6.)
+    """
     order = dedupe_order(entity.dedupe, table=table) if entity.dedupe else ()
-    return exp.Tuple(expressions=[term.this for term in order])
+    columns = [term.this for term in order] or [exp.column(ROW_ID_COLUMN, table=table)]
+    return exp.Tuple(expressions=columns)
 
 
 def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, ...]:
@@ -598,8 +755,18 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
         condition=wins,
         then=exp.Update(
             expressions=[
+                # The **left** side of a MERGE ``SET`` is deliberately
+                # unqualified. Standard SQL says the assignment target is a
+                # bare column of the merge target — DuckDB, Postgres and Trino
+                # all reject a qualified one outright ("Qualified column names
+                # in UPDATE .. SET not supported"), and only a couple of
+                # engines accept it as an extension. Qualifying it here made
+                # the emitted replay artifact unrunnable on every shipped
+                # dialect; caught by the execution tier (RFC 0016 §6), which is
+                # what that tier is for. The right side stays qualified — it
+                # names the *source* row and would be ambiguous otherwise.
                 exp.EQ(
-                    this=exp.column(name, table=_TARGET_ALIAS),
+                    this=exp.column(name),
                     expression=exp.column(name, table=_REPLAY_ALIAS),
                 )
                 for name in non_key

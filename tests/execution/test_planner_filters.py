@@ -36,9 +36,8 @@ from sqlglot import expressions as exp
 
 from bloomery import AnyOf, MetricRequest, Op, OrderSpec, Predicate, RowPolicy
 from support.compiling import compile_fixture
+from support.execution import materialize, warehouse
 from support.planning import audit_scans, fixture_ir, make_planner
-
-from .test_marts import materialize
 
 pytestmark = pytest.mark.execution
 
@@ -47,10 +46,7 @@ PLANNER = make_planner()
 
 @pytest.fixture
 def conn() -> Iterator[duckdb.DuckDBPyConnection]:
-    connection = duckdb.connect(":memory:")
-    connection.execute("SET TimeZone = 'UTC'")
-    for schema in ("bronze", "silver", "gold"):
-        connection.execute(f"CREATE SCHEMA {schema}")
+    connection = warehouse()
     yield connection
     connection.close()
 

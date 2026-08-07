@@ -38,7 +38,11 @@ EXPECTED_PATHS = {
     # M12 phase 3 adds the reconcile model with its **non-blocking** audit
     # (§5.3) and ``gold.mart_data_quality`` (§5.8) — an ordinary gold model,
     # which is why it sits among the marts rather than in a surface of its own.
+    # M12 phase 4 adds ``<entity>_conservation``: §6 asks for the conservation
+    # law "emitted as a runtime audit on every production run, not only a
+    # test", so it is an artifact, not just an assertion.
     "semi_additive_inventory": [
+        "audits/inventory_level_conservation.sql",
         "audits/inventory_level_ingestion_metadata.sql",
         "audits/inventory_level_stock_level_not_null.sql",
         "audits/stock_level_matches_snapshot_reconcile.sql",

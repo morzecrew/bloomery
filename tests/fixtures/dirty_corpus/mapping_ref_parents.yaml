@@ -1,0 +1,21 @@
+mapping_version: 1
+source: dirty__ref_parents
+target: dirty_ref_parent
+key:
+  order_id: {from: "$.order_id", transform: [to_string]}
+fields:
+  # Every seeded parent carries the same amount, so `unique` fires on all of
+  # them — and stays silent on the one NULL, which is the D19 conjunct.
+  amount:
+    from: "$.amount"
+    transform: [{to_decimal: [38, 9]}]
+    quality:
+      - {rule: unique, on_fail: flag}
+unmapped:
+  - "$._load_id"
+  - "$._ingested_at"
+  - "$._source_row_id"
+  - "$._case"
+  - "$._parent_status"
+  - "$._expected"
+  - "$._note"

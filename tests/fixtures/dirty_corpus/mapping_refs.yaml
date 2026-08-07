@@ -1,0 +1,20 @@
+mapping_version: 1
+source: dirty__refs
+target: dirty_ref
+key:
+  order_id: {from: "$.order_id", transform: [to_string]}
+fields:
+  customer_ref: {from: "$.customer_id", transform: [to_string]}
+  parent_ref: {from: "$.parent_order_id", transform: [to_string]}
+  # `quarantining_parent_row`'s note says it plainly: "Seed this row with a
+  # failing field value." The corpus carries no payload column of its own, so
+  # the suite synthesizes `amount` at seed time and this rule disposes of it.
+  amount: {from: "$.amount", transform: [{to_decimal: [38, 9]}]}
+unmapped:
+  - "$._load_id"
+  - "$._ingested_at"
+  - "$._source_row_id"
+  - "$._case"
+  - "$._parent_status"
+  - "$._expected"
+  - "$._note"

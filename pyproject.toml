@@ -143,6 +143,7 @@ markers = [
     "execution: Tier 4 — in-process DuckDB execution of compiled SQL",
     "engine(name): Tier 5 — testcontainers engine matrix; requires Docker; opt-in",
     "e2e: Tier 6 — target-framework acceptance (sqlmesh/dbt/cube); opt-in",
+    "chaos: Mutation meta-test — deforms the lowering and requires the M12 quality battery to notice (RFC 0016 §6); opt-in, runs pytest in a subprocess",
     "perf: Performance benchmark — bench lane (tests/bench), excluded from `just test`, scheduled CI (RFC 0009 §5.9, RFC 0014)",
 ]
 

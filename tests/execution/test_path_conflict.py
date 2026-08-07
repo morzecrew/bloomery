@@ -11,15 +11,14 @@ import pytest
 
 from bloomery.emit import ArtifactKind
 from support.compiling import compile_fixture, extract_select
+from support.execution import warehouse
 
 pytestmark = pytest.mark.execution
 
 
 @pytest.fixture
 def conn() -> Iterator[duckdb.DuckDBPyConnection]:
-    connection = duckdb.connect(":memory:")
-    connection.execute("CREATE SCHEMA bronze")
-    connection.execute("CREATE SCHEMA silver")
+    connection = warehouse("bronze", "silver")
     yield connection
     connection.close()
 

@@ -1,0 +1,32 @@
+mapping_version: 1
+source: dirty__unicode
+target: dirty_name
+key:
+  case_name: {from: "$._case", transform: [to_string]}
+fields:
+  name:
+    from: "$.raw_name"
+    transform: [to_string]
+    quality:
+      # Fires on the quoted empty string, silent on the NULL beside it (D19) —
+      # the pair the corpus keeps to pin that boundary.
+      - {rule: length, min: 1, on_fail: flag}
+      # Two bounds, two rules (§5.3): the upper one fires on exactly one row,
+      # `long_grapheme_cluster` — thirteen codepoints rendering as one
+      # grapheme, which is the upper-bound case any `length` rule has to have
+      # an answer for. The astral and ZWJ emoji rows sit at 11 and 3 and stay
+      # clean, which is what makes the assertion about codepoints and not bytes.
+      - {rule: length, max: 12, on_fail: flag}
+      # The one unicode row the corpus marks `quarantine`: the JSON escape of a
+      # lone surrogate, which is the only specimen carrying a backslash.
+      - {rule: pattern, regex: '^[^\\]*$', on_fail: quarantine}
+      # Every name in the file is distinct, so this fires on nothing — the
+      # whole-table slice of an unpartitioned FULL entity (D5).
+      - {rule: unique, on_fail: flag}
+unmapped:
+  - "$._load_id"
+  - "$._ingested_at"
+  - "$._source_row_id"
+  - "$._codepoints"
+  - "$._expected"
+  - "$._note"

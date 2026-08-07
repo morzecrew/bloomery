@@ -77,12 +77,12 @@ USING (
 ON _target.warehouse_id = _replay.warehouse_id
 AND _target.stock_date = _replay.stock_date
 WHEN MATCHED AND (_replay._ingested_at, _replay._load_id, _replay._source_row_id) > (_target._ingested_at, _target._load_id, _target._source_row_id) THEN UPDATE SET
-  _target.stock_level = _replay.stock_level,
-  _target._ingested_at = _replay._ingested_at,
-  _target._load_id = _replay._load_id,
-  _target._source_row_id = _replay._source_row_id,
-  _target._quality_flags = _replay._quality_flags,
-  _target._quality_ok = _replay._quality_ok
+  stock_level = _replay.stock_level,
+  _ingested_at = _replay._ingested_at,
+  _load_id = _replay._load_id,
+  _source_row_id = _replay._source_row_id,
+  _quality_flags = _replay._quality_flags,
+  _quality_ok = _replay._quality_ok
 WHEN NOT MATCHED THEN INSERT (
   stock_date,
   stock_level,

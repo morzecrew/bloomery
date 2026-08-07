@@ -4,7 +4,7 @@ MODEL (
   name silver.inventory_level,
   kind FULL,
   grain (warehouse_id, stock_date),
-  audits (inventory_level_ingestion_metadata, inventory_level_stock_level_not_null)
+  audits (inventory_level_ingestion_metadata, inventory_level_conservation, inventory_level_stock_level_not_null)
 );
 
 SELECT

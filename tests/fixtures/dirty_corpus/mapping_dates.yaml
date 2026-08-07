@@ -1,0 +1,20 @@
+mapping_version: 1
+source: dirty__dates
+target: dirty_date
+key:
+  case_name: {from: "$._case", transform: [to_string]}
+fields:
+  observed_at:
+    from: "$.raw_date"
+    transform: [{parse_ts: ISO8601}]
+    quality:
+      - {rule: coercible, on_fail: quarantine}
+  # `impossible_day` (2025-02-30) matches this pattern and still quarantines on
+  # the cast: a regex is never a substitute for `coercible`, which is why the
+  # corpus carries the row and why this rule is a flag.
+  date_text:
+    from: "$.raw_date"
+    transform: [to_string]
+    quality:
+      - {rule: pattern, regex: '^[0-9]{4}-[0-9]{2}-[0-9]{2}.*$', on_fail: flag}
+unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id", "$._expected", "$._note"]

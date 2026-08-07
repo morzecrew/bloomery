@@ -12,10 +12,18 @@ SQLMesh's own fingerprinting agree that nothing moved.
 Builtin audits declared in the ``MODEL`` blocks (e.g. ecom_basic's
 ``not_null``) run during apply, so a passing apply also exercises the audit
 lowering. Custom audit artifacts (``audits/*.sql``) are written by the same
-scaffold — the RFC 0016 fixture emits three (the ingestion-metadata contract,
-one ``on_fail: fail`` rule, and the reconcile check's **non-blocking** one), so
-a passing apply also proves the ``blocking false`` grammar and the
-``@execution_ds`` run-context macro against the pinned sqlmesh.
+scaffold — the RFC 0016 fixture emits four (the ingestion-metadata contract,
+the §6 conservation law, one ``on_fail: fail`` rule, and the reconcile check's
+**non-blocking** one), so a passing apply also proves the ``blocking false``
+grammar and the ``@execution_ds`` run-context macro against the pinned sqlmesh.
+
+The conservation audit is the one that had to be *designed* against this test.
+SQLMesh rewrites model references inside a MODEL query to the physical snapshot
+table but not inside an AUDIT body, so an audit that read the sibling reject
+relation resolved to a virtual-layer view that does not exist yet on a first
+plan — and failed the run it existed to protect. Only a real ``plan`` against a
+real framework shows that; the DuckDB execution tier renders audit bodies
+itself and would have stayed green.
 """
 
 from __future__ import annotations

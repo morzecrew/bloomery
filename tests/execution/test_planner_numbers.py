@@ -25,11 +25,10 @@ from decimal import Decimal
 import duckdb
 import pytest
 from support.compiling import compile_fixture
+from support.execution import materialize, warehouse
 from support.planning import fixture_ir, make_planner, normalize_month, quantized
 
 from bloomery import MetricRequest, Op, OrderSpec, Predicate
-
-from .test_marts import materialize
 
 pytestmark = pytest.mark.execution
 
@@ -42,10 +41,7 @@ INGESTED_AT = datetime(2024, 4, 1, tzinfo=UTC)
 
 @pytest.fixture
 def conn() -> Iterator[duckdb.DuckDBPyConnection]:
-    connection = duckdb.connect(":memory:")
-    connection.execute("SET TimeZone = 'UTC'")
-    for schema in ("bronze", "silver", "gold"):
-        connection.execute(f"CREATE SCHEMA {schema}")
+    connection = warehouse()
     yield connection
     connection.close()
 

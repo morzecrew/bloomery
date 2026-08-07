@@ -1,0 +1,197 @@
+# The spec side of the dirty-data corpus (RFC 0016 §6). The CSVs under
+# `tests/fixtures/dirty/` are *data* — they state facts about values; this
+# project states the **policy** those values are judged under, which is the
+# split the corpus README insists on.
+#
+# The policy here is deliberately the corpus's documented **default rule set**:
+# `coercible` at its default `quarantine`, no locale-aware or accounting
+# transform, `in_enum` case-sensitive, `referential.on_missing: unknown_member`.
+# That is what makes the `_expected` column of every CSV an assertion rather
+# than a comment. Where a family's `_expected` needs a rule beyond the default
+# (numerics' and extremes' `flag` rows record silent precision loss, which no
+# cast rejects), the extra rule is declared here and named in a comment.
+#
+# One entity per failure family, because a family is a set of specimens for one
+# *declared* shape: a single entity cannot type `raw_value` as decimal here and
+# timestamp there, and pretending otherwise would test a spec nobody would write.
+spec_version: 1
+entities:
+
+  # numerics.csv — locale, currency, notation and precision in a decimal field.
+  # `amount` carries the implicit `coercible` rule (quarantine); `amount_text`
+  # carries the `pattern` rule that catches the one `_expected: flag` row,
+  # `scale_overflow_rounds`, whose extra fractional digits the cast *rounds*
+  # rather than rejects — silent precision loss is exactly what `flag` is for.
+  dirty_number:
+    grain: one row per numeric specimen
+    key: [case_name]
+    fields:
+      case_name: {type: string, required: true}
+      amount: {type: "decimal(38,9)"}
+      amount_text: {type: string}
+    quarantine: {retention: 90d}
+
+  # dates.csv — format ambiguity and impossible instants. The declared type is
+  # `timestamp`, not `date`, and that is a load-bearing choice: DuckDB's
+  # TRY_CAST of the leap-second specimen `2025-12-31 23:59:60` to DATE
+  # *succeeds* (it truncates), so a date-typed field would silently admit a row
+  # the corpus marks `quarantine`. The `pattern` rule flags anything not shaped
+  # like an ISO calendar date; every one of those rows quarantines on the cast
+  # anyway, so the flag never changes a disposition — it records *why*.
+  dirty_date:
+    grain: one row per date specimen
+    key: [case_name]
+    fields:
+      case_name: {type: string, required: true}
+      observed_at: {type: timestamp}
+      date_text: {type: string}
+    quarantine: {retention: 90d}
+
+  # enums.csv — membership against {paid, pending, refunded}. The admissible
+  # set is the `enum_map` chain's own targets (RFC 0016 §5.2), never restated.
+  # `in_set` rides alongside on the raw text so the two membership rules are
+  # both exercised on live data; it is a flag, so it never moves a disposition.
+  dirty_status:
+    grain: one row per enum specimen
+    key: [case_name]
+    fields:
+      case_name: {type: string, required: true}
+      status: {type: string}
+      status_text: {type: string}
+    quarantine: {retention: 90d}
+
+  # keys.csv — identity and dedupe order. `dedupe` is the point of the file;
+  # the two `expression` rules own the null and empty-string key parts, because
+  # key columns carry no `quality:` surface of their own (they are mapping
+  # `key:` entries) and a row rule reads them directly.
+  dirty_key:
+    grain: one row per (order, line) after dedupe
+    key: [order_id, line_no]
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      amount: {type: "decimal(38,9)"}
+    dedupe: {keep: latest_by, field: _ingested_at, tie_break: [_load_id]}
+    quarantine: {retention: 90d}
+    quality:
+      - {rule: expression, name: order_id_present,
+         expr: "order_id IS NOT NULL", on_fail: quarantine}
+      - {rule: expression, name: order_id_not_empty,
+         expr: "LENGTH(order_id) > 0", on_fail: quarantine}
+      - {rule: expression, name: line_no_present,
+         expr: "line_no IS NOT NULL", on_fail: quarantine}
+
+  # refs.csv — referential integrity. Two relationships, both at
+  # `on_missing: unknown_member`: the customer fk, and the self-shaped parent
+  # fk expressed against `dirty_ref_parent` rather than against `dirty_ref`
+  # itself. That indirection is forced, not stylistic: the `referential`
+  # lowering is a LEFT JOIN inside the entity's own model, and a model cannot
+  # join the table it is being built from.
+  dirty_ref:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      customer_ref: {type: string}
+      parent_ref: {type: string}
+      amount: {type: "decimal(38,9)"}
+    quarantine: {retention: 90d}
+    quality:
+      - {rule: referential, via: ref_of_customer, on_missing: unknown_member}
+      - {rule: referential, via: ref_of_parent, on_missing: unknown_member}
+
+  # The referenced parent side of refs.csv, built from the same rows: the row
+  # `quarantining_parent_row` fails its own `coercible` rule here exactly as it
+  # does in `dirty_ref`, which is what makes its children genuine orphans
+  # *after* cleansing — the ordering-sensitive case §5.1 places at the
+  # bronze→silver row-rule stage.
+  dirty_ref_parent:
+    grain: one row per order, as the parent side
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      amount: {type: "decimal(38,9)"}
+    quarantine: {retention: 90d}
+
+  # The customer side of refs.csv's `_parent_status` column: present, absent
+  # (simply not seeded), and quarantined (seeded, fails its own rule).
+  dirty_customer:
+    grain: one row per customer
+    key: [customer_id]
+    fields:
+      customer_id: {type: string, required: true}
+      tier: {type: int}
+    quarantine: {retention: 90d}
+
+  # unicode.csv — invisible and deceptive text. `length` flags the empty
+  # string (and never the NULL beside it, D19); `pattern` quarantines the one
+  # row the corpus marks `quarantine`, the JSON lone-surrogate escape, by
+  # refusing a backslash. Everything else is *flagged, never dropped* — see
+  # the suite for why the corpus's flag/pass split is not a declarable rule.
+  dirty_name:
+    grain: one row per unicode specimen
+    key: [case_name]
+    fields:
+      case_name: {type: string, required: true}
+      name: {type: string}
+    quarantine: {retention: 90d}
+
+  # extremes.csv, split by its own `raw_kind` column — the corpus states the
+  # kind, the spec states the policy for each.
+  dirty_decimal_extreme:
+    grain: one row per decimal boundary specimen
+    key: [case_name]
+    fields:
+      case_name: {type: string, required: true}
+      value: {type: "decimal(38,9)"}
+      value_text: {type: string}
+    quarantine: {retention: 90d}
+
+  dirty_integer_extreme:
+    grain: one row per integer boundary specimen
+    key: [case_name]
+    fields:
+      case_name: {type: string, required: true}
+      value: {type: int}
+    quarantine: {retention: 90d}
+
+  dirty_timestamp_extreme:
+    grain: one row per timestamp boundary specimen
+    key: [case_name]
+    fields:
+      case_name: {type: string, required: true}
+      value: {type: timestamp}
+    quarantine: {retention: 90d}
+
+  # The text bucket also holds the two rows whose `raw_kind` is itself NULL —
+  # `empty_string_vs_null` and `zero_length_row`, the pair that only stays
+  # distinguishable when the CSV is read with `allow_quoted_nulls = false`.
+  # `not_null` owns the NULL one, `length` owns the empty string.
+  dirty_text_extreme:
+    grain: one row per string boundary specimen
+    key: [case_name]
+    fields:
+      case_name: {type: string, required: true}
+      value: {type: string}
+    quarantine: {retention: 90d}
+
+relationships:
+  - name: ref_of_customer
+    from: dirty_ref
+    to: dirty_customer
+    via: {customer_ref: customer_id}
+    cardinality: many_to_one
+  - name: ref_of_parent
+    from: dirty_ref
+    to: dirty_ref_parent
+    via: {parent_ref: order_id}
+    cardinality: many_to_one
+
+# The check that catches a correct formula over wrong data (§5.3): after
+# dedupe exactly one row survives per (order_id, line_no), so the per-key sum
+# must equal the per-key value. Non-blocking by construction.
+reconcile:
+  - {name: key_amount_matches_row,
+     left: "sum(dirty_key.amount) by order_id, line_no",
+     right: "dirty_key.amount",
+     tolerance: "0.000000001", on_fail: flag}
