@@ -1,18 +1,22 @@
 # RFCs
 
 Design proposals for **bloomery**, the entity-first spec compiler. This directory is
-committed — the RFC corpus is a project deliverable. Three preserved input documents:
+committed — the RFC corpus is a project deliverable. Five preserved input documents:
 [`_original-smelter-spec.md`](_original-smelter-spec.md) (the original specification),
 [`_bloomery-changes.md`](_bloomery-changes.md) (scope expansion: query planning, wide
-marts, role-playing dimensions), and
+marts, role-playing dimensions),
 [`_bloomery-metricflow-pivot.md`](_bloomery-metricflow-pivot.md) (the planner backend
 pivot: embedded MetricFlow replaces the hand-written planner lowering; milestones
-renumbered to M1–M11 with an M4.5 verification gate). Where RFCs diverge from any input
-document, the RFCs win.
+renumbered to M1–M11 with an M4.5 verification gate),
+[`_bloomery-query-vocabulary.md`](_bloomery-query-vocabulary.md) (Document 4: the
+filter/sort/pagination DSL and closed refusal list → RFC 0015), and
+[`_bloomery-quality-and-steps.md`](_bloomery-quality-and-steps.md) (Document 5:
+declarative data quality and the step registry → RFCs 0016–0017). Where RFCs diverge
+from any input document, the RFCs win.
 
 ## Allocating a number
 
-The next free number is **0015**. Before creating an RFC, glance at the table
+The next free number is **0018**. Before creating an RFC, glance at the table
 below (or `ls` this directory) and take the next unused integer — numbers
 collide when minted in parallel. Update this table in the same change.
 
@@ -37,6 +41,9 @@ number in the filename in sync.
 | [0012](0012-compiled-semantic.md) | CompiledSemantic: serializable planner artifact | ❌ Superseded | Superseded by RFC 0014 (MetricFlow pivot): the bespoke canonical-JSON CompiledSemantic is replaced by MetricFlow's transformed manifest; the surviving principles (deterministic serialization, never-migrate, LRU-not-resident-memory) carry over. Kept as the record of the pre-pivot design. |
 | [0013](0013-metricflow-backend.md) | MetricFlow backend: manifest emitter and planner adapter | ✅ Complete | Embedded render-only MetricFlow (`==0.211.*`, pinned internals + canary test) replaces hand-written planner lowering: `emit_manifest` maps IR marts → semantic models (one mart = one model, sorted, time spine from the catalog date dimension — reversing RFC 0008 D6), coverage precheck keeps refuse-don't-guess ahead of delegation, names.py bridges dunder names, Jinja filters are the fuzz-tested injection boundary, errors translate to bloomery taxonomy. Shipped 2026-08-07 (M6–M7, R1–R9); amended: upstream `transform()` orders ratio `input_measures` via a builtin set — re-sorted post-transform (D15); the R10 equivalence oracle is RFC 0009's nightly tier. |
 | [0014](0014-hydration-and-caching.md) | Hydration and caching of the planner artifact | ✅ Complete | Two-level cache for the transformed manifest: L2 bytes keyed by `HydrationKey(spec_fingerprint, bloomery_version, metricflow_version)` stored by the caller, L1 in-process LRU of hydrated `SemanticManifestLookup` (~1.6 MB/entry, configurable size); budgets 50 ms cold / 10 ms warm CI-asserted; version mismatch is a cache miss by construction, never a migration. Shipped 2026-08-07 (M8); measured 10.5 ms median cold / ~1.54 MB per lookup. |
+| [0015](0015-query-vocabulary.md) | Query vocabulary: filters, sort, pagination | 📝 Draft | CNF filter model (`Clause = Predicate \| AnyOf`, one disjunction level) replacing the flat FilterExpr: drop `between`, split `contains` into `like`/`ilike`, string-carrier scalars with the non-finite fail-open guard, no sort-nulls control, limit-only paging; new public `planner/parse.py` normalizes Mongo-flavored JSON (De Morgan → complement → CNF → clause cap) before refusing; the closed `KNOWN_UNSUPPORTED` refusal list with drift-guard test is the deliverable. Amends shipped RFC 0003/0011/0013 surface (pre-0.1 migration, wave M14). |
+| [0016](0016-data-quality.md) | Data quality: declarative cleansing, dispositions, quarantine | 📝 Draft | Run-time row dispositions (repair/flag/quarantine/fail — deliberately no drop) on a closed rule catalogue + mandatory-tie-break dedupe + referential `unknown_member` + reconcile; coercion failure becomes the implicit `coercible` rule (retires `on_unmapped_enum`, supersedes RFC 0008 D7); one replayable `__reject` table per entity with required retention/redaction; `_quality_flags` on silver, `has_quality_flags` on marts, quality mart without a tenant column (invariant #3); plan() gains `replay_scope`; conservation-law property doubles as a runtime audit. Wave M12. |
+| [0017](0017-step-registry.md) | The step registry: referenced implementations | 📝 Draft | Specs reference implementations, never contain them: four-tier ladder (transform → sql_macro → sql_model → python_model), `StepRegistry` as a pure compile input (no dynamic loading), manifests with typed contracts trusted at compile and enforced by a generated non-optional runtime assertion, determinism tiers with nondeterministic = compile error, `runtime_lock` in step identity so dependency bumps classify RESTATING; parameterize-never-fork. Wave M13, after RFC 0016. |
 
 ## Status legend
 
