@@ -61,3 +61,6 @@ jobs:
       - name: Deploy dev version
         working-directory: pages
         run: uv run mike deploy --push --branch gh-pages dev
+
+      - name: Set root redirect while unreleased
+        run: bash .github/scripts/set-docs-default-if-unset.sh

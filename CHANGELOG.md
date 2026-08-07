@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Docs site root no longer 404s before the first release: the dev docs deploy
+  now sets the gh-pages root redirect while no released version exists.
+
 ### Added
 
 - Initial project scaffold: packaging, quality gate, CI, docs infrastructure (RFC 0001).

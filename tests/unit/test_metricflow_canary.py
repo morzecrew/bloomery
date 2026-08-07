@@ -118,3 +118,18 @@ def test_top_level_pydantic_shim_module_exists() -> None:
     module — deptry/vulture configuration accounts for it; its disappearance
     would signal a repackaged wheel."""
     assert importlib.import_module("msi_pydantic_shim") is not None
+
+
+def test_pydantic_is_v2_only() -> None:
+    """The environment carries exactly one pydantic: v2. MetricFlow's manifest
+    models are v1-*style* only via the ``pydantic.v1`` compatibility namespace
+    inside the v2 package (routed by ``msi_pydantic_shim``) — no legacy pydantic
+    v1 distribution is installed, and bloomery's own models are pure v2. The
+    v1-style surface is confined to two boundary call sites (``manifest_json``,
+    ``hydrate_manifest``); pydantic 3 dropping the namespace is fenced by
+    metricflow's own ``pydantic<3`` constraint."""
+    import pydantic
+
+    assert pydantic.VERSION.startswith("2.")
+    shim = importlib.import_module("msi_pydantic_shim")
+    assert shim.BaseModel.__module__.startswith("pydantic.v1")

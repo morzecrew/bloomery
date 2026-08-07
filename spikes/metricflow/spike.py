@@ -19,6 +19,10 @@ from __future__ import annotations
 
 from typing import NoReturn
 
+from metricflow.engine.metricflow_engine import MetricFlowEngine, MetricFlowQueryRequest
+from metricflow.protocols.sql_client import SqlClient, SqlEngine
+from metricflow.sql.render.duckdb_renderer import DuckDbSqlPlanRenderer
+from metricflow.sql.render.sql_plan_renderer import SqlPlanRenderer
 from metricflow_semantic_interfaces.implementations.elements.dimension import (
     PydanticDimension,
     PydanticDimensionTypeParams,
@@ -52,11 +56,6 @@ from metricflow_semantic_interfaces.type_enums.entity_type import EntityType
 from metricflow_semantic_interfaces.type_enums.metric_type import MetricType
 from metricflow_semantic_interfaces.type_enums.time_granularity import TimeGranularity
 from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifestLookup
-
-from metricflow.engine.metricflow_engine import MetricFlowEngine, MetricFlowQueryRequest
-from metricflow.protocols.sql_client import SqlClient, SqlEngine
-from metricflow.sql.render.duckdb_renderer import DuckDbSqlPlanRenderer
-from metricflow.sql.render.sql_plan_renderer import SqlPlanRenderer
 
 
 class RenderOnlySqlClient(SqlClient):
