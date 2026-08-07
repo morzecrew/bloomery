@@ -36,6 +36,7 @@ nav = [
         "how-to/emit-sqlmesh.md",
         "how-to/emit-cube.md",
         "how-to/emit-dbt.md",
+        "how-to/plan-a-metric-request.md",
         "how-to/evolve-a-spec.md",
     ] },
     { "Reference" = [

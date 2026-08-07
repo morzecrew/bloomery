@@ -1,0 +1,11 @@
+# How the bronze source becomes the order entity: key lowering plus one
+# transform chain per field, drawn from the closed transform whitelist.
+mapping_version: 1
+source: shop__orders
+target: order
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  customer_id: {from: "$.customer_id", transform: [to_string]}
+  amount: {from: "$.amount", transform: [{to_decimal: [12, 2]}]}
+  order_date: {from: "$.created_at", transform: [{parse_date: ISO8601}]}

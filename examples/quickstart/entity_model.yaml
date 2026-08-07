@@ -1,0 +1,13 @@
+# The tenant's entity model: one order entity. `canonical: amount` links the
+# field back to the catalog, which is what makes the `revenue` template
+# reachable for this project.
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      customer_id: {type: string}
+      amount: {type: "decimal(12,2)", canonical: amount}
+      order_date: {type: date, assert: {not_null: true}}

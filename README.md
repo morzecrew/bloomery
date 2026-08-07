@@ -4,9 +4,11 @@
 
 ## What it is
 
-bloomery is a pure function library. You hand it four kinds of declarative specs —
-sources, entities, mappings, metrics — and it compiles them into ready-to-run artifacts
-for SQLMesh, dbt, and Cube: models, audits, and semantic-layer definitions.
+bloomery is a pure function library. You hand it five kinds of declarative specs —
+catalog, entities, mappings, metrics, marts — and it compiles them into ready-to-run
+artifacts for SQLMesh, dbt, and Cube: models, audits, and semantic-layer definitions.
+The same specs also serve metric queries at request time: a structured `MetricRequest`
+becomes SQL over a wide mart, planned by an embedded, render-only MetricFlow.
 
 - **Deterministic** — same specs in, byte-identical artifacts out, across machines,
   processes, and hash seeds. No clocks, no randomness, no environment reads.
@@ -17,7 +19,8 @@ for SQLMesh, dbt, and Cube: models, audits, and semantic-layer definitions.
 
 ## What it is not
 
-- It does **not execute SQL** — it emits artifacts for engines and frameworks that do.
+- It does **not execute SQL** — it emits artifacts and plans for engines and frameworks
+  that do.
 - It does **no orchestration** — scheduling, backfills, and deployment belong to SQLMesh,
   dbt, or whatever runs the artifacts.
 - It contains **no LLM** — specs are authored by people (or by tools upstream of this
@@ -25,35 +28,89 @@ for SQLMesh, dbt, and Cube: models, audits, and semantic-layer definitions.
 
 ## Quick start
 
+Pre-0.1, not yet on PyPI — install from the repository:
+
 ```bash
-uv add bloomery
+uv add git+https://github.com/morzecrew/bloomery
 ```
 
-```python
-from bloomery import compile_project, load_project
+Compile specs into SQLMesh artifacts (the library never touches the filesystem —
+writing is your loop):
 
+```python
+from bloomery import Target, compile_project, load_catalog, load_project
+
+catalog = load_catalog(catalog_yaml)
 project = load_project(
     {
-        "sources.yaml": sources_yaml,
-        "entities/order.yaml": order_yaml,
-        "metrics/revenue.yaml": revenue_yaml,
+        "entity_model.yaml": entities_yaml,
+        "mapping_orders.yaml": mapping_yaml,
+        "metrics.yaml": metrics_yaml,
+        "marts.yaml": marts_yaml,
     }
 )
 
-artifacts = compile_project(project, target="sqlmesh", dialect="duckdb")
+artifacts = compile_project(project, target=Target.SQLMESH, dialect="duckdb", catalog=catalog)
 for artifact in artifacts:
-    print(artifact.path)  # write them wherever your repo keeps models
+    print(artifact.path)  # write artifact.content wherever your repo keeps models
+```
+
+Plan a metric request over the mart those specs declared — SQL out, nothing executed:
+
+```python
+from bloomery import LruManifestHydrator, MetricFlowPlanner, MetricRequest, build_project_ir
+from bloomery.naming import DefaultNaming
+
+naming = DefaultNaming()
+planner = MetricFlowPlanner(LruManifestHydrator(naming), naming=naming)
+plan = planner.plan(
+    build_project_ir(project, catalog=catalog),
+    MetricRequest(metrics=("revenue",), dimensions=("ordered_month",)),
+    dialect="duckdb",
+)
+print(plan.sql)
+print(plan.explanation.render())
+```
+
+The runnable version of both snippets lives in
+[`examples/quickstart/`](examples/quickstart/):
+
+```bash
+uv run python examples/quickstart/run.py
 ```
 
 ## Status
 
-Pre-0.1 and spec-driven: the design lives as RFCs in [`rfcs/`](rfcs/INDEX.md) and the
-implementation lands milestone by milestone behind the quality gate. **The API is not
-stable yet** — anything may change before 0.1.
+Pre-0.1. All core milestones (M1–M10) are implemented behind the quality gate: spec
+layer, deterministic IR, transforms and typecheck, resolution, guardrails, wide marts
+with role-playing dates, the SQLMesh/Cube/dbt emitters over DuckDB/Trino/Postgres, the
+MetricFlow-backed planner with manifest hydration, and spec-diff planning — 1041 tests
+across the default tiers. The end-to-end and cross-target equivalence tiers are still
+landing. **The API is not stable yet** — anything may change before 0.1.
+
+The design lives as RFCs in [`rfcs/`](rfcs/INDEX.md); code that contradicts an accepted
+RFC is the bug, not the RFC.
 
 ## Documentation
 
-Full documentation is available at [https://morzecrew.github.io/bloomery/](https://morzecrew.github.io/bloomery/).
+Full documentation is available at
+[https://morzecrew.github.io/bloomery/](https://morzecrew.github.io/bloomery/):
+
+- [Quickstart](https://morzecrew.github.io/bloomery/get-started/quickstart/) — specs to
+  compiled artifacts to a planned query.
+- [Concepts](https://morzecrew.github.io/bloomery/concepts/specs-and-catalog/) — the
+  domain model, the compile pipeline, determinism, guardrails, wide marts.
+- How-to guides — emit
+  [SQLMesh](https://morzecrew.github.io/bloomery/how-to/emit-sqlmesh/),
+  [Cube](https://morzecrew.github.io/bloomery/how-to/emit-cube/), or
+  [dbt](https://morzecrew.github.io/bloomery/how-to/emit-dbt/);
+  [plan a metric request](https://morzecrew.github.io/bloomery/how-to/plan-a-metric-request/);
+  [evolve a spec safely](https://morzecrew.github.io/bloomery/how-to/evolve-a-spec/).
+- Reference —
+  [spec schemas](https://morzecrew.github.io/bloomery/reference/spec-schemas/),
+  [transforms](https://morzecrew.github.io/bloomery/reference/transforms/),
+  [errors](https://morzecrew.github.io/bloomery/reference/errors/),
+  [API](https://morzecrew.github.io/bloomery/reference/api/).
 
 ## Contributing
 
