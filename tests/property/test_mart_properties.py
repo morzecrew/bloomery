@@ -1,0 +1,85 @@
+"""Mart-flattening properties (RFC 0010 §6): permuted spec dict order yields
+an identical ``MartIR`` (byte-identical compile), and every mart column
+traces to exactly one source entity column."""
+
+from __future__ import annotations
+
+import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
+from bloomery import Target, build_project_ir, compile_project, load_project
+from bloomery.marts import lower_marts
+from support.compiling import compile_fixture, fixture_sources, load_fixture
+
+pytestmark = pytest.mark.property
+
+# Two independent marts over the role_playing_dates entities; the document is
+# reassembled with the marts in every permutation.
+_MART_BLOCKS = {
+    "by_ordered": """\
+  by_ordered:
+    grain: order
+    base: order
+    flatten:
+      - {date: order_date, role: ordered}
+    measures: [revenue]
+""",
+    "by_shipped": """\
+  by_shipped:
+    grain: order
+    base: order
+    flatten:
+      - {date: ship_date, role: shipped}
+    measures: [revenue]
+""",
+}
+
+
+def _sources_with_marts(order: list[str]) -> dict[str, str]:
+    sources = fixture_sources("role_playing_dates")
+    sources["marts"] = "marts_version: 1\nmarts:\n" + "".join(_MART_BLOCKS[name] for name in order)
+    return sources
+
+
+@settings(max_examples=10, deadline=None)
+@given(order=st.permutations(sorted(_MART_BLOCKS)))
+def test_flattening_is_invariant_under_mart_document_order(order: list[str]) -> None:
+    baseline = compile_project(
+        load_project(_sources_with_marts(sorted(_MART_BLOCKS))),
+        target=Target.SQLMESH,
+        dialect="duckdb",
+    )
+    permuted = compile_project(
+        load_project(_sources_with_marts(order)), target=Target.SQLMESH, dialect="duckdb"
+    )
+    assert permuted == baseline  # paths, contents, checksums — byte identity
+
+
+@settings(max_examples=10, deadline=None)
+@given(order=st.permutations(sorted(_MART_BLOCKS)))
+def test_lowering_yields_identical_mart_ir_under_permutation(order: list[str]) -> None:
+    project, _catalog = load_fixture("role_playing_dates")
+    draft = build_project_ir(project)
+    baseline = lower_marts(load_project(_sources_with_marts(sorted(_MART_BLOCKS))).marts, draft)
+    permuted = lower_marts(load_project(_sources_with_marts(order)).marts, draft)
+    assert permuted == baseline
+    assert [mart.name for mart in permuted.marts] == ["by_ordered", "by_shipped"]
+
+
+@settings(max_examples=10, deadline=None)
+@given(name=st.sampled_from(["ecom_basic", "role_playing_dates", "semi_additive_inventory"]))
+def test_every_mart_column_traces_to_exactly_one_source_entity_column(name: str) -> None:
+    project, catalog = load_fixture(name)
+    ir = build_project_ir(project, catalog)
+    assert ir.marts != ()
+    entities = {entity.name: entity for entity in ir.entities}
+    for mart in ir.marts:
+        for column in mart.columns:
+            source = entities[column.source_entity]
+            matches = [c for c in source.columns if c.name == column.source_column]
+            assert len(matches) == 1, column
+
+
+def test_mart_fixture_compiles_deterministically() -> None:
+    assert compile_fixture("role_playing_dates") == compile_fixture("role_playing_dates")

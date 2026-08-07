@@ -18,16 +18,19 @@ Lowering rules pinned here:
 - Materialization defaults (RFC 0002 D7): explicit wins; else
   ``incremental_by_partition`` when ``partition_by`` is present, else ``full``.
 
-Marts are not lowered here — mart flattening is the M5 milestone (RFC 0010);
-``ProjectIR.marts`` stays empty. The guardrail stage (RFC 0006) runs over the
-draft IR at the seam below — after typecheck and lowering, before the IR
-leaves the builder — refusing before any artifact is emitted and amending the
-draft with path-conflict shadows and lowered ``assert:`` audits.
+Marts lower here through the pure flattener (``bloomery/marts/``, RFC 0010
+D6): the wide schemas land on ``ProjectIR.marts`` sorted by name, and the
+catalog's date dimension — when declared — lowers to
+``ProjectIR.date_dimension`` (RFC 0008 D13). The guardrail stage (RFC 0006)
+runs over the draft IR at the seam below — after typecheck and lowering,
+before the IR leaves the builder — refusing before any artifact is emitted
+(mart-level violations included) and amending the draft with path-conflict
+shadows and lowered ``assert:`` audits.
 """
 
 from __future__ import annotations
 
-import re
+from dataclasses import replace
 from typing import TYPE_CHECKING, cast
 
 from sqlglot import exp, parse_one
@@ -38,11 +41,11 @@ from bloomery.ir import (
     Additivity,
     Cardinality,
     ColumnIR,
+    DateDimensionIR,
     DimensionRef,
     EntityIR,
     Materialization,
     MetricIR,
-    PartitionSpec,
     ProjectIR,
     Ratio,
     RelationshipIR,
@@ -57,12 +60,13 @@ from bloomery.ir import (
     canon,
     extraction,
     generic_type,
+    partition_specs,
 )
+from bloomery.marts import lower_marts
 from bloomery.resolve.metrics import effective_metrics
 from bloomery.resolve.recipes import resolve_recipe
 from bloomery.resolve.refs import mapping_doc
 from bloomery.resolve.resolution import resolve
-from bloomery.spec.common import PARTITION_SPEC_PATTERN
 from bloomery.spec.mapping import RecipeFieldMapping
 from bloomery.transforms import registry
 from bloomery.typing import (
@@ -84,8 +88,6 @@ if TYPE_CHECKING:
 __all__ = [
     "build_project_ir",
 ]
-
-_PARTITION_RE = re.compile(PARTITION_SPEC_PATTERN)
 
 
 def _field_type(entity_name: str, field_name: str, field: Field) -> LogicalType:
@@ -196,17 +198,6 @@ def _recipe_expr(
     return exp.cast(body, generic_type(declared)), recipe.id
 
 
-def _partition_specs(entries: tuple[str, ...]) -> tuple[PartitionSpec, ...]:
-    specs: list[PartitionSpec] = []
-    for entry in entries:
-        match = _PARTITION_RE.match(entry)
-        if match is None or match.group(2) is None:  # bare column form
-            specs.append(PartitionSpec(transform=None, column=entry))
-        else:
-            specs.append(PartitionSpec(transform=match.group(1), column=match.group(2)))
-    return tuple(specs)
-
-
 def _materialization(entity: Entity) -> Materialization:
     """RFC 0002 D7: declared wins; the derived default is only the default."""
     if entity.materialization is not None:
@@ -290,7 +281,7 @@ def _build_entity(
         key=entity.key,
         scd=SCDKind(entity.scd),
         materialization=_materialization(entity),
-        partition_by=_partition_specs(entity.partition_by),
+        partition_by=partition_specs(entity.partition_by),
         columns=tuple(sorted(columns, key=lambda c: c.name)),
         source=SourceIR(
             relation=mapping.source,
@@ -377,13 +368,28 @@ def _build_relationships(project: Project) -> tuple[RelationshipIR, ...]:
     )
 
 
+def _build_date_dimension(catalog: Catalog | None) -> DateDimensionIR | None:
+    """Lower the catalog's date dimension (RFC 0008 D13): one definition
+    drives the gold ``dim_date`` model and, at M6, the MetricFlow time spine."""
+    if catalog is None or catalog.date_dimension is None:
+        return None
+    dim = catalog.date_dimension
+    return DateDimensionIR(
+        name=dim.name,
+        grain=dim.grain,
+        start_year=dim.start_year,
+        end_year=dim.end_year,
+    )
+
+
 def build_project_ir(project: Project, catalog: Catalog | None = None) -> ProjectIR:
     """Compile parsed specs into the frozen, fingerprintable IR (RFC 0003).
 
     Pure function: resolution (RFC 0005) and the batched typecheck (RFC 0004)
     run first, so lowering only ever sees a reference-clean, well-typed
-    project; the guardrail stage (RFC 0006) refuses last, over the finished
-    draft. Marts are not lowered until M5 (RFC 0010).
+    project; marts flatten over the entity draft (RFC 0010 D6); the guardrail
+    stage (RFC 0006) refuses last, over the finished draft — mart-level
+    violations batched with the rest.
     """
     resolution = resolve(project, catalog)
     reg = registry()
@@ -395,11 +401,16 @@ def build_project_ir(project: Project, catalog: Catalog | None = None) -> Projec
         metrics=_build_metrics(project, catalog, resolution.reachable_metrics),
         unreachable=resolution.unreachable_metrics,
         relationships=_build_relationships(project),
-        marts=(),  # mart flattening is M5 (RFC 0010)
+        marts=(),  # attached below, once the flattener has the entity draft
+        date_dimension=_build_date_dimension(catalog),
     )
+    # Mart flattening (RFC 0010 D6): pure, total — violations are re-derived
+    # and raised by the guardrail stage below; only clean marts attach here.
+    draft = replace(draft, marts=lower_marts(project.marts, draft).marts)
 
     # ── Guardrail seam (RFC 0006 §5.1) ─────────────────────────────────
     # Stage four: pure over the draft — refuses with one batched
-    # GuardrailError before any artifact is emitted, and amends only via
-    # path-conflict shadows and lowered assert: audits (RFC 0006 D9).
+    # GuardrailError (mart-level leaves included, RFC 0006 D10) before any
+    # artifact is emitted, and amends only via path-conflict shadows and
+    # lowered assert: audits (RFC 0006 D9).
     return check_guardrails(draft, project=project, catalog=catalog)

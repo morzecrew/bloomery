@@ -60,6 +60,10 @@ def test_ecom_basic_catalog_loads_clean() -> None:
     assert [r.id for r in recipes] == ["direct", "from_total"]  # reliability order
     aov = catalog.metric_templates["average_order_value"]
     assert aov.ratio is not None
+    # The vertical-owned date dimension (RFC 0008 D13).
+    assert catalog.date_dimension is not None
+    assert catalog.date_dimension.name == "dim_date"
+    assert (catalog.date_dimension.start_year, catalog.date_dimension.end_year) == (2020, 2030)
 
 
 def test_fanout_trap_loads_clean() -> None:
@@ -71,6 +75,9 @@ def test_fanout_trap_loads_clean() -> None:
     catalog = load_catalog((FIXTURES / "fanout_trap" / "catalog.yaml").read_text())
     assert catalog.canonical_fields["shipping_cost"].entity == "order"
     assert catalog.canonical_fields["landed_cost"].entity == "order_item"
+    # The M5 mart-level trap: the order-grain measure on the item-grain mart.
+    assert project.marts is not None
+    assert project.marts.marts["order_items"].measures == ("shipping_cost",)
 
 
 def test_semi_additive_inventory_loads_clean() -> None:
@@ -82,6 +89,20 @@ def test_semi_additive_inventory_loads_clean() -> None:
     assert stock.semi_additive is not None
     assert stock.semi_additive.over == "stock_date"
     assert stock.semi_additive.rule == "last"
+    assert project.marts is not None
+    assert project.marts.marts["inventory"].measures == ("stock_on_hand",)
+
+
+def test_role_playing_dates_loads_clean() -> None:
+    project = load_fixture_project("role_playing_dates")
+    assert set(project.entity_model.entities) == {"order"}
+    assert project.metric_set is not None
+    assert project.metric_set.metrics["revenue"].additivity == "additive"
+    assert project.marts is not None
+    mart = project.marts.marts["orders"]
+    roles = [step.role for step in mart.flatten if hasattr(step, "role")]
+    assert roles == ["ordered", "shipped"]  # both roles, authored order
+    assert mart.measures == ("revenue",)
 
 
 def test_path_conflict_loads_clean() -> None:

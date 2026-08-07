@@ -18,9 +18,18 @@ GOLDEN = Path(__file__).resolve().parent
 
 EXPECTED_PATHS = {
     "minimal": ["models/silver/event.sql"],
-    "ecom_basic": ["models/silver/order.sql", "models/silver/order_item.sql"],
+    "ecom_basic": [
+        "models/gold/dim_date.sql",
+        "models/gold/mart_order_items.sql",
+        "models/silver/order.sql",
+        "models/silver/order_item.sql",
+    ],
     "path_conflict": ["audits/item_net_price_reconcile.sql", "models/silver/item.sql"],
-    "semi_additive_inventory": ["models/silver/inventory_level.sql"],
+    "role_playing_dates": ["models/gold/mart_orders.sql", "models/silver/order.sql"],
+    "semi_additive_inventory": [
+        "models/gold/mart_inventory.sql",
+        "models/silver/inventory_level.sql",
+    ],
 }
 
 

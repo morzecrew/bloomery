@@ -34,10 +34,11 @@ __all__ = [
 
 class ViaStep(SpecModel):
     """Flatten one declared relationship into the mart, prefixing every
-    flattened column with ``prefix`` (RFC 0010 D3 — prefixes mandatory)."""
+    flattened column with ``prefix`` (RFC 0010 D3 — prefixes mandatory,
+    so an empty prefix is a parse error, not a silent no-op)."""
 
     via: str
-    prefix: str
+    prefix: str = Field(min_length=1)
 
 
 class DateRoleStep(SpecModel):

@@ -3,7 +3,9 @@
 
 Stage four of the pipeline, invoked from ``build_project_ir``'s seam after
 typecheck. Pure: six guards are read-only checks whose violations are
-collected project-wide and raised as **one** :class:`GuardrailError`
+collected project-wide — together with the mart-level leaves the flattener
+reports (``GrainViolation``, ``FanoutRisk``, ``MartMissingTimeDimension`` —
+RFC 0006 D10, RFC 0010 §5.5) — and raised as **one** :class:`GuardrailError`
 aggregate, its leaves sorted by ``(source_path, type name)`` — authors fix a
 spec in one round-trip (RFC 0002 D6). The only amendments are the seventh
 guard's path-conflict handling (shadow column + reconcile audit, RFC 0006
@@ -23,6 +25,7 @@ from bloomery.guardrails.asserts import lower_asserts
 from bloomery.guardrails.conflict import path_conflict_amendments
 from bloomery.guardrails.grain import check_grain
 from bloomery.guardrails.operands import collect_derivations
+from bloomery.marts import lower_marts
 
 if TYPE_CHECKING:
     from bloomery.ir import AuditIR, ColumnIR, EntityIR, ProjectIR
@@ -66,6 +69,9 @@ def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | N
     violations = check_arithmetic(derivations, draft.metrics, catalog)
     violations.extend(check_grain(derivations, draft, project, catalog))
     violations.extend(check_additivity(draft))
+    # Mart-level checks (RFC 0006 D10): the flattener re-runs here as a pure
+    # sibling stage; its leaves batch into the same aggregate as the rest.
+    violations.extend(lower_marts(project.marts, draft).violations)
     assert_errors, lowered = lower_asserts(project, draft)
     violations.extend(assert_errors)
     if violations:

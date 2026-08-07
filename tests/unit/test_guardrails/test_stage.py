@@ -11,6 +11,7 @@ from bloomery import build_project_ir, load_project
 from bloomery.errors import (
     AdditivityViolation,
     GrainMismatch,
+    GrainViolation,
     GuardrailError,
     NonAdditiveWithoutComponents,
     SpecParseError,
@@ -22,7 +23,7 @@ pytestmark = pytest.mark.unit
 
 
 # ....................... #
-# Acceptance: fanout_trap fails closed (RFC 0006 §12)
+# Acceptance: fanout_trap fails closed (RFC 0006 §12; mart level RFC 0006 D10)
 
 
 def test_fanout_trap_fails_closed_with_both_grains_named() -> None:
@@ -30,12 +31,23 @@ def test_fanout_trap_fails_closed_with_both_grains_named() -> None:
     with pytest.raises(GuardrailError) as excinfo:
         build_project_ir(project, catalog)
     error = excinfo.value
-    assert [type(leaf) for leaf in error.collected] == [GrainMismatch, GrainMismatch]
+    # Mart-level and entity-level violations batch into ONE aggregate: the
+    # derivation and metric GrainMismatch leaves plus the mart's
+    # GrainViolation for the order-grain measure on the item-grain mart.
+    assert [type(leaf) for leaf in error.collected] == [
+        GrainMismatch,
+        GrainViolation,
+        GrainMismatch,
+    ]
     message = str(error)
     assert "one row per line on an order" in message
     assert "one row per order" in message
     assert "relationship 'item_of_order' (many_to_one)" in message
     assert "Fix: add an explicit aggregation/allocation over 'order_item'" in message
+    # The mart-level refusal (RFC 0006 §5.7 worked-example quality).
+    assert "measure 'shipping_cost' has grain 'order' (one row per order)" in message
+    assert "duplicated once per 'order_item' row" in message
+    assert "Fix: remove it from this mart's measures" in message
 
 
 def test_fanout_trap_violations_sort_by_source_path() -> None:
@@ -45,6 +57,7 @@ def test_fanout_trap_violations_sort_by_source_path() -> None:
     paths = [leaf.source_path for leaf in excinfo.value.collected]
     assert paths == [
         "mapping[wms__order_lines->order_item]: fields.landed_cost",
+        "marts: marts.order_items.measures.shipping_cost",
         "metrics: metrics.landed_revenue",
     ]
     assert paths == sorted(p or "" for p in paths)
@@ -229,7 +242,9 @@ def test_stage_is_identity_on_a_clean_project() -> None:
 
 
 def test_stage_is_idempotent_on_amended_projects() -> None:
-    for name in ("ecom_basic", "path_conflict"):
+    # ecom_basic, role_playing_dates, and semi_additive_inventory carry marts:
+    # the stage's mart re-check finds nothing on the already-lowered IR.
+    for name in ("ecom_basic", "path_conflict", "role_playing_dates", "semi_additive_inventory"):
         project, catalog = load_fixture(name)
         amended = build_project_ir(project, catalog)
         assert check_guardrails(amended, project=project, catalog=catalog) is amended

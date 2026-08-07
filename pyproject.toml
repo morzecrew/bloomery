@@ -213,6 +213,10 @@ exclude_type_checking_imports = true
 # the stage is invoked from `build_project_ir`'s seam — resolve consumes the
 # guardrail stage, while the stage itself reads only ir/typing/spec/errors
 # (spec models at runtime for recipe/assert clauses; never resolve).
+# M5 (RFC 0010 D6): `marts` sits below `guardrails` because the stage batches
+# the flattener's mart-level violations into its aggregate (guardrails →
+# marts), while `resolve` consumes the flattened MartIRs directly (resolve →
+# marts); the flattener itself reads only ir/typing/spec/errors.
 name = "Layered bloomery compile pipeline"
 type = "layers"
 layers = [
@@ -222,6 +226,7 @@ layers = [
     "(bloomery.plan)",
     "(bloomery.resolve)",
     "(bloomery.guardrails)",
+    "(bloomery.marts)",
     "(bloomery.ir)",
     "(bloomery.transforms)",
     "(bloomery.typing)",

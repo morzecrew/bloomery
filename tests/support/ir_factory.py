@@ -12,11 +12,13 @@ from bloomery.ir import (
     AuditIR,
     Cardinality,
     ColumnIR,
+    DateDimensionIR,
     DimensionRef,
     EntityIR,
     MartColumnIR,
     MartDimensionIR,
     MartIR,
+    MartJoinIR,
     Materialization,
     MetricIR,
     PartitionSpec,
@@ -141,6 +143,14 @@ def build_project_ir(*, column_names: tuple[str, ...] = ("unit_price", "order_id
         ),
         measures=("gross_revenue",),
         dimensions=(MartDimensionIR(ref=ordered, column="ordered_day"),),
+        joins=(
+            MartJoinIR(
+                relationship="item_of_order",
+                entity="order",
+                prefix="order_",
+                on=(("order_id", "order_id"),),
+            ),
+        ),
         partition_by=(PartitionSpec(transform="days", column="ordered_day"),),
         materialization=Materialization.FULL,
         cost_hint=2,
@@ -160,4 +170,7 @@ def build_project_ir(*, column_names: tuple[str, ...] = ("unit_price", "order_id
             ),
         ),
         marts=(mart,),
+        date_dimension=DateDimensionIR(
+            name="dim_date", grain="day", start_year=2020, end_year=2030
+        ),
     )

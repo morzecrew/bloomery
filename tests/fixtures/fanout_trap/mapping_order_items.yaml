@@ -13,3 +13,6 @@ fields:
   landed_cost:
     recipe: naive_join
     from: {unit_price: "$.price", shipping_cost: "$.shipping"}
+  order_date:
+    from: "$.created_at"
+    transform: [{parse_ts: ISO8601}]

@@ -2,18 +2,20 @@
 normalized IR nodes plus the ``blm1:`` content fingerprint."""
 
 from bloomery.ir.fingerprint import project_fingerprint
-from bloomery.ir.lower import canon, extraction, generic_type
+from bloomery.ir.lower import canon, extraction, generic_type, partition_specs
 from bloomery.ir.nodes import (
     Additivity,
     AuditIR,
     Cardinality,
     ColumnIR,
+    DateDimensionIR,
     DimensionRef,
     EntityIR,
     Layer,
     MartColumnIR,
     MartDimensionIR,
     MartIR,
+    MartJoinIR,
     Materialization,
     MetricIR,
     PartitionSpec,
@@ -37,12 +39,14 @@ __all__ = [
     "AuditIR",
     "Cardinality",
     "ColumnIR",
+    "DateDimensionIR",
     "DimensionRef",
     "EntityIR",
     "Layer",
     "MartColumnIR",
     "MartDimensionIR",
     "MartIR",
+    "MartJoinIR",
     "Materialization",
     "MetricIR",
     "PartitionSpec",
@@ -62,5 +66,6 @@ __all__ = [
     "canon",
     "extraction",
     "generic_type",
+    "partition_specs",
     "project_fingerprint",
 ]

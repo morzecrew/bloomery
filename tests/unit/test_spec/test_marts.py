@@ -121,3 +121,14 @@ def test_bad_partition_grammar() -> None:
             "    partition_by: [minutes(ordered_day)]\n"
         )
     assert excinfo.value.source_path == "marts: marts.m.partition_by[0]"
+
+
+def test_empty_via_prefix_is_a_parse_error() -> None:
+    # RFC 0010 D3: prefixes are mandatory — an empty prefix would silently
+    # flatten unprefixed, which is exactly the collision surface D3 refuses.
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(
+            "marts_version: 1\nmarts:\n  m:\n    grain: g\n    base: g\n"
+            '    flatten: [{via: r, prefix: ""}]\n'
+        )
+    assert excinfo.value.source_path == "marts: marts.m.flatten[0].via.prefix"

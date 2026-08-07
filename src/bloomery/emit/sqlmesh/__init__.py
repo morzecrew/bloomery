@@ -18,15 +18,24 @@ builtin-style into the MODEL block (``not_null(columns := (...))``,
 and the path-conflict ``reconcile`` need a custom body, so each becomes an
 ``audits/<entity>_<column>_<kind>.sql`` artifact (``ArtifactKind.AUDIT``)
 selecting the violating rows from ``@this_model``, referenced by name in the
-MODEL block. Marts lower here from M5 (RFC 0010 / RFC 0008 D11).
+MODEL block.
+
+Marts (RFC 0010 / RFC 0008 D11): one gold-layer model per ``MartIR`` at
+``NamingPolicy.relation(name, Layer.GOLD)`` — the base entity's silver
+relation joined once per resolved ``MartJoinIR`` (LEFT, so flattening never
+drops base rows) and date roles bucketed via ``DATE_TRUNC`` cast to ``DATE``,
+projecting the full flattened column set. This is the **only** join-emitting
+path. When the catalog declares a date dimension, a deterministic
+``gold.dim_date`` model is emitted from its year bounds (RFC 0008 D13) — a
+generate-series calendar, no clock involved.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import jinja2
-from sqlglot import exp
+from sqlglot import exp, parse_one
 
 from bloomery.emit.base import (
     ArtifactKind,
@@ -35,7 +44,18 @@ from bloomery.emit.base import (
     Feature,
     TargetCapabilities,
 )
-from bloomery.ir import AuditIR, EntityIR, Layer, Materialization, ProjectIR, generic_type
+from bloomery.ir import (
+    AuditIR,
+    DateDimensionIR,
+    EntityIR,
+    Layer,
+    MartColumnIR,
+    MartIR,
+    Materialization,
+    PartitionSpec,
+    ProjectIR,
+    generic_type,
+)
 from bloomery.typing import DecimalType, IntType, LogicalType
 
 if TYPE_CHECKING:
@@ -90,10 +110,9 @@ def _kind_clause(entity: EntityIR) -> str:
     return "FULL"
 
 
-def _partitioned_by(entity: EntityIR) -> str:
+def _partitioned_by(specs: tuple[PartitionSpec, ...]) -> str:
     return ", ".join(
-        f"{spec.transform}({spec.column})" if spec.transform else spec.column
-        for spec in entity.partition_by
+        f"{spec.transform}({spec.column})" if spec.transform else spec.column for spec in specs
     )
 
 
@@ -101,6 +120,145 @@ def _entity_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     namespace, relation = ctx.naming.relation(entity.source.relation, Layer.BRONZE)
     projections = [exp.alias_(column.expr.ast(), column.name) for column in entity.columns]
     return exp.Select().select(*projections).from_(exp.table_(relation, db=namespace))
+
+
+# ....................... #
+# Mart lowering (RFC 0010 / RFC 0008 D11) — the only join-emitting path.
+
+
+def _mart_kind_clause(mart: MartIR, base: EntityIR) -> str:
+    """A mart is at exactly its base grain (RFC 0010 D2), so the base entity's
+    key is its unique key when incrementality-by-key is requested."""
+    if mart.materialization is Materialization.INCREMENTAL_BY_KEY:
+        return f"INCREMENTAL_BY_UNIQUE_KEY (unique_key ({', '.join(base.key)}))"
+    if mart.materialization is Materialization.INCREMENTAL_BY_PARTITION:
+        time_column = mart.partition_by[0].column
+        return f"INCREMENTAL_BY_TIME_RANGE (time_column {time_column})"
+    return "FULL"
+
+
+def _column_owner(mart: MartIR, column: MartColumnIR) -> str:
+    """The join alias owning a flattened column: the base entity for its own
+    (and date-role) columns, else the prefix of the join that flattened it."""
+    if column.source_entity == mart.base and (
+        column.ref is not None or column.name == column.source_column
+    ):
+        return mart.base
+    return next(
+        join.prefix
+        for join in mart.joins
+        if join.entity == column.source_entity
+        and column.name == f"{join.prefix}{column.source_column}"
+    )
+
+
+def _mart_projection(mart: MartIR, column: MartColumnIR) -> exp.Expression:
+    source = exp.column(column.source_column, table=_column_owner(mart, column))
+    if column.ref is None:
+        # ``alias_`` is annotated with the ``Expr`` base, but always returns
+        # an ``Expression`` here (cf. ir.nodes on ``parse_one``).
+        return cast("exp.Expression", exp.alias_(source, column.name))
+    # Date-role bucket (RFC 0010 D4): DATE_TRUNC over the base source column,
+    # cast to DATE so the emitted column has the declared IR type everywhere.
+    # Built via ``exp.func`` — ``exp.DateTrunc``'s custom ``__init__`` is
+    # untyped in this sqlglot version.
+    bucketed = exp.func("DATE_TRUNC", exp.Literal.string(column.ref.dimension), source)
+    return cast(
+        "exp.Expression", exp.alias_(exp.cast(bucketed, exp.DataType.build("DATE")), column.name)
+    )
+
+
+def _mart_select(mart: MartIR, ctx: EmitContext) -> exp.Select:
+    """The wide SELECT: base silver relation LEFT-joined once per resolved
+    ``MartJoinIR``, projecting the full flattened column set."""
+    owners = {
+        column.name: (_column_owner(mart, column), column.source_column)
+        for column in mart.columns
+        if column.ref is None
+    }
+    base_namespace, base_relation = ctx.naming.relation(mart.base, Layer.SILVER)
+    select = (
+        exp.Select()
+        .select(*[_mart_projection(mart, column) for column in mart.columns])
+        .from_(exp.table_(base_relation, db=base_namespace, alias=mart.base))
+    )
+    for join in mart.joins:
+        namespace, relation = ctx.naming.relation(join.entity, Layer.SILVER)
+        conditions = [
+            exp.EQ(
+                this=exp.column(owners[from_column][1], table=owners[from_column][0]),
+                expression=exp.column(to_column, table=join.prefix),
+            )
+            for from_column, to_column in join.on
+        ]
+        select = select.join(
+            exp.table_(relation, db=namespace, alias=join.prefix),
+            on=exp.and_(*conditions),
+            join_type="LEFT",
+        )
+    return select
+
+
+def _mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact:
+    namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+    base = next(entity for entity in ir.entities if entity.name == mart.base)
+    content = _ENVELOPE.render(
+        fingerprint=ctx.fingerprint,
+        name=f"{namespace}.{relation}",
+        kind=_mart_kind_clause(mart, base),
+        grain=", ".join(base.key),
+        partitioned_by=_partitioned_by(mart.partition_by),
+        audits="",
+        select=ctx.dialect.render(_mart_select(mart, ctx)),
+    )
+    return EmittedArtifact.create(
+        path=f"models/{namespace}/{relation}.sql",
+        content=content.rstrip("\n") + "\n",
+        kind=ArtifactKind.MODEL,
+    )
+
+
+# ....................... #
+# Date dimension (RFC 0008 D13, RFC 0013 R1 rule 4)
+
+# Canonical dialect-neutral calendar body, re-parsed at emit like any SqlExpr
+# (RFC 0003 D2). Bounds interpolate as spec-validated integers only — the SQL
+# is a pure function of the catalog definition, never of a clock.
+_DIM_DATE_BODY = (
+    "SELECT"
+    " CAST(date_day AS DATE) AS date_day,"
+    " CAST(DATE_TRUNC('month', date_day) AS DATE) AS date_month,"
+    " CAST(DATE_TRUNC('quarter', date_day) AS DATE) AS date_quarter,"
+    " CAST(DATE_TRUNC('week', date_day) AS DATE) AS date_week,"
+    " CAST(DATE_TRUNC('year', date_day) AS DATE) AS date_year"
+    " FROM (SELECT UNNEST(GENERATE_SERIES("
+    "CAST('{start_year}-01-01' AS DATE), CAST('{end_year}-12-31' AS DATE),"
+    " INTERVAL '1' DAY)) AS date_day) AS days"
+)
+
+
+def _dim_date_artifact(dim: DateDimensionIR, ctx: EmitContext) -> EmittedArtifact:
+    # The date dimension is bloomery-owned, not a mart: it keeps its declared
+    # relation name; the naming policy still shapes the gold namespace.
+    namespace, _mart_relation = ctx.naming.relation(dim.name, Layer.GOLD)
+    body = _DIM_DATE_BODY.format(start_year=dim.start_year, end_year=dim.end_year)
+    # ``parse_one`` is annotated with the ``Expr`` base, but every node it
+    # returns is an ``Expression`` (cf. ir.nodes).
+    select = cast("exp.Expression", parse_one(body))
+    content = _ENVELOPE.render(
+        fingerprint=ctx.fingerprint,
+        name=f"{namespace}.{dim.name}",
+        kind="FULL",
+        grain=f"date_{dim.grain}",
+        partitioned_by="",
+        audits="",
+        select=ctx.dialect.render(select),
+    )
+    return EmittedArtifact.create(
+        path=f"models/{namespace}/{dim.name}.sql",
+        content=content.rstrip("\n") + "\n",
+        kind=ArtifactKind.MODEL,
+    )
 
 
 def _column_type(entity: EntityIR, name: str) -> LogicalType:
@@ -202,9 +360,10 @@ class SQLMeshEmitter:
         )
 
     def emit(self, ir: ProjectIR, ctx: EmitContext) -> tuple[EmittedArtifact, ...]:
-        """Lower every entity to a model artifact (plus its custom audits);
-        artifacts sorted by path, content ending in exactly one newline
-        (RFC 0003 §5.5 rule 5)."""
+        """Lower every entity to a model artifact (plus its custom audits),
+        every mart to a gold-layer model (RFC 0008 D11), and the declared
+        date dimension to ``gold.dim_date`` (RFC 0008 D13); artifacts sorted
+        by path, content ending in exactly one newline (RFC 0003 §5.5 rule 5)."""
         artifacts: list[EmittedArtifact] = []
         for entity in ir.entities:
             namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
@@ -214,7 +373,7 @@ class SQLMeshEmitter:
                 name=f"{namespace}.{relation}",
                 kind=_kind_clause(entity),
                 grain=", ".join(entity.key),
-                partitioned_by=_partitioned_by(entity),
+                partitioned_by=_partitioned_by(entity.partition_by),
                 audits=audits,
                 select=ctx.dialect.render(_entity_select(entity, ctx)),
             )
@@ -226,4 +385,7 @@ class SQLMeshEmitter:
                 )
             )
             artifacts.extend(audit_artifacts)
+        artifacts.extend(_mart_artifact(mart, ir, ctx) for mart in ir.marts)
+        if ir.date_dimension is not None:
+            artifacts.append(_dim_date_artifact(ir.date_dimension, ctx))
         return tuple(sorted(artifacts, key=lambda a: a.path))

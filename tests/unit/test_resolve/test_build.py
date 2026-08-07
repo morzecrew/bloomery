@@ -7,7 +7,14 @@ import pytest
 
 from bloomery import build_project_ir, load_catalog, load_project, project_fingerprint
 from bloomery.errors import ResolutionError, TypeCheckError
-from bloomery.ir import Materialization, PartitionSpec, UnreachableMetric
+from bloomery.ir import (
+    DateDimensionIR,
+    DimensionRef,
+    MartJoinIR,
+    Materialization,
+    PartitionSpec,
+    UnreachableMetric,
+)
 from bloomery.typing import DecimalType, StringType, TimestampType
 from support.compiling import load_fixture
 
@@ -123,12 +130,86 @@ def test_relationships_are_lowered_sorted() -> None:
     assert rel.via == (("order_id", "order_id"),)
 
 
-def test_marts_are_not_lowered_before_m5() -> None:
-    """ecom_basic's mart document parses but does not lower — mart flattening
-    is the M5 milestone (RFC 0010); the IR carries no marts."""
+def test_ecom_basic_mart_lowers_to_the_flattened_wide_schema() -> None:
+    """ecom_basic's mart document lowers at M5 (RFC 0010 D6): base columns
+    unprefixed, via-flattened columns prefixed, the ordered date role expanded
+    into the five buckets, the join resolved — all collections sorted."""
     project, catalog = load_fixture("ecom_basic")
-    assert project.marts is not None
-    assert build_project_ir(project, catalog).marts == ()
+    ir = build_project_ir(project, catalog)
+    (mart,) = ir.marts
+    assert mart.name == "order_items"
+    assert mart.grain == mart.base == "order_item"
+    assert [c.name for c in mart.columns] == [
+        "line_no",
+        "order_customer_id",
+        "order_date",
+        "order_id",
+        "order_order_id",
+        "ordered_day",
+        "ordered_month",
+        "ordered_quarter",
+        "ordered_week",
+        "ordered_year",
+        "quantity",
+        "unit_price",
+    ]
+    ordered_day = next(c for c in mart.columns if c.name == "ordered_day")
+    assert (ordered_day.source_entity, ordered_day.source_column) == ("order_item", "order_date")
+    assert ordered_day.ref == DimensionRef(dimension="day", role="ordered")
+    flattened = next(c for c in mart.columns if c.name == "order_customer_id")
+    assert (flattened.source_entity, flattened.source_column) == ("order", "customer_id")
+    assert flattened.ref is None
+    assert mart.joins == (
+        MartJoinIR(
+            relationship="item_of_order",
+            entity="order",
+            prefix="order_",
+            on=(("order_id", "order_id"),),
+        ),
+    )
+    assert mart.measures == ("gross_revenue",)
+    # RFC 0010 §10: every flattened column is a requestable dimension.
+    assert [d.ref.qualified for d in mart.dimensions] == [c.name for c in mart.columns]
+    assert mart.materialization is Materialization.INCREMENTAL_BY_PARTITION
+    assert mart.partition_by == (PartitionSpec(transform="days", column="ordered_day"),)
+    assert mart.cost_hint == 2
+
+
+def test_role_playing_dates_lowers_both_roles() -> None:
+    project, catalog = load_fixture("role_playing_dates")
+    ir = build_project_ir(project, catalog)
+    (mart,) = ir.marts
+    assert mart.base == "order"
+    assert mart.joins == ()
+    roles = {c.ref.role: c.source_column for c in mart.columns if c.ref is not None}
+    assert roles == {"ordered": "order_date", "shipped": "ship_date"}
+    buckets = sorted(c.name for c in mart.columns if c.ref is not None)
+    assert buckets[:5] == [
+        "ordered_day",
+        "ordered_month",
+        "ordered_quarter",
+        "ordered_week",
+        "ordered_year",
+    ]
+    assert buckets[5:] == [
+        "shipped_day",
+        "shipped_month",
+        "shipped_quarter",
+        "shipped_week",
+        "shipped_year",
+    ]
+
+
+def test_catalog_date_dimension_lowers_onto_the_ir() -> None:
+    """One catalog definition drives dim_date and the M6 time spine
+    (RFC 0008 D13); a catalog-free project carries none."""
+    project, catalog = load_fixture("ecom_basic")
+    ir = build_project_ir(project, catalog)
+    assert ir.date_dimension == DateDimensionIR(
+        name="dim_date", grain="day", start_year=2020, end_year=2030
+    )
+    minimal_project, _ = load_fixture("minimal")
+    assert build_project_ir(minimal_project).date_dimension is None
 
 
 def test_fingerprint_is_stable_across_builds() -> None:

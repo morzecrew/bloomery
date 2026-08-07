@@ -1,0 +1,12 @@
+# Inventory-grain mart (RFC 0010): warehouse_id flattens as a base-column
+# dimension, the snapshot date role buckets stock_date, and the semi-additive
+# stock_on_hand measure rides at exactly the base grain — the serving surface
+# the M7 planner queries (90 never 270; A 90 + B 40 = 130, RFC 0009 §5.10).
+marts_version: 1
+marts:
+  inventory:
+    grain: inventory_level
+    base: inventory_level
+    flatten:
+      - {date: stock_date, role: snapshot}
+    measures: [stock_on_hand]

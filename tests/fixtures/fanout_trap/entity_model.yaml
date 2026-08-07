@@ -11,6 +11,7 @@ entities:
       line_no: {type: int, required: true}
       unit_price: {type: "decimal(12,4)", canonical: unit_price}
       landed_cost: {type: "decimal(12,4)", canonical: landed_cost}
+      order_date: {type: timestamp}
   order:
     grain: one row per order
     key: [order_id]

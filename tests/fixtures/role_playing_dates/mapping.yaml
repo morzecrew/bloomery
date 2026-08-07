@@ -1,0 +1,9 @@
+mapping_version: 1
+source: oms__orders
+target: order
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  amount: {from: "$.amount"}
+  order_date: {from: "$.order_date", transform: [{parse_date: ISO8601}]}
+  ship_date: {from: "$.ship_date", transform: [{parse_date: ISO8601}]}

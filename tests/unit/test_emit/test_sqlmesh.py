@@ -45,7 +45,12 @@ def test_artifacts_are_sorted_by_path() -> None:
     artifacts = compile_fixture("ecom_basic")
     paths = [a.path for a in artifacts]
     assert paths == sorted(paths)
-    assert paths == ["models/silver/order.sql", "models/silver/order_item.sql"]
+    assert paths == [
+        "models/gold/dim_date.sql",
+        "models/gold/mart_order_items.sql",
+        "models/silver/order.sql",
+        "models/silver/order_item.sql",
+    ]
 
 
 def test_fingerprint_header_matches_the_built_ir() -> None:
@@ -205,13 +210,17 @@ def test_min_max_lower_as_custom_audit_artifacts() -> None:
 
 
 def test_temporal_bounds_cast_the_literal() -> None:
-    _model, custom = _emit(AuditIR(kind="min", column="shipped_on", params=(("value", "2020-01-01"),)))
+    _model, custom = _emit(
+        AuditIR(kind="min", column="shipped_on", params=(("value", "2020-01-01"),))
+    )
     content = custom["audits/item_shipped_on_min.sql"]
     assert "WHERE shipped_on < CAST('2020-01-01' AS DATE)" in content
 
 
 def test_regex_lowers_as_a_custom_audit() -> None:
-    _model, custom = _emit(AuditIR(kind="regex", column="status", params=(("pattern", "^[a-z]+$"),)))
+    _model, custom = _emit(
+        AuditIR(kind="regex", column="status", params=(("pattern", "^[a-z]+$"),))
+    )
     content = custom["audits/item_status_regex.sql"]
     assert "WHERE NOT REGEXP_MATCHES(status, '^[a-z]+$')" in content
 
@@ -244,3 +253,119 @@ def test_entities_without_audits_render_no_audits_property() -> None:
     model, custom = _emit()
     assert "audits" not in model
     assert custom == {}
+
+
+# ....................... #
+# Mart lowering (RFC 0010 / RFC 0008 D11) — the only join-emitting path
+
+
+def _mart_artifact_for(fixture: str, relation: str) -> str:
+    artifact = next(a for a in compile_fixture(fixture) if a.path.endswith(f"{relation}.sql"))
+    assert artifact.kind is ArtifactKind.MODEL
+    return artifact.content
+
+
+def test_mart_model_joins_once_per_via_step_at_the_gold_relation() -> None:
+    content = _mart_artifact_for("ecom_basic", "mart_order_items")
+    assert "name gold.mart_order_items," in content
+    assert "kind INCREMENTAL_BY_TIME_RANGE (time_column ordered_day)," in content
+    assert "grain (order_id, line_no)," in content  # a mart is at base grain
+    assert "partitioned_by (days(ordered_day))" in content
+    assert "FROM silver.order_item AS order_item" in content
+    assert 'LEFT JOIN silver."order" AS order_' in content
+    assert "ON order_item.order_id = order_.order_id" in content
+    assert content.count("JOIN") == 1  # one join per via step, nowhere else
+    assert "order_.customer_id AS order_customer_id" in content
+
+
+def test_mart_date_roles_bucket_via_date_trunc_cast_to_date() -> None:
+    content = _mart_artifact_for("role_playing_dates", "mart_orders")
+    for role, source in (("ordered", "order_date"), ("shipped", "ship_date")):
+        for bucket in ("DAY", "WEEK", "MONTH", "QUARTER", "YEAR"):
+            expected = (
+                f"CAST(DATE_TRUNC('{bucket}', \"order\".{source}) AS DATE) "
+                f"AS {role}_{bucket.lower()}"
+            )
+            assert expected in content
+    assert "JOIN" not in content  # roles alone emit no joins
+
+
+def test_silver_models_never_contain_joins() -> None:
+    for artifact in compile_fixture("ecom_basic"):
+        if "/silver/" in artifact.path:
+            assert "JOIN" not in artifact.content
+
+
+def test_mart_incremental_by_key_uses_the_base_entity_key() -> None:
+    from bloomery import load_project
+
+    sources = {
+        "entity_model": """\
+spec_version: 1
+entities:
+  event:
+    grain: one row per event
+    key: [event_id]
+    fields:
+      event_id: {type: string, required: true}
+      occurred_at: {type: timestamp}
+""",
+        "mapping": """\
+mapping_version: 1
+source: raw__events
+target: event
+key:
+  event_id: {from: "$.id", transform: [to_string]}
+fields:
+  occurred_at: {from: "$.ts"}
+""",
+        "marts": """\
+marts_version: 1
+marts:
+  events:
+    grain: event
+    base: event
+    flatten:
+      - {date: occurred_at, role: occurred}
+    materialization: incremental_by_key
+""",
+    }
+    artifacts = compile_project(load_project(sources), target=Target.SQLMESH, dialect="duckdb")
+    mart = next(a for a in artifacts if a.path == "models/gold/mart_events.sql")
+    assert "kind INCREMENTAL_BY_UNIQUE_KEY (unique_key (event_id))," in mart.content
+
+
+def test_naming_policy_routes_the_gold_layer() -> None:
+    project, catalog = load_fixture("role_playing_dates")
+    artifacts = compile_project(
+        project,
+        target=Target.SQLMESH,
+        dialect="duckdb",
+        naming=PrefixNaming(prefix="acme"),
+        catalog=catalog,
+    )
+    mart = next(a for a in artifacts if "mart_orders" in a.path)
+    assert mart.path == "models/acme_gold/mart_orders.sql"
+    assert "name acme_gold.mart_orders," in mart.content
+    assert 'FROM acme_silver."order" AS "order"' in mart.content
+
+
+# ....................... #
+# Date dimension (RFC 0008 D13)
+
+
+def test_dim_date_emits_a_deterministic_calendar_from_the_catalog() -> None:
+    content = _mart_artifact_for("ecom_basic", "dim_date")
+    assert "name gold.dim_date," in content
+    assert "kind FULL," in content
+    assert "grain (date_day)" in content
+    # Bounds come from the catalog definition, never from a clock.
+    assert "CAST('2020-01-01' AS DATE)" in content
+    assert "CAST('2030-12-31' AS DATE)" in content
+    assert "GENERATE_SERIES" in content
+    for bucket in ("month", "quarter", "week", "year"):
+        assert f"AS date_{bucket}" in content
+
+
+def test_projects_without_a_date_dimension_emit_no_dim_date() -> None:
+    assert not any("dim_date" in a.path for a in compile_fixture("role_playing_dates"))

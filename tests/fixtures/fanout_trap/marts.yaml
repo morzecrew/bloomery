@@ -1,0 +1,14 @@
+# The mart-level trap (RFC 0006 D10, RFC 0010 D2): the order-grain
+# shipping_cost measure listed on the item-grain mart. Flattened in at build
+# time it would be duplicated once per line and every SUM overstates shipping
+# by the line count — refused at compile time with GrainViolation, batched
+# with the derivation- and metric-level GrainMismatch leaves.
+marts_version: 1
+marts:
+  order_items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: item_of_order, prefix: order_}
+      - {date: order_date, role: ordered}
+    measures: [shipping_cost]

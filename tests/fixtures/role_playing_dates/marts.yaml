@@ -1,0 +1,12 @@
+# Both date columns flatten as roles (RFC 0010 §5.2): ordered_* buckets from
+# order_date, shipped_* buckets from ship_date — the classic role-playing
+# shape, modeled once as DimensionRef(dimension, role) per bucket.
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    flatten:
+      - {date: order_date, role: ordered}
+      - {date: ship_date, role: shipped}
+    measures: [revenue]

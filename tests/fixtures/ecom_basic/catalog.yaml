@@ -32,6 +32,15 @@ canonical_fields:
 canonical_relationships:
   - {from: order_item, to: order, via: order_id, cardinality: many_to_one}
 
+# The vertical-owned date dimension (RFC 0008 D13, RFC 0013 R1 rule 4): one
+# definition emits both the gold dim_date model and, at M6, the MetricFlow
+# time-spine declaration. Bounds are calendar years — no clock involved.
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2020
+  end_year: 2030
+
 metric_templates:
   gross_revenue:
     requires: [unit_price, quantity]

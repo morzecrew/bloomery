@@ -9,3 +9,11 @@ metrics:
     additivity: additive
     agg: sum
     expr: "unit_price + shipping_cost"
+  # Correct at its own grain — the mart-level trap (marts.yaml) puts this
+  # order-grain measure on the item-grain mart: GrainViolation (RFC 0010 D2).
+  shipping_cost:
+    requires: [shipping_cost]
+    grain: order
+    additivity: additive
+    agg: sum
+    expr: "shipping_cost"

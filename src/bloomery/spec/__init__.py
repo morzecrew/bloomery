@@ -9,6 +9,7 @@ from bloomery.spec.catalog import (
     CanonicalField,
     CanonicalRelationship,
     Catalog,
+    DateDimension,
     MetricTemplate,
     Recipe,
 )
@@ -31,6 +32,7 @@ __all__ = [
     "Catalog",
     "CanonicalField",
     "CanonicalRelationship",
+    "DateDimension",
     "MetricTemplate",
     "Recipe",
     # common

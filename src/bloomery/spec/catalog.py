@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from bloomery.spec.common import (
     AdditivityName,
@@ -26,6 +26,7 @@ __all__ = [
     "Catalog",
     "CanonicalField",
     "CanonicalRelationship",
+    "DateDimension",
     "MetricTemplate",
     "Recipe",
 ]
@@ -62,6 +63,25 @@ class CanonicalRelationship(SpecModel):
     cardinality: CardinalityName
 
 
+class DateDimension(SpecModel):
+    """The vertical-owned date dimension (RFC 0008 D13, RFC 0013 R1 rule 4):
+    one catalog definition drives both the emitted gold ``dim_date`` model and
+    the MetricFlow time-spine declaration (M6). Bounds are calendar years —
+    the emitted table depends on the spec only, never on a clock."""
+
+    name: str = "dim_date"
+    grain: Literal["day"] = "day"
+    start_year: int = Field(ge=1, le=9999)
+    end_year: int = Field(ge=1, le=9999)
+
+    @model_validator(mode="after")
+    def _ordered_bounds(self) -> DateDimension:
+        if self.end_year < self.start_year:
+            msg = "end_year must be >= start_year"
+            raise ValueError(msg)
+        return self
+
+
 class MetricTemplate(SpecModel):
     """A catalog-level metric template a project metric may instantiate via
     ``template:`` (RFC 0002 §5.5)."""
@@ -85,3 +105,4 @@ class Catalog(SpecModel):
     canonical_fields: dict[str, CanonicalField] = Field(default_factory=dict)
     canonical_relationships: tuple[CanonicalRelationship, ...] = ()
     metric_templates: dict[str, MetricTemplate] = Field(default_factory=dict)
+    date_dimension: DateDimension | None = None

@@ -1,0 +1,13 @@
+# The role-playing fixture (RFC 0009 D12, RFC 0010): one order fact with two
+# date columns — grouping by ordered_month vs shipped_month gives different,
+# correct totals, executed on DuckDB.
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      amount: {type: "decimal(12,4)"}
+      order_date: {type: date}
+      ship_date: {type: date}

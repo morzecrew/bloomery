@@ -127,3 +127,34 @@ def test_recipe_requires_is_required() -> None:
     with pytest.raises(SpecParseError) as excinfo:
         load_catalog(text)
     assert excinfo.value.source_path == "catalog: canonical_fields.f.recipes[0].requires"
+
+
+def test_date_dimension_parses_with_defaults() -> None:
+    text = "catalog_version: 1\nvertical: x\ndate_dimension: {start_year: 2020, end_year: 2030}\n"
+    catalog = load_catalog(text)
+    assert catalog.date_dimension is not None
+    assert catalog.date_dimension.name == "dim_date"
+    assert catalog.date_dimension.grain == "day"
+    assert (catalog.date_dimension.start_year, catalog.date_dimension.end_year) == (2020, 2030)
+
+
+def test_date_dimension_is_optional() -> None:
+    assert load_catalog("catalog_version: 1\nvertical: x\n").date_dimension is None
+
+
+def test_date_dimension_rejects_inverted_bounds() -> None:
+    text = "catalog_version: 1\nvertical: x\ndate_dimension: {start_year: 2030, end_year: 2020}\n"
+    with pytest.raises(SpecParseError) as excinfo:
+        load_catalog(text)
+    assert excinfo.value.source_path == "catalog: date_dimension"
+    assert "end_year must be >= start_year" in str(excinfo.value)
+
+
+def test_date_dimension_rejects_non_day_grain() -> None:
+    text = (
+        "catalog_version: 1\nvertical: x\n"
+        "date_dimension: {grain: hour, start_year: 2020, end_year: 2030}\n"
+    )
+    with pytest.raises(SpecParseError) as excinfo:
+        load_catalog(text)
+    assert excinfo.value.source_path == "catalog: date_dimension.grain"

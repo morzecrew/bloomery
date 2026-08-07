@@ -14,7 +14,13 @@ from support.compiling import compile_fixture, extract_select, fixture_sources, 
 
 pytestmark = pytest.mark.property
 
-FIXTURE_NAMES = ["ecom_basic", "minimal", "path_conflict", "semi_additive_inventory"]
+FIXTURE_NAMES = [
+    "ecom_basic",
+    "minimal",
+    "path_conflict",
+    "role_playing_dates",
+    "semi_additive_inventory",
+]
 
 
 @settings(max_examples=10, deadline=None)
@@ -42,9 +48,7 @@ def test_compile_is_invariant_under_source_insertion_order(order: list[str]) -> 
     sources = fixture_sources("minimal")
     reordered = {name: sources[name] for name in order}
     baseline = compile_fixture("minimal")
-    permuted = compile_project(
-        load_project(reordered), target=Target.SQLMESH, dialect="duckdb"
-    )
+    permuted = compile_project(load_project(reordered), target=Target.SQLMESH, dialect="duckdb")
     assert permuted == baseline
 
 

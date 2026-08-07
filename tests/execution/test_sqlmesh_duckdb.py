@@ -24,17 +24,18 @@ pytestmark = pytest.mark.execution
 def conn() -> Iterator[duckdb.DuckDBPyConnection]:
     connection = duckdb.connect(":memory:")
     connection.execute("SET TimeZone = 'UTC'")
-    connection.execute("CREATE SCHEMA bronze")
-    connection.execute("CREATE SCHEMA silver")
+    for schema in ("bronze", "silver", "gold"):
+        connection.execute(f"CREATE SCHEMA {schema}")
     yield connection
     connection.close()
 
 
-def materialize(
-    conn: duckdb.DuckDBPyConnection, artifacts: tuple[EmittedArtifact, ...]
-) -> None:
-    """CREATE TABLE silver.<relation> AS <the artifact's SELECT>."""
-    for artifact in artifacts:
+def materialize(conn: duckdb.DuckDBPyConnection, artifacts: tuple[EmittedArtifact, ...]) -> None:
+    """CREATE TABLE <namespace>.<relation> AS <the artifact's SELECT> —
+    silver before gold, because mart SELECTs read the silver relations."""
+    for artifact in sorted(
+        artifacts, key=lambda a: (PurePosixPath(a.path).parent.name != "silver",)
+    ):
         path = PurePosixPath(artifact.path)
         namespace, relation = path.parent.name, path.stem
         conn.execute(f"CREATE TABLE {namespace}.{relation} AS {extract_select(artifact.content)}")
@@ -93,9 +94,7 @@ def test_ecom_basic_from_total_derivation_yields_decimal_10_00(
 def test_ecom_basic_silver_tables_materialize(conn: duckdb.DuckDBPyConnection) -> None:
     _seed_ecom(conn)
     materialize(conn, compile_fixture("ecom_basic"))
-    item = conn.execute(
-        "SELECT order_id, line_no, quantity FROM silver.order_item"
-    ).fetchone()
+    item = conn.execute("SELECT order_id, line_no, quantity FROM silver.order_item").fetchone()
     assert item == ("o1", 1, 3)
     order = conn.execute("SELECT order_id, customer_id FROM silver.order").fetchone()
     assert order == ("o1", "c1")

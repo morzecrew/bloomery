@@ -26,12 +26,14 @@ __all__ = [
     "AuditIR",
     "Cardinality",
     "ColumnIR",
+    "DateDimensionIR",
     "DimensionRef",
     "EntityIR",
     "Layer",
     "MartColumnIR",
     "MartDimensionIR",
     "MartIR",
+    "MartJoinIR",
     "Materialization",
     "MetricIR",
     "PartitionSpec",
@@ -328,9 +330,25 @@ class MartDimensionIR:
 
 
 @dataclass(frozen=True, slots=True)
+class MartJoinIR:
+    """One resolved build-time join of a mart (RFC 0010 §5.5, RFC 0008 D11):
+    the declared relationship, the joined entity, the column prefix (also the
+    join alias), and the ``on`` pairs — (flattened from-side column in the
+    mart's namespace, to-side entity column), sorted by from-side column.
+    Consumed only by the mart-building emitter; the planner never joins."""
+
+    relationship: str
+    entity: str
+    prefix: str
+    on: tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True, slots=True)
 class MartIR:
     """One wide pre-joined mart — read by both the mart builder (joins at
-    build) and the planner (no joins), so they cannot disagree (RFC 0010 D1)."""
+    build) and the planner (no joins), so they cannot disagree (RFC 0010 D1).
+    ``joins`` keeps the authored flatten order (it is semantic: later joins
+    may key off earlier-joined columns, RFC 0003 D4)."""
 
     name: str
     grain: str
@@ -338,9 +356,23 @@ class MartIR:
     columns: tuple[MartColumnIR, ...]
     measures: tuple[str, ...]
     dimensions: tuple[MartDimensionIR, ...]
+    joins: tuple[MartJoinIR, ...]
     partition_by: tuple[PartitionSpec, ...]
     materialization: Materialization
     cost_hint: int = 1
+
+
+@dataclass(frozen=True, slots=True)
+class DateDimensionIR:
+    """The vertical-owned date dimension (RFC 0008 D13, RFC 0013 R1 rule 4):
+    one catalog definition emits both the gold ``dim_date`` model and, at M6,
+    the MetricFlow time-spine declaration. Bounds are calendar years — the
+    emitted table is a pure function of the spec, never of a clock."""
+
+    name: str
+    grain: str
+    start_year: int
+    end_year: int
 
 
 # ....................... #
@@ -359,3 +391,4 @@ class ProjectIR:
     unreachable: tuple[UnreachableMetric, ...] = ()
     relationships: tuple[RelationshipIR, ...] = ()
     marts: tuple[MartIR, ...] = ()
+    date_dimension: DateDimensionIR | None = None
