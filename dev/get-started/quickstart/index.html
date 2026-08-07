@@ -1574,6 +1574,26 @@ exact bytes (<a href="../../concepts/determinism/">determinism</a>).</p>
 <h2 id="step-5-plan-a-metric-request">Step 5: Plan a metric request<a class="headerlink" href="#step-5-plan-a-metric-request" title="Permanent link">&para;</a></h2>
 <p>The same specs also answer metric questions at request time. The planner turns a
 structured <code>MetricRequest</code> into SQL over the mart — rendered, never executed:</p>
+<p>Filters can arrive as a Mongo-flavoured JSON document — <code>parse_filter_json</code> is the public
+front door that normalizes it (De Morgan push-down, complement inversion, capped CNF) into
+typed clauses. Constructs the vocabulary reviewed and declined — including a non-finite
+literal — raise <code>UnsupportedFilter</code> with a <code>.reason</code> from the closed <code>KNOWN_UNSUPPORTED</code>
+list (<code>InvalidLiteral</code> is one of those refusals, not a malformed-input error); a document
+that is simply ill-formed raises <code>InvalidRequest</code>, which never carries such a reason:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery.planner</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_filter_json</span>
+
+<span class="n">filters</span> <span class="o">=</span> <span class="n">parse_filter_json</span><span class="p">(</span>
+    <span class="p">{</span>
+        <span class="s2">&quot;customer_id&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$neq&quot;</span><span class="p">:</span> <span class="s2">&quot;internal&quot;</span><span class="p">},</span>
+        <span class="s2">&quot;$or&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;ordered_month&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$gte&quot;</span><span class="p">:</span> <span class="s2">&quot;2024-01-01&quot;</span><span class="p">}},</span> <span class="p">{</span><span class="s2">&quot;ordered_month&quot;</span><span class="p">:</span> <span class="s2">&quot;2023-12-01&quot;</span><span class="p">}],</span>
+    <span class="p">}</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;parsed </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">filters</span><span class="p">)</span><span class="si">}</span><span class="s2"> filter clause(s) from JSON&quot;</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>parsed 2 filter clause(s) from JSON
+</code></pre></div>
+<p>Two clauses, ANDed: one <code>Predicate</code>, and one <code>AnyOf</code> disjunction group. They go straight
+into the request:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">LruManifestHydrator</span><span class="p">,</span> <span class="n">MetricFlowPlanner</span><span class="p">,</span> <span class="n">MetricRequest</span><span class="p">,</span> <span class="n">build_project_ir</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">bloomery.naming</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultNaming</span>
 
@@ -1581,18 +1601,19 @@ structured <code>MetricRequest</code> into SQL over the mart — rendered, never
 <span class="n">planner</span> <span class="o">=</span> <span class="n">MetricFlowPlanner</span><span class="p">(</span><span class="n">LruManifestHydrator</span><span class="p">(</span><span class="n">naming</span><span class="p">),</span> <span class="n">naming</span><span class="o">=</span><span class="n">naming</span><span class="p">)</span>
 <span class="n">plan</span> <span class="o">=</span> <span class="n">planner</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span>
     <span class="n">build_project_ir</span><span class="p">(</span><span class="n">project</span><span class="p">,</span> <span class="n">catalog</span><span class="o">=</span><span class="n">catalog</span><span class="p">),</span>
-    <span class="n">MetricRequest</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;revenue&quot;</span><span class="p">,),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;ordered_month&quot;</span><span class="p">,)),</span>
+    <span class="n">MetricRequest</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;revenue&quot;</span><span class="p">,),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;ordered_month&quot;</span><span class="p">,),</span> <span class="n">filters</span><span class="o">=</span><span class="n">filters</span><span class="p">),</span>
     <span class="n">dialect</span><span class="o">=</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">plan</span><span class="o">.</span><span class="n">sql</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">plan</span><span class="o">.</span><span class="n">explanation</span><span class="o">.</span><span class="n">render</span><span class="p">())</span>
 </code></pre></div>
-<p>The plan carries runnable SQL plus a deterministic provenance record:</p>
+<p>The plan carries runnable SQL plus a deterministic provenance record — the filters
+explained from the clause objects, never scraped back out of the SQL:</p>
 <div class="highlight"><pre><span></span><code>revenue
   mart:     gold.mart_orders (grain: order)
   measure:  revenue = SUM(amount)
             [additive — SUM]
-  filters:  (none)
+  filters:  customer_id != &#39;internal&#39;; ordered_month &gt;= &#39;2024-01-01&#39; OR ordered_month = &#39;2023-12-01&#39;
   policy:   not applied
 </code></pre></div>
 <h2 id="what-you-just-did">What you just did<a class="headerlink" href="#what-you-just-did" title="Permanent link">&para;</a></h2>

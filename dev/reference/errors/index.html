@@ -1097,6 +1097,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-closed-refusal-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The closed refusal list
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#source_path" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1217,6 +1228,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Per class
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-closed-refusal-list" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The closed refusal list
       </span>
     </span>
   </a>
@@ -1350,7 +1372,18 @@ pulling in any pipeline stage.</p>
     ├── UnreachableAtGrain
     ├── AmbiguousDimension
     ├── InvalidRequest
-    └── FilterTypeMismatch
+    ├── FilterTypeMismatch
+    └── UnsupportedFilter
+        ├── UnsupportedSetRelation
+        ├── UnsupportedHierarchy
+        ├── UnsupportedTextOperator
+        ├── FilterTooComplex
+        ├── UnsupportedNegation
+        ├── InvalidLiteral
+        ├── UnsupportedSortNulls
+        ├── UnsupportedPagination
+        ├── UnsupportedFieldCompare   (adapter-owned)
+        └── UnsupportedQuantifier     (adapter-owned)
 </code></pre></div>
 <h2 id="per-class">Per class<a class="headerlink" href="#per-class" title="Permanent link">&para;</a></h2>
 <table>
@@ -1505,15 +1538,86 @@ pulling in any pipeline stage.</p>
 <tr>
 <td><code>InvalidRequest</code></td>
 <td>planner</td>
-<td>Bad filter/order/limit shapes, duplicates, floats as filter values</td>
+<td>Bad filter/order/limit shapes, duplicates, malformed filter documents</td>
 </tr>
 <tr>
 <td><code>FilterTypeMismatch</code></td>
 <td>planner</td>
 <td>A filter value whose type contradicts the dimension's logical type — refused before any SQL renders</td>
 </tr>
+<tr>
+<td><code>UnsupportedFilter</code></td>
+<td>planner</td>
+<td>Base of the closed query-vocabulary refusal family (RFC 0015): every leaf carries a stable <code>.reason</code> code and, where the refusal happens after normalization, <code>.normalized</code> — the post-normalization form</td>
+</tr>
+<tr>
+<td><code>UnsupportedSetRelation</code></td>
+<td>planner</td>
+<td><code>$superset</code>/<code>$subset</code>/<code>$disjoint</code>/<code>$overlaps</code> — marts are flattened and scalar; no array columns exist to relate</td>
+</tr>
+<tr>
+<td><code>UnsupportedHierarchy</code></td>
+<td>planner</td>
+<td><code>$descendant_of</code>/<code>$ancestor_of</code> — model hierarchy as flattened level columns on the mart</td>
+</tr>
+<tr>
+<td><code>UnsupportedTextOperator</code></td>
+<td>planner</td>
+<td><code>$regex</code> (dialect-divergent, unbounded cost) and <code>$empty</code> (ambiguous across types) — use <code>like</code>/<code>ilike</code>, <code>eq ""</code>, or <code>is_null true</code></td>
+</tr>
+<tr>
+<td><code>FilterTooComplex</code></td>
+<td>planner</td>
+<td>CNF expansion exceeded the clause cap (default 64), refused <em>during</em> distribution</td>
+</tr>
+<tr>
+<td><code>UnsupportedNegation</code></td>
+<td>planner</td>
+<td>A negated leaf with no complement operator (e.g. <code>$not $like</code>)</td>
+</tr>
+<tr>
+<td><code>InvalidLiteral</code></td>
+<td>planner</td>
+<td>A non-finite numeric operand (<code>NaN</code>/<code>Infinity</code>, float or string form — fails open if permitted) or an invalid <code>like</code> pattern (unpaired trailing <code>\</code>, NUL)</td>
+</tr>
+<tr>
+<td><code>UnsupportedSortNulls</code></td>
+<td>planner</td>
+<td>A <code>nulls</code> placement other than the canonical default (<code>first</code> for asc, <code>last</code> for desc)</td>
+</tr>
+<tr>
+<td><code>UnsupportedPagination</code></td>
+<td>planner</td>
+<td>A non-zero <code>offset</code> or cursor pagination — paging aggregates belongs to the serving layer</td>
+</tr>
+<tr>
+<td><code>UnsupportedFieldCompare</code></td>
+<td>adapter</td>
+<td><code>$fields</code> field-to-field compare — declared here so app adapters can raise it; never raised by bloomery, and not part of <code>KNOWN_UNSUPPORTED</code></td>
+</tr>
+<tr>
+<td><code>UnsupportedQuantifier</code></td>
+<td>adapter</td>
+<td><code>$any</code>/<code>$all</code>/<code>$none</code> element quantifiers — declared here so app adapters can raise it; never raised by bloomery, and not part of <code>KNOWN_UNSUPPORTED</code></td>
+</tr>
 </tbody>
 </table>
+<h2 id="the-closed-refusal-list">The closed refusal list<a class="headerlink" href="#the-closed-refusal-list" title="Permanent link">&para;</a></h2>
+<p>The <code>UnsupportedFilter</code> family is a <strong>closed, reviewed list</strong> (RFC 0015), not drift:
+every construct the query vocabulary cannot express was refused deliberately, with a
+named error and a rationale. The stable <code>.reason</code> codes raisable by bloomery's three
+parse functions (<code>parse_filter_json</code>, <code>parse_sort_json</code>, <code>parse_page_json</code>) are
+exported as <code>bloomery.planner.KNOWN_UNSUPPORTED</code> and drift-guarded by test — adapters
+key their refusal handling (HTTP problem responses, UI messages) on <code>.reason</code>, and
+assert their own refusal sets against the export. Anything not on the list must
+translate; growing the list is a reviewed decision, never an accident.</p>
+<p>A refusal is not the same thing as malformed input. The parse functions raise
+<code>UnsupportedFilter</code> only for constructs the vocabulary reviewed and declined (some during
+tree construction, some after the rewrite — see the API reference) — a document that is simply ill-formed (a non-mapping payload, a
+field map of the wrong shape, an unknown <code>$op</code>, an operand of the wrong type, a <code>nulls</code>
+value that is neither <code>"first"</code> nor <code>"last"</code>, a non-int <code>limit</code>) raises <code>InvalidRequest</code>
+and never carries a <code>.reason</code> from the closed list. Handle the two separately: a
+<code>.reason</code> is a product decision to surface, an <code>InvalidRequest</code> is a caller bug to fix.</p>
 <h2 id="source_path"><code>source_path</code><a class="headerlink" href="#source_path" title="Permanent link">&para;</a></h2>
 <p>Every error carries an optional <code>source_path</code> — a dotted/bracketed address into the
 authored document, prefixed with the document's name (the key you passed to

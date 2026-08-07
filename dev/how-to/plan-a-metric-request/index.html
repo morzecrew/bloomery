@@ -929,6 +929,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Make a request">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filters-are-cnf-clauses" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Filters are CNF clauses
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-json-front-door" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The JSON front door
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1254,6 +1282,34 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Make a request">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filters-are-cnf-clauses" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Filters are CNF clauses
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-json-front-door" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The JSON front door
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1414,12 +1470,12 @@ the specs, the bloomery version, or the MetricFlow version change:</p>
 <h2 id="make-a-request">Make a request<a class="headerlink" href="#make-a-request" title="Permanent link">&para;</a></h2>
 <p>A request is structured data — metrics, dimensions, typed filters, a time grain,
 ordering, a limit. There is no SQL string anywhere a caller could inject into:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">FilterExpr</span><span class="p">,</span> <span class="n">MetricRequest</span><span class="p">,</span> <span class="n">OrderSpec</span><span class="p">,</span> <span class="n">TimeGrain</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">MetricRequest</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">OrderSpec</span><span class="p">,</span> <span class="n">Predicate</span><span class="p">,</span> <span class="n">TimeGrain</span>
 
 <span class="n">request</span> <span class="o">=</span> <span class="n">MetricRequest</span><span class="p">(</span>
     <span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;revenue&quot;</span><span class="p">,),</span>
     <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;country&quot;</span><span class="p">,</span> <span class="s2">&quot;ordered_day&quot;</span><span class="p">),</span>
-    <span class="n">filters</span><span class="o">=</span><span class="p">(</span><span class="n">FilterExpr</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="s2">&quot;country&quot;</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="s2">&quot;in&quot;</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;FR&quot;</span><span class="p">,</span> <span class="s2">&quot;DE&quot;</span><span class="p">)),),</span>
+    <span class="n">filters</span><span class="o">=</span><span class="p">(</span><span class="n">Predicate</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="s2">&quot;country&quot;</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="n">Op</span><span class="o">.</span><span class="n">IN</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;FR&quot;</span><span class="p">,</span> <span class="s2">&quot;DE&quot;</span><span class="p">)),),</span>
     <span class="n">time_grain</span><span class="o">=</span><span class="n">TimeGrain</span><span class="o">.</span><span class="n">MONTH</span><span class="p">,</span>
     <span class="n">order_by</span><span class="o">=</span><span class="p">(</span><span class="n">OrderSpec</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="s2">&quot;revenue&quot;</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="s2">&quot;desc&quot;</span><span class="p">),),</span>
     <span class="n">limit</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
@@ -1427,10 +1483,60 @@ ordering, a limit. There is no SQL string anywhere a caller could inject into:</
 <span class="n">plan</span> <span class="o">=</span> <span class="n">planner</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span><span class="n">ir</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s2">&quot;duckdb&quot;</span><span class="p">)</span>
 </code></pre></div>
 <p>Structural rules, enforced at construction with <code>InvalidRequest</code>: at least one metric,
-no duplicates, <code>order_by</code> only over requested members, <code>limit &gt;= 1</code>, filter
-operator/value arity coherence, and no float filter values (send <code>Decimal</code> or a
-string). <code>time_grain</code> re-buckets every date-role dimension in the request — here
-<code>ordered_day</code> with <code>TimeGrain.MONTH</code> groups by the <code>ordered_month</code> bucket column.</p>
+no duplicates, <code>order_by</code> only over requested members, <code>limit &gt;= 1</code>, and filter
+operator/value arity coherence. Float filter values are accepted and normalized to
+<code>Decimal(str(value))</code> at the boundary — no float ever reaches the rendered SQL, and
+non-finite values (<code>NaN</code>/<code>Infinity</code>, float or string form) are refused with
+<code>InvalidLiteral</code>. <code>time_grain</code> re-buckets every date-role dimension in the request —
+here <code>ordered_day</code> with <code>TimeGrain.MONTH</code> groups by the <code>ordered_month</code> bucket column.</p>
+<h3 id="filters-are-cnf-clauses">Filters are CNF clauses<a class="headerlink" href="#filters-are-cnf-clauses" title="Permanent link">&para;</a></h3>
+<p><code>filters</code> is an implicit AND across clauses; each clause is a single <code>Predicate</code> or one
+<code>AnyOf</code> disjunction group — exactly one level of OR, which covers every filter a BI UI
+builds ("carrier in [DHL, UPS] <strong>and</strong> (region = EU <strong>or</strong> region = UK)"):</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">AnyOf</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">Predicate</span>
+
+<span class="n">filters</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">Predicate</span><span class="p">(</span><span class="s2">&quot;carrier&quot;</span><span class="p">,</span> <span class="n">Op</span><span class="o">.</span><span class="n">IN</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;DHL&quot;</span><span class="p">,</span> <span class="s2">&quot;UPS&quot;</span><span class="p">)),</span>
+    <span class="n">AnyOf</span><span class="p">((</span><span class="n">Predicate</span><span class="p">(</span><span class="s2">&quot;region&quot;</span><span class="p">,</span> <span class="n">Op</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;EU&quot;</span><span class="p">,)),</span> <span class="n">Predicate</span><span class="p">(</span><span class="s2">&quot;region&quot;</span><span class="p">,</span> <span class="n">Op</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;UK&quot;</span><span class="p">,)))),</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>The operators are <code>eq</code>, <code>ne</code>, <code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code>, <code>in</code>, <code>not_in</code>, <code>is_null</code>,
+<code>like</code>, and <code>ilike</code>. Three worth knowing:</p>
+<ul>
+<li><code>is_null</code> takes exactly one bool — <code>(True,)</code> renders <code>IS NULL</code>, <code>(False,)</code> renders
+  <code>IS NOT NULL</code>.</li>
+<li><code>like</code>/<code>ilike</code> (case-sensitive / case-insensitive) take one or more SQL <code>LIKE</code>
+  <em>patterns</em> with OR semantics. Wildcards are yours: write <code>%needle%</code> for a substring
+  match, and escape literal <code>%</code>/<code>_</code>/<code>\</code> as <code>\%</code>/<code>\_</code>/<code>\\</code> (a pattern ending in an
+  unpaired <code>\</code> is refused). There is no auto-wrapping.</li>
+<li>Ranges compose from <code>gte</code> + <code>lte</code> as two clauses — there is no <code>between</code> operator.</li>
+</ul>
+<p>Each clause renders as its own <code>WHERE</code> constraint; an <code>AnyOf</code> group is always
+parenthesized, so a disjunction can never leak past a row policy.</p>
+<h3 id="the-json-front-door">The JSON front door<a class="headerlink" href="#the-json-front-door" title="Permanent link">&para;</a></h3>
+<p>If your filters arrive as a Mongo-flavoured JSON document (<code>$and</code>/<code>$or</code>/<code>$not</code>,
+field maps, <code>$eq $neq $gt $gte $lt $lte $in $nin $null $like $ilike</code>),
+<code>bloomery.planner.parse_filter_json</code> turns it into clauses, <em>normalizing before
+refusing</em> — De Morgan push-down, complement inversion (<code>$not $eq</code> → <code>ne</code>), then CNF
+distribution with a clause cap:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery.planner</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_filter_json</span>
+
+<span class="n">clauses</span> <span class="o">=</span> <span class="n">parse_filter_json</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">&quot;carrier&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$in&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;DHL&quot;</span><span class="p">,</span> <span class="s2">&quot;UPS&quot;</span><span class="p">]},</span> <span class="s2">&quot;$or&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;region&quot;</span><span class="p">:</span> <span class="s2">&quot;EU&quot;</span><span class="p">},</span> <span class="p">{</span><span class="s2">&quot;region&quot;</span><span class="p">:</span> <span class="s2">&quot;UK&quot;</span><span class="p">}]}</span>
+<span class="p">)</span>
+<span class="n">request</span> <span class="o">=</span> <span class="n">MetricRequest</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;revenue&quot;</span><span class="p">,),</span> <span class="n">filters</span><span class="o">=</span><span class="n">clauses</span><span class="p">)</span>
+</code></pre></div>
+<p>Scalars are the <code>$eq</code> shortcut, arrays the <code>$in</code> shortcut, and <code>null</code> means
+<code>is_null: true</code>. What cannot cross is refused <em>after normalization</em> with a typed
+<code>UnsupportedFilter</code> carrying a stable <code>.reason</code> code from the closed list
+<code>bloomery.planner.KNOWN_UNSUPPORTED</code> — a reviewed gap, never drift. A <strong>malformed</strong>
+document is a different class: a non-mapping payload, a field map of the wrong shape, an
+unknown <code>$op</code>, an operand of the wrong type — these are <code>InvalidRequest</code>, because a
+schema error is not a reviewed refusal and never enters the closed list.
+<code>parse_sort_json</code> and <code>parse_page_json</code> ship alongside and split the same way (sort is
+direction-only; pagination is limit-only — a well-formed non-default nulls placement, a
+non-zero offset, and cursors are refused rather than silently dropped, while a
+malformed <code>nulls</code>, <code>limit</code>, or <code>offset</code> value is <code>InvalidRequest</code>).</p>
 <h2 id="what-comes-back">What comes back<a class="headerlink" href="#what-comes-back" title="Permanent link">&para;</a></h2>
 <p><code>QueryPlan</code> is the planner's whole product:</p>
 <table>
@@ -1491,20 +1597,25 @@ would double-count, so the planner refuses rather than join at plan time:</p>
 <p><code>AmbiguousDimension</code> — an unqualified bucket where the mart has several date roles:</p>
 <div class="highlight"><pre><span></span><code>&#39;month&#39; has roles [&#39;ordered&#39;, &#39;shipped&#39;]. Use &#39;ordered_month&#39; or &#39;shipped_month&#39;.
 </code></pre></div>
-<p>The remaining two are <code>InvalidRequest</code> (structural problems, raised at request
-construction or planning) and <code>FilterTypeMismatch</code> (a filter value whose type
-contradicts the dimension's column type — refused before any SQL renders).</p>
+<p>The remaining refusals: <code>InvalidRequest</code> (structural problems, raised at request
+construction or planning), <code>FilterTypeMismatch</code> (a filter value whose type contradicts
+the dimension's column type — refused before any SQL renders), and the
+<code>UnsupportedFilter</code> family — the closed query-vocabulary list (set relations,
+hierarchy operators, <code>$regex</code>, over-cap CNF expansions, non-invertible negations,
+non-finite literals, non-default sort-nulls, offset/cursor paging), each with a
+stable <code>.reason</code> in <code>bloomery.planner.KNOWN_UNSUPPORTED</code>. See
+<a href="../../reference/errors/">Errors</a>.</p>
 <h2 id="scope-rows-with-a-policy">Scope rows with a policy<a class="headerlink" href="#scope-rows-with-a-policy" title="Permanent link">&para;</a></h2>
 <p>Row-level scoping is a typed filter, not a predicate string. Deciding <em>whose</em> policy
 applies is your upstream concern; the planner takes the value and renders it through
 the same escaping pipeline as every other filter, prepended to the user's filters:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">RowPolicy</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">Op</span><span class="p">,</span> <span class="n">RowPolicy</span>
 
 <span class="n">plan</span> <span class="o">=</span> <span class="n">planner</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span>
     <span class="n">ir</span><span class="p">,</span>
     <span class="n">MetricRequest</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;revenue&quot;</span><span class="p">,),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;ordered_month&quot;</span><span class="p">,)),</span>
     <span class="n">dialect</span><span class="o">=</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span>
-    <span class="n">policy</span><span class="o">=</span><span class="n">RowPolicy</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="s2">&quot;country&quot;</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="s2">&quot;eq&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="s2">&quot;FR&quot;</span><span class="p">),</span>
+    <span class="n">policy</span><span class="o">=</span><span class="n">RowPolicy</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="s2">&quot;country&quot;</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="n">Op</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="s2">&quot;FR&quot;</span><span class="p">),</span>
 <span class="p">)</span>
 </code></pre></div>
 <p>The rendered predicate reaches every scan of the mart relation, and

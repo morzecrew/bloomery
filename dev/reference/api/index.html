@@ -1334,10 +1334,32 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#filterexprdimension-op-values" class="md-nav__link">
+  <a href="#predicatedimension-op-values" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        <code>FilterExpr(dimension, op, values=())</code>
+        <code>Predicate(dimension, op, values=())</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#anyofpredicates" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>AnyOf(predicates)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#op" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Op</code>
       </span>
     </span>
   </a>
@@ -1393,6 +1415,50 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         <code>ColumnDescriptor</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryplannerparse_filter_jsonpayload-clause_cap64-tupleclause" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>bloomery.planner.parse_filter_json(payload, *, clause_cap=64) -&gt; tuple[Clause, ...]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryplannerparse_sort_jsonpayload-tupleorderspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>bloomery.planner.parse_sort_json(payload) -&gt; tuple[OrderSpec, ...]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryplannerparse_page_jsonpayload-int-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>bloomery.planner.parse_page_json(payload) -&gt; int | None</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryplannerknown_unsupported-frozensetstr" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>bloomery.planner.KNOWN_UNSUPPORTED: frozenset[str]</code>
       </span>
     </span>
   </a>
@@ -1784,10 +1850,32 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#filterexprdimension-op-values" class="md-nav__link">
+  <a href="#predicatedimension-op-values" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        <code>FilterExpr(dimension, op, values=())</code>
+        <code>Predicate(dimension, op, values=())</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#anyofpredicates" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>AnyOf(predicates)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#op" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Op</code>
       </span>
     </span>
   </a>
@@ -1843,6 +1931,50 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         <code>ColumnDescriptor</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryplannerparse_filter_jsonpayload-clause_cap64-tupleclause" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>bloomery.planner.parse_filter_json(payload, *, clause_cap=64) -&gt; tuple[Clause, ...]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryplannerparse_sort_jsonpayload-tupleorderspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>bloomery.planner.parse_sort_json(payload) -&gt; tuple[OrderSpec, ...]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryplannerparse_page_jsonpayload-int-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>bloomery.planner.parse_page_json(payload) -&gt; int | None</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryplannerknown_unsupported-frozensetstr" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>bloomery.planner.KNOWN_UNSUPPORTED: frozenset[str]</code>
       </span>
     </span>
   </a>
@@ -2080,31 +2212,78 @@ the policy the artifacts were emitted with.</p>
 <p><strong><code>.plan(ir, request, *, dialect, policy=None) -&gt; QueryPlan</code></strong> — validate the request,
 check mart coverage, and render SQL; nothing is executed. Refusals raise the planner
 error taxonomy (<code>UnknownMember</code>, <code>UnreachableAtGrain</code>, <code>AmbiguousDimension</code>,
-<code>InvalidRequest</code>, <code>FilterTypeMismatch</code>). See
+<code>InvalidRequest</code>, <code>FilterTypeMismatch</code>, and the <code>UnsupportedFilter</code> family). See
 <a href="../../how-to/plan-a-metric-request/">Plan a metric request</a>.</p>
 <h3 id="metricrequestmetrics-dimensions-filters-time_grainnone-order_by-limitnone"><code>MetricRequest(metrics, dimensions=(), filters=(), time_grain=None, order_by=(), limit=None)</code><a class="headerlink" href="#metricrequestmetrics-dimensions-filters-time_grainnone-order_by-limitnone" title="Permanent link">&para;</a></h3>
 <p>A structured metric request. Construction enforces the structural rules (at least one
-metric, no duplicates, order over requested members only, <code>limit &gt;= 1</code>).</p>
-<h3 id="filterexprdimension-op-values"><code>FilterExpr(dimension, op, values=())</code><a class="headerlink" href="#filterexprdimension-op-values" title="Permanent link">&para;</a></h3>
-<p>One typed filter. <code>op</code> ∈ <code>eq</code>, <code>ne</code>, <code>in</code>, <code>not_in</code>, <code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code>,
-<code>between</code>, <code>contains</code>, <code>is_null</code>; value arity is checked per operator, and floats are
-refused (use <code>Decimal</code> or strings).</p>
+metric, no duplicates, order over requested members only, <code>limit &gt;= 1</code>). <code>filters</code> is
+CNF: a tuple of clauses (implicit AND), each a <code>Predicate</code> or one <code>AnyOf</code> group.</p>
+<h3 id="predicatedimension-op-values"><code>Predicate(dimension, op, values=())</code><a class="headerlink" href="#predicatedimension-op-values" title="Permanent link">&para;</a></h3>
+<p>One typed single-dimension filter (RFC 0015). <code>op</code> is an <code>Op</code> member; value arity is
+checked per operator (<code>is_null</code> takes exactly one bool; <code>like</code>/<code>ilike</code> take one or
+more patterns). Floats are accepted and normalized to <code>Decimal(str(value))</code> at
+construction; non-finite numerics raise <code>InvalidLiteral</code>.</p>
+<h3 id="anyofpredicates"><code>AnyOf(predicates)</code><a class="headerlink" href="#anyofpredicates" title="Permanent link">&para;</a></h3>
+<p>One disjunction group — OR across its predicates, AND with every other clause.
+Exactly one level: members are <code>Predicate</code> only, and may span different dimensions.</p>
+<h3 id="op"><code>Op</code><a class="headerlink" href="#op" title="Permanent link">&para;</a></h3>
+<p>The closed filter-operator vocabulary: <code>EQ</code>, <code>NE</code>, <code>GT</code>, <code>GTE</code>, <code>LT</code>, <code>LTE</code>, <code>IN</code>,
+<code>NOT_IN</code>, <code>IS_NULL</code>, <code>LIKE</code>, <code>ILIKE</code>. A string enum, so <code>op="eq"</code> also works.
+<code>like</code>/<code>ilike</code> operands are SQL <code>LIKE</code> patterns — caller-owned wildcards with <code>\</code> as
+the escape character; nothing is auto-wrapped.</p>
 <h3 id="orderspecfield-directionasc"><code>OrderSpec(field, direction="asc")</code><a class="headerlink" href="#orderspecfield-directionasc" title="Permanent link">&para;</a></h3>
-<p>One ordering term over a requested metric or dimension — never arbitrary SQL.</p>
+<p>One ordering term over a requested metric or dimension — never arbitrary SQL. Carries
+no nulls placement (non-default placements are refused at the JSON front door).</p>
 <h3 id="timegrain"><code>TimeGrain</code><a class="headerlink" href="#timegrain" title="Permanent link">&para;</a></h3>
 <p>Requestable grains: <code>HOUR</code>, <code>DAY</code>, <code>WEEK</code>, <code>MONTH</code>, <code>QUARTER</code>, <code>YEAR</code>. Applies to
 every date-role dimension in the request; <code>HOUR</code> is refused at coverage (marts carry
 day–year buckets).</p>
 <h3 id="rowpolicydimension-op-value"><code>RowPolicy(dimension, op, value)</code><a class="headerlink" href="#rowpolicydimension-op-value" title="Permanent link">&para;</a></h3>
-<p>A row-level scoping filter — dimension, operator, scalar or scalar tuple — rendered
-through the same escaping pipeline as user filters and prepended to them. Deciding
-whose policy applies is upstream work.</p>
+<p>A row-level scoping filter — dimension, <code>Op</code>, scalar or scalar tuple — rendered
+through the same escaping pipeline as user filters (via <code>as_clause()</code>) and prepended
+to them, reaching every scan. A policy is one predicate; range policies compose into
+the request filters instead. Deciding whose policy applies is upstream work.</p>
 <h3 id="queryplan"><code>QueryPlan</code><a class="headerlink" href="#queryplan" title="Permanent link">&para;</a></h3>
 <p>The planner's product: <code>sql</code>, <code>columns</code> (tuple of <code>ColumnDescriptor</code>), <code>mart</code>,
 <code>warnings</code>, <code>explanation</code> (with <code>.render()</code>), and <code>fingerprint</code> (<code>sha256(sql)</code>).</p>
 <h3 id="columndescriptor"><code>ColumnDescriptor</code><a class="headerlink" href="#columndescriptor" title="Permanent link">&para;</a></h3>
 <p>One output column in bloomery names: <code>name</code>, logical <code>type</code>, <code>role</code>
 (<code>"dimension"</code> or <code>"measure"</code>), optional <code>label</code>.</p>
+<h3 id="bloomeryplannerparse_filter_jsonpayload-clause_cap64-tupleclause"><code>bloomery.planner.parse_filter_json(payload, *, clause_cap=64) -&gt; tuple[Clause, ...]</code><a class="headerlink" href="#bloomeryplannerparse_filter_jsonpayload-clause_cap64-tupleclause" title="Permanent link">&para;</a></h3>
+<p>The public JSON front door for the Mongo-flavoured filter grammar (<code>$and</code>/<code>$or</code>/
+<code>$not</code>, field maps <code>{field: scalar | {op: value} | [array]}</code>, spellings <code>$eq $neq $gt
+$gte $lt $lte $in $nin $null $like $ilike</code>). Normalizes before refusing — De Morgan
+push-down, complement inversion, CNF distribution with the clause cap enforced during
+distribution — and refuses only with <code>UnsupportedFilter</code> leaves carrying stable
+<code>.reason</code> codes.</p>
+<p>Two failure classes, deliberately distinct. A construct the vocabulary reviewed and
+declined — a set relation, a hierarchy operator, <code>$regex</code>, an over-cap CNF expansion, a
+non-invertible negation — raises <code>UnsupportedFilter</code> with a <code>.reason</code> from
+<code>KNOWN_UNSUPPORTED</code>. Refusals fire wherever the parser reaches them: operator refusals,
+non-finite literals, and the nesting-depth cap during tree construction;
+<code>UnsupportedNegation</code> and the CNF clause cap after the rewrite. <code>.normalized</code> is set
+wherever it says something useful — the form the document had reached for
+<code>UnsupportedNegation</code>, a size sentinel (<code>&gt;64 levels deep</code>, <code>&gt;64 clauses</code>) for the two
+caps. A <em>malformed</em> document — a non-mapping payload, a
+field map of the wrong shape, an unknown <code>$op</code>, an operand of the wrong type — raises
+<code>InvalidRequest</code>: it never reaches the closed list, because malformed input is a schema
+error, not a reviewed gap. The same split holds for <code>parse_sort_json</code> and
+<code>parse_page_json</code>: only a well-formed placement or a well-formed non-zero offset reaches
+<code>UnsupportedSortNulls</code>/<code>UnsupportedPagination</code>; anything else is <code>InvalidRequest</code>.</p>
+<h3 id="bloomeryplannerparse_sort_jsonpayload-tupleorderspec"><code>bloomery.planner.parse_sort_json(payload) -&gt; tuple[OrderSpec, ...]</code><a class="headerlink" href="#bloomeryplannerparse_sort_jsonpayload-tupleorderspec" title="Permanent link">&para;</a></h3>
+<p>Sort documents (<code>{field: "asc" | "desc" | {"dir": …, "nulls": …}}</code>) to order terms. A
+<code>nulls</code> equal to the canonical default (<code>first</code> for asc, <code>last</code> for desc) is dropped; a
+well-formed non-default placement raises <code>UnsupportedSortNulls</code>. A <em>present</em> <code>nulls</code> key
+must hold exactly <code>"first"</code> or <code>"last"</code> — a wrong type, an explicit <code>null</code>, or an unknown
+word is <code>InvalidRequest</code>; omitting the key is the canonical default.</p>
+<h3 id="bloomeryplannerparse_page_jsonpayload-int-none"><code>bloomery.planner.parse_page_json(payload) -&gt; int | None</code><a class="headerlink" href="#bloomeryplannerparse_page_jsonpayload-int-none" title="Permanent link">&para;</a></h3>
+<p>Pagination documents (<code>{"limit": …, "offset": …}</code>) to the request limit. Non-zero
+offsets and cursor keys (<code>after</code>/<code>before</code>) raise <code>UnsupportedPagination</code>; a malformed
+payload — a non-mapping document, an unknown key, a non-int <code>limit</code>/<code>offset</code> — raises
+<code>InvalidRequest</code>.</p>
+<h3 id="bloomeryplannerknown_unsupported-frozensetstr"><code>bloomery.planner.KNOWN_UNSUPPORTED: frozenset[str]</code><a class="headerlink" href="#bloomeryplannerknown_unsupported-frozensetstr" title="Permanent link">&para;</a></h3>
+<p>The closed refusal list: exactly the <code>.reason</code> codes the three parse functions can
+raise, drift-guarded by test. Adapters assert their refusal handling covers this set.</p>
 <h3 id="lrumanifesthydratornaming-max_entries500-fetch_l2none-prewarmfalse"><code>LruManifestHydrator(naming, *, max_entries=500, fetch_l2=None, prewarm=False)</code><a class="headerlink" href="#lrumanifesthydratornaming-max_entries500-fetch_l2none-prewarmfalse" title="Permanent link">&para;</a></h3>
 <p>The default in-process manifest cache behind the planner: an LRU of hydrated semantic
 manifests keyed by <code>HydrationKey</code>. On a miss it consults the caller-injected
