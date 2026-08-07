@@ -1,0 +1,10 @@
+# Minimal catalog for the cross-grain refusal fixture: the date dimension is
+# required once marts are served through MetricFlow (RFC 0013 R1 rule 4).
+catalog_version: 1
+vertical: ecom_retail
+
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2020
+  end_year: 2030

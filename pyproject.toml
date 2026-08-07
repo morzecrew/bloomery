@@ -140,7 +140,7 @@ markers = [
     "execution: Tier 4 — in-process DuckDB execution of compiled SQL",
     "engine(name): Tier 5 — testcontainers engine matrix; requires Docker; opt-in",
     "e2e: Tier 6 — target-framework acceptance (sqlmesh/dbt/cube); opt-in",
-    "perf: Performance benchmark — reserved, no suite ships in v0.1 (RFC 0009)",
+    "perf: Performance benchmark — bench lane (tests/bench), excluded from `just test`, scheduled CI (RFC 0009 §5.9, RFC 0014)",
 ]
 
 # ....................... #
@@ -226,11 +226,20 @@ exclude_type_checking_imports = true
 # infrastructure (the render-only SqlClient), not a compile stage — it sits as
 # an independent *sibling* of `compile` in the top layer, so the compile path
 # can never import runtime and runtime can never import the compile
-# orchestration (siblings in one layer are mutually independent). It may read
-# only the shared lower layers (errors today).
+# orchestration (siblings in one layer are mutually independent). It reads
+# the lower layers it hydrates from: emit.metricflow (the manifest build
+# path, M8), ir (fingerprint), naming, errors.
+# M7 (RFC 0013 §5.1): `planner` is the request-time orchestration top — it
+# consumes runtime (hydrator + render-only client), emit.metricflow (the
+# shared measure-ownership rule), ir, marts (the date-bucket vocabulary),
+# naming, and errors. It sits *above* the compile|runtime layer: nothing in
+# the compile path can import the planner, and the runtime/compile sibling
+# isolation below is unchanged — `planner → runtime` is a downward edge,
+# while `compile ↛ runtime` and `compile ↛ planner` stay forbidden.
 name = "Layered bloomery compile pipeline"
 type = "layers"
 layers = [
+    "(bloomery.planner)",
     "(bloomery.compile) | (bloomery.runtime)",
     "(bloomery.emit) | (bloomery.dialects)",
     "(bloomery.naming)",

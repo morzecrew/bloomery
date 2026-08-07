@@ -1,0 +1,12 @@
+# Minimal catalog for the non-additive AOV fixture (RFC 0009 §5.3): the date
+# dimension is required once the mart is served through MetricFlow
+# (RFC 0013 R1 rule 4 — the time spine points at the same gold dim_date the
+# SQLMesh emitter builds).
+catalog_version: 1
+vertical: ecom_retail
+
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2020
+  end_year: 2030

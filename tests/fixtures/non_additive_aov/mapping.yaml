@@ -1,0 +1,9 @@
+mapping_version: 1
+source: pos__orders
+target: order
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  store: {from: "$.store", transform: [to_string]}
+  amount: {from: "$.amount"}
+  order_date: {from: "$.order_date", transform: [{parse_date: ISO8601}]}

@@ -1,0 +1,8 @@
+mapping_version: 1
+source: mmr__orders
+target: order
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  ship_cost: {from: "$.ship_cost"}
+  order_date: {from: "$.order_date", transform: [{parse_date: ISO8601}]}

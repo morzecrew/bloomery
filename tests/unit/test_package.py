@@ -1,6 +1,7 @@
 """Package-surface smoke test: the public API is exactly what spec §8 and the
 stage RFCs promise (M2–M3 adds compile/resolve/build and the extension
-points), and ``__all__`` stays sorted."""
+points; M7–M8 add the planner port types, the MetricFlow planner, and
+hydration — RFC 0011/0013/0014), and ``__all__`` stays sorted."""
 
 from __future__ import annotations
 
@@ -14,8 +15,18 @@ pytestmark = pytest.mark.unit
 def test_public_api_surface() -> None:
     assert bloomery.__all__ == [
         "BloomeryError",
+        "ColumnDescriptor",
+        "FilterExpr",
+        "HydrationKey",
+        "LruManifestHydrator",
+        "MetricFlowPlanner",
+        "MetricRequest",
+        "OrderSpec",
+        "QueryPlan",
         "Resolution",
+        "RowPolicy",
         "Target",
+        "TimeGrain",
         "build_project_ir",
         "compile_project",
         "load_catalog",

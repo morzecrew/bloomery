@@ -1,0 +1,21 @@
+# The cross-grain refusal fixture (RFC 0011 §5.3's exact example): two facts
+# at different grains with disjoint measures. Requesting shipping_cost and
+# line_discount together must refuse with UnreachableAtGrain naming both
+# grains and both gold relations — never join, never sum across grains.
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      ship_cost: {type: "decimal(12,4)"}
+      order_date: {type: date}
+  order_item:
+    grain: one row per line on an order
+    key: [order_id, line_no]
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      discount: {type: "decimal(12,4)"}
+      item_date: {type: date}

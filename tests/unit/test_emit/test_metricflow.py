@@ -457,3 +457,18 @@ def test_manifest_json_is_byte_stable_and_sorted() -> None:
     assert first == second
     assert first.startswith('{"metrics"')  # sorted keys: metrics < project_configuration
     assert "\n" in manifest_json(emit_manifest(ir, naming=DefaultNaming()), indent=2)
+
+
+def test_transformed_input_measures_are_resorted() -> None:
+    """transform()'s AddInputMetricMeasuresRule collects a ratio's
+    input_measures through a builtin *set* — hash-seed-ordered until the
+    emitter re-sorts them. Regression for the golden-flaking nondeterminism
+    the non_additive_aov fixture surfaced (RFC 0013 R1: the manifest is
+    hashed and cached; the subprocess determinism guard covers the
+    cross-seed half)."""
+    manifest = _manifest("non_additive_aov")
+    for metric in manifest.metrics:
+        names = [measure.name for measure in metric.type_params.input_measures]
+        assert names == sorted(names)
+    ratio = next(m for m in manifest.metrics if m.name == "average_order_value")
+    assert [m.name for m in ratio.type_params.input_measures] == ["order_count", "revenue"]

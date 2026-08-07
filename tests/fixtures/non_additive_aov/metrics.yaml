@@ -1,0 +1,19 @@
+# AOV as a non-additive ratio over its additive components (RFC 0011 D5):
+# revenue / order_count, recomputed at whatever grain is requested — the
+# planner refuses to serve it from anything but a mart carrying both.
+metrics_version: 1
+metrics:
+  revenue:
+    grain: order
+    additivity: additive
+    agg: sum
+    expr: "amount"
+  order_count:
+    grain: order
+    additivity: additive
+    agg: count
+    expr: "order_id"
+  average_order_value:
+    requires_metrics: [order_count, revenue]
+    additivity: non_additive
+    ratio: {numerator: revenue, denominator: order_count}

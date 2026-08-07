@@ -12,7 +12,11 @@ Six tiers, fastest first (RFC 0009). All tiers exercise one shared fixture corpu
 | 5 Engine matrix | `engines/` | `engine(<name>)` | opt-in | ✅ | tier-4 assertions against real engines via testcontainers |
 | 6 Target e2e | `e2e/` | `e2e` | opt-in | ✅ | artifacts are valid *input to the target* (sqlmesh replan is a no-op, `dbt parse`, cube `/meta`) |
 
-`perf` is a reserved marker — no benchmark suite ships in v0.1.
+`perf` marks the bench lane (`bench/`, RFC 0009 §5.9): the hydration budgets
+of RFC 0014 — 50 ms cold / 10 ms warm, median over ≥20 iterations with a
+documented 3× CI multiplier, plus a 3× model-size info point. Excluded from
+`just test`; run it with `uv run pytest tests/bench -m perf` (scheduled lane
+in CI).
 
 ## Running
 

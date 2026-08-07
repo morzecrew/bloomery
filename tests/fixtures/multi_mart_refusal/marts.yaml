@@ -1,0 +1,18 @@
+# Two marts at different grains with disjoint measures (RFC 0011 §5.3): each
+# answers its own metric alone; the pair together is structurally
+# unanswerable — the coverage precheck refuses before MetricFlow could plan
+# the join (RFC 0013 D6).
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    flatten:
+      - {date: order_date, role: ordered}
+    measures: [shipping_cost]
+  order_items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {date: item_date, role: added}
+    measures: [line_discount]

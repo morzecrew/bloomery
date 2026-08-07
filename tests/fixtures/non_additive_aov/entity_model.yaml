@@ -1,0 +1,14 @@
+# The non-additive ratio fixture (RFC 0009 §5.3, §5.10): one order fact with
+# a store dimension. Seeded as store A 10 orders / 100 000 total, store B
+# 100 orders / 200 000 — overall AOV is 2727.27, never the 6000 an
+# average-of-averages gives or the 12000/15000 a summed ratio gives.
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      store: {type: string}
+      amount: {type: "decimal(12,4)"}
+      order_date: {type: date}

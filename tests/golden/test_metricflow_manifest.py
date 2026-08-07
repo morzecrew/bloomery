@@ -20,7 +20,13 @@ pytestmark = pytest.mark.golden
 
 GOLDEN = Path(__file__).resolve().parent
 
-MART_FIXTURES = ["ecom_basic", "role_playing_dates", "semi_additive_inventory"]
+MART_FIXTURES = [
+    "ecom_basic",
+    "multi_mart_refusal",
+    "non_additive_aov",
+    "role_playing_dates",
+    "semi_additive_inventory",
+]
 
 
 @pytest.mark.parametrize("fixture_name", MART_FIXTURES)

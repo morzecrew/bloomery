@@ -4,7 +4,10 @@ deterministically into SQLMesh, dbt, and Cube artifacts.
 Public API (spec §8): the pure loaders (``load_catalog``, ``load_project``),
 compilation (``compile_project`` with ``Target``), analysis without emission
 (``resolve`` / ``Resolution``, ``build_project_ir``, ``project_fingerprint``),
-the extension points (``register_transform``, ``register_emitter``), and the
+the request-time planner (``MetricFlowPlanner`` with the ``MetricRequest`` /
+``QueryPlan`` port types and ``RowPolicy`` — RFC 0011/0013), manifest
+hydration (``LruManifestHydrator``, ``HydrationKey`` — RFC 0014), the
+extension points (``register_transform``, ``register_emitter``), and the
 total error hierarchy rooted at ``BloomeryError`` (import leaves from
 :mod:`bloomery.errors`).
 """
@@ -13,14 +16,35 @@ from bloomery.compile import Target, compile_project
 from bloomery.emit import register_emitter
 from bloomery.errors import BloomeryError
 from bloomery.ir import project_fingerprint
+from bloomery.planner import (
+    ColumnDescriptor,
+    FilterExpr,
+    MetricFlowPlanner,
+    MetricRequest,
+    OrderSpec,
+    QueryPlan,
+    RowPolicy,
+    TimeGrain,
+)
 from bloomery.resolve import Resolution, build_project_ir, resolve
+from bloomery.runtime import HydrationKey, LruManifestHydrator
 from bloomery.spec import load_catalog, load_project
 from bloomery.transforms import register_transform
 
 __all__ = [
     "BloomeryError",
+    "ColumnDescriptor",
+    "FilterExpr",
+    "HydrationKey",
+    "LruManifestHydrator",
+    "MetricFlowPlanner",
+    "MetricRequest",
+    "OrderSpec",
+    "QueryPlan",
     "Resolution",
+    "RowPolicy",
     "Target",
+    "TimeGrain",
     "build_project_ir",
     "compile_project",
     "load_catalog",

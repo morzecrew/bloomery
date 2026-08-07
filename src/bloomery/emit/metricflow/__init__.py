@@ -115,6 +115,7 @@ __all__ = [
     "METRICFLOW_PLANNER_CAPABILITIES",
     "emit_manifest",
     "manifest_json",
+    "measure_owners",
 ]
 
 #: The MetricFlow planner's declared capabilities (RFC 0008 D12, RFC 0013).
@@ -207,10 +208,13 @@ def _non_additive_dimension(
     )
 
 
-def _measure_owners(ir: ProjectIR) -> dict[str, MartIR]:
+def measure_owners(ir: ProjectIR) -> dict[str, MartIR]:
     """Metric name → the single mart its measure is emitted on: cheapest
-    ``cost_hint``, ties lexicographic by mart name (RFC 0010 D8 — the same
-    rule the planner's coverage precheck applies)."""
+    ``cost_hint``, ties lexicographic by mart name (RFC 0010 D8).
+
+    Public on purpose: the planner's coverage precheck (RFC 0013 R3) imports
+    this exact function, so the emitter's measure placement and the planner's
+    mart selection cannot disagree."""
     owners: dict[str, MartIR] = {}
     for mart in ir.marts:
         for name in mart.measures:
@@ -462,7 +466,7 @@ def emit_manifest(ir: ProjectIR, *, naming: NamingPolicy) -> PydanticSemanticMan
             "(name, grain: day, start_year, end_year)"
         )
         raise EmitError(msg)
-    owners = _measure_owners(ir)
+    owners = measure_owners(ir)
     metrics_by_name = {metric.name: metric for metric in ir.metrics}
     descriptions = {
         (entity.name, column.name): column.description
@@ -481,7 +485,19 @@ def emit_manifest(ir: ProjectIR, *, naming: NamingPolicy) -> PydanticSemanticMan
     # transform() is mandatory: without it explain() fails loudly with
     # MetricFlowInternalError (verified, RFC 0013 §3). M8 caches the
     # *post-transform* manifest (RFC 0014 D3), so that is what we return.
-    return PydanticSemanticManifestTransformer.transform(manifest)
+    transformed = PydanticSemanticManifestTransformer.transform(manifest)
+    # transform()'s AddInputMetricMeasuresRule collects each metric's
+    # input_measures through a builtin set, so their order is hash-seed
+    # dependent — the one nondeterminism in an otherwise deterministic
+    # pipeline, surfaced by any RATIO metric (two input measures). Re-sort
+    # here: the manifest is hashed, cached, and golden-byte-compared
+    # (RFC 0013 R1, RFC 0014 D5); ordering drift would flake goldens and
+    # silently defeat the cache.
+    for metric in transformed.metrics:
+        metric.type_params.input_measures = sorted(
+            metric.type_params.input_measures, key=lambda measure: measure.name
+        )
+    return transformed
 
 
 def manifest_json(manifest: PydanticSemanticManifest, *, indent: int | None = None) -> str:
