@@ -101,6 +101,7 @@ Manifest and body live in the **platform** repo — not in bloomery, not in tena
 ref: resolve_customers
 version: 3
 kind: python_model                 # sql_macro | sql_model | python_model
+entrypoint: platform_steps.resolve_customers:resolve   # python_model only; imported at run time (§5.8)
 determinism: pure                  # pure | seeded | nondeterministic
 runtime_lock: sha256:a91f…         # hash of the pinned dependency set (§5.6)
 inputs:
@@ -108,16 +109,25 @@ inputs:
 outputs:
   customer:
     grain: customer
+    key: [canonical_id]            # the grain's uniqueness key — what the contract enforces
     produces:
       canonical_id: {type: string, required: true}
       confidence:   {type: decimal(4,3)}
   customer_xref:
     grain: xref
-    produces: {canonical_id: {type: string, required: true}, method: {type: string}}
+    key: [source_system, source_id]
+    produces: {source_system: {type: string, required: true},
+               source_id: {type: string, required: true},
+               canonical_id: {type: string, required: true}, method: {type: string}}
 parameters:
   threshold: {type: decimal, default: 0.85, min: 0, max: 1}
 lineage: coarse                    # coarse | column
 ```
+
+Each output's `key` names the concrete columns over which its grain is unique — the prose
+`grain` names the level; `key` is what `assert_step_contract` enforces (§5.4). `entrypoint`
+(`"package.module:function"`, `python_model` only) names the platform function the
+generated wrapper imports at run time (§5.8); registry build verifies it resolves (§5.3).
 
 A tenant spec wires it and nothing more — `use: ref@version`, input/output bindings,
 parameters within declared bounds, and optionally RFC 0016 quality rules on outputs
@@ -143,6 +153,7 @@ caller assembles:
 class StepRegistry:
     steps: Mapping[tuple[str, int], StepManifest]   # (ref, version) -> manifest
     macro_bodies: Mapping[tuple[str, int], str]     # sql_macro bodies, for parsing
+    sql_bodies: Mapping[tuple[str, int], str]       # sql_model bodies, parsed at compile like macro_bodies
 
 def compile_project(project, *, target, dialect, naming=None, catalog=None,
                     steps: StepRegistry = EMPTY_REGISTRY) -> tuple[EmittedArtifact, ...]: ...
@@ -152,7 +163,17 @@ A spec referencing `resolve_customers@3` when the registry holds only `@2` — o
 nothing — is `UnknownStep` at compile time, **naming the available versions**. There
 is **no dynamic loading path**: no import hooks, no entry points, no paths in specs.
 That absence is what keeps tenant specs from ever becoming an
-arbitrary-code-execution surface.
+arbitrary-code-execution surface. The rule's scope is **compile time**: bloomery never
+imports or executes step code while compiling — it consumes manifests and SQL text,
+nothing else. Runtime import of platform-owned code by the generated model (§5.4's wrapper
+importing the manifest `entrypoint`) is the normal SQLMesh execution path, not an
+exception; and registry **build** — caller-side tooling — verifies each `entrypoint`
+resolves before the registry ever reaches `compile_project`.
+
+The constructor snapshots its mappings into an immutable, canonically sorted internal form
+(tuple-of-pairs over a copied dict) at construction: mutating a caller's dict after
+construction cannot affect compilation, and byte-identical compilation is guaranteed from
+the snapshot alone.
 
 ### 5.4 Trust the declaration, verify at runtime
 
@@ -165,15 +186,17 @@ generated wrapper asserts reality matches the declaration:
 # generated python_model wrapper (an EmittedArtifact, models/silver/customer.py)
 @model("silver.customer", kind="FULL", columns={...from manifest...})
 def execute(context, **kwargs):
+    from platform_steps.resolve_customers import resolve  # manifest `entrypoint`, imported at run time
     raw = context.fetchdf("SELECT * FROM silver.customer_raw")
     out = resolve(raw, threshold=Decimal("0.9"))
     assert_step_contract(out, MANIFEST)     # generated — not optional, not configurable
-    return out["customer"]
+    return out["customer"]                  # this wrapper's declared output; customer_xref has its own (§5.8)
 ```
 
 `assert_step_contract` checks, in order: every declared output present; no undeclared
 outputs; column set matches exactly; types assignable; `required: true` columns
-null-free; declared grain unique. **The assertion is non-optional and
+null-free; declared grain unique — uniqueness enforced over the output's declared
+`key` columns (§5.2). **The assertion is non-optional and
 non-configurable** — without it, `produces` decays into stale documentation within a
 quarter: a claim that is checked is a commitment, a claim that isn't is a comment.
 The checker lives in `bloomery/steps/contract.py`, a dependency-light module the
@@ -210,11 +233,16 @@ without the lock.
 
 The mechanism, precisely — this is how `plan()` sees a step change without
 special-casing. Steps enter the IR as `StepIR` nodes (`ref`, `version`, `kind`,
-`determinism`, `runtime_lock`, typed inputs/outputs) and the resolution DAG as
+`determinism`, `runtime_lock`, typed inputs/outputs — plus the **resolved parameters** as
+canonically sorted `(name, value)` pairs with `Decimal`-as-str per the canon-bytes
+doctrine, the recorded **seed** for seeded steps, and the input/output **wiring** as sorted
+pairs) and the resolution DAG as
 first-class nodes — an RFC 0005 amendment adds the node kind `step.<ref>`. That makes
 them fingerprint-covered: an RFC 0003 amendment gives `ProjectIR` a `steps` tuple, so
 any manifest change — including `runtime_lock` alone — changes `project_fingerprint`,
-and `plan()` sees it as an ordinary structural IR diff. The hydration cache
+and `plan()` sees it as an ordinary structural IR diff; a parameter, seed, or wiring
+change in the tenant spec is therefore a `RESTATING` diff exactly like a `runtime_lock`
+bump. The hydration cache
 (RFC 0014) self-invalidates by the same route: `HydrationKey.spec_fingerprint` shifts
 automatically, so no new key component is needed — stated explicitly because it is
 the part that would otherwise look like an omission.
@@ -233,10 +261,25 @@ needs custom matching → a parameterized step is written → tenant 2 sets
 ### 5.8 Emission and the DAG
 
 `sql_macro` splices into the entity SELECT — still one query, lineage-transparent.
-`sql_model` emits an ordinary model artifact from the registry body (parsed,
-schema-checked against `produces`). `python_model` emits a **generated** SQLMesh
+`sql_model` emits an ordinary model artifact from the registry `sql_bodies` entry (parsed
+at compile like `macro_bodies`, schema-checked against `produces`). `python_model` emits a
+**generated** SQLMesh
 Python-model artifact — `.py` text, consistent with RFC 0008 D2's file-shaped
-artifacts — wrapping the registered impl plus the §5.4 contract assertion. Step
+artifacts — importing the manifest `entrypoint` at run time and wrapping it with the §5.4
+contract assertion.
+
+**Multi-output emission** (resolved; supersedes the draft's execute-exactly-once
+constraint — see decision 16): each declared output gets its **own generated wrapper
+model**; each wrapper imports the entrypoint, executes the step, and returns its own
+output. Re-execution across the output models is semantically safe **by construction**:
+nondeterministic steps are compile-refused and seeded steps re-execute with the same
+recorded seed, so pure/seeded ⇒ identical results. `assert_step_contract` runs in
+**every** wrapper against **all** declared outputs — cheap, and it catches a
+partial-output lie wherever the run starts. The cost — N executions for N outputs — is
+documented; a single-execution staging optimization is a demand-gated, named escape
+hatch, not built.
+
+Step
 outputs are entities in the DAG, grain taken from the manifest: downstream mappings,
 marts, and metrics reference them like any silver entity, and RFC 0016 quality rules
 attach at that boundary. Two steps declaring the same output relation is a compile
@@ -300,23 +343,15 @@ real costs; the reference page states parameterize-never-fork as policy.
 - Whether `sql_model` bodies take parameters via Jinja or sqlglot placeholder
   substitution — implementation settles; RFC 0013's injection-boundary lesson (fuzz
   the boundary) applies either way.
-- **Multi-output `python_model` emission** — a named, load-bearing unknown: §5.2's
-  manifest declares two outputs, but §5.4's wrapper returns one. Binding constraint:
-  the step body executes **exactly once per run**, and the contract is asserted once
-  against **all** outputs. Candidate mechanisms: (a) the primary-output model runs
-  the step and stages secondary outputs to ephemeral/staging tables the sibling
-  generated models select from; (b) one generated model per output, sharing a
-  run-scoped memoization of the step execution. Implementation settles the
-  mechanism; the constraint is binding.
 
 ## 11. Decisions
 
 | # | Decision |
 | --- | --- |
 | 1 | Four-tier ladder — DSL transform → `sql_macro` (parsed + typechecked, spliced into the SELECT, lineage-transparent) → `sql_model` (parsed, schema inferred) → `python_model` (trust + verify) — with the rule: **lowest tier that works**. Tier 3's costs (data leaves the engine, memory-bound, coarse lineage) are named, not hidden. |
-| 2 | `StepManifest` per §5.2: `ref`, `version`, `kind`, `determinism`, `runtime_lock`, typed `inputs`/`outputs` with grain + `produces`, bounded `parameters`, `lineage: coarse\|column`. Step bodies live in the platform repo — never in bloomery, never in tenant specs; tenant specs wire `use: ref@version` + bindings + parameters + optional RFC 0016 quality rules on outputs. |
+| 2 | `StepManifest` per §5.2: `ref`, `version`, `kind`, `determinism`, `runtime_lock`, typed `inputs`/`outputs` with grain + `key` (the grain's uniqueness columns) + `produces`, bounded `parameters`, `lineage: coarse\|column`. Step bodies live in the platform repo — never in bloomery, never in tenant specs; tenant specs wire `use: ref@version` + bindings + parameters + optional RFC 0016 quality rules on outputs. |
 | 3 | `StepRegistry` is a frozen compile **input** (steps mapping + macro bodies), assembled by the caller; `compile_project(..., steps: StepRegistry = EMPTY_REGISTRY)`. Unknown ref or version → `UnknownStep` naming available versions. **No dynamic loading path exists** — tenant specs can never become an arbitrary-code-execution surface. |
-| 4 | Trust-then-verify: compile time trusts `produces` (DAG complete, downstream typechecked, `plan()` computes backfills across the step); the generated wrapper carries a non-optional, non-configurable `assert_step_contract` (outputs present, none undeclared, exact column set, assignable types, required-null check, grain uniqueness). A claim that is checked is a commitment; a claim that isn't is a comment. New errors: `UnknownStep`, `StepDeterminismError` (compile), `StepContractViolation` (runtime, raised by generated code). |
+| 4 | Trust-then-verify: compile time trusts `produces` (DAG complete, downstream typechecked, `plan()` computes backfills across the step); the generated wrapper carries a non-optional, non-configurable `assert_step_contract` (outputs present, none undeclared, exact column set, assignable types, required-null check, grain uniqueness over the output's declared `key`). A claim that is checked is a commitment; a claim that isn't is a comment. New errors: `UnknownStep`, `StepDeterminismError` (compile), `StepContractViolation` (runtime, raised by generated code). |
 | 5 | Determinism tiers: `pure` (freely backfillable) \| `seeded` (seed required in the spec, recorded) \| `nondeterministic` (**compile error**). Restatement is the organizing capability of the architecture; refusing nondeterminism is the load-bearing constraint, not conservatism. |
 | 6 | `runtime_lock` is part of step identity: a dependency bump changes the step fingerprint and classifies `RESTATING`, triggering backfill (RFC 0007 amendment). Invisible — and wrong — without the lock. |
 | 7 | Multi-tenant rule: **parameterize, never fork.** Tenants configure parameters, never supply bodies; a requirement that cannot generalize is bespoke consulting, not product. The compounding loop (tenant 1's need → parameterized step → tenant 2 reuses) grows the library and shrinks the bespoke surface. |
@@ -325,6 +360,10 @@ real costs; the reference page states parameterize-never-fork as policy.
 | 10 | Migration path (Document 5 §9): wrap with a manifest → into the DAG → push down the ladder → extract declared rules. Shipped as the how-to, not tooling. |
 | 11 | Steps are IR and DAG citizens: `StepIR` nodes (ref, version, kind, determinism, `runtime_lock`, typed inputs/outputs) in a new `ProjectIR.steps` tuple (RFC 0003 amendment) and first-class `step.<ref>` DAG nodes (RFC 0005 amendment). Fingerprint coverage is the whole mechanism: any manifest change — `runtime_lock` included — shifts `project_fingerprint`; `plan()` sees an ordinary structural IR diff (no special-casing); the RFC 0014 hydration cache self-invalidates via `HydrationKey.spec_fingerprint`, no new key component. |
 | 12 | pandas never joins bloomery's runtime dependencies: `bloomery/steps/contract.py` is emitted-code-facing and imports pandas lazily inside the generated wrapper's runtime path only; callers executing `python_model` steps install the `bloomery[steps]` extra (pandas and nothing else); compile-time use of the registry needs no pandas. |
+| 13 | Implementation binding: `StepRegistry` gains `sql_bodies: Mapping[tuple[str, int], str]` (`sql_model` bodies, parsed at compile like `macro_bodies`); `StepManifest` gains `entrypoint: str` (`"package.module:function"`) for `python_model`, and the generated wrapper imports it at **run time**. The no-dynamic-loading rule is scoped to compile time — bloomery never imports or executes step code while compiling (manifests and SQL text only); runtime import of platform-owned code by the generated model is the normal SQLMesh execution path, and registry build (caller-side) verifies the entrypoint resolves. |
+| 14 | `StepRegistry` snapshots its mappings into an immutable, canonically sorted internal form (tuple-of-pairs over a copied dict) at construction — mutation of caller dicts after construction cannot affect compilation; byte-identical compilation is guaranteed from the snapshot. |
+| 15 | `StepIR` additionally carries the resolved parameters (canonically sorted `(name, value)` pairs, `Decimal`-as-str per canon-bytes), the recorded seed for seeded steps, and the input/output wiring (sorted pairs) — all fingerprint-covered, so a parameter or seed change is a `RESTATING` diff exactly like a `runtime_lock` change. |
+| 16 | Multi-output emission resolved — **supersedes the draft §10 entry and its execute-exactly-once constraint** (recorded honestly: that constraint is dropped, not satisfied): each declared output gets its own generated wrapper model, each executing the step and returning its own output; safe by construction because nondeterministic steps are compile-refused and seeded steps re-execute with the same recorded seed (pure/seeded ⇒ identical results). `assert_step_contract` runs in every wrapper against **all** declared outputs, catching partial-output lies wherever the run starts. The N-executions-for-N-outputs cost is documented; a single-execution staging optimization is a demand-gated, named escape hatch — not built. |
 
 ## 12. Phasing
 
