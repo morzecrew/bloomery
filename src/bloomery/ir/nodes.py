@@ -24,6 +24,13 @@ from sqlglot.expressions.core import Expression
 from bloomery.typing import LogicalType
 
 __all__ = [
+    "step_sort_key",
+    "StepOutputIR",
+    "StepKind",
+    "StepIR",
+    "StepColumnIR",
+    "Lineage",
+    "Determinism",
     "FLAGS_COLUMN",
     "OK_COLUMN",
     "REJECT_SUFFIX",
@@ -98,6 +105,36 @@ class Materialization(StrEnum):
     FULL = "full"
     INCREMENTAL_BY_KEY = "incremental_by_key"
     INCREMENTAL_BY_PARTITION = "incremental_by_partition"
+
+
+class StepKind(StrEnum):
+    """The ladder tier a step occupies (RFC 0017 §5.1, D1). Tier 0 is the
+    transform whitelist and is not a step: a step kind names a tier that needs
+    a body somebody wrote."""
+
+    SQL_MACRO = "sql_macro"
+    SQL_MODEL = "sql_model"
+    PYTHON_MODEL = "python_model"
+
+
+class Determinism(StrEnum):
+    """RFC 0017 §5.5, D5. ``NONDETERMINISTIC`` reaches the IR only in the
+    sense that it is spellable in a manifest — the compile stage refuses it,
+    because a step whose backfill disagrees with the original run destroys
+    restatement, the capability the architecture is organized around."""
+
+    PURE = "pure"
+    SEEDED = "seeded"
+    NONDETERMINISTIC = "nondeterministic"
+
+
+class Lineage(StrEnum):
+    """Whether a step's outputs can be traced column by column (RFC 0017
+    §5.1). Tier 3 loses it, and says so rather than letting a consumer infer
+    it from the kind."""
+
+    COARSE = "coarse"
+    COLUMN = "column"
 
 
 class Layer(StrEnum):
@@ -557,6 +594,89 @@ class DateDimensionIR:
 # Root
 
 
+# ....................... #
+# Steps — RFC 0017 §5.6, D11/D15
+
+
+@dataclass(frozen=True, slots=True)
+class StepColumnIR:
+    """One column a step output declares it produces (RFC 0017 §5.2).
+
+    Trusted at compile — downstream models typecheck against this — and
+    verified at run time by the generated wrapper's contract assertion (§5.4,
+    D4). The type is a resolved :class:`LogicalType`, not the manifest's
+    string, so downstream typechecking sees the same values it sees for a
+    mapped column.
+    """
+
+    name: str
+    type: LogicalType
+    required: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class StepOutputIR:
+    """One relation a step produces, bound to a name (RFC 0017 §5.2, §5.8).
+
+    ``relation`` is where the wiring binds it; ``key`` is the grain's
+    uniqueness columns, which is what the runtime assertion groups by. Each
+    output gets its own generated wrapper model (D16), so this is also the
+    unit of emission.
+    """
+
+    name: str
+    relation: str
+    grain: str
+    key: tuple[str, ...]
+    columns: tuple[StepColumnIR, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class StepIR:
+    """One wired step: the manifest's identity and contract, joined to what
+    the spec asked of it (RFC 0017 §5.6, D11/D15).
+
+    **Everything that can change behaviour is a field here**, and that is the
+    entire mechanism rather than an implementation detail. The canonical
+    encoder walks dataclasses generically, so every field below is
+    fingerprint-covered by construction: a ``runtime_lock`` bump, a changed
+    parameter, a new seed, a rewired input — each shifts
+    ``project_fingerprint``, and ``plan()`` reads an ordinary structural diff
+    with no special-casing for steps anywhere (D6, D11).
+
+    ``parameters`` and the wiring are ``(name, value)`` pairs sorted by name,
+    values stringified, so the canonical encoding never meets a float (D15,
+    RFC 0003 D5) — the same shape :class:`QualityRuleIR.params` uses.
+
+    ``body`` carries the SQL of a Tier 1 or Tier 2 step, canonicalized at
+    lowering. It lives in the IR rather than being read from the registry at
+    emit because emitters consume IR and never the spec or registry layer
+    (RFC 0008); a Tier 3 step has no body here at all, since bloomery never
+    sees its code.
+    """
+
+    ref: str
+    version: int
+    kind: StepKind
+    determinism: Determinism
+    runtime_lock: str
+    lineage: Lineage
+    outputs: tuple[StepOutputIR, ...]
+    inputs: tuple[tuple[str, str], ...] = ()
+    parameters: tuple[tuple[str, str], ...] = ()
+    seed: int | None = None
+    entrypoint: str | None = None
+    body: SqlExpr | None = None
+
+
+def step_sort_key(step: StepIR) -> tuple[str, int]:
+    """The canonical order of :attr:`ProjectIR.steps` — one function so no
+    consumer invents a second one. ``(ref, version)`` is total over the
+    collection because a spec may wire one ``ref@version`` at most once
+    (RFC 0017 §5.2)."""
+    return (step.ref, step.version)
+
+
 @dataclass(frozen=True, slots=True)
 class ProjectIR:
     """The compile pipeline's product: all collections sorted by name
@@ -564,12 +684,19 @@ class ProjectIR:
     shape change changes every fingerprint loudly (RFC 0003 §5.4).
 
     Version 2 (RFC 0016 M12) adds the data-quality shape: ``reconcile`` here,
-    ``quality``/``dedupe``/``quarantine`` on every :class:`EntityIR`. The bump
-    is the point — every artifact's fingerprint header moves, and ``plan()``
-    refuses to diff a v1 IR against a v2 one rather than misreading it.
+    ``quality``/``dedupe``/``quarantine`` on every :class:`EntityIR`. Version 3
+    (RFC 0017 M13) adds ``steps``. The bump is the point — every artifact's
+    fingerprint header moves, and ``plan()`` refuses to diff across versions
+    rather than misreading one as the other.
+
+    Note that ``steps`` shifts every fingerprint even for a project with no
+    steps at all: the canonical encoder writes each dataclass's field count
+    and every field name, so the *shape* is covered, not merely the values.
+    That is the intended reading of RFC 0003 §5.4 — an IR shape change is
+    supposed to be loud.
     """
 
-    bloomery_ir_version: int = 2
+    bloomery_ir_version: int = 3
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()
@@ -577,3 +704,4 @@ class ProjectIR:
     marts: tuple[MartIR, ...] = ()
     date_dimension: DateDimensionIR | None = None
     reconcile: tuple[ReconcileIR, ...] = ()
+    steps: tuple[StepIR, ...] = ()

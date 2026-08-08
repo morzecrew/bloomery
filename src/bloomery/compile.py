@@ -14,10 +14,12 @@ from bloomery.emit import EmitContext, EmittedArtifact, get_emitter
 from bloomery.ir import project_fingerprint
 from bloomery.naming import DefaultNaming
 from bloomery.resolve import build_project_ir
+from bloomery.steps import EMPTY_REGISTRY
 
 if TYPE_CHECKING:
     from bloomery.naming import NamingPolicy
     from bloomery.spec import Catalog, Project
+    from bloomery.steps import StepRegistry
 
 __all__ = [
     "Target",
@@ -44,15 +46,20 @@ def compile_project(
     dialect: str,
     naming: NamingPolicy | None = None,
     catalog: Catalog | None = None,
+    steps: StepRegistry = EMPTY_REGISTRY,
 ) -> tuple[EmittedArtifact, ...]:
     """Compile a parsed project into target artifacts (spec §8).
 
     Pure function of its inputs: same specs in ⇒ byte-identical artifacts
-    out, across processes and hash seeds (RFC 0003). ``naming`` defaults to
+    out, across processes and hash seeds (RFC 0003). ``steps`` is the frozen
+    step registry (RFC 0017 §5.3) — a compile *input*, because reading step
+    files from disk would break that purity outright, and because a registry
+    that cannot be assembled from a spec is a registry a spec cannot use to
+    load code. ``naming`` defaults to
     :class:`~bloomery.naming.DefaultNaming` (the RFC 0008 signature spells
     the default inline; a ``None`` sentinel avoids a call in the signature).
     """
-    ir = build_project_ir(project, catalog=catalog)
+    ir = build_project_ir(project, catalog=catalog, steps=steps)
     emitter = get_emitter(str(target))
     context = EmitContext(
         dialect=get_dialect(dialect),

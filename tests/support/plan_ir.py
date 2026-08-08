@@ -202,7 +202,7 @@ def project(
     reconcile: tuple[ReconcileIR, ...] = (),
 ) -> ProjectIR:
     return ProjectIR(
-        bloomery_ir_version=2,
+        bloomery_ir_version=3,
         entities=tuple(sorted(entities, key=lambda e: e.name)),
         metrics=tuple(sorted(metrics, key=lambda m: m.name)),
         unreachable=tuple(sorted(unreachable, key=lambda u: u.name)),

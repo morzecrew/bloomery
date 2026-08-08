@@ -156,7 +156,7 @@ def build_project_ir(*, column_names: tuple[str, ...] = ("unit_price", "order_id
         cost_hint=2,
     )
     return ProjectIR(
-        bloomery_ir_version=2,
+        bloomery_ir_version=3,
         entities=(entity,),
         metrics=metrics,
         unreachable=(UnreachableMetric(name="net_revenue", missing=("discount",)),),

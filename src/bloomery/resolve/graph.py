@@ -31,16 +31,19 @@ __all__ = [
     "entity_field_node",
     "metric_node",
     "source_column_node",
+    "step_node",
 ]
 
 
 class NodeKind(StrEnum):
-    """The four node kinds of the dependency DAG (RFC 0005 §5.1)."""
+    """The node kinds of the dependency DAG (RFC 0005 §5.1; ``STEP`` added by
+    RFC 0017 §5.6, D11)."""
 
     SOURCE_COLUMN = "source_column"
     ENTITY_FIELD = "entity_field"
     CANONICAL_FIELD = "canonical_field"
     METRIC = "metric"
+    STEP = "step"
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +92,20 @@ def metric_node(name: str) -> Node:
     return Node(kind=NodeKind.METRIC, name=f"metric.{name}")
 
 
+def step_node(ref: str) -> Node:
+    """A referenced implementation, e.g. ``step.resolve_customers``
+    (RFC 0017 §5.6, D11).
+
+    Keyed by ``ref`` alone, not ``ref@version``: the node is the *place in the
+    lineage* where a step sits, and a version bump does not move it. What the
+    version changes is the step's fingerprint, which is `plan()`'s business
+    (D6) — encoding it in the node id would instead make an upgrade read as a
+    node removed and a different one added, breaking the very lineage this
+    node exists to preserve.
+    """
+    return Node(kind=NodeKind.STEP, name=f"step.{ref}")
+
+
 def _mapping_edges(mapping: Mapping, canonical_by_field: dict[str, str | None]) -> list[Edge]:
     edges: list[Edge] = []
     for field_name, key_field in mapping.key.items():
@@ -128,6 +145,43 @@ def _mapping_edges(mapping: Mapping, canonical_by_field: dict[str, str | None]) 
     return edges
 
 
+def _step_edges(project: Project) -> list[Edge]:
+    """Wire each step between the relations it reads and the fields it
+    produces (RFC 0017 §5.6, D11).
+
+    Both directions matter and for different reasons. Input edges put the step
+    *downstream* of whatever fills its inputs, so a change upstream reaches it
+    in topological order. Output edges put every produced field downstream of
+    the step, which is what lets `plan()` compute a backfill *across* it —
+    the load-bearing goal (§4: "backfillability preserved across steps").
+
+    An input relation is named as an entity field only when the wiring points
+    at ``<entity>.<field>``-shaped text; a bare relation name has no field to
+    hang an edge on, and inventing one would put a node in the DAG that
+    nothing else in the graph agrees exists.
+    """
+    if project.steps is None:
+        return []
+    edges: list[Edge] = []
+    for wiring in project.steps.steps:
+        node = step_node(wiring.ref)
+        edges.extend(
+            Edge(src=entity_field_node(*_relation_field(bound)), dst=node, label="step_input")
+            for _name, bound in sorted(wiring.inputs.items())
+            if "." in bound
+        )
+        for _name, relation in sorted(wiring.outputs.items()):
+            entity = relation.rsplit(".", 1)[-1]
+            edges.append(Edge(src=node, dst=entity_field_node(entity, "*"), label="step_output"))
+    return edges
+
+
+def _relation_field(bound: str) -> tuple[str, str]:
+    """``silver.customer_raw`` reads as the relation ``customer_raw``; the
+    field half is the wildcard, because a step reads a relation whole."""
+    return (bound.rsplit(".", 1)[-1], "*")
+
+
 def build_graph(
     project: Project,
     catalog: Catalog | None,
@@ -141,6 +195,7 @@ def build_graph(
     metrics (``requires_metrics``).
     """
     edges: list[Edge] = []
+    edges.extend(_step_edges(project))
     for mapping in project.mappings:
         entity = project.entity_model.entities[mapping.target]
         canonical_by_field = {name: field.canonical for name, field in entity.fields.items()}
@@ -160,6 +215,10 @@ def build_graph(
     if catalog is not None:
         nodes.update(canonical_field_node(name) for name in catalog.canonical_fields)
     nodes.update(metric_node(metric.name) for metric in metrics)
+    if project.steps is not None:
+        # A step with no wired inputs still exists in the lineage; without
+        # this it would vanish from the topological order entirely.
+        nodes.update(step_node(wiring.ref) for wiring in project.steps.steps)
     for edge in edges:
         nodes.add(edge.src)
         nodes.add(edge.dst)
