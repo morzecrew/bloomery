@@ -70,7 +70,7 @@ dev = [
 # so the default sync stays light on machines without Docker.
 engines = [
     "psycopg[binary]>=3.2",
-    "testcontainers[postgres]>=4.9",
+    "testcontainers[postgres]>=4.15.0",
 ]
 docs = [
     "mike",
