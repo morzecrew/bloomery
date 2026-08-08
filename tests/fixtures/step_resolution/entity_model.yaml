@@ -1,0 +1,6 @@
+# The step fixture (RFC 0017): a python_model step with two outputs, so the
+# one-wrapper-per-output rule (D16) is visible in the goldens rather than
+# asserted in prose. The entity model declares nothing — a step produces its
+# own relations, and this fixture is about the step, not about mappings.
+spec_version: 1
+entities: {}

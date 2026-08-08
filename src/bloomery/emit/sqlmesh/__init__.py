@@ -79,6 +79,7 @@ from bloomery.emit.lowering import (
     reject_when_matched,
     replay_statements,
 )
+from bloomery.emit.steps import step_artifacts
 from bloomery.ir import (
     AuditIR,
     DateDimensionIR,
@@ -631,6 +632,10 @@ class SQLMeshEmitter:
                 # requires wherever a quarantine disposition does.
                 artifacts.append(_reject_artifact(entity, ctx))
                 artifacts.append(_replay_artifact(entity, ctx))
+        # Steps contribute their own models (RFC 0017 §5.8): one generated
+        # wrapper per python_model output, one ordinary model per sql_model
+        # output, nothing for a sql_macro — that one lives inside a SELECT.
+        artifacts.extend(step_artifacts(ir, ctx, _ENVELOPE))
         for check in ir.reconcile:  # sorted by name on ProjectIR
             artifacts.extend(_reconcile_artifacts(check, ir, ctx))
         artifacts.extend(_mart_artifact(mart, ir, ctx) for mart in ir.marts)

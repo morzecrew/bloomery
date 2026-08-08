@@ -36,6 +36,7 @@ from bloomery.ir import (
     StepIR,
     StepKind,
     StepOutputIR,
+    StepParameterIR,
     canon,
     step_sort_key,
 )
@@ -180,15 +181,16 @@ def _check_parameters(wiring: StepWiring, manifest: StepManifest) -> list[Bloome
     return errors
 
 
-def _resolved_parameters(wiring: StepWiring, manifest: StepManifest) -> tuple[tuple[str, str], ...]:
+def _resolved_parameters(wiring: StepWiring, manifest: StepManifest) -> tuple[StepParameterIR, ...]:
     """Every parameter the step will run with — the wiring's values over the
-    manifest's defaults — as sorted ``(name, str)`` pairs.
+    manifest's defaults — sorted by name.
 
     Defaults are *resolved* rather than left implicit because the IR is what
     the fingerprint covers (D15): a step whose behaviour depends on a default
     must restate when that default changes, and it can only do that if the
-    value is recorded. Stringified so the canonical encoding never meets a
-    float (RFC 0003 D5).
+    value is recorded. Values are stringified so the canonical encoding never
+    meets a float (RFC 0003 D5); the declared type travels beside each one so
+    the generated wrapper can rebuild the real value (§5.8).
     """
     resolved: dict[str, str] = {
         name: str(spec.default)
@@ -196,7 +198,10 @@ def _resolved_parameters(wiring: StepWiring, manifest: StepManifest) -> tuple[tu
         if spec.default is not None
     }
     resolved.update({name: str(value) for name, value in wiring.parameters.items()})
-    return tuple(sorted(resolved.items()))
+    return tuple(
+        StepParameterIR(name=name, value=value, type=manifest.parameters[name].type)
+        for name, value in sorted(resolved.items())
+    )
 
 
 def _outputs(wiring: StepWiring, manifest: StepManifest) -> tuple[StepOutputIR, ...]:

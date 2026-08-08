@@ -42,6 +42,7 @@ from bloomery.ir.nodes import (
     StepIR,
     StepKind,
     StepOutputIR,
+    StepParameterIR,
     TaxBasis,
     TransformStepIR,
     Unit,
@@ -53,6 +54,7 @@ from bloomery.ir.nodes import (
 __all__ = [
     "step_sort_key",
     "StepOutputIR",
+    "StepParameterIR",
     "StepKind",
     "StepIR",
     "StepColumnIR",

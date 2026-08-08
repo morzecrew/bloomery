@@ -24,6 +24,7 @@ from sqlglot.expressions.core import Expression
 from bloomery.typing import LogicalType
 
 __all__ = [
+    "StepParameterIR",
     "step_sort_key",
     "StepOutputIR",
     "StepKind",
@@ -632,6 +633,23 @@ class StepOutputIR:
 
 
 @dataclass(frozen=True, slots=True)
+class StepParameterIR:
+    """One resolved parameter: its name, its value as text, and the logical
+    type the manifest declared for it (RFC 0017 §5.2, D15).
+
+    The value is text so the canonical encoding never meets a float (RFC 0003
+    D5) — but text alone is not enough to *call* the step with. A generated
+    wrapper has to hand the body a real ``Decimal``, ``int`` or ``str``, and
+    the only thing that says which is the declared type, so it travels beside
+    the value rather than being re-derived from how the digits look.
+    """
+
+    name: str
+    value: str
+    type: str
+
+
+@dataclass(frozen=True, slots=True)
 class StepIR:
     """One wired step: the manifest's identity and contract, joined to what
     the spec asked of it (RFC 0017 §5.6, D11/D15).
@@ -644,9 +662,10 @@ class StepIR:
     ``project_fingerprint``, and ``plan()`` reads an ordinary structural diff
     with no special-casing for steps anywhere (D6, D11).
 
-    ``parameters`` and the wiring are ``(name, value)`` pairs sorted by name,
-    values stringified, so the canonical encoding never meets a float (D15,
-    RFC 0003 D5) — the same shape :class:`QualityRuleIR.params` uses.
+    ``parameters`` are :class:`StepParameterIR` values sorted by name and the
+    wiring is ``(name, relation)`` pairs, all stringified, so the canonical
+    encoding never meets a float (D15, RFC 0003 D5) — the same discipline
+    :class:`QualityRuleIR.params` follows.
 
     ``body`` carries the SQL of a Tier 1 or Tier 2 step, canonicalized at
     lowering. It lives in the IR rather than being read from the registry at
@@ -663,7 +682,7 @@ class StepIR:
     lineage: Lineage
     outputs: tuple[StepOutputIR, ...]
     inputs: tuple[tuple[str, str], ...] = ()
-    parameters: tuple[tuple[str, str], ...] = ()
+    parameters: tuple[StepParameterIR, ...] = ()
     seed: int | None = None
     entrypoint: str | None = None
     body: SqlExpr | None = None

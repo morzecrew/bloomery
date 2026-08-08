@@ -92,19 +92,28 @@ def test_a_manifest_default_is_resolved_not_left_implicit() -> None:
     """A step whose behaviour depends on a default must restate when that
     default changes, and it can only do that if the value is recorded (D15)."""
     (step,) = build(WIRING.replace("    parameters: {threshold: 0.9}\n", "")).steps
-    assert step.parameters == (("threshold", "0.85"),)
+    assert [(p.name, p.value) for p in step.parameters] == [("threshold", "0.85")]
 
 
 def test_the_wiring_overrides_the_default() -> None:
     (step,) = build().steps
-    assert step.parameters == (("threshold", "0.9"),)
+    assert [(p.name, p.value) for p in step.parameters] == [("threshold", "0.9")]
 
 
-def test_parameters_are_stringified_pairs_never_floats() -> None:
+def test_parameters_are_stringified_never_floats() -> None:
     """RFC 0003 D5 — the canonical encoding raises on a float, so the IR must
     never hold one."""
     (step,) = build().steps
-    assert all(isinstance(value, str) for _name, value in step.parameters)
+    assert all(isinstance(p.value, str) for p in step.parameters)
+
+
+def test_a_parameter_carries_its_declared_type() -> None:
+    """Text alone cannot be *called* with. A generated wrapper has to hand the
+    body a real ``Decimal``, and only the declared type says which
+    constructor — so it travels beside the value rather than being guessed
+    from how the digits look."""
+    (step,) = build().steps
+    assert [(p.name, p.type) for p in step.parameters] == [("threshold", "decimal(4,3)")]
 
 
 # ....................... #

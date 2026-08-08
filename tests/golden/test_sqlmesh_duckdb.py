@@ -17,6 +17,14 @@ pytestmark = pytest.mark.golden
 GOLDEN = Path(__file__).resolve().parent
 
 EXPECTED_PATHS = {
+    # RFC 0017 §5.8/D16: one generated wrapper per declared output, so a
+    # two-output step is two `.py` models. The extension is the point of this
+    # entry — RFC 0008 D2's "artifacts are file-shaped text" is what lets a
+    # Python model reuse ArtifactKind.MODEL with a different suffix.
+    "step_resolution": [
+        "models/silver/customer.py",
+        "models/silver/customer_xref.py",
+    ],
     "minimal": ["models/silver/event.sql"],
     "ecom_basic": [
         "models/gold/dim_date.sql",

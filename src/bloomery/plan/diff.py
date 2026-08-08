@@ -90,15 +90,8 @@ from bloomery.plan.model import BackfillScope, Change, ChangeClass, Plan, Replay
 from bloomery.quality import disposition, payload_key
 from bloomery.spec.quality import EXACT_DECIMAL
 from bloomery.typing import (
-    BoolType,
-    DateType,
-    DecimalType,
-    IntType,
-    LogicalType,
-    StringType,
-    TimestampType,
-    VariantType,
     assignable,
+    render_type,
 )
 
 if TYPE_CHECKING:
@@ -121,22 +114,10 @@ __all__ = [
     "plan",
 ]
 
-_SCALAR_NAMES: dict[type[LogicalType], str] = {
-    StringType: "string",
-    IntType: "int",
-    BoolType: "bool",
-    DateType: "date",
-    TimestampType: "timestamp",
-    VariantType: "variant",
-}
-
-
-def _render_type(logical: LogicalType) -> str:
-    """The spec-layer spelling of a logical type — deterministic reprs for
-    ``Change.old``/``Change.new``."""
-    if isinstance(logical, DecimalType):
-        return f"decimal({logical.precision},{logical.scale})"
-    return _SCALAR_NAMES[type(logical)]
+#: Deterministic reprs for ``Change.old``/``Change.new``. Delegated to the
+#: type layer so the spelling a plan reports and the spelling a step manifest
+#: embeds cannot drift apart.
+_render_type = render_type
 
 
 def _render_shape(column: ColumnIR) -> str:
