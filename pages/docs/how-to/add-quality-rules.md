@@ -209,11 +209,12 @@ print(sorted(artifact.path for artifact in artifacts))
 ```
 
 Four of those are new because of the quality surface: the reject model, the blocking
-audit on the ingestion-metadata contract, the conservation audit (every bronze row lands
-in exactly one of the entity, an unresolved reject, or the deduped count), and the
-replay merge. The replay artifact is not a model — bloomery emits it and never runs it.
-Apply it yourself, as one unit of work, when you have relaxed a rule and want the
-quarantined rows back.
+audit on the ingestion-metadata contract (a null metadata column, a repeated
+`_source_row_id`, or an `_ingested_at` that will not cast to timestamp), the
+conservation audit (every bronze row lands in exactly one of the entity, an unresolved
+reject, or the deduped count), and the replay merge. The replay artifact is not a model
+— bloomery emits it and never runs it. Apply it yourself, as one unit of work, when you
+have relaxed a rule and want the quarantined rows back.
 
 ## Read the quality mart
 

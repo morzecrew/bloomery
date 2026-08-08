@@ -175,6 +175,10 @@ def test_the_ingestion_metadata_audit_is_generated_and_referenced() -> None:
     # body projects it once and the predicate reads the projection.
     assert "COUNT(*) OVER (PARTITION BY _source_row_id) AS _row_id_count" in audit
     assert "OR _row_id_count > 1" in audit
+    # D25/D31: a present-but-uncastable _ingested_at stops the run too — the
+    # one dedupe sort key no `coercible` rule can reach, because ingestion
+    # metadata is never a mapped field.
+    assert "TRY_CAST(_ingested_at AS TIMESTAMP) IS NULL" in audit
 
 
 def test_a_fail_disposition_rule_becomes_a_blocking_audit() -> None:
@@ -398,7 +402,41 @@ def test_postgres_refuses_the_coercion_failure_marker() -> None:
     project, catalog = load_fixture(FIXTURE)
     with pytest.raises(UnsupportedByTarget) as excinfo:
         compile_project(project, target=Target.SQLMESH, dialect="postgres", catalog=catalog)
+    # Specifically the coercible refusal, not the metadata audit's — an author
+    # who wrote rules must read about the rules they wrote.
+    assert "carries coercible quality rules" in str(excinfo.value)
     assert "dialect 'postgres' has none" in str(excinfo.value)
+
+
+def test_postgres_refuses_the_metadata_audit_on_a_dedupe_only_entity() -> None:
+    """The edge of D30, which the coercible-rule refusal above does not reach.
+
+    ``dedupe:`` alone does not join the entity to the quality system (D24), so
+    a dedupe-only entity carries no ``coercible`` rule and sails past
+    ``_require_try_cast`` — yet it still gets the D21 metadata audit, whose
+    D25 castability assertion is a ``TRY_CAST``. Rendered on Postgres that
+    becomes a plain ``CAST`` that raises inside the audit query. The IR is
+    mutated rather than fixtured because no shipped fixture has this shape.
+    """
+    project, catalog = load_fixture(FIXTURE)
+    ir = build_project_ir(project, catalog)
+    entity = ir.entities[0]
+    assert entity.dedupe is not None
+    mutated = replace(
+        ir,
+        entities=(replace(entity, quality=(), quarantine=None),),
+        marts=(),
+        reconcile=(),
+    )
+    ctx = EmitContext(
+        fingerprint="blm1:test", naming=DefaultNaming(), dialect=get_dialect("postgres")
+    )
+    with pytest.raises(UnsupportedByTarget) as excinfo:
+        SQLMeshEmitter().emit(mutated, ctx)
+    assert "_ingested_at casts to timestamp" in str(excinfo.value)
+    # …and the same shape compiles on a dialect that has the cast.
+    duckdb_ctx = replace(ctx, dialect=get_dialect("duckdb"))
+    assert SQLMeshEmitter().emit(mutated, duckdb_ctx)
 
 
 def test_trino_and_duckdb_both_express_the_marker() -> None:

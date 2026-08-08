@@ -10,3 +10,8 @@ SELECT * FROM (
 OR _load_id IS NULL
 OR _source_row_id IS NULL
 OR _row_id_count > 1
+OR (
+  (
+    NOT _ingested_at IS NULL
+  ) AND TRY_CAST(_ingested_at AS TIMESTAMP) IS NULL
+)

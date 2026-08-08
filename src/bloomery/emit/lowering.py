@@ -120,6 +120,9 @@ _EVALUATED_ALIAS = "_evaluated"
 _TARGET_ALIAS = "_target"
 #: The column the D21 audit body projects its duplicate count under.
 ROW_ID_COUNT_COLUMN = "_row_id_count"
+#: The recency column of the ingestion-metadata contract — drawn from the
+#: contract tuple rather than spelled again, so the two cannot drift.
+_INGESTED_AT_COLUMN = next(name for name in INGESTION_METADATA if name == "_ingested_at")
 _REPLAY_ALIAS = "_replay"
 
 
@@ -355,6 +358,37 @@ def _require_try_cast(entity: EntityIR, ctx: EmitContext) -> None:
     raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
 
 
+def _require_try_cast_for_audit(entity: EntityIR, ctx: EmitContext) -> None:
+    """Refuse the D21 audit on a dialect with no NULL-on-failure cast.
+
+    D25's castability assertion *is* a ``TRY_CAST``, and SQLGlot renders one on
+    a dialect without the feature as a plain ``CAST`` — which raises inside the
+    audit query instead of returning the offending row, turning a legible
+    blocking audit into an engine error with no ``_source_row_id`` in it.
+
+    :func:`_require_try_cast` covers the common shape already — every entity
+    with a ``quality:`` surface has an implicit ``coercible`` rule — and is
+    deferred to first, so an author who wrote quality rules reads the message
+    about the rules they wrote rather than about a generated audit. What it
+    does *not* cover is a **dedupe-only** entity: ``dedupe:`` alone does not
+    join the quality system (RFC 0016 D24), so such an entity carries no rules
+    at all and still gets this audit. RFC 0016 D30 reads "Postgres cannot host
+    quality-carrying entities at all"; this is the edge of that sentence.
+    """
+    _require_try_cast(entity, ctx)
+    if ctx.dialect.supports(DialectFeature.TRY_CAST):
+        return
+    msg = (
+        f"entity {entity.name!r} carries a dedupe:/quarantine: block, so it gets the "
+        "ingestion-metadata audit (RFC 0016 D21/D25) asserting that _ingested_at casts to "
+        f"timestamp — which needs a NULL-on-failure cast, and dialect {ctx.dialect.name!r} "
+        "has none. Rendering it as a plain CAST would abort the audit query instead of "
+        "reporting the offending row. Fix: compile this project for a dialect with "
+        "TRY_CAST, or drop the block"
+    )
+    raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
+
+
 def _quality_pipeline(entity: EntityIR, ctx: EmitContext, extract: exp.Select) -> exp.Select:
     """Stages 4–6 over an extract SELECT: the rule predicates, the single
     ``_quality_flags`` pass, the routing ``WHERE``, and ``_quality_ok``.
@@ -504,13 +538,40 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     return select
 
 
-def ingestion_audit_predicate(entity: EntityIR) -> Expression:
+def _uncastable_ingested_at() -> Expression:
+    """``_ingested_at IS NOT NULL AND TRY_CAST(_ingested_at AS TIMESTAMP) IS NULL``
+    — RFC 0016 D25/D31, the third condition of the D21 audit.
+
+    The ``IS NOT NULL`` half is not redundant with the audit's own
+    ``_ingested_at IS NULL`` disjunct: it keeps this term meaning exactly
+    "present but uncastable", so the two conditions stay separately readable
+    in the emitted body and a reader can tell an absent recency value from a
+    corrupt one.
+    """
+    ingested = exp.column(_INGESTED_AT_COLUMN)
+    castable = exp.TryCast(this=ingested.copy(), to=exp.DataType.build("TIMESTAMP"))
+    return conjunction(
+        [
+            exp.Not(this=exp.Is(this=ingested, expression=exp.null())),
+            exp.Is(this=castable, expression=exp.null()),
+        ]
+    )
+
+
+def ingestion_audit_predicate(entity: EntityIR, ctx: EmitContext) -> Expression:
     """The D21 blocking audit's violating-row predicate.
 
-    ``_source_row_id`` is declared NOT NULL and unique per source row — data
-    properties no compiler can check, so the lowering emits a **blocking**
-    audit instead: a null or duplicated identity stops the run rather than
-    silently corrupting dedupe order or ``reject_id``.
+    ``_source_row_id`` is declared NOT NULL and unique per source row, and
+    ``_ingested_at`` is declared castable to timestamp — data properties no
+    compiler can check, so the lowering emits a **blocking** audit instead: a
+    null or duplicated identity, or a recency value that does not cast, stops
+    the run rather than silently corrupting dedupe order or ``reject_id``.
+
+    The castability half (RFC 0016 D25) closes the hole D6's disposition
+    forcing cannot reach: forcing applies to *mapped fields*, and the
+    ingestion-metadata columns are not mapped, so no ``coercible`` rule is ever
+    generated for ``_ingested_at``. Without this term an uncastable recency
+    value survives with the dedupe order silently undefined.
 
     The duplicate half is a window count, and SQL forbids a window function in
     ``WHERE`` — so the audit body wraps the model in a subquery that projects
@@ -518,11 +579,15 @@ def ingestion_audit_predicate(entity: EntityIR) -> Expression:
     column. The two halves of that arrangement live one function apart on
     purpose: the name is a constant here, not a string in a template.
     """
-    del entity  # the contract is the same three columns for every entity
+    # The predicate itself is entity-independent — the contract is the same
+    # three columns for every entity; ``entity`` reaches only the refusal,
+    # which names the entity that cannot be compiled.
+    _require_try_cast_for_audit(entity, ctx)
     parts: list[Expression] = [
         exp.Is(this=exp.column(name), expression=exp.null()) for name in INGESTION_METADATA
     ]
     parts.append(exp.GT(this=exp.column(ROW_ID_COUNT_COLUMN), expression=exp.Literal.number(1)))
+    parts.append(_uncastable_ingested_at())
     return disjunction(parts)
 
 

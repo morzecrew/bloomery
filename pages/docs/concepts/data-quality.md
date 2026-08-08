@@ -125,6 +125,14 @@ is therefore forced to `fail` on any field named by `dedupe.field` or `tie_break
 declaring something weaker on such a field is the compile error
 `DedupeDispositionConflict`.
 
+That forcing reaches mapped fields only, and the usual `dedupe.field` is `_ingested_at`
+— ingestion metadata, never mapped, so no rule is generated for it. A generated
+blocking audit on the ingestion-metadata columns covers it instead. The audit stops the
+run on any of three conditions: a null `_load_id`, `_ingested_at`, or `_source_row_id`;
+a `_source_row_id` that repeats; or an `_ingested_at` that is present but does not cast
+to timestamp. All three are properties of the *data*, so no compiler can check them —
+which is why they are asserted at run time rather than refused at compile time.
+
 Dedupe's order is total by construction: the recency field descending, then each
 tie-break column, then the stable `_source_row_id` — with `NULLS LAST` pinned on every
 sort key. No two rows can compare equal, so the winner is a function of the data rather

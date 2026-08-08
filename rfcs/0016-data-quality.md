@@ -16,11 +16,12 @@
   `DialectFeature.TRY_CAST`; `Mapping.on_unmapped_enum` retired and
   `bloomery_ir_version` bumped to 2; the dirty-data corpus with its execution,
   conservation-property, replay and chaos tiers. **Divergences from the design as
-  drafted are D24–D30**, appended dated below: implicit `coercible` is opt-in per
-  entity (D24), the D21 audit owes a castability assertion on `_ingested_at` (D25),
-  two recorded corpus gaps (D26, D28), `referential` onto the entity itself is
-  refused (D27), the conservation audit's shape and its one skipped case (D29), and
-  Postgres cannot host quality-carrying entities at all (D30).
+  drafted are D24–D31**, appended dated below: implicit `coercible` is opt-in per
+  entity (D24), the D21 audit additionally asserts `_ingested_at` is castable to
+  timestamp (D25, implemented per D31), two recorded corpus gaps (D26, D28),
+  `referential` onto the entity itself is refused (D27), the conservation audit's
+  shape and its one skipped case (D29), and Postgres cannot host quality-carrying
+  entities at all (D30) — including dedupe-only ones (D31).
 - **Scope:** Run-time data quality as declarative spec surface: the `quality:` /
   `dedupe:` / `quarantine:` / `reconcile:` sub-schemas, the `OnFail` disposition
   model, the closed rule catalogue, the fixed pipeline order and its lowering, the
@@ -239,6 +240,13 @@ a user-declared weaker disposition on such a field is the compile error
 > ordering silently undefined. The decided contract: the D21 blocking audit **also**
 > asserts `_ingested_at` is castable to timestamp. Not yet implemented; the gap is
 > held open by a strict-`xfail` execution test (`keys.csv::uncastable_ingested_at`).
+>
+> **Amended 2026-08-08 (D31):** implemented. The audit's `WHERE` now carries
+> `OR (_ingested_at IS NOT NULL AND TRY_CAST(_ingested_at AS TIMESTAMP) IS NULL)`
+> beside the null and duplicate checks, and `keys.csv::uncastable_ingested_at` is a
+> passing assertion rather than an `xfail`. The audit therefore needs
+> `DialectFeature.TRY_CAST` on its own account, which extends D30's refusal to
+> dedupe-only entities.
 
 | Spec | Generated |
 |---|---|
@@ -593,6 +601,7 @@ reference pages for the rule catalogue and `quarantine:` block; the
 | 28 | *(2026-08-08, M12)* **The corpus has no `range` specimen** — a recorded gap, not a rule defect. Every out-of-bounds row it carries is also uncastable, so `coercible` reaches the value first and `range` evaluates over the resulting NULL, staying `UNKNOWN` and never firing (D19). Closing it needs a row that casts cleanly and *then* violates a declared bound. The suite asserts the absence explicitly (zero rows failed, zero diverted) rather than leaving a rule that silently covers nothing, so the day a specimen lands the assertion is what changes. |
 | 29 | *(2026-08-08, M12)* **Conservation audit shape.** The emitted per-entity audit reads exactly two relations — the bronze source and `@this_model` — because SQLMesh does not rewrite model references inside an `AUDIT` body, so a body naming a sibling silver entity would resolve against whatever that name means outside the plan. It is therefore **skipped** for the one shape an audit body cannot express: `referential` with `on_missing: quarantine`, whose routing predicate reads a sibling entity. The skip is asserted in a unit test rather than silently dropped, and §6's conservation *property* still covers that shape. |
 | 30 | *(2026-08-08, M12)* **Postgres cannot host quality-carrying entities.** `coercible` needs a real NULL-on-failure cast (`DialectFeature.TRY_CAST`); sqlglot renders `TRY_CAST` on Postgres as a plain `CAST`, which aborts the run instead of marking the row, so the dialect declares the feature gap and compiling a quality-carrying entity for it raises `UnsupportedByTarget` — loud, never a silent degradation into an aborted run. Consequence for §6's dialect matrix: there is no Postgres dirty-corpus tier to add until either sqlglot renders a real `TRY_CAST` or the lowering grows a per-type `CASE`-based fallback whose semantics are proven equal to `TRY_CAST`'s on the corpus. Named as the escape hatch, not built. |
+| 31 | *(2026-08-08, M12)* **D25's contract is implemented; the strict `xfail` is closed.** The D21 blocking audit now reports a third condition beside the null and duplicate `_source_row_id` checks: `_ingested_at IS NOT NULL AND TRY_CAST(_ingested_at AS TIMESTAMP) IS NULL` — *present but uncastable*, built as a SQLGlot AST through the dialect port like every other term of the audit. `keys.csv::uncastable_ingested_at` (`key_018`) is now an ordinary passing execution assertion, paired with a non-trigger probe of two rows differing only in whether `_ingested_at` parses, so the check cannot go vacuous. Consequence for D30: the metadata audit needs `DialectFeature.TRY_CAST` **independently** of any `coercible` rule, and under D24 a *dedupe-only* entity carries no rules at all — so the audit lowering restates the refusal instead of relying on the coercible-rule one, and a dedupe-only entity compiled for Postgres is now `UnsupportedByTarget` as well. That is the edge of D30's sentence, reached, not a widening of it. |
 
 ## 12. Phasing
 

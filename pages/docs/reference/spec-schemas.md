@@ -232,7 +232,10 @@ One document per (source, target entity) pair.
 An entity that uses `quarantine:` or `dedupe:` requires the bronze ingestion-metadata
 columns `_load_id`, `_ingested_at`, and `_source_row_id`. They are reserved names, so a
 mapping states they exist by listing them in `unmapped:`; their absence is
-`IngestionMetadataMissing`.
+`IngestionMetadataMissing`. Their *values* are checked at run time by a generated
+blocking audit: none of the three may be null, `_source_row_id` must be unique per
+source row, and `_ingested_at` must cast to timestamp. The audit is emitted only for
+dialects with `TRY_CAST`; on the others the entity is `UnsupportedByTarget`.
 
 ### KeyField
 

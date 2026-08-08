@@ -158,8 +158,10 @@ def test_null_and_empty_key_parts_quarantine_on_different_rules(
 # The D21 blocking audit — the run stops
 
 
-def _metadata_violations(conn: duckdb.DuckDBPyConnection) -> list[str | None]:
-    cursor = conn.execute(audit_body(AUDITS["dirty_key_ingestion_metadata"], "silver.dirty_key"))
+def _metadata_violations(
+    conn: duckdb.DuckDBPyConnection, relation: str = "silver.dirty_key"
+) -> list[str | None]:
+    cursor = conn.execute(audit_body(AUDITS["dirty_key_ingestion_metadata"], relation))
     columns = [description[0] for description in cursor.description or ()]
     index = columns.index("_source_row_id")
     return sorted((row[index] for row in cursor.fetchall()), key=str)
@@ -176,12 +178,19 @@ def test_the_metadata_audit_passes_on_a_conforming_batch(
 def test_the_metadata_audit_stops_the_run_on_the_deliberate_violations(
     violating_run: duckdb.DuckDBPyConnection,
 ) -> None:
-    """D21's data properties, caught at run time because no compiler can check
-    them: a NULL ``_source_row_id``, a duplicated one (both rows), a NULL
-    ``_ingested_at``, a NULL ``_load_id``. The audit is declared in the MODEL
-    block with no ``blocking false``, so a non-empty result *is* the run
-    stopping."""
-    assert _metadata_violations(violating_run) == [None, "key_017", "key_019", "key_dup", "key_dup"]
+    """D21/D25's data properties, caught at run time because no compiler can
+    check them: a NULL ``_source_row_id``, a duplicated one (both rows), a
+    NULL ``_ingested_at``, an uncastable one, a NULL ``_load_id``. The audit
+    is declared in the MODEL block with no ``blocking false``, so a non-empty
+    result *is* the run stopping."""
+    assert _metadata_violations(violating_run) == [
+        None,
+        "key_017",
+        "key_018",
+        "key_019",
+        "key_dup",
+        "key_dup",
+    ]
 
 
 def test_the_metadata_audit_is_declared_blocking_on_the_model(
@@ -214,19 +223,34 @@ def test_a_duplicated_source_row_id_also_breaks_the_conservation_accounting(
     assert violations != []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Known gap, for the RFC 0016 phase-5 amendment: keys.csv marks "
-        "`uncastable_ingested_at` _expected=fail on D6's rule that `coercible` is "
-        "forced to `fail` on any field named by dedupe.field/tie_break. But "
-        "`_ingested_at` is an ingestion-metadata column, not a mapped field, so "
-        "lower_quality() never generates a rule for it, and the D21 audit checks "
-        "only NULLs and duplicate identities. An uncastable recency value is "
-        "therefore kept, with dedupe ordering silently undefined."
-    ),
-)
 def test_an_uncastable_recency_field_stops_the_run(
     violating_run: duckdb.DuckDBPyConnection,
 ) -> None:
+    """D25/D31, the third condition of the audit. ``_ingested_at`` is
+    ingestion metadata, not a mapped field, so D6's forcing of ``coercible``
+    to ``fail`` never reaches it and no rule is generated — the audit is the
+    only thing standing between an uncastable recency value and a dedupe
+    order that is silently undefined."""
     assert "key_018" in _metadata_violations(violating_run)
+
+
+def test_a_castable_recency_field_is_not_a_metadata_violation() -> None:
+    """The non-trigger, on a pair that differs in exactly one value.
+
+    Without it the assertion above would also pass for an audit that flagged
+    every row — and the corpus rows all carry *some* other reason to be a
+    violation or not, so the isolating case is built here: two rows with
+    distinct, non-null identities and non-null loads, one ``_ingested_at``
+    that parses and one that does not.
+    """
+    connection = duckdb.connect(":memory:")
+    try:
+        connection.execute(
+            "CREATE TABLE probe AS SELECT * FROM (VALUES"
+            "  ('load_a', '2026-01-05T10:00:00Z', 'castable'),"
+            "  ('load_a', 'not a timestamp', 'uncastable')"
+            ") AS _rows(_load_id, _ingested_at, _source_row_id)"
+        )
+        assert _metadata_violations(connection, "probe") == ["uncastable"]
+    finally:
+        connection.close()

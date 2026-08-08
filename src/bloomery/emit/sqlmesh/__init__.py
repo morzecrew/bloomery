@@ -425,8 +425,9 @@ def _quality_audits(entity: EntityIR, ctx: EmitContext) -> tuple[list[str], list
     otherwise, which is what "the run stops" means:
 
     - one generated audit per entity carrying ingestion metadata, guarding the
-      D21 contract (a null or duplicated ``_source_row_id`` stops the run,
-      because the alternative is silently corrupted dedupe order and unstable
+      D21/D25 contract (a null or duplicated ``_source_row_id``, or an
+      ``_ingested_at`` that does not cast to timestamp, stops the run, because
+      the alternative is silently corrupted dedupe order and unstable
       ``reject_id`` values — data properties no compiler can check);
     - one conservation audit per entity with a reject table, carrying §6's
       accounting law onto every production run rather than only into the test
@@ -441,7 +442,7 @@ def _quality_audits(entity: EntityIR, ctx: EmitContext) -> tuple[list[str], list
         artifacts.append(
             _custom_audit(
                 name,
-                ctx.dialect.render(ingestion_audit_predicate(entity)),
+                ctx.dialect.render(ingestion_audit_predicate(entity, ctx)),
                 ctx,
                 _METADATA_AUDIT_ENVELOPE,
             )
