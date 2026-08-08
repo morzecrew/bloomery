@@ -606,6 +606,13 @@ class SQLMeshEmitter:
         by path, content ending in exactly one newline (RFC 0003 §5.5 rule 5)."""
         artifacts: list[EmittedArtifact] = []
         for entity in ir.entities:
+            if entity.produced_by is not None:
+                # A step writes this relation through its own generated
+                # wrapper (RFC 0017 §5.8). The entity exists so marts, metrics
+                # and downstream mappings can reference it; emitting a SELECT
+                # for it too would be two models at one path — the collision
+                # refused everywhere else.
+                continue
             namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
             audits, audit_artifacts = _entity_audits(entity, ctx)
             content = _ENVELOPE.render(

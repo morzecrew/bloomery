@@ -76,7 +76,7 @@ from bloomery.resolve.metrics import effective_metrics
 from bloomery.resolve.recipes import resolve_recipe
 from bloomery.resolve.refs import mapping_doc
 from bloomery.resolve.resolution import resolve
-from bloomery.resolve.steps import lower_steps
+from bloomery.resolve.steps import lower_steps, step_entities
 from bloomery.spec.mapping import RecipeFieldMapping
 from bloomery.steps import EMPTY_REGISTRY
 from bloomery.transforms import registry
@@ -472,9 +472,19 @@ def build_project_ir(
     reg = registry()
     _typecheck_project(project, reg)
 
+    steps_ir = lower_steps(project, steps)
     draft = ProjectIR(
         bloomery_ir_version=3,
-        entities=_build_entities(project, catalog, reg),
+        # Mapped entities plus one per step output: §5.8 makes a step output an
+        # entity so marts, metrics and downstream mappings can reference it
+        # like any other. Sorted together, because the IR's ordering rule is
+        # about the collection, not about how a member got there.
+        entities=tuple(
+            sorted(
+                (*_build_entities(project, catalog, reg), *step_entities(steps_ir)),
+                key=lambda entity: entity.name,
+            )
+        ),
         metrics=_build_metrics(project, catalog, resolution.reachable_metrics),
         unreachable=resolution.unreachable_metrics,
         relationships=_build_relationships(project),
@@ -486,7 +496,7 @@ def build_project_ir(
         # Steps lower before the mart flattener and the guardrail stage, because
         # step outputs are relations both of them must be able to see
         # (RFC 0017 §5.8).
-        steps=lower_steps(project, steps),
+        steps=steps_ir,
     )
     # Mart flattening (RFC 0010 D6): pure, total — violations are re-derived
     # and raised by the guardrail stage below; only clean marts attach here.

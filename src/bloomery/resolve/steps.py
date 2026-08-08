@@ -27,12 +27,18 @@ from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, cast
 
 import sqlglot
+from sqlglot import exp
 from sqlglot.errors import ParseError
 
 from bloomery.errors import BloomeryError, StepDeterminismError, StepError, UnknownStep
 from bloomery.ir import (
+    ColumnIR,
     Determinism,
+    EntityIR,
     Lineage,
+    Materialization,
+    SCDKind,
+    SourceIR,
     StepColumnIR,
     StepIR,
     StepKind,
@@ -53,6 +59,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "lower_steps",
+    "step_entities",
 ]
 
 
@@ -430,6 +437,74 @@ def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[Bloo
             "registry error rather than something an engine discovers later"
         )
         return None, [StepError(msg, source_path=_path(wiring))]
+
+
+def step_entities(steps: tuple[StepIR, ...]) -> tuple[EntityIR, ...]:
+    """One :class:`EntityIR` per step output (RFC 0017 §5.8).
+
+    This is what §5.8 means by "step outputs are entities in the DAG:
+    downstream mappings, marts, and metrics reference them like any silver
+    entity". Without it a step's outputs existed only inside ``StepIR``, so a
+    mart over one was refused with "no mapping lowers it" and §5.4's promise
+    that downstream models typecheck against ``produces`` was not true.
+
+    Three fields have no natural value and are chosen rather than derived, so
+    they are stated here instead of being discovered later:
+
+    - ``source`` is mandatory on an entity and a step has no bronze relation.
+      It names the relation the step itself writes — the honest reading, since
+      that *is* where the rows come from as far as anything downstream can
+      tell.
+    - ``materialization`` is ``FULL`` and ``scd`` is ``TYPE1``, matching what
+      the generated wrapper already declares (``kind="FULL"``). Deriving
+      something else would put the IR and the artifact into disagreement.
+    - ``produced_by`` marks it so the emitter's entity loop skips it; the
+      wrapper owns emission.
+    - each column's ``expr`` is the column referring to itself. A step column
+      has no lowering — the wrapper wrote it — and an identity is what a
+      downstream model selecting from the relation would emit anyway.
+
+    Quality rules on these entities are still refused (:func:`_check_scope`):
+    RFC 0016's dispositions lower into a silver *SELECT*, and a step-produced
+    relation does not have one — the wrapper writes it in Python. Synthesizing
+    the entity does not change that, so the refusal stays rather than becoming
+    a rule that is accepted and silently never evaluated.
+    """
+    entities: list[EntityIR] = []
+    for step in steps:
+        for output in step.outputs:
+            entities.append(
+                EntityIR(
+                    name=output.relation.rsplit(".", 1)[-1],
+                    grain=output.grain,
+                    key=output.key,
+                    scd=SCDKind.TYPE1,
+                    materialization=Materialization.FULL,
+                    partition_by=(),
+                    columns=tuple(
+                        ColumnIR(
+                            name=column.name,
+                            type=column.type,
+                            canonical=None,
+                            unit=None,
+                            tax_basis=None,
+                            # A step column has no lowering: the wrapper wrote
+                            # it. The expression is the column referring to
+                            # itself, which is exactly what a downstream model
+                            # selecting from this relation would emit — an
+                            # honest identity rather than a fabricated derivation.
+                            expr=canon(exp.column(column.name)),
+                            recipe_id=None,
+                            renamed_from=None,
+                            required=column.required,
+                        )
+                        for column in output.columns
+                    ),
+                    source=SourceIR(relation=output.relation),
+                    produced_by=f"{step.ref}@{step.version}",
+                )
+            )
+    return tuple(sorted(entities, key=lambda entity: entity.name))
 
 
 def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tuple[StepIR, ...]:

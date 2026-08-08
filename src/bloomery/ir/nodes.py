@@ -445,6 +445,16 @@ class EntityIR:
     quality: tuple[QualityRuleIR, ...] = ()
     dedupe: DedupeIR | None = None
     quarantine: QuarantineIR | None = None
+    #: ``ref@version`` of the step that writes this entity, or ``None`` for an
+    #: ordinary mapped one (RFC 0017 §5.8).
+    #:
+    #: A step output *is* an entity — that is what lets marts, metrics and
+    #: downstream mappings reference it "like any silver entity" — but it is
+    #: not one bloomery builds a SELECT for: the step's generated wrapper
+    #: writes the relation. Without this marker the emitter's entity loop
+    #: would emit a second model at the same path, which is the collision D28
+    #: refuses everywhere else.
+    produced_by: str | None = None
 
 
 # ....................... #
