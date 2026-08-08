@@ -16,6 +16,7 @@ from bloomery import build_project_ir, load_project
 from bloomery import dialects as dialects_module
 from bloomery.dialects import DialectFeature, SQLGlotDialect, register_dialect
 from bloomery.quality import pattern as pattern_module
+from bloomery.ir import OnFail
 from bloomery.errors import (
     AssertLoweringError,
     DedupeDispositionConflict,
@@ -948,3 +949,92 @@ def test_a_direct_path_reaches_the_reject_payload() -> None:
     ir = build_project_ir(load_project(sources), catalog)
     paths = {field.source_path for field in ir.entities[0].source.fields}
     assert "$.price" in paths
+
+
+# ....................... #
+# The dedupe order outranks the nulling-chain skip (RFC 0016 D80)
+
+
+def _nulling_dedupe(rule: str = "") -> dict[str, str]:
+    """An entity deduplicating by a field whose chain nulls deliberately."""
+    return {
+        "entity_model": f"""
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    dedupe: {{keep: latest_by, field: recency, tie_break: [_load_id]}}
+    quarantine: {{retention: 30d}}
+    fields:
+      order_id: {{type: string, required: true}}
+      recency: {{type: string}}
+""",
+        "mapping": f"""
+mapping_version: 1
+source: oms__orders
+target: order
+key:
+  order_id: {{from: "$.id", transform: [to_string]}}
+fields:
+  recency:
+    from: "$.recency"
+    transform: [to_string, {{nullif: 'N/A'}}]
+{rule}
+unmapped: {METADATA}
+""",
+    }
+
+
+def test_a_dedupe_column_keeps_its_forced_coercible_despite_a_nulling_chain() -> None:
+    """D73 skips the implicit ``coercible`` where the chain nulls on purpose —
+    but on a column the dedupe order reads, §5.4/D6 *forces* that rule to
+    ``fail`` because an uncastable sort value leaves the order undefined.
+    Letting the skip win deleted the rule and its blocking audit silently,
+    trading a false positive for a nondeterministic entity, with no way for
+    the author to restore it."""
+    ir = build_project_ir(load_project(_nulling_dedupe()))
+    rules = {(rule.name, rule.on_fail) for rule in ir.entities[0].quality}
+    assert ("recency_coercible", OnFail.FAIL) in rules
+
+
+def test_an_authored_coercible_on_a_nulling_dedupe_column_is_not_refused() -> None:
+    """The other half: D6 demands ``on_fail: fail`` on a dedupe column, so
+    refusing the authored rule there would leave the author no way to satisfy
+    it — refused coming and going."""
+    documents = _nulling_dedupe("    quality:\n      - {rule: coercible, on_fail: fail}\n")
+    assert build_project_ir(load_project(documents)).entities[0].quality
+
+
+def test_a_key_columns_nulling_chain_is_read_too() -> None:
+    """``mapped_fields`` yields ``None`` for a key column, but ``KeyField``
+    carries a transform chain. Reading ``None`` as "no chain" left the key
+    with the very false positive the skip exists to prevent — and the worst
+    version of it: a key has no ``quality:`` surface, so the author could
+    neither declare the rule away nor be told why rows vanished."""
+    documents = _nulling_dedupe()
+    documents["mapping"] = documents["mapping"].replace(
+        'order_id: {from: "$.id", transform: [to_string]}',
+        "order_id: {from: \"$.id\", transform: [to_string, {nullif: 'N/A'}]}",
+    )
+    kinds = {rule.column for rule in build_project_ir(load_project(documents)).entities[0].quality}
+    assert "order_id" not in kinds
+
+
+# ....................... #
+# in_enum needs an enum_map to read (RFC 0016 D49)
+
+
+def test_in_enum_without_any_enum_map_is_refused() -> None:
+    """The admissible set *is* the ``enum_map``, so with none in the chain the
+    set is empty and the rule lowered to ``NOT status IN ()`` — invalid SQL on
+    every dialect, and semantically a rule rejecting every row."""
+    message = _message(_chain("[to_string]", ENUM_RULE))
+    assert "has no enum_map step" in message
+    assert "rejects every row" in message
+
+
+def test_to_string_after_enum_map_is_accepted() -> None:
+    """``to_string`` is the identity on the string ``enum_map`` produces, so it
+    cannot move the value off the set — refusing it was a false positive."""
+    build_project_ir(load_project(_chain(f"[to_string, {ENUM_MAP}, to_string]", ENUM_RULE)))

@@ -1157,9 +1157,13 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
        each other by the D20 total order before they reach it
        (:func:`_one_winner_per_key`) and against the incumbent by the same
        order inside it, which is what makes re-running replay re-derive
-       identical winners. The comparison is the row constructor over exactly
-       :func:`~bloomery.quality.dedupe_order`'s columns; null ordering is the
-       D21 blocking audit's job, upstream of here.
+       identical winners. The comparison is :func:`_candidate_wins` — read it
+       before changing it. It is deliberately **not** a row constructor over
+       ``dedupe_order``'s columns, which is what this sentence used to
+       describe and what D74 refutes: row comparison orders NULL as the
+       largest value, the inverse of ``DESC NULLS LAST``, and null ordering
+       here is *not* the D21 audit's job (D21 covers ``_source_row_id`` and
+       ``_ingested_at``, never a mapped ``dedupe.field``).
     2. the **resolution stamp**, setting ``resolved_at`` on the rows that made
        it into the entity;
     3. the **re-evaluation stamp** — the clause that had no statement. A reject

@@ -335,7 +335,18 @@ def _check_patterns(entity_name: str, mapping: Mapping) -> list[GuardrailError]:
     return errors
 
 
-def _check_chain_derived_rules(entity_name: str, mapping: Mapping) -> list[GuardrailError]:
+#: Steps that may follow an ``enum_map`` without moving the column's value off
+#: the admissible set (RFC 0016 D72). ``enum_map`` itself, because the union of
+#: both steps' targets still contains every reachable final value; and
+#: ``to_string``, which is the identity on the string ``enum_map`` produces.
+#: An allowlist, so a transform added later is refused until someone shows it
+#: belongs here — the failure this guards is quarantining every good row.
+_ENUM_SAFE_STEPS = frozenset({"enum_map", "to_string"})
+
+
+def _check_chain_derived_rules(
+    entity_name: str, entity: Entity, mapping: Mapping
+) -> list[GuardrailError]:
     """Two rules read a field's transform chain to decide what a violation is,
     and both are only sound at a particular point in it (RFC 0016 §5.2).
 
@@ -356,8 +367,17 @@ def _check_chain_derived_rules(entity_name: str, mapping: Mapping) -> list[Guard
     (:func:`~bloomery.quality.lower.nullifying_steps`); an **authored** one is
     refused here rather than silently dropped, because a rule a human wrote
     and a rule the compiler inferred do not deserve the same treatment.
+
+    Neither half applies to a column the **dedupe order reads** (D80). There
+    §5.4/D6 forces ``coercible`` to ``fail`` because an uncastable sort value
+    leaves the order undefined, so the rule survives the nulling chain — and a
+    refusal on the authored one would leave the author no way to satisfy D6,
+    which demands exactly that rule at exactly that disposition.
     """
     errors: list[GuardrailError] = []
+    dedupe_columns = (
+        {entity.dedupe.field, *entity.dedupe.tie_break} if entity.dedupe else set[str]()
+    )
     for column, field_mapping in mapped_fields(mapping):
         if field_mapping is None or isinstance(field_mapping, RecipeFieldMapping):
             continue
@@ -365,8 +385,18 @@ def _check_chain_derived_rules(entity_name: str, mapping: Mapping) -> list[Guard
         names = [step.name for step in field_mapping.transform]
         if any(isinstance(rule, InEnumRule) for rule in field_mapping.quality):
             last_enum = max((i for i, name in enumerate(names) if name == "enum_map"), default=-1)
-            trailing = [name for name in names[last_enum + 1 :] if name != "enum_map"]
-            if last_enum >= 0 and trailing:
+            trailing = [name for name in names[last_enum + 1 :] if name not in _ENUM_SAFE_STEPS]
+            if last_enum < 0:
+                msg = (
+                    f"field {column!r} of entity {entity_name!r} carries an in_enum rule but "
+                    "its chain has no enum_map step (RFC 0016 §5.2, D49). The admissible set "
+                    "*is* the enum_map, so with none there the set is empty: the rule lowers "
+                    f"to 'NOT {column} IN ()' — invalid SQL on every dialect, and semantically "
+                    "a rule that rejects every row. Fix: add the enum_map step the rule reads, "
+                    "or use in_set to state the members directly"
+                )
+                errors.append(GuardrailError(msg, source_path=f"{path}.quality"))
+            elif trailing:
                 msg = (
                     f"field {column!r} of entity {entity_name!r} carries an in_enum rule but "
                     f"its chain applies {', '.join(trailing)} after enum_map (RFC 0016 §5.2, "
@@ -376,8 +406,12 @@ def _check_chain_derived_rules(entity_name: str, mapping: Mapping) -> list[Guard
                     "of the enum_map, or drop the in_enum rule"
                 )
                 errors.append(GuardrailError(msg, source_path=f"{path}.quality"))
-        nullifying = nullifying_steps(field_mapping)
-        if nullifying and any(isinstance(rule, CoercibleRule) for rule in field_mapping.quality):
+        nullifying = nullifying_steps(mapping, column, field_mapping)
+        if (
+            nullifying
+            and column not in dedupe_columns
+            and any(isinstance(rule, CoercibleRule) for rule in field_mapping.quality)
+        ):
             msg = (
                 f"field {column!r} of entity {entity_name!r} declares a coercible rule, but "
                 f"its chain applies {', '.join(nullifying)}, which returns NULL from a "
@@ -746,7 +780,7 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
         errors.extend(_check_ingestion_metadata(entity_name, entity, mapping))
         errors.extend(_check_redaction(entity_name, entity, mapping))
         errors.extend(_check_patterns(entity_name, mapping))
-        errors.extend(_check_chain_derived_rules(entity_name, mapping))
+        errors.extend(_check_chain_derived_rules(entity_name, entity, mapping))
         errors.extend(_check_rule_names(entity_name, entity, mapping, relationships))
         errors.extend(_check_referential(entity_name, entity, relationships))
         # This one reads the *lowered* rules rather than the opt-in flag:

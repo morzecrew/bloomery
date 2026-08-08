@@ -152,9 +152,19 @@ def _enum_chain(mapping: Mapping, field_name: str) -> tuple[tuple[str, ...], tup
     return tuple(sorted(spellings)), tuple(sorted(targets))
 
 
-def nullifying_steps(field_mapping: FieldMapping | None) -> tuple[str, ...]:
-    """The names of transforms in this field's chain that declare
+def nullifying_steps(
+    mapping: Mapping, column: str, field_mapping: FieldMapping | None
+) -> tuple[str, ...]:
+    """The names of transforms in this column's chain that declare
     ``nullifies`` — deduplicated, sorted, empty for a recipe field.
+
+    ``field_mapping`` is ``None`` for a key column (:func:`mapped_fields`
+    spells it that way because a key carries no ``quality:`` surface), but a
+    ``KeyField`` does carry a ``transform`` chain, so the key is looked up
+    rather than treated as chainless. Reading ``None`` as "no chain" left the
+    key with the exact false positive this function exists to prevent — and
+    the *worst* version of it, because with no ``quality:`` surface the author
+    cannot declare the rule away and the guardrail cannot refuse it either.
 
     ``coercible`` reads "the output is NULL while a source was not" as *the
     cast failed* (§5.2). That inference is only sound when nothing in the
@@ -168,14 +178,21 @@ def nullifying_steps(field_mapping: FieldMapping | None) -> tuple[str, ...]:
     is not this function's error to raise: the chain typecheck already owns
     it, and reporting it twice would only crowd the batch.
     """
-    if field_mapping is None or isinstance(field_mapping, RecipeFieldMapping):
-        return ()
+    if isinstance(field_mapping, RecipeFieldMapping):
+        return ()  # a recipe binds aliases, not a chain
+    if field_mapping is None:
+        key_field = mapping.key.get(column)
+        if key_field is None:
+            return ()
+        chain = key_field.transform
+    else:
+        chain = field_mapping.transform
     specs = registry()
     return tuple(
         sorted(
             {
                 step.name
-                for step in field_mapping.transform
+                for step in chain
                 if (spec := specs.get(step.name)) is not None and spec.nullifies
             }
         )
@@ -365,15 +382,18 @@ def _draft_rules(
             _field_rule_ir(rule, column, mapping=mapping, slice_columns=slice_columns)
             for rule in declared
         )
-        if not any(isinstance(rule, CoercibleRule) for rule in declared) and not nullifying_steps(
-            field_mapping
-        ):
-            # The implicit rule (§5.2, D3), skipped where the chain nulls a
-            # value deliberately — see :func:`nullifying_steps` for why a
-            # marker that cannot tell the two apart must not fire at all.
-            # Forced to FAIL on a field the
-            # dedupe order reads (§5.4): an uncastable recency field leaves
-            # dedupe ordering undefined, so quarantining it is not an option.
+        # The implicit rule (§5.2, D3) is skipped where the chain nulls a
+        # value deliberately — see :func:`nullifying_steps` for why a marker
+        # that cannot tell that from a failed cast must not fire at all —
+        # **except** on a column the dedupe order reads. There the rule is not
+        # a convenience: §5.4/D6 forces it to FAIL because an uncastable
+        # recency value leaves the dedupe order undefined, and dropping it
+        # would trade a false positive for a silently nondeterministic entity
+        # (D80). A `nullif` on a sort column is the author's to see.
+        skip = (
+            bool(nullifying_steps(mapping, column, field_mapping)) and column not in dedupe_fields
+        )
+        if not any(isinstance(rule, CoercibleRule) for rule in declared) and not skip:
             on_fail = OnFail.FAIL if column in dedupe_fields else OnFail.QUARANTINE
             generated.append(
                 QualityRuleIR(

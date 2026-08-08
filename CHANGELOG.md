@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An `in_enum` rule on a chain with no `enum_map` step lowered to `NOT col IN ()` — invalid SQL on every dialect, and a rule that rejects every row. Refused at compile, naming `in_set` as the way to state members directly.
+
 - `in_enum` quarantined **every correctly-mapped row** when the transform chain applied any step after its `enum_map` (`{enum_map: [paid, paid]}` then `upper` compared `PAID` against a set spelling `paid`). The chain is now refused at compile naming the offending step; a further `enum_map` may still follow.
 
 - The implicit `coercible` rule fired on values a transform nulls *deliberately*, quarantining rows for obeying their own mapping — `{nullif: 'N/A'}` says the sentinel means missing, and the marker cannot tell that from a failed cast. Transforms now declare `nullifies` (`nullif`, `json_path`, `split_part`, `regex_extract`); the implicit rule is skipped on such a chain and an authored `coercible` there is refused.
