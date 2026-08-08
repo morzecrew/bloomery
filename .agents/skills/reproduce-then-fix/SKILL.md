@@ -46,7 +46,20 @@ One fix per cause. If the investigation surfaced two mechanisms, they get two re
 
 ### 5. Verify — the same red turns green
 
-Run the *unchanged* reproduction against the fixed code and watch it pass. Then run it once more against the unfixed code if you can (stash, revert, flag) and watch it fail — this is **verified-red**: a regression test that has never been seen red proves nothing, because it might pass for reasons unrelated to the fix (wrong setup, wrong assertion, testing the wrong layer). Both observations together are the certificate: same instrument, red before, green after.
+Run the *unchanged* reproduction against the fixed code and watch it pass. Then run it once more against the unfixed code and watch it fail — this is **verified-red**: a regression test that has never been seen red proves nothing, because it might pass for reasons unrelated to the fix (wrong setup, wrong assertion, testing the wrong layer). Both observations together are the certificate: same instrument, red before, green after.
+
+`scripts/verified_red.py` runs both halves and reports the verdict:
+
+```bash
+python3 scripts/verified_red.py --test-cmd "pytest tests/test_bug.py" --test-file tests/test_bug.py
+python3 scripts/verified_red.py --base HEAD~1 --test-cmd "..." --test-file ...   # fix already committed
+```
+
+The red half runs in a throwaway git worktree at the base commit with only the named test files copied in, so your working tree is never touched and an interrupted run cannot strand your work. Pass `--test-file` for *every* new file the reproduction needs — the conftest, the fixture, the helper — since anything that exists in neither the base commit nor that list makes the red run die on a missing import instead of on the absent fix. That failure is refused rather than counted as red: a false red certifies a test that never ran, which is worse than running no check at all.
+
+Pass `--allow-red-error` only when the import failure *is* the bug you fixed. Either half is killed after `--timeout-seconds` (default 900), and a killed run is not a red result either.
+
+Exit 2 means not certified, and says which half broke — a red run that *passes* is the important one: the test does not guard what you fixed.
 
 ### 6. Keep the reproduction
 
