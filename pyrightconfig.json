@@ -1,10 +1,22 @@
 {
   "typeCheckingMode": "strict",
   "pythonVersion": "3.12",
-  "extraPaths": ["src"],
-  "include": ["src", "spikes", "examples"],
-  "exclude": ["**/__pycache__", "**/.venv"],
-  "ignore": ["tests/**"],
+  "extraPaths": [
+    "src"
+  ],
+  "include": [
+    "src",
+    "spikes",
+    "examples"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/.venv",
+    "tests"
+  ],
+  "ignore": [
+    "tests/**"
+  ],
   "venvPath": ".",
   "venv": ".venv",
   "reportMissingTypeStubs": "none"

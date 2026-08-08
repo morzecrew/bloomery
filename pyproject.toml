@@ -197,6 +197,11 @@ exclude_lines = [
 # (RFC 0013 D11) guards the runtime surfaces the checker cannot.
 [tool.mypy]
 strict = true
+# Excluded for the same reason as ruff's `tests` entry: the gate runs
+# `mypy "src"`, and this keeps a bare `mypy .` from disagreeing with it.
+# mypy's `exclude` is a regex over paths and does not apply to files named
+# explicitly on the command line.
+exclude = ["^tests/"]
 
 # ....................... #
 # Import contracts
@@ -331,7 +336,18 @@ extend_exclude = ["spikes"]
 line-length = 100
 # hatch-vcs writes _version.py at build/sync time (gitignored) with its own
 # quoting style; generated code is not ours to format or lint.
-extend-exclude = ["src/bloomery/_version.py"]
+#
+# `tests` is excluded so every invocation agrees with the gate: `just quality`
+# passes "src" explicitly and the pre-commit hooks scope to ^src/, but a bare
+# `ruff check .` (or an editor running one) would otherwise walk the suite and
+# report findings CI never sees. Lint and type tooling targets src only — the
+# house convention; the trade is that test code carries no lint floor.
+extend-exclude = ["src/bloomery/_version.py", "tests"]
+# Honour the exclusions even when a path is passed explicitly. Without this,
+# `ruff check tests/foo.py` — which is what pre-commit and editor-on-save
+# integrations do — lints an excluded file anyway, so the exclusion would hold
+# for a tree walk and leak for the two paths people actually hit.
+force-exclude = true
 
 [tool.ruff.lint]
 select = [
