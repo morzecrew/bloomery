@@ -37,6 +37,11 @@ __all__ = [
     "FanoutRisk",
     "NonAdditiveWithoutComponents",
     "MartMissingTimeDimension",
+    "QuarantineRetentionMissing",
+    "DedupeTieBreakMissing",
+    "DedupeDispositionConflict",
+    "IngestionMetadataMissing",
+    "RedactionConflict",
     "PlanError",
     "ContractViolation",
     "RenameTargetMissing",
@@ -202,6 +207,47 @@ class NonAdditiveWithoutComponents(GuardrailError):
 class MartMissingTimeDimension(GuardrailError):
     """Guardrail stage (RFC 0010 §5.5 rule 6, RFC 0013 R1): a measure-carrying
     mart that declares no date role."""
+
+
+# ....................... #
+# Guardrails, data-quality leaves — RFC 0016 §5.9. A guardrail says the
+# *model* is wrong (compile time, decidable from the spec alone); a quality
+# rule says the *data* is wrong (run time, a disposition per row). Everything
+# this RFC can decide without data is therefore a ``GuardrailError``.
+
+
+class QuarantineRetentionMissing(GuardrailError):
+    """Guardrail stage (RFC 0016 §5.6, D10): an entity with a ``quarantine``
+    disposition and no ``quarantine.retention`` — reject tables hold raw
+    payloads, so retention is required, never defaulted."""
+
+
+class DedupeTieBreakMissing(GuardrailError):
+    """Guardrail stage (RFC 0016 §5.3, D6): ``dedupe.keep: latest_by`` without
+    ``tie_break`` — rows sharing a timestamp would make the winner arbitrary,
+    and a nondeterministic model violates the core invariant (RFC 0003)."""
+
+
+class DedupeDispositionConflict(GuardrailError):
+    """Guardrail stage (RFC 0016 §5.4, D6): a weaker declared ``coercible``
+    disposition on a field named by ``dedupe.field``/``tie_break``, where the
+    fixed pipeline order forces ``fail`` — an uncastable recency field leaves
+    dedupe ordering undefined."""
+
+
+class IngestionMetadataMissing(GuardrailError):
+    """Guardrail stage (RFC 0016 §5.6, D21): an entity using ``quarantine`` or
+    ``dedupe`` whose bronze source lacks ``_load_id``/``_ingested_at``/
+    ``_source_row_id``. Their NOT NULL/uniqueness properties are data facts no
+    compiler can check — those become a generated blocking audit; *absence* is
+    decidable from the spec, so it is this guardrail."""
+
+
+class RedactionConflict(GuardrailError):
+    """Guardrail stage (RFC 0016 §5.6, D10): a ``quarantine.redact`` JSONPath
+    intersecting a path the entity's mappings read (``from`` paths, recipe
+    aliases included) — you cannot both require a field and destroy it at
+    write time; the message names both sides."""
 
 
 # ....................... #

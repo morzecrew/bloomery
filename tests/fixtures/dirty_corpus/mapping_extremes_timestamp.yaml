@@ -1,0 +1,14 @@
+mapping_version: 1
+source: dirty__extremes_timestamp
+target: dirty_timestamp_extreme
+key:
+  case_name: {from: "$._case", transform: [to_string]}
+fields:
+  value: {from: "$.raw_value", transform: [{parse_ts: ISO8601}]}
+unmapped:
+  - "$._load_id"
+  - "$._ingested_at"
+  - "$._source_row_id"
+  - "$.raw_kind"
+  - "$._expected"
+  - "$._note"

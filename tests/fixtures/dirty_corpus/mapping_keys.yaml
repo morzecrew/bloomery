@@ -1,0 +1,16 @@
+mapping_version: 1
+source: dirty__keys
+target: dirty_key
+key:
+  order_id: {from: "$.order_id", transform: [to_string]}
+  line_no: {from: "$.line_no", transform: [to_int]}
+fields:
+  # RFC 0016 §5.3's worked example, on live data. No corpus row violates it —
+  # the suite asserts exactly that, because a rule that fires on nothing must
+  # quarantine nothing.
+  amount:
+    from: "$.amount"
+    transform: [{to_decimal: [38, 9]}]
+    quality:
+      - {rule: range, min: 0, on_fail: quarantine}
+unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id", "$._case", "$._expected", "$._note"]

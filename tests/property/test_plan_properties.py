@@ -1,8 +1,10 @@
 """Plan-stage properties (RFC 0007 §6, RFC 0009): ``plan(ir, ir)`` is empty
-for every buildable fixture IR, ``plan(None, ir)`` is all-ADDITIVE (or the
-D3 staleness refusal when the IR still carries a ``renamed_from``
-annotation), plans are deterministic values, and a no-BREAKING plan implies
-the new IR still carries every column the old IR's metrics referenced."""
+for every buildable fixture IR — quality-carrying ones included (RFC 0016
+§5.7) — ``plan(None, ir)`` is all-ADDITIVE with an empty backfill *and* replay
+scope (or the D3 staleness refusal when the IR still carries a
+``renamed_from`` annotation), plans are deterministic values, and a
+no-BREAKING plan implies the new IR still carries every column the old IR's
+metrics referenced."""
 
 from __future__ import annotations
 
@@ -91,6 +93,9 @@ def test_plan_of_an_ir_against_itself_is_empty(name: str) -> None:
     assert result.backfill_scope.entities == ()
     assert not result.backfill_scope.restates_history
     assert result.downstream_impact == ()
+    # RFC 0016 §5.7: the quality surface is diffed by the same identity rule,
+    # so a quality-carrying IR against itself opens no replay either.
+    assert result.replay_scope.entities == ()
 
 
 @settings(max_examples=20, deadline=None)
@@ -110,6 +115,8 @@ def test_initial_deploy_is_all_additive_or_the_staleness_refusal(name: str) -> N
     assert result.backfill_scope.entities == ()
     assert not result.backfill_scope.restates_history
     assert result.downstream_impact == ()
+    # Nothing is stored yet, so nothing is quarantined yet (RFC 0016 §5.7).
+    assert result.replay_scope.entities == ()
 
 
 @settings(max_examples=20, deadline=None)

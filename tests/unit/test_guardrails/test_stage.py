@@ -17,6 +17,7 @@ from bloomery.errors import (
     SpecParseError,
 )
 from bloomery.guardrails import check_guardrails
+from bloomery.quality import QUALITY_METRICS
 from support.compiling import fixture_sources, load_fixture
 
 pytestmark = pytest.mark.unit
@@ -76,7 +77,9 @@ def _inventory_sources(metrics: str) -> dict[str, str]:
 def test_semi_additive_inventory_base_fixture_compiles_clean() -> None:
     project, catalog = load_fixture("semi_additive_inventory")
     ir = build_project_ir(project, catalog)
-    (metric,) = ir.metrics
+    # Plus the quality mart's own metrics (RFC 0016 §5.8), which every
+    # quality-carrying project gains.
+    (metric,) = [m for m in ir.metrics if m.name not in QUALITY_METRICS]
     assert metric.name == "stock_on_hand"
     assert metric.semi_additive is not None
     assert metric.semi_additive.over.dimension == "stock_date"

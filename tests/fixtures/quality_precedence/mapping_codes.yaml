@@ -1,0 +1,22 @@
+mapping_version: 1
+source: q__codes
+target: q_code
+key:
+  code_id: {from: "$.code_id", transform: [to_string]}
+fields:
+  code_flag:
+    from: "$.code_flag"
+    transform: [to_string]
+    quality:
+      - {rule: unique, on_fail: flag}
+  code_quar:
+    from: "$.code_quar"
+    transform: [to_string]
+    quality:
+      - {rule: unique, on_fail: quarantine}
+  code_fail:
+    from: "$.code_fail"
+    transform: [to_string]
+    quality:
+      - {rule: unique, on_fail: fail}
+unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]

@@ -13,4 +13,3 @@ fields:
     from: "$.created_at"
     transform: [{parse_ts: ISO8601}, {to_utc: Europe/Paris}]
 unmapped: ["$.note", "$.gift_wrap"]
-on_unmapped_enum: quarantine

@@ -59,10 +59,12 @@ widening is implicit, narrowing must be explicit. An unknown transform name rais
 
 The stage that refuses arithmetic which parses, typechecks, and produces a wrong
 number: unit and tax-basis coherence, currency mixing, grain fan-out (including
-mart-level `GrainViolation` at the declaration site), and additivity policy. Violations
-across the whole project are collected and raised as a single `GuardrailError`
-aggregate. These are always errors, never warnings — the [guardrails](guardrails.md)
-page walks each one with its failing spec and exact message.
+mart-level `GrainViolation` at the declaration site), and additivity policy. It also
+refuses data-quality declarations that cannot mean anything — dedupe without a
+tie-break, a quarantine disposition without retention, a redaction that destroys a
+mapped path. Violations across the whole project are collected and raised as a single
+`GuardrailError` aggregate. These are always errors, never warnings — the
+[guardrails](guardrails.md) page walks each one with its failing spec and exact message.
 
 ### 5. Plan
 
@@ -82,6 +84,12 @@ feature the target cannot express raises `UnsupportedByTarget` (an `EmitError`) 
 the entity and feature — nothing silently degrades. Every artifact carries a header
 comment stamped with the project fingerprint, so drift between applied artifacts and
 specs is detectable downstream.
+
+Lowering is also where declared data quality becomes SQL. An entity carrying rules gains
+a dedupe `QUALIFY`, a single-pass `_quality_flags` construction, a two-way split into
+the entity and its `<entity>__reject` table, blocking audits for `fail` rules and for
+the conservation law, and a replay `MERGE` artifact bloomery emits and never runs — see
+[Data quality](data-quality.md).
 
 ## The IR: the frozen hand-off
 

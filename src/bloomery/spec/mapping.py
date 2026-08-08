@@ -3,18 +3,20 @@
 How one bronze source becomes an entity: key lowering, field mappings (simple
 ``{from, transform}`` or recipe ``{recipe, from: {alias: path}}`` — a
 discriminated union on the presence of ``recipe``), the unmapped tail, and the
-unmapped-enum policy. ``from`` paths are JSONPath-lite, grammar-validated only;
-transform-name existence is checked at typecheck, not parse (RFC 0002 D4).
+per-field ``quality:`` rules (RFC 0016 §5.3). ``from`` paths are JSONPath-lite,
+grammar-validated only; transform-name existence is checked at typecheck, not
+parse (RFC 0002 D4).
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping as AbcMapping
-from typing import Annotated, Literal, cast
+from typing import Annotated, cast
 
 from pydantic import Discriminator, Field, Tag, model_validator
 
 from bloomery.spec.common import JsonPath, MemberName, SpecModel
+from bloomery.spec.quality import FieldQualityRule
 
 __all__ = [
     "FieldMapping",
@@ -69,10 +71,12 @@ class KeyField(SpecModel):
 
 
 class SimpleFieldMapping(SpecModel):
-    """Direct field mapping: one source path plus a transform chain."""
+    """Direct field mapping: one source path plus a transform chain, and the
+    field's ``quality:`` rules (RFC 0016 §5.3)."""
 
     from_: JsonPath = Field(alias="from")
     transform: tuple[TransformStep, ...] = ()
+    quality: tuple[FieldQualityRule, ...] = ()
 
 
 class RecipeFieldMapping(SpecModel):
@@ -90,6 +94,7 @@ class RecipeFieldMapping(SpecModel):
     recipe: str
     from_: dict[str, JsonPath] = Field(alias="from")
     direct: JsonPath | None = None
+    quality: tuple[FieldQualityRule, ...] = ()
 
 
 def _field_mapping_tag(value: object) -> str:
@@ -116,10 +121,11 @@ class Mapping(SpecModel):
     key: dict[str, KeyField]
     fields: dict[MemberName, FieldMapping] = Field(default_factory=dict)
     unmapped: tuple[JsonPath, ...] = ()
-    # The only policy the corpus documents (original spec §3.4; RFC 0008 D7).
-    # A closed vocabulary that starts at one value: loosening a refusal later
-    # is backward-compatible, tightening one is not (RFC 0010 §9).
-    on_unmapped_enum: Literal["quarantine"] = "quarantine"
+    # ``on_unmapped_enum`` is retired here (RFC 0016 §5.2, D3 — an RFC 0002
+    # amendment): a one-value policy no emitter ever implemented, superseding
+    # RFC 0008 D7's paper `<entity>__quarantine` convention. An unmapped enum
+    # value now simply fails the ``in_enum`` rule and takes that rule's
+    # disposition, through one mechanism and one reject table.
 
 
 def mapping_doc(mapping: Mapping) -> str:

@@ -5,7 +5,7 @@ Public API (spec §8): the pure loaders (``load_catalog``, ``load_project``),
 compilation (``compile_project`` with ``Target``), analysis without emission
 (``resolve`` / ``Resolution``, ``build_project_ir``, ``project_fingerprint``),
 spec-diff planning (``plan`` with ``Plan`` / ``Change`` / ``ChangeClass`` /
-``BackfillScope`` — RFC 0007), the request-time planner (``MetricFlowPlanner`` with the ``MetricRequest`` /
+``BackfillScope`` / ``ReplayScope`` — RFC 0007, RFC 0016), the request-time planner (``MetricFlowPlanner`` with the ``MetricRequest`` /
 ``QueryPlan`` port types and ``RowPolicy`` — RFC 0011/0013), manifest
 hydration (``LruManifestHydrator``, ``HydrationKey`` — RFC 0014), the
 extension points (``register_transform``, ``register_emitter``), and the
@@ -17,7 +17,7 @@ from bloomery.compile import Target, compile_project
 from bloomery.emit import register_emitter
 from bloomery.errors import BloomeryError
 from bloomery.ir import project_fingerprint
-from bloomery.plan import BackfillScope, Change, ChangeClass, Plan, plan
+from bloomery.plan import BackfillScope, Change, ChangeClass, Plan, ReplayScope, plan
 from bloomery.planner import (
     AnyOf,
     ColumnDescriptor,
@@ -51,6 +51,7 @@ __all__ = [
     "Plan",
     "Predicate",
     "QueryPlan",
+    "ReplayScope",
     "Resolution",
     "RowPolicy",
     "Target",

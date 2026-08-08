@@ -19,29 +19,29 @@ fails here (RFC 0011 D12)."""
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import duckdb
 import pytest
-
-from bloomery import MetricRequest, Op, OrderSpec, Predicate
 from support.compiling import compile_fixture
+from support.execution import materialize, warehouse
 from support.planning import fixture_ir, make_planner, normalize_month, quantized
 
-from .test_marts import materialize
+from bloomery import MetricRequest, Op, OrderSpec, Predicate
 
 pytestmark = pytest.mark.execution
 
 PLANNER = make_planner()
 
+#: A fixed ingestion instant for the seed — the dedupe order needs one, and a
+#: clock in a test is a flaky test (RFC 0003's ban applies to the suite too).
+INGESTED_AT = datetime(2024, 4, 1, tzinfo=UTC)
+
 
 @pytest.fixture
 def conn() -> Iterator[duckdb.DuckDBPyConnection]:
-    connection = duckdb.connect(":memory:")
-    connection.execute("SET TimeZone = 'UTC'")
-    for schema in ("bronze", "silver", "gold"):
-        connection.execute(f"CREATE SCHEMA {schema}")
+    connection = warehouse()
     yield connection
     connection.close()
 
@@ -59,21 +59,35 @@ def run(
 
 def _seed_inventory(conn: duckdb.DuckDBPyConnection) -> None:
     """The spike-v2 seed: A 100/80/90 over Jan 1–3, B 40 on Jan 3, plus
-    Feb/Mar rows so by-month grouping yields three rows."""
+    Feb/Mar rows so by-month grouping yields three rows.
+
+    The fixture carries the RFC 0016 quality surface, so the bronze relation
+    also carries the ingestion-metadata contract (``_load_id``,
+    ``_ingested_at``, ``_source_row_id`` — D21) and the operator note the
+    ``quarantine.redact`` policy strips from ``raw``. Every row here is clean:
+    the additivity ledger these tests assert is a *planner* property, and
+    quarantine behaviour is the dirty corpus's job (RFC 0009 §6)."""
     conn.execute(
-        "CREATE TABLE bronze.wms__stock_levels (warehouse VARCHAR, day VARCHAR, on_hand BIGINT)"
+        "CREATE TABLE bronze.wms__stock_levels ("
+        "warehouse VARCHAR, day VARCHAR, on_hand BIGINT, operator_note VARCHAR, "
+        "_load_id VARCHAR, _ingested_at TIMESTAMP, _source_row_id VARCHAR)"
     )
     conn.executemany(
-        "INSERT INTO bronze.wms__stock_levels VALUES (?, ?, ?)",
+        "INSERT INTO bronze.wms__stock_levels VALUES (?, ?, ?, ?, ?, ?, ?)",
         [
-            ("A", "2024-01-01", 100),
-            ("A", "2024-01-02", 80),
-            ("A", "2024-01-03", 90),
-            ("B", "2024-01-03", 40),
-            ("A", "2024-02-10", 85),
-            ("A", "2024-02-20", 75),
-            ("A", "2024-03-05", 65),
-            ("A", "2024-03-15", 95),
+            (warehouse, day, on_hand, "counted by hand", "load-1", INGESTED_AT, f"r{index}")
+            for index, (warehouse, day, on_hand) in enumerate(
+                [
+                    ("A", "2024-01-01", 100),
+                    ("A", "2024-01-02", 80),
+                    ("A", "2024-01-03", 90),
+                    ("B", "2024-01-03", 40),
+                    ("A", "2024-02-10", 85),
+                    ("A", "2024-02-20", 75),
+                    ("A", "2024-03-05", 65),
+                    ("A", "2024-03-15", 95),
+                ]
+            )
         ],
     )
     materialize(conn, compile_fixture("semi_additive_inventory"))
@@ -157,9 +171,9 @@ def _seed_orders(conn: duckdb.DuckDBPyConnection) -> None:
         "CREATE TABLE bronze.pos__orders ("
         "id VARCHAR, store VARCHAR, amount DECIMAL(12, 4), order_date VARCHAR)"
     )
-    rows = [
-        (f"a{i}", "A", Decimal("10000.00"), f"2024-01-{i % 28 + 1:02d}") for i in range(10)
-    ] + [(f"b{i}", "B", Decimal("2000.00"), f"2024-01-{i % 28 + 1:02d}") for i in range(100)]
+    rows = [(f"a{i}", "A", Decimal("10000.00"), f"2024-01-{i % 28 + 1:02d}") for i in range(10)] + [
+        (f"b{i}", "B", Decimal("2000.00"), f"2024-01-{i % 28 + 1:02d}") for i in range(100)
+    ]
     conn.executemany("INSERT INTO bronze.pos__orders VALUES (?, ?, ?, ?)", rows)
     materialize(conn, compile_fixture("non_additive_aov"))
 

@@ -36,8 +36,26 @@ def compile_fixture(
     return compile_project(project, target=target, dialect=dialect, catalog=catalog)
 
 
+#: What the execution tier substitutes for SQLMesh's run-context macros — the
+#: engine's job at run time, stood in for here. Pinned rather than "today":
+#: bloomery reads no clock (RFC 0003), and neither may its tests.
+EXECUTION_DATE = "2024-01-03"
+
+
+def expand_engine_macros(sql: str) -> str:
+    """Expand the SQLMesh macros bloomery emits, the way the engine would.
+
+    Only the quality mart carries one (``@execution_ds`` for ``run_date`` —
+    RFC 0016 §5.8), and the execution tier runs emitted SQL straight against
+    DuckDB with no SQLMesh in the loop, so the substitution happens here. It
+    is deliberately a *literal*: substituting a clock call would make the
+    materialized rows depend on when the suite ran.
+    """
+    return sql.replace("@execution_ds", f"'{EXECUTION_DATE}'")
+
+
 def extract_select(content: str) -> str:
     """Strip the SQLMesh ``MODEL (...)`` envelope: the SELECT follows the
     envelope's closing ``);`` (the envelope contains no other ``);``)."""
     _envelope, _sep, select = content.partition(");")
-    return select.strip()
+    return expand_engine_macros(select.strip())

@@ -1,0 +1,82 @@
+# The disposition-precedence fixture (RFC 0016 D18, D20, D22, §5.6, §5.8).
+#
+# Where `dirty_corpus` is a breadth fixture — one entity per failure family,
+# judged against the corpus CSVs — this one is a *depth* fixture: the smallest
+# shape in which every claim the RFC makes about how dispositions interact is
+# observable at once.
+#
+#   q_line  — a row failing a `fail` rule **and** a `quarantine` rule (D18's
+#             severity order), `unique` at `quarantine` (a window predicate
+#             that has to be legal in a routing position), and a population
+#             sized so the quality mart's counts are checkable by hand:
+#             10 bronze rows, 2 removed by dedupe, 8 evaluated, 3 diverted.
+#   q_code  — `unique` at each of the three dispositions, so every one of them
+#             is proved to *execute*, not merely to compile.
+#   q_dup   — no `dedupe:`, two bronze rows on one entity key: the shape where
+#             two reject rows resolve to a single key and replay has to pick a
+#             winner by the D20 total order (D22).
+spec_version: 1
+entities:
+
+  # 10 bronze rows → 8 after dedupe → 5 kept + 3 diverted. `amount`'s lower
+  # bound is the `fail` rule; `code`'s uniqueness and `status`'s membership are
+  # the `quarantine` ones. Row `r07` fails all three at once, which is exactly
+  # D18's precedence case: it must divert *and* the blocking audit must still
+  # see it.
+  q_line:
+    grain: one row per (order, line) after dedupe
+    key: [order_id, line_no]
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      # `order_date` and the canonical link exist for one reason: a mart over
+      # this entity, which is where `has_quality_flags` becomes observable
+      # (RFC 0016 §5.5). A measure-carrying mart declares a date role
+      # (RFC 0010 D9), and a measure needs a canonical field to require.
+      order_date: {type: date}
+      amount: {type: "decimal(38,9)", canonical: line_amount}
+      code: {type: string}
+      status: {type: string}
+    dedupe: {keep: latest_by, field: _ingested_at, tie_break: [_load_id]}
+    quarantine: {retention: 90d}
+
+  # One entity, three columns, one `unique` rule each — one per disposition.
+  # The window function `unique` lowers to has to be legal in a projection
+  # (flag), in the routing predicate (quarantine) and in an audit body (fail);
+  # a lowering that only works in the first is SQL that does not run.
+  q_code:
+    grain: one row per code specimen
+    key: [code_id]
+    fields:
+      code_id: {type: string, required: true}
+      code_flag: {type: string}
+      code_quar: {type: string}
+      code_fail: {type: string}
+    quarantine: {retention: 90d}
+
+  # No `dedupe:` — so two bronze rows may legitimately share the entity key,
+  # and both may be diverted. When a spec change later admits them, replay has
+  # two candidates for one key: D22 orders them by the dedupe total order,
+  # whose no-dedupe form is the stable source-row identity alone (D20).
+  q_dup:
+    grain: one row per group
+    key: [group_id]
+    fields:
+      group_id: {type: string, required: true}
+      status: {type: string}
+      note: {type: string}
+    quarantine: {retention: 90d}
+
+# Two checks over the same aggregate, differing only in `on_fail` — the axis
+# §5.3 nominates reconcile for ("a pipeline-stopping gate, where genuinely
+# wanted, is expressed as a `reconcile` check"). Both hold on this data; what
+# is under test is the *audit* each one emits, not whether it fires.
+reconcile:
+  - {name: line_amount_matches_row,
+     left: "sum(q_line.amount) by order_id, line_no",
+     right: "q_line.amount",
+     tolerance: "0.000000001", on_fail: flag}
+  - {name: line_amount_matches_row_blocking,
+     left: "sum(q_line.amount) by order_id, line_no",
+     right: "q_line.amount",
+     tolerance: "0.000000001", on_fail: fail}

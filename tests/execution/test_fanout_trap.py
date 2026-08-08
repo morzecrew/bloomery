@@ -28,14 +28,14 @@ import pytest
 from bloomery import build_project_ir
 from bloomery.errors import GrainMismatch, GuardrailError
 from support.compiling import load_fixture
+from support.execution import warehouse
 
 pytestmark = pytest.mark.execution
 
 
 @pytest.fixture
 def conn() -> Iterator[duckdb.DuckDBPyConnection]:
-    connection = duckdb.connect(":memory:")
-    connection.execute("CREATE SCHEMA bronze")
+    connection = warehouse("bronze")
     yield connection
     connection.close()
 

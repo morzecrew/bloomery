@@ -47,18 +47,18 @@ _uv_cmd name strict *command:
 # ----------------------- #
 # CI
 
-# engine, e2e and perf are opt-in markers (Docker / nightly lanes — RFC 0009)
+# engine, e2e, chaos and perf are opt-in markers (Docker / nightly lanes — RFC 0009)
 # Run the default test tiers (unit/golden/property/execution)
 test *args='':
     {{ _uv_sync }}
 
-    uv run pytest -m "not engine and not e2e and not perf" {{ args }}
+    uv run pytest -m "not engine and not e2e and not chaos and not perf" {{ args }}
 
 # Run the full suite including the engine matrix and target e2e (Docker required)
 test-all *args='':
     {{ _uv_sync }}
 
-    uv run pytest -m "not perf" {{ args }}
+    uv run pytest -m "not chaos and not perf" {{ args }}
 
 # The diff is reviewed like source code — an unexplained golden diff fails review
 # Regenerate the golden artifact files (RFC 0009 §5.4)
@@ -73,7 +73,7 @@ snapshot-update:
 coverage *args='':
     {{ _uv_sync }}
 
-    uv run pytest -m "not engine and not e2e and not perf" \
+    uv run pytest -m "not engine and not e2e and not chaos and not perf" \
         --cov=src --cov-report=term {{ args }}
     uv run coverage report --include="src/bloomery/guardrails/*" --fail-under=100
 

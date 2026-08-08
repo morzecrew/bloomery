@@ -13,6 +13,7 @@ hand in tests.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from enum import StrEnum
 from functools import lru_cache
 from typing import cast
@@ -23,11 +24,15 @@ from sqlglot.expressions.core import Expression
 from bloomery.typing import LogicalType
 
 __all__ = [
+    "FLAGS_COLUMN",
+    "OK_COLUMN",
+    "REJECT_SUFFIX",
     "Additivity",
     "AuditIR",
     "Cardinality",
     "ColumnIR",
     "DateDimensionIR",
+    "DedupeIR",
     "DimensionRef",
     "EntityIR",
     "Layer",
@@ -37,9 +42,13 @@ __all__ = [
     "MartJoinIR",
     "Materialization",
     "MetricIR",
+    "OnFail",
     "PartitionSpec",
     "ProjectIR",
+    "QualityRuleIR",
+    "QuarantineIR",
     "Ratio",
+    "ReconcileIR",
     "RelationshipIR",
     "SCDKind",
     "SemiAdditivePolicy",
@@ -51,7 +60,26 @@ __all__ = [
     "TransformStepIR",
     "Unit",
     "UnreachableMetric",
+    "quality_sort_key",
 ]
+
+# ....................... #
+# The physical names the data-quality nodes imply (RFC 0016 §5.5–§5.6,
+# D9/D23/D10). They live in the IR layer rather than in
+# :mod:`bloomery.quality.catalogue` (which re-exports them, so every consumer
+# keeps its shipped import path) because they are needed on *both* sides of a
+# layer boundary: ``quality/`` builds the two generated columns, ``marts/``
+# derives ``has_quality_flags`` from ``_quality_ok`` and refuses a mart based
+# on a reject table — and the import contract forbids ``marts → quality``.
+
+#: The generated silver flag collection; never NULL (empty array / empty
+#: string per :attr:`~bloomery.dialects.DialectFeature.ARRAY`).
+FLAGS_COLUMN = "_quality_flags"
+#: The generated boolean, ``cardinality(_quality_flags) = 0`` per shape.
+OK_COLUMN = "_quality_ok"
+#: One ``<entity>__reject`` per entity, never per mapping (D10).
+REJECT_SUFFIX = "__reject"
+
 
 # ....................... #
 # Enums (values are the spec-layer vocabulary; fingerprint encodes by value)
@@ -112,6 +140,26 @@ class Cardinality(StrEnum):
     MANY_TO_ONE = "many_to_one"
     ONE_TO_ONE = "one_to_one"
     ONE_TO_MANY = "one_to_many"
+
+
+class OnFail(StrEnum):
+    """A quality rule's row disposition (RFC 0016 §5.1, D2) — explicit per
+    rule, never a global default.
+
+    Deliberately no ``DROP``: silently discarding rows is the fastest way for a
+    BI product to lose trust permanently, and it is the disposition everyone
+    reaches for first. ``QUARANTINE`` *is* drop plus recoverability — most
+    quarantined rows return after a spec fix. Deliberately no ``REPAIR`` in v1
+    (D17), deferred on a repair-recipe contract.
+
+    Severity order for a row failing several rules is ``FAIL > QUARANTINE >
+    FLAG`` (D18), which makes every combination deterministic — so no
+    rule/disposition pair needs compile-time rejection.
+    """
+
+    FLAG = "flag"  # row passes unchanged; recorded in _quality_flags
+    QUARANTINE = "quarantine"  # row diverted to <entity>__reject; replayable
+    FAIL = "fail"  # blocking audit; the run stops
 
 
 class SemiAdditiveRule(StrEnum):
@@ -198,10 +246,26 @@ class SourceFieldIR:
 @dataclass(frozen=True, slots=True)
 class SourceIR:
     """The bronze relation an entity is built from, with its field lowering
-    entries sorted by target field (minimal M1 surface)."""
+    entries sorted by target field (minimal M1 surface).
+
+    ``mapping_version`` is the authored ``mapping_version:`` of the document
+    that produced this entity. It reaches the IR because the reject table's
+    schema carries it (RFC 0016 §5.6): a quarantined row records *which
+    version of which mapping* rejected it, or replay cannot tell a row that
+    still fails from a row the mapping has since learned to read.
+
+    ``unmapped`` is the acknowledged tail — bronze paths the mapping declares
+    exist and deliberately does not read, sorted. It reaches the IR for the
+    same reason: the reject table's ``raw`` column is *the bronze payload*,
+    not the mapped subset, and ``quarantine.redact`` only ever has something
+    to remove there (a redacted path that the mapping reads is the compile
+    error ``RedactionConflict``, RFC 0016 §5.6).
+    """
 
     relation: str
     fields: tuple[SourceFieldIR, ...] = ()
+    mapping_version: int = 1
+    unmapped: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -222,10 +286,114 @@ class ColumnIR:
     description: str | None = None
 
 
+# ....................... #
+# Silver: data quality (RFC 0016 §5.3–§5.6)
+
+
+@dataclass(frozen=True, slots=True)
+class QualityRuleIR:
+    """One lowered quality rule — field rule or row rule, one node either way
+    (the fixed pipeline order, not the node type, is what separates them).
+
+    ``column`` is the target column for a field rule and ``None`` for a row
+    rule (``expression``, ``referential``), which is evaluated over the whole
+    row. ``params`` carries the rule's kind-specific settings as (name, value)
+    pairs sorted by name — the same shape as :class:`AuditIR`, values
+    stringified so the canonical encoding never sees a float.
+
+    ``on_fail`` is ``None`` for exactly one rule kind: ``referential`` carries
+    its disposition as the ``on_missing`` param instead, because its
+    ``unknown_member`` value is *not* an :class:`OnFail` — the row passes with
+    its fk rewritten to the reserved member, neither flagged nor diverted
+    (RFC 0016 §5.4, D19). Folding it into ``FLAG`` would misdescribe the
+    lowering; widening ``OnFail`` would contradict §5.1's three-value model.
+    """
+
+    name: str
+    kind: str
+    column: str | None
+    on_fail: OnFail | None
+    params: tuple[tuple[str, str], ...] = ()
+
+
+def quality_sort_key(
+    rule: QualityRuleIR,
+) -> tuple[str, str, str, tuple[tuple[str, str], ...], str]:
+    """The canonical order of :attr:`EntityIR.quality` — one function so no
+    consumer can invent a second one. Total over the node's whole value, so
+    two rules that would sort equal are the same rule (RFC 0003 §5.3).
+
+    ``on_fail`` is the last component and it is **load-bearing**, not
+    decoration (RFC 0016 D50): name generation walks this order, so two rules
+    differing only in their disposition sorting equal made the assignment fall
+    through to authored order — swapping two YAML lines then compiled the same
+    spec to two different IRs. It sorts last so it only ever breaks a tie
+    nothing else could break.
+    """
+    return (rule.kind, rule.column or "", rule.name, rule.params, str(rule.on_fail or ""))
+
+
+@dataclass(frozen=True, slots=True)
+class DedupeIR:
+    """Entity-level dedupe (RFC 0016 §5.4, D20), lowered to a ``ROW_NUMBER``
+    over ``PARTITION BY <entity key>``.
+
+    The sort order is total by construction: ``field`` DESC, then each
+    ``tie_break`` column DESC, then the stable source-row identity
+    ``_source_row_id`` DESC — every key ``NULLS LAST``. ``tie_break`` keeps
+    authored order (it is a sort order, therefore semantic — RFC 0003 D4);
+    empty here means the compile stage has yet to refuse it
+    (``DedupeTieBreakMissing``), never that ties are allowed.
+    """
+
+    keep: str
+    field: str
+    tie_break: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class QuarantineIR:
+    """The per-entity ``<entity>__reject`` policy (RFC 0016 §5.6, D10).
+
+    ``retention`` is the grammar-validated duration string (``90d``) and is
+    mandatory wherever a ``quarantine`` disposition exists — reject rows hold
+    raw source payloads. ``redact`` is the JSONPath list applied to ``raw``
+    and ``key_values`` at write time, sorted (it is a set of paths; authored
+    order carries nothing).
+    """
+
+    retention: str
+    redact: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ReconcileIR:
+    """One cross-entity reconciliation check (RFC 0016 §5.3) — the check that
+    catches a *correct formula over wrong data*. ``tolerance`` is a
+    :class:`~decimal.Decimal`; floats never enter the IR (RFC 0003 D5)."""
+
+    name: str
+    left: str
+    right: str
+    tolerance: Decimal
+    on_fail: OnFail
+
+
 @dataclass(frozen=True, slots=True)
 class EntityIR:
     """One silver entity: key in authored order (it is meaningful), columns
-    sorted by name, audits sorted by (kind, column)."""
+    sorted by name, audits sorted by (kind, column).
+
+    ``quality`` is sorted by :func:`quality_sort_key` —
+    ``(kind, column or "", name, params, on_fail)``, a total key over the
+    node's whole value, so permuting the authored rule order can never change
+    the IR even before rule names are generated, and two rules of one kind on
+    one column (``range min`` and ``range max``, §5.3's worked example) still
+    order deterministically by their bounds. The trailing ``on_fail`` is not
+    decoration: without it two rules differing only in disposition sort equal,
+    and name generation falls through to authored order (RFC 0016 D50). Read
+    that function, not this sentence, for the authority.
+    """
 
     name: str
     grain: str
@@ -236,6 +404,9 @@ class EntityIR:
     columns: tuple[ColumnIR, ...]
     source: SourceIR
     audits: tuple[AuditIR, ...] = ()
+    quality: tuple[QualityRuleIR, ...] = ()
+    dedupe: DedupeIR | None = None
+    quarantine: QuarantineIR | None = None
 
 
 # ....................... #
@@ -390,12 +561,19 @@ class DateDimensionIR:
 class ProjectIR:
     """The compile pipeline's product: all collections sorted by name
     (RFC 0003 §5.1). ``bloomery_ir_version`` is fingerprint-covered, so an IR
-    shape change changes every fingerprint loudly (RFC 0003 §5.4)."""
+    shape change changes every fingerprint loudly (RFC 0003 §5.4).
 
-    bloomery_ir_version: int = 1
+    Version 2 (RFC 0016 M12) adds the data-quality shape: ``reconcile`` here,
+    ``quality``/``dedupe``/``quarantine`` on every :class:`EntityIR`. The bump
+    is the point — every artifact's fingerprint header moves, and ``plan()``
+    refuses to diff a v1 IR against a v2 one rather than misreading it.
+    """
+
+    bloomery_ir_version: int = 2
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()
     relationships: tuple[RelationshipIR, ...] = ()
     marts: tuple[MartIR, ...] = ()
     date_dimension: DateDimensionIR | None = None
+    reconcile: tuple[ReconcileIR, ...] = ()

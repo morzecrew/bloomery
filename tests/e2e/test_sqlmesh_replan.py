@@ -12,7 +12,18 @@ SQLMesh's own fingerprinting agree that nothing moved.
 Builtin audits declared in the ``MODEL`` blocks (e.g. ecom_basic's
 ``not_null``) run during apply, so a passing apply also exercises the audit
 lowering. Custom audit artifacts (``audits/*.sql``) are written by the same
-scaffold, though neither fixture here emits any.
+scaffold — the RFC 0016 fixture emits four (the ingestion-metadata contract,
+the §6 conservation law, one ``on_fail: fail`` rule, and the reconcile check's
+**non-blocking** one), so a passing apply also proves the ``blocking false``
+grammar and the ``@execution_ds`` run-context macro against the pinned sqlmesh.
+
+The conservation audit is the one that had to be *designed* against this test.
+SQLMesh rewrites model references inside a MODEL query to the physical snapshot
+table but not inside an AUDIT body, so an audit that read the sibling reject
+relation resolved to a virtual-layer view that does not exist yet on a first
+plan — and failed the run it existed to protect. Only a real ``plan`` against a
+real framework shows that; the DuckDB execution tier renders audit bodies
+itself and would have stayed green.
 """
 
 from __future__ import annotations
@@ -27,6 +38,8 @@ import pytest
 from sqlmesh import Context
 
 from support.compiling import compile_fixture
+
+from bloomery.quality import ENTITY_GRAIN_ROW
 
 pytestmark = pytest.mark.e2e
 
@@ -71,6 +84,86 @@ def _seed_ecom_basic(conn: duckdb.DuckDBPyConnection) -> None:
     )
 
 
+def _seed_semi_additive_inventory(conn: duckdb.DuckDBPyConnection) -> None:
+    conn.execute(
+        "CREATE TABLE bronze.wms__stock_levels (warehouse VARCHAR, day VARCHAR, on_hand BIGINT, "
+        "operator_note VARCHAR, _ingested_at TIMESTAMP, _load_id VARCHAR, _source_row_id VARCHAR)"
+    )
+    conn.executemany(
+        "INSERT INTO bronze.wms__stock_levels VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+            ("A", "2024-01-01", 100, "operator note", "2024-01-01 00:00:00", "L1", "r1"),
+            # Negative: fires both the flag rule and the quarantining range
+            # rule, so it routes to the reject table carrying *both* names
+            # (RFC 0016 D18).
+            ("A", "2024-01-02", -5, "operator note", "2024-01-02 00:00:00", "L1", "r2"),
+            ("B", "2024-01-01", 40, "operator note", "2024-01-01 00:00:00", "L1", "r3"),
+        ],
+    )
+
+
+def _verify_semi_additive_inventory(conn: duckdb.DuckDBPyConnection) -> None:
+    """The RFC 0016 surfaces, applied by SQLMesh itself: the two-way split, the
+    reject row's ``failed_rules``, the reconcile model, and the quality mart —
+    including its ``run_date``, which only has a value because **SQLMesh**
+    expanded ``@execution_ds`` (bloomery never read a clock, §5.8)."""
+    kept = conn.execute(
+        "SELECT warehouse_id, stock_level, _quality_ok FROM silver.inventory_level "
+        "ORDER BY warehouse_id, stock_date"
+    ).fetchall()
+    assert kept == [("A", 100, True), ("B", 40, True)]
+
+    rejected = conn.execute(
+        "SELECT _source_row_id, failed_rules, resolved_at FROM silver.inventory_level__reject"
+    ).fetchall()
+    assert rejected == [("r2", ["stock_level_not_negative", "stock_level_range_min"], None)]
+
+    # The mart gained has_quality_flags as an ordinary dimension (§5.5), and
+    # quarantined rows never reached it — mart rowcounts legitimately differ
+    # from bronze (D15).
+    #
+    # **Both values are FALSE here for a fixture reason, not a lowering one**,
+    # and saying so is the point: this fixture's only flag rule fires on
+    # negative levels, which its quarantining `range` rule also diverts, so no
+    # surviving row can carry a flag. That makes the assertion below unable to
+    # distinguish the real dimension from a constant `FALSE` — which is exactly
+    # how an inverted polarity once shipped past every tier but the goldens
+    # (D64). The polarity itself is asserted in both directions, and through a
+    # `MetricRequest`, in ``tests/execution/test_quality_precedence.py``; what
+    # this line proves is the narrower claim that a *diverted* row is absent
+    # from the mart entirely.
+    mart = conn.execute(
+        "SELECT warehouse_id, has_quality_flags FROM gold.mart_inventory ORDER BY warehouse_id"
+    ).fetchall()
+    assert mart == [("A", False), ("B", False)]
+
+    reconciled = conn.execute(
+        "SELECT warehouse_id, difference, within_tolerance "
+        "FROM silver.stock_level_matches_snapshot__reconcile ORDER BY warehouse_id"
+    ).fetchall()
+    assert reconciled == [("A", 0, True), ("B", 0, True)]
+
+    quality = {
+        rule: (evaluated, failed, quarantined)
+        for rule, evaluated, failed, quarantined in conn.execute(
+            "SELECT rule, rows_evaluated, rows_failed, rows_quarantined "
+            "FROM gold.mart_data_quality ORDER BY rule"
+        ).fetchall()
+    }
+    # One row per rule evaluation, one per reconcile check, and one accounting
+    # row per entity (§5.8): a rule row reports what its own predicate did, and
+    # the population counts beside it belong to the entity — repeating them per
+    # rule made SUM return a multiple of the truth.
+    assert quality["stock_level_range_min"] == (0, 1, 0)
+    assert quality["stock_level_not_negative"] == (0, 1, 0)  # fired; diverts nothing
+    assert quality[ENTITY_GRAIN_ROW] == (3, 0, 1)  # 2 kept + 1 diverted, 1 diverted row
+    assert "stock_level_matches_snapshot" in quality
+    (run,) = conn.execute(
+        "SELECT DISTINCT run_id IS NULL, run_date IS NOT NULL FROM gold.mart_data_quality"
+    ).fetchall()
+    assert run == (True, True)
+
+
 def _verify_minimal(conn: duckdb.DuckDBPyConnection) -> None:
     rows = conn.execute(
         "SELECT event_id, kind, occurred_at FROM silver.event ORDER BY event_id"
@@ -103,6 +196,24 @@ FIXTURES: dict[str, tuple[Seeder, Verifier, frozenset[str]]] = {
         _verify_ecom_basic,
         frozenset(
             {"silver.order", "silver.order_item", "gold.dim_date", "gold.mart_order_items"}
+        ),
+    ),
+    # The RFC 0016 fixture: split silver model, reject table, reconcile model
+    # plus its non-blocking audit, and the quality mart — applied by SQLMesh
+    # itself, which is the only way to know the emitted macros, the
+    # ``blocking false`` audit grammar and the model dependency order are real.
+    "semi_additive_inventory": (
+        _seed_semi_additive_inventory,
+        _verify_semi_additive_inventory,
+        frozenset(
+            {
+                "silver.inventory_level",
+                "silver.inventory_level__reject",
+                "silver.stock_level_matches_snapshot__reconcile",
+                "gold.dim_date",
+                "gold.mart_inventory",
+                "gold.mart_data_quality",
+            }
         ),
     ),
 }

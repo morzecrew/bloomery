@@ -1,0 +1,23 @@
+mapping_version: 1
+source: dirty__numerics
+target: dirty_number
+key:
+  case_name: {from: "$._case", transform: [to_string]}
+fields:
+  # The implicit `coercible` rule at its default disposition — declared here
+  # rather than left implicit so the corpus's "default rule set" is visible in
+  # the spec that judges it.
+  amount:
+    from: "$.raw_amount"
+    transform: [{to_decimal: [38, 9]}]
+    quality:
+      - {rule: coercible, on_fail: quarantine}
+  # The raw text beside the coerced value. `scale_overflow_rounds` is the row
+  # this exists for: 12.5000000001 does not fail the cast, it *rounds*, and
+  # silent precision loss is what a flag disposition is for.
+  amount_text:
+    from: "$.raw_amount"
+    transform: [to_string]
+    quality:
+      - {rule: pattern, regex: '^-?[0-9]+(?:\.[0-9]{1,9})?$', on_fail: flag}
+unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id", "$._expected", "$._note"]

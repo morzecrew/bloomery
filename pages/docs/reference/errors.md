@@ -25,7 +25,12 @@ BloomeryError
 │   ├── GrainViolation
 │   ├── FanoutRisk
 │   ├── NonAdditiveWithoutComponents
-│   └── MartMissingTimeDimension
+│   ├── MartMissingTimeDimension
+│   ├── QuarantineRetentionMissing
+│   ├── DedupeTieBreakMissing
+│   ├── DedupeDispositionConflict
+│   ├── IngestionMetadataMissing
+│   └── RedactionConflict
 ├── PlanError
 │   ├── ContractViolation
 │   └── RenameTargetMissing
@@ -73,6 +78,11 @@ BloomeryError
 | `FanoutRisk` | guardrails | A mart `via:` flatten step over a `one_to_many` relationship |
 | `NonAdditiveWithoutComponents` | guardrails | A non-additive metric with no ratio/additive decomposition to recompute from |
 | `MartMissingTimeDimension` | guardrails | A measure-carrying mart that declares no date role |
+| `QuarantineRetentionMissing` | guardrails | An entity with a `quarantine` disposition and no `quarantine:` block — reject rows hold raw payloads, so retention is required and never defaulted |
+| `DedupeTieBreakMissing` | guardrails | `dedupe: {keep: latest_by}` without `tie_break` — rows sharing a timestamp would make the winner arbitrary |
+| `DedupeDispositionConflict` | guardrails | A `coercible` rule weaker than `fail` on a field named by `dedupe.field`/`tie_break`, where an uncastable value leaves the dedupe order undefined |
+| `IngestionMetadataMissing` | guardrails | An entity using `quarantine:`/`dedupe:` whose mapping neither maps nor acknowledges `_load_id`, `_ingested_at`, `_source_row_id` |
+| `RedactionConflict` | guardrails | A `quarantine.redact` path intersecting a path the mapping reads — replay re-runs the mapping against `raw`, which the redaction has already destroyed |
 | `PlanError` | plan | A spec diff that cannot produce a safe migration plan (including IR-version mismatch) |
 | `ContractViolation` | plan | Dropping or narrowing a field still referenced by a reachable metric — expand/contract enforced |
 | `RenameTargetMissing` | plan | A `renamed_from` annotation whose old name is absent from the old IR |
@@ -95,6 +105,35 @@ BloomeryError
 | `UnsupportedPagination` | planner | A non-zero `offset` or cursor pagination — paging aggregates belongs to the serving layer |
 | `UnsupportedFieldCompare` | adapter | `$fields` field-to-field compare — declared here so app adapters can raise it; never raised by bloomery, and not part of `KNOWN_UNSUPPORTED` |
 | `UnsupportedQuantifier` | adapter | `$any`/`$all`/`$none` element quantifiers — declared here so app adapters can raise it; never raised by bloomery, and not part of `KNOWN_UNSUPPORTED` |
+
+## Data-quality refusals without their own class
+
+Five data-quality guardrails have named leaves (above). The rest raise a bare
+`GuardrailError` — the design authority names five, and minting further classes would
+put names in `bloomery.errors` no RFC has decided on. Each is still a distinct,
+addressed message inside the same batched aggregate:
+
+| Refusal | Raised when |
+|---|---|
+| Pattern portability | A `pattern` rule one of the shipped dialect ports (DuckDB, Postgres, Trino) declares no regex surface for, or whose text SQLGlot will not carry into that dialect's SQL unchanged. The subset the pattern must speak is enforced earlier, at parse, as a `SpecParseError` |
+| `dedupe` naming an unknown column | `dedupe.field` or a `tie_break` entry the entity does not declare — it lowers straight into `ORDER BY <column> DESC NULLS LAST`, so a typo would fail in the engine's binder on a model that compiled clean |
+| `via` naming no relationship | A `referential` rule whose `via` matches nothing in the entity model's `relationships:` — a referential rule probes a *declared* relationship; there is nothing to join on otherwise |
+| `via` declared from another entity | A `referential` rule naming a relationship whose `from` side is a sibling — the join reads that relationship's columns off *this* entity's extract, which never projects them |
+| Self-referencing `referential` | A `referential` rule whose relationship's `to` side is the declaring entity — the rule lowers to a `LEFT JOIN` inside that entity's own model, and a model cannot join the table it is being built from |
+| `unknown_member` on a non-string fk | `referential: {on_missing: unknown_member}` where the foreign key is not string-typed; the reserved member is the *string* `'__unknown__'`, and typed sentinels like `-1` could collide with a legal key |
+| `unknown_member` on a composite key | The same disposition on a relationship joining through more than one column — the rewrite is one `CASE` over one column, so a composite fk would get a half-sentinel key matching no reserved row |
+| Entity rule name a generated rule owns | An entity-level `quality:` rule named the same as a rule generated from the mapping (a field rule, an implicit `coercible`, a `referential` named after its relationship) — that name is the key of a quality-mart time series and an entry in `failed_rules`, so one of the two would have to be silently renamed |
+| Reconcile grammar and resolution | A side outside the closed shape, an undeclared entity, an unknown column, sides keyed on different columns, or a duplicate check name |
+| Reserved metric name | A project metric colliding with one the quality mart owns (`quality_rows_evaluated`, `quality_rows_failed`, `quality_rows_quarantined`, `quality_rows_deduped`, `quality_quarantine_rate`) — one flat namespace, and two definitions of one name is a silent winner, not a merge |
+
+Data-quality refusals also happen at emit time rather than compile time, and those are
+`UnsupportedByTarget`. Two are about the *dialect*, both on the absent NULL-on-failure
+cast: compiling an entity with `coercible` rules for Postgres (RFC 0016 D30), and —
+because the ingestion-metadata audit asserts `_ingested_at` casts to timestamp, which is
+a `TRY_CAST` of its own — compiling a **dedupe-only** entity for Postgres too, even
+though it carries no quality rules at all (D31). One is about the *target*: a
+`quarantine:` block or a `reconcile:` check compiled for dbt, which lowers neither in
+this wave. All of them name the target or dialect that does support the construct.
 
 ## The closed refusal list
 

@@ -1,0 +1,31 @@
+mapping_version: 1
+source: q__lines
+target: q_line
+key:
+  order_id: {from: "$.order_id", transform: [to_string]}
+  line_no: {from: "$.line_no", transform: [to_int]}
+fields:
+  # The one `fail` rule of the fixture. A row below the bound stops the run —
+  # and it must do so whether or not some *other* rule diverted it first, which
+  # is the whole of D18's severity order.
+  order_date:
+    from: "$.order_date"
+    transform: [{parse_date: ISO8601}]
+  amount:
+    from: "$.amount"
+    transform: [{to_decimal: [38, 9]}]
+    quality:
+      - {rule: range, min: 0, on_fail: fail}
+  # `unique` at `quarantine`: the routing predicate therefore contains a
+  # window function, which no engine allows in a WHERE clause.
+  code:
+    from: "$.code"
+    transform: [to_string]
+    quality:
+      - {rule: unique, on_fail: quarantine}
+  status:
+    from: "$.status"
+    transform: [to_string]
+    quality:
+      - {rule: in_set, values: [open, closed], on_fail: quarantine}
+unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]

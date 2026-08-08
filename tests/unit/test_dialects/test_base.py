@@ -11,12 +11,18 @@ from sqlglot import exp
 
 from bloomery.dialects import (
     DialectFeature,
+    DialectPort,
     DuckDBDialect,
+    PostgresDialect,
     SQLGlotDialect,
+    TrinoDialect,
     get_dialect,
     register_dialect,
+    registered_dialects,
 )
+from bloomery.emit.base import Feature
 from bloomery.errors import EmitError
+from bloomery.quality.pattern import unsupported_dialects
 from bloomery.typing import DecimalType, StringType
 
 pytestmark = pytest.mark.unit
@@ -55,6 +61,39 @@ def test_register_dialect_collision_is_an_error() -> None:
         register_dialect(DuckDBDialect())
 
 
+def test_registered_dialects_is_sorted_and_includes_the_overlay() -> None:
+    """The public registry enumeration (RFC 0008 D8) — the D56 escape hatch
+    builds an explicit dialect set for ``unsupported_dialects`` from it, so it
+    must see extension registrations and stay sorted."""
+    assert tuple(d.name for d in registered_dialects()) == ("duckdb", "postgres", "trino")
+    register_dialect(_Custom())
+    assert tuple(d.name for d in registered_dialects()) == (
+        "custom",
+        "duckdb",
+        "postgres",
+        "trino",
+    )
+
+
+def test_pattern_check_does_not_consult_the_mutable_registry() -> None:
+    """RFC 0016 D56: registering a dialect must not change any verdict the
+    compile stage reaches. A port that refuses every regex would flip
+    ``unsupported_dialects`` if the check read the registry — it does not."""
+
+    class _NoRegex(SQLGlotDialect):
+        name = "noregex"
+        sqlglot_dialect = "duckdb"
+
+        def supports(self, feature: DialectFeature) -> bool:
+            return feature is not DialectFeature.REGEXP_EXTRACT
+
+    before = unsupported_dialects("^ok$")
+    register_dialect(_NoRegex())
+    assert unsupported_dialects("^ok$") == before == ()
+    # ...and the explicit-argument hatch is what *does* see it.
+    assert unsupported_dialects("^ok$", dialects=registered_dialects()) == ("noregex",)
+
+
 def test_base_render_is_deterministic() -> None:
     node = exp.cast(exp.column("x"), exp.DataType.build("TEXT"))
     assert _Custom().render(node) == _Custom().render(node)
@@ -70,3 +109,23 @@ def test_base_physical_types() -> None:
     dialect = _Custom()
     assert dialect.physical_type(StringType()) == "TEXT"
     assert dialect.physical_type(DecimalType(12, 4)) == "DECIMAL(12, 4)"
+
+
+@pytest.mark.parametrize(
+    "dialect",
+    [DuckDBDialect(), PostgresDialect(), TrinoDialect()],
+    ids=lambda dialect: dialect.name,
+)
+def test_every_shipped_dialect_has_arrays(dialect: DialectPort) -> None:
+    # RFC 0016 D9: array support is an *engine* property, so it is a
+    # DialectFeature rather than a target Feature — SQLMesh-on-DuckDB and
+    # dbt-on-DuckDB share it (the RFC 0008 D1 split). All three shipped
+    # engines have a first-class array type (DuckDB STRING[], Postgres
+    # TEXT[], Trino ARRAY(VARCHAR)), so none takes the delimited fallback.
+    assert dialect.supports(DialectFeature.ARRAY)
+
+
+def test_array_is_a_dialect_feature_not_a_target_feature() -> None:
+    # the deliberate divergence from Document 5 §5.3, recorded as a test
+    assert "array" in {feature.value for feature in DialectFeature}
+    assert "array" not in {feature.value for feature in Feature}

@@ -69,8 +69,9 @@ other change, breaking included, is classified and returned. See
 
 ### `Plan`
 
-`changes` (sorted `Change` tuple), `backfill_scope` (`BackfillScope`), and
-`downstream_impact` (affected metric names). Properties: `has_changes`, `breaking`.
+`changes` (sorted `Change` tuple), `backfill_scope` (`BackfillScope`), `replay_scope`
+(`ReplayScope`), and `downstream_impact` (affected metric names). Properties:
+`has_changes`, `breaking`.
 
 ### `Change`
 
@@ -86,6 +87,20 @@ The closed classification vocabulary: `ADDITIVE`, `WIDENING`, `RENAME`, `RESTATI
 
 `entities` — the sorted entities whose stored rows a plan invalidates — and
 `restates_history`, true when any RESTATING change is present.
+
+### `ReplayScope`
+
+`entities` — the sorted entities whose `<entity>__reject` tables a plan invalidates.
+Distinct from `BackfillScope` because the two name different storage: a backfill
+recomputes an entity from bronze, while a replay re-runs the current mapping against
+rows that are not in bronze's incremental window at all. Populated only where a change
+can actually free rows: the **old** disposition was `quarantine`, and the rule is now
+gone, now disposes as `flag`, or has relaxed parameters. A tightening — a narrowed
+bound, or `quarantine → fail` — needs a backfill and no replay: every quarantined row
+still fails the rule, so replaying it drains nothing. Where relaxation is undecidable
+from the parameters (a `pattern` regex, an `expression`), the replay is reported.
+bloomery emits the replay merge artifact; executing it is the caller's. See [Add quality
+rules](../how-to/add-quality-rules.md).
 
 ## Request-time planning
 

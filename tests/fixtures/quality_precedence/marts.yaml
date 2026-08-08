@@ -1,0 +1,19 @@
+# One mart over `q_line`, and it exists for one claim: RFC 0016 §5.5's promise
+# that "revenue excluding flagged rows becomes a plain `MetricRequest`". That
+# promise is carried entirely by the generated `has_quality_flags` dimension,
+# which the mart flattens in from the base entity's `_quality_ok` — so a mart
+# is the only place its **polarity** is observable at all. Without one, an
+# inverted dimension (a constant FALSE, say) is invisible to every execution,
+# property and conservation assertion in the suite.
+#
+# The population is chosen so both truth values appear: `r09` fires the `fail`
+# rule and is diverted by nothing, so it reaches the mart flagged, while the
+# rows the split diverted never reach it at all (D15).
+marts_version: 1
+marts:
+  lines:
+    grain: q_line
+    base: q_line
+    flatten:
+      - {date: order_date, role: ordered}
+    measures: [line_amount_total]

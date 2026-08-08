@@ -29,15 +29,64 @@ Ambiguities RFC 0007 §10 leaves to the implementation, settled here:
 - ``required`` tightening (optional → required) is BREAKING per D7 but does
   not trigger the expand/contract refusal: it constrains writes, not the
   reads a metric performs; only type narrowing and drops do.
+
+RFC 0016 §5.7 amends the stage with the data-quality surface. Its rules, and
+the three questions §5.7 leaves open, settled here (each classification is
+unit-tested per branch):
+
+- **Rules and dedupe are RESTATING.** Adding, removing, or changing any
+  quality rule, changing a disposition in **either** direction, and changing
+  ``dedupe.keep``/``field``/``tie_break`` all change which rows the entity
+  stores and what its history means — RESTATING, backfilling the entity.
+- **Replay is narrower than backfill.** ``Plan.replay_scope`` names the
+  entities whose ``<entity>__reject`` tables must be drained, and is populated
+  only where a change can actually free rows — see :func:`_replay` for the
+  three-line rule and why ``quarantine → fail`` and a narrowed bound are not
+  among them. A scope naming entities with nothing to replay is a scope
+  nobody can act on; worse, it feeds a replay runner rows the run will only
+  quarantine (or now halt) on again.
+- **A disposition is diffed as the author wrote it.** ``referential`` carries
+  ``on_missing``, whose ``unknown_member`` value routes like ``flag`` but
+  emits a different model, so the diff compares the authored label rather
+  than the ``OnFail`` it collapses to (:func:`_disposition_label`).
+- **``quarantine:`` retention is metadata; widening ``redact:`` is not.**
+  Retention governs *deletion policy*, not any stored value → ADDITIVE.
+  Narrowing ``redact:`` (redacting fewer paths) is ADDITIVE too — more payload
+  is kept from now on, nothing stored changes. **Widening** it is RESTATING:
+  it destroys payload going forward, so the reject table's ``raw`` means
+  something different after the change than before. It carries **no** backfill
+  and **no** replay, deliberately: neither can restore a payload the write
+  path is now destroying, and pretending otherwise would send a caller to run
+  jobs that cannot help. The two are **not** alternatives: a *swap* widens and
+  narrows at once and reports as both, because the un-redaction — a path the
+  reject table used to scrub and now stores — is a PII-governance fact of its
+  own (§5.6, D59).
+- **The reject table's own stored schema is diffed too** (D60):
+  ``mapping_version:`` is a stored column of that schema and ``unmapped:``
+  decides which bronze columns ``raw`` carries, so both change the emitted
+  ``<entity>__reject`` model while changing no entity row. See
+  :func:`_reject_schema_changes` for the classification and why it reports
+  nothing on an entity with no ``quarantine:`` block.
+- **``reconcile`` changes are RESTATING at the check, never at an entity.** A
+  reconcile check materializes its own model over history (§5.3), so changing
+  or removing one changes every historical row of that model — but it routes
+  no row and invalidates no entity, so ``backfill_scope.entities`` stays
+  empty. Adding one is ADDITIVE, not RESTATING: RFC 0007 D2's initial-deploy
+  property (``plan(None, ir)`` is all-ADDITIVE) is normative, and an initial
+  deploy adds every reconcile check there is.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from decimal import Decimal, InvalidOperation
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Final
 
 from bloomery.errors import ContractViolation, PlanError, RenameTargetMissing
-from bloomery.plan.model import BackfillScope, Change, ChangeClass, Plan
+from bloomery.ir import OnFail
+from bloomery.plan.model import BackfillScope, Change, ChangeClass, Plan, ReplayScope
+from bloomery.quality import disposition, payload_key
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -51,12 +100,18 @@ from bloomery.typing import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from bloomery.ir import (
         ColumnIR,
+        DedupeIR,
         EntityIR,
         MartIR,
         MetricIR,
         ProjectIR,
+        QualityRuleIR,
+        QuarantineIR,
+        ReconcileIR,
         TransformStepIR,
     )
 
@@ -103,6 +158,8 @@ class _Acc:
 
     changes: list[Change] = field(default_factory=list[Change])
     backfill: set[str] = field(default_factory=set[str])
+    #: Entities whose reject tables a relaxation frees rows from (RFC 0016 §5.7).
+    replay: set[str] = field(default_factory=set[str])
     #: Names whose meaning/shape changed — the downstream-impact seeds.
     seeds: set[str] = field(default_factory=set[str])
     #: Dropped/narrowed fields: (display name, kind, reference names).
@@ -425,8 +482,448 @@ def _column_pair(
         )
 
 
+# ....................... #
+# Data quality (RFC 0016 §5.7 — the RFC 0007 amendment). Read the module
+# docstring's four bullets: this section implements exactly them.
+
+
+def _rule_identity(rule: QualityRuleIR) -> tuple[str, str, str]:
+    """What makes two rules *the same rule* across two IRs.
+
+    Names are generated deterministically from the rule's kind, column and
+    shape, so ``(kind, column, name)`` matches a rule to its successor across
+    a settings change (``range min: 0`` → ``min: 5`` keeps its name) while a
+    rule that changed shape (``min`` → ``max``) reads as one rule removed and
+    another added — which is what it is.
+    """
+    return (rule.kind, rule.column or "", rule.name)
+
+
+def _rule_settings(rule: QualityRuleIR) -> tuple[tuple[str, str], ...]:
+    """The rule's params minus its disposition, which is reported separately.
+
+    ``referential`` carries ``on_missing`` *as* a param, so leaving it in
+    would report a disposition change twice, in two different vocabularies.
+    """
+    return tuple((name, value) for name, value in rule.params if name != "on_missing")
+
+
+def _disposition_label(rule: QualityRuleIR) -> str:
+    """What the author wrote, not what it collapses to (RFC 0016 D51).
+
+    :func:`~bloomery.quality.disposition` answers a *routing* question — where
+    does a failing row go — and correctly maps ``unknown_member`` onto
+    ``FLAG``: the row is kept either way. But the diff asks a different
+    question, and the collapse made ``unknown_member ⇄ flag`` invisible: zero
+    changes, no backfill, ``has_changes`` False, while the emitted SQL gains or
+    loses its ``'__unknown__'`` CASE and every stored fk restates. D11 wants
+    disposition changes classified in **both** directions, so the label is the
+    authored value.
+    """
+    if rule.on_fail is not None:
+        return str(rule.on_fail)
+    return dict(rule.params)["on_missing"]
+
+
+#: Rule kinds whose params define an *ordered* admissible interval, so a
+#: relaxation is readable from the params alone.
+_BOUNDED_KINDS = frozenset({"length", "range"})
+#: Rule kinds whose params define an admissible *set*, ditto by inclusion —
+#: mapped to the param families that carry the **membership**.
+#:
+#: An allowlist, because the params carry more than membership: D62 gives an
+#: ``in_set`` holding any int a ``numeric_NNNN`` marker per member, whose
+#: *value* is the string ``"true"`` or ``"false"``. Flattening every param
+#: value into one set therefore mixed those markers in with the literals, and
+#: a set containing the literal ``"false"`` could be narrowed while the
+#: surviving marker kept the flattened set identical — a tightening reported
+#: as a relaxation, replaying rows that a narrowing cannot free. Naming the
+#: families that mean membership is what keeps the next param family from
+#: rejoining it silently; D62's claim that the markers are "read by the
+#: ``in_set`` builder alone" was already false when it was written.
+#:
+#: ``in_enum``'s set is the chain's ``enum_map`` — spellings and targets both
+#: reach the params (D49), and widening either one admits more raw values.
+_MEMBERSHIP_FAMILIES: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
+    {
+        "in_enum": ("spelling", "value"),
+        "in_set": ("value",),
+    }
+)
+_SET_KINDS = frozenset(_MEMBERSHIP_FAMILIES)
+
+
+def _members(kind: str, settings: tuple[tuple[str, str], ...]) -> frozenset[str]:
+    """The values a set-kind rule admits, read off the membership families
+    only — see :data:`_MEMBERSHIP_FAMILIES`. Param names are ``<family>_NNNN``
+    (:func:`bloomery.quality.lower._indexed`), so the family is the name with
+    its index suffix removed."""
+    families = _MEMBERSHIP_FAMILIES[kind]
+    return frozenset(value for name, value in settings if name.rsplit("_", 1)[0] in families)
+
+
+def _relaxed(old_rule: QualityRuleIR, new_rule: QualityRuleIR) -> bool | None:
+    """Whether the settings change admits **more** rows than before: ``True``
+    relaxed, ``False`` unchanged-or-tightened, ``None`` undecidable.
+
+    ``None`` is an honest answer, not a placeholder. A ``pattern``'s regex and
+    an ``expression``'s SQL are not orderable — ``^A+$`` → ``^B+$`` is neither
+    a widening nor a narrowing — and a ``coercible`` rule's params are the
+    source expressions it reads, which say nothing about castability. The
+    caller decides what to do with the three-valued answer (see
+    :func:`_replay`); it is not this function's business to pretend.
+    """
+    old_settings, new_settings = _rule_settings(old_rule), _rule_settings(new_rule)
+    if old_settings == new_settings:
+        return False
+    if old_rule.kind in _SET_KINDS:
+        # The param *names* are positions in a sorted list, so a set that grew
+        # or shrank changes them; only the membership families carry values.
+        return _members(new_rule.kind, new_settings) >= _members(old_rule.kind, old_settings)
+    old_params, new_params = dict(old_settings), dict(new_settings)
+    if old_rule.kind in _BOUNDED_KINDS and set(old_params) == set(new_params):
+        return _relaxed_bounds(old_params, new_params)
+    return None
+
+
+def _relaxed_bounds(old_params: dict[str, str], new_params: dict[str, str]) -> bool | None:
+    """A ``range``/``length`` interval widens iff its floor drops and its
+    ceiling rises. Bounds are stringified ``Decimal``s (never floats — RFC
+    0003 D5); anything that will not parse is undecidable rather than guessed.
+    """
+    try:
+        old_bounds = {bound: Decimal(value) for bound, value in old_params.items()}
+        new_bounds = {bound: Decimal(value) for bound, value in new_params.items()}
+    except InvalidOperation:  # pragma: no cover — the spec layer parses these first
+        return None
+    floor_dropped = "min" not in old_bounds or new_bounds["min"] <= old_bounds["min"]
+    ceiling_rose = "max" not in old_bounds or new_bounds["max"] >= old_bounds["max"]
+    return floor_dropped and ceiling_rose
+
+
+def _restates(acc: _Acc, entity: EntityIR, subject: str, detail: str, **reprs: str | None) -> None:
+    """One RESTATING quality change: recompute the entity, and seed the
+    downstream impact — every metric reading these columns reports different
+    numbers after it."""
+    acc.changes.append(
+        Change(
+            entity.name,
+            subject,
+            ChangeClass.RESTATING,
+            detail,
+            old=reprs.get("old"),
+            new=reprs.get("new"),
+        )
+    )
+    acc.backfill.add(entity.name)
+    acc.seeds |= _entity_columns_refs(entity)
+
+
+def _quality_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
+    """Rule add / remove / change, and the replay scope a relaxation opens."""
+    old_rules = {_rule_identity(rule): rule for rule in old_e.quality}
+    new_rules = {_rule_identity(rule): rule for rule in new_e.quality}
+    for identity in sorted(old_rules.keys() | new_rules.keys()):
+        kind, _column, name = identity
+        subject = f"quality:{name}"
+        old_rule = old_rules.get(identity)
+        new_rule = new_rules.get(identity)
+        if old_rule is None and new_rule is not None:
+            _restates(
+                acc,
+                new_e,
+                subject,
+                f"quality rule added ({kind})",
+                new=_disposition_label(new_rule),
+            )
+            continue
+        if old_rule is not None and new_rule is None:
+            _restates(
+                acc,
+                new_e,
+                subject,
+                f"quality rule removed ({kind})",
+                old=_disposition_label(old_rule),
+            )
+            _replay(old_rule, None, new_e, acc)
+            continue
+        if old_rule is None or new_rule is None:  # pragma: no cover — one map held it
+            continue
+        old_label, new_label = _disposition_label(old_rule), _disposition_label(new_rule)
+        facets: list[str] = []
+        if old_label != new_label:
+            facets.append("disposition")
+        if _rule_settings(old_rule) != _rule_settings(new_rule):
+            facets.append("settings")
+        if not facets:
+            continue
+        _restates(
+            acc,
+            new_e,
+            subject,
+            f"quality rule changed ({', '.join(facets)})",
+            old=old_label,
+            new=new_label,
+        )
+        _replay(old_rule, new_rule, new_e, acc)
+
+
+def _replay(
+    old_rule: QualityRuleIR, new_rule: QualityRuleIR | None, entity: EntityIR, acc: _Acc
+) -> None:
+    """Name the entity's reject table only when this change can let rows that
+    are **sitting in it** back into the entity (RFC 0016 D52).
+
+    Two facts bound the question. Rows are in the reject table on this rule's
+    account only if it *used to* quarantine — so a rule that flagged, failed,
+    or kept its rows via ``unknown_member`` opens no replay whatever happens to
+    it. And a replay is worth running only if some quarantined row now comes
+    out the other side:
+
+    - the rule is **gone** — every row it diverted returns;
+    - its disposition is now ``flag`` (``unknown_member`` included, D19: the
+      row is kept with its fk rewritten) — §5.7's named case;
+    - its parameters **relaxed** — the rows the widened bound now admits
+      return, whatever happens to the ones that still fail.
+
+    What is deliberately *not* a replay: ``quarantine → fail`` at unchanged
+    parameters, and a **tightening**. Both leave every quarantined row still
+    violating the rule, so a replay drains nothing — and under ``fail`` it is
+    actively harmful, feeding a replay runner rows that trip the new blocking
+    audit and halt the pipeline. Naming them was the shipped behaviour and it
+    contradicted this module's own docstring.
+
+    Where :func:`_relaxed` cannot tell (an unorderable ``pattern`` or
+    ``expression``), the replay **is** reported. That is the conservative
+    direction on purpose: a scope with nothing to drain costs a no-op MERGE,
+    while a missing one strands rows in quarantine until someone notices by
+    hand — and §5.6's whole point is that quarantine is drop *plus*
+    recoverability.
+    """
+    if disposition(old_rule) is not OnFail.QUARANTINE:
+        return
+    if new_rule is None or disposition(new_rule) is OnFail.FLAG:
+        acc.replay.add(entity.name)
+        return
+    if _relaxed(old_rule, new_rule) is not False:
+        acc.replay.add(entity.name)
+
+
+def _dedupe_repr(dedupe: DedupeIR | None) -> tuple[str, str, str]:
+    if dedupe is None:
+        return ("", "", "")
+    return (dedupe.keep, dedupe.field, ", ".join(dedupe.tie_break))
+
+
+def _dedupe_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
+    """``keep``/``field``/``tie_break`` decide *which row wins* per key, so a
+    change to any of them changes stored history (§5.7). Adding or removing
+    the block is the same statement in the limit."""
+    old_repr, new_repr = _dedupe_repr(old_e.dedupe), _dedupe_repr(new_e.dedupe)
+    if old_repr == new_repr:
+        return
+    facets = [
+        label
+        for label, old_part, new_part in zip(
+            ("keep", "field", "tie_break"), old_repr, new_repr, strict=True
+        )
+        if old_part != new_part
+    ]
+    _restates(
+        acc,
+        new_e,
+        f"dedupe:{new_e.name}",
+        f"dedupe changed ({', '.join(facets)})",
+        old=" / ".join(old_repr) or None,
+        new=" / ".join(new_repr) or None,
+    )
+
+
+def _quarantine_repr(quarantine: QuarantineIR | None) -> tuple[str, frozenset[str]]:
+    if quarantine is None:
+        return ("", frozenset())
+    return (quarantine.retention, frozenset(quarantine.redact))
+
+
+def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
+    """Retention is deletion *policy* → ADDITIVE; a widened ``redact:``
+    destroys payload going forward → RESTATING with no backfill and no replay
+    (neither can restore what the write path now removes).
+
+    Removing the block entirely is neither: it is BREAKING. Reading it as a
+    retention edit to ``""`` called a deletion "policy only" — but the
+    ``<entity>__reject`` model stops being emitted, and every unresolved row
+    still sitting in it goes with it. RFC 0016 D2 buys quarantine over drop
+    precisely for recoverability, and §5.6 names retention as the *only*
+    deleter; a migration that deletes reject rows by removing the table is
+    both of those undone, and the plan has to say so.
+    """
+    subject = f"quarantine:{new_e.name}"
+    old_retention, old_redact = _quarantine_repr(old_e.quarantine)
+    new_retention, new_redact = _quarantine_repr(new_e.quarantine)
+    if old_e.quarantine is not None and new_e.quarantine is None:
+        acc.changes.append(
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.BREAKING,
+                f"quarantine block removed — {new_e.name}__reject is no longer emitted and "
+                "its unresolved rows are discarded by something that is not retention "
+                "(RFC 0016 §5.6, D2). Drain the reject table via replay before applying",
+                old=old_retention or None,
+                new=None,
+            )
+        )
+    elif old_retention != new_retention:
+        acc.changes.append(
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.ADDITIVE,
+                "quarantine retention changed (policy only)",
+                old=old_retention or None,
+                new=new_retention or None,
+            )
+        )
+    # Not mutually exclusive: a **swap** is a widening and a narrowing at once,
+    # and an ``elif`` here dropped the un-redaction — the caller was told payload
+    # is being destroyed but never that a previously-scrubbed path is now being
+    # written into ``raw``, which is a PII-governance fact (§5.6, D59).
+    widened = sorted(new_redact - old_redact)
+    narrowed = sorted(old_redact - new_redact)
+    if widened:
+        acc.changes.append(
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.RESTATING,
+                f"quarantine redact widened ({', '.join(widened)}) — reject payloads written "
+                "from now on carry less than the stored ones; no backfill or replay can "
+                "restore a redacted path",
+            )
+        )
+    if narrowed:
+        acc.changes.append(
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.ADDITIVE,
+                f"quarantine redact narrowed ({', '.join(narrowed)}) — reject payloads written "
+                "from now on carry a path the stored ones scrubbed",
+            )
+        )
+
+
+def _raw_payload_columns(entity: EntityIR) -> frozenset[str]:
+    """The bronze **columns** the reject table's ``raw`` carries, redaction
+    aside — mapped and acknowledged-``unmapped:`` paths alike, keyed by
+    top-level column exactly as ``_payload_columns`` keys them
+    (:mod:`bloomery.emit.lowering`, §5.6).
+
+    Keying by column rather than by path is what makes the comparison honest in
+    both directions: ``$.a.b`` → ``$.a.c`` emits the identical model, and a path
+    moving between ``fields:`` and ``unmapped:`` leaves ``raw`` untouched.
+    Redaction is diffed by :func:`_quarantine_changes` and deliberately left out
+    here, so a ``redact:`` edit is never reported twice.
+    """
+    paths = {field.source_path for field in entity.source.fields} | set(entity.source.unmapped)
+    return frozenset(payload_key(path) for path in paths)
+
+
+def _reject_schema_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
+    """``mapping_version:`` and the ``raw`` payload's column set are stored
+    facts of ``<entity>__reject`` (§5.6) that no other subject reports (D60).
+
+    Both are gated on a reject table existing on **both** sides: without a
+    ``quarantine:`` block no reject model is emitted, so neither field reaches
+    an artifact and reporting it would be a change nobody can act on (the D52
+    discipline). Adding or removing the block is already reported as its own
+    retention change.
+
+    ``mapping_version`` is ADDITIVE: it is a provenance stamp, and a stored
+    reject row still correctly records the version that rejected it (the merge
+    re-stamps only rows it re-observes, alongside ``last_seen`` — D36).
+
+    The payload set mirrors ``redact:``: **widened** is ADDITIVE (more is kept
+    from now on, nothing stored changes), **narrowed** is RESTATING with no
+    backfill and no replay — reject rows written from now on carry less than the
+    stored ones, and neither job can restore a column the write path no longer
+    projects.
+    """
+    if old_e.quarantine is None or new_e.quarantine is None:
+        return
+    subject = f"quarantine:{new_e.name}"
+    if old_e.source.mapping_version != new_e.source.mapping_version:
+        acc.changes.append(
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.ADDITIVE,
+                "mapping_version changed (reject provenance stamp)",
+                old=str(old_e.source.mapping_version),
+                new=str(new_e.source.mapping_version),
+            )
+        )
+    old_raw, new_raw = _raw_payload_columns(old_e), _raw_payload_columns(new_e)
+    gained = sorted(new_raw - old_raw)
+    lost = sorted(old_raw - new_raw)
+    if gained:
+        acc.changes.append(
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.ADDITIVE,
+                f"reject payload widened ({', '.join(gained)}) — raw carries bronze columns "
+                "the stored reject rows do not",
+            )
+        )
+    if lost:
+        acc.changes.append(
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.RESTATING,
+                f"reject payload narrowed ({', '.join(lost)}) — raw stops carrying bronze "
+                "columns the stored reject rows have; no backfill or replay can restore a "
+                "column the write path no longer projects",
+            )
+        )
+
+
+def _reconcile_definition(check: ReconcileIR) -> tuple[str, str, str, str]:
+    return (check.left, check.right, str(check.tolerance), str(check.on_fail))
+
+
+def _diff_reconcile(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
+    """Reconcile checks are project-level: they relate two entities and belong
+    to neither, so they never enter ``backfill_scope`` (§5.7)."""
+    old_map = {check.name: check for check in old.reconcile} if old is not None else {}
+    new_map = {check.name: check for check in new.reconcile}
+    for name in sorted(old_map.keys() | new_map.keys()):
+        subject = f"reconcile:{name}"
+        if name not in old_map:
+            acc.changes.append(Change(None, subject, ChangeClass.ADDITIVE, "reconcile check added"))
+        elif name not in new_map:
+            acc.changes.append(
+                Change(None, subject, ChangeClass.RESTATING, "reconcile check removed")
+            )
+        elif _reconcile_definition(old_map[name]) != _reconcile_definition(new_map[name]):
+            acc.changes.append(
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.RESTATING,
+                    "reconcile check changed — every row it recorded restates",
+                )
+            )
+
+
 def _entity_pair(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
     _entity_level_changes(old_e, new_e, acc)
+    _quality_changes(old_e, new_e, acc)
+    _dedupe_changes(old_e, new_e, acc)
+    _quarantine_changes(old_e, new_e, acc)
+    _reject_schema_changes(old_e, new_e, acc)
     renames = _rename_map(old_e, new_e)
     renamed_targets = set(renames.values())
     old_cols = {column.name: column for column in old_e.columns}
@@ -772,7 +1269,10 @@ def plan(old: ProjectIR | None, new: ProjectIR) -> Plan:
     """Diff two project IRs into a classified :class:`Plan` (RFC 0007).
 
     ``plan(None, new)`` is the initial deploy — everything ADDITIVE with an
-    empty backfill scope; ``plan(ir, ir)`` is the empty plan (D2). Raises
+    empty backfill *and* replay scope; ``plan(ir, ir)`` is the empty plan
+    (D2). Data-quality changes classify per RFC 0016 §5.7 and populate
+    :attr:`Plan.replay_scope` where a relaxation frees quarantined rows a
+    backfill cannot reach (see the module docstring). Raises
     :class:`RenameTargetMissing` on a stale ``renamed_from`` annotation (D3)
     and :class:`ContractViolation` on an expand/contract breach (D5) — every
     other change, BREAKING included, is classified and returned.
@@ -789,6 +1289,7 @@ def plan(old: ProjectIR | None, new: ProjectIR) -> Plan:
     _diff_marts(old, new, acc)
     _diff_relationships(old, new, acc)
     _diff_date_dimension(old, new, acc)
+    _diff_reconcile(old, new, acc)
     _enforce_contract(old, new, acc)
     changes = tuple(sorted(acc.changes, key=_sort_key))
     return Plan(
@@ -800,4 +1301,5 @@ def plan(old: ProjectIR | None, new: ProjectIR) -> Plan:
             ),
         ),
         downstream_impact=_downstream_impact(new, acc.seeds),
+        replay_scope=ReplayScope(entities=tuple(sorted(acc.replay))),
     )

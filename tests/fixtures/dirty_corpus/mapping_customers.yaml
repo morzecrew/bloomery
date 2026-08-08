@@ -1,0 +1,10 @@
+mapping_version: 1
+source: dirty__customers
+target: dirty_customer
+key:
+  customer_id: {from: "$.customer_id", transform: [to_string]}
+fields:
+  # C-QUAR's tier is unparseable, which is what makes refs.csv's
+  # `_parent_status: quarantined` rows genuine orphans *after* cleansing.
+  tier: {from: "$.tier", transform: [to_int]}
+unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]

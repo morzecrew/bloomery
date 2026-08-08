@@ -1,0 +1,23 @@
+mapping_version: 1
+source: dirty__enums
+target: dirty_status
+key:
+  case_name: {from: "$._case", transform: [to_string]}
+fields:
+  # `in_enum`'s admissible set is this chain's own enum_map targets, never
+  # restated (RFC 0016 §5.2) — widening the enum means editing this one list.
+  status:
+    from: "$.raw_status"
+    transform:
+      - to_string
+      - {enum_map: [paid, paid, pending, pending, refunded, refunded]}
+    quality:
+      - {rule: in_enum, on_fail: quarantine}
+  # The same membership question asked as a literal set, on the untouched text.
+  # A flag, so it records a second reason without moving any disposition.
+  status_text:
+    from: "$.raw_status"
+    transform: [to_string]
+    quality:
+      - {rule: in_set, values: [paid, pending, refunded], on_fail: flag}
+unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id", "$._expected", "$._note"]

@@ -2,9 +2,15 @@
 
 This page explains the checks that refuse plausible-but-wrong arithmetic: expressions
 that parse, typecheck, survive code review, and produce a number that is wrong. Seven
-guardrails run as a pure stage over the draft IR after typechecking; six raise, one
-deliberately does not. They target the bug class where the formula is right, the data
-is right, and the answer is 3× wrong.
+arithmetic guardrails run as a pure stage over the draft IR after typechecking; six
+raise, one deliberately does not. They target the bug class where the formula is right,
+the data is right, and the answer is 3× wrong.
+
+A second family joined the same stage with data quality: refusals of `quality:`,
+`dedupe:`, `quarantine:` and `reconcile:` declarations that cannot mean anything
+(below). Both families share the definition — **a guardrail says the model is wrong**,
+decidable from the spec alone, at compile time. What a rule does to a *row* at run time
+is [data quality](data-quality.md)'s business, not this stage's.
 
 !!! danger "Errors, never warnings"
 
@@ -151,6 +157,44 @@ Optional per-field `assert:` clauses — `min`, `max`, `not_null`, `enum` member
 validates each clause statically against the field's logical type: `min`/`max` on a
 string field, or a `regex` on a numeric one, is `AssertLoweringError` — an assertion
 that can never run is a silent hole in the audit net.
+
+## Data-quality declarations
+
+Declaring what happens to a bad *row* is run-time work, but declaring it **incoherently**
+is a model error, so these refusals live here:
+
+| Refusal | What the spec got wrong |
+|---|---|
+| `DedupeTieBreakMissing` | `keep: latest_by` with no `tie_break` — rows sharing a timestamp make the winner arbitrary, and a nondeterministic model makes backfills disagree with the runs they replace |
+| `DedupeDispositionConflict` | A `coercible` rule weaker than `fail` on a column the dedupe order reads; an uncastable value there leaves the order undefined, so the weaker disposition is a contradiction rather than a preference |
+| `QuarantineRetentionMissing` | A rule can quarantine but no `quarantine:` block says for how long. Reject rows hold raw source payloads — this is the sort of thing that is trivial now and a legal problem in eighteen months |
+| `IngestionMetadataMissing` | An entity using `quarantine:`/`dedupe:` whose mapping neither maps nor acknowledges `_load_id`, `_ingested_at`, `_source_row_id` |
+| `RedactionConflict` | A `redact:` path the mapping also reads — you cannot both require a field and destroy it at write time, because replay re-runs the mapping against `raw` |
+
+Nine more refuse as bare `GuardrailError`s, without a class of their own: a `pattern`
+rule one of the shipped dialect ports has no regex surface for; a `dedupe` clause
+ordering by a column the entity does not declare; a `referential` rule whose `via` names
+no relationship, one whose `via` names a relationship declared *from* another entity, and
+one pointing back at its own entity; `unknown_member` on a non-string foreign key and
+`unknown_member` on a composite one; a malformed or unresolvable `reconcile` side; and a
+project metric colliding with a name the quality mart owns. The design authority names
+exactly five new leaves, and minting more would put names in `bloomery.errors` no RFC
+decided on — so these carry their argument in the message instead. The
+[errors reference](../reference/errors.md#data-quality-refusals-without-their-own-class)
+lists each with its trigger.
+
+Where the regex refusals happen is worth being precise about, because most of them are
+not this stage's. A lookahead — legal under Postgres's POSIX ARE, an aborted run under
+RE2 on DuckDB and Trino — never reaches the guardrail stage at all: `pattern` speaks a
+closed portable subset, so lookaround, backreferences, atomic groups, inline flags and
+`\A`/`\Z` are refused by name at **parse**, as a `SpecParseError`, alongside the missing
+anchors that would otherwise let `[0-9]{5}` accept `abc12345xyz`. What is left for this
+stage is the narrower, mechanical question a compiler that never executes SQL can
+honestly answer: does each shipped dialect declare a regex surface at all, and does the
+pattern text reach that dialect's SQL unchanged. The portability claim itself is carried
+by the subset, not by the round trip — but the principle is the arithmetic guards'
+applied to text, and it still costs an author one edit where not refusing costs someone
+a quarter of rows judged by a rule nobody wrote.
 
 The grain and additivity guards are the highest-value part of the package; the
 [wide-mart gold layer](wide-marts.md) shows how the mart design makes the same

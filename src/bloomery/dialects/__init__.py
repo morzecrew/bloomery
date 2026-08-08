@@ -26,6 +26,7 @@ __all__ = [
     "TrinoDialect",
     "get_dialect",
     "register_dialect",
+    "registered_dialects",
 ]
 
 _defaults: dict[str, DialectPort] = {
@@ -44,6 +45,29 @@ def register_dialect(dialect: DialectPort) -> None:
         msg = f"dialect {dialect.name!r} is already registered; shadowing is not allowed"
         raise EmitError(msg)
     _overlay[dialect.name] = dialect
+
+
+def registered_dialects() -> tuple[DialectPort, ...]:
+    """Every dialect the process knows — defaults plus overlay — sorted by
+    name.
+
+    Read what this is **not**: it is not what the compile stage checks
+    ``pattern`` quality rules against. That set is the immutable constant
+    :data:`~bloomery.quality.pattern.PATTERN_TARGET_DIALECTS`, precisely
+    because this function is process-global and mutable — an extension
+    dialect registered by an unrelated import could otherwise decide whether
+    an existing project compiles, the ambient dependency RFC 0003 forbids
+    (RFC 0016 D56).
+
+    Its use is the other side of that decision: D56's escape hatch is that a
+    caller targeting an extension dialect passes the set *explicitly* to
+    :func:`~bloomery.quality.pattern.unsupported_dialects`, and this is how
+    such a caller enumerates one that includes its own registration. Nothing
+    inside bloomery calls it, by design — a compile that consulted it would
+    not be a pure function of the specs.
+    """
+    merged = dict(_DEFAULT_DIALECTS) | _overlay
+    return tuple(merged[name] for name in sorted(merged))
 
 
 def get_dialect(name: str) -> DialectPort:

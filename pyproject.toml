@@ -143,6 +143,7 @@ markers = [
     "execution: Tier 4 — in-process DuckDB execution of compiled SQL",
     "engine(name): Tier 5 — testcontainers engine matrix; requires Docker; opt-in",
     "e2e: Tier 6 — target-framework acceptance (sqlmesh/dbt/cube); opt-in",
+    "chaos: Mutation meta-test — deforms the lowering and requires the M12 quality battery to notice (RFC 0016 §6); opt-in, runs pytest in a subprocess",
     "perf: Performance benchmark — bench lane (tests/bench), excluded from `just test`, scheduled CI (RFC 0009 §5.9, RFC 0014)",
 ]
 
@@ -196,6 +197,11 @@ exclude_lines = [
 # (RFC 0013 D11) guards the runtime surfaces the checker cannot.
 [tool.mypy]
 strict = true
+# Excluded for the same reason as ruff's `tests` entry: the gate runs
+# `mypy "src"`, and this keeps a bare `mypy .` from disagreeing with it.
+# mypy's `exclude` is a regex over paths and does not apply to files named
+# explicitly on the command line.
+exclude = ["^tests/"]
 
 # ....................... #
 # Import contracts
@@ -239,18 +245,33 @@ exclude_type_checking_imports = true
 # the compile path can import the planner, and the runtime/compile sibling
 # isolation below is unchanged — `planner → runtime` is a downward edge,
 # while `compile ↛ runtime` and `compile ↛ planner` stay forbidden.
+# M12 (RFC 0016 §5.9): `quality` is the run-time-rule *lowering* package —
+# spec blocks to IR nodes, IR nodes to dialect-neutral ASTs. It sits between
+# `guardrails` and `ir` because both of its consumers are above it: the
+# guardrail stage batches the data-quality refusals (guardrails → quality),
+# `resolve` lowers the spec blocks into the IR (resolve → quality), and the
+# emit side renders the predicates (emit → quality). `dialects` moves down to
+# just above `transforms` in the same change: the port reads only
+# `typing`/`errors`, and RFC 0016 §5.3 requires `pattern` rules to be
+# validated against **every registered dialect at compile time** — a
+# compile-stage need for the registry that the old placement (a sibling of
+# `emit`, above `resolve`) made unreachable. Nothing else moves: `emit` and
+# `compile` still sit above `dialects`, and the "emitters never import the
+# spec layer" contract below is unaffected.
 name = "Layered bloomery compile pipeline"
 type = "layers"
 layers = [
     "(bloomery.planner)",
     "(bloomery.compile) | (bloomery.runtime)",
-    "(bloomery.emit) | (bloomery.dialects)",
+    "(bloomery.emit)",
     "(bloomery.naming)",
     "(bloomery.plan)",
     "(bloomery.resolve)",
     "(bloomery.guardrails)",
+    "(bloomery.quality)",
     "(bloomery.marts)",
     "(bloomery.ir)",
+    "(bloomery.dialects)",
     "(bloomery.transforms)",
     "(bloomery.typing)",
     "(bloomery.spec)",
@@ -315,7 +336,18 @@ extend_exclude = ["spikes"]
 line-length = 100
 # hatch-vcs writes _version.py at build/sync time (gitignored) with its own
 # quoting style; generated code is not ours to format or lint.
-extend-exclude = ["src/bloomery/_version.py"]
+#
+# `tests` is excluded so every invocation agrees with the gate: `just quality`
+# passes "src" explicitly and the pre-commit hooks scope to ^src/, but a bare
+# `ruff check .` (or an editor running one) would otherwise walk the suite and
+# report findings CI never sees. Lint and type tooling targets src only — the
+# house convention; the trade is that test code carries no lint floor.
+extend-exclude = ["src/bloomery/_version.py", "tests"]
+# Honour the exclusions even when a path is passed explicitly. Without this,
+# `ruff check tests/foo.py` — which is what pre-commit and editor-on-save
+# integrations do — lints an excluded file anyway, so the exclusion would hold
+# for a tree walk and leak for the two paths people actually hit.
+force-exclude = true
 
 [tool.ruff.lint]
 select = [

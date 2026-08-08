@@ -10,35 +10,21 @@ from __future__ import annotations
 from collections.abc import Iterator
 from datetime import date
 from decimal import Decimal
-from pathlib import PurePosixPath
 
 import duckdb
 import pytest
 
-from bloomery.emit import ArtifactKind, EmittedArtifact
-from support.compiling import compile_fixture, extract_select
+from support.compiling import compile_fixture
+from support.execution import materialize, warehouse
 
 pytestmark = pytest.mark.execution
 
 
 @pytest.fixture
 def conn() -> Iterator[duckdb.DuckDBPyConnection]:
-    connection = duckdb.connect(":memory:")
-    connection.execute("SET TimeZone = 'UTC'")
-    for schema in ("bronze", "silver", "gold"):
-        connection.execute(f"CREATE SCHEMA {schema}")
+    connection = warehouse()
     yield connection
     connection.close()
-
-
-def materialize(conn: duckdb.DuckDBPyConnection, artifacts: tuple[EmittedArtifact, ...]) -> None:
-    """CREATE TABLE per model artifact — silver before gold, because mart
-    SELECTs read the silver relations the entity models create."""
-    models = [a for a in artifacts if a.kind is ArtifactKind.MODEL]
-    for artifact in sorted(models, key=lambda a: (PurePosixPath(a.path).parent.name != "silver",)):
-        path = PurePosixPath(artifact.path)
-        namespace, relation = path.parent.name, path.stem
-        conn.execute(f"CREATE TABLE {namespace}.{relation} AS {extract_select(artifact.content)}")
 
 
 # ....................... #

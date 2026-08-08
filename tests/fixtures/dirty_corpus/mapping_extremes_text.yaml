@@ -1,0 +1,21 @@
+mapping_version: 1
+source: dirty__extremes_text
+target: dirty_text_extreme
+key:
+  case_name: {from: "$._case", transform: [to_string]}
+fields:
+  value:
+    from: "$.raw_value"
+    transform: [to_string]
+    quality:
+      # The two rules the `empty_string_vs_null` / `zero_length_row` pair
+      # separates: `not_null` owns the NULL, `length` owns the empty string.
+      - {rule: not_null, on_fail: quarantine}
+      - {rule: length, min: 1, max: 255, on_fail: quarantine}
+unmapped:
+  - "$._load_id"
+  - "$._ingested_at"
+  - "$._source_row_id"
+  - "$.raw_kind"
+  - "$._expected"
+  - "$._note"

@@ -5,6 +5,7 @@ proof itself — dbt and SQLMesh emit byte-identical SELECTs."""
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import cast
 
 import pytest
@@ -22,7 +23,9 @@ from bloomery.ir import (
     ColumnIR,
     EntityIR,
     Materialization,
+    OnFail,
     ProjectIR,
+    ReconcileIR,
     SCDKind,
     SourceIR,
     SqlExpr,
@@ -134,9 +137,7 @@ def test_materialization_lowers_to_a_config_header(
 
 
 def test_composite_key_incremental_renders_a_unique_key_list() -> None:
-    entity = _entity(
-        key=("item_id", "qty"), materialization=Materialization.INCREMENTAL_BY_KEY
-    )
+    entity = _entity(key=("item_id", "qty"), materialization=Materialization.INCREMENTAL_BY_KEY)
     model = _emit(entity)["models/silver/item.sql"]
     assert "unique_key=['item_id', 'qty']" in model.content
 
@@ -189,7 +190,11 @@ def test_audits_lower_to_schema_tests() -> None:
     assert model["data_tests"] == [
         {"dbt_utils.expression_is_true": {"expression": "qty <= 10"}},
         {"dbt_utils.expression_is_true": {"expression": "amount >= 0"}},
-        {"dbt_utils.expression_is_true": {"expression": "amount IS NOT DISTINCT FROM amount__direct"}},
+        {
+            "dbt_utils.expression_is_true": {
+                "expression": "amount IS NOT DISTINCT FROM amount__direct"
+            }
+        },
         {"dbt_utils.expression_is_true": {"expression": "REGEXP_MATCHES(sku, '^A-')"}},
     ]
     assert model["columns"] == [
@@ -211,6 +216,31 @@ def test_unmappable_audit_kind_is_refused() -> None:
     entity = _entity(audits=(AuditIR(kind="freshness", column="sku"),))
     with pytest.raises(UnsupportedByTarget, match=r"'item'.*'freshness'.*'sku'"):
         DbtEmitter().emit(ProjectIR(entities=(entity,)), _ctx())
+
+
+def test_reconcile_refusal_names_the_check_and_the_decision_authorizing_it() -> None:
+    """RFC 0016 §5.4's target-coverage sentence scopes dbt's refusal to the
+    reject/replay artifacts; the reconcile refusal is a *separate* claim, and
+    an unauthorized refusal is exactly the "code contradicts the RFC" defect.
+    D58 authorizes it, so the message that stops the compile cites the row a
+    reader can check it against."""
+    check = ReconcileIR(
+        name="totals_match",
+        left="sum(item.amount) by order_id",
+        right="order.total",
+        tolerance=Decimal("0.01"),
+        on_fail=OnFail.FLAG,
+    )
+    with pytest.raises(UnsupportedByTarget) as excinfo:
+        DbtEmitter().emit(ProjectIR(entities=(_entity(),), reconcile=(check,)), _ctx())
+    message = str(excinfo.value)
+    assert "totals_match" in message
+    assert "RFC 0016 D58" in message
+    # It refuses the *reconcile* surface, not the reject/replay one — naming the
+    # wrong thing is how the scope crept in the first place.
+    assert "non-blocking" in message
+    assert "__reject" not in message
+    assert excinfo.value.source_path == "entity_model: reconcile"
 
 
 def test_scaffold_and_sources_artifacts() -> None:

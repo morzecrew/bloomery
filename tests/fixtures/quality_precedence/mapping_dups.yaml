@@ -1,0 +1,24 @@
+mapping_version: 1
+source: q__dups
+target: q_dup
+key:
+  group_id: {from: "$.group_id", transform: [to_string]}
+fields:
+  # The set the replay test widens. Two bronze rows share one entity key and
+  # both carry a status outside it, so both are diverted — and when the set is
+  # widened both become replay candidates for the *same* key.
+  status:
+    from: "$.status"
+    transform: [to_string]
+    quality:
+      - {rule: in_set, values: [open, closed], on_fail: quarantine}
+  # `coercible` at `fail` — the disposition whose audit has to keep meaning
+  # "the projection is NULL although its source was not". A genuinely null
+  # source is not a coercion failure, and an audit that cannot tell the two
+  # apart has quietly become `not_null` (RFC 0016 §5.2, D19).
+  note:
+    from: "$.note"
+    transform: [to_string]
+    quality:
+      - {rule: coercible, on_fail: fail}
+unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
