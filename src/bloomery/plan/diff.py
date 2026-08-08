@@ -80,7 +80,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
-from typing import TYPE_CHECKING
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Final
 
 from bloomery.errors import ContractViolation, PlanError, RenameTargetMissing
 from bloomery.ir import OnFail
@@ -99,6 +100,8 @@ from bloomery.typing import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from bloomery.ir import (
         ColumnIR,
         DedupeIR,
@@ -525,10 +528,38 @@ def _disposition_label(rule: QualityRuleIR) -> str:
 #: Rule kinds whose params define an *ordered* admissible interval, so a
 #: relaxation is readable from the params alone.
 _BOUNDED_KINDS = frozenset({"length", "range"})
-#: Rule kinds whose params define an admissible *set*, ditto by inclusion.
+#: Rule kinds whose params define an admissible *set*, ditto by inclusion —
+#: mapped to the param families that carry the **membership**.
+#:
+#: An allowlist, because the params carry more than membership: D62 gives an
+#: ``in_set`` holding any int a ``numeric_NNNN`` marker per member, whose
+#: *value* is the string ``"true"`` or ``"false"``. Flattening every param
+#: value into one set therefore mixed those markers in with the literals, and
+#: a set containing the literal ``"false"`` could be narrowed while the
+#: surviving marker kept the flattened set identical — a tightening reported
+#: as a relaxation, replaying rows that a narrowing cannot free. Naming the
+#: families that mean membership is what keeps the next param family from
+#: rejoining it silently; D62's claim that the markers are "read by the
+#: ``in_set`` builder alone" was already false when it was written.
+#:
 #: ``in_enum``'s set is the chain's ``enum_map`` — spellings and targets both
 #: reach the params (D49), and widening either one admits more raw values.
-_SET_KINDS = frozenset({"in_enum", "in_set"})
+_MEMBERSHIP_FAMILIES: Final[Mapping[str, tuple[str, ...]]] = MappingProxyType(
+    {
+        "in_enum": ("spelling", "value"),
+        "in_set": ("value",),
+    }
+)
+_SET_KINDS = frozenset(_MEMBERSHIP_FAMILIES)
+
+
+def _members(kind: str, settings: tuple[tuple[str, str], ...]) -> frozenset[str]:
+    """The values a set-kind rule admits, read off the membership families
+    only — see :data:`_MEMBERSHIP_FAMILIES`. Param names are ``<family>_NNNN``
+    (:func:`bloomery.quality.lower._indexed`), so the family is the name with
+    its index suffix removed."""
+    families = _MEMBERSHIP_FAMILIES[kind]
+    return frozenset(value for name, value in settings if name.rsplit("_", 1)[0] in families)
 
 
 def _relaxed(old_rule: QualityRuleIR, new_rule: QualityRuleIR) -> bool | None:
@@ -547,9 +578,8 @@ def _relaxed(old_rule: QualityRuleIR, new_rule: QualityRuleIR) -> bool | None:
         return False
     if old_rule.kind in _SET_KINDS:
         # The param *names* are positions in a sorted list, so a set that grew
-        # or shrank changes them; only the values carry the membership.
-        old_values = {value for _name, value in old_settings}
-        return {value for _name, value in new_settings} >= old_values
+        # or shrank changes them; only the membership families carry values.
+        return _members(new_rule.kind, new_settings) >= _members(old_rule.kind, old_settings)
     old_params, new_params = dict(old_settings), dict(new_settings)
     if old_rule.kind in _BOUNDED_KINDS and set(old_params) == set(new_params):
         return _relaxed_bounds(old_params, new_params)
@@ -718,11 +748,33 @@ def _quarantine_repr(quarantine: QuarantineIR | None) -> tuple[str, frozenset[st
 def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
     """Retention is deletion *policy* → ADDITIVE; a widened ``redact:``
     destroys payload going forward → RESTATING with no backfill and no replay
-    (neither can restore what the write path now removes)."""
+    (neither can restore what the write path now removes).
+
+    Removing the block entirely is neither: it is BREAKING. Reading it as a
+    retention edit to ``""`` called a deletion "policy only" — but the
+    ``<entity>__reject`` model stops being emitted, and every unresolved row
+    still sitting in it goes with it. RFC 0016 D2 buys quarantine over drop
+    precisely for recoverability, and §5.6 names retention as the *only*
+    deleter; a migration that deletes reject rows by removing the table is
+    both of those undone, and the plan has to say so.
+    """
     subject = f"quarantine:{new_e.name}"
     old_retention, old_redact = _quarantine_repr(old_e.quarantine)
     new_retention, new_redact = _quarantine_repr(new_e.quarantine)
-    if old_retention != new_retention:
+    if old_e.quarantine is not None and new_e.quarantine is None:
+        acc.changes.append(
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.BREAKING,
+                f"quarantine block removed — {new_e.name}__reject is no longer emitted and "
+                "its unresolved rows are discarded by something that is not retention "
+                "(RFC 0016 §5.6, D2). Drain the reject table via replay before applying",
+                old=old_retention or None,
+                new=None,
+            )
+        )
+    elif old_retention != new_retention:
         acc.changes.append(
             Change(
                 new_e.name,

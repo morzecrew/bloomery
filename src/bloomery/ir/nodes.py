@@ -384,11 +384,15 @@ class EntityIR:
     """One silver entity: key in authored order (it is meaningful), columns
     sorted by name, audits sorted by (kind, column).
 
-    ``quality`` is sorted by ``(kind, column or "", name, params)`` — a total
-    key over the node's whole value, so permuting the authored rule order can
-    never change the IR even before rule names are generated, and two rules of
-    one kind on one column (``range min`` and ``range max``, §5.3's worked
-    example) still order deterministically by their bounds.
+    ``quality`` is sorted by :func:`quality_sort_key` —
+    ``(kind, column or "", name, params, on_fail)``, a total key over the
+    node's whole value, so permuting the authored rule order can never change
+    the IR even before rule names are generated, and two rules of one kind on
+    one column (``range min`` and ``range max``, §5.3's worked example) still
+    order deterministically by their bounds. The trailing ``on_fail`` is not
+    decoration: without it two rules differing only in disposition sort equal,
+    and name generation falls through to authored order (RFC 0016 D50). Read
+    that function, not this sentence, for the authority.
     """
 
     name: str

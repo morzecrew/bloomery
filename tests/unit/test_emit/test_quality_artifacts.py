@@ -18,7 +18,7 @@ from bloomery import Target, build_project_ir, compile_project
 from bloomery.dialects import get_dialect
 from bloomery.emit import ArtifactKind, EmitContext
 from bloomery.emit.sqlmesh import SQLMeshEmitter
-from bloomery.emit.lowering import REJECT_KEY, _schema_column, mart_select
+from bloomery.emit.lowering import REJECT_KEY, _schema_column, entity_select, mart_select
 from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.ir import MartJoinIR
 from bloomery.marts import HAS_QUALITY_FLAGS
@@ -341,11 +341,18 @@ def test_replay_merges_by_the_pipeline_dedupe_order() -> None:
     assert "MERGE INTO silver.inventory_level AS _target" in content
     assert "FROM silver.inventory_level__reject" in content
     assert "resolved_at IS NULL" in content
-    # The winner is decided by the dedupe total order, as a row comparison.
+    # The winner is decided by the dedupe total order — spelled per column and
+    # NULL-aware, *not* as a row constructor. `(a, b) > (c, d)` reads like the
+    # same question but orders NULL as the largest value, the inverse of the
+    # DESC NULLS LAST the pipeline ranks by; the two then disagreed on any
+    # nullable sort column. Asserting the absence matters as much as the
+    # presence: the old text is what this test used to pin.
     assert (
         "(_replay._ingested_at, _replay._load_id, _replay._source_row_id) > "
         "(_target._ingested_at, _target._load_id, _target._source_row_id)"
-    ) in content
+    ) not in content
+    assert "NOT _replay._ingested_at IS NULL AND _target._ingested_at IS NULL" in content
+    assert "_replay._ingested_at > _target._ingested_at" in content
     # Replay re-runs the *current mapping* against raw — the same expressions.
     assert "TRY_CAST(raw ->> '$.on_hand' AS BIGINT) AS stock_level" in content
 
@@ -375,8 +382,11 @@ def test_replay_without_a_dedupe_block_still_compares_by_the_row_identity() -> N
         for artifact in compile_fixture("dirty_corpus")
         if artifact.path == "replay/dirty_status.sql"
     )
-    assert "WHEN MATCHED AND (_replay._source_row_id) > (_target._source_row_id)" in content
+    assert "_replay._source_row_id > _target._source_row_id" in content
     assert "() > ()" not in content
+    # D21 guarantees the key is non-null, but the comparison is generated from
+    # the order, not from that guarantee, so it carries the same NULL arms.
+    assert "NOT _replay._source_row_id IS NULL" in content
 
 
 def test_replay_stamps_resolution_with_the_executing_engines_clock() -> None:
@@ -481,9 +491,32 @@ def test_postgres_refuses_the_metadata_audit_on_a_dedupe_only_entity() -> None:
 
 
 def test_trino_and_duckdb_both_express_the_marker() -> None:
+    """Both carry ``TRY_CAST``, so the coercion-failure marker means the same
+    thing on each — that is what this test is about, and it still holds."""
     project, catalog = load_fixture(FIXTURE)
+    ir = build_project_ir(project, catalog)
     for dialect in ("duckdb", "trino"):
-        assert compile_project(project, target=Target.SQLMESH, dialect=dialect, catalog=catalog)
+        ctx = EmitContext(
+            fingerprint="blm1:test", naming=DefaultNaming(), dialect=get_dialect(dialect)
+        )
+        assert "TRY_CAST" in entity_select(ir.entities[0], ctx).sql(dialect=dialect)
+
+
+def test_trino_refuses_the_reject_table_it_cannot_run() -> None:
+    """Trino keeps ``TRY_CAST`` and hosts everything else in RFC 0016, but
+    both constructions the reject table is built from are ones it rejects:
+    ``SHA256`` takes ``varbinary`` there, not text, and the positional
+    ``JSON_OBJECT('k', v)`` is not the spelling it parses. Verified against
+    ``trinodb/trino:483`` — the emitted model failed to plan, so it is refused
+    at emit instead of shipped as SQL the engine will not run."""
+    project, catalog = load_fixture(FIXTURE)
+    with pytest.raises(UnsupportedByTarget) as excinfo:
+        compile_project(project, target=Target.SQLMESH, dialect="trino", catalog=catalog)
+    message = str(excinfo.value)
+    assert "reject_id" in message
+    assert "JSON payloads" in message
+    # …and the dialect that carries both still compiles the same project.
+    assert compile_project(project, target=Target.SQLMESH, dialect="duckdb", catalog=catalog)
 
 
 def test_the_ir_still_compiles_for_every_dialect() -> None:

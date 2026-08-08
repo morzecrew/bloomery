@@ -46,6 +46,8 @@ __all__ = [
     "failed_rule_names",
     "grouped",
     "indexed_params",
+    "is_not_null",
+    "is_null",
     "params_of",
     "qualify_columns",
     "ref_alias",
@@ -91,12 +93,16 @@ def disjunction(parts: Sequence[Expression]) -> Expression:
     return node
 
 
-def _is_null(node: Expression) -> Expression:
+def is_null(node: Expression) -> Expression:
+    """``<node> IS NULL``. Public because the replay comparison in
+    :mod:`bloomery.emit.lowering` must express the same NULL discipline this
+    module owns, and two spellings of it is how they drift apart."""
     return exp.Is(this=node, expression=exp.null())
 
 
-def _is_not_null(node: Expression) -> Expression:
-    return exp.Not(this=_is_null(node))
+def is_not_null(node: Expression) -> Expression:
+    """``NOT <node> IS NULL`` — see :func:`is_null`."""
+    return exp.Not(this=is_null(node))
 
 
 # ....................... #
@@ -213,9 +219,9 @@ def _coercible(rule: QualityRuleIR, table: str | None) -> Expression:
     legitimate null, not a coercion failure.
     """
     column = exp.column(rule.column or "", table=table)
-    parts: list[Expression] = [_is_null(column)]
+    parts: list[Expression] = [is_null(column)]
     parts.extend(
-        _is_not_null(exp.column(source_alias(rule, index), table=table))
+        is_not_null(exp.column(source_alias(rule, index), table=table))
         for index, _source in enumerate(indexed_params(rule, "source"))
     )
     return conjunction(parts)
@@ -224,7 +230,7 @@ def _coercible(rule: QualityRuleIR, table: str | None) -> Expression:
 def _not_null(rule: QualityRuleIR, table: str | None) -> Expression:
     """One of the two null-owning rules: ``col IS NULL`` is two-valued by
     construction — it is never ``UNKNOWN``."""
-    return _is_null(exp.column(rule.column or "", table=table))
+    return is_null(exp.column(rule.column or "", table=table))
 
 
 def _bound_literal(value: str) -> Expression:
@@ -347,7 +353,7 @@ def _unique(rule: QualityRuleIR, table: str | None) -> Expression:
     return conjunction(
         [
             exp.GT(this=counted, expression=exp.Literal.number(1)),
-            _is_not_null(column.copy()),
+            is_not_null(column.copy()),
         ]
     )
 
@@ -369,8 +375,8 @@ def _referential(rule: QualityRuleIR, table: str | None) -> Expression:
     """
     alias = ref_alias(params_of(rule)["relationship"])
     pairs = [pair.split("=", 1) for pair in indexed_params(rule, "via")]
-    parts: list[Expression] = [_is_null(exp.column(pairs[0][1], table=alias))]
-    parts.extend(_is_not_null(exp.column(from_column, table=table)) for from_column, _to in pairs)
+    parts: list[Expression] = [is_null(exp.column(pairs[0][1], table=alias))]
+    parts.extend(is_not_null(exp.column(from_column, table=table)) for from_column, _to in pairs)
     return conjunction(parts)
 
 

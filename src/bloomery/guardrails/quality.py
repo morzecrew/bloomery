@@ -52,6 +52,7 @@ from bloomery.errors import (
 from bloomery.ir import OnFail
 from bloomery.quality import (
     INGESTION_METADATA,
+    QUALITY_MART,
     QUALITY_METRICS,
     SUPPORTED_SHAPES,
     ReconcileSide,
@@ -59,12 +60,13 @@ from bloomery.quality import (
     generated_rule_names,
     lower_quality,
     mapped_fields,
+    nullifying_steps,
     parse_side,
     payload_key,
     unsupported_dialects,
 )
 from bloomery.spec.mapping import RecipeFieldMapping, mapping_doc
-from bloomery.spec.quality import CoercibleRule, PatternRule, ReferentialRule
+from bloomery.spec.quality import CoercibleRule, InEnumRule, PatternRule, ReferentialRule
 from bloomery.typing import StringType, parse_type
 
 if TYPE_CHECKING:
@@ -83,13 +85,22 @@ def _entity_path(entity_name: str, suffix: str) -> str:
 
 
 def _read_paths(mapping: Mapping) -> tuple[str, ...]:
-    """Every JSONPath the mapping reads — key ``from``s, field ``from``s, and
-    every recipe alias binding (RFC 0016 §5.6 names the aliases explicitly).
-    ``unmapped:`` is *not* read: it is the acknowledged tail."""
+    """Every JSONPath the mapping reads — key ``from``s, field ``from``s,
+    every recipe alias binding (RFC 0016 §5.6 names the aliases explicitly),
+    and a recipe's ``direct:`` path. ``unmapped:`` is *not* read: it is the
+    acknowledged tail.
+
+    ``direct:`` counts because the path-conflict guardrail (RFC 0006 D7)
+    lowers it to a real ``<field>__direct`` column that replay rebuilds from
+    ``raw`` — redacting it would leave the replay reading a key redaction had
+    removed.
+    """
     paths: set[str] = {key_field.from_ for key_field in mapping.key.values()}
     for field_mapping in mapping.fields.values():
         if isinstance(field_mapping, RecipeFieldMapping):
             paths.update(field_mapping.from_.values())
+            if field_mapping.direct is not None:
+                paths.add(field_mapping.direct)
         else:
             paths.add(field_mapping.from_)
     return tuple(sorted(paths))
@@ -324,6 +335,62 @@ def _check_patterns(entity_name: str, mapping: Mapping) -> list[GuardrailError]:
     return errors
 
 
+def _check_chain_derived_rules(entity_name: str, mapping: Mapping) -> list[GuardrailError]:
+    """Two rules read a field's transform chain to decide what a violation is,
+    and both are only sound at a particular point in it (RFC 0016 §5.2).
+
+    ``in_enum``'s admissible set is the ``enum_map`` targets and spellings
+    (D49) — but the predicate compares the column's **final** value. A step
+    after the ``enum_map`` moves that value off the set the rule was built
+    from, so ``{enum_map: [paid, paid]}`` followed by ``upper`` quarantines
+    every correctly-mapped row: the column says ``PAID`` and the set says
+    ``paid``. Lowering the targets through the rest of the chain is not
+    available to a compiler that executes nothing — ``regex_extract`` and
+    ``split_part`` are only evaluable by running SQL (RFC 0003) — so the
+    chain is refused instead. Another ``enum_map`` may follow, because the
+    union of both steps' targets still contains every reachable final value.
+
+    ``coercible`` reads NULL output over non-NULL input as a failed cast, so
+    a chain that nulls a value on purpose makes it a false positive. The
+    implicit rule is simply not generated there
+    (:func:`~bloomery.quality.lower.nullifying_steps`); an **authored** one is
+    refused here rather than silently dropped, because a rule a human wrote
+    and a rule the compiler inferred do not deserve the same treatment.
+    """
+    errors: list[GuardrailError] = []
+    for column, field_mapping in mapped_fields(mapping):
+        if field_mapping is None or isinstance(field_mapping, RecipeFieldMapping):
+            continue
+        path = f"{mapping_doc(mapping)}: fields.{column}"
+        names = [step.name for step in field_mapping.transform]
+        if any(isinstance(rule, InEnumRule) for rule in field_mapping.quality):
+            last_enum = max((i for i, name in enumerate(names) if name == "enum_map"), default=-1)
+            trailing = [name for name in names[last_enum + 1 :] if name != "enum_map"]
+            if last_enum >= 0 and trailing:
+                msg = (
+                    f"field {column!r} of entity {entity_name!r} carries an in_enum rule but "
+                    f"its chain applies {', '.join(trailing)} after enum_map (RFC 0016 §5.2, "
+                    "D49). in_enum's admissible set is read off the enum_map, while the rule "
+                    "tests the column's final value — a later step moves that value off the "
+                    "set, quarantining every correctly-mapped row. Fix: move the step ahead "
+                    "of the enum_map, or drop the in_enum rule"
+                )
+                errors.append(GuardrailError(msg, source_path=f"{path}.quality"))
+        nullifying = nullifying_steps(field_mapping)
+        if nullifying and any(isinstance(rule, CoercibleRule) for rule in field_mapping.quality):
+            msg = (
+                f"field {column!r} of entity {entity_name!r} declares a coercible rule, but "
+                f"its chain applies {', '.join(nullifying)}, which returns NULL from a "
+                "non-NULL input deliberately (RFC 0016 §5.2). coercible's marker is 'the "
+                "output is NULL although a source was not', so it cannot tell a failed cast "
+                "from a sentinel the mapping was told to treat as missing, and would "
+                "quarantine rows for obeying the mapping. Fix: drop the coercible rule, or "
+                "move the nulling step to a field that carries no coercible rule"
+            )
+            errors.append(GuardrailError(msg, source_path=f"{path}.quality"))
+    return errors
+
+
 def _unknown_via(entity_name: str, rule: ReferentialRule, declared: list[str]) -> GuardrailError:
     """``via`` names no declared relationship (RFC 0016 D45).
 
@@ -441,9 +508,33 @@ def _check_referential(
     from the wrong entity cannot be asked about its fk's type. Each rule
     contributes at most one leaf — the first true statement about it — so an
     author reads a cause, not a cascade.
+
+    Repetition is refused first, and separately, because it is a statement
+    about the *pair* of rules rather than about either one. Each referential
+    rule lowers to a LEFT JOIN aliased ``_ref_<relationship>``
+    (:func:`~bloomery.quality.ref_alias`), so two rules through one
+    relationship emit two joins under one alias — ambiguous, and rejected by
+    DuckDB outright. Rule-unique aliases would be the wrong repair: they would
+    emit two identical joins and let one orphan carry two dispositions at
+    once, which is not a thing a row can obey. This is what makes
+    ``ref_alias``'s one-probe-per-relationship invariant true by construction,
+    the same guardrail-dependency shape as D48's ``sole_via_column``.
     """
     by_name = {relationship.name: relationship for relationship in relationships}
     errors: list[GuardrailError] = []
+    seen_via: set[str] = set()
+    for rule in entity.quality:
+        if isinstance(rule, ReferentialRule) and rule.via in by_name:
+            if rule.via in seen_via:
+                msg = (
+                    f"entity {entity_name!r} declares more than one referential rule through "
+                    f"relationship {rule.via!r}. Each lowers to a LEFT JOIN aliased "
+                    f"'_ref_{rule.via}', so the emitted model carries two joins under one "
+                    "alias and no engine can resolve it. Fix: keep one rule per "
+                    "relationship — a single disposition is all a missing parent can take"
+                )
+                errors.append(GuardrailError(msg, source_path=_entity_path(entity_name, "quality")))
+            seen_via.add(rule.via)
     for rule in entity.quality:
         if not isinstance(rule, ReferentialRule):
             continue
@@ -474,15 +565,27 @@ def _reconcile_path(check_name: str, suffix: str) -> str:
 
 
 def _resolve_side(
-    check_name: str, side: str, text: str, entities: dict[str, Entity]
+    check_name: str,
+    side: str,
+    text: str,
+    entities: dict[str, Entity],
+    mapped: frozenset[str],
 ) -> tuple[ReconcileSide | None, list[GuardrailError]]:
     """Parse one side and resolve it against the declared model.
 
-    Three refusals, all decidable from the spec alone (§5.9's test): the shape
-    is outside the closed grammar, the entity is not declared, or a named
-    column is not one of its fields. The keys a side compares by come back on
-    the resolved value — ``by`` columns for the aggregate shape, the entity's
-    declared key for the plain-column shape.
+    Four refusals, all decidable from the spec alone (§5.9's test): the shape
+    is outside the closed grammar, the entity is not declared, the entity is
+    declared but no mapping targets it, or a named column is not one of its
+    fields. The keys a side compares by come back on the resolved value —
+    ``by`` columns for the aggregate shape, the entity's declared key for the
+    plain-column shape.
+
+    Declared-but-unmapped is its own refusal because *declared* is not the
+    set that matters here: ``build_project_ir`` builds one silver entity per
+    mapping, so an unmapped entity has no relation for a reconcile to read.
+    Letting it through left the emitter to discover it, which it did — as an
+    unbatched :class:`EmitError` raised after the guardrail stage had already
+    reported clean.
     """
     path = _reconcile_path(check_name, side)
     parsed = parse_side(text)
@@ -498,6 +601,24 @@ def _resolve_side(
         msg = (
             f"reconcile check {check_name!r} {side} side names entity {parsed.entity!r}, "
             f"which the entity model does not declare; declared: {sorted(entities)}"
+        )
+        return None, [GuardrailError(msg, source_path=path)]
+    if parsed.entity not in mapped:
+        msg = (
+            f"reconcile check {check_name!r} {side} side names entity {parsed.entity!r}, "
+            "which is declared but no mapping targets, so no silver relation is built for "
+            f"it to read; mapped entities: {sorted(mapped)}. Fix: add a mapping whose "
+            f"target is {parsed.entity!r}, or drop the check"
+        )
+        return None, [GuardrailError(msg, source_path=path)]
+    repeated = sorted({name for name in parsed.by if parsed.by.count(name) > 1})
+    if repeated:
+        msg = (
+            f"reconcile check {check_name!r} {side} side repeats {', '.join(repeated)} in its "
+            "by clause. Each by column becomes an output column of the side's derived "
+            "relation and a grain column of the emitted model, so a repeat produces two "
+            "columns of one name and a join condition the engine reads as ambiguous "
+            "(verified on PostgreSQL). Fix: name each by column once"
         )
         return None, [GuardrailError(msg, source_path=path)]
     missing = sorted({parsed.column, *parsed.by} - set(entity.fields) - set(entity.key))
@@ -527,6 +648,7 @@ def _check_reconcile(project: Project) -> list[GuardrailError]:
     both key lists named, rather than emitted as a join nobody can read.
     """
     entities = project.entity_model.entities
+    mapped = frozenset(mapping.target for mapping in project.mappings)
     errors: list[GuardrailError] = []
     seen: set[str] = set()
     for check in project.entity_model.reconcile:
@@ -538,8 +660,8 @@ def _check_reconcile(project: Project) -> list[GuardrailError]:
             errors.append(GuardrailError(msg, source_path=_reconcile_path(check.name, "name")))
             continue
         seen.add(check.name)
-        left, left_errors = _resolve_side(check.name, "left", check.left, entities)
-        right, right_errors = _resolve_side(check.name, "right", check.right, entities)
+        left, left_errors = _resolve_side(check.name, "left", check.left, entities, mapped)
+        right, right_errors = _resolve_side(check.name, "right", check.right, entities, mapped)
         errors.extend(left_errors)
         errors.extend(right_errors)
         if left is None or right is None:
@@ -578,6 +700,30 @@ def _check_reserved_metric_names(project: Project) -> list[GuardrailError]:
     return [GuardrailError(msg, source_path="metrics: metrics")]
 
 
+def _check_reserved_mart_name(project: Project) -> list[GuardrailError]:
+    """``data_quality`` is the quality mart's own name (RFC 0016 §5.8, D12),
+    so no authored mart may take it.
+
+    Unconditional, for the reason its metric sibling gives — and here the
+    consequence of not checking is worse than a duplicate. ``is_quality_mart``
+    matches by *name*, so an authored ``data_quality`` mart is taken for the
+    synthesized one: SQLMesh emits the quality mart twice at one path and the
+    author's mart — its base, its grain, its measures — disappears with no
+    diagnostic at all, while Cube writes two different files to one path and
+    the last writer wins.
+    """
+    if project.marts is None or QUALITY_MART not in project.marts.marts:
+        return []
+    msg = (
+        f"mart {QUALITY_MART!r} collides with the name of the quality mart bloomery "
+        f"synthesizes for any project that carries quality rules (RFC 0016 §5.8, D12). "
+        "The name is matched to decide which mart is the synthesized one, so an authored "
+        "mart under it is not merged or duplicated — it is silently replaced. Fix: rename "
+        "the authored mart"
+    )
+    return [GuardrailError(msg, source_path=f"marts: marts.{QUALITY_MART}")]
+
+
 def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     """Every data-quality guardrail over the whole project, in one pass.
 
@@ -600,6 +746,7 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
         errors.extend(_check_ingestion_metadata(entity_name, entity, mapping))
         errors.extend(_check_redaction(entity_name, entity, mapping))
         errors.extend(_check_patterns(entity_name, mapping))
+        errors.extend(_check_chain_derived_rules(entity_name, mapping))
         errors.extend(_check_rule_names(entity_name, entity, mapping, relationships))
         errors.extend(_check_referential(entity_name, entity, relationships))
         # This one reads the *lowered* rules rather than the opt-in flag:
@@ -610,4 +757,5 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     # belongs to neither, and the reserved metric names are one flat namespace.
     errors.extend(_check_reconcile(project))
     errors.extend(_check_reserved_metric_names(project))
+    errors.extend(_check_reserved_mart_name(project))
     return errors

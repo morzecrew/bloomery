@@ -123,6 +123,10 @@ def lower(col: Expression) -> Expression:
     arg_kinds=(ArgKind.STR, ArgKind.INT),
     input=(StringType,),
     output=StringType(),
+    # Out-of-range index: '' on DuckDB, NULL on Trino. Declared nullifying on
+    # the portable reading — a divergence must not be resolved by whichever
+    # engine happens to run (RFC 0016 §5.2).
+    nullifies=True,
 )
 def split_part(col: Expression, delimiter: str, index: int) -> Expression:
     return exp.SplitPart(
@@ -138,6 +142,9 @@ def split_part(col: Expression, delimiter: str, index: int) -> Expression:
     arg_kinds=(ArgKind.STR, ArgKind.INT),
     input=(StringType,),
     output=StringType(),
+    # No match: '' on DuckDB, NULL on Trino and Postgres. Same reading as
+    # split_part — the portable one.
+    nullifies=True,
 )
 def regex_extract(col: Expression, pattern: str, group: int) -> Expression:
     return exp.RegexpExtract(
@@ -283,7 +290,12 @@ def coalesce(col: Expression, fallback: str | int) -> Expression:
 
 
 @transform(
-    "nullif", arity=1, arg_kinds=(ArgKind.LITERAL,), input=_ALL_TYPES, output=lambda t, _args: t
+    "nullif",
+    arity=1,
+    arg_kinds=(ArgKind.LITERAL,),
+    input=_ALL_TYPES,
+    output=lambda t, _args: t,
+    nullifies=True,
 )
 def nullif(col: Expression, sentinel: str | int) -> Expression:
     return exp.Nullif(this=col, expression=_literal(sentinel))
@@ -295,6 +307,7 @@ def nullif(col: Expression, sentinel: str | int) -> Expression:
     arg_kinds=(ArgKind.STR,),
     input=(VariantType, StringType),
     output=VariantType(),
+    nullifies=True,
 )
 def json_path(col: Expression, path: str) -> Expression:
     return exp.JSONExtract(this=col, expression=exp.Literal.string(path))

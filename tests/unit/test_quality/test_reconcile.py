@@ -93,10 +93,15 @@ def test_shapes_outside_the_grammar_do_not_parse(text: str) -> None:
 # The guardrail refusals (the message an author actually reads)
 
 
-def _with_reconcile(block: str) -> tuple[str, ...]:
-    """The quality fixture with its ``reconcile:`` list replaced."""
+def _with_reconcile(block: str, *, extra_entity: str = "") -> tuple[str, ...]:
+    """The quality fixture with its ``reconcile:`` list replaced, and
+    optionally one more entity declared (and deliberately left unmapped)."""
     sources = dict(fixture_sources("semi_additive_inventory"))
     head, _sep, _tail = sources["entity_model"].partition("\nreconcile:")
+    if extra_entity:
+        head = head.replace("\nrelationships:", f"\n{extra_entity}\nrelationships:", 1)
+        if extra_entity not in head:
+            head = f"{head}\n{extra_entity}"
     sources["entity_model"] = f"{head}\nreconcile:\n{block}"
     _project, catalog = load_fixture("semi_additive_inventory")
     with pytest.raises(GuardrailError) as excinfo:
@@ -153,3 +158,41 @@ def test_duplicate_check_names_are_refused() -> None:
         check.format(tolerance="0.01") + check.format(tolerance="1.00")
     )
     assert "'dup' is declared more than once" in message
+
+
+def test_a_repeated_by_column_is_refused() -> None:
+    """Each ``by`` column becomes an output column of the side's derived
+    relation and a grain column of the model, so a repeat emits two columns of
+    one name and a join condition PostgreSQL reads as ambiguous (verified
+    live). Nothing downstream deduped it: the unknown-column check works over
+    a *set*, and the key-agreement check sorts both sides — so the same repeat
+    on both sides passed every existing test."""
+    (message,) = _with_reconcile(
+        '  - {name: dup_by,\n'
+        '     left: "sum(inventory_level.stock_level) by warehouse_id, warehouse_id",\n'
+        '     right: "inventory_level.stock_level", tolerance: "0.01", on_fail: flag}\n'
+    )
+    assert "repeats warehouse_id in its by clause" in message
+    assert "ambiguous" in message
+
+
+def test_a_side_naming_a_declared_but_unmapped_entity_is_refused() -> None:
+    """``build_project_ir`` builds one silver entity per *mapping*, so a
+    declared entity nothing targets has no relation for a reconcile to read.
+    Resolving against the declared set let it through to emission, where it
+    surfaced as an unbatched ``EmitError`` after the guardrail stage had
+    already reported the project clean."""
+    (message,) = _with_reconcile(
+        '  - {name: ghostly, left: "inventory_level.stock_level",\n'
+        '     right: "ghost.stock_level", tolerance: "0.01", on_fail: flag}\n',
+        extra_entity=(
+            "  ghost:\n"
+            "    grain: one row per ghost\n"
+            "    key: [warehouse_id]\n"
+            "    fields:\n"
+            "      warehouse_id: {type: string, required: true}\n"
+            "      stock_level: {type: int}\n"
+        ),
+    )
+    assert "which is declared but no mapping targets" in message
+    assert "no silver relation is built" in message

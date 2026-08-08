@@ -90,7 +90,56 @@ USING (
 ) AS _replay
 ON _target.warehouse_id = _replay.warehouse_id
 AND _target.stock_date = _replay.stock_date
-WHEN MATCHED AND (_replay._ingested_at, _replay._load_id, _replay._source_row_id) > (_target._ingested_at, _target._load_id, _target._source_row_id) THEN UPDATE SET
+WHEN MATCHED AND (
+  (
+    (
+      NOT _replay._ingested_at IS NULL AND _target._ingested_at IS NULL
+    )
+    OR (
+      NOT _replay._ingested_at IS NULL
+      AND NOT _target._ingested_at IS NULL
+      AND _replay._ingested_at > _target._ingested_at
+    )
+  )
+  OR (
+    (
+      (
+        _replay._ingested_at IS NULL AND _target._ingested_at IS NULL
+      )
+      OR _replay._ingested_at = _target._ingested_at
+    )
+    AND (
+      (
+        (
+          NOT _replay._load_id IS NULL AND _target._load_id IS NULL
+        )
+        OR (
+          NOT _replay._load_id IS NULL
+          AND NOT _target._load_id IS NULL
+          AND _replay._load_id > _target._load_id
+        )
+      )
+      OR (
+        (
+          (
+            _replay._load_id IS NULL AND _target._load_id IS NULL
+          )
+          OR _replay._load_id = _target._load_id
+        )
+        AND (
+          (
+            NOT _replay._source_row_id IS NULL AND _target._source_row_id IS NULL
+          )
+          OR (
+            NOT _replay._source_row_id IS NULL
+            AND NOT _target._source_row_id IS NULL
+            AND _replay._source_row_id > _target._source_row_id
+          )
+        )
+      )
+    )
+  )
+) THEN UPDATE SET
   stock_level = _replay.stock_level,
   _ingested_at = _replay._ingested_at,
   _load_id = _replay._load_id,

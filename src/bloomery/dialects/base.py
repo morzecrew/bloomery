@@ -57,6 +57,24 @@ class DialectFeature(StrEnum):
     #: entity carrying ``coercible`` rules refuses to emit on a dialect
     #: without it (RFC 0008 D3: fail loud, never approximate).
     TRY_CAST = "try_cast"
+    #: ``SHA256`` over a text value yielding a stable hex *string* — what
+    #: ``reject_id`` is (RFC 0016 D21). DuckDB's ``SHA256(VARCHAR)`` returns
+    #: the hex digest directly. Trino's ``sha256`` takes ``varbinary`` and
+    #: returns ``varbinary``, so the same AST renders a call Trino refuses to
+    #: even plan (``Unexpected parameters (varchar) for function sha256``);
+    #: the portable spelling there is
+    #: ``LOWER(TO_HEX(SHA256(TO_UTF8(...))))``, which is *not* interchangeable
+    #: — applying it on DuckDB hex-encodes an already-hex string and doubles
+    #: its length. Until the rendering is split per dialect, a dialect without
+    #: this feature cannot carry a reject table.
+    TEXT_SHA256 = "text_sha256"
+    #: ``JSON_OBJECT('k', v, ...)`` in its positional form — how the reject
+    #: table builds ``raw`` and ``key_values`` (RFC 0016 §5.6). Trino accepts
+    #: only the SQL-standard ``JSON_OBJECT(KEY 'k' VALUE v)`` spelling and
+    #: fails to parse the positional one, so ``lowering._json_object``'s claim
+    #: to be "the one construction SQLGlot renders verbatim on every shipped
+    #: dialect" holds for DuckDB and Postgres but not Trino.
+    JSON_OBJECT_POSITIONAL = "json_object_positional"
 
 
 class DialectPort(Protocol):

@@ -16,7 +16,7 @@ shipped dialect; the choice is documented at the node.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Final, cast
 
 from sqlglot import exp, parse_one
 from sqlglot.expressions.core import Expression
@@ -62,6 +62,8 @@ from bloomery.quality import (
     flags_expression,
     grouped,
     indexed_params,
+    is_not_null,
+    is_null,
     params_of,
     parse_side,
     payload_key,
@@ -467,6 +469,40 @@ def _require_try_cast_for_audit(entity: EntityIR, ctx: EmitContext) -> None:
     raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
 
 
+#: The dialect features the ``<entity>__reject`` model is built from, with the
+#: construction each one names — see :class:`~bloomery.dialects.DialectFeature`.
+_REJECT_FEATURES: Final[tuple[tuple[DialectFeature, str], ...]] = (
+    (DialectFeature.TEXT_SHA256, "reject_id, a SHA-256 hex digest over the row's canon bytes"),
+    (DialectFeature.JSON_OBJECT_POSITIONAL, "the raw and key_values JSON payloads"),
+)
+
+
+def _require_reject_constructions(entity: EntityIR, ctx: EmitContext) -> None:
+    """Refuse a reject table the dialect cannot actually run.
+
+    The sibling of :func:`_require_try_cast`, and the same discipline (RFC
+    0008 D3: fail loud, never approximate) applied one layer out. ``TRY_CAST``
+    is about a marker meaning the wrong thing; these two are about SQL the
+    engine refuses outright — verified by executing the emitted model, not by
+    reading it, which is how both were found at all. Emitting a model that
+    cannot plan is worse than refusing to emit it: the refusal names the
+    dialect at compile time, where the author can act on it.
+    """
+    if entity.quarantine is None:
+        return
+    missing = [why for feature, why in _REJECT_FEATURES if not ctx.dialect.supports(feature)]
+    if not missing:
+        return
+    msg = (
+        f"entity {entity.name!r} declares a quarantine: block, so it emits a "
+        f"{entity.name}__reject model — but dialect {ctx.dialect.name!r} cannot express "
+        f"{'; '.join(missing)} (RFC 0016 §5.6). The emitted SQL would be rejected by the "
+        "engine rather than run, so it is refused here instead. Fix: compile this project "
+        "for a dialect that carries the reject table, or drop the quarantine: block"
+    )
+    raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
+
+
 def _quality_pipeline(entity: EntityIR, ctx: EmitContext, extract: exp.Select) -> exp.Select:
     """Stages 4–6 over an extract SELECT: the rule predicates, the single
     ``_quality_flags`` pass, the routing ``WHERE``, and ``_quality_ok``.
@@ -565,6 +601,7 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     replay — is what eventually deletes the row.
     """
     _require_try_cast(entity, ctx)
+    _require_reject_constructions(entity, ctx)
     arrays = _arrays(ctx)
     extract = _extract_select(entity, ctx, include_raw=True)
     recorded = _recorded_rules(entity)
@@ -1039,8 +1076,9 @@ def _reevaluated(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     return _with_probes(select, entity, ctx)
 
 
-def _dedupe_tuple(entity: EntityIR, table: str) -> exp.Tuple:
-    """The row constructor replay compares an incumbent and a candidate by.
+def _dedupe_columns(entity: EntityIR, table: str) -> list[Expression]:
+    """The columns replay compares an incumbent and a candidate by, in the
+    D20 sort order.
 
     An entity may carry ``quarantine:`` **without** ``dedupe:`` — deduplicating
     is not a statement about coercibility, so the two opt in separately. The
@@ -1049,14 +1087,62 @@ def _dedupe_tuple(entity: EntityIR, table: str) -> exp.Tuple:
     is unique on any entity with a reject table. So the no-dedupe form of the
     order is that last key alone, and the comparison stays total.
 
-    (Before this was spelled out, the tuple collapsed to ``()`` and the emitted
-    replay artifact read ``WHEN MATCHED AND () > ()`` — invalid SQL on every
-    dialect. The shipped golden fixture declares ``dedupe:``, so only the
-    execution tier over an entity without one could see it, RFC 0016 §6.)
+    (Before this was spelled out, the comparison collapsed to ``() > ()`` in
+    the emitted replay artifact — invalid SQL on every dialect. The shipped
+    golden fixture declares ``dedupe:``, so only the execution tier over an
+    entity without one could see it, RFC 0016 §6.)
     """
     order = dedupe_order(entity.dedupe, table=table) if entity.dedupe else ()
-    columns = [term.this for term in order] or [exp.column(ROW_ID_COLUMN, table=table)]
-    return exp.Tuple(expressions=columns)
+    return [term.this for term in order] or [exp.column(ROW_ID_COLUMN, table=table)]
+
+
+def _candidate_wins(entity: EntityIR) -> Expression:
+    """Whether the replay candidate outranks the incumbent under the **same**
+    order :func:`~bloomery.quality.dedupe_order` ranks candidates by.
+
+    Spelled out per column rather than as a row constructor over the two
+    tuples. ``(a, b) > (c, d)`` looks like the same question and is not:
+    SQL's row comparison does not propagate NULL the way ``DESC NULLS LAST``
+    orders it — DuckDB sorts NULL as the *largest* value there, the exact
+    inverse — so a nullable ``dedupe.field`` or ``tie_break`` broke the
+    correspondence in both directions. A candidate that ranked first was not
+    merged, and its reject row was then stamped with D69's ``(superseded)``
+    marker, which asserts another row won its key — false. Worse, a candidate
+    with a NULL sort value *evicted* a non-null incumbent, silently restating
+    the entity against what D20 says the order is.
+
+    ``dedupe_order`` and this predicate are the two places the total order is
+    expressed, and they now say the same thing: for each column in order, a
+    non-null beats a null, then a greater value beats a lesser one, then the
+    next column decides. Asserted exhaustively over a NULL-bearing domain by
+    the execution tier, not re-derived by eye.
+    """
+    candidate = _dedupe_columns(entity, _REPLAY_ALIAS)
+    incumbent = _dedupe_columns(entity, _TARGET_ALIAS)
+    decided: exp.Condition | None = None
+    # Built back to front: each column's verdict falls through to the tail it
+    # already has, which is the lexicographic order read literally.
+    for cand, inc in zip(reversed(candidate), reversed(incumbent), strict=True):
+        beats = exp.or_(
+            exp.and_(is_not_null(cand.copy()), is_null(inc.copy())),
+            exp.and_(
+                is_not_null(cand.copy()),
+                is_not_null(inc.copy()),
+                exp.GT(this=cand.copy(), expression=inc.copy()),
+            ),
+        )
+        if decided is None:
+            decided = beats
+            continue
+        # Equal under DESC NULLS LAST — both null, or both non-null and equal
+        # — is what hands the decision to the next column.
+        tied = exp.or_(
+            exp.and_(is_null(cand.copy()), is_null(inc.copy())),
+            exp.EQ(this=cand.copy(), expression=inc.copy()),
+        )
+        decided = exp.or_(beats, exp.and_(exp.paren(tied), exp.paren(decided)))
+    # Never None: _dedupe_columns is non-empty by construction.
+    return exp.paren(cast("exp.Condition", decided))
 
 
 def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, ...]:
@@ -1110,10 +1196,7 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
     ]
     non_key = [name for name in columns if name not in entity.key]
 
-    wins = exp.GT(
-        this=_dedupe_tuple(entity, _REPLAY_ALIAS),
-        expression=_dedupe_tuple(entity, _TARGET_ALIAS),
-    )
+    wins = _candidate_wins(entity)
     matched = exp.When(
         matched=True,
         condition=wins,

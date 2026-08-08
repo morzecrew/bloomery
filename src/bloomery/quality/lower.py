@@ -58,6 +58,7 @@ from bloomery.spec.quality import (
     RangeRule,
     ReferentialRule,
 )
+from bloomery.transforms.registry import registry
 
 if TYPE_CHECKING:
     from bloomery.spec.entity import Entity, EntityModel, Relationship
@@ -72,6 +73,7 @@ __all__ = [
     "lower_quarantine",
     "lower_reconcile",
     "mapped_fields",
+    "nullifying_steps",
     "opts_in",
 ]
 
@@ -148,6 +150,36 @@ def _enum_chain(mapping: Mapping, field_name: str) -> tuple[tuple[str, ...], tup
             spellings.update(str(value) for value in step.args[::2])
             targets.update(str(value) for value in step.args[1::2])
     return tuple(sorted(spellings)), tuple(sorted(targets))
+
+
+def nullifying_steps(field_mapping: FieldMapping | None) -> tuple[str, ...]:
+    """The names of transforms in this field's chain that declare
+    ``nullifies`` — deduplicated, sorted, empty for a recipe field.
+
+    ``coercible`` reads "the output is NULL while a source was not" as *the
+    cast failed* (§5.2). That inference is only sound when nothing in the
+    chain nulls a value on purpose: ``{nullif: 'N/A'}`` says a sentinel means
+    missing, and quarantining the row for obeying it withholds a good row for
+    doing exactly what the author declared. So a chain naming any of these
+    gets no implicit ``coercible``, and declaring one explicitly is refused.
+
+    The set comes from the registry, not from a name list here — see
+    :class:`~bloomery.transforms.registry.TransformSpec`. An unknown step name
+    is not this function's error to raise: the chain typecheck already owns
+    it, and reporting it twice would only crowd the batch.
+    """
+    if field_mapping is None or isinstance(field_mapping, RecipeFieldMapping):
+        return ()
+    specs = registry()
+    return tuple(
+        sorted(
+            {
+                step.name
+                for step in field_mapping.transform
+                if (spec := specs.get(step.name)) is not None and spec.nullifies
+            }
+        )
+    )
 
 
 def _field_quality(field_mapping: FieldMapping | None) -> tuple[FieldQualityRule, ...]:
@@ -333,8 +365,13 @@ def _draft_rules(
             _field_rule_ir(rule, column, mapping=mapping, slice_columns=slice_columns)
             for rule in declared
         )
-        if not any(isinstance(rule, CoercibleRule) for rule in declared):
-            # The implicit rule (§5.2, D3). Forced to FAIL on a field the
+        if not any(isinstance(rule, CoercibleRule) for rule in declared) and not nullifying_steps(
+            field_mapping
+        ):
+            # The implicit rule (§5.2, D3), skipped where the chain nulls a
+            # value deliberately — see :func:`nullifying_steps` for why a
+            # marker that cannot tell the two apart must not fire at all.
+            # Forced to FAIL on a field the
             # dedupe order reads (§5.4): an uncastable recency field leaves
             # dedupe ordering undefined, so quarantining it is not an option.
             on_fail = OnFail.FAIL if column in dedupe_fields else OnFail.QUARANTINE

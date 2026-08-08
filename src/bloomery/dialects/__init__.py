@@ -51,11 +51,20 @@ def registered_dialects() -> tuple[DialectPort, ...]:
     """Every dialect the process knows — defaults plus overlay — sorted by
     name.
 
-    The compile stage validates ``pattern`` quality rules against **all** of
-    them (RFC 0016 §5.3): a regex that works on DuckDB and silently means
-    something else on Trino is the bug this project exists to prevent, and a
-    project is portable or it is not — the check cannot wait for the dialect
-    that happens to be selected at emit.
+    Read what this is **not**: it is not what the compile stage checks
+    ``pattern`` quality rules against. That set is the immutable constant
+    :data:`~bloomery.quality.pattern.PATTERN_TARGET_DIALECTS`, precisely
+    because this function is process-global and mutable — an extension
+    dialect registered by an unrelated import could otherwise decide whether
+    an existing project compiles, the ambient dependency RFC 0003 forbids
+    (RFC 0016 D56).
+
+    Its use is the other side of that decision: D56's escape hatch is that a
+    caller targeting an extension dialect passes the set *explicitly* to
+    :func:`~bloomery.quality.pattern.unsupported_dialects`, and this is how
+    such a caller enumerates one that includes its own registration. Nothing
+    inside bloomery calls it, by design — a compile that consulted it would
+    not be a pure function of the specs.
     """
     merged = dict(_DEFAULT_DIALECTS) | _overlay
     return tuple(merged[name] for name in sorted(merged))

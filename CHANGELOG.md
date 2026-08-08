@@ -23,11 +23,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reserved field/dimension/role names now cover the generated data-quality and ingestion-metadata columns (`_quality_flags`, `_quality_ok`, `_load_id`, `_ingested_at`, `_source_row_id`, `has_quality_flags`) alongside `metric_time`; the refusal message names the RFC that owns each. The quality mart's five metric names are reserved in the same way.
 
+- Quality-carrying entities no longer compile for the `trino` dialect when they declare a `quarantine:` block: Trino's `sha256` takes `varbinary`, and it does not parse the positional `JSON_OBJECT('k', v)` form — both constructions the reject table is built from — so the emitted model could not run there. Verified against a real Trino container and now a loud `UnsupportedByTarget` at emit rather than SQL the engine refuses. Trino keeps `TRY_CAST` and still hosts quality rules without a reject table; Postgres remains refused for the separate D30 reason.
+
 ### Removed
 
 - `Mapping.on_unmapped_enum` (breaking, pre-0.1): a spec still carrying the key is now refused as an unknown key. Unmapped enum values become a data-quality concern — they fail the `in_enum` rule and take that rule's disposition, superseding RFC 0008 D7's never-implemented emitter convention.
 
 ### Fixed
+
+- `in_enum` quarantined **every correctly-mapped row** when the transform chain applied any step after its `enum_map` (`{enum_map: [paid, paid]}` then `upper` compared `PAID` against a set spelling `paid`). The chain is now refused at compile naming the offending step; a further `enum_map` may still follow.
+
+- The implicit `coercible` rule fired on values a transform nulls *deliberately*, quarantining rows for obeying their own mapping — `{nullif: 'N/A'}` says the sentinel means missing, and the marker cannot tell that from a failed cast. Transforms now declare `nullifies` (`nullif`, `json_path`, `split_part`, `regex_extract`); the implicit rule is skipped on such a chain and an authored `coercible` there is refused.
+
+- The quarantine-replay `MERGE` compared row constructors, which order NULL as the largest value — the inverse of the `DESC NULLS LAST` the pipeline ranks by. With a nullable `dedupe.field`/`tie_break`, a candidate that ranked first was not merged (and its reject row was stamped `(superseded)` anyway), and a candidate with a NULL sort value evicted a non-null incumbent. The comparison is now the per-column NULL-aware form the dedupe order actually means.
+
+- A recipe's `direct:` path never reached the reject table's `raw` payload, so every replayed row rebuilt its `<field>__direct` shadow from an absent key — NULL for all of them, fed to the reconcile audit that exists to compare it. The path is now a recorded source field, and redacting it is refused.
+
+- A `reconcile` side naming a declared-but-unmapped entity passed the guardrail stage and failed later as an unbatched `EmitError`; a side repeating a `by` column emitted two columns of one name and an ambiguous join; two `referential` rules through one relationship emitted two joins under one alias. All three are now batched compile-time refusals.
+
+- An authored mart named `data_quality` was silently replaced by the synthesized quality mart (SQLMesh emitted that mart twice at one path; Cube wrote two different files to one). The name is now reserved unconditionally, like the five quality metric names.
+
+- `plan()` classified removing a `quarantine:` block as ADDITIVE "policy only", although it stops the `<entity>__reject` model being emitted and discards every unresolved row in it — now BREAKING, with the replay scope beside it. Separately, narrowing an `in_set` that contains the literal `"false"` reported as a *relaxation*, because the rule's `numeric_*` type markers carry `"true"`/`"false"` as values and were flattened in with the membership literals.
 
 - An `in_set` rule declared with integer members (`values: [1, 2]`) emitted string literals — `tier NOT IN ('1', '2')`. DuckDB and Postgres coerce that and answer correctly; Trino refuses the comparison, so the same spec ran on one engine and failed on another. Members now carry their declared type. A set written entirely with strings is unaffected, down to the artifact bytes.
 

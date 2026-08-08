@@ -458,3 +458,94 @@ def test_removing_a_reconcile_check_restates() -> None:
     assert change.change_class is ChangeClass.RESTATING
     assert change.detail == "reconcile check removed"
     assert result.backfill_scope.entities == ()
+
+
+def test_removing_the_quarantine_block_is_breaking_not_a_retention_edit() -> None:
+    """Reading the removal as a retention change to ``""`` called it "policy
+    only". It is not: the ``<entity>__reject`` model stops being emitted and
+    every unresolved row in it goes with it. RFC 0016 D2 buys quarantine over
+    drop *for* recoverability and §5.6 names retention as the only deleter —
+    this deletes reject rows by removing the table, and the plan has to say
+    so before someone applies it."""
+    old = entity(
+        quality=(
+            quality_rule(
+                name="amount_range_min",
+                kind="range",
+                column_name="amount",
+                on_fail=OnFail.QUARANTINE,
+                params=(("min", "0"),),
+            ),
+        ),
+        quarantine=QuarantineIR(retention="90d"),
+    )
+    new = entity()
+    changes = _plan_of(old, new)
+    removal = next(c for c in changes if c.subject == "quarantine:order_item")
+    assert removal.change_class is ChangeClass.BREAKING
+    assert (removal.old, removal.new) == ("90d", None)
+    assert "no longer emitted" in removal.detail
+    # The replay scope stays: with the BREAKING change beside it, it stops
+    # being a dangling instruction and becomes "drain this before applying".
+    _backfill, replay = _scopes(old, new)
+    assert replay == ("order_item",)
+
+
+def test_a_narrowed_set_does_not_replay_when_a_type_marker_shares_a_value() -> None:
+    """D62 gives an ``in_set`` holding any int a ``numeric_NNNN`` marker per
+    member whose *value* is the string ``"true"``/``"false"``. Flattening every
+    param value into one membership set mixed those in with the literals, so
+    narrowing a set that contains the literal ``"false"`` left the flattened
+    set unchanged — a tightening reported as a relaxation, replaying rows that
+    a narrowing cannot free."""
+    def _in_set(*params: tuple[str, str]) -> EntityIR:
+        return entity(
+            quality=(
+                quality_rule(
+                    name="kind_in_set",
+                    kind="in_set",
+                    column_name="kind",
+                    on_fail=OnFail.QUARANTINE,
+                    params=params,
+                ),
+            )
+        )
+
+    # [1, "true", "false"] -> [1, "true"], spelled as the lowering spells it.
+    old = _in_set(
+        ("numeric_0000", "true"),
+        ("numeric_0001", "false"),
+        ("numeric_0002", "false"),
+        ("value_0000", "1"),
+        ("value_0001", "true"),
+        ("value_0002", "false"),
+    )
+    new = _in_set(
+        ("numeric_0000", "true"),
+        ("numeric_0001", "false"),
+        ("value_0000", "1"),
+        ("value_0001", "true"),
+    )
+    _backfill, replay = _scopes(old, new)
+    assert replay == ()
+
+
+def test_a_widened_set_still_replays_with_the_markers_present() -> None:
+    """The other direction, so the fix above cannot be "never replay"."""
+    def _in_set(*params: tuple[str, str]) -> EntityIR:
+        return entity(
+            quality=(
+                quality_rule(
+                    name="kind_in_set",
+                    kind="in_set",
+                    column_name="kind",
+                    on_fail=OnFail.QUARANTINE,
+                    params=params,
+                ),
+            )
+        )
+
+    old = _in_set(("numeric_0000", "true"), ("value_0000", "1"))
+    new = _in_set(("numeric_0000", "true"), ("numeric_0001", "false"), ("value_0000", "1"), ("value_0001", "x"))
+    _backfill, replay = _scopes(old, new)
+    assert replay == ("order_item",)

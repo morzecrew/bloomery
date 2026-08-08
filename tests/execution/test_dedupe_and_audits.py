@@ -14,12 +14,16 @@ should never have happened.
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Iterator
 from decimal import Decimal
 
 import duckdb
 import pytest
+from bloomery.emit.lowering import _candidate_wins
+from bloomery.ir import DedupeIR
 from support.compiling import compile_fixture
+from support.plan_ir import entity as plan_entity
 from support.dirty import (
     FIXTURE,
     KEPT,
@@ -252,3 +256,62 @@ def test_a_castable_recency_field_is_not_a_metadata_violation() -> None:
         assert _metadata_violations(connection, "probe") == ["uncastable"]
     finally:
         connection.close()
+
+
+# ....................... #
+# The replay comparison agrees with the dedupe order (RFC 0016 D20)
+
+
+def test_the_replay_comparison_agrees_with_the_dedupe_order_on_nulls() -> None:
+    """The replay MERGE and the pipeline's ``QUALIFY`` are the only two places
+    the D20 total order is expressed, and they must decide every pair the same
+    way — including pairs a nullable ``dedupe.field``/``tie_break`` produces.
+
+    They did not. The MERGE compared row constructors, ``(a, b) > (c, d)``,
+    which reads like the same question but orders NULL as the *largest* value
+    — the inverse of the ``DESC NULLS LAST`` the pipeline ranks by. Both
+    directions were wrong: a candidate that ranked first was not merged (and
+    its reject row was then stamped ``(superseded)``, asserting another row
+    won its key — false), and a candidate whose sort value was NULL evicted a
+    non-null incumbent, restating the entity against the order D20 states.
+
+    Asserted exhaustively rather than by specimen: for every pair over a
+    domain that includes NULL, the emitted predicate must equal "the candidate
+    sorts first and the two are not identical". A single hand-picked pair
+    would have missed one of the two directions.
+    """
+    entity = plan_entity(dedupe=DedupeIR(keep="latest_by", field="a", tie_break=("b",)))
+    predicate = (
+        _candidate_wins(entity)
+        .sql(dialect="duckdb")
+        .replace("_replay.", "c_")
+        .replace("_target.", "t_")
+    )
+    domain: tuple[int | None, ...] = (None, 1, 2)
+    connection = duckdb.connect(":memory:")
+    try:
+        disagreements: list[str] = []
+        for cand_a, cand_b, inc_a, inc_b in itertools.product(domain, repeat=4):
+            row = (
+                f"SELECT {_sql_literal(cand_a)} AS c_a, {_sql_literal(cand_b)} AS c_b, "
+                f"{_sql_literal(inc_a)} AS t_a, {_sql_literal(inc_b)} AS t_b, "
+                "'r1' AS c__source_row_id, 'r1' AS t__source_row_id"
+            )
+            merged = connection.execute(f"SELECT ({predicate}) FROM ({row})").fetchone()
+            assert merged is not None
+            ranked = connection.execute(
+                f"SELECT who FROM (SELECT 'c' AS who, {_sql_literal(cand_a)} AS a, "
+                f"{_sql_literal(cand_b)} AS b UNION ALL SELECT 't', {_sql_literal(inc_a)}, "
+                f"{_sql_literal(inc_b)}) ORDER BY a DESC NULLS LAST, b DESC NULLS LAST LIMIT 1"
+            ).fetchone()
+            assert ranked is not None
+            wins = ranked[0] == "c" and (cand_a, cand_b) != (inc_a, inc_b)
+            if bool(merged[0]) is not wins:
+                disagreements.append(f"({cand_a},{cand_b}) vs ({inc_a},{inc_b})")
+        assert not disagreements, f"MERGE and dedupe order disagree on: {disagreements}"
+    finally:
+        connection.close()
+
+
+def _sql_literal(value: int | None) -> str:
+    return "NULL" if value is None else str(value)

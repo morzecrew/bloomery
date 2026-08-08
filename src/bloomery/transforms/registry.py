@@ -56,6 +56,16 @@ class TransformSpec:
     ``arity`` counts spec-level args (not the column). A ``variadic``
     transform accepts any positive multiple of ``arg_kinds`` (``enum_map``
     takes from/to pairs); ``arity`` is then the length of one repetition.
+
+    ``nullifies`` declares that the transform can return NULL from a non-NULL
+    input **on purpose**. It exists because RFC 0016's ``coercible`` rule
+    infers a cause from an effect: its marker is "the output vanished while
+    the source was there", which is a failed cast only if nothing in the chain
+    nulls a value deliberately. A transform that does is not a coercion
+    failure and must not be quarantined as one, so the flag is declared here —
+    on the transform that knows — rather than kept as a name list inside the
+    quality lowering, where the next transform added would reintroduce the
+    false positive silently (RFC 0016 §5.2).
     """
 
     name: str
@@ -65,6 +75,7 @@ class TransformSpec:
     output_type: OutputType
     builder: Builder
     variadic: bool = False
+    nullifies: bool = False
 
 
 _default: dict[str, TransformSpec] = {}
@@ -103,12 +114,15 @@ def transform(
     input: tuple[type[LogicalType], ...],
     output: LogicalType | OutputType,
     variadic: bool = False,
+    nullifies: bool = False,
 ) -> Callable[[Builder], TransformSpec]:
     """Declare a starter transform: wrap a builder into a :class:`TransformSpec`
     and add it to the default registry at import time (RFC 0004 §5.2).
 
     ``output`` is either a fixed :data:`LogicalType` or a function of
     ``(input type, args)``; a fixed value is wrapped into a constant function.
+    ``nullifies`` marks a transform that deliberately produces NULL from a
+    non-NULL input — see :class:`TransformSpec`.
     """
 
     def decorate(builder: Builder) -> TransformSpec:
@@ -131,6 +145,7 @@ def transform(
             output_type=output_type,
             builder=builder,
             variadic=variadic,
+            nullifies=nullifies,
         )
         _validate(spec)
         _check_collision(name)

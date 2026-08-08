@@ -25,7 +25,7 @@ from bloomery.errors import (
     QuarantineRetentionMissing,
     RedactionConflict,
 )
-from support.compiling import load_fixture
+from support.compiling import fixture_sources, load_fixture
 
 pytestmark = pytest.mark.unit
 
@@ -742,3 +742,209 @@ def test_an_authored_rule_name_of_its_own_is_accepted() -> None:
         "amount_present",
         "order_id_coercible",
     ]
+
+
+# ....................... #
+# Two referential rules through one relationship (RFC 0016 §5.4)
+
+
+DOUBLE_VIA_PROJECT = VIA_PROJECT.replace(
+    "      - {{rule: referential, via: {via}, on_missing: flag}}",
+    "      - {{rule: referential, via: {via}, on_missing: flag}}\n"
+    "      - {{rule: referential, via: {via}, on_missing: quarantine}}",
+)
+
+
+def test_two_referential_rules_through_one_relationship_are_refused() -> None:
+    """Each lowers to a LEFT JOIN aliased ``_ref_<relationship>``, so two of
+    them put two joins under one alias — DuckDB rejects the emitted model
+    outright (``Ambiguous reference to table "_ref_oi_of_cust"``). Nothing
+    caught it: the two rules differ in disposition, so name assignment just
+    suffixed the second and both survived to emission."""
+    documents = {
+        "entity_model": DOUBLE_VIA_PROJECT.format(via="oi_of_cust"),
+        **VIA_MAPPINGS,
+    }
+    message = _message(documents)
+    assert "more than one referential rule through relationship 'oi_of_cust'" in message
+    assert "two joins under one alias" in message
+
+
+def test_one_referential_rule_per_relationship_is_accepted() -> None:
+    """The non-trigger — the same project with the duplicate removed."""
+    build_project_ir(load_project(_via("oi_of_cust")))
+
+
+# ....................... #
+# Chain-derived rules read the chain at a point that must be sound (§5.2)
+
+
+def _chain(steps: str, rule: str) -> dict[str, str]:
+    return _project(
+        entity_extra="    quarantine: {retention: 30d}\n",
+        field_quality=f"    quality:\n      - {rule}\n",
+        fields="      amount: {type: string}\n",
+    ) | {
+        "mapping": f"""
+mapping_version: 1
+source: oms__orders
+target: order
+key:
+  order_id: {{from: "$.id", transform: [to_string]}}
+fields:
+  amount:
+    from: "$.amount"
+    transform: {steps}
+    quality:
+      - {rule}
+unmapped: {METADATA}
+""",
+    }
+
+
+ENUM_RULE = "{rule: in_enum, on_fail: quarantine}"
+ENUM_MAP = '{enum_map: [paid, paid, pending, pending]}'
+
+
+def test_in_enum_with_a_transform_after_enum_map_is_refused() -> None:
+    """The admissible set is read off the ``enum_map``; the predicate tests the
+    column's *final* value. With ``upper`` after it, every correctly-mapped row
+    lands as ``PAID`` against a set spelling ``paid`` — executed on DuckDB, the
+    entity came out **empty** and all three rows sat in the reject table. The
+    worst failure mode this feature has, and no fixture could see it: every
+    ``enum_map`` in the corpus happens to be the last step."""
+    message = _message(_chain(f"[to_string, {ENUM_MAP}, upper]", ENUM_RULE))
+    assert "applies upper after enum_map" in message
+    assert "quarantining every correctly-mapped row" in message
+
+
+def test_in_enum_with_the_enum_map_last_is_accepted() -> None:
+    build_project_ir(load_project(_chain(f"[to_string, {ENUM_MAP}]", ENUM_RULE)))
+
+
+def test_in_enum_with_a_second_enum_map_after_the_first_is_accepted() -> None:
+    """Another ``enum_map`` may follow: the union of both steps' targets still
+    contains every value the chain can finally produce, so the set can only be
+    too generous, never too strict — and too strict is what quarantines a good
+    row."""
+    second = "{enum_map: [paid, settled]}"
+    build_project_ir(load_project(_chain(f"[to_string, {ENUM_MAP}, {second}]", ENUM_RULE)))
+
+
+def test_an_authored_coercible_on_a_nulling_chain_is_refused() -> None:
+    """``coercible`` reads "output NULL, source not" as a failed cast.
+    ``nullif`` makes a value vanish on purpose, so the two are indistinguishable
+    — and the row was quarantined for obeying the mapping it was given."""
+    message = _message(_chain("[to_string, {nullif: 'N/A'}]", "{rule: coercible, on_fail: quarantine}"))
+    assert "applies nullif" in message
+    assert "returns NULL from a non-NULL input deliberately" in message
+
+
+# ....................... #
+# data_quality is the synthesized mart's name (RFC 0016 §5.8, D12)
+
+
+QUALITY_MART_PROJECT = {
+    "entity_model": f"""
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    quarantine: {{retention: 30d}}
+    fields:
+      order_id: {{type: string, required: true}}
+      amount: {{type: int}}
+""",
+    "mapping": f"""
+mapping_version: 1
+source: oms__orders
+target: order
+key:
+  order_id: {{from: "$.id", transform: [to_string]}}
+fields:
+  amount: {{from: "$.amount", transform: [to_int]}}
+unmapped: {METADATA}
+""",
+    "marts": """
+marts_version: 1
+marts:
+  data_quality:
+    grain: order
+    base: order
+    measures: [amount]
+""",
+}
+
+
+def test_an_authored_mart_named_data_quality_is_refused() -> None:
+    """``is_quality_mart`` matches by name, so an authored ``data_quality``
+    mart is *taken for* the synthesized one: SQLMesh emitted the quality mart
+    twice at one path and the author's mart — its base, its grain, its
+    measures — vanished with no diagnostic, while Cube wrote two different
+    files to that path and the last writer won."""
+    message = _message(QUALITY_MART_PROJECT)
+    assert "collides with the name of the quality mart" in message
+    assert "silently replaced" in message
+
+
+def test_the_mart_name_is_reserved_even_without_any_quality() -> None:
+    """Unconditional, for the reason its metric sibling gives: a name reserved
+    only sometimes is a name nobody can rely on, and adding one ``quality:``
+    block later must not break an unrelated mart."""
+    documents = dict(QUALITY_MART_PROJECT)
+    documents["entity_model"] = documents["entity_model"].replace(
+        "    quarantine: {retention: 30d}\n", ""
+    )
+    assert "collides with the name of the quality mart" in _message(documents)
+
+
+def test_only_the_reserved_name_earns_this_refusal() -> None:
+    """The non-trigger, isolating the *name*: the same mart under another one
+    still fails this project's other mart rules, and must not collect the
+    reserved-name leaf among them."""
+    documents = dict(QUALITY_MART_PROJECT)
+    documents["marts"] = documents["marts"].replace("data_quality:", "order_totals:")
+    assert "collides with the name of the quality mart" not in _message(documents)
+
+
+# ....................... #
+# A recipe's direct: path is a path the mapping reads (RFC 0006 D7 × D10)
+
+
+def _direct(redact: str = "") -> tuple[dict[str, str], object]:
+    """The shipped ``path_conflict`` fixture — the only one carrying a recipe
+    ``direct:`` — given a quarantine block so replay exists at all."""
+    sources = dict(fixture_sources("path_conflict"))
+    sources["entity_model"] += (
+        f"    quarantine: {{retention: 30d{redact}}}\n"
+        "    quality:\n"
+        "      - {rule: expression, name: qty_positive, expr: \"quantity > 0\", "
+        "on_fail: quarantine}\n"
+    )
+    sources["mapping"] += f"unmapped: {METADATA}\n"
+    _project, catalog = load_fixture("path_conflict")
+    return sources, catalog
+
+
+def test_redacting_a_recipes_direct_path_is_refused() -> None:
+    """``direct:`` lowers to a real ``<field>__direct`` column that replay
+    rebuilds from ``raw`` (RFC 0006 D7 × RFC 0016 D10), so it is a path the
+    mapping *reads* — and ``_read_paths`` did not say so, which let redaction
+    remove the very key replay depends on."""
+    sources, catalog = _direct(', redact: ["$.price"]')
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(load_project(sources), catalog)
+    assert "$.price" in str(excinfo.value)
+
+
+def test_a_direct_path_reaches_the_reject_payload() -> None:
+    """The half the redaction refusal is *for*. The direct path was missing
+    from the entity's source fields, so it never entered the reject table's
+    ``raw`` — and replay rebuilt ``net_price__direct`` from a key that is not
+    there, producing NULL for every replayed row and feeding that to the
+    reconcile audit whose whole job is to compare it."""
+    sources, catalog = _direct()
+    ir = build_project_ir(load_project(sources), catalog)
+    paths = {field.source_path for field in ir.entities[0].source.fields}
+    assert "$.price" in paths

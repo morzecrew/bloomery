@@ -301,6 +301,20 @@ def _build_entity(
                 SourceFieldIR(target_field=field_name, source_path=path)
                 for _alias, path in sorted(field_mapping.from_.items())
             )
+            if field_mapping.direct is not None:
+                # The path-conflict shadow (RFC 0006 D7) is a path the mapping
+                # genuinely reads: the guardrail stage lowers it to a
+                # ``<field>__direct`` column, and replay re-runs that same
+                # lowering against ``raw`` (RFC 0016 D10). Left off the source
+                # fields, it was absent from the bronze payload the reject
+                # table stores, so every replayed row rebuilt the shadow from
+                # a key that is not there — ``__direct`` NULL for all of them,
+                # feeding the reconcile audit that exists to compare it.
+                source_fields.append(
+                    SourceFieldIR(
+                        target_field=f"{field_name}__direct", source_path=field_mapping.direct
+                    )
+                )
         else:
             expr = _lower_chain(
                 field_mapping.from_,

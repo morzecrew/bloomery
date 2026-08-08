@@ -65,6 +65,7 @@ from bloomery.quality.lower import (
     lower_quarantine,
     lower_reconcile,
     mapped_fields,
+    nullifying_steps,
     opts_in,
 )
 from bloomery.quality.mart import (
@@ -88,6 +89,8 @@ from bloomery.quality.predicates import (
     failed_rule_names,
     grouped,
     indexed_params,
+    is_not_null,
+    is_null,
     params_of,
     qualify_columns,
     ref_alias,
@@ -151,6 +154,7 @@ __all__ = [
     "lower_quarantine",
     "lower_reconcile",
     "mapped_fields",
+    "nullifying_steps",
     "opts_in",
     # the quality mart (§5.8)
     "ENTITY_GRAIN_ROW",
@@ -180,6 +184,8 @@ __all__ = [
     "failed_rule_names",
     "grouped",
     "indexed_params",
+    "is_not_null",
+    "is_null",
     "params_of",
     "qualify_columns",
     "ref_alias",
