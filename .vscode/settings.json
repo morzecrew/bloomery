@@ -29,25 +29,16 @@
         ".pre-commit-config.yaml": true,
         "**/.hypothesis": true,
     },
+    // Analysis config (typeCheckingMode, extraPaths, ignore, severity
+    // overrides) lives in pyrightconfig.json at the repo root — the language
+    // server ignores the editor-side equivalents whenever that file exists,
+    // and one source keeps the editor and `uv tool run pyright` in agreement.
+    // Only settings pyrightconfig.json cannot express belong here.
     "cursorpyright.analysis.diagnosticMode": "workspace",
-    "cursorpyright.analysis.typeCheckingMode": "strict",
-    "python.analysis.typeCheckingMode": "strict",
     "python.analysis.diagnosticMode": "workspace",
     "cursorpyright.analysis.inlayHints.functionReturnTypes": true,
     "cursorpyright.analysis.inlayHints.variableTypes": true,
     "ty.diagnosticMode": "workspace",
-    "cursorpyright.analysis.extraPaths": [
-        "src"
-    ],
-    "cursorpyright.analysis.ignore": [
-        "tests/**"
-    ],
-    "cursorpyright.analysis.diagnosticSeverityOverrides": {
-        "reportMissingTypeStubs": "none"
-    },
-    "python.analysis.diagnosticSeverityOverrides": {
-        "reportMissingTypeStubs": "none"
-    },
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff",
     },

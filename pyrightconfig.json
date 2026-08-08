@@ -4,6 +4,7 @@
   "extraPaths": ["src"],
   "include": ["src", "spikes", "examples"],
   "exclude": ["**/__pycache__", "**/.venv"],
+  "ignore": ["tests/**"],
   "venvPath": ".",
   "venv": ".venv",
   "reportMissingTypeStubs": "none"
