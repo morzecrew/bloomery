@@ -15,6 +15,7 @@ import pytest
 from bloomery import build_project_ir, load_project
 from bloomery import dialects as dialects_module
 from bloomery.dialects import DialectFeature, SQLGlotDialect, register_dialect
+from bloomery.quality import pattern as pattern_module
 from bloomery.errors import (
     AssertLoweringError,
     DedupeDispositionConflict,
@@ -117,6 +118,57 @@ def test_dedupe_without_tie_break_is_refused() -> None:
 
 def test_dedupe_with_tie_break_is_accepted() -> None:
     build_project_ir(load_project(_project(entity_extra=DEDUPE_OK)))
+
+
+# ....................... #
+# dedupe columns must exist (§5.4, D47)
+
+
+def test_dedupe_ordering_by_an_undeclared_column_is_refused() -> None:
+    """``ORDER BY typo_col DESC`` is a run-time binder failure, and the whole
+    point of the guardrail stage is that a spec typo never reaches an engine."""
+    documents = _project(
+        entity_extra="    dedupe: {keep: latest_by, field: typo_col, tie_break: [_load_id]}\n"
+    )
+    message = _message(documents)
+    assert "dedupe.field reads 'typo_col'" in message
+    # The declared columns are named, so the author does not go hunting.
+    assert "amount" in message
+    assert "_ingested_at" in message
+
+
+def test_dedupe_tie_breaking_by_an_undeclared_column_is_refused() -> None:
+    documents = _project(
+        entity_extra="    dedupe: {keep: latest_by, field: _ingested_at, tie_break: [nope]}\n"
+    )
+    assert "dedupe.tie_break reads 'nope'" in _message(documents)
+
+
+def test_dedupe_may_order_by_the_ingestion_metadata_columns() -> None:
+    """They are legal targets although no mapping *field* declares them: they
+    are the ingestion metadata contract (§5.6, D21), not mapped fields."""
+    build_project_ir(
+        load_project(
+            _project(
+                entity_extra=(
+                    "    dedupe: {keep: latest_by, field: _ingested_at, "
+                    "tie_break: [_load_id, _source_row_id]}\n"
+                )
+            )
+        )
+    )
+
+
+def test_dedupe_may_order_by_a_declared_field() -> None:
+    build_project_ir(
+        load_project(
+            _project(
+                entity_extra=(
+                    "    dedupe: {keep: latest_by, field: amount, tie_break: [order_id]}\n"
+                )
+            )
+        )
+    )
 
 
 # ....................... #
@@ -287,13 +339,19 @@ def test_redacting_an_unmapped_path_is_accepted() -> None:
 PATTERN_QUALITY = '    quality:\n      - {rule: pattern, regex: "^[0-9]+$", on_fail: flag}\n'
 
 
-def test_a_pattern_no_registered_dialect_can_express_is_refused() -> None:
+def test_a_pattern_a_target_dialect_cannot_express_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class NoRegexDialect(SQLGlotDialect):
         name: str = "noregex"
         sqlglot_dialect: str = "duckdb"
         features = frozenset(DialectFeature) - {DialectFeature.REGEXP_EXTRACT}
 
+    # The checked set is the shipped ports, not the registry (RFC 0016 D56) —
+    # registering a dialect no longer changes a verdict, so the target set is
+    # what a test has to move to reach this refusal.
     register_dialect(NoRegexDialect())
+    monkeypatch.setattr(pattern_module, "PATTERN_TARGET_DIALECTS", ("noregex",))
     documents = _project(
         entity_extra="    quarantine: {retention: 30d}\n", field_quality=PATTERN_QUALITY
     )
@@ -380,6 +438,171 @@ def test_unknown_member_on_a_string_fk_is_accepted() -> None:
         ),
     }
     build_project_ir(load_project(documents))
+
+
+# ....................... #
+# unknown_member on a composite key (§5.4, D48)
+
+
+COMPOSITE_PROJECT = """
+spec_version: 1
+entities:
+  parent:
+    grain: one row per parent
+    key: [a_id, b_id]
+    fields:
+      a_id: {{type: string, required: true}}
+      b_id: {{type: {b_type}, required: true}}
+  child:
+    grain: one row per child
+    key: [child_id]
+    quarantine: {{retention: 30d}}
+    quality:
+      - {{rule: referential, via: child_of_parent, on_missing: {on_missing}}}
+    fields:
+      child_id: {{type: string, required: true}}
+      a_id: {{type: string}}
+      b_id: {{type: {b_type}}}
+relationships:
+  - name: child_of_parent
+    from: child
+    to: parent
+    via: {{a_id: a_id, b_id: b_id}}
+    cardinality: many_to_one
+"""
+
+
+def _composite(*, b_type: str, on_missing: str) -> dict[str, str]:
+    cast = "[to_string]" if b_type == "string" else "[{to_int: []}]"
+    return {
+        "entity_model": COMPOSITE_PROJECT.format(b_type=b_type, on_missing=on_missing),
+        "mapping_parent": f"""
+mapping_version: 1
+source: src__parent
+target: parent
+key:
+  a_id: {{from: "$.a", transform: [to_string]}}
+  b_id: {{from: "$.b", transform: {cast}}}
+unmapped: {METADATA}
+""",
+        "mapping_child": f"""
+mapping_version: 1
+source: src__child
+target: child
+key:
+  child_id: {{from: "$.id", transform: [to_string]}}
+fields:
+  a_id: {{from: "$.a", transform: [to_string]}}
+  b_id: {{from: "$.b", transform: {cast}}}
+unmapped: {METADATA}
+""",
+    }
+
+
+def test_unknown_member_on_a_composite_key_is_refused() -> None:
+    """The rewrite can only put ``'__unknown__'`` in one column, so a composite
+    fk would get a half-sentinel key matching no reserved row — refused whole
+    rather than emitted wrong (D48). A non-string second column sorting after a
+    string first one used to escape the §5.4 type refusal entirely."""
+    message = _message(_composite(b_type="int", on_missing="unknown_member"))
+    assert "composite" in message
+    assert "a_id, b_id" in message
+    assert "use on_missing: quarantine or flag" in message
+
+
+def test_a_composite_key_referential_is_fine_under_the_other_dispositions() -> None:
+    """The refusal is about the *rewrite*, which only ``unknown_member`` does."""
+    build_project_ir(load_project(_composite(b_type="int", on_missing="quarantine")))
+
+
+def test_a_string_composite_key_is_refused_too() -> None:
+    """Every column being a string does not help: the rewrite still writes one."""
+    assert "composite" in _message(_composite(b_type="string", on_missing="unknown_member"))
+
+
+# ....................... #
+# referential resolution: via must name a relationship this entity owns
+
+
+VIA_PROJECT = """
+spec_version: 1
+entities:
+  cust:
+    grain: one row per customer
+    key: [cust_id]
+    fields:
+      cust_id: {{type: string, required: true}}
+      parent_cust_id: {{type: string}}
+  oi:
+    grain: one row per line
+    key: [line_id]
+    quarantine: {{retention: 30d}}
+    quality:
+      - {{rule: referential, via: {via}, on_missing: flag}}
+    fields:
+      line_id: {{type: string, required: true}}
+      cust_id: {{type: string}}
+relationships:
+  - name: cust_self
+    from: cust
+    to: cust
+    via: {{parent_cust_id: cust_id}}
+    cardinality: many_to_one
+  - name: oi_of_cust
+    from: oi
+    to: cust
+    via: {{cust_id: cust_id}}
+    cardinality: many_to_one
+"""
+
+VIA_MAPPINGS = {
+    "mapping_cust": f"""
+mapping_version: 1
+source: crm__cust
+target: cust
+key:
+  cust_id: {{from: "$.id", transform: [to_string]}}
+fields:
+  parent_cust_id: {{from: "$.parent", transform: [to_string]}}
+unmapped: {METADATA}
+""",
+    "mapping_oi": f"""
+mapping_version: 1
+source: oms__lines
+target: oi
+key:
+  line_id: {{from: "$.id", transform: [to_string]}}
+fields:
+  cust_id: {{from: "$.cust_id", transform: [to_string]}}
+unmapped: {METADATA}
+""",
+}
+
+
+def _via(via: str) -> dict[str, str]:
+    return {"entity_model": VIA_PROJECT.format(via=via), **VIA_MAPPINGS}
+
+
+def test_a_referential_rule_naming_no_relationship_is_refused(  # F6
+) -> None:
+    """It used to be a raw ``KeyError`` out of the lowering — not a
+    ``BloomeryError``, so it never reached the batched aggregate at all."""
+    message = _message(_via("no_such_rel"))
+    assert "names no relationship 'no_such_rel'" in message
+    # Both the unknown name and the declared ones, so the fix is one edit away.
+    assert "cust_self, oi_of_cust" in message
+
+
+def test_a_referential_rule_via_another_entitys_relationship_is_refused() -> None:
+    """``cust_self`` runs ``cust → cust``; declaring it on ``oi`` compiled
+    clean and emitted a LEFT JOIN on a column ``oi`` never projects."""
+    message = _message(_via("cust_self"))
+    assert "relationship 'cust_self' runs from 'cust'" in message
+    assert "not from 'oi'" in message
+
+
+def test_a_referential_rule_via_the_entitys_own_relationship_is_accepted() -> None:
+    build_project_ir(load_project(_via("oi_of_cust")))
 
 
 # ....................... #

@@ -157,6 +157,28 @@ def test_plan_names_the_entity_in_replay_scope_not_only_in_backfill_scope() -> N
     assert result.backfill_scope.restates_history
 
 
+def test_plan_sees_a_widening_that_only_adds_a_spelling() -> None:
+    """The other shape of the *same* edit, and the one that used to be blind.
+
+    ``enum_map`` maps a raw spelling onto a target, so a widening either adds a
+    target (above) or points a new spelling at a target that already exists —
+    ``PAYED → paid``. Both admit raw values the narrow spec quarantined, but
+    only the first changes an ``enum_map`` *target*, so a rule identified by
+    its targets alone reported ``replay_scope == ()`` for the second while
+    rows sat in the reject table (D49)."""
+    _narrow_project, old = _project(widened=False)
+    sources = dict(fixture_sources(FIXTURE))
+    sources["mapping_enums"] = sources["mapping_enums"].replace(
+        NARROW, NARROW.replace("refunded, refunded]", "refunded, refunded, PAID, paid]")
+    )
+    spelled = load_project(sources)
+    new = build_project_ir(spelled, load_catalog((FIXTURES / FIXTURE / "catalog.yaml").read_text()))
+    result = plan(old, new)
+    assert result.has_changes
+    assert ENTITY in result.backfill_scope.entities
+    assert result.replay_scope.entities == (ENTITY,)
+
+
 def test_the_backfill_alone_cannot_bring_the_rows_back(
     widened_run: tuple[duckdb.DuckDBPyConnection, tuple[EmittedArtifact, ...]],
 ) -> None:

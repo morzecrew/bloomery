@@ -78,7 +78,7 @@ from bloomery.quality.mart import (
     is_quality_mart,
     quality_mart_ir,
 )
-from bloomery.quality.pattern import unsupported_dialects
+from bloomery.quality.pattern import PATTERN_TARGET_DIALECTS, unsupported_dialects
 from bloomery.quality.predicates import (
     WINDOWED_KINDS,
     conjunction,
@@ -153,6 +153,7 @@ __all__ = [
     "is_quality_mart",
     "quality_mart_ir",
     # pattern portability
+    "PATTERN_TARGET_DIALECTS",
     "unsupported_dialects",
     # the reconcile grammar (§5.3)
     "RECONCILE_AGGREGATES",

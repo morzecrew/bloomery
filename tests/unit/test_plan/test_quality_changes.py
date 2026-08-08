@@ -108,15 +108,89 @@ def test_relaxing_a_disposition_opens_a_replay() -> None:
     assert _scopes(old, new) == (("order_item",), ("order_item",))
 
 
-def test_changing_settings_on_a_quarantining_rule_opens_a_replay() -> None:
+def test_widening_a_bound_on_a_quarantining_rule_opens_a_replay() -> None:
     """A widened bound is the same situation as a relaxed disposition: rows the
-    *old* rule quarantined may now pass, and they are only in the reject
-    table. The differ cannot tell widening from narrowing (bounds are opaque
-    strings), so it reports the replay rather than silently dropping it."""
+    *old* rule quarantined now pass, and they are only in the reject table."""
     old = entity(quality=(QUARANTINE_RULE,))
     new = entity(quality=(quality_rule(name="amount_positive", params=(("min", "-100"),)),))
     change = _one(old, new)
     assert change.detail == "quality rule changed (settings)"
+    assert _scopes(old, new) == (("order_item",), ("order_item",))
+
+
+def test_narrowing_a_bound_on_a_quarantining_rule_needs_no_replay() -> None:
+    """A tightening restates and backfills but frees nothing (D52): every row
+    the old rule diverted, the new one diverts too. Naming the entity anyway
+    hands a replay runner rows that the run will only quarantine again."""
+    old = entity(quality=(QUARANTINE_RULE,))
+    new = entity(quality=(quality_rule(name="amount_positive", params=(("min", "5"),)),))
+    assert _one(old, new).detail == "quality rule changed (settings)"
+    assert _scopes(old, new) == (("order_item",), ())
+
+
+def test_relaxing_to_fail_needs_no_replay() -> None:
+    """``quarantine → fail`` leaves ``quarantine`` but *tightens*: the rows in
+    the reject table still violate the rule, and replaying them now halts the
+    pipeline on the new blocking audit rather than freeing anything."""
+    old = entity(quality=(QUARANTINE_RULE,))
+    new = entity(quality=(quality_rule(name="amount_positive", on_fail=OnFail.FAIL),))
+    change = _one(old, new)
+    assert (change.old, change.new) == ("quarantine", "fail")
+    assert _scopes(old, new) == (("order_item",), ())
+
+
+def test_moving_to_fail_while_widening_the_bound_still_replays() -> None:
+    """The rows the widened bound now admits can only come back through the
+    reject table, whatever the disposition of the ones that still fail."""
+    old = entity(quality=(QUARANTINE_RULE,))
+    new = entity(
+        quality=(
+            quality_rule(name="amount_positive", on_fail=OnFail.FAIL, params=(("min", "-100"),)),
+        )
+    )
+    assert _scopes(old, new) == (("order_item",), ("order_item",))
+
+
+def _in_enum(*values: str, on_fail: OnFail = OnFail.QUARANTINE) -> EntityIR:
+    return entity(
+        quality=(
+            quality_rule(
+                name="status_in_enum",
+                kind="in_enum",
+                column_name="status",
+                on_fail=on_fail,
+                params=tuple((f"value_{i:04d}", value) for i, value in enumerate(values)),
+            ),
+        )
+    )
+
+
+def test_widening_an_admissible_set_replays_and_narrowing_does_not() -> None:
+    """A membership rule is the one shape where relaxation is plainly readable:
+    the new set either contains the old one or it does not."""
+    narrow, wide = _in_enum("paid", "pending"), _in_enum("paid", "pending", "refunded")
+    assert _scopes(narrow, wide) == (("order_item",), ("order_item",))
+    assert _scopes(wide, narrow) == (("order_item",), ())
+
+
+def test_an_opaque_settings_change_on_a_quarantining_rule_still_replays() -> None:
+    """A regex is not orderable, so widening and narrowing are indistinguishable
+    from the params (D52). The undecidable case reports the replay: a scope with
+    nothing to drain is noise, a stranded row is data loss."""
+    old = entity(
+        quality=(
+            quality_rule(
+                name="sku_pattern", kind="pattern", column_name="sku", params=(("regex", "^A+$"),)
+            ),
+        )
+    )
+    new = entity(
+        quality=(
+            quality_rule(
+                name="sku_pattern", kind="pattern", column_name="sku", params=(("regex", "^B+$"),)
+            ),
+        )
+    )
     assert _scopes(old, new) == (("order_item",), ("order_item",))
 
 
@@ -131,36 +205,57 @@ def test_changing_settings_on_a_flagging_rule_needs_no_replay() -> None:
     assert _scopes(old, new) == (("order_item",), ())
 
 
-def test_a_referential_rules_on_missing_is_read_as_its_disposition() -> None:
-    """``referential`` carries ``on_missing``, not ``on_fail`` — and
-    ``quarantine → unknown_member`` is a relaxation like any other."""
-    params = (("relationship", "item_of_order"), ("to_entity", "order"), ("via_0000", "a=b"))
-    old = entity(
+REFERENTIAL_PARAMS = (
+    ("relationship", "item_of_order"),
+    ("to_entity", "order"),
+    ("via_0000", "a=b"),
+)
+
+
+def _referential(on_missing: str) -> EntityIR:
+    return entity(
         quality=(
             quality_rule(
                 name="item_of_order_referential",
                 kind="referential",
                 column_name=None,
                 on_fail=None,
-                params=(*params, ("on_missing", "quarantine")),
+                params=(*REFERENTIAL_PARAMS, ("on_missing", on_missing)),
             ),
         )
     )
-    new = entity(
-        quality=(
-            quality_rule(
-                name="item_of_order_referential",
-                kind="referential",
-                column_name=None,
-                on_fail=None,
-                params=(*params, ("on_missing", "unknown_member")),
-            ),
-        )
-    )
+
+
+@pytest.mark.parametrize(
+    ("old_missing", "new_missing", "replay"),
+    [
+        # ``unknown_member`` and ``flag`` both keep the row, so the shipped
+        # ``disposition()`` mapped them to the same ``OnFail`` and the differ
+        # saw nothing at all — while the emitted SQL gains or loses its
+        # ``'__unknown__'`` CASE and every stored fk restates.
+        ("unknown_member", "flag", ()),
+        ("flag", "unknown_member", ()),
+        # Diverting starts: nothing sits in the reject table on this rule's
+        # account yet, so there is nothing to replay.
+        ("unknown_member", "quarantine", ()),
+        ("flag", "quarantine", ()),
+        # Diverting stops: the rows it diverted are only in the reject table.
+        ("quarantine", "unknown_member", ("order_item",)),
+        ("quarantine", "flag", ("order_item",)),
+    ],
+)
+def test_every_referential_disposition_change_restates(
+    old_missing: str, new_missing: str, replay: tuple[str, ...]
+) -> None:
+    """``referential`` carries ``on_missing``, not ``on_fail``, and D11 wants
+    disposition changes classified in **both** directions — so the diff
+    compares ``on_missing`` itself rather than the ``OnFail`` it collapses to."""
+    old, new = _referential(old_missing), _referential(new_missing)
     change = _one(old, new)
     assert change.change_class is ChangeClass.RESTATING
-    assert (change.old, change.new) == ("quarantine", "flag")
-    assert _scopes(old, new) == (("order_item",), ("order_item",))
+    assert change.detail == "quality rule changed (disposition)"
+    assert (change.old, change.new) == (old_missing, new_missing)
+    assert _scopes(old, new) == (("order_item",), replay)
 
 
 def test_an_unchanged_rule_produces_nothing() -> None:

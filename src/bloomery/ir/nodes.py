@@ -316,11 +316,21 @@ class QualityRuleIR:
     params: tuple[tuple[str, str], ...] = ()
 
 
-def quality_sort_key(rule: QualityRuleIR) -> tuple[str, str, str, tuple[tuple[str, str], ...]]:
+def quality_sort_key(
+    rule: QualityRuleIR,
+) -> tuple[str, str, str, tuple[tuple[str, str], ...], str]:
     """The canonical order of :attr:`EntityIR.quality` — one function so no
     consumer can invent a second one. Total over the node's whole value, so
-    two rules that would sort equal are the same rule (RFC 0003 §5.3)."""
-    return (rule.kind, rule.column or "", rule.name, rule.params)
+    two rules that would sort equal are the same rule (RFC 0003 §5.3).
+
+    ``on_fail`` is the last component and it is **load-bearing**, not
+    decoration (RFC 0016 D50): name generation walks this order, so two rules
+    differing only in their disposition sorting equal made the assignment fall
+    through to authored order — swapping two YAML lines then compiled the same
+    spec to two different IRs. It sorts last so it only ever breaks a tie
+    nothing else could break.
+    """
+    return (rule.kind, rule.column or "", rule.name, rule.params, str(rule.on_fail or ""))
 
 
 @dataclass(frozen=True, slots=True)

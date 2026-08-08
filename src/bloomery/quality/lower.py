@@ -11,9 +11,9 @@ Three things are *resolved* here rather than restated by the author:
 
 - **the implicit ``coercible`` rule** (§5.2, D3) — one per mapped field of a
   quality-carrying entity, carrying the source expressions its marker needs;
-- **``in_enum``'s admissible set** — read off the field's ``enum_map`` step's
-  targets, because the set *is* the chain's mapping and restating it would let
-  the two drift;
+- **``in_enum``'s admissible set** — read off the field's ``enum_map`` steps,
+  both their targets and the spellings that reach them (D49), because the set
+  *is* the chain's mapping and restating it would let the two drift;
 - **``referential``'s join** — the named relationship's ``via`` pairs and
   target entity, so emission never needs a relationship lookup.
 
@@ -120,19 +120,33 @@ def field_sources(mapping: Mapping, field_name: str) -> tuple[str, ...]:
     return tuple(canon(extraction(path)).sql for path in paths)
 
 
-def _enum_targets(mapping: Mapping, field_name: str) -> tuple[str, ...]:
-    """The ``enum_map`` targets on a field's chain, deduplicated and sorted —
-    ``in_enum``'s admissible set (RFC 0016 §5.2)."""
+def _enum_chain(mapping: Mapping, field_name: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """The ``enum_map`` steps of a field's chain as (spellings, targets), each
+    deduplicated and sorted — what defines ``in_enum``'s admissible set
+    (RFC 0016 §5.2, D49).
+
+    Both halves are needed, and neither is redundant. ``enum_map`` passes an
+    *unmapped* value through untouched, so the raw values ``in_enum`` admits
+    are the mapped spellings plus the targets themselves. A widening that
+    points a new spelling at an existing target (``PAYED → paid``) changes no
+    target, and a rule carrying only the targets could not see it — while it
+    is exactly the edit §6's replay case is about. The pairing is deliberately
+    *not* carried: re-pointing ``a → x`` to ``a → y`` when both are already
+    targets changes the column's value, which the column diff reports, but
+    changes nothing about which raw values this rule admits.
+    """
     # Only a value field can carry ``in_enum`` (key fields have no
     # ``quality:`` surface), so the lookup is total.
     field_mapping = mapping.fields[field_name]
     if isinstance(field_mapping, RecipeFieldMapping):
-        return ()  # a recipe binds aliases, not a chain — no enum_map to read
+        return ((), ())  # a recipe binds aliases, not a chain — no enum_map
+    spellings: set[str] = set()
     targets: set[str] = set()
     for step in field_mapping.transform:
         if step.name == "enum_map":
+            spellings.update(str(value) for value in step.args[::2])
             targets.update(str(value) for value in step.args[1::2])
-    return tuple(sorted(targets))
+    return tuple(sorted(spellings)), tuple(sorted(targets))
 
 
 def _field_quality(field_mapping: FieldMapping | None) -> tuple[FieldQualityRule, ...]:
@@ -178,7 +192,9 @@ def _field_rule_ir(
     elif isinstance(rule, PatternRule):
         params.append(("regex", rule.regex))
     elif isinstance(rule, InEnumRule):
-        params.extend(_indexed("value", _enum_targets(mapping, column)))
+        spellings, targets = _enum_chain(mapping, column)
+        params.extend(_indexed("value", targets))
+        params.extend(_indexed("spelling", spellings))
     elif isinstance(rule, InSetRule):
         params.extend(_indexed("value", tuple(str(value) for value in rule.values)))
     else:  # UniqueRule — the slice is the entity's partition, or the table
@@ -221,20 +237,35 @@ def _dedupe_fields(entity: Entity) -> frozenset[str]:
 
 
 def _deduplicate_names(rules: list[QualityRuleIR]) -> tuple[QualityRuleIR, ...]:
-    """Force rule names unique, deterministically.
+    """Force rule names unique, deterministically (RFC 0016 D50).
 
     Two identical-shaped rules on one column (the same bound declared twice
     with different dispositions) would otherwise share a name, and a shared
-    name in ``failed_rules`` is an unreadable reject row. Suffixes are assigned
-    in the IR's own canonical order, so the assignment is a pure function of
-    the value — never of authored order.
+    name in ``failed_rules`` is an unreadable reject row — worse, one quality
+    mart row whose counts are the union of two rules' failures.
+
+    Two properties, both of which had to be *made* true:
+
+    - **Collision-free.** The suffix counts up until the candidate is actually
+      free, rather than trusting ``_{n}`` to be. It is not: an authored
+      ``expression`` rule may legally be named ``a_range_min_2``, which is
+      precisely what the second of two ``a_range_min`` rules used to be
+      renamed to — two rules, one name, silently merged.
+    - **Independent of authored order.** Assignment walks
+      :func:`~bloomery.ir.quality_sort_key`, which orders over the rule's whole
+      value, ``on_fail`` included. Without that last component two rules
+      differing only in disposition sorted equal, the stable sort fell through
+      to authored order, and swapping two YAML lines swapped which rule owned
+      the unsuffixed name (RFC 0003: same specs in, same bytes out).
     """
-    seen: dict[str, int] = {}
+    taken: set[str] = set()
     named: list[QualityRuleIR] = []
     for rule in sorted(rules, key=quality_sort_key):
-        count = seen.get(rule.name, 0)
-        seen[rule.name] = count + 1
-        name = rule.name if count == 0 else f"{rule.name}_{count + 1}"
+        name, index = rule.name, 1
+        while name in taken:
+            index += 1
+            name = f"{rule.name}_{index}"
+        taken.add(name)
         named.append(rule if name == rule.name else replace(rule, name=name))
     return tuple(sorted(named, key=quality_sort_key))
 
@@ -282,9 +313,17 @@ def lower_quality(
                 )
             )
         else:
-            # Resolution (RFC 0005) has already refused a ``via`` naming no
-            # relationship, so the lookup is total by the time lowering runs.
-            rules.append(_referential_ir(row_rule, by_name[row_rule.via]))
+            # A ``via`` naming no declared relationship is a *guardrail*
+            # refusal (§5.9) that the stage raises over this same draft — and
+            # the stage runs after the lowering, so the lowering may not
+            # assume the lookup is total. It skips instead: an unresolvable
+            # rule lowers to nothing, the draft is well-formed, and the
+            # guardrail reports the typo with the declared names beside it.
+            # Compiling never reaches an IR missing the rule, because the
+            # stage refuses before anything is emitted.
+            relationship = by_name.get(row_rule.via)
+            if relationship is not None:
+                rules.append(_referential_ir(row_rule, relationship))
     return _deduplicate_names(rules)
 
 

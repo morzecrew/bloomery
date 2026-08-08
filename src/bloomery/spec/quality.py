@@ -26,7 +26,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping as AbcMapping
 from decimal import Decimal
-from typing import Annotated, Literal, Self, cast
+from typing import Annotated, Literal, NoReturn, Self, cast
 
 from pydantic import AfterValidator, Discriminator, Field, StringConstraints, model_validator
 
@@ -52,6 +52,7 @@ __all__ = [
     "PortableRegex",
     "Quarantine",
     "QualityRule",
+    "RangeBound",
     "RangeRule",
     "Reconcile",
     "ReferentialRule",
@@ -96,63 +97,283 @@ RETENTION_PATTERN = r"^[1-9][0-9]{0,4}[hdw]$"
 RuleName = Annotated[str, StringConstraints(pattern=RULE_NAME_PATTERN)]
 RetentionDuration = Annotated[str, StringConstraints(pattern=RETENTION_PATTERN)]
 
-#: Constructs outside the portable regex subset (RFC 0016 §5.3, D5), keyed by
-#: the ``(?`` prefix that introduces them. Character classes, anchors, and
-#: quantifiers are portable across DuckDB (RE2), Postgres (ARE), and Trino
-#: (RE2); lookaround and named groups are not — RE2 has no lookaround at all,
-#: and the named-group syntaxes disagree. A regex that works on DuckDB and
-#: silently means something else on Trino is exactly the bug this project
-#: exists to prevent. Full per-dialect validation via sqlglot is the lowering
-#: phase's job; this is the subset check every dialect agrees on.
+# ....................... #
+# The portable regex subset (RFC 0016 §5.3, D5) — an allowlist scanner
+#
+# The subset is defined by what the scanner *accepts*; everything else,
+# including anything unrecognized, is refused. That direction is the whole
+# point: a denylist accepts every construct nobody thought of, and the ones
+# nobody thought of (backreferences, atomic groups, possessive quantifiers,
+# ``\A``/``\Z``) abort the run on RE2 engines rather than compiling into
+# something wrong. Loosening a refusal later is backward-compatible;
+# tightening one is not (RFC 0010 §9), so the subset starts small.
+#
+# What "portable" is a claim about: DuckDB and Trino run RE2, Postgres runs
+# POSIX ARE. The accepted constructs mean the same thing on all three, with
+# two divergences stated rather than pretended away:
+#
+# - ``.`` excludes newline under RE2 and includes it under ARE. Accepted
+#   anyway: the divergence needs an embedded newline in the data to show, and
+#   the alternative is refusing the one construct authors reach for most.
+# - ``\d``/``\w``/``\s`` are ASCII under RE2 and locale-defined under ARE
+#   (``[[:alnum:]_]`` and friends), so ``\w`` can admit non-ASCII letters on
+#   Postgres. Accepted with the caveat recorded here and in the docs.
+#
+# Their negations ``\D``/``\W``/``\S`` are accepted **outside** a character
+# class only: ARE makes them an error *inside* brackets, where RE2 allows
+# them, and an error is a divergence like any other.
+
+#: Group constructs outside the subset, keyed by the ``(?`` prefix that
+#: introduces them, longest prefix first, with a catch-all ``(?`` last so the
+#: table is closed: a group form nobody listed is still refused, by name.
 PORTABLE_REGEX_REJECTED: tuple[tuple[str, str], ...] = (
-    ("(?=", "lookahead"),
-    ("(?!", "negative lookahead"),
-    ("(?<=", "lookbehind"),
-    ("(?<!", "negative lookbehind"),
     ("(?P<", "named group"),
     ("(?P=", "named backreference"),
+    ("(?<=", "lookbehind"),
+    ("(?<!", "negative lookbehind"),
     ("(?<", "named group"),
+    ("(?'", "named group"),
+    ("(?=", "lookahead"),
+    ("(?!", "negative lookahead"),
+    ("(?>", "atomic group"),
+    ("(?#", "inline comment"),
+    ("(?(", "conditional group"),
+    ("(?a", "inline flag"),
+    ("(?i", "inline flag"),
+    ("(?L", "inline flag"),
+    ("(?m", "inline flag"),
+    ("(?s", "inline flag"),
+    ("(?u", "inline flag"),
+    ("(?x", "inline flag"),
+    ("(?-", "inline flag"),
+    ("(?", "unrecognized group construct"),
+)
+
+#: Escapes standing for themselves: the subset's punctuation, plus ``\t``,
+#: ``\n``, ``\r``, which RE2 and ARE spell identically.
+_ESCAPED_LITERALS = frozenset("\\.^$|?*+()[]{}-/tnr")
+
+#: Named refusals for the escapes an author is most likely to try. Anything
+#: not here and not in :data:`_ESCAPED_LITERALS` (nor ``dDwWsS``) is an
+#: "unrecognized escape" — the scanner never falls through to acceptance.
+_ESCAPE_REFUSALS: tuple[tuple[str, str], ...] = (
+    ("AZz", "text-anchor escape"),
+    ("bB", "word-boundary escape"),
+    ("G", "match-start escape"),
+    ("0123456789", "backreference"),
+    ("pP", "Unicode property class"),
+    ("xuUN", "character-code escape"),
+)
+
+#: ``{n}``, ``{n,}``, ``{n,m}`` — the portable repetition forms.
+_REPETITION = re.compile(r"\{(\d+)(,(\d+)?)?\}")
+
+_SUBSET = (
+    "the subset is literals, character classes, \\d/\\w/\\s and their negations, "
+    "the anchors ^ and $, the quantifiers * + ? {n} {n,} {n,m}, alternation, and "
+    "non-capturing groups (?:…)"
 )
 
 
-def _first_unsupported(pattern: str) -> tuple[str, str] | None:
-    """The first non-portable construct in ``pattern``, or ``None``.
+def _refuse(construct: str, text: str, why: str) -> NoReturn:
+    """One refusal, naming the construct, its text, and the reason."""
+    msg = (
+        f"{construct} ({text!r}) is outside the portable regex subset "
+        f"(RFC 0016 §5.3): {why} — {_SUBSET}"
+    )
+    raise ValueError(msg)
 
-    Scans the pattern rather than substring-searching it: an escaped ``\\(?=``
-    is a literal paren, and ``[(?=]`` is a character class — neither is
-    lookahead. Order in :data:`PORTABLE_REGEX_REJECTED` is significant, the
-    longer ``(?<=``/``(?<!`` prefixes preceding the bare ``(?<``.
-    """
-    index = 0
-    in_class = False
+
+def _refuse_escape(char: str, *, in_class: bool) -> NoReturn:
+    if in_class and char in "DWS":
+        _refuse(
+            "negated shorthand class inside a character class",
+            f"\\{char}",
+            "Postgres ARE rejects it inside brackets where RE2 accepts it, so the "
+            f"same pattern is an error on one engine and a match on another; write [^\\{char.lower()}]",
+        )
+    for chars, label in _ESCAPE_REFUSALS:
+        if char in chars:
+            _refuse(label, f"\\{char}", "no RE2 engine and no POSIX ARE agree on it")
+    _refuse(
+        "unrecognized escape",
+        f"\\{char}",
+        "the subset is closed, so an escape it does not name is refused",
+    )
+
+
+def _scan_class(pattern: str, start: int) -> int:
+    """Scan the character class opening at ``pattern[start]``; return the
+    index just past its closing ``]``."""
+    index = start + 1
+    if pattern[index : index + 1] == "^":
+        index += 1
+    if pattern[index : index + 1] == "]":
+        _refuse("empty character class", "[]", "write \\] for a literal bracket")
     while index < len(pattern):
         char = pattern[index]
+        if char == "]":
+            return index + 1
         if char == "\\":
-            index += 2  # the escaped character is a literal, whatever it is
+            following = pattern[index + 1 : index + 2]
+            if not following:
+                _refuse("trailing backslash", "\\", "it escapes nothing")
+            if following not in _ESCAPED_LITERALS and following not in "dws":
+                _refuse_escape(following, in_class=True)
+            index += 2
             continue
-        if in_class:
-            in_class = char != "]"
-        elif char == "[":
-            in_class = True
-        elif pattern.startswith("(?", index):
-            for prefix, label in PORTABLE_REGEX_REJECTED:
-                if pattern.startswith(prefix, index):
-                    return prefix, label
+        if char == "[":
+            following = pattern[index + 1 : index + 2]
+            if following == ":":
+                _refuse(
+                    "POSIX character class",
+                    pattern[index : pattern.find(":]", index) + 2] or "[[:",
+                    "its membership is locale-defined on Postgres and fixed on RE2",
+                )
+            if following == ".":
+                _refuse("POSIX collating element", "[.", "no RE2 engine implements it")
+            if following == "=":
+                _refuse("POSIX equivalence class", "[=", "no RE2 engine implements it")
+            _refuse(
+                "unescaped '[' inside a character class", "[", "write \\[ for a literal bracket"
+            )
         index += 1
-    return None
+    _refuse("unterminated character class", pattern[start:], "no ']' closes it")
+
+
+def _scan_portable(pattern: str) -> None:
+    """Refuse everything the portable subset does not name.
+
+    One left-to-right pass, so the refusal names the *first* offending
+    construct rather than whatever a denylist happened to substring-match.
+    Anchoring (below) is checked in the same pass: ``^`` is legal only at the
+    start of a top-level alternative, ``$`` only at its end, and every
+    alternative must have both.
+    """
+    index = 0
+    depth = 0
+    quantifiable = False  # the previous token can carry a quantifier
+    quantifier: str | None = None  # the previous token *was* a quantifier
+    branch_start = True  # at the start of a top-level alternative
+    opened = False  # this alternative has its '^'
+    closed = False  # ... and its '$', with nothing after it
+
+    while index < len(pattern):
+        char = pattern[index]
+        if closed and char != "|":
+            _refuse("misplaced anchor", "$", "'$' ends its alternative, and this one continues")
+
+        if char == "^":
+            if depth or not branch_start:
+                _refuse(
+                    "misplaced anchor",
+                    "^",
+                    "'^' opens a top-level alternative; anchors inside groups anchor nothing",
+                )
+            opened, branch_start, quantifiable, quantifier = True, False, False, None
+        elif char == "$":
+            if depth:
+                _refuse(
+                    "misplaced anchor",
+                    "$",
+                    "'$' closes a top-level alternative; anchors inside groups anchor nothing",
+                )
+            closed, branch_start, quantifiable, quantifier = True, False, False, None
+        elif char == "|":
+            if depth == 0:
+                if not (opened and closed):
+                    _refuse_unanchored(pattern)
+                opened, closed, branch_start = False, False, True
+            quantifiable, quantifier = False, None
+        elif char == "(":
+            if pattern.startswith("(?:", index):
+                depth, index = depth + 1, index + 2
+                quantifiable, quantifier, branch_start = False, None, False
+            else:
+                for prefix, label in PORTABLE_REGEX_REJECTED:
+                    if pattern.startswith(prefix, index):
+                        _refuse(label, prefix, "it does not mean the same thing on every dialect")
+                _refuse(
+                    "capturing group",
+                    "(",
+                    "a rule is a boolean match and captures nothing, and numbered groups are "
+                    "what backreferences read; write (?:…)",
+                )
+        elif char == ")":
+            if depth == 0:
+                _refuse("unbalanced ')'", ")", "no '(?:' opened it; write \\) for a literal")
+            depth -= 1
+            quantifiable, quantifier, branch_start = True, None, False
+        elif char == "[":
+            index = _scan_class(pattern, index) - 1
+            quantifiable, quantifier, branch_start = True, None, False
+        elif char == "]":
+            _refuse("unescaped ']'", "]", "no class opened it; write \\] for a literal bracket")
+        elif char in "*+?":
+            if quantifier is not None:
+                label = {
+                    "?": "lazy quantifier",
+                    "+": "possessive quantifier",
+                    "*": "double quantifier",
+                }[char]
+                _refuse(label, quantifier + char, "RE2 and ARE disagree about it or refuse it")
+            if not quantifiable:
+                _refuse("quantifier with nothing to repeat", char, "no atom precedes it")
+            quantifier, quantifiable, branch_start = char, False, False
+        elif char == "{":
+            match = _REPETITION.match(pattern, index)
+            if match is None:
+                _refuse("literal '{'", "{", "write \\{ for a literal brace, or {n}/{n,}/{n,m}")
+            if quantifier is not None:
+                _refuse("double quantifier", quantifier + match.group(0), "one quantifier per atom")
+            if not quantifiable:
+                _refuse("quantifier with nothing to repeat", match.group(0), "no atom precedes it")
+            low, high = match.group(1), match.group(3)
+            if high is not None and int(high) < int(low):
+                _refuse("inverted repetition", match.group(0), "the minimum exceeds the maximum")
+            quantifier, quantifiable, branch_start = match.group(0), False, False
+            index = match.end() - 1
+        elif char == "}":
+            _refuse("unescaped '}'", "}", "no repetition opened it; write \\} for a literal brace")
+        elif char == "\\":
+            following = pattern[index + 1 : index + 2]
+            if not following:
+                _refuse("trailing backslash", "\\", "it escapes nothing")
+            if following not in _ESCAPED_LITERALS and following not in "dDwWsS":
+                _refuse_escape(following, in_class=False)
+            quantifiable, quantifier, branch_start = True, None, False
+            index += 1
+        else:  # '.' and every ordinary literal
+            quantifiable, quantifier, branch_start = True, None, False
+        index += 1
+
+    if depth:
+        _refuse("unbalanced '('", "(?:", "no ')' closes it")
+    if not (opened and closed):
+        _refuse_unanchored(pattern)
+
+
+def _refuse_unanchored(pattern: str) -> NoReturn:
+    msg = (
+        f"pattern {pattern!r} is not anchored (RFC 0016 §5.3): a `pattern` rule matches the "
+        "whole value, and every SQL regex predicate matches a substring unless the pattern "
+        "says otherwise — unanchored, '[0-9]{5}' accepts 'abc12345xyz'. Write the anchors "
+        "yourself, one pair per top-level alternative: '^[0-9]{5}$', '^a$|^b$'"
+    )
+    raise ValueError(msg)
 
 
 def _portable_regex(pattern: str) -> str:
-    """Reject the non-portable subset, then the malformed."""
-    found = _first_unsupported(pattern)
-    if found is not None:
-        prefix, label = found
-        msg = (
-            f"{label} ({prefix}) is outside the portable regex subset (RFC 0016 §5.3): "
-            "character classes, anchors, and quantifiers only — no lookaround, no named "
-            "groups, because they do not mean the same thing on every target dialect"
-        )
-        raise ValueError(msg)
+    """Accept only the portable subset, anchored; then let Python's engine
+    have the last word on well-formedness.
+
+    The scanner is the portability check — it is where the RE2/ARE knowledge
+    lives, because no amount of *rendering* a pattern proves an engine will
+    accept it (:mod:`bloomery.quality.pattern` says the same from the other
+    side). ``re.compile`` stays behind it as a second opinion on shapes the
+    scanner deliberately does not model, such as a reversed class range.
+    """
+    _scan_portable(pattern)
     try:
         re.compile(pattern)
     except re.error as exc:
@@ -162,6 +383,63 @@ def _portable_regex(pattern: str) -> str:
 
 
 PortableRegex = Annotated[str, AfterValidator(_portable_regex)]
+
+
+# ....................... #
+# Exact numeric bounds (RFC 0003 D5, RFC 0015 D5)
+
+#: An exact decimal literal: optional sign, digits, optional fraction. No
+#: exponent — ``1e10`` renders as a double literal, and no float ever reaches
+#: an emission path (RFC 0003 D5). No ``NaN``/``Infinity`` — ``Decimal``
+#: parses both, and ``amount < nan`` fails open.
+_EXACT_DECIMAL = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$")
+
+#: The ISO temporal carrier: ``str`` bounds also exist for dates and
+#: timestamps (RFC 0015 D5), which lower to string literals compared in the
+#: column's own type.
+_ISO_TEMPORAL = re.compile(
+    r"^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})?)?$"
+)
+
+
+def _exact_bound(value: int | Decimal | str) -> int | Decimal | str:
+    """A bound that survives to SQL as written.
+
+    The IR carries bounds as ``str(value)`` and the lowering renders numeric
+    text as a number literal, so the check is on the *rendered* text: exact
+    decimal, or ISO temporal, or refused. Everything a float would smuggle in
+    — ``nan``, ``inf``, ``1e10`` — is refused here, at parse, because it is
+    decidable from the spec alone (RFC 0016 D13). A non-finite ``Decimal``
+    never reaches this function: pydantic's own numeric validation refuses it
+    one layer earlier, so the non-finite branch below exists for the *string*
+    spellings, which stay strings precisely because ``Decimal`` refused them.
+    """
+    text = str(value)
+    if _EXACT_DECIMAL.match(text) or (isinstance(value, str) and _ISO_TEMPORAL.match(text)):
+        return value
+    lowered = text.lower().lstrip("+-")
+    if lowered.startswith(("nan", "snan", "inf")):
+        msg = (
+            f"range bound {text!r} is non-finite: `amount < nan` is never TRUE on some engines "
+            "and always TRUE on others (RFC 0015 D5). Fix: write a real bound"
+        )
+        raise ValueError(msg)
+    if "e" in lowered:
+        msg = (
+            f"range bound {text!r} carries an exponent, which renders as a double literal, and "
+            "floats never reach an emission path (RFC 0003 D5). Fix: write the number in full, "
+            'e.g. "10000000000"'
+        )
+        raise ValueError(msg)
+    msg = (
+        f"range bound {text!r} is neither an exact decimal nor an ISO date/timestamp. Bounds are "
+        "int, Decimal, or a string carrying one exactly (RFC 0015 D5) — the string form exists "
+        "for decimals YAML would round to a float and for ISO temporals, nothing else"
+    )
+    raise ValueError(msg)
+
+
+RangeBound = Annotated[int | Decimal | str, AfterValidator(_exact_bound)]
 
 
 # ....................... #
@@ -195,13 +473,15 @@ class NotNullRule(QualityRule):
 
 class RangeRule(QualityRule):
     """``{rule: range, min: …, max: …}`` — at least one bound; bounds are
-    ``int``/``Decimal``/``str``, never ``float`` (RFC 0003 D5). Two bounds may
-    carry different dispositions, so they are two rules (§5.3's worked
+    ``int``/``Decimal``/``str``, never ``float`` (RFC 0003 D5), and the
+    ``str`` carrier is exact: an exact decimal or an ISO temporal, never
+    ``nan``/``inf`` and never an exponent (:func:`_exact_bound`). Two bounds
+    may carry different dispositions, so they are two rules (§5.3's worked
     example: ``min: 0`` quarantines, ``max: 1000000`` flags)."""
 
     rule: Literal["range"]
-    min: int | Decimal | str | None = None
-    max: int | Decimal | str | None = None
+    min: RangeBound | None = None
+    max: RangeBound | None = None
 
     @model_validator(mode="after")
     def _at_least_one_bound(self) -> Self:

@@ -40,14 +40,15 @@ unit-tested per branch):
   stores and what its history means — RESTATING, backfilling the entity.
 - **Replay is narrower than backfill.** ``Plan.replay_scope`` names the
   entities whose ``<entity>__reject`` tables must be drained, and is populated
-  only where a relaxation can actually free rows: a rule whose **old**
-  disposition was ``quarantine`` is removed, or changed at all (``quarantine
-  → flag`` is §5.7's named case; a widened bound on a still-quarantining rule
-  is the same situation and is included rather than silently dropped). A
-  tightening (``flag → quarantine``) backfills and never replays: nothing sits
-  in the reject table on that rule's account, so a replay would be a no-op —
-  and a scope naming entities with nothing to replay is a scope nobody can
-  act on.
+  only where a change can actually free rows — see :func:`_replay` for the
+  three-line rule and why ``quarantine → fail`` and a narrowed bound are not
+  among them. A scope naming entities with nothing to replay is a scope
+  nobody can act on; worse, it feeds a replay runner rows the run will only
+  quarantine (or now halt) on again.
+- **A disposition is diffed as the author wrote it.** ``referential`` carries
+  ``on_missing``, whose ``unknown_member`` value routes like ``flag`` but
+  emits a different model, so the diff compares the authored label rather
+  than the ``OnFail`` it collapses to (:func:`_disposition_label`).
 - **``quarantine:`` retention is metadata; widening ``redact:`` is not.**
   Retention governs *deletion policy*, not any stored value → ADDITIVE.
   Narrowing ``redact:`` (redacting fewer paths) is ADDITIVE too — more payload
@@ -69,6 +70,7 @@ unit-tested per branch):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 
 from bloomery.errors import ContractViolation, PlanError, RenameTargetMissing
@@ -494,6 +496,72 @@ def _rule_settings(rule: QualityRuleIR) -> tuple[tuple[str, str], ...]:
     return tuple((name, value) for name, value in rule.params if name != "on_missing")
 
 
+def _disposition_label(rule: QualityRuleIR) -> str:
+    """What the author wrote, not what it collapses to (RFC 0016 D51).
+
+    :func:`~bloomery.quality.disposition` answers a *routing* question — where
+    does a failing row go — and correctly maps ``unknown_member`` onto
+    ``FLAG``: the row is kept either way. But the diff asks a different
+    question, and the collapse made ``unknown_member ⇄ flag`` invisible: zero
+    changes, no backfill, ``has_changes`` False, while the emitted SQL gains or
+    loses its ``'__unknown__'`` CASE and every stored fk restates. D11 wants
+    disposition changes classified in **both** directions, so the label is the
+    authored value.
+    """
+    if rule.on_fail is not None:
+        return str(rule.on_fail)
+    return dict(rule.params)["on_missing"]
+
+
+#: Rule kinds whose params define an *ordered* admissible interval, so a
+#: relaxation is readable from the params alone.
+_BOUNDED_KINDS = frozenset({"length", "range"})
+#: Rule kinds whose params define an admissible *set*, ditto by inclusion.
+#: ``in_enum``'s set is the chain's ``enum_map`` — spellings and targets both
+#: reach the params (D49), and widening either one admits more raw values.
+_SET_KINDS = frozenset({"in_enum", "in_set"})
+
+
+def _relaxed(old_rule: QualityRuleIR, new_rule: QualityRuleIR) -> bool | None:
+    """Whether the settings change admits **more** rows than before: ``True``
+    relaxed, ``False`` unchanged-or-tightened, ``None`` undecidable.
+
+    ``None`` is an honest answer, not a placeholder. A ``pattern``'s regex and
+    an ``expression``'s SQL are not orderable — ``^A+$`` → ``^B+$`` is neither
+    a widening nor a narrowing — and a ``coercible`` rule's params are the
+    source expressions it reads, which say nothing about castability. The
+    caller decides what to do with the three-valued answer (see
+    :func:`_replay`); it is not this function's business to pretend.
+    """
+    old_settings, new_settings = _rule_settings(old_rule), _rule_settings(new_rule)
+    if old_settings == new_settings:
+        return False
+    if old_rule.kind in _SET_KINDS:
+        # The param *names* are positions in a sorted list, so a set that grew
+        # or shrank changes them; only the values carry the membership.
+        old_values = {value for _name, value in old_settings}
+        return {value for _name, value in new_settings} >= old_values
+    old_params, new_params = dict(old_settings), dict(new_settings)
+    if old_rule.kind in _BOUNDED_KINDS and set(old_params) == set(new_params):
+        return _relaxed_bounds(old_params, new_params)
+    return None
+
+
+def _relaxed_bounds(old_params: dict[str, str], new_params: dict[str, str]) -> bool | None:
+    """A ``range``/``length`` interval widens iff its floor drops and its
+    ceiling rises. Bounds are stringified ``Decimal``s (never floats — RFC
+    0003 D5); anything that will not parse is undecidable rather than guessed.
+    """
+    try:
+        old_bounds = {bound: Decimal(value) for bound, value in old_params.items()}
+        new_bounds = {bound: Decimal(value) for bound, value in new_params.items()}
+    except InvalidOperation:  # pragma: no cover — the spec layer parses these first
+        return None
+    floor_dropped = "min" not in old_bounds or new_bounds["min"] <= old_bounds["min"]
+    ceiling_rose = "max" not in old_bounds or new_bounds["max"] >= old_bounds["max"]
+    return floor_dropped and ceiling_rose
+
+
 def _restates(acc: _Acc, entity: EntityIR, subject: str, detail: str, **reprs: str | None) -> None:
     """One RESTATING quality change: recompute the entity, and seed the
     downstream impact — every metric reading these columns reports different
@@ -527,7 +595,7 @@ def _quality_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 new_e,
                 subject,
                 f"quality rule added ({kind})",
-                new=str(disposition(new_rule)),
+                new=_disposition_label(new_rule),
             )
             continue
         if old_rule is not None and new_rule is None:
@@ -536,15 +604,15 @@ def _quality_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 new_e,
                 subject,
                 f"quality rule removed ({kind})",
-                old=str(disposition(old_rule)),
+                old=_disposition_label(old_rule),
             )
-            _replay_if_quarantining(old_rule, new_e, acc)
+            _replay(old_rule, None, new_e, acc)
             continue
         if old_rule is None or new_rule is None:  # pragma: no cover — one map held it
             continue
-        old_disposition, new_disposition = disposition(old_rule), disposition(new_rule)
+        old_label, new_label = _disposition_label(old_rule), _disposition_label(new_rule)
         facets: list[str] = []
-        if old_disposition is not new_disposition:
+        if old_label != new_label:
             facets.append("disposition")
         if _rule_settings(old_rule) != _rule_settings(new_rule):
             facets.append("settings")
@@ -555,17 +623,50 @@ def _quality_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
             new_e,
             subject,
             f"quality rule changed ({', '.join(facets)})",
-            old=str(old_disposition),
-            new=str(new_disposition),
+            old=old_label,
+            new=new_label,
         )
-        _replay_if_quarantining(old_rule, new_e, acc)
+        _replay(old_rule, new_rule, new_e, acc)
 
 
-def _replay_if_quarantining(old_rule: QualityRuleIR, entity: EntityIR, acc: _Acc) -> None:
-    """A rule that *used to* quarantine has rows sitting in the reject table;
-    any change to it may let them back in, and they are not in bronze's
-    incremental window, so a backfill alone cannot recover them (§5.7)."""
-    if disposition(old_rule) is OnFail.QUARANTINE:
+def _replay(
+    old_rule: QualityRuleIR, new_rule: QualityRuleIR | None, entity: EntityIR, acc: _Acc
+) -> None:
+    """Name the entity's reject table only when this change can let rows that
+    are **sitting in it** back into the entity (RFC 0016 D52).
+
+    Two facts bound the question. Rows are in the reject table on this rule's
+    account only if it *used to* quarantine — so a rule that flagged, failed,
+    or kept its rows via ``unknown_member`` opens no replay whatever happens to
+    it. And a replay is worth running only if some quarantined row now comes
+    out the other side:
+
+    - the rule is **gone** — every row it diverted returns;
+    - its disposition is now ``flag`` (``unknown_member`` included, D19: the
+      row is kept with its fk rewritten) — §5.7's named case;
+    - its parameters **relaxed** — the rows the widened bound now admits
+      return, whatever happens to the ones that still fail.
+
+    What is deliberately *not* a replay: ``quarantine → fail`` at unchanged
+    parameters, and a **tightening**. Both leave every quarantined row still
+    violating the rule, so a replay drains nothing — and under ``fail`` it is
+    actively harmful, feeding a replay runner rows that trip the new blocking
+    audit and halt the pipeline. Naming them was the shipped behaviour and it
+    contradicted this module's own docstring.
+
+    Where :func:`_relaxed` cannot tell (an unorderable ``pattern`` or
+    ``expression``), the replay **is** reported. That is the conservative
+    direction on purpose: a scope with nothing to drain costs a no-op MERGE,
+    while a missing one strands rows in quarantine until someone notices by
+    hand — and §5.6's whole point is that quarantine is drop *plus*
+    recoverability.
+    """
+    if disposition(old_rule) is not OnFail.QUARANTINE:
+        return
+    if new_rule is None or disposition(new_rule) is OnFail.FLAG:
+        acc.replay.add(entity.name)
+        return
+    if _relaxed(old_rule, new_rule) is not False:
         acc.replay.add(entity.name)
 
 

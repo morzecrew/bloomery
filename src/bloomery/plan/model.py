@@ -85,11 +85,19 @@ class ReplayScope:
     backfilling would leave those rows quarantined forever: the backfill reads
     bronze, and bronze's window has long since moved past them.
 
-    Populated only where relaxation can actually free rows — a rule whose
-    **old** disposition was ``quarantine`` being removed or changed. A
-    tightening (``flag → quarantine``) needs a backfill and no replay: nothing
-    is sitting in the reject table on that rule's account. bloomery emits the
-    replay merge artifact; *executing* it is the caller's (§5.6).
+    Populated only where a change can actually free rows (RFC 0016 D52): the
+    rule's **old** disposition was ``quarantine`` — otherwise nothing sits in
+    the reject table on its account — *and* it is now gone, now disposes as
+    ``flag``, or has relaxed parameters. Two shapes deliberately do **not**
+    replay although they restate: ``flag → quarantine`` (nothing was diverted
+    to begin with) and any *tightening* of a still-quarantining rule — a
+    narrowed bound, or ``quarantine → fail`` — because every row in the reject
+    table still fails the rule, so the replay drains nothing and, under
+    ``fail``, halts the pipeline on the new blocking audit. Where relaxation is
+    undecidable from the parameters alone (an unorderable ``pattern`` regex or
+    ``expression``) the replay is reported: a no-op MERGE is cheaper than a
+    row stranded in quarantine. bloomery emits the replay merge artifact;
+    *executing* it is the caller's (§5.6).
     """
 
     entities: tuple[str, ...]

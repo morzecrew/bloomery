@@ -18,8 +18,12 @@ The checks:
 ``IngestionMetadataMissing``            §5.6, D21
 ``RedactionConflict``                   §5.6, D10
 ``pattern`` portability                 §5.3, D5 (bare ``GuardrailError``)
-``unknown_member`` on a non-string fk   §5.4, D6 (bare ``GuardrailError``)
+``dedupe`` naming an unknown column     §5.4, D47 (bare ``GuardrailError``)
+``via`` naming no relationship          §5.3, D45 (bare ``GuardrailError``)
+``via`` from another entity             §5.4, D46 (bare ``GuardrailError``)
 ``referential`` onto the entity itself  §5.4, D27 (bare ``GuardrailError``)
+``unknown_member`` on a non-string fk   §5.4, D6 (bare ``GuardrailError``)
+``unknown_member`` on a composite key   §5.4, D48 (bare ``GuardrailError``)
 ``reconcile`` grammar and resolution    §5.3 (bare ``GuardrailError``)
 quality-mart metric-name collision      §5.8, D12 (bare ``GuardrailError``)
 ======================================  ==============================
@@ -53,7 +57,6 @@ from bloomery.quality import (
     disposition,
     lower_quality,
     mapped_fields,
-    params_of,
     parse_side,
     payload_key,
     unsupported_dialects,
@@ -110,6 +113,38 @@ def _check_dedupe(entity_name: str, entity: Entity) -> list[GuardrailError]:
         "model violates the core invariant (RFC 0003). Fix: add tie_break: [<column>, …]"
     )
     return [DedupeTieBreakMissing(msg, source_path=_entity_path(entity_name, "dedupe"))]
+
+
+def _check_dedupe_columns(entity_name: str, entity: Entity) -> list[GuardrailError]:
+    """Every column the dedupe order reads must exist (RFC 0016 D47).
+
+    ``dedupe`` lowers straight into ``ORDER BY <field> DESC NULLS LAST, …``
+    (§5.4), so a typo there is a run-time binder failure on a model that
+    compiled clean — the exact shape of failure the guardrail stage exists to
+    move to compile time. The legal targets are the entity's declared columns
+    **plus** the three ingestion-metadata columns: ``_ingested_at`` is the
+    usual ``dedupe.field`` and no mapping declares it as a field, because it is
+    the D21 contract rather than mapped data.
+    """
+    if entity.dedupe is None:
+        return []
+    declared = {*entity.fields, *entity.key, *INGESTION_METADATA}
+    ordering = [
+        (entity.dedupe.field, "dedupe.field"),
+        *((column, "dedupe.tie_break") for column in entity.dedupe.tie_break),
+    ]
+    errors: list[GuardrailError] = []
+    for column, clause in ordering:
+        if column in declared:
+            continue
+        msg = (
+            f"entity {entity_name!r}: {clause} reads {column!r}, which the entity does not "
+            f"declare — it lowers to ORDER BY {column} DESC NULLS LAST (RFC 0016 §5.4) and "
+            f"fails at run time on a model that compiled clean. Known columns: "
+            f"{', '.join(sorted(declared))}"
+        )
+        errors.append(GuardrailError(msg, source_path=_entity_path(entity_name, "dedupe")))
+    return errors
 
 
 def _check_dedupe_disposition(
@@ -246,74 +281,148 @@ def _check_patterns(entity_name: str, mapping: Mapping) -> list[GuardrailError]:
     return errors
 
 
-def _check_unknown_member(
-    entity_name: str, entity: Entity, mapping: Mapping, relationships: tuple[Relationship, ...]
-) -> list[GuardrailError]:
-    """``unknown_member`` requires a string-typed fk in v1 (§5.4).
+def _unknown_via(entity_name: str, rule: ReferentialRule, declared: list[str]) -> GuardrailError:
+    """``via`` names no declared relationship (RFC 0016 D45).
 
-    The reserved member is the *string* ``'__unknown__'`` — there is nowhere
-    sound to put it in a non-string key, and a typed sentinel like ``-1``
-    colliding with a legal key value is exactly the silent wrongness this
-    project refuses.
+    Resolution (RFC 0005) never inspects ``entity.quality`` — it validates the
+    ``relationships:`` block itself and nothing that references it — so this
+    was a raw ``KeyError`` out of the lowering: not a :class:`BloomeryError`,
+    never batched, and pointing at compiler internals rather than at the typo.
     """
-    by_name = {relationship.name: relationship for relationship in relationships}
-    errors: list[GuardrailError] = []
-    for rule in lower_quality(entity, mapping, relationships):
-        params = params_of(rule)
-        if rule.kind != "referential" or params["on_missing"] != "unknown_member":
-            continue
-        relationship = by_name[params["relationship"]]
-        # Resolution (RFC 0005) has already refused a ``via`` naming a column
-        # neither entity declares, so the lookup is total by the time the
-        # guardrail stage runs.
-        from_column = sorted(relationship.via)[0]
-        field = entity.fields[from_column]
-        declared = parse_type(
-            field.type, source_path=_entity_path(entity_name, f"fields.{from_column}.type")
-        )
-        if not isinstance(declared, StringType):
-            msg = (
-                f"referential rule via {relationship.name!r} on entity {entity_name!r} "
-                f"declares on_missing: unknown_member, but the fk {from_column!r} is "
-                f"{field.type!r} — the reserved member is the string '__unknown__', and "
-                "there is nowhere sound to put it in a non-string key (RFC 0016 §5.4; typed "
-                "per-key sentinels are rejected because one could collide with a legal "
-                "value). Fix: use on_missing: quarantine or flag, or map the key to string"
-            )
-            errors.append(GuardrailError(msg, source_path=_entity_path(entity_name, "quality")))
-    return errors
+    msg = (
+        f"referential rule on entity {entity_name!r} names no relationship {rule.via!r} — "
+        f"the entity model declares: {', '.join(declared)} (RFC 0016 §5.3). A referential "
+        "rule probes a *declared* relationship; there is nothing to join on otherwise. "
+        "Fix: correct the via, or declare the relationship"
+    )
+    return GuardrailError(msg, source_path=_entity_path(entity_name, "quality"))
 
 
-def _check_self_referential(
-    entity_name: str, entity: Entity, relationships: tuple[Relationship, ...]
-) -> list[GuardrailError]:
-    """A ``referential`` rule may not probe the entity it is declared on
-    (RFC 0016 D27).
+def _wrong_side(entity_name: str, rule: ReferentialRule, relationship: Relationship) -> str:
+    """The rule's relationship is declared, but its ``from`` side is another
+    entity (RFC 0016 D46).
+
+    The lowering joins ``relationship.via``'s from-columns off *this* entity's
+    extract (§5.4), so a relationship whose from side is a sibling produces a
+    ``LEFT JOIN`` on columns this model never projects — a run-time binder
+    failure from a spec that compiled clean. The shipped check compared only
+    the ``to`` side, so a ``cust → cust`` self relationship borrowed by an
+    unrelated entity slipped past the very refusal (D27) written for it.
+    """
+    return (
+        f"referential rule via {rule.via!r} on entity {entity_name!r}: relationship "
+        f"{relationship.name!r} runs from {relationship.from_!r} to {relationship.to!r}, "
+        f"not from {entity_name!r} — the rule lowers to a LEFT JOIN whose ON clause reads "
+        f"{', '.join(sorted(relationship.via))} off {entity_name!r}'s own extract (RFC 0016 "
+        "§5.4), and this entity does not project them. Fix: name a relationship declared "
+        f"from {entity_name!r}, or express the check as a reconcile: block"
+    )
+
+
+def _self_referential(entity_name: str, rule: ReferentialRule) -> str:
+    """The relationship points back at the declaring entity (RFC 0016 D27).
 
     The lowering is a ``LEFT JOIN`` **inside** the dependent entity's own
     model (§5.4), and a model cannot join the table it is being built from —
     the relation does not exist yet. Left unchecked the emitted SQL either
     fails at run time or, worse, resolves against a stale previous version of
-    the table and silently answers the wrong question. Decidable from the spec
-    alone (the relationship's ``to`` side is the entity's own name), so it is a
-    guardrail by the §5.9 definition, not a run-time disposition.
+    the table and silently answers the wrong question.
+    """
+    return (
+        f"referential rule via {rule.via!r} on entity {entity_name!r} references "
+        f"{entity_name!r} itself — the rule lowers to a LEFT JOIN inside that entity's "
+        "own model (RFC 0016 §5.4), and a model cannot join the table it is being built "
+        "from. Fix: model the referenced side as a separate entity built from the same "
+        "source, or express the check as a reconcile: block, which runs silver→mart "
+        "against finished tables"
+    )
+
+
+def _check_unknown_member(
+    entity_name: str, entity: Entity, rule: ReferentialRule, relationship: Relationship
+) -> list[GuardrailError]:
+    """``unknown_member`` requires a **single**, string-typed fk in v1 (§5.4,
+    D48).
+
+    The reserved member is the *string* ``'__unknown__'`` — there is nowhere
+    sound to put it in a non-string key, and a typed sentinel like ``-1``
+    colliding with a legal key value is exactly the silent wrongness this
+    project refuses. The composite refusal is the same argument one level up:
+    the rewrite is a single ``CASE`` over a single column, so a two-column fk
+    got ``('__unknown__', 47)`` — a half-sentinel key matching no reserved row,
+    which is worse than either a refusal or an orphan. Refusing composites
+    outright is also what makes the type check total: an accepted rule has
+    exactly one via column, and it is checked.
+    """
+    if rule.on_missing != "unknown_member":
+        return []
+    via = sorted(relationship.via)
+    if len(via) > 1:
+        msg = (
+            f"referential rule via {rule.via!r} on entity {entity_name!r} declares "
+            f"on_missing: unknown_member, but the relationship joins on a composite key "
+            f"({', '.join(via)}) — the reserved member is the single string '__unknown__' "
+            "and the rewrite is one CASE over one column (RFC 0016 §5.4), so a composite fk "
+            "would get a half-sentinel key matching no reserved row. Fix: use on_missing: "
+            "quarantine or flag, or relate the entities by a single column"
+        )
+        return [GuardrailError(msg, source_path=_entity_path(entity_name, "quality"))]
+    from_column = via[0]
+    # Resolution (RFC 0005) refuses a relationship whose ``via`` names a column
+    # neither side declares, and the ``from`` side is this entity by the check
+    # above — so the field lookup is total.
+    field = entity.fields[from_column]
+    declared = parse_type(
+        field.type, source_path=_entity_path(entity_name, f"fields.{from_column}.type")
+    )
+    if isinstance(declared, StringType):
+        return []
+    msg = (
+        f"referential rule via {relationship.name!r} on entity {entity_name!r} "
+        f"declares on_missing: unknown_member, but the fk {from_column!r} is "
+        f"{field.type!r} — the reserved member is the string '__unknown__', and "
+        "there is nowhere sound to put it in a non-string key (RFC 0016 §5.4; typed "
+        "per-key sentinels are rejected because one could collide with a legal "
+        "value). Fix: use on_missing: quarantine or flag, or map the key to string"
+    )
+    return [GuardrailError(msg, source_path=_entity_path(entity_name, "quality"))]
+
+
+def _check_referential(
+    entity_name: str, entity: Entity, relationships: tuple[Relationship, ...]
+) -> list[GuardrailError]:
+    """Every refusal a ``referential`` rule can earn, in one resolution pass.
+
+    One pass rather than three because they are ordered: a rule whose ``via``
+    names nothing cannot be asked which side it runs from, and a rule running
+    from the wrong entity cannot be asked about its fk's type. Each rule
+    contributes at most one leaf — the first true statement about it — so an
+    author reads a cause, not a cascade.
     """
     by_name = {relationship.name: relationship for relationship in relationships}
     errors: list[GuardrailError] = []
     for rule in entity.quality:
-        # Resolution (RFC 0005) has already refused a ``via`` naming no
-        # relationship, so the lookup is total by the time this stage runs.
-        if not isinstance(rule, ReferentialRule) or by_name[rule.via].to != entity_name:
+        if not isinstance(rule, ReferentialRule):
             continue
-        msg = (
-            f"referential rule via {rule.via!r} on entity {entity_name!r} references "
-            f"{entity_name!r} itself — the rule lowers to a LEFT JOIN inside that entity's "
-            "own model (RFC 0016 §5.4), and a model cannot join the table it is being built "
-            "from. Fix: model the referenced side as a separate entity built from the same "
-            "source, or express the check as a reconcile: block, which runs silver→mart "
-            "against finished tables"
-        )
-        errors.append(GuardrailError(msg, source_path=_entity_path(entity_name, "quality")))
+        relationship = by_name.get(rule.via)
+        if relationship is None:
+            errors.append(_unknown_via(entity_name, rule, sorted(by_name)))
+        elif relationship.from_ != entity_name:
+            errors.append(
+                GuardrailError(
+                    _wrong_side(entity_name, rule, relationship),
+                    source_path=_entity_path(entity_name, "quality"),
+                )
+            )
+        elif relationship.to == entity_name:
+            errors.append(
+                GuardrailError(
+                    _self_referential(entity_name, rule),
+                    source_path=_entity_path(entity_name, "quality"),
+                )
+            )
+        else:
+            errors.extend(_check_unknown_member(entity_name, entity, rule, relationship))
     return errors
 
 
@@ -443,16 +552,16 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
         if mapping is None:
             continue  # an unmapped entity emits nothing; nothing to refuse
         errors.extend(_check_dedupe(entity_name, entity))
+        errors.extend(_check_dedupe_columns(entity_name, entity))
         errors.extend(_check_dedupe_disposition(entity_name, entity, mapping))
         errors.extend(_check_ingestion_metadata(entity_name, entity, mapping))
         errors.extend(_check_redaction(entity_name, entity, mapping))
         errors.extend(_check_patterns(entity_name, mapping))
-        errors.extend(_check_self_referential(entity_name, entity, relationships))
-        # Both of these read the *lowered* rules rather than the opt-in flag:
+        errors.extend(_check_referential(entity_name, entity, relationships))
+        # This one reads the *lowered* rules rather than the opt-in flag:
         # ``lower_quality`` is empty for an entity that never joined the
-        # quality system, so they are silently satisfied there.
+        # quality system, so it is silently satisfied there.
         errors.extend(_check_retention(entity_name, entity, mapping, relationships))
-        errors.extend(_check_unknown_member(entity_name, entity, mapping, relationships))
     # Project-level, not per entity: a reconcile check relates two entities and
     # belongs to neither, and the reserved metric names are one flat namespace.
     errors.extend(_check_reconcile(project))

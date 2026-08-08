@@ -109,6 +109,77 @@ def test_range_bounds_never_become_floats() -> None:
     assert not isinstance(rule.max, float)
 
 
+@pytest.mark.parametrize(
+    "bound",
+    [
+        "0",
+        "-5",
+        "10000000000",  # a large exact decimal, written in full
+        "0.10",
+        "-0.0001",
+        "+7",
+        "2024-01-01",  # the ISO temporal carrier (RFC 0015 D5)
+        "2024-01-01T00:00:00",
+    ],
+)
+def test_exact_range_bound_strings_accepted(bound: str) -> None:
+    rule = rules(mapping_with(f"      - {{rule: range, min: '{bound}', on_fail: flag}}\n"))[0]
+    assert isinstance(rule, RangeRule)
+    assert rule.min == bound
+
+
+@pytest.mark.parametrize(
+    "bound",
+    [
+        "nan",
+        "NaN",
+        "-nan",
+        "sNaN",
+        "inf",
+        "Inf",
+        "-Infinity",
+        "infinity",
+    ],
+)
+def test_non_finite_range_bounds_refused(bound: str) -> None:
+    # RFC 0015 D5: `amount < nan` fails open — it matches nothing on some
+    # engines and everything on others. Refused at parse, every spelling.
+    with pytest.raises(SpecParseError) as excinfo:
+        mapping_with(f"      - {{rule: range, min: '{bound}', on_fail: flag}}\n")
+    assert excinfo.value.source_path == "mappings/orders: fields.f.simple.quality[0].range.min"
+    assert "non-finite" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("bound", ["1e10", "1E+10", "-2.5e-3"])
+def test_exponent_range_bounds_refused(bound: str) -> None:
+    # an exponent renders as a double literal, which RFC 0003 D5 bans from
+    # every emission path — write the number in full instead
+    with pytest.raises(SpecParseError) as excinfo:
+        mapping_with(f"      - {{rule: range, max: '{bound}', on_fail: flag}}\n")
+    assert "exponent" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("bound", ["abc", "1_0", "0x10", "", "1.2.3", "--1", "1,000"])
+def test_unparseable_range_bounds_refused(bound: str) -> None:
+    with pytest.raises(SpecParseError) as excinfo:
+        mapping_with(f"      - {{rule: range, max: '{bound}', on_fail: flag}}\n")
+    assert "exact decimal" in str(excinfo.value)
+
+
+def test_a_non_finite_decimal_bound_never_reaches_the_bound_check() -> None:
+    # pydantic's own numeric validation refuses a non-finite Decimal one layer
+    # earlier — recorded so the string spellings above are read as the only
+    # way `nan` could ever have arrived
+    with pytest.raises(ValueError, match="finite number"):
+        RangeRule(rule="range", min=Decimal("NaN"), on_fail="flag")
+
+
+def test_a_yaml_float_bound_that_renders_as_an_exponent_is_refused() -> None:
+    with pytest.raises(SpecParseError) as excinfo:
+        mapping_with("      - {rule: range, max: 1.0e30, on_fail: flag}\n")
+    assert "exponent" in str(excinfo.value)
+
+
 def test_unknown_rule_names_the_closed_catalogue() -> None:
     with pytest.raises(SpecParseError) as excinfo:
         mapping_with("      - {rule: bogus, on_fail: flag}\n")
@@ -186,11 +257,19 @@ def test_in_enum_takes_no_admissible_set() -> None:
     "regex",
     [
         "^[A-Z]{2}$",  # character class, anchors, quantifier
-        r"\d+(-\d+)*",  # capturing groups and escapes
-        "(?:abc|def)$",  # non-capturing groups stay portable
-        r"a\[b",  # an escaped bracket is not a class opener
-        "[(?=]",  # a class containing lookahead-shaped characters
-        r"\(?=x",  # an escaped paren is a literal, not lookahead
+        "^[^A-Z]*$",  # negated class
+        r"^\d+$",  # portable predefined class
+        r"^\d{2,}$",  # open-ended repetition
+        r"^\w+\s\S+$",  # the rest of the portable predefined classes
+        "^(?:abc|def)$",  # non-capturing groups stay portable
+        "^a$|^b$",  # every top-level alternative anchored on its own
+        "^.*$",  # dot
+        r"^a\[b\]c$",  # escaped brackets are literals, not a class opener
+        "^[(?=]$",  # a class containing lookahead-shaped characters
+        r"^\(?=x$",  # an escaped paren is a literal, not lookahead
+        r"^[^\\]*$",  # an escaped backslash inside a class
+        r"^[a-z\d_-]{1,64}$",  # ranges, a shorthand class and a literal dash
+        "^$",  # the empty string, anchored
     ],
 )
 def test_portable_patterns_accepted(regex: str) -> None:
@@ -202,14 +281,43 @@ def test_portable_patterns_accepted(regex: str) -> None:
 @pytest.mark.parametrize(
     ("regex", "label"),
     [
-        ("(?=abc)x", "lookahead"),
-        ("(?!abc)x", "negative lookahead"),
-        ("(?<=a)b", "lookbehind"),
-        ("(?<!a)b", "negative lookbehind"),
-        ("(?P<year>[0-9]{4})", "named group"),
-        (r"(?P<a>x)(?P=a)", "named group"),
-        ("(?<year>[0-9]{4})", "named group"),
-        ("x[a]y(?=z)", "lookahead"),  # found after a character class
+        # constructs the denylist used to wave through, every one of which
+        # aborts the run on DuckDB or means something else there
+        (r"^(a)\1$", "capturing group"),
+        (r"^\1$", "backreference"),
+        ("^(?>abc)$", "atomic group"),
+        ("^a*+$", "possessive quantifier"),
+        ("^a*?$", "lazy quantifier"),
+        (r"^\A\d+\Z$", "text-anchor escape"),
+        (r"^\d+\b$", "word-boundary escape"),
+        ("^[[:alpha:]]+$", "POSIX character class"),
+        ("^[[.hyphen.]]$", "POSIX collating element"),
+        ("^[[=a=]]$", "POSIX equivalence class"),
+        ("^(?i)abc$", "inline flag"),
+        (r"^[\D]$", "negated shorthand class inside a character class"),
+        (r"^\p{L}+$", "Unicode property class"),
+        (r"^\x41$", "character-code escape"),
+        # the constructs the denylist did catch, still caught
+        ("^(?=abc)x$", "lookahead"),
+        ("^(?!abc)x$", "negative lookahead"),
+        ("^(?<=a)b$", "lookbehind"),
+        ("^(?<!a)b$", "negative lookbehind"),
+        ("^(?P<year>[0-9]{4})$", "named group"),
+        (r"^(?P<a>x)(?P=a)$", "named group"),
+        ("^(?<year>[0-9]{4})$", "named group"),
+        ("^x[a]y(?=z)$", "lookahead"),  # found after a character class
+        ("^(?#note)x$", "inline comment"),
+        ("^(?(1)a)$", "conditional group"),
+        # closedness: malformed input is a refusal, never a pass-through
+        ("^a]b$", "unescaped ']'"),
+        ("^a}b$", "unescaped '}'"),
+        ("^a{b$", "literal '{'"),
+        ("^*a$", "quantifier with nothing to repeat"),
+        ("^[unclosed$", "unterminated character class"),
+        ("^(?:unclosed", "unbalanced '('"),
+        ("^(?:a$)$", "misplaced anchor"),
+        ("^a)b$", "unbalanced ')'"),
+        ("^[]$", "empty character class"),
     ],
 )
 def test_non_portable_regex_rejected(regex: str, label: str) -> None:
@@ -221,18 +329,73 @@ def test_non_portable_regex_rejected(regex: str, label: str) -> None:
     assert "portable regex subset" in message
 
 
+@pytest.mark.parametrize(
+    ("regex", "label"),
+    [
+        (r"^\q$", "unrecognized escape"),
+        (r"^[a\q]$", "unrecognized escape"),
+        ("^[a\\", "trailing backslash"),
+        ("^[a[b]$", "unescaped '[' inside a character class"),
+        ("^a*{2}$", "double quantifier"),
+        ("^{2}$", "quantifier with nothing to repeat"),
+        ("^a{3,1}$", "inverted repetition"),
+    ],
+)
+def test_the_scanner_is_closed_at_its_edges(regex: str, label: str) -> None:
+    """Constructed through the model rather than YAML: these are the shapes a
+    quoting style would fight over, and the point is that *nothing* falls
+    through the scanner to acceptance."""
+    with pytest.raises(ValueError, match="portable regex subset") as excinfo:
+        PatternRule(rule="pattern", regex=regex, on_fail="flag")
+    assert label in str(excinfo.value)
+
+
+def test_a_trailing_backslash_is_refused() -> None:
+    with pytest.raises(SpecParseError) as excinfo:
+        mapping_with('      - {rule: pattern, regex: "^a\\\\", on_fail: flag}\n')
+    assert "trailing backslash" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "regex",
+    [
+        "[0-9]{5}",  # the F10 specimen: matched 'abc12345xyz'
+        "^[0-9]{5}",  # anchored at one end only
+        "[0-9]{5}$",
+        "^a|b$",  # only the first alternative is anchored
+        "(?:^a|^b)$",  # an anchor inside a group anchors no alternative
+        "^a$b$",  # '$' is not the end of its alternative
+    ],
+)
+def test_unanchored_patterns_rejected(regex: str) -> None:
+    with pytest.raises(SpecParseError) as excinfo:
+        mapping_with(f"      - {{rule: pattern, regex: '{regex}', on_fail: flag}}\n")
+    message = str(excinfo.value)
+    assert "anchor" in message
+
+
 def test_every_rejected_construct_is_reachable() -> None:
     # the table is the contract: each prefix must be refusable, and the
     # longer lookbehind prefixes must win over the bare named-group one
     for prefix, label in PORTABLE_REGEX_REJECTED:
+        # the closing catch-all row needs a character no earlier row claims
+        probe = f"{prefix}~a)" if prefix == "(?" else f"{prefix}a)"
         with pytest.raises(SpecParseError) as excinfo:
-            mapping_with(f"      - {{rule: pattern, regex: '{prefix}a)', on_fail: flag}}\n")
+            mapping_with(f'      - {{rule: pattern, regex: "^{probe}$", on_fail: flag}}\n')
         assert label in str(excinfo.value)
 
 
 def test_malformed_regex_rejected() -> None:
     with pytest.raises(SpecParseError) as excinfo:
-        mapping_with("      - {rule: pattern, regex: '[unclosed', on_fail: flag}\n")
+        mapping_with("      - {rule: pattern, regex: '^[unclosed$', on_fail: flag}\n")
+    assert "unterminated character class" in str(excinfo.value)
+
+
+def test_a_range_python_rejects_is_refused() -> None:
+    # the scanner accepts the shape; Python's engine is the second opinion on
+    # well-formedness the subset check deliberately keeps behind it
+    with pytest.raises(SpecParseError) as excinfo:
+        mapping_with("      - {rule: pattern, regex: '^[z-a]$', on_fail: flag}\n")
     assert "invalid regular expression" in str(excinfo.value)
 
 

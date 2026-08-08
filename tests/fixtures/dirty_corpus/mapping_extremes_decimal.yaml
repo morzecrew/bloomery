@@ -11,7 +11,7 @@ fields:
     from: "$.raw_value"
     transform: [to_string]
     quality:
-      - {rule: pattern, regex: '^-?[0-9]+(\.[0-9]{1,9})?$', on_fail: flag}
+      - {rule: pattern, regex: '^-?[0-9]+(?:\.[0-9]{1,9})?$', on_fail: flag}
 unmapped:
   - "$._load_id"
   - "$._ingested_at"

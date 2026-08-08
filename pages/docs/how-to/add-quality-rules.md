@@ -289,6 +289,11 @@ replay: ('inventory_level',)
 Backfilling without replaying would leave those rows quarantined forever. Feed
 `replay_scope.entities` to whatever applies the `replay/<entity>.sql` artifacts.
 
+The scope stays empty when nothing could come back: a *tightened* rule (a narrowed
+bound, or `quarantine → fail`) restates and backfills, but every quarantined row still
+fails it. Widening an `enum_map` — a new target *or* a new spelling for an existing one
+— relaxes `in_enum` and does name the entity.
+
 ## Notes
 
 - **Targets.** SQLMesh emits the full set. The dbt emitter raises `UnsupportedByTarget`

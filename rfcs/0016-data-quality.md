@@ -200,6 +200,16 @@ duplicates are key-based dedupe's job, and a late-arriving duplicate key lands o
 identical in both modes, not despite it.
 Sampling is rejected per Document 5 §11.3 — a probabilistic result in an otherwise exact
 system.
+> **Amended 2026-08-08 (D53–D56):** the sentence above overstates two things and
+> under-specifies a third. (1) The subset is a closed **allowlist**, not "no lookaround,
+> no named groups" — a denylist accepted backreferences, atomic groups, possessive
+> quantifiers and `\A`/`\Z`, every one of which *aborts* on RE2 (D53). (2) "Anchored" is
+> an obligation on the author, enforced at parse: an unanchored pattern is a
+> `SpecParseError` (D54). (3) "Compile-time validated against every target dialect via
+> sqlglot" is not a thing sqlglot can do — bloomery never executes SQL, so no compile-time
+> render proves an engine accepts a regex. The dialect check is a *surface and transport*
+> check; the portability claim is carried by the allowlist (D55), and the dialects checked
+> are the shipped ports, not whatever the process has registered (D56).
 
 `tie_break` is mandatory under `keep: latest_by` — its absence is the compile error
 `DedupeTieBreakMissing`: two rows sharing a timestamp
@@ -323,6 +333,20 @@ with a legal key value is exactly the silent wrongness this project refuses.
 > source, or express the check as a `reconcile:` block, which runs silver→mart against
 > finished tables. Self-referencing *data* (a parent-order fk) is still expressible —
 > it is the single-entity *shape* that is refused.
+
+> **Amended 2026-08-08 (D46):** D27's check compared only the relationship's `to` side,
+> which let a rule name a relationship declared *between two other entities* — the join
+> then reads `via`'s from-columns off an extract that never projects them. The
+> relationship's `from` side must be the declaring entity; `to` must not be.
+>
+> **Amended 2026-08-08 (D48):** `unknown_member` on a **composite**-key relationship is
+> refused too. The rewrite is one `CASE` over one column, so a two-column fk produced a
+> half-sentinel key matching no reserved row — and the string-fk check, reading only the
+> first `via` column by sort order, missed a non-string second one entirely.
+>
+> **Amended 2026-08-08 (D45):** a `via` naming no declared relationship is likewise a
+> compile-time refusal. Resolution never inspects `entity.quality`, so it used to be a
+> raw `KeyError` from the lowering rather than a batched `GuardrailError`.
 
 `QUALIFY` is DuckDB-native; Postgres and any engine without it get the equivalent
 `ROW_NUMBER`-in-a-subquery lowering through the shared dialect-neutral AST — one AST,
@@ -468,6 +492,16 @@ RFC 0007 decision table gets its append-only row dated when this ships. This is 
 entire payoff of keeping cleansing in the spec: the backfill is computed, not
 remembered.
 
+> **Amended 2026-08-08 (D51):** "**both** directions" is only true if the diff reads the
+> disposition the author *wrote*. `referential`'s `unknown_member` routes like `flag`,
+> so collapsing it made `unknown_member ⇄ flag` produce no change at all — while the
+> emitted SQL gains or loses its `'__unknown__'` CASE and every stored fk restates.
+>
+> **Amended 2026-08-08 (D52):** the paragraph's own "not just a backfill" cuts both
+> ways: `replay_scope` names an entity only where quarantined rows can actually come
+> back — the rule removed, its disposition now `flag`, or its parameters relaxed. A
+> tightening (a narrowed bound, `quarantine → fail`) backfills and does **not** replay.
+
 ### 5.8 The quality mart
 
 Every rule evaluation emits a row into `gold.mart_data_quality(entity, mapping, rule,
@@ -572,6 +606,13 @@ definition: `GuardrailError` leaves declared in `errors.py` per RFC 0002 D3.
   reject table, and a second replay re-derives identical semantic state — the test
   asserts semantic-state equality (winners, `resolved_at`), observability timestamps
   excluded (§5.6).
+
+  > **Amended 2026-08-08 (D49):** "enum widening" has **two** shapes and the tier
+  > asserted only one. Adding an `enum_map` target changes a rule param; adding a new
+  > *spelling* for an existing target does not, yet admits raw values the narrow spec
+  > quarantined just the same. The second shape reported `replay_scope = ()` while rows
+  > sat in the reject table, and no test said so. Both shapes are now asserted, and the
+  > rule's params carry the chain's spellings beside its targets.
 - **Dialect matrix emphasis** — cleansing is where dialects diverge most (regex
   flavours, `ROW_NUMBER` null ordering, decimal rounding, array construction,
   empty-string-vs-null); tier 5 runs the execution assertions per engine.
@@ -672,6 +713,28 @@ reference pages for the rule catalogue and `quarantine:` block; the
 | 37 | *(2026-08-08, M12 fix)* **D22's ordering applies to the replay *source*.** Two unresolved rejects resolving to one entity key both matched the MERGE's `ON` clause and both merged, leaving the entity holding two rows at a declared one-row-per-key grain and doubling every mart measure over it. The `WHEN MATCHED` comparison cannot prevent that — it arbitrates candidate against incumbent, never candidate against candidate — so the dedupe total order is applied to the candidate set first. Its no-`dedupe:` form is the final sort key alone (D20). |
 | 38 | *(2026-08-08, M12 fix)* **`reconcile.on_fail` is not a label.** All three values emitted the same non-blocking audit while the quality mart reported `disposition = 'fail'`. `fail` now emits a **blocking** audit — §5.3 nominates reconcile as the pipeline-stopping gate, and that sentence is only true if the value blocks; `flag` stays non-blocking so a disagreement does not withhold the comparison table; `quarantine` lowers non-blocking because a reconcile routes no row, and refusing the value belongs to the spec surface where `on_fail` is typed. |
 | 39 | *(2026-08-08, M12 fix)* **Compilation must not depend on whether the target framework is imported.** Importing `sqlmesh` extends SQLGlot globally, including how some node types render, so a lowering that emits one of those nodes makes the artifact bytes a function of the calling process — an RFC 0003 break invisible to every existing guard (the hash-seed pair imports neither framework; the goldens only meet sqlmesh in the e2e lane). The reject model's `when_matched` clause is therefore built from per-assignment renders and envelope text rather than from an `exp.Whens`, and a subprocess guard compares the quality fixtures compiled with and without `sqlmesh` imported. |
+| 45 | *(2026-08-08, M12 fix)* **A `referential` rule whose `via` names no relationship is a guardrail refusal.** Resolution (RFC 0005) validates the `relationships:` block itself and never inspects `entity.quality`, so a typo'd `via` reached the lowering's relationship lookup and came out as a raw `KeyError` — not a `BloomeryError`, never batched into the stage's single aggregate (RFC 0002 D3), and naming a compiler internal instead of the typo. The refusal is a bare `GuardrailError` naming both the unknown relationship and the declared ones. Consequence for the lowering: it may not assume the lookup is total, because the guardrail stage runs *after* the draft is built — an unresolvable rule lowers to nothing and the stage refuses before anything is emitted. |
+| 46 | *(2026-08-08, M12 fix)* **A `referential` rule's relationship must run *from* the declaring entity.** The lowering reads `via`'s from-columns off *this* entity's extract (§5.4), so a rule naming a relationship declared between two other entities emits a `LEFT JOIN` whose `ON` clause references columns the model never projects — a run-time binder failure from a spec that compiled clean. D27 refused the same class of unexecutable join by comparing only the relationship's `to` side, which let a `cust → cust` self relationship borrowed by an unrelated entity slip past the very check written for it. The check now compares both sides: `from` must be the declaring entity, and `to` must not be (D27, unchanged). |
+| 47 | *(2026-08-08, M12 fix)* **`dedupe.field`/`tie_break` must name a column the entity declares.** They lower straight into `ORDER BY <column> DESC NULLS LAST` (§5.4), so a typo compiled clean and failed at run time in the engine's binder — the exact class of failure the guardrail stage exists to move to compile time. Legal targets are the entity's fields and key **plus** the three ingestion-metadata columns (D21): `_ingested_at` is the usual `dedupe.field` and no mapping declares it as a field, so restricting to mapped fields would refuse the documented spelling. |
+| 48 | *(2026-08-08, M12 fix)* **`unknown_member` on a composite-key relationship is refused.** §5.4 requires a string-typed fk because the reserved member is the string `'__unknown__'`; the shipped check read only the *first* `via` column by sort order, so a two-column fk with a non-string second column escaped the type refusal entirely, and the rewrite — one `CASE` over one column — produced a half-sentinel key like `('__unknown__', 47)` matching no reserved row. That is worse than either the refusal or the orphan it was meant to tame. Composite `unknown_member` is therefore refused outright, which is also what makes the type check total: an accepted rule has exactly one `via` column and it is checked. `quarantine` and `flag` stay available on composite relationships — they route a row rather than rewriting a key. A typed multi-column sentinel is rejected for D6's reason, one level up. |
+| 49 | *(2026-08-08, M12 fix)* **`in_enum`'s rule identity carries the chain's source spellings, not only its `enum_map` targets.** `enum_map` passes an *unmapped* value through untouched, so the raw values `in_enum` admits are the mapped spellings **plus** the targets. A widening therefore has two shapes — a new target, or a new spelling for an existing target (`PAYED → paid`) — and only the first changed a rule param, so `plan()` reported `replay_scope = ()` for the second while rows sat in the reject table on that rule's account. §6's replay test used only the shape that worked, so the gap was untested. The lowering now emits `spelling_NNNN` params beside `value_NNNN`. The pairing is deliberately *not* carried: re-pointing `a → x` to `a → y` when both are already targets changes the column's value — which the column diff reports — but changes nothing about which raw values this rule admits. |
+| 50 | *(2026-08-08, M12 fix)* **Generated rule names are collision-free and independent of authored order.** Two facts had to be *made* true. Suffixing appended `_{n}` without checking the result was free, so two `a_range_min` rules and an authored `expression` rule legally named `a_range_min_2` produced two rules under one name — one unreadable `failed_rules` entry and one quality-mart row computing the union of both rules' failures; the suffix now counts up until the candidate is actually unused. And `quality_sort_key` omitted `on_fail`, so two rules differing only in disposition sorted equal, the stable sort fell through to authored order, and swapping two YAML lines compiled the same spec to two different IRs (RFC 0003). `on_fail` joins the key as its last component, breaking only ties nothing else could break. |
+| 51 | *(2026-08-08, M12 fix)* **A disposition is diffed as the author wrote it, not as it routes.** `disposition()` answers a routing question and correctly maps `unknown_member` onto `FLAG` — the row is kept either way — but `plan()` asks a different question, and the collapse made `unknown_member ⇄ flag` invisible: zero changes, `has_changes` False, no backfill, while the emitted SQL gains or loses its `'__unknown__'` CASE and every stored fk restates. D11 requires disposition changes classified in **both** directions, so the diff compares the authored label (`on_missing` for `referential`, `on_fail` otherwise). Replay follows D52 from the routing disposition: `unknown_member → quarantine` starts diverting, so there is nothing yet to replay; `quarantine → unknown_member`/`flag` stops diverting, so the diverted rows replay. |
+| 52 | *(2026-08-08, M12 fix)* **`replay_scope` names an entity only where quarantined rows can come back.** The shipped rule fired on *any* change to a formerly-quarantining rule, which named the entity for `quarantine → fail` and for a **narrowed** bound — contradicting §5.7's own "a tightening needs a backfill and no replay", and, under `fail`, feeding a replay runner rows that trip the new blocking audit and halt the pipeline. Replay now requires the old disposition to have been `quarantine` **and** one of: the rule is gone; its disposition is now `flag` (`unknown_member` included, D19); or its parameters relaxed. Relaxation is decided from the params where they are ordered (`range`/`length` bounds) or a set (`in_enum`/`in_set` membership, D49's two families together); where they are not — an unorderable `pattern` regex, an `expression` — it is **undecidable**, and the undecidable case reports the replay: a no-op MERGE is cheaper than a row stranded in quarantine, which is what §5.6's "drop plus recoverability" forbids. |
+| 53 | *(2026-08-08, M12 fix)* **The portable regex subset is an allowlist, closed by construction.** It had been a seven-prefix denylist plus `re.compile`, which accepts every construct nobody listed — verified on DuckDB: a backreference (`(a)\1`), an atomic group (`(?>abc)`), a possessive quantifier (`a*+`) and `\A\d+\Z` all parsed clean and *aborted the run*, while `[[:alpha:]]` and `(?i)` were accepted with divergent meaning. The scanner now names what it accepts — literals, `.`, character classes with ranges and negation, `\d`/`\w`/`\s` and their negations, the anchors `^`/`$`, the quantifiers `* + ? {n} {n,} {n,m}`, alternation, and non-capturing groups `(?:…)` — and refuses everything else *by name*, including anything unrecognized. Refused with reasons: capturing groups (a rule is a boolean match and captures nothing, and numbered groups are what backreferences read — write `(?:…)`), backreferences, atomic groups, possessive and lazy quantifiers, lookaround, named groups, inline flags, comments and conditionals, POSIX classes/collating elements/equivalence classes (locale-defined on Postgres, fixed on RE2), `\A`/`\Z`/`\b`/`\G`, property and character-code escapes, and `\D`/`\W`/`\S` *inside* a bracket expression (an error in ARE, legal in RE2). Two divergences are accepted and stated rather than pretended away: `.` excludes newline on RE2 and includes it on ARE; `\d`/`\w`/`\s` are ASCII on RE2 and locale-defined on ARE. Loosening a refusal later is backward-compatible; tightening one is not (RFC 0010 §9), so the subset starts small. |
+| 54 | *(2026-08-08, M12 fix)* **Anchoring is the author's, enforced at parse.** §5.3 called `pattern` "anchored" and nothing enforced it, so `[0-9]{5}` matched `abc12345xyz` — every SQL regex predicate is a substring match. The alternative was anchoring implicitly at lowering; author-written anchors win because the spec then says what it means (a reader of the YAML sees the whole-value match), because an implicit rewrite would silently change the meaning of a pattern an author deliberately wrote unanchored, and because the refusal is decidable from the spec alone, which puts it at parse (D13). Every **top-level alternative** must carry its own pair — `^a$|^b$`, never `^a|b$` — and `^`/`$` elsewhere (inside a group, mid-alternative) is a refusal, not a silent no-op. |
+| 55 | *(2026-08-08, M12 fix)* **`pattern`'s per-dialect check is a surface-and-transport check; it cannot be a semantics check.** §5.3's "compile-time validated against every target dialect via sqlglot" describes something sqlglot cannot do: bloomery never executes SQL (D10), and rendering a `REGEXP_LIKE` then re-parsing it proves only that the *literal* travelled — it returned "expressible" for every construct in D53's abort list, and even for a dialect with no regex operator at all. What the check actually answers, and now says it answers: does the dialect declare `DialectFeature.REGEXP_EXTRACT`, and does SQLGlot resolve the dialect and carry the pattern text into SQL unchanged. The portability claim itself is carried by D53's allowlist — static, stated, and per-flavour (RE2 vs POSIX ARE) — plus the execution tier, which pairs each refused construct with the DuckDB abort that justifies refusing it. |
+| 56 | *(2026-08-08, M12 fix)* **The dialects a `pattern` is checked against are the shipped ports, never the registry.** `registered_dialects()` is process-global and mutable, so an extension dialect registered by an unrelated import could decide whether an existing project compiles — the ambient dependency RFC 0003 exists to forbid, and one no golden would catch. The checked set is the constant `PATTERN_TARGET_DIALECTS = (duckdb, postgres, trino)`, overridable by an explicit argument the caller supplies. Recorded consequence: an extension dialect is no longer checked at compile time. Checking it would mean plumbing a dialect set into `build_project_ir`, which is dialect-free by construction and right to be — a project is portable or it is not, and the guardrail stage has no target. Named as the escape hatch, not built. |
+| 57 | *(2026-08-08, M12 fix)* **`range` bounds are exact or refused.** `min`/`max` typed `int | Decimal | str` accepted any string: `min: "nan"` emitted `amount < nan` (never TRUE on some engines, always TRUE on others — RFC 0015 D5 refuses the same spelling in filters) and `min: "1e10"` emitted a double literal, which `predicates.py`'s own docstring says cannot happen (RFC 0003 D5 bans floats from every emission path). A `str` bound must now be an exact decimal literal (optional sign, digits, optional fraction — no exponent) or an ISO date/timestamp, which is what the string carrier exists for; anything else, non-finite spellings included, is a `SpecParseError` at parse, where shape and grammar belong (D13). The check is on the *rendered* text, because the IR carries `str(bound)` — that is also what catches a YAML float like `1.0e30` arriving as `Decimal('1E+30')`. |
+
+> **Numbering note (2026-08-08).** Rows **40–44 do not exist**. Two self-audit fix
+> waves ran concurrently, each reserved a block for the other, and neither used the
+> reserved one — so the gap is an artifact of parallel authorship, not a removed or
+> withheld decision. The table is append-only (a reversed decision gets a new row
+> citing the one it reverses), so the numbers stand as issued rather than being
+> compacted: renumbering would invalidate every `D<n>` citation already written into
+> the code, tests and docs, which is a worse failure than a visible hole.
+
 
 ## 12. Phasing
 

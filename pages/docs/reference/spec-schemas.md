@@ -291,7 +291,7 @@ project-wide default, and there is deliberately no `drop` and no `repair` in v1.
 |---|---|---|
 | `coercible` | — | The transform chain produced a coercion-failure marker |
 | `not_null` | — | The value is NULL |
-| `range` | `min` and/or `max` (int, decimal, or string; ≥ 1 of the two) | The value falls outside a declared bound |
+| `range` | `min` and/or `max` (int, decimal, or an exact string bound; ≥ 1 of the two) | The value falls outside a declared bound |
 | `length` | `min` and/or `max` (int ≥ 0; ≥ 1 of the two) | The character count falls outside a declared bound |
 | `pattern` | `regex` (portable subset) | The value does not match |
 | `in_enum` | — | The value survived its `enum_map` chain unmapped |
@@ -308,6 +308,11 @@ Notes that change how you write them:
   (`DedupeDispositionConflict` otherwise).
 - **Bounds are separate rules.** `range`/`length` take one or both bounds, and two bounds
   needing different dispositions are simply two rules.
+- **`range` bounds are exact.** Write an int, or quote the value: a quoted bound must be
+  an exact decimal (`"10000000000"`, `"0.01"` — sign and fraction allowed, no exponent)
+  or an ISO date/timestamp. `"nan"`, `"inf"`, and `"1e10"` are refused at parse: the
+  first two make a comparison that is never true on one engine and always true on
+  another, and the third renders as a float literal, which no emission path may carry.
 - **`in_enum` takes no values.** The admissible set *is* the chain's `enum_map` targets;
   restating it here would let the two drift.
 - **`unique` is per partition slice**, in both full and incremental runs — for an
@@ -323,13 +328,43 @@ disposition system that routes). A field may carry both.
 
 #### The portable regex subset
 
-`pattern` regexes are restricted to what every target dialect agrees on — character
-classes, anchors, quantifiers. Rejected at parse: lookahead `(?=`, negative lookahead
-`(?!`, lookbehind `(?<=`, negative lookbehind `(?<!`, named groups `(?P<` and `(?<`, and
-named backreferences `(?P=`. Escaped parens and character classes are scanned around, so
-`\(?=` and `[(?=]` are literals, not lookahead. Each surviving pattern is then validated
-against every registered dialect at the guardrail stage; a regex no dialect can express
-is a `GuardrailError`.
+`pattern` regexes are restricted to what every target dialect agrees on — DuckDB and
+Trino run RE2, Postgres runs POSIX ARE. The subset is an **allowlist**: a pattern is
+scanned left to right and anything the list below does not name is refused at parse,
+with the construct named in the error.
+
+| Accepted | Refused (a selection — the list is closed, so anything unnamed is refused too) |
+|---|---|
+| Literals and escaped literals (`\.`, `\(`, `\\`, `\t`, `\n`, `\r`) | Backreferences `\1`, property classes `\p{L}`, character-code escapes `\x41` |
+| `.` | `\A`, `\Z`, `\z`, `\b`, `\B`, `\G` |
+| Character classes `[a-z]`, `[^a-z]`, with ranges and negation | POSIX classes `[[:alpha:]]`, collating elements `[[.x.]]`, equivalence classes `[[=x=]]` |
+| `\d` `\w` `\s` and `\D` `\W` `\S` | `\D` `\W` `\S` *inside* a class — an error on Postgres, legal on RE2 |
+| Anchors `^` `$` | Anchors inside a group, or mid-alternative |
+| Quantifiers `*` `+` `?` `{n}` `{n,}` `{n,m}` | Lazy `a*?`, possessive `a*+`, doubled `a**` |
+| Alternation `\|` | — |
+| Non-capturing groups `(?:…)` | Capturing groups `(…)`, lookaround `(?=` `(?!` `(?<=` `(?<!`, named groups `(?P<` `(?<`, atomic groups `(?>`, inline flags `(?i)`, comments `(?#`, conditionals `(?(` |
+
+Escapes and character classes are scanned, not substring-matched, so `\(?=` and `[(?=]`
+are literals rather than lookahead.
+
+**Patterns must be anchored, and you write the anchors.** `[0-9]{5}` is refused;
+`^[0-9]{5}$` is accepted. A SQL regex predicate matches a substring, so the unanchored
+form would accept `abc12345xyz`. Each top-level alternative carries its own pair:
+`^a$|^b$`, not `^a|b$`.
+
+Capturing groups are refused in favour of `(?:…)`: a rule is a boolean match and
+captures nothing, and numbered groups are what backreferences read.
+
+Two divergences are accepted and documented rather than refused: `.` excludes newline on
+RE2 and includes it on Postgres ARE, and `\d`/`\w`/`\s` are ASCII on RE2 but
+locale-defined on ARE.
+
+At the guardrail stage each pattern is additionally checked against the shipped dialect
+ports (`duckdb`, `postgres`, `trino`) for a *regex surface* — a dialect that declares no
+regex support, or through which the pattern literal cannot be rendered, is a
+`GuardrailError`. That check is deliberately narrow: bloomery never executes SQL, so
+nothing at compile time can prove an engine's regex engine accepts a pattern. The subset
+above is what carries the portability claim.
 
 ## MetricSet (`metrics_version`)
 

@@ -93,10 +93,13 @@ The closed classification vocabulary: `ADDITIVE`, `WIDENING`, `RENAME`, `RESTATI
 `entities` — the sorted entities whose `<entity>__reject` tables a plan invalidates.
 Distinct from `BackfillScope` because the two name different storage: a backfill
 recomputes an entity from bronze, while a replay re-runs the current mapping against
-rows that are not in bronze's incremental window at all. Populated only where relaxation
-can actually free rows — a rule whose **old** disposition was `quarantine` being removed
-or changed. A tightening needs a backfill and no replay. bloomery emits the replay merge
-artifact; executing it is the caller's. See [Add quality
+rows that are not in bronze's incremental window at all. Populated only where a change
+can actually free rows: the **old** disposition was `quarantine`, and the rule is now
+gone, now disposes as `flag`, or has relaxed parameters. A tightening — a narrowed
+bound, or `quarantine → fail` — needs a backfill and no replay: every quarantined row
+still fails the rule, so replaying it drains nothing. Where relaxation is undecidable
+from the parameters (a `pattern` regex, an `expression`), the replay is reported.
+bloomery emits the replay merge artifact; executing it is the caller's. See [Add quality
 rules](../how-to/add-quality-rules.md).
 
 ## Request-time planning

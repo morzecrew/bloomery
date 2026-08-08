@@ -177,6 +177,30 @@ rows makes revenue quietly lower than the source system's; routing them to a res
 `Unknown` member keeps the total right and makes the problem visible in the dashboard,
 which is where someone will actually notice it.
 
+## `pattern` speaks a smaller regex than you do
+
+A `pattern` rule runs on the engine, and the engines disagree: DuckDB and Trino run RE2,
+Postgres runs POSIX ARE. So `pattern` accepts a **portable subset** defined by what it
+names — literals, `.`, character classes, `\d`/`\w`/`\s` and their negations, the anchors
+`^` and `$`, the quantifiers `* + ? {n} {n,} {n,m}`, alternation, and non-capturing
+groups `(?:…)`. Everything else is refused at parse, by name, including constructs the
+subset simply does not know about. That direction is deliberate: a list of *forbidden*
+constructs accepts every construct nobody thought of, and the ones nobody thought of —
+backreferences, atomic groups, possessive quantifiers, `\A`/`\Z` — do not degrade
+gracefully on RE2. They abort the run.
+
+Two consequences worth knowing before you write one:
+
+- **You write the anchors.** `[0-9]{5}` is refused; `^[0-9]{5}$` is what you meant. Every
+  SQL regex predicate matches a *substring*, so unanchored, that rule accepts
+  `abc12345xyz`. With alternation, each branch carries its own pair: `^a$|^b$`.
+- **Capturing groups are refused** in favour of `(?:…)`. A rule is a boolean match and
+  captures nothing, and numbered groups are what backreferences read.
+
+Two divergences are accepted rather than pretended away, both stated here because they
+are the ones that could still surprise you: `.` excludes newline on RE2 and includes it
+on Postgres, and `\d`/`\w`/`\s` are ASCII on RE2 but locale-defined on Postgres.
+
 ## The reject table and the replay lifecycle
 
 One `<entity>__reject` table per entity — never one per mapping, which would multiply

@@ -17,8 +17,9 @@ from support.compiling import load_fixture
 from bloomery import build_project_ir, load_project
 from bloomery import dialects as dialects_module
 from bloomery.dialects import DialectFeature, SQLGlotDialect, register_dialect
-from bloomery.ir import OnFail, quality_sort_key
+from bloomery.ir import OnFail, QualityRuleIR, quality_sort_key
 from bloomery.quality import (
+    PATTERN_TARGET_DIALECTS,
     PIPELINE_STAGES,
     lower_quality,
     opts_in,
@@ -175,11 +176,41 @@ unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
 
 def test_in_enum_reads_its_admissible_set_off_the_chain() -> None:
     """The set *is* the chain's mapping (RFC 0016 §5.2): restating it in the
-    rule would let the two drift."""
+    rule would let the two drift.
+
+    Both halves of the chain are carried (D49): the ``enum_map`` targets and
+    the source spellings that reach them, because ``enum_map`` passes an
+    unmapped value through — so the raw values ``in_enum`` admits are the
+    spellings *plus* the targets, and a rule whose params showed only the
+    targets could not see a widening that adds a spelling for one.
+    """
     project = load_project(ENUM_PROJECT)
     entity = project.entity_model.entities["order"]
     rule = next(r for r in lower_quality(entity, project.mappings[0], ()) if r.kind == "in_enum")
-    assert params_of(rule) == {"value_0000": "paid", "value_0001": "shipped"}
+    assert params_of(rule) == {
+        "spelling_0000": "PAID",
+        "spelling_0001": "SHIPPED",
+        "value_0000": "paid",
+        "value_0001": "shipped",
+    }
+
+
+def test_widening_a_chain_by_a_spelling_alone_changes_the_in_enum_rule() -> None:
+    """RFC 0016 §6's named replay case. ``{PAYED: paid}`` admits a raw value
+    that used to be quarantined while changing no ``enum_map`` *target*, so a
+    rule identified by its targets alone reported no change at all."""
+    widened = dict(ENUM_PROJECT)
+    widened["mapping"] = widened["mapping"].replace(
+        "[{enum_map: [PAID, paid, SHIPPED, shipped]}]",
+        "[{enum_map: [PAID, paid, PAYED, paid, SHIPPED, shipped]}]",
+    )
+
+    def _rule(documents: dict[str, str]) -> QualityRuleIR:
+        parsed = load_project(documents)
+        entity = parsed.entity_model.entities["order"]
+        return next(r for r in lower_quality(entity, parsed.mappings[0], ()) if r.kind == "in_enum")
+
+    assert _rule(ENUM_PROJECT).params != _rule(widened).params
 
 
 def test_referential_resolves_the_relationship_at_lowering() -> None:
@@ -210,6 +241,68 @@ def test_referential_resolves_the_relationship_at_lowering() -> None:
 
 
 # ....................... #
+# Generated names: collision-free and independent of authored order (D50)
+
+
+COLLIDING_ENTITY_MODEL = """
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    quarantine: {retention: 30d}
+    quality:
+      - {rule: expression, name: a_range_min_2, expr: "a > 0", on_fail: flag}
+    fields:
+      order_id: {type: string, required: true}
+      a: {type: int}
+"""
+
+
+def _two_range_rules(first: str, second: str, *, row_rule: str = "") -> dict[str, str]:
+    entity_model = COLLIDING_ENTITY_MODEL if row_rule else COLLIDING_ENTITY_MODEL.replace(
+        '      - {rule: expression, name: a_range_min_2, expr: "a > 0", on_fail: flag}\n', ""
+    ).replace("    quality:\n", "")
+    return {
+        "entity_model": entity_model,
+        "mapping": f"""
+mapping_version: 1
+source: oms__orders
+target: order
+key:
+  order_id: {{from: "$.id", transform: [to_string]}}
+fields:
+  a:
+    from: "$.a"
+    transform: [{{to_int: []}}]
+    quality:
+      - {{rule: range, min: 0, on_fail: {first}}}
+      - {{rule: range, min: 0, on_fail: {second}}}
+unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
+""",
+    }
+
+
+def test_a_suffixed_name_never_collides_with_an_authored_one() -> None:
+    """Two ``range min`` rules on ``a`` generate ``a_range_min`` and
+    ``a_range_min_2`` — and an authored ``expression`` rule may legally be
+    called ``a_range_min_2``. Merging them into one name puts two rules in one
+    ``failed_rules`` entry and one quality-mart row computing the union."""
+    ir = build_project_ir(load_project(_two_range_rules("quarantine", "flag", row_rule="yes")))
+    names = [rule.name for rule in ir.entities[0].quality]
+    assert len(names) == len(set(names)), names
+
+
+def test_generated_names_do_not_depend_on_authored_order() -> None:
+    """Two rules differing only in disposition sorted equal, so swapping two
+    YAML lines swapped which one owned the unsuffixed name — the same spec
+    compiling to two different IRs (RFC 0003)."""
+    one = build_project_ir(load_project(_two_range_rules("quarantine", "flag")))
+    other = build_project_ir(load_project(_two_range_rules("flag", "quarantine")))
+    assert one.entities[0].quality == other.entities[0].quality
+
+
+# ....................... #
 # Payload keys and pattern portability
 
 
@@ -218,15 +311,29 @@ def test_payload_key_is_the_top_level_bronze_column() -> None:
     assert payload_key("$.a.b") == "a"
 
 
+class NoRegexDialect(SQLGlotDialect):
+    name: str = "noregex"
+    sqlglot_dialect: str = "duckdb"
+    features = frozenset(DialectFeature) - {DialectFeature.REGEXP_EXTRACT}
+
+
 def test_a_portable_pattern_is_expressible_everywhere() -> None:
     assert unsupported_dialects("^[A-Z]{3}$") == ()
 
 
-def test_a_dialect_without_a_regex_surface_is_named() -> None:
-    class NoRegexDialect(SQLGlotDialect):
-        name: str = "noregex"
-        sqlglot_dialect: str = "duckdb"
-        features = frozenset(DialectFeature) - {DialectFeature.REGEXP_EXTRACT}
+def test_the_checked_dialects_default_to_the_shipped_ports() -> None:
+    # not "whatever this process happens to have registered" (RFC 0003)
+    assert PATTERN_TARGET_DIALECTS == ("duckdb", "postgres", "trino")
 
+
+def test_registering_a_dialect_cannot_change_an_existing_projects_verdict() -> None:
+    # RFC 0003: compilation is a pure function of the specs. A dialect
+    # registered by an unrelated import must not turn a compiling project
+    # into a refusing one.
+    before = unsupported_dialects("^[A-Z]{3}$")
     register_dialect(NoRegexDialect())
-    assert unsupported_dialects("^[A-Z]{3}$") == ("noregex",)
+    assert unsupported_dialects("^[A-Z]{3}$") == before == ()
+
+
+def test_a_dialect_without_a_regex_surface_is_named_when_the_caller_asks() -> None:
+    assert unsupported_dialects("^[A-Z]{3}$", dialects=(NoRegexDialect(),)) == ("noregex",)

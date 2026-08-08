@@ -196,5 +196,8 @@ def test_a_non_sqlglot_dialect_is_probed_under_its_own_name() -> None:
 
     dialects_module.register_dialect(Bespoke())
     # SQLGlot has no ``bespoke`` generator, so the round-trip refuses rather
-    # than silently rendering something the engine may not mean.
-    assert unsupported_dialects("^[A-Z]{3}$") == ("bespoke",)
+    # than silently rendering something the engine may not mean. The caller
+    # supplies the dialect set — registering one never changes a verdict
+    # (RFC 0016 D56).
+    assert unsupported_dialects("^[A-Z]{3}$", dialects=(Bespoke(),)) == ("bespoke",)
+    assert unsupported_dialects("^[A-Z]{3}$") == ()
