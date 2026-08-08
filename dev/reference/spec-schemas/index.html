@@ -681,6 +681,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../concepts/data-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data quality
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../concepts/wide-marts/" class="md-nav__link">
         
   
@@ -827,6 +854,33 @@
     
   
   Emit dbt artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/add-quality-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Add quality rules to an entity
 
     
   </span>
@@ -1159,6 +1213,50 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#entity-quality-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Entity quality rules
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dedupe" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Dedupe
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quarantine" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Quarantine
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reconcile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Reconcile
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1206,6 +1304,34 @@
       </span>
     </span>
   </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#field-quality-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Field quality rules
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Field quality rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-portable-regex-subset" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The portable regex subset
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -1579,6 +1705,50 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#entity-quality-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Entity quality rules
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dedupe" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Dedupe
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quarantine" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Quarantine
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reconcile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Reconcile
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1626,6 +1796,34 @@
       </span>
     </span>
   </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#field-quality-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Field quality rules
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Field quality rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-portable-regex-subset" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The portable regex subset
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
         
@@ -1839,10 +2037,25 @@ load it with <code>load_catalog</code> and pass it separately.</p>
 <td>Any identifier except the reserved names</td>
 <td>—</td>
 </tr>
+<tr>
+<td>Rule name</td>
+<td><code>[a-z0-9_]+</code> — identifier-constrained so no flag lowering ever needs escaping</td>
+<td><code>discount_not_exceeding_gross</code></td>
+</tr>
+<tr>
+<td>Retention duration</td>
+<td>A positive integer (no leading zero, ≤ 5 digits) plus one unit of <code>h</code> / <code>d</code> / <code>w</code></td>
+<td><code>90d</code></td>
+</tr>
 </tbody>
 </table>
-<p><strong>Reserved:</strong> <code>metric_time</code> may not be used as a field, dimension, or role name — the
-planner owns it as the canonical query-time dimension.</p>
+<p><strong>Reserved names.</strong> <code>metric_time</code> may not be used as a field, dimension, or role name —
+the planner owns it as the canonical query-time dimension. The generated data-quality
+and ingestion-metadata columns are reserved on the same terms: <code>_quality_flags</code>,
+<code>_quality_ok</code>, <code>_load_id</code>, <code>_ingested_at</code>, <code>_source_row_id</code>, <code>has_quality_flags</code>.</p>
+<p><strong>Retention units.</strong> Months and years are deliberately absent — they are not fixed
+durations, and a retention window that means something different in February is a legal
+problem rather than a convenience. Minutes are absent because <code>m</code> would read as either.</p>
 <h2 id="catalog-catalog_version">Catalog (<code>catalog_version</code>)<a class="headerlink" href="#catalog-catalog_version" title="Permanent link">&para;</a></h2>
 <p>One per vertical, loaded via <code>load_catalog(text)</code>.</p>
 <table>
@@ -2089,6 +2302,12 @@ declaration — bounds are calendar years, never a clock.</p>
 <td>no (<code>[]</code>)</td>
 <td>Declared relationships</td>
 </tr>
+<tr>
+<td><code>reconcile</code></td>
+<td>list of Reconcile</td>
+<td>no (<code>[]</code>)</td>
+<td>Cross-entity reconciliation checks — see <a href="#reconcile">Reconcile</a></td>
+</tr>
 </tbody>
 </table>
 <h3 id="entity">Entity<a class="headerlink" href="#entity" title="Permanent link">&para;</a></h3>
@@ -2137,6 +2356,24 @@ declaration — bounds are calendar years, never a clock.</p>
 <td>map name → Field</td>
 <td>yes</td>
 <td>Typed fields (<code>metric_time</code> reserved)</td>
+</tr>
+<tr>
+<td><code>quality</code></td>
+<td>list of entity quality rules</td>
+<td>no (<code>[]</code>)</td>
+<td>Row rules — see <a href="#entity-quality-rules">Entity quality rules</a></td>
+</tr>
+<tr>
+<td><code>dedupe</code></td>
+<td>Dedupe</td>
+<td>no</td>
+<td>Keep one row per key — see <a href="#dedupe">Dedupe</a></td>
+</tr>
+<tr>
+<td><code>quarantine</code></td>
+<td>Quarantine</td>
+<td>no</td>
+<td>Reject-table policy — see <a href="#quarantine">Quarantine</a></td>
 </tr>
 </tbody>
 </table>
@@ -2255,6 +2492,171 @@ custom audit artifacts.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="entity-quality-rules">Entity quality rules<a class="headerlink" href="#entity-quality-rules" title="Permanent link">&para;</a></h3>
+<p>Row rules, discriminated on <code>rule</code>. Both read more than one column, which is why they
+sit on the entity rather than on a mapping field.</p>
+<table>
+<thead>
+<tr>
+<th><code>rule</code></th>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>expression</code></td>
+<td><code>name</code></td>
+<td>rule name</td>
+<td>yes</td>
+<td>Reaches <code>_quality_flags</code> and the quality mart, so it is authored, never generated. Refused if it collides with a name generated from the mapping</td>
+</tr>
+<tr>
+<td><code>expression</code></td>
+<td><code>expr</code></td>
+<td>string</td>
+<td>yes</td>
+<td>Boolean predicate over the entity's own columns</td>
+</tr>
+<tr>
+<td><code>expression</code></td>
+<td><code>on_fail</code></td>
+<td><code>flag</code> | <code>quarantine</code> | <code>fail</code></td>
+<td>yes</td>
+<td>Disposition</td>
+</tr>
+<tr>
+<td><code>referential</code></td>
+<td><code>via</code></td>
+<td>relationship name</td>
+<td>yes</td>
+<td>The declared relationship to probe</td>
+</tr>
+<tr>
+<td><code>referential</code></td>
+<td><code>on_missing</code></td>
+<td><code>unknown_member</code> | <code>quarantine</code> | <code>flag</code></td>
+<td>yes</td>
+<td>Disposition for a non-null fk with no matching row</td>
+</tr>
+</tbody>
+</table>
+<p><code>referential</code> carries <code>on_missing</code>, not <code>on_fail</code>: <code>unknown_member</code> is a disposition no
+other rule has (the row passes with its fk rewritten to the reserved <code>'__unknown__'</code>
+member), and <code>fail</code> is deliberately unavailable — a pipeline-stopping orphan gate is a
+<code>reconcile</code> check instead. <code>unknown_member</code> requires a string-typed fk; the relationship's
+<code>to</code> side may not be the declaring entity.</p>
+<h3 id="dedupe">Dedupe<a class="headerlink" href="#dedupe" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>keep</code></td>
+<td><code>latest_by</code></td>
+<td>yes</td>
+<td>Closed vocabulary, one value today</td>
+</tr>
+<tr>
+<td><code>field</code></td>
+<td>column name</td>
+<td>yes</td>
+<td>The recency column, ordered descending</td>
+</tr>
+<tr>
+<td><code>tie_break</code></td>
+<td>list of column names</td>
+<td>no (<code>[]</code>)</td>
+<td>Further sort keys, authored order kept</td>
+</tr>
+</tbody>
+</table>
+<p>Partitions by the entity's <code>key</code>. <code>tie_break</code> is optional in the grammar and <strong>mandatory
+in a model</strong>: its absence under <code>keep: latest_by</code> is the compile error
+<code>DedupeTieBreakMissing</code>. The order finishes with <code>_source_row_id</code>, with <code>NULLS LAST</code>
+pinned on every sort key, so the winner is unique by construction.</p>
+<h3 id="quarantine">Quarantine<a class="headerlink" href="#quarantine" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>retention</code></td>
+<td>retention duration</td>
+<td>yes</td>
+<td>How long reject rows live; the only deleter</td>
+</tr>
+<tr>
+<td><code>redact</code></td>
+<td>list of source paths</td>
+<td>no (<code>[]</code>)</td>
+<td>JSONPaths stripped from <code>raw</code> and <code>key_values</code> at write time</td>
+</tr>
+</tbody>
+</table>
+<p>The block is required whenever any rule can quarantine — <code>QuarantineRetentionMissing</code>
+otherwise, never a default, because reject rows hold raw source payloads. A <code>redact:</code>
+path may not intersect a path the mapping reads (<code>RedactionConflict</code>): replay re-runs the
+mapping against <code>raw</code>, and a redacted path is gone by then.</p>
+<h3 id="reconcile">Reconcile<a class="headerlink" href="#reconcile" title="Permanent link">&para;</a></h3>
+<p>Document-level, a sibling of <code>entities:</code> — a check relates two entities and belongs to
+neither.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>rule name</td>
+<td>yes</td>
+<td>Unique per project; each check emits its own model and audit</td>
+</tr>
+<tr>
+<td><code>left</code> / <code>right</code></td>
+<td>reconcile side</td>
+<td>yes</td>
+<td>The two sides, keyed on the same columns</td>
+</tr>
+<tr>
+<td><code>tolerance</code></td>
+<td>quoted decimal ≥ 0</td>
+<td>yes</td>
+<td>Absolute tolerance; an unquoted YAML number is a float and refused</td>
+</tr>
+<tr>
+<td><code>on_fail</code></td>
+<td><code>flag</code> | <code>quarantine</code> | <code>fail</code></td>
+<td>yes</td>
+<td>Disposition</td>
+</tr>
+</tbody>
+</table>
+<p>A side is one of two closed shapes:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">left</span><span class="p">:</span><span class="w">  </span><span class="s">&quot;sum(order_item.line_total)</span><span class="nv"> </span><span class="s">by</span><span class="nv"> </span><span class="s">order_id&quot;</span><span class="w">   </span><span class="c1"># &lt;agg&gt;(&lt;entity&gt;.&lt;column&gt;) by &lt;columns&gt;</span>
+<span class="nt">right</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;order.total_amount&quot;</span><span class="w">                       </span><span class="c1"># &lt;entity&gt;.&lt;column&gt;, keyed by that entity&#39;s key</span>
+</code></pre></div>
+<p>Both sides must key on the same columns, since they join on their keys. Anything outside
+the grammar is a <code>GuardrailError</code> — a reconcile side is a declared shape, not SQL.</p>
 <h2 id="mapping-mapping_version">Mapping (<code>mapping_version</code>)<a class="headerlink" href="#mapping-mapping_version" title="Permanent link">&para;</a></h2>
 <p>One document per (source, target entity) pair.</p>
 <table>
@@ -2303,14 +2705,15 @@ custom audit artifacts.</p>
 <td>no (<code>[]</code>)</td>
 <td>The explicitly unmapped tail</td>
 </tr>
-<tr>
-<td><code>on_unmapped_enum</code></td>
-<td><code>quarantine</code></td>
-<td>no (<code>quarantine</code>)</td>
-<td>Policy for unmapped enum values (closed vocabulary, one value today)</td>
-</tr>
 </tbody>
 </table>
+<p>An entity that uses <code>quarantine:</code> or <code>dedupe:</code> requires the bronze ingestion-metadata
+columns <code>_load_id</code>, <code>_ingested_at</code>, and <code>_source_row_id</code>. They are reserved names, so a
+mapping states they exist by listing them in <code>unmapped:</code>; their absence is
+<code>IngestionMetadataMissing</code>. Their <em>values</em> are checked at run time by a generated
+blocking audit: none of the three may be null, <code>_source_row_id</code> must be unique per
+source row, and <code>_ingested_at</code> must cast to timestamp. The audit is emitted only for
+dialects with <code>TRY_CAST</code>; on the others the entity is <code>UnsupportedByTarget</code>.</p>
 <h3 id="keyfield">KeyField<a class="headerlink" href="#keyfield" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
@@ -2372,6 +2775,13 @@ custom audit artifacts.</p>
 <td>Steps applied in order</td>
 </tr>
 <tr>
+<td>simple</td>
+<td><code>quality</code></td>
+<td>list of field quality rules</td>
+<td>no (<code>[]</code>)</td>
+<td>See <a href="#field-quality-rules">Field quality rules</a></td>
+</tr>
+<tr>
 <td>recipe</td>
 <td><code>recipe</code></td>
 <td>string</td>
@@ -2392,6 +2802,13 @@ custom audit artifacts.</p>
 <td>no</td>
 <td>The source <em>also</em> carries the field directly — emits a <code>&lt;name&gt;__direct</code> shadow column and a reconciliation audit</td>
 </tr>
+<tr>
+<td>recipe</td>
+<td><code>quality</code></td>
+<td>list of field quality rules</td>
+<td>no (<code>[]</code>)</td>
+<td>See <a href="#field-quality-rules">Field quality rules</a></td>
+</tr>
 </tbody>
 </table>
 <h3 id="transform-steps">Transform steps<a class="headerlink" href="#transform-steps" title="Permanent link">&para;</a></h3>
@@ -2402,6 +2819,152 @@ custom audit artifacts.</p>
 </code></pre></div>
 <p>The available names are the closed whitelist in the
 <a href="../transforms/">transforms reference</a>; existence is checked at typecheck, not parse.</p>
+<h3 id="field-quality-rules">Field quality rules<a class="headerlink" href="#field-quality-rules" title="Permanent link">&para;</a></h3>
+<p>A closed catalogue, discriminated on <code>rule</code>. New rules are RFC amendments, never config.
+Every rule requires <code>on_fail</code> ∈ <code>flag</code> | <code>quarantine</code> | <code>fail</code> — there is no
+project-wide default, and there is deliberately no <code>drop</code> and no <code>repair</code> in v1.</p>
+<table>
+<thead>
+<tr>
+<th><code>rule</code></th>
+<th>Parameters</th>
+<th>Fires when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>coercible</code></td>
+<td>—</td>
+<td>The transform chain produced a coercion-failure marker</td>
+</tr>
+<tr>
+<td><code>not_null</code></td>
+<td>—</td>
+<td>The value is NULL</td>
+</tr>
+<tr>
+<td><code>range</code></td>
+<td><code>min</code> and/or <code>max</code> (int, decimal, or an exact string bound; ≥ 1 of the two)</td>
+<td>The value falls outside a declared bound</td>
+</tr>
+<tr>
+<td><code>length</code></td>
+<td><code>min</code> and/or <code>max</code> (int ≥ 0; ≥ 1 of the two)</td>
+<td>The character count falls outside a declared bound</td>
+</tr>
+<tr>
+<td><code>pattern</code></td>
+<td><code>regex</code> (portable subset)</td>
+<td>The value does not match</td>
+</tr>
+<tr>
+<td><code>in_enum</code></td>
+<td>—</td>
+<td>The value survived its <code>enum_map</code> chain unmapped</td>
+</tr>
+<tr>
+<td><code>in_set</code></td>
+<td><code>values</code> (list of strings/ints, ≥ 1)</td>
+<td>The value is outside the literal set</td>
+</tr>
+<tr>
+<td><code>unique</code></td>
+<td>—</td>
+<td>The value repeats within the partition slice</td>
+</tr>
+</tbody>
+</table>
+<p>Notes that change how you write them:</p>
+<ul>
+<li><strong><code>coercible</code> is implicit and opt-in per entity.</strong> An entity joins the quality system
+  by declaring <code>quality:</code>, <code>quarantine:</code>, or any field-level <code>quality:</code> — <code>dedupe:</code>
+  alone does not. Every mapped field of a quality-carrying entity then gets a <code>coercible</code>
+  rule at <code>quarantine</code> unless you declare one explicitly to override the disposition.
+  It is forced to <code>fail</code> on any field named by <code>dedupe.field</code>/<code>tie_break</code>
+  (<code>DedupeDispositionConflict</code> otherwise).</li>
+<li><strong>Bounds are separate rules.</strong> <code>range</code>/<code>length</code> take one or both bounds, and two bounds
+  needing different dispositions are simply two rules.</li>
+<li><strong><code>range</code> bounds are exact.</strong> Write an int, or quote the value: a quoted bound must be
+  an exact decimal (<code>"10000000000"</code>, <code>"0.01"</code> — sign and fraction allowed, no exponent)
+  or an ISO date/timestamp. <code>"nan"</code>, <code>"inf"</code>, and <code>"1e10"</code> are refused at parse: the
+  first two make a comparison that is never true on one engine and always true on
+  another, and the third renders as a float literal, which no emission path may carry.</li>
+<li><strong><code>in_enum</code> takes no values.</strong> The admissible set <em>is</em> the chain's <code>enum_map</code> targets;
+  restating it here would let the two drift.</li>
+<li><strong><code>unique</code> is per partition slice</strong>, in both full and incremental runs — for an
+  unpartitioned entity the slice is the whole table. Cross-partition duplicates are
+  key-based <code>dedupe</code>'s job, in every mode.</li>
+<li><strong>Nulls belong to <code>not_null</code> and <code>coercible</code> only.</strong> Every other rule's violation
+  predicate must be definitively TRUE to fire; a NULL-involved comparison evaluates to
+  SQL <code>UNKNOWN</code> and stays silent.</li>
+</ul>
+<p><code>assert:</code> on an entity field and <code>quality:</code> on a mapping field are different tools:
+<code>assert:</code> is "alert me" (an audit that observes), <code>quality:</code> is "act on the row" (the
+disposition system that routes). A field may carry both.</p>
+<h4 id="the-portable-regex-subset">The portable regex subset<a class="headerlink" href="#the-portable-regex-subset" title="Permanent link">&para;</a></h4>
+<p><code>pattern</code> regexes are restricted to what the shipped dialect ports agree on — DuckDB and
+Trino run RE2, Postgres runs POSIX ARE. The subset is an <strong>allowlist</strong>: a pattern is
+scanned left to right and anything the list below does not name is refused at parse,
+with the construct named in the error.</p>
+<table>
+<thead>
+<tr>
+<th>Accepted</th>
+<th>Refused (a selection — the list is closed, so anything unnamed is refused too)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Literals and escaped literals (<code>\.</code>, <code>\(</code>, <code>\\</code>, <code>\t</code>, <code>\n</code>, <code>\r</code>)</td>
+<td>Backreferences <code>\1</code>, property classes <code>\p{L}</code>, character-code escapes <code>\x41</code></td>
+</tr>
+<tr>
+<td><code>.</code></td>
+<td><code>\A</code>, <code>\Z</code>, <code>\z</code>, <code>\b</code>, <code>\B</code>, <code>\G</code></td>
+</tr>
+<tr>
+<td>Character classes <code>[a-z]</code>, <code>[^a-z]</code>, with ranges and negation</td>
+<td>POSIX classes <code>[[:alpha:]]</code>, collating elements <code>[[.x.]]</code>, equivalence classes <code>[[=x=]]</code></td>
+</tr>
+<tr>
+<td><code>\d</code> <code>\w</code> <code>\s</code> and <code>\D</code> <code>\W</code> <code>\S</code></td>
+<td><code>\D</code> <code>\W</code> <code>\S</code> <em>inside</em> a class — an error on Postgres, legal on RE2</td>
+</tr>
+<tr>
+<td>Anchors <code>^</code> <code>$</code></td>
+<td>Anchors inside a group, or mid-alternative</td>
+</tr>
+<tr>
+<td>Quantifiers <code>*</code> <code>+</code> <code>?</code> <code>{n}</code> <code>{n,}</code> <code>{n,m}</code></td>
+<td>Lazy <code>a*?</code>, possessive <code>a*+</code>, doubled <code>a**</code></td>
+</tr>
+<tr>
+<td>Alternation <code>\|</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Non-capturing groups <code>(?:…)</code></td>
+<td>Capturing groups <code>(…)</code>, lookaround <code>(?=</code> <code>(?!</code> <code>(?&lt;=</code> <code>(?&lt;!</code>, named groups <code>(?P&lt;</code> <code>(?&lt;</code>, atomic groups <code>(?&gt;</code>, inline flags <code>(?i)</code>, comments <code>(?#</code>, conditionals <code>(?(</code></td>
+</tr>
+</tbody>
+</table>
+<p>Escapes and character classes are scanned, not substring-matched, so <code>\(?=</code> and <code>[(?=]</code>
+are literals rather than lookahead.</p>
+<p><strong>Patterns must be anchored, and you write the anchors.</strong> <code>[0-9]{5}</code> is refused;
+<code>^[0-9]{5}$</code> is accepted. A SQL regex predicate matches a substring, so the unanchored
+form would accept <code>abc12345xyz</code>. Each top-level alternative carries its own pair:
+<code>^a$|^b$</code>, not <code>^a|b$</code>.</p>
+<p>Capturing groups are refused in favour of <code>(?:…)</code>: a rule is a boolean match and
+captures nothing, and numbered groups are what backreferences read.</p>
+<p>Two divergences are accepted and documented rather than refused: <code>.</code> excludes newline on
+RE2 and includes it on Postgres ARE, and <code>\d</code>/<code>\w</code>/<code>\s</code> are ASCII on RE2 but
+locale-defined on ARE.</p>
+<p>At the guardrail stage each pattern is additionally checked against the shipped dialect
+ports (<code>duckdb</code>, <code>postgres</code>, <code>trino</code>) for a <em>regex surface</em> — a dialect that declares no
+regex support, or through which the pattern literal cannot be rendered, is a
+<code>GuardrailError</code>. That check is deliberately narrow: bloomery never executes SQL, so
+nothing at compile time can prove an engine's regex engine accepts a pattern. The subset
+above is what carries the portability claim.</p>
 <h2 id="metricset-metrics_version">MetricSet (<code>metrics_version</code>)<a class="headerlink" href="#metricset-metrics_version" title="Permanent link">&para;</a></h2>
 <p>At most one per project.</p>
 <table>

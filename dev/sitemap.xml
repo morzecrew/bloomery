@@ -25,6 +25,9 @@
         <loc>https://morzecrew.github.io/bloomery/dev/concepts/guardrails/</loc>
       </url>
       <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/concepts/data-quality/</loc>
+      </url>
+      <url>
         <loc>https://morzecrew.github.io/bloomery/dev/concepts/wide-marts/</loc>
       </url>
       <url>
@@ -35,6 +38,9 @@
       </url>
       <url>
         <loc>https://morzecrew.github.io/bloomery/dev/how-to/emit-dbt/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/how-to/add-quality-rules/</loc>
       </url>
       <url>
         <loc>https://morzecrew.github.io/bloomery/dev/how-to/plan-a-metric-request/</loc>

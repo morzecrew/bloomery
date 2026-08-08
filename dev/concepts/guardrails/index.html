@@ -18,7 +18,7 @@
         <link rel="prev" href="../determinism/">
       
       
-        <link rel="next" href="../wide-marts/">
+        <link rel="next" href="../data-quality/">
       
       
         
@@ -794,10 +794,48 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#data-quality-declarations" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Data-quality declarations
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../data-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data quality
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -956,6 +994,33 @@
     
   
   Emit dbt artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/add-quality-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Add quality rules to an entity
 
     
   </span>
@@ -1311,6 +1376,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#data-quality-declarations" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Data-quality declarations
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1385,9 +1461,14 @@
 <h1 id="guardrails">Guardrails<a class="headerlink" href="#guardrails" title="Permanent link">&para;</a></h1>
 <p>This page explains the checks that refuse plausible-but-wrong arithmetic: expressions
 that parse, typecheck, survive code review, and produce a number that is wrong. Seven
-guardrails run as a pure stage over the draft IR after typechecking; six raise, one
-deliberately does not. They target the bug class where the formula is right, the data
-is right, and the answer is 3× wrong.</p>
+arithmetic guardrails run as a pure stage over the draft IR after typechecking; six
+raise, one deliberately does not. They target the bug class where the formula is right,
+the data is right, and the answer is 3× wrong.</p>
+<p>A second family joined the same stage with data quality: refusals of <code>quality:</code>,
+<code>dedupe:</code>, <code>quarantine:</code> and <code>reconcile:</code> declarations that cannot mean anything
+(below). Both families share the definition — <strong>a guardrail says the model is wrong</strong>,
+decidable from the spec alone, at compile time. What a rule does to a <em>row</em> at run time
+is <a href="../data-quality/">data quality</a>'s business, not this stage's.</p>
 <div class="admonition danger">
 <p class="admonition-title">Errors, never warnings</p>
 <p>Every guardrail violation is a compile error. There is no severity setting and no
@@ -1508,6 +1589,62 @@ make the error go away, which is strictly worse than measuring the disagreement.
 validates each clause statically against the field's logical type: <code>min</code>/<code>max</code> on a
 string field, or a <code>regex</code> on a numeric one, is <code>AssertLoweringError</code> — an assertion
 that can never run is a silent hole in the audit net.</p>
+<h2 id="data-quality-declarations">Data-quality declarations<a class="headerlink" href="#data-quality-declarations" title="Permanent link">&para;</a></h2>
+<p>Declaring what happens to a bad <em>row</em> is run-time work, but declaring it <strong>incoherently</strong>
+is a model error, so these refusals live here:</p>
+<table>
+<thead>
+<tr>
+<th>Refusal</th>
+<th>What the spec got wrong</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DedupeTieBreakMissing</code></td>
+<td><code>keep: latest_by</code> with no <code>tie_break</code> — rows sharing a timestamp make the winner arbitrary, and a nondeterministic model makes backfills disagree with the runs they replace</td>
+</tr>
+<tr>
+<td><code>DedupeDispositionConflict</code></td>
+<td>A <code>coercible</code> rule weaker than <code>fail</code> on a column the dedupe order reads; an uncastable value there leaves the order undefined, so the weaker disposition is a contradiction rather than a preference</td>
+</tr>
+<tr>
+<td><code>QuarantineRetentionMissing</code></td>
+<td>A rule can quarantine but no <code>quarantine:</code> block says for how long. Reject rows hold raw source payloads — this is the sort of thing that is trivial now and a legal problem in eighteen months</td>
+</tr>
+<tr>
+<td><code>IngestionMetadataMissing</code></td>
+<td>An entity using <code>quarantine:</code>/<code>dedupe:</code> whose mapping neither maps nor acknowledges <code>_load_id</code>, <code>_ingested_at</code>, <code>_source_row_id</code></td>
+</tr>
+<tr>
+<td><code>RedactionConflict</code></td>
+<td>A <code>redact:</code> path the mapping also reads — you cannot both require a field and destroy it at write time, because replay re-runs the mapping against <code>raw</code></td>
+</tr>
+</tbody>
+</table>
+<p>Nine more refuse as bare <code>GuardrailError</code>s, without a class of their own: a <code>pattern</code>
+rule one of the shipped dialect ports has no regex surface for; a <code>dedupe</code> clause
+ordering by a column the entity does not declare; a <code>referential</code> rule whose <code>via</code> names
+no relationship, one whose <code>via</code> names a relationship declared <em>from</em> another entity, and
+one pointing back at its own entity; <code>unknown_member</code> on a non-string foreign key and
+<code>unknown_member</code> on a composite one; a malformed or unresolvable <code>reconcile</code> side; and a
+project metric colliding with a name the quality mart owns. The design authority names
+exactly five new leaves, and minting more would put names in <code>bloomery.errors</code> no RFC
+decided on — so these carry their argument in the message instead. The
+<a href="../../reference/errors/#data-quality-refusals-without-their-own-class">errors reference</a>
+lists each with its trigger.</p>
+<p>Where the regex refusals happen is worth being precise about, because most of them are
+not this stage's. A lookahead — legal under Postgres's POSIX ARE, an aborted run under
+RE2 on DuckDB and Trino — never reaches the guardrail stage at all: <code>pattern</code> speaks a
+closed portable subset, so lookaround, backreferences, atomic groups, inline flags and
+<code>\A</code>/<code>\Z</code> are refused by name at <strong>parse</strong>, as a <code>SpecParseError</code>, alongside the missing
+anchors that would otherwise let <code>[0-9]{5}</code> accept <code>abc12345xyz</code>. What is left for this
+stage is the narrower, mechanical question a compiler that never executes SQL can
+honestly answer: does each shipped dialect declare a regex surface at all, and does the
+pattern text reach that dialect's SQL unchanged. The portability claim itself is carried
+by the subset, not by the round trip — but the principle is the arithmetic guards'
+applied to text, and it still costs an author one edit where not refusing costs someone
+a quarter of rows judged by a rule nobody wrote.</p>
 <p>The grain and additivity guards are the highest-value part of the package; the
 <a href="../wide-marts/">wide-mart gold layer</a> shows how the mart design makes the same
 guarantees structural at query time, and <a href="../determinism/">Determinism</a> explains why
@@ -1566,13 +1703,13 @@ every one of these refusals is exactly reproducible.</p>
         
         
           
-          <a href="../wide-marts/" class="md-footer__link md-footer__link--next" aria-label="Next: The wide-mart gold layer">
+          <a href="../data-quality/" class="md-footer__link md-footer__link--next" aria-label="Next: Data quality">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                The wide-mart gold layer
+                Data quality
               </div>
             </div>
             <div class="md-footer__button md-icon">

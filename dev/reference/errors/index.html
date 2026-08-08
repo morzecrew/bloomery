@@ -681,6 +681,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../concepts/data-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data quality
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../concepts/wide-marts/" class="md-nav__link">
         
   
@@ -827,6 +854,33 @@
     
   
   Emit dbt artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/add-quality-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Add quality rules to an entity
 
     
   </span>
@@ -1097,6 +1151,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#data-quality-refusals-without-their-own-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Data-quality refusals without their own class
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-closed-refusal-list" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1235,6 +1300,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#data-quality-refusals-without-their-own-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Data-quality refusals without their own class
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-closed-refusal-list" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1361,7 +1437,12 @@ pulling in any pipeline stage.</p>
 │   ├── GrainViolation
 │   ├── FanoutRisk
 │   ├── NonAdditiveWithoutComponents
-│   └── MartMissingTimeDimension
+│   ├── MartMissingTimeDimension
+│   ├── QuarantineRetentionMissing
+│   ├── DedupeTieBreakMissing
+│   ├── DedupeDispositionConflict
+│   ├── IngestionMetadataMissing
+│   └── RedactionConflict
 ├── PlanError
 │   ├── ContractViolation
 │   └── RenameTargetMissing
@@ -1491,6 +1572,31 @@ pulling in any pipeline stage.</p>
 <td>A measure-carrying mart that declares no date role</td>
 </tr>
 <tr>
+<td><code>QuarantineRetentionMissing</code></td>
+<td>guardrails</td>
+<td>An entity with a <code>quarantine</code> disposition and no <code>quarantine:</code> block — reject rows hold raw payloads, so retention is required and never defaulted</td>
+</tr>
+<tr>
+<td><code>DedupeTieBreakMissing</code></td>
+<td>guardrails</td>
+<td><code>dedupe: {keep: latest_by}</code> without <code>tie_break</code> — rows sharing a timestamp would make the winner arbitrary</td>
+</tr>
+<tr>
+<td><code>DedupeDispositionConflict</code></td>
+<td>guardrails</td>
+<td>A <code>coercible</code> rule weaker than <code>fail</code> on a field named by <code>dedupe.field</code>/<code>tie_break</code>, where an uncastable value leaves the dedupe order undefined</td>
+</tr>
+<tr>
+<td><code>IngestionMetadataMissing</code></td>
+<td>guardrails</td>
+<td>An entity using <code>quarantine:</code>/<code>dedupe:</code> whose mapping neither maps nor acknowledges <code>_load_id</code>, <code>_ingested_at</code>, <code>_source_row_id</code></td>
+</tr>
+<tr>
+<td><code>RedactionConflict</code></td>
+<td>guardrails</td>
+<td>A <code>quarantine.redact</code> path intersecting a path the mapping reads — replay re-runs the mapping against <code>raw</code>, which the redaction has already destroyed</td>
+</tr>
+<tr>
 <td><code>PlanError</code></td>
 <td>plan</td>
 <td>A spec diff that cannot produce a safe migration plan (including IR-version mismatch)</td>
@@ -1602,6 +1708,69 @@ pulling in any pipeline stage.</p>
 </tr>
 </tbody>
 </table>
+<h2 id="data-quality-refusals-without-their-own-class">Data-quality refusals without their own class<a class="headerlink" href="#data-quality-refusals-without-their-own-class" title="Permanent link">&para;</a></h2>
+<p>Five data-quality guardrails have named leaves (above). The rest raise a bare
+<code>GuardrailError</code> — the design authority names five, and minting further classes would
+put names in <code>bloomery.errors</code> no RFC has decided on. Each is still a distinct,
+addressed message inside the same batched aggregate:</p>
+<table>
+<thead>
+<tr>
+<th>Refusal</th>
+<th>Raised when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pattern portability</td>
+<td>A <code>pattern</code> rule one of the shipped dialect ports (DuckDB, Postgres, Trino) declares no regex surface for, or whose text SQLGlot will not carry into that dialect's SQL unchanged. The subset the pattern must speak is enforced earlier, at parse, as a <code>SpecParseError</code></td>
+</tr>
+<tr>
+<td><code>dedupe</code> naming an unknown column</td>
+<td><code>dedupe.field</code> or a <code>tie_break</code> entry the entity does not declare — it lowers straight into <code>ORDER BY &lt;column&gt; DESC NULLS LAST</code>, so a typo would fail in the engine's binder on a model that compiled clean</td>
+</tr>
+<tr>
+<td><code>via</code> naming no relationship</td>
+<td>A <code>referential</code> rule whose <code>via</code> matches nothing in the entity model's <code>relationships:</code> — a referential rule probes a <em>declared</em> relationship; there is nothing to join on otherwise</td>
+</tr>
+<tr>
+<td><code>via</code> declared from another entity</td>
+<td>A <code>referential</code> rule naming a relationship whose <code>from</code> side is a sibling — the join reads that relationship's columns off <em>this</em> entity's extract, which never projects them</td>
+</tr>
+<tr>
+<td>Self-referencing <code>referential</code></td>
+<td>A <code>referential</code> rule whose relationship's <code>to</code> side is the declaring entity — the rule lowers to a <code>LEFT JOIN</code> inside that entity's own model, and a model cannot join the table it is being built from</td>
+</tr>
+<tr>
+<td><code>unknown_member</code> on a non-string fk</td>
+<td><code>referential: {on_missing: unknown_member}</code> where the foreign key is not string-typed; the reserved member is the <em>string</em> <code>'__unknown__'</code>, and typed sentinels like <code>-1</code> could collide with a legal key</td>
+</tr>
+<tr>
+<td><code>unknown_member</code> on a composite key</td>
+<td>The same disposition on a relationship joining through more than one column — the rewrite is one <code>CASE</code> over one column, so a composite fk would get a half-sentinel key matching no reserved row</td>
+</tr>
+<tr>
+<td>Entity rule name a generated rule owns</td>
+<td>An entity-level <code>quality:</code> rule named the same as a rule generated from the mapping (a field rule, an implicit <code>coercible</code>, a <code>referential</code> named after its relationship) — that name is the key of a quality-mart time series and an entry in <code>failed_rules</code>, so one of the two would have to be silently renamed</td>
+</tr>
+<tr>
+<td>Reconcile grammar and resolution</td>
+<td>A side outside the closed shape, an undeclared entity, an unknown column, sides keyed on different columns, or a duplicate check name</td>
+</tr>
+<tr>
+<td>Reserved metric name</td>
+<td>A project metric colliding with one the quality mart owns (<code>quality_rows_evaluated</code>, <code>quality_rows_failed</code>, <code>quality_rows_quarantined</code>, <code>quality_rows_deduped</code>, <code>quality_quarantine_rate</code>) — one flat namespace, and two definitions of one name is a silent winner, not a merge</td>
+</tr>
+</tbody>
+</table>
+<p>Data-quality refusals also happen at emit time rather than compile time, and those are
+<code>UnsupportedByTarget</code>. Two are about the <em>dialect</em>, both on the absent NULL-on-failure
+cast: compiling an entity with <code>coercible</code> rules for Postgres (RFC 0016 D30), and —
+because the ingestion-metadata audit asserts <code>_ingested_at</code> casts to timestamp, which is
+a <code>TRY_CAST</code> of its own — compiling a <strong>dedupe-only</strong> entity for Postgres too, even
+though it carries no quality rules at all (D31). One is about the <em>target</em>: a
+<code>quarantine:</code> block or a <code>reconcile:</code> check compiled for dbt, which lowers neither in
+this wave. All of them name the target or dialect that does support the construct.</p>
 <h2 id="the-closed-refusal-list">The closed refusal list<a class="headerlink" href="#the-closed-refusal-list" title="Permanent link">&para;</a></h2>
 <p>The <code>UnsupportedFilter</code> family is a <strong>closed, reviewed list</strong> (RFC 0015), not drift:
 every construct the query vocabulary cannot express was refused deliberately, with a

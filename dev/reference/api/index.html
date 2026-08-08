@@ -679,6 +679,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../concepts/data-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data quality
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../concepts/wide-marts/" class="md-nav__link">
         
   
@@ -825,6 +852,33 @@
     
   
   Emit dbt artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/add-quality-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Add quality rules to an entity
 
     
   </span>
@@ -1288,6 +1342,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         <code>BackfillScope</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#replayscope" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>ReplayScope</code>
       </span>
     </span>
   </a>
@@ -1810,6 +1875,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#replayscope" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>ReplayScope</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2194,8 +2270,9 @@ initial deploy; <code>plan(ir, ir)</code> is empty. Raises <code>RenameTargetMis
 other change, breaking included, is classified and returned. See
 <a href="../../how-to/evolve-a-spec/">Evolve a spec safely</a>.</p>
 <h3 id="plan"><code>Plan</code><a class="headerlink" href="#plan" title="Permanent link">&para;</a></h3>
-<p><code>changes</code> (sorted <code>Change</code> tuple), <code>backfill_scope</code> (<code>BackfillScope</code>), and
-<code>downstream_impact</code> (affected metric names). Properties: <code>has_changes</code>, <code>breaking</code>.</p>
+<p><code>changes</code> (sorted <code>Change</code> tuple), <code>backfill_scope</code> (<code>BackfillScope</code>), <code>replay_scope</code>
+(<code>ReplayScope</code>), and <code>downstream_impact</code> (affected metric names). Properties:
+<code>has_changes</code>, <code>breaking</code>.</p>
 <h3 id="change"><code>Change</code><a class="headerlink" href="#change" title="Permanent link">&para;</a></h3>
 <p>One classified difference: <code>entity</code>, <code>subject</code> (<code>&lt;kind&gt;:&lt;name&gt;</code>), <code>change_class</code>,
 human-readable <code>detail</code>, and compact <code>old</code>/<code>new</code> value reprs.</p>
@@ -2205,6 +2282,18 @@ human-readable <code>detail</code>, and compact <code>old</code>/<code>new</code
 <h3 id="backfillscope"><code>BackfillScope</code><a class="headerlink" href="#backfillscope" title="Permanent link">&para;</a></h3>
 <p><code>entities</code> — the sorted entities whose stored rows a plan invalidates — and
 <code>restates_history</code>, true when any RESTATING change is present.</p>
+<h3 id="replayscope"><code>ReplayScope</code><a class="headerlink" href="#replayscope" title="Permanent link">&para;</a></h3>
+<p><code>entities</code> — the sorted entities whose <code>&lt;entity&gt;__reject</code> tables a plan invalidates.
+Distinct from <code>BackfillScope</code> because the two name different storage: a backfill
+recomputes an entity from bronze, while a replay re-runs the current mapping against
+rows that are not in bronze's incremental window at all. Populated only where a change
+can actually free rows: the <strong>old</strong> disposition was <code>quarantine</code>, and the rule is now
+gone, now disposes as <code>flag</code>, or has relaxed parameters. A tightening — a narrowed
+bound, or <code>quarantine → fail</code> — needs a backfill and no replay: every quarantined row
+still fails the rule, so replaying it drains nothing. Where relaxation is undecidable
+from the parameters (a <code>pattern</code> regex, an <code>expression</code>), the replay is reported.
+bloomery emits the replay merge artifact; executing it is the caller's. See <a href="../../how-to/add-quality-rules/">Add quality
+rules</a>.</p>
 <h2 id="request-time-planning">Request-time planning<a class="headerlink" href="#request-time-planning" title="Permanent link">&para;</a></h2>
 <h3 id="metricflowplannerhydrator-max_limit50_000-default_limitnone-namingnone"><code>MetricFlowPlanner(hydrator, max_limit=50_000, default_limit=None, *, naming=None)</code><a class="headerlink" href="#metricflowplannerhydrator-max_limit50_000-default_limitnone-namingnone" title="Permanent link">&para;</a></h3>
 <p>The planner port backed by an embedded, render-only MetricFlow. <code>naming</code> must match
