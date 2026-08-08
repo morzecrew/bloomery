@@ -135,6 +135,8 @@ _SEEDS: tuple[tuple[str, str], ...] = (
     ("dirty__dates", f"SELECT * FROM {read_csv('dates.csv')}"),
     ("dirty__enums", f"SELECT * FROM {read_csv('enums.csv')}"),
     ("dirty__unicode", f"SELECT * FROM {read_csv('unicode.csv')}"),
+    # One bronze relation, two mappings: `dirty_ref` judges it under the
+    # corpus default, `dirty_ref_routed` under the routing dispositions (§6).
     ("dirty__refs", f"SELECT *, {_REFS_AMOUNT} FROM {read_csv('refs.csv')}"),
     ("dirty__ref_parents", f"SELECT *, {_REFS_AMOUNT} FROM {read_csv('refs.csv')}"),
     (

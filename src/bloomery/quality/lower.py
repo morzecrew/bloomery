@@ -197,6 +197,19 @@ def _field_rule_ir(
         params.extend(_indexed("spelling", spellings))
     elif isinstance(rule, InSetRule):
         params.extend(_indexed("value", tuple(str(value) for value in rule.values)))
+        # The member's declared *type*, carried beside its text: the spec
+        # surface admits `int` beside `str`, and the IR's params are strings,
+        # so without this the two are indistinguishable downstream and every
+        # member renders as a string literal — a comparison Trino refuses on an
+        # integer column. Emitted only when the set actually holds an integer,
+        # so an all-string set's IR bytes are unchanged.
+        if any(isinstance(value, int) for value in rule.values):
+            params.extend(
+                _indexed(
+                    "numeric",
+                    tuple("true" if isinstance(value, int) else "false" for value in rule.values),
+                )
+            )
     else:  # UniqueRule — the slice is the entity's partition, or the table
         params.extend(_indexed("slice", slice_columns))
     return QualityRuleIR(

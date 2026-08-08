@@ -40,7 +40,7 @@ from support.precedence import (
     seed,
 )
 
-from bloomery import MetricRequest, OrderSpec
+from bloomery import MetricRequest, Op, OrderSpec, Predicate
 from bloomery.emit import ArtifactKind, EmittedArtifact
 
 pytestmark = pytest.mark.execution
@@ -100,9 +100,7 @@ def test_failed_rules_records_the_fail_rules_name_beside_the_quarantine_ones(
     entity; omitting the blocking rule that also fired makes the account a
     partial one."""
     recorded = dict(
-        run.execute(
-            "SELECT _source_row_id, failed_rules FROM silver.q_line__reject"
-        ).fetchall()
+        run.execute("SELECT _source_row_id, failed_rules FROM silver.q_line__reject").fetchall()
     )
     assert sorted(recorded["r07"]) == ["amount_range_min", "code_unique", "status_in_set"]
     assert sorted(recorded["r05"]) == ["code_unique"]
@@ -113,9 +111,7 @@ def test_a_kept_row_records_the_fail_rule_it_fired(run: duckdb.DuckDBPyConnectio
     is diverted by nothing, so the record of its failure can only be
     ``_quality_flags``. Without it the row reads as clean everywhere the
     package looks (§5.5's ``has_quality_flags`` included)."""
-    flags = dict(
-        run.execute("SELECT _source_row_id, _quality_flags FROM silver.q_line").fetchall()
-    )
+    flags = dict(run.execute("SELECT _source_row_id, _quality_flags FROM silver.q_line").fetchall())
     assert sorted(flags["r09"]) == ["amount_range_min"]
     assert sorted(flags["r10"]) == []
 
@@ -273,6 +269,82 @@ def test_rows_deduped_never_goes_negative_across_runs() -> None:
 
 
 # ....................... #
+# §5.5 — `has_quality_flags` on a mart, and its polarity
+
+
+#: The mart is over ``q_line``, so it holds exactly the rows the split kept —
+#: and ``r09`` is the only one of them a rule fired on (the ``fail`` bound;
+#: everything else that fired was diverted first). Spelled here because it is
+#: the *whole* reason the fixture carries a mart at all.
+FLAGGED_IN_MART = "C09"
+CLEAN_TOTAL = Decimal("58.000000000")
+FLAGGED_TOTAL = Decimal("-7.000000000")
+
+
+def test_has_quality_flags_is_true_for_a_flagged_row_and_false_for_a_clean_one(
+    run: duckdb.DuckDBPyConnection,
+) -> None:
+    """§5.5's mart dimension, asserted **in both directions**.
+
+    A dimension nothing ever asserts TRUE for is indistinguishable from the
+    constant ``FALSE`` — and the constant is the shape an inverted or dropped
+    ``NOT`` produces, which no execution, conservation or replay assertion can
+    see, because none of them reads the mart. Only a golden would, and §12
+    budgets for golden regeneration by the wave: a reviewer reading churn they
+    were told to expect is not a detector.
+
+    The two truth values come from the same population the rest of this module
+    asserts: ``r09`` fires the blocking bound and is diverted by nothing, so it
+    reaches the mart carrying a flag; the rows the split diverted never reach a
+    mart at all (D15), which is why the flagged one has to be a *kept* row.
+    """
+    rows = dict(run.execute("SELECT code, has_quality_flags FROM gold.mart_lines").fetchall())
+    assert rows[FLAGGED_IN_MART] is True
+    assert sorted(code for code, flagged in rows.items() if flagged is False) == [
+        "C02",
+        "C04",
+        "C08",
+        "C10",
+    ]
+    # The column is a real dimension, not a constant: both values occur.
+    assert set(rows.values()) == {True, False}
+
+
+def test_excluding_flagged_rows_is_a_plain_metric_request(
+    run: duckdb.DuckDBPyConnection,
+) -> None:
+    """§5.5's stated payoff, executed: "revenue excluding flagged rows becomes
+    a plain ``MetricRequest``".
+
+    Asserted as a filter *and* as a group-by, because the two fail differently:
+    an inverted polarity swaps the two totals under the group-by while leaving
+    their sum right, and returns the wrong one under the filter. Pinning the
+    values rather than their sum is what makes either visible.
+    """
+    _project, ir = project_ir()
+    clean = PLANNER.plan(
+        ir,
+        MetricRequest(
+            metrics=("line_amount_total",),
+            filters=(Predicate("has_quality_flags", Op.EQ, (False,)),),
+        ),
+        dialect="duckdb",
+    )
+    assert run.execute(clean.sql).fetchall() == [(CLEAN_TOTAL,)]
+
+    split = PLANNER.plan(
+        ir,
+        MetricRequest(
+            metrics=("line_amount_total",),
+            dimensions=("has_quality_flags",),
+            order_by=(OrderSpec(field="has_quality_flags"),),
+        ),
+        dialect="duckdb",
+    )
+    assert run.execute(split.sql).fetchall() == [(False, CLEAN_TOTAL), (True, FLAGGED_TOTAL)]
+
+
+# ....................... #
 # §5.6 — the reject row's own history
 
 
@@ -378,8 +450,7 @@ def test_replay_updates_failed_rules_and_last_seen_on_rows_that_still_fail() -> 
     try:
         artifacts = compile_fixture(FIXTURE)
         before = conn.execute(
-            "SELECT last_seen, failed_rules FROM silver.q_dup__reject "
-            "WHERE _source_row_id = 'd01'"
+            "SELECT last_seen, failed_rules FROM silver.q_dup__reject WHERE _source_row_id = 'd01'"
         ).fetchone()
         _replay(conn, artifacts)
         after = conn.execute(

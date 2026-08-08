@@ -155,21 +155,25 @@ def _refuse_quarantine(entity: EntityIR) -> None:
 
 
 def _refuse_reconcile(ir: ProjectIR) -> None:
-    """dbt lowers no reconcile artifacts in this wave (RFC 0016 §5.4).
+    """dbt lowers no reconcile artifacts in this wave (RFC 0016 D58).
 
-    Same honest-scope rule as ``_refuse_quarantine`` above: a reconcile check
-    is a model *and* a non-blocking audit, and dbt's test surface has no
-    non-blocking equivalent that would not silently change "report the
-    disagreement" into "fail the build". Refusing names the target that does
-    (RFC 0008 D3).
+    A second, *separate* claim from ``_refuse_quarantine`` above, and it needed
+    its own decision row: §5.4's target-coverage sentence authorized dbt's
+    refusal only for the reject/replay artifacts, so refusing ``reconcile:``
+    under the same sentence was scope the RFC never granted. D58 grants it, on
+    this argument — a reconcile check is a model *and* a **non-blocking** audit,
+    and dbt's test surface has no non-blocking equivalent that would not
+    silently turn "report the disagreement" into "fail the build" (RFC 0008 D3:
+    fail loud, never degrade silently). Refusing names the target that does.
     """
     if not ir.reconcile:
         return
     names = ", ".join(check.name for check in ir.reconcile)
     msg = (
         f"project declares reconcile check(s) {names}, which lower to a model plus a "
-        "non-blocking audit (RFC 0016 §5.3); the dbt emitter lowers neither in this wave "
-        "— it is the compatibility target, minimal but honest (RFC 0008 §5.5). Fix: "
+        "non-blocking audit (RFC 0016 §5.3); the dbt emitter lowers neither in this wave, "
+        "and has no non-blocking test to approximate the audit with — it is the "
+        "compatibility target, minimal but honest (RFC 0008 §5.5, RFC 0016 D58). Fix: "
         "compile this project for the sqlmesh target, or drop the reconcile block"
     )
     raise UnsupportedByTarget(msg, source_path="entity_model: reconcile")

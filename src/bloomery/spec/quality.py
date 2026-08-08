@@ -3,9 +3,9 @@
 Cleansing is declared, never coded: a **closed** rule catalogue attaches to
 mapping fields and to entities, every rule carrying an explicit disposition
 (``flag | quarantine | fail`` — no global default, deliberately no ``drop``,
-and no ``repair`` in v1, RFC 0016 D2/D17). Alongside the rules sit the three
-entity-level blocks — ``dedupe:``, ``quarantine:`` — and the document-level
-``reconcile:`` list.
+and no ``repair`` in v1, RFC 0016 D2/D17). Alongside the rules sit the two
+entity-level blocks — ``dedupe:`` and ``quarantine:`` — and the
+document-level ``reconcile:`` list.
 
 Parse validates *shape and grammar* only (RFC 0002 D4), exactly as everywhere
 else in this layer. Three deliberate non-checks, because RFC 0016 §5.9 makes

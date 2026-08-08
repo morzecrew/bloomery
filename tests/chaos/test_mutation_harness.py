@@ -44,10 +44,17 @@ ROOT = Path(__file__).resolve().parents[2]
 #: only: this measures whether the data-quality tests detect data-quality
 #: defects, and padding the battery with unrelated tiers would inflate the
 #: result without strengthening it.
+#:
+#: ``test_quality_precedence`` was missing from this list for a wave, and the
+#: omission had a cost: it is the only module that reads a **mart**, so the
+#: battery could not see a defect in ``has_quality_flags`` at all. A battery
+#: that excludes a quality suite is not a smaller battery — it is a blind spot
+#: with a green tick on it.
 BATTERY = (
     "tests/execution/test_dirty_corpus.py",
     "tests/execution/test_dedupe_and_audits.py",
     "tests/execution/test_quality_mart.py",
+    "tests/execution/test_quality_precedence.py",
     "tests/execution/test_quarantine_replay.py",
     "tests/property/test_conservation.py",
 )

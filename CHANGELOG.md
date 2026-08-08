@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Float filter values are now accepted and normalized to exact decimals at the request boundary instead of being refused; non-finite values (`NaN`/`Infinity`, in float or string form) are rejected with a typed `InvalidLiteral`.
 
-- `bloomery_ir_version` is now `2` — the IR gained the data-quality shape, so every artifact's `fingerprint:` header changes and `plan()` refuses to diff a v1 IR against a v2 one. No emitted SQL changed.
+- `bloomery_ir_version` is now `2` — the IR gained the data-quality shape, so every artifact's `fingerprint:` header changes and `plan()` refuses to diff a v1 IR against a v2 one. The bump itself rewrites only that header; the emitted SQL moves for the separate reason below.
 
 - Every silver model now projects `_quality_flags` and `_quality_ok`. An entity with no quality rules carries the empty collection and `TRUE`, so the change is two projections rather than a behaviour change — but it moves every silver golden, every dbt model, and every fingerprint. A mart whose base entity carries rules flattens the pair into a `has_quality_flags` dimension, so "revenue excluding flagged rows" is an ordinary `MetricRequest` filter.
 
@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Mapping.on_unmapped_enum` (breaking, pre-0.1): a spec still carrying the key is now refused as an unknown key. Unmapped enum values become a data-quality concern — they fail the `in_enum` rule and take that rule's disposition, superseding RFC 0008 D7's never-implemented emitter convention.
 
 ### Fixed
+
+- An `in_set` rule declared with integer members (`values: [1, 2]`) emitted string literals — `tier NOT IN ('1', '2')`. DuckDB and Postgres coerce that and answer correctly; Trino refuses the comparison, so the same spec ran on one engine and failed on another. Members now carry their declared type. A set written entirely with strings is unaffected, down to the artifact bytes.
+
+- The generated conservation audit carried a second condition, `surviving_rows > bronze_rows`, that could never be true: the survivor set is the bronze relation with the dedupe `QUALIFY` over it, so the comparison was a count against a filter of itself. It is removed; `bronze_rows` remains a reported column so the deduped count is visible when the audit does fire. Only the audit's `WHERE` changes, and only for entities with a reject table.
 
 - The emitted quarantine-replay `MERGE` assigned to *qualified* target columns (`_target.col = …`), which DuckDB, Postgres and Trino all reject — the artifact could not run on any shipped dialect. The `SET` target is now the bare column standard SQL requires.
 
@@ -60,7 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Compile-time data-quality guardrails, batched into the same aggregate as everything else: `DedupeTieBreakMissing`, `DedupeDispositionConflict`, `QuarantineRetentionMissing`, `IngestionMetadataMissing` and `RedactionConflict`, plus bare refusals for a `pattern` regex the shipped dialect ports cannot express, `unknown_member` on a non-string or composite foreign key, a `referential` rule whose `via` names no relationship or names one declared from another entity (pointing back at its own entity included), a `dedupe` clause ordering by a column the entity does not declare, a malformed `reconcile` side, and a project metric colliding with a reserved quality-mart name.
 
-- `DialectFeature.ARRAY` and `DialectFeature.TRY_CAST`. Dialects without arrays lower `_quality_flags` to a lexicographic comma-delimited string; Postgres has no NULL-on-failure cast, so compiling a `coercible`-carrying entity for it refuses loudly instead of silently degrading quarantine into an aborted run.
+- `DialectFeature.ARRAY` and `DialectFeature.TRY_CAST`. Dialects without arrays lower `_quality_flags` to a lexicographic comma-delimited string; Postgres has no NULL-on-failure cast, so compiling a `coercible`-carrying entity for it refuses loudly instead of silently degrading quarantine into an aborted run (RFC 0016 D30). The refusal reaches one entity shape that carries no rules at all: the ingestion-metadata audit asserts `_ingested_at` casts to timestamp, which is itself a `TRY_CAST`, so an entity declaring only `dedupe:` is `UnsupportedByTarget` on Postgres on the audit's own account (D31).
 
 - Documentation: a "Data quality" concept page and an "Add quality rules" how-to guide, plus the full rule/dedupe/quarantine/reconcile schemas and the new refusals in the spec-schema, error, and API references.
 

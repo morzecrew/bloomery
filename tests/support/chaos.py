@@ -26,6 +26,7 @@ from sqlglot import exp
 
 from bloomery.emit import lowering
 from bloomery.ir import OnFail
+from bloomery.marts import HAS_QUALITY_FLAGS
 from bloomery.quality import predicates
 
 if TYPE_CHECKING:
@@ -33,7 +34,7 @@ if TYPE_CHECKING:
 
     from sqlglot.expressions.core import Expression
 
-    from bloomery.ir import EntityIR, QualityRuleIR
+    from bloomery.ir import EntityIR, MartColumnIR, MartIR, QualityRuleIR
 
 __all__ = [
     "MUTATIONS",
@@ -127,10 +128,37 @@ def _coalescing(
     return mutated
 
 
+def _quality_flags_polarity() -> None:
+    """Invert the mart dimension: ``has_quality_flags`` becomes
+    ``_quality_ok`` rather than its negation (§5.5).
+
+    The mutation this battery was missing, and the reason it was missing is
+    instructive: every other assertion in the M12 suite reads silver or the
+    reject table, and the polarity of a *mart* dimension is observable in
+    neither. Only a golden caught it — and §12 budgets golden regeneration by
+    the wave, so an inverted quality dimension could ship inside churn a
+    reviewer was told to expect. "Revenue excluding flagged rows" then returns
+    exactly the flagged rows, which is the worst answer a BI product can give:
+    confidently wrong, and wrong in the direction the caller was guarding
+    against.
+    """
+    original = lowering._mart_projection
+
+    def mutated(mart: MartIR, column: MartColumnIR) -> Expression:
+        projection = original(mart, column)
+        if column.name != HAS_QUALITY_FLAGS:
+            return projection
+        negated = projection.this
+        return exp.alias_(negated.this, column.name)
+
+    lowering._mart_projection = mutated  # type: ignore[assignment]
+
+
 #: Every mutation, by the name the harness passes through the environment.
 MUTATIONS: dict[str, Callable[[], None]] = {
     "invert_route": _invert_route,
     "drop_dedupe": _drop_dedupe,
+    "quality_flags_polarity": _quality_flags_polarity,
     "quarantine_becomes_flag": _quarantine_becomes_flag,
     "range_bounds_swapped": _range_bounds_swapped,
     "null_violations_fire": _null_violations_fire,

@@ -57,7 +57,16 @@ unit-tested per branch):
   something different after the change than before. It carries **no** backfill
   and **no** replay, deliberately: neither can restore a payload the write
   path is now destroying, and pretending otherwise would send a caller to run
-  jobs that cannot help.
+  jobs that cannot help. The two are **not** alternatives: a *swap* widens and
+  narrows at once and reports as both, because the un-redaction — a path the
+  reject table used to scrub and now stores — is a PII-governance fact of its
+  own (§5.6, D59).
+- **The reject table's own stored schema is diffed too** (D60):
+  ``mapping_version:`` is a stored column of that schema and ``unmapped:``
+  decides which bronze columns ``raw`` carries, so both change the emitted
+  ``<entity>__reject`` model while changing no entity row. See
+  :func:`_reject_schema_changes` for the classification and why it reports
+  nothing on an entity with no ``quarantine:`` block.
 - **``reconcile`` changes are RESTATING at the check, never at an entity.** A
   reconcile check materializes its own model over history (§5.3), so changing
   or removing one changes every historical row of that model — but it routes
@@ -76,7 +85,7 @@ from typing import TYPE_CHECKING
 from bloomery.errors import ContractViolation, PlanError, RenameTargetMissing
 from bloomery.ir import OnFail
 from bloomery.plan.model import BackfillScope, Change, ChangeClass, Plan, ReplayScope
-from bloomery.quality import disposition
+from bloomery.quality import disposition, payload_key
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -724,6 +733,10 @@ def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 new=new_retention or None,
             )
         )
+    # Not mutually exclusive: a **swap** is a widening and a narrowing at once,
+    # and an ``elif`` here dropped the un-redaction — the caller was told payload
+    # is being destroyed but never that a previously-scrubbed path is now being
+    # written into ``raw``, which is a PII-governance fact (§5.6, D59).
     widened = sorted(new_redact - old_redact)
     narrowed = sorted(old_redact - new_redact)
     if widened:
@@ -737,13 +750,90 @@ def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 "restore a redacted path",
             )
         )
-    elif narrowed:
+    if narrowed:
         acc.changes.append(
             Change(
                 new_e.name,
                 subject,
                 ChangeClass.ADDITIVE,
-                f"quarantine redact narrowed ({', '.join(narrowed)})",
+                f"quarantine redact narrowed ({', '.join(narrowed)}) — reject payloads written "
+                "from now on carry a path the stored ones scrubbed",
+            )
+        )
+
+
+def _raw_payload_columns(entity: EntityIR) -> frozenset[str]:
+    """The bronze **columns** the reject table's ``raw`` carries, redaction
+    aside — mapped and acknowledged-``unmapped:`` paths alike, keyed by
+    top-level column exactly as ``_payload_columns`` keys them
+    (:mod:`bloomery.emit.lowering`, §5.6).
+
+    Keying by column rather than by path is what makes the comparison honest in
+    both directions: ``$.a.b`` → ``$.a.c`` emits the identical model, and a path
+    moving between ``fields:`` and ``unmapped:`` leaves ``raw`` untouched.
+    Redaction is diffed by :func:`_quarantine_changes` and deliberately left out
+    here, so a ``redact:`` edit is never reported twice.
+    """
+    paths = {field.source_path for field in entity.source.fields} | set(entity.source.unmapped)
+    return frozenset(payload_key(path) for path in paths)
+
+
+def _reject_schema_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
+    """``mapping_version:`` and the ``raw`` payload's column set are stored
+    facts of ``<entity>__reject`` (§5.6) that no other subject reports (D60).
+
+    Both are gated on a reject table existing on **both** sides: without a
+    ``quarantine:`` block no reject model is emitted, so neither field reaches
+    an artifact and reporting it would be a change nobody can act on (the D52
+    discipline). Adding or removing the block is already reported as its own
+    retention change.
+
+    ``mapping_version`` is ADDITIVE: it is a provenance stamp, and a stored
+    reject row still correctly records the version that rejected it (the merge
+    re-stamps only rows it re-observes, alongside ``last_seen`` — D36).
+
+    The payload set mirrors ``redact:``: **widened** is ADDITIVE (more is kept
+    from now on, nothing stored changes), **narrowed** is RESTATING with no
+    backfill and no replay — reject rows written from now on carry less than the
+    stored ones, and neither job can restore a column the write path no longer
+    projects.
+    """
+    if old_e.quarantine is None or new_e.quarantine is None:
+        return
+    subject = f"quarantine:{new_e.name}"
+    if old_e.source.mapping_version != new_e.source.mapping_version:
+        acc.changes.append(
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.ADDITIVE,
+                "mapping_version changed (reject provenance stamp)",
+                old=str(old_e.source.mapping_version),
+                new=str(new_e.source.mapping_version),
+            )
+        )
+    old_raw, new_raw = _raw_payload_columns(old_e), _raw_payload_columns(new_e)
+    gained = sorted(new_raw - old_raw)
+    lost = sorted(old_raw - new_raw)
+    if gained:
+        acc.changes.append(
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.ADDITIVE,
+                f"reject payload widened ({', '.join(gained)}) — raw carries bronze columns "
+                "the stored reject rows do not",
+            )
+        )
+    if lost:
+        acc.changes.append(
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.RESTATING,
+                f"reject payload narrowed ({', '.join(lost)}) — raw stops carrying bronze "
+                "columns the stored reject rows have; no backfill or replay can restore a "
+                "column the write path no longer projects",
             )
         )
 
@@ -781,6 +871,7 @@ def _entity_pair(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
     _quality_changes(old_e, new_e, acc)
     _dedupe_changes(old_e, new_e, acc)
     _quarantine_changes(old_e, new_e, acc)
+    _reject_schema_changes(old_e, new_e, acc)
     renames = _rename_map(old_e, new_e)
     renamed_targets = set(renames.values())
     old_cols = {column.name: column for column in old_e.columns}

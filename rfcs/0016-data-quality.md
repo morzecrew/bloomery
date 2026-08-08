@@ -21,7 +21,12 @@
   timestamp (D25, implemented per D31), two recorded corpus gaps (D26, D28),
   `referential` onto the entity itself is refused (D27), the conservation audit's
   shape and its one skipped case (D29), and Postgres cannot host quality-carrying
-  entities at all (D30) — including dedupe-only ones (D31).
+  entities at all (D30) — including dedupe-only ones (D31). **D32–D66 are the
+  self-audit fix waves**, appended dated below (rows 40–44 deliberately absent —
+  see the numbering note): lowering corrections (D32–D39), guardrail widenings
+  (D45–D48), plan-diff corrections (D49–D52, D58–D60), the portable-regex
+  allowlist (D53–D57), and the wave that hardened the *test suite* where it was
+  proved unable to detect a regression (D61–D66).
 - **Scope:** Run-time data quality as declarative spec surface: the `quality:` /
   `dedupe:` / `quarantine:` / `reconcile:` sub-schemas, the `OnFail` disposition
   model, the closed rule catalogue, the fixed pipeline order and its lowering, the
@@ -210,6 +215,12 @@ system.
 > render proves an engine accepts a regex. The dialect check is a *surface and transport*
 > check; the portability claim is carried by the allowlist (D55), and the dialects checked
 > are the shipped ports, not whatever the process has registered (D56).
+>
+> **Amended 2026-08-08 (D62):** `in_set`'s members carry their declared **type** into the
+> IR. `values` admits `int` beside `str` while `QualityRuleIR.params` is a sorted tuple of
+> strings, so `str(value)` erased the difference and an integer member rendered as a string
+> literal — coerced by DuckDB and Postgres, refused by Trino. `in_enum` is unaffected: its
+> set is an `enum_map` chain's targets, which are text by construction.
 
 `tie_break` is mandatory under `keep: latest_by` — its absence is the compile error
 `DedupeTieBreakMissing`: two rows sharing a timestamp
@@ -366,6 +377,16 @@ any mart.
 > the lowering grows a `CASE`-based fallback per type. The fallback is named as the
 > escape hatch, not built — it is a per-type regex/`CASE` cascade whose semantics must
 > be proven equal to `TRY_CAST`'s on the corpus before it is worth the surface.
+
+> **Amended 2026-08-08 (D58):** the sentence above scopes dbt's refusal to the
+> reject/replay artifacts; the emitter also refuses a `reconcile:` block, and that
+> refusal is authorized here rather than retracted. A reconcile check lowers to a
+> model **and** a non-blocking audit (§5.3): dbt lowers neither in this wave, and the
+> test surface it does emit (`schema.yml` data tests) blocks the build on failure, so
+> mapping the audit onto one would turn "report the disagreement" into "fail the
+> build" — the silent severity upgrade RFC 0008 D3 forbids. dbt's coverage of the
+> quality system therefore reads in full: the flag-only surface (`_quality_flags` is
+> the *same* shared SELECT both targets render), and nothing else.
 
 ### 5.5 Schema additions and the array capability
 
@@ -574,10 +595,27 @@ definition: `GuardrailError` leaves declared in `errors.py` per RFC 0002 D3.
   > violates a declared bound, so `range` fires on nothing — closing that needs a
   > castable-but-out-of-bounds specimen, and the suite asserts the absence rather than
   > hiding it (D28).
+  >
+  > **Amended 2026-08-08 (D65):** the corpus states *values*; a disposition is stated by
+  > the **policy** that judges them, and one entity states one policy per rule.
+  > `refs.csv` is therefore judged twice — `dirty_ref` under the documented default
+  > (`unknown_member`) and `dirty_ref_routed` under `quarantine`/`flag`, which also
+  > carries the corpus's only `on_fail: fail` rule. Without the second entity the corpus,
+  > and so the chaos battery built on it, had no specimen for D18's precedence or for any
+  > blocking path at all.
 - **Unit** — the rule × disposition lowering matrix, covered **exhaustively** via
   `product(ALL_RULES, ALL_DISPOSITIONS)`: a missing pair is exactly the gap that ships.
   `referential` contributes its own axis — one row per `on_missing` disposition
   (`unknown_member`, `quarantine`, `flag`), each asserting its §5.4 lowering.
+
+  > **Amended 2026-08-08 (D63):** "covered" means **executed in the position that
+  > disposition puts the verdict in** — the flag construct, the routing `WHERE` and the
+  > conservation aggregate, the blocking audit body — not rendered and re-parsed. The
+  > shipped matrix asserted `parse_one(f"SELECT 1 WHERE {rendered}") is not None`, which
+  > `product` made look exhaustive while `violation()` ignored `on_fail` entirely, and
+  > which `parse_one` satisfied for a window-in-`WHERE` — the exact artifact D33 fixed.
+  > `referential` at `fail` is the one unrepresentable cell (D6) and is asserted as a
+  > parse refusal.
 - **Three-valued logic** — per-rule tests assert the §5.4 semantics: NULL-involved
   comparisons evaluating to SQL `UNKNOWN` do **not** fire for
   `range`/`length`/`pattern`/`in_enum`/`in_set`/`expression`/`referential` (a NULL fk is
@@ -599,6 +637,12 @@ definition: `GuardrailError` leaves declared in `errors.py` per RFC 0002 D3.
   > `on_missing: quarantine`, whose routing predicate reads a sibling entity. The skip
   > is asserted in a unit test rather than silently dropped, and the conservation
   > *property* still covers that shape.
+  >
+  > **Amended 2026-08-08 (D61):** the emitted audit asserts **one** leg, not two. Its
+  > second disjunct, `surviving_rows > bronze_rows`, compared a CTE against the very
+  > relation that CTE filters and so could never fire — coverage in appearance only.
+  > `bronze_rows` remains a projected column so a reported violation is legible; the
+  > deduped leg is carried by the property tier and by the mart's `rows_deduped` (D35).
 - **Merge gates** — idempotence and backfill equivalence (full refresh ≡ incremental
   history): the executable determinism invariant; catches nondeterministic tie-breaks
   and order-dependent rules.
@@ -625,6 +669,13 @@ definition: `GuardrailError` leaves declared in `errors.py` per RFC 0002 D3.
 - **Quarterly chaos meta-test** — mutate the lowering (invert a comparison, drop a
   stage, swap a disposition); at least one test must fail per mutation, or the dirty
   corpus has a hole.
+
+  > **Amended 2026-08-08 (D64):** the battery a mutation must get past is **every**
+  > quality suite, not a subset of them. `test_quality_precedence` was outside it for a
+  > wave, and it is the only module that reads a *mart* — so a mutation to
+  > `has_quality_flags` survived the whole battery while a golden caught it, which is
+  > precisely the detection §12's budgeted golden churn cannot be relied on for. The
+  > mutation list gains `quality_flags_polarity`.
 
 ## 7. Docs
 
@@ -726,6 +777,16 @@ reference pages for the rule catalogue and `quarantine:` block; the
 | 55 | *(2026-08-08, M12 fix)* **`pattern`'s per-dialect check is a surface-and-transport check; it cannot be a semantics check.** §5.3's "compile-time validated against every target dialect via sqlglot" describes something sqlglot cannot do: bloomery never executes SQL (D10), and rendering a `REGEXP_LIKE` then re-parsing it proves only that the *literal* travelled — it returned "expressible" for every construct in D53's abort list, and even for a dialect with no regex operator at all. What the check actually answers, and now says it answers: does the dialect declare `DialectFeature.REGEXP_EXTRACT`, and does SQLGlot resolve the dialect and carry the pattern text into SQL unchanged. The portability claim itself is carried by D53's allowlist — static, stated, and per-flavour (RE2 vs POSIX ARE) — plus the execution tier, which pairs each refused construct with the DuckDB abort that justifies refusing it. |
 | 56 | *(2026-08-08, M12 fix)* **The dialects a `pattern` is checked against are the shipped ports, never the registry.** `registered_dialects()` is process-global and mutable, so an extension dialect registered by an unrelated import could decide whether an existing project compiles — the ambient dependency RFC 0003 exists to forbid, and one no golden would catch. The checked set is the constant `PATTERN_TARGET_DIALECTS = (duckdb, postgres, trino)`, overridable by an explicit argument the caller supplies. Recorded consequence: an extension dialect is no longer checked at compile time. Checking it would mean plumbing a dialect set into `build_project_ir`, which is dialect-free by construction and right to be — a project is portable or it is not, and the guardrail stage has no target. Named as the escape hatch, not built. |
 | 57 | *(2026-08-08, M12 fix)* **`range` bounds are exact or refused.** `min`/`max` typed `int | Decimal | str` accepted any string: `min: "nan"` emitted `amount < nan` (never TRUE on some engines, always TRUE on others — RFC 0015 D5 refuses the same spelling in filters) and `min: "1e10"` emitted a double literal, which `predicates.py`'s own docstring says cannot happen (RFC 0003 D5 bans floats from every emission path). A `str` bound must now be an exact decimal literal (optional sign, digits, optional fraction — no exponent) or an ISO date/timestamp, which is what the string carrier exists for; anything else, non-finite spellings included, is a `SpecParseError` at parse, where shape and grammar belong (D13). The check is on the *rendered* text, because the IR carries `str(bound)` — that is also what catches a YAML float like `1.0e30` arriving as `Decimal('1E+30')`. |
+| 58 | *(2026-08-08, M12 fix)* **dbt's refusal of `reconcile:` is authorized scope, not a widened one.** §5.4's target-coverage sentence granted the dbt emitter one refusal — "the reject/replay artifacts" — and `_refuse_reconcile` shipped a second one under it, which is code contradicting an accepted RFC. The refusal is right and is granted here rather than removed: a reconcile check lowers to a model **and** a *non-blocking* audit (§5.3); dbt lowers neither in this wave, and the test surface it does emit (`schema.yml` data tests) blocks the build on failure, so approximating the audit with one would turn "report the disagreement" into "fail the build" — RFC 0008 D3's silent degradation, in the direction that halts a pipeline over a tolerance the author declared non-fatal. §5.4 carries the matching amendment and the `UnsupportedByTarget` message cites this row, so the scope a compile refuses on is checkable against the decision that grants it. The price, stated: dbt is a strictly smaller target in one more named way, and a project with a `reconcile:` block compiles for `sqlmesh` only. |
+| 59 | *(2026-08-08, M12 fix)* **A `redact:` swap is a widening *and* a narrowing, and both are reported.** `_quarantine_changes` computed the two sets and then branched `if widened … elif narrowed`, so `redact: ["$.a"] → ["$.b"]` reported only the destructive half: the caller was told payload is being destroyed and never told that `$.a` — a path the reject table had been scrubbing — is now written into `raw` in the clear. The un-redaction is a PII-governance fact (§5.6) and the one a data-protection reviewer most needs, so the `elif` made the report say *less* the more the author changed in one edit. Independent `if`s now: widening RESTATING (payload destroyed going forward, still no backfill and no replay, since neither restores what the write path removes), narrowing ADDITIVE. |
+| 60 | *(2026-08-08, M12 fix)* **The differ reads `mapping_version:` and `unmapped:` — the reject table's own stored schema.** Compiling a fixture twice with each changed moves exactly one artifact, `<entity>__reject` (`1 AS mapping_version` → `2`; a bronze column appearing in `raw`'s `JSON_OBJECT`), while `plan()` returned zero changes both times — a spec edit that restates a stored table and reports nothing. Classified rather than recorded as a blindness, because both readings are forced. `mapping_version` is ADDITIVE: it is a provenance stamp, and a stored reject row still correctly names the version that rejected it (the merge re-stamps only rows it re-observes, beside `last_seen` — D36). The `raw` payload mirrors `redact:` exactly — widened ADDITIVE, narrowed RESTATING with no backfill and no replay, since neither restores a column the write path no longer projects. Two consequences, both deliberate: the payload is compared at **top-level bronze column** granularity, the granularity `raw` is keyed at (`$.a.b` → `$.a.c` is no change, and a path moving between `fields:` and `unmapped:` is no change), so the diff never reports an edit that emits an identical model; and both facts report only where a reject table exists on **both** sides of the change, because without a `quarantine:` block no reject model is emitted and neither field reaches an artifact — D52's "a scope nobody can act on", applied to changes. |
+
+| 61 | *(2026-08-08, M12 fix)* **The conservation audit asserts one leg, because the other could not fail.** The emitted body carried `entity_rows + diverted_rows <> surviving_rows OR surviving_rows > bronze_rows`, the second disjunct standing for "dedupe removes rows, it never invents any". It is a tautology: `_survivors` *is* the bronze relation with the dedupe `QUALIFY` over it, so the two counts are taken over the same rows and one is a filter of the other — no spec, no data and no lowering bug can make it fire. A check that cannot fail is worse than a missing one, because it reads as coverage; a reviewer counting the law's legs finds two and only one is doing anything. The disjunct is removed and `bronze_rows` stays a **projected** column: an audit reports its violating rows, and `deduped = bronze_rows − surviving_rows` is what makes a reported violation legible. §6's third leg is therefore carried by the property tier and by the quality mart's `rows_deduped` (D35), which is where a count that can be wrong actually lives. |
+| 62 | *(2026-08-08, M12 fix)* **An `in_set` member's declared type rides in the IR beside its text.** `InSetRule.values` is `tuple[str | int, ...]` and `QualityRuleIR.params` is a sorted tuple of strings (RFC 0003), so `str(value)` erased the distinction and every member rendered as a string literal: `values: [1, 2]` on an integer column emitted `tier NOT IN ('1', '2')`, which DuckDB and Postgres coerce and answer correctly and **Trino refuses outright**. One spec, one engine answering and another failing, is the portability defect §5.3's closed catalogue exists to prevent, and it was invisible because the dirty corpus's `in_set` members are text. Aligned `numeric_NNNN` params now carry each member's declared type, read by the `in_set` builder alone: `in_enum`'s admissible set comes from an `enum_map` chain, which maps text to text, so it is textual by construction and unchanged. The params are emitted **only** when the set actually holds an integer, so an all-string set's IR bytes — and every existing golden — are byte-identical to before. |
+| 63 | *(2026-08-08, M12 fix)* **§6's rule × disposition matrix is executed in position, not parsed.** The shipped matrix rendered `violation(rule)` and asserted `parse_one(f"SELECT 1 WHERE {rendered}") is not None`, which failed as a test twice over. The disposition axis was **inert** — `violation()` never reads `on_fail`, so thirty parametrizations carried ten distinct assertions — and the assertion admitted SQL no engine runs: `parse_one` accepts a window function inside a `WHERE` clause, which is exactly the artifact D33 was written to fix. The suite that §6 nominates as the one that catches a missing pair could not have caught the pair that shipped broken. A pair is now built the way the emitter builds it — the windowed verdict projected once, the routing split through the shared `routing_predicate`, the flag collection through `flags_expression` — and **run against DuckDB**, over a two-row specimen per kind so neither a predicate that never fires nor one that always fires can pass. To make that binding rather than a restatement, `verdict()` and `routing_predicate()` move into `quality/predicates.py` and the emitter calls them: a matrix that re-derived the two-line window rule would go on passing through the regression it exists to catch. The one unrepresentable cell, `referential` at `fail` (D6), is asserted as a **parse refusal** — `ReferentialRule` declares no `on_fail` and `SpecModel` forbids unknown keys — so the missing cell is a decision with a test rather than a hole. |
+| 64 | *(2026-08-08, M12 fix)* **`has_quality_flags`'s polarity is asserted behaviourally, and the chaos battery contains every quality suite.** Setting the mart dimension to a constant `FALSE` was caught by one thing only: golden byte-comparison. Execution, e2e, property and conservation tiers all stayed green, and §12 budgets golden regeneration by the wave — so an inverted quality dimension could ship inside churn a reviewer was told to expect. Two causes, both fixed. The dimension lives on a **mart**, and no suite in the chaos battery read one; the battery now includes `test_quality_precedence`, which does. And no assertion anywhere read TRUE for a flagged row: the only one that existed read `[("A", False), ("B", False)]` on a fixture where every row a rule fires on is also diverted, so the dimension was constant on live data by construction. The precedence fixture gains a mart over `q_line`, whose one blocking-rule row is kept rather than diverted, and both directions are asserted — through the mart and through the `MetricRequest` §5.5 promises ("revenue excluding flagged rows"). `quality_flags_polarity` joins the §6 mutation list; verified surviving the old five-module battery and killed by the new six-module one. |
+| 65 | *(2026-08-08, M12 fix)* **The dirty corpus judges `refs.csv` twice, because a disposition is not a property a corpus can state once.** `on_fail: fail` appeared **zero** times in the corpus and every `referential` rule sat at `on_missing: unknown_member`, so D18's precedence, `referential: quarantine`, `referential: flag` and every blocking path had no specimen — and since the corpus *is* the chaos meta-test's battery, a mutation to any of them was undetectable there however plausible. The fix is a second entity, `dirty_ref_routed`, over the same bronze relation: the same orphans, judged at `quarantine` and at `flag`, plus the corpus's only `on_fail: fail` rule, declared on the one row whose synthesized payload is uncastable so it is **diverted by `coercible` and reported by the blocking audit at once** — D18's severity order and D32's pre-route audit scope, on live data rather than on a synthetic IR. A second entity rather than a second rule on `dirty_ref`, because a rule has one disposition: asserting what `quarantine` does to an orphan means routing that orphan, which the `unknown_member` entity cannot simultaneously be keeping. Recorded consequence: `dirty_ref_routed` routes on a `referential` rule, so it emits **no** conservation audit (D29) — the skip is now a property of a fixture that builds rather than of a hand-made IR. |
+| 66 | *(2026-08-08, M12 fix)* **The `unknown_member` rewrite reads its `via` column through an accessor that refuses a composite.** `unknown_member_case` read `indexed_params(rule, "via")[0]` and the emitter's projection rewrite read `params_of(rule)["via_0000"]` — both taking the first column by sort order and ignoring the rest. D48 makes that total for every spec that compiles, but nothing in the code said so, so a future widening of the guardrail would silently reopen the half-sentinel bug D48 was written to close (`('__unknown__', 47)`, matching no reserved row). Both sites now call `sole_via_column`, which raises citing D48 when it sees anything but one column. The invariant is a *dependency on a guardrail*, and the point of spelling it is that a dependency which is invisible cannot be re-checked when the thing it depends on moves. |
 
 > **Numbering note (2026-08-08).** Rows **40–44 do not exist**. Two self-audit fix
 > waves ran concurrently, each reserved a block for the other, and neither used the

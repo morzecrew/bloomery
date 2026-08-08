@@ -328,7 +328,7 @@ disposition system that routes). A field may carry both.
 
 #### The portable regex subset
 
-`pattern` regexes are restricted to what every target dialect agrees on — DuckDB and
+`pattern` regexes are restricted to what the shipped dialect ports agree on — DuckDB and
 Trino run RE2, Postgres runs POSIX ARE. The subset is an **allowlist**: a pattern is
 scanned left to right and anything the list below does not name is refused at parse,
 with the construct named in the error.

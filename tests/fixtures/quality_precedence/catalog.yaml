@@ -1,9 +1,18 @@
 catalog_version: 1
 vertical: quality_precedence
 
-# No canonical fields: this fixture states dispositions, not domain concepts.
-# The catalog exists for the time spine the quality mart's `run_date` role
-# needs (RFC 0013 R1 rule 4).
+# One canonical field, and only one: the mart over `q_line` exists so that
+# `has_quality_flags` (RFC 0016 §5.5) is observable through an ordinary
+# `MetricRequest`, and a measure needs something to require. Everything else
+# this fixture states is a disposition, not a domain concept.
+canonical_fields:
+  line_amount:
+    entity: q_line
+    type: "decimal(38,9)"
+    unit: currency
+
+# The time spine the quality mart's `run_date` role — and the mart's own
+# `ordered` date role — need (RFC 0013 R1 rule 4).
 date_dimension:
   name: dim_date
   grain: day

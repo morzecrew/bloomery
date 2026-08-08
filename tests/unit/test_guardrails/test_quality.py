@@ -606,7 +606,7 @@ def test_a_referential_rule_via_the_entitys_own_relationship_is_accepted() -> No
 
 
 # ....................... #
-# referential onto the entity itself (§5.4, D24)
+# referential onto the entity itself (§5.4, D27)
 
 
 SELF_REFERENTIAL_PROJECT = """

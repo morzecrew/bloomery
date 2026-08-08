@@ -80,4 +80,4 @@ FROM (
   FROM _survivors
 ) AS _conservation
 WHERE
-  entity_rows + diverted_rows <> surviving_rows OR surviving_rows > bronze_rows
+  entity_rows + diverted_rows <> surviving_rows

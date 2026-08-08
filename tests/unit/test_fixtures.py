@@ -148,7 +148,10 @@ def test_dirty_corpus_loads_clean() -> None:
     """The spec side of the dirty-data corpus (RFC 0016 §6). One entity per
     failure family, plus the two sides ``refs.csv``'s ``_parent_status``
     column asks a suite to stand up — the referenced customer and the
-    referenced parent order."""
+    referenced parent order — plus ``dirty_ref_routed``, which judges
+    ``refs.csv`` a second time under the dispositions the corpus default
+    leaves unexercised (``referential`` at ``quarantine``/``flag``, and the
+    corpus's only ``on_fail: fail`` rule)."""
     project = load_fixture_project("dirty_corpus")
     entities = project.entity_model.entities
     assert set(entities) == {
@@ -161,6 +164,7 @@ def test_dirty_corpus_loads_clean() -> None:
         "dirty_number",
         "dirty_ref",
         "dirty_ref_parent",
+        "dirty_ref_routed",
         "dirty_status",
         "dirty_text_extreme",
         "dirty_timestamp_extreme",
@@ -174,5 +178,9 @@ def test_dirty_corpus_loads_clean() -> None:
     assert {r.name for r in project.entity_model.relationships} == {
         "ref_of_customer",
         "ref_of_parent",
+        # Declared *from* the routing entity: a `referential` rule's
+        # relationship must run from the entity that declares it (D46).
+        "routed_of_customer",
+        "routed_of_parent",
     }
     assert [check.name for check in project.entity_model.reconcile] == ["key_amount_matches_row"]

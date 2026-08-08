@@ -34,16 +34,20 @@ from collections.abc import Iterator
 
 import duckdb
 import pytest
+from support.compiling import compile_fixture
 from support.dirty import (
     DIALECT_DIVERGENT,
+    FIXTURE,
     FLAGGED,
     KEPT,
     QUARANTINED,
+    audits_of,
     build_corpus,
     cases,
     dispositions,
     expected,
 )
+from support.execution import audit_body
 
 pytestmark = pytest.mark.execution
 
@@ -224,6 +228,125 @@ def test_referential_orphans_keep_their_row_and_gain_the_reserved_member(
     # A source value colliding with the reserved member — accepted and
     # documented (D6), never silently typed around.
     assert rows["fk_collides_with_reserved_member"][0] == "__unknown__"
+
+
+#: The customer fks of ``refs.csv`` with no surviving referenced row, and the
+#: parent fks likewise — read off the file's own notes, so the numbers below
+#: are the corpus's statement rather than the run's.
+_ORPHANED_CUSTOMER_FKS = (
+    "empty_string_fk",
+    "fk_case_variant",
+    "fk_collides_with_reserved_member",
+    "fk_to_quarantined_parent",
+    "fk_whitespace_variant",
+    "orphan_fk",
+)
+_ORPHANED_PARENT_FKS = ("fk_to_own_entity_reject", "self_reference_orphan")
+
+#: The one row of the corpus whose synthesized payload is uncastable, and so
+#: the only one the ``on_fail: fail`` rule fires on.
+_BLOCKING_ROW = "quarantining_parent_row"
+
+
+def _routed(corpus_run: duckdb.DuckDBPyConnection) -> dict[str, tuple[str, tuple[str, ...]]]:
+    by_row_id = cases("refs.csv")
+    return {
+        by_row_id[row_id]: landed
+        for row_id, landed in dispositions(corpus_run, "dirty_ref_routed").items()
+    }
+
+
+def test_referential_at_quarantine_diverts_the_orphan_instead_of_rewriting_it(
+    corpus_run: duckdb.DuckDBPyConnection,
+) -> None:
+    """§5.4's second ``referential`` row: the same LEFT JOIN probe, but the
+    orphaned *dependent* row diverts to its own reject table with the rule name
+    in ``failed_rules``.
+
+    Judged over the same specimens ``unknown_member`` keeps, which is the point
+    — the disposition is the only thing that differs, so the two entities
+    together say what a disposition *does* rather than merely that each one
+    compiles. The NULL fk is still not an orphan under any of them (D19).
+    """
+    routed = _routed(corpus_run)
+    diverted = tuple(
+        sorted(case for case, (verdict, _) in routed.items() if verdict == QUARANTINED)
+    )
+    assert diverted == tuple(sorted((*_ORPHANED_CUSTOMER_FKS, _BLOCKING_ROW)))
+    for case in _ORPHANED_CUSTOMER_FKS:
+        assert routed[case][1] == ("routed_of_customer_referential",), case
+    assert routed["null_fk"] == (KEPT, ())
+    assert routed["valid_ref"] == (KEPT, ())
+
+
+def test_referential_at_flag_keeps_the_orphan_and_records_the_rule(
+    corpus_run: duckdb.DuckDBPyConnection,
+) -> None:
+    """§5.4's third ``referential`` row: the row is kept unchanged — fk not
+    rewritten, not diverted — and the rule name joins the single flag pass.
+    ``flag`` is the disposition that says "I want to know", and the difference
+    from ``unknown_member`` is observable only in the *stored fk*, so that is
+    what this asserts alongside the flag."""
+    routed = _routed(corpus_run)
+    for case in _ORPHANED_PARENT_FKS:
+        assert routed[case] == (FLAGGED, ("routed_of_parent_referential",)), case
+    stored = dict(
+        corpus_run.execute(
+            "SELECT _source_row_id, parent_ref FROM silver.dirty_ref_routed"
+        ).fetchall()
+    )
+    by_case = {case: row_id for row_id, case in cases("refs.csv").items()}
+    # Flagged, never rewritten: the reserved member belongs to `unknown_member`
+    # alone, and a `flag` disposition that quietly rewrote the key would make
+    # the two dispositions indistinguishable downstream.
+    assert stored[by_case["self_reference_orphan"]] == "ORD-9999"
+
+
+def test_a_fail_rule_blocks_the_run_even_on_a_row_the_split_diverted(
+    corpus_run: duckdb.DuckDBPyConnection,
+) -> None:
+    """D18's severity order and D32's audit scope, on live corpus data.
+
+    Until ``dirty_ref_routed`` existed the corpus carried no ``on_fail: fail``
+    rule at all, so the disposition that *stops a pipeline* was the one the
+    dirty-data regression suite said nothing about. The specimen is chosen so
+    the two claims cannot be confused: ``quarantining_parent_row``'s amount is
+    uncastable, so the implicit ``coercible`` rule diverts it **and** the
+    blocking rule fires on it. An audit over the built model would see only the
+    rows the split kept and report nothing, silently letting a quarantine
+    disposition beat a fail one.
+    """
+    artifact = audits_of(compile_fixture(FIXTURE))["dirty_ref_routed_amount_not_null"]
+    body = audit_body(artifact, "silver.dirty_ref_routed")
+    reported = tuple(
+        cases("refs.csv")[str(row_id)]
+        for (row_id,) in corpus_run.execute(f"SELECT _source_row_id FROM ({body})").fetchall()
+    )
+    assert reported == (_BLOCKING_ROW,)
+    # The same row is in the reject table, and its account names both rules.
+    routed = _routed(corpus_run)
+    assert routed[_BLOCKING_ROW] == (QUARANTINED, ("amount_coercible", "amount_not_null"))
+
+
+def test_the_conservation_audit_is_skipped_where_routing_reads_a_sibling(
+    corpus_run: duckdb.DuckDBPyConnection,
+) -> None:
+    """D29's scope limit, as a property of a fixture that actually builds.
+
+    ``dirty_ref_routed`` routes on a ``referential`` rule, whose predicate
+    reads a sibling silver entity — and a SQLMesh AUDIT body may not address
+    one, because model references inside it are not rewritten to the physical
+    snapshot. So this entity gets no conservation audit while every other
+    quarantining entity does. Asserted rather than left implicit: a skip nobody
+    checks is indistinguishable from an audit that was never generated.
+    """
+    del corpus_run
+    names = set(audits_of(compile_fixture(FIXTURE)))
+    assert "dirty_ref_routed_conservation" not in names
+    assert "dirty_ref_conservation" in names
+    # …and the entity is still audited for the metadata contract (D21), which
+    # reads nothing but itself.
+    assert "dirty_ref_routed_ingestion_metadata" in names
 
 
 def test_unicode_rows_are_flagged_never_dropped(

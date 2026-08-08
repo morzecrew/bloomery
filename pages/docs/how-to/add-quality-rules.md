@@ -235,7 +235,7 @@ from bloomery import (
 )
 from bloomery.naming import DefaultNaming
 
-ir = build_project_ir(project, catalog=catalog)
+ir = build_project_ir(project)
 
 naming = DefaultNaming()
 planner = MetricFlowPlanner(LruManifestHydrator(naming), naming=naming)
@@ -303,13 +303,21 @@ fails it. Widening an `enum_map` — a new target *or* a new spelling for an exi
 - **Dialects.** Postgres has no `TRY_CAST`, so an entity carrying `coercible` rules —
   which is any entity with a `quality:` surface — cannot compile for it.
   `UnsupportedByTarget`, loudly, rather than a `CAST` that aborts the run where the spec
-  said quarantine.
+  said quarantine. An entity that declares only `dedupe:` is refused too, on its own
+  account: it gets the ingestion-metadata audit, and that audit's "does `_ingested_at`
+  cast to timestamp" assertion is a `TRY_CAST` as much as any rule is.
 - **`run_id` is declared but NULL** in the quality mart on the pinned SQLMesh, which
   exposes no run-identifier macro. `run_date` comes from `@execution_ds`.
-- **`pattern` uses a portable regex subset** — character classes, anchors, quantifiers;
-  no lookaround, no named groups. Each pattern is validated against every registered
-  dialect at compile time, because a regex that works on DuckDB and means something else
-  on Trino is exactly the bug worth refusing.
+- **`pattern` speaks a portable regex subset** — an allowlist of literals, character
+  classes, anchors, quantifiers, alternation and `(?:…)`; whatever it does not name,
+  lookaround and backreferences included, is refused by name at *parse*. That allowlist,
+  not any per-dialect check, is what carries the portability claim. The guardrail stage
+  adds one mechanical check, over the *shipped* ports `duckdb`/`postgres`/`trino` — a
+  constant, not the process-global dialect registry, so an unrelated import cannot
+  decide whether an existing project compiles (RFC 0016 D56): does the dialect declare a
+  regex surface at all, and does the pattern text reach its SQL unchanged. Neither
+  question is about semantics — a compiler that never executes SQL cannot prove an
+  engine's regex engine accepts a pattern (D55).
 
 Once rules are declared, [Evolve a spec safely](evolve-a-spec.md) covers the rest of the
 change classes a spec edit can produce.

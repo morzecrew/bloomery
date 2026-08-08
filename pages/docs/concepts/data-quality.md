@@ -103,12 +103,20 @@ unmapped enum values, failed casts, and rules you wrote all travel the same road
 `quality:`, `quarantine:`, or any field-level `quality:`; `dedupe:` alone does not. An
 entity that declares none of them keeps the produce-or-raise lowering it always had.
 
-!!! warning "Postgres cannot host a quality-carrying entity"
+!!! warning "Postgres cannot host a quality-carrying entity — nor a dedupe-only one"
 
     The marker needs a real NULL-on-failure cast. DuckDB and Trino have `TRY_CAST`;
     Postgres does not, and rendering it there as a plain `CAST` would turn "quarantine
     this row" into "abort this run". Compiling a `coercible`-carrying entity for
     Postgres raises `UnsupportedByTarget` rather than degrading silently.
+
+    The refusal reaches one shape past the rules, which is worth reading against the
+    paragraph directly above. The ingestion-metadata audit every `dedupe:`/`quarantine:`
+    entity gets asserts that `_ingested_at` casts to timestamp, and that assertion is
+    itself a `TRY_CAST` — so an entity that declares only `dedupe:`, and therefore
+    carries no quality rules whatsoever, is refused for Postgres on the audit's own
+    account. Not joining the quality system spares you the rules; it does not buy back
+    the dialect.
 
 ## The pipeline order is fixed
 
@@ -318,11 +326,18 @@ comma-delimited string joined in lexicographic rule-name order. Rule names are
 identifier-constrained at parse time (`[a-z0-9_]+`), so neither form ever needs escaping
 and the two agree observably.
 
-Rules only ever *observe*. The one thing a `quality:` block cannot do is change a value —
-that is what makes the emitted SQL reviewable, and it is the same principle that keeps
-`assert:` clauses ([guardrails](guardrails.md#range-sanity)) as alerts rather than
-routers. An `assert:` says "tell me"; a `quality:` rule says "act on the row". A field
-may carry both. When you are ready to declare some, the
+Rules judge and route; they do not repair. The thing a `quality:` block cannot do is
+*mend* a value — turn `"12,50 €"` into `12.50` — because that is `repair`, and `repair`
+is deliberately absent from v1 (above). The one exception is stated rather than hidden:
+`referential`'s `on_missing: unknown_member` rewrites an orphan foreign key to the
+reserved `'__unknown__'` member, which is the entire point of that disposition and is
+visible in the emitted
+`CASE WHEN ref.<pk> IS NULL AND fk IS NOT NULL THEN '__unknown__' ELSE fk END`. It
+substitutes one reserved value under one stated condition; it does not compute a new
+one. That is the same principle that keeps `assert:` clauses
+([guardrails](guardrails.md#range-sanity)) as alerts rather than routers. An `assert:`
+says "tell me"; a `quality:` rule says "act on the row". A field may carry both. When you
+are ready to declare some, the
 [add quality rules](../how-to/add-quality-rules.md) guide walks the whole surface, and
 [Evolve a spec safely](../how-to/evolve-a-spec.md) covers the `replay_scope` a
 disposition change produces.

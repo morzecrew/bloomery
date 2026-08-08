@@ -121,6 +121,17 @@ def _verify_semi_additive_inventory(conn: duckdb.DuckDBPyConnection) -> None:
     # The mart gained has_quality_flags as an ordinary dimension (§5.5), and
     # quarantined rows never reached it — mart rowcounts legitimately differ
     # from bronze (D15).
+    #
+    # **Both values are FALSE here for a fixture reason, not a lowering one**,
+    # and saying so is the point: this fixture's only flag rule fires on
+    # negative levels, which its quarantining `range` rule also diverts, so no
+    # surviving row can carry a flag. That makes the assertion below unable to
+    # distinguish the real dimension from a constant `FALSE` — which is exactly
+    # how an inverted polarity once shipped past every tier but the goldens
+    # (D64). The polarity itself is asserted in both directions, and through a
+    # `MetricRequest`, in ``tests/execution/test_quality_precedence.py``; what
+    # this line proves is the narrower claim that a *diverted* row is absent
+    # from the mart entirely.
     mart = conn.execute(
         "SELECT warehouse_id, has_quality_flags FROM gold.mart_inventory ORDER BY warehouse_id"
     ).fetchall()

@@ -227,10 +227,14 @@ def test_the_conservation_audit_is_generated_and_blocking() -> None:
     assert "AUDIT (\n  name inventory_level_conservation\n)" in audit
     assert "blocking false" not in audit  # blocking is the default, and wanted
 
-    # The two legs an audit body can reach, and the inequality that pins the
-    # third (``deduped = bronze_rows - surviving_rows``).
+    # The one leg an audit body can reach that can actually fail (D61). The
+    # second leg it used to carry — ``surviving_rows > bronze_rows`` — compared
+    # a CTE against the very relation it filters, so it could not fire for any
+    # spec, any data or any bug; ``bronze_rows`` stays a projected column,
+    # because the deduped count is what makes a reported violation legible.
     assert "entity_rows + diverted_rows <> surviving_rows" in audit
-    assert "surviving_rows > bronze_rows" in audit
+    assert "surviving_rows > bronze_rows" not in audit
+    assert "AS bronze_rows" in audit
     # The entity side is scoped to *this* run's survivors by source-row
     # identity, which keeps the sum stable across a replay and exact under an
     # incremental entity.
@@ -501,9 +505,7 @@ def test_the_quality_dimension_projects_from_the_base_alongside_joins() -> None:
         columns=(
             plan_mart_column("order_id"),
             plan_mart_column("amount"),
-            plan_mart_column(
-                HAS_QUALITY_FLAGS, type_=BoolType(), source_column=OK_COLUMN
-            ),
+            plan_mart_column(HAS_QUALITY_FLAGS, type_=BoolType(), source_column=OK_COLUMN),
             plan_mart_column("o_id", source_entity="order", source_column="id"),
         ),
         joins=(

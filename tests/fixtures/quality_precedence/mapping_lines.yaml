@@ -8,6 +8,9 @@ fields:
   # The one `fail` rule of the fixture. A row below the bound stops the run —
   # and it must do so whether or not some *other* rule diverted it first, which
   # is the whole of D18's severity order.
+  order_date:
+    from: "$.order_date"
+    transform: [{parse_date: ISO8601}]
   amount:
     from: "$.amount"
     transform: [{to_decimal: [38, 9]}]

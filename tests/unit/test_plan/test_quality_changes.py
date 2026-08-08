@@ -19,8 +19,15 @@ facts instead of remembered ones.
 | ``quarantine.retention`` changed         | ADDITIVE  | no       | no     |
 | ``quarantine.redact`` narrowed           | ADDITIVE  | no       | no     |
 | ``quarantine.redact`` widened            | RESTATING | no       | no     |
+| ``mapping_version`` bumped               | ADDITIVE  | no       | no     |
+| reject ``raw`` payload widened           | ADDITIVE  | no       | no     |
+| reject ``raw`` payload narrowed          | RESTATING | no       | no     |
 | reconcile added                          | ADDITIVE  | no       | no     |
 | reconcile removed / changed              | RESTATING | no       | no     |
+
+A ``redact:`` **swap** is both a widening and a narrowing and reports as both
+(D59); the last three rows are the reject table's own stored schema and report
+only where a reject table exists on both sides of the change (D60).
 """
 
 from __future__ import annotations
@@ -325,11 +332,88 @@ def test_narrowing_redact_is_additive() -> None:
     assert "redact narrowed ($.note)" in change.detail
 
 
+def test_swapping_a_redact_path_reports_both_directions() -> None:
+    """A swap is a widening **and** a narrowing. The widening alone is the
+    dangerous half, but the narrowing is a PII-governance fact (§5.6): a path
+    that used to be scrubbed is now written into the reject table's ``raw``,
+    and a caller told only "payload is being destroyed" never learns it."""
+    old = entity(quarantine=QuarantineIR(retention="90d", redact=("$.a",)))
+    new = entity(quarantine=QuarantineIR(retention="90d", redact=("$.b",)))
+    changes = _plan_of(old, new)
+    assert [(change.change_class, change.detail.split(" — ")[0]) for change in changes] == [
+        (ChangeClass.ADDITIVE, "quarantine redact narrowed ($.a)"),
+        (ChangeClass.RESTATING, "quarantine redact widened ($.b)"),
+    ]
+    assert _scopes(old, new) == ((), ())
+
+
 def test_adding_a_quarantine_block_reports_only_its_retention() -> None:
     old, new = entity(), entity(quarantine=QuarantineIR(retention="90d"))
     change = _one(old, new)
     assert change.change_class is ChangeClass.ADDITIVE
     assert (change.old, change.new) == (None, "90d")
+
+
+# ....................... #
+# The reject table's stored schema: mapping_version and the `raw` payload (D60)
+
+
+def _quarantined(*, mapping_version: int = 1, unmapped: tuple[str, ...] = ()) -> EntityIR:
+    return entity(
+        quarantine=QuarantineIR(retention="90d"),
+        mapping_version=mapping_version,
+        unmapped=unmapped,
+    )
+
+
+def test_bumping_mapping_version_is_an_additive_reject_stamp() -> None:
+    """``mapping_version`` is a stored column of the reject schema (§5.6), so
+    the emitted ``<entity>__reject`` model changes — but it is a provenance
+    stamp, and a stored row still correctly records the version that rejected
+    it."""
+    old, new = _quarantined(), _quarantined(mapping_version=2)
+    change = _one(old, new)
+    assert change.change_class is ChangeClass.ADDITIVE
+    assert change.subject == "quarantine:order_item"
+    assert change.detail == "mapping_version changed (reject provenance stamp)"
+    assert (change.old, change.new) == ("1", "2")
+    assert _scopes(old, new) == ((), ())
+
+
+def test_acknowledging_an_unmapped_path_widens_the_reject_payload() -> None:
+    """``unmapped:`` decides which bronze columns ``raw`` carries, so adding
+    one widens the payload: more is kept from now on, nothing stored changes."""
+    old, new = _quarantined(), _quarantined(unmapped=("$.note",))
+    change = _one(old, new)
+    assert change.change_class is ChangeClass.ADDITIVE
+    assert change.subject == "quarantine:order_item"
+    assert "reject payload widened (note)" in change.detail
+    assert _scopes(old, new) == ((), ())
+
+
+def test_dropping_an_unmapped_path_narrows_the_reject_payload_and_restates() -> None:
+    """The mirror of a widened ``redact:``: reject rows written from now on
+    carry less than the stored ones, and neither a backfill nor a replay can
+    restore a column the write path no longer projects."""
+    old, new = _quarantined(unmapped=("$.note",)), _quarantined()
+    change = _one(old, new)
+    assert change.change_class is ChangeClass.RESTATING
+    assert "reject payload narrowed (note)" in change.detail
+    assert _scopes(old, new) == ((), ())
+
+
+def test_unmapped_is_diffed_at_bronze_column_granularity() -> None:
+    """``raw`` is keyed by top-level bronze column, so ``$.a.b`` → ``$.a.c``
+    emits the identical model — reporting it would be a change nobody can act
+    on (the D52 discipline)."""
+    old, new = _quarantined(unmapped=("$.a.b",)), _quarantined(unmapped=("$.a.c",))
+    assert _plan_of(old, new) == ()
+
+
+def test_reject_schema_facts_are_silent_without_a_quarantine_block() -> None:
+    """No quarantine policy, no reject model — neither field reaches an
+    artifact, so neither is a change a caller can act on."""
+    assert _plan_of(entity(), entity(mapping_version=7, unmapped=("$.note",))) == ()
 
 
 # ....................... #

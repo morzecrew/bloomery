@@ -49,8 +49,11 @@ __all__ = [
     "params_of",
     "qualify_columns",
     "ref_alias",
+    "routing_predicate",
+    "sole_via_column",
     "source_alias",
     "unknown_member_case",
+    "verdict",
     "violation",
     "window_alias",
     "windowed",
@@ -157,6 +160,14 @@ def window_alias(rule: QualityRuleIR) -> str:
     windowed rules on one entity never collide.
     """
     return f"_win_{rule.name}"
+
+
+#: The value an aligned ``numeric_NNNN`` param carries for a member the spec
+#: declared as an integer (RFC 0016 §5.3's ``in_set``). Spelled once, read by
+#: the builder and written by the lowering, because a member whose *type* is
+#: lost renders as a string literal and silently changes what the predicate
+#: compares — correctly coerced on DuckDB and Postgres, refused by Trino.
+_NUMERIC_MEMBER = "true"
 
 
 def ref_alias(relationship: str) -> str:
@@ -266,10 +277,9 @@ def _pattern(rule: QualityRuleIR, table: str | None) -> Expression:
     return exp.Not(this=matches)
 
 
-def _not_in(rule: QualityRuleIR, table: str | None) -> Expression:
-    members = [exp.Literal.string(value) for value in indexed_params(rule, "value")]
+def _not_in(rule: QualityRuleIR, table: str | None, members: Sequence[Expression]) -> Expression:
     return exp.Not(
-        this=exp.In(this=exp.column(rule.column or "", table=table), expressions=members)
+        this=exp.In(this=exp.column(rule.column or "", table=table), expressions=list(members))
     )
 
 
@@ -279,15 +289,38 @@ def _in_enum(rule: QualityRuleIR, table: str | None) -> Expression:
     The admissible set *is* the chain's mapping — resolved at lowering from
     the ``enum_map`` step's targets, never restated by the author, so the two
     cannot drift. ``col NOT IN (...)`` is ``UNKNOWN`` for a null column (D19).
+
+    Members are always **string** literals: an ``enum_map`` chain maps text to
+    text, so the admissible set is textual by construction.
     """
-    return _not_in(rule, table)
+    members = [exp.Literal.string(value) for value in indexed_params(rule, "value")]
+    return _not_in(rule, table, members)
 
 
 def _in_set(rule: QualityRuleIR, table: str | None) -> Expression:
     """``col NOT IN (...)`` over the literal set — ``UNKNOWN`` for a null
     column (D19). The set is spec-declared and never contains NULL, so the
-    classic ``NOT IN`` null trap cannot arise on the right-hand side."""
-    return _not_in(rule, table)
+    classic ``NOT IN`` null trap cannot arise on the right-hand side.
+
+    Unlike ``in_enum``, ``in_set``'s members are authored, and the spec surface
+    admits ``int`` beside ``str`` — so the member's declared *type* rides in the
+    IR beside its text (the aligned ``numeric_NNNN`` params) and is rendered
+    here. Emitting every member as a string literal made ``tier NOT IN ('1')``
+    on an integer column: DuckDB and Postgres coerce it and answer correctly,
+    Trino refuses the comparison outright, and "works on one engine, means
+    something else on another" is the exact bug this project exists to prevent
+    (RFC 0016 §5.3). The params are absent for an all-string set, so a spec that
+    never wrote an integer member is byte-identical to before.
+    """
+    values = indexed_params(rule, "value")
+    numeric = indexed_params(rule, "numeric")
+    members = [
+        exp.Literal.number(value)
+        if numeric and numeric[index] == _NUMERIC_MEMBER
+        else exp.Literal.string(value)
+        for index, value in enumerate(values)
+    ]
+    return _not_in(rule, table, members)
 
 
 def _unique(rule: QualityRuleIR, table: str | None) -> Expression:
@@ -355,6 +388,35 @@ _BUILDERS = {
 }
 
 
+def sole_via_column(rule: QualityRuleIR) -> str:
+    """The **one** from-column a key-rewriting ``referential`` rule joins on.
+
+    ``unknown_member`` rewrites the fk to the reserved string member with a
+    single ``CASE`` over a single column (§5.4), so it is defined only for a
+    one-column relationship — and RFC 0016 **D48** refuses the composite shape
+    at compile time for exactly that reason: a two-column fk produced a
+    half-sentinel key like ``('__unknown__', 47)`` matching no reserved row,
+    which is worse than either the refusal or the orphan it was meant to tame.
+
+    The guardrail makes this accessor *total for every spec that compiles*, and
+    this function is what keeps that dependency visible. Reading ``[0]`` and
+    ignoring the rest would be indistinguishable from the half-sentinel bug on
+    the day someone widens the guardrail; refusing loudly here means a widening
+    has to decide what a multi-column rewrite means before it can ship.
+    """
+    columns = tuple(pair.split("=", 1)[0] for pair in indexed_params(rule, "via"))
+    if len(columns) != 1:
+        msg = (
+            f"referential rule {rule.name!r} rewrites its fk to the reserved member but "
+            f"joins on {len(columns)} columns ({', '.join(columns) or 'none'}); the rewrite "
+            "is one CASE over one column (RFC 0016 §5.4) and the composite shape is refused "
+            "at compile time (D48), so reaching this point means the guardrail was widened "
+            "without deciding what a multi-column sentinel means"
+        )
+        raise ValueError(msg)
+    return columns[0]
+
+
 def violation(rule: QualityRuleIR, *, table: str | None = None) -> Expression:
     """The dialect-neutral predicate that is ``TRUE`` exactly when ``rule`` is
     violated (see the module docstring's three-valued invariant).
@@ -369,6 +431,56 @@ def violation(rule: QualityRuleIR, *, table: str | None = None) -> Expression:
     return builder(rule, table)
 
 
+def verdict(rule: QualityRuleIR, table: str | None = None) -> Expression:
+    """The rule's verdict, *usable in any position* (RFC 0016 D33).
+
+    For an ordinary rule this is the violation predicate itself. For a windowed
+    one (:data:`WINDOWED_KINDS`) it is a reference to the column the lowering
+    projected the window into (:func:`window_alias`): SQL allows a window
+    function only where a projection is being built, and the lowering reads a
+    verdict from a ``WHERE`` clause (the routing split), an audit body, and an
+    aggregate's argument (the conservation count). Evaluating the window once,
+    in the one legal place, and referring to the result by name is what makes
+    the same rule mean the same thing in all of them — a rule that only worked
+    at ``flag`` was not a lowering, it was a coincidence.
+
+    It lives here rather than in the emitter because it is the *contract*
+    between a predicate and the positions it is legal in, and the RFC 0016 §6
+    rule × disposition matrix has to exercise the real one: a test that
+    re-derived this two-line rule would go on passing through exactly the
+    regression it exists to catch.
+    """
+    if windowed(rule):
+        return exp.column(window_alias(rule), table=table)
+    return violation(rule, table=table)
+
+
+def routing_predicate(
+    rules: Sequence[QualityRuleIR], table: str | None = None, *, quarantined: bool
+) -> Expression:
+    """Stage 6's two-way split over ``rules`` (RFC 0016 §5.4).
+
+    ``quarantined=True`` selects the diverted rows; ``False`` is its exact
+    complement, the rows the entity keeps.
+
+    Three-valued logic is collapsed to two-valued **here**, at the routing
+    seam, and nowhere else: a rule predicate must stay silent on ``UNKNOWN``
+    (D19), but routing has to be a *partition* — without the collapse a row
+    whose only quarantine rule evaluated ``UNKNOWN`` would satisfy neither
+    ``fired`` nor ``NOT fired`` and would vanish from both sides, breaking §6's
+    conservation law. "Did any quarantine rule *definitively* fire" is exactly
+    ``COALESCE(…, FALSE)``.
+
+    Never called with an empty sequence — an entity with no quarantining rule
+    has no split to emit.
+    """
+    fired = exp.Coalesce(
+        this=grouped(disjunction([verdict(rule, table) for rule in rules])),
+        expressions=[exp.false()],
+    )
+    return fired if quarantined else exp.Not(this=fired)
+
+
 def unknown_member_case(rule: QualityRuleIR, *, table: str | None = None) -> Expression:
     """``CASE WHEN ref.<pk> IS NULL AND fk IS NOT NULL THEN '__unknown__' ELSE
     fk END`` — the ``on_missing: unknown_member`` lowering (RFC 0016 §5.4).
@@ -377,8 +489,10 @@ def unknown_member_case(rule: QualityRuleIR, *, table: str | None = None) -> Exp
     aggregates *correct*: dropping orphans makes revenue quietly lower than
     the source system's, while a reserved member keeps the total right and
     makes the problem visible in the dashboard.
+
+    Single-column by construction — :func:`sole_via_column` says why.
     """
-    from_column = indexed_params(rule, "via")[0].split("=", 1)[0]
+    from_column = sole_via_column(rule)
     return exp.Case(
         ifs=[exp.If(this=violation(rule, table=table), true=exp.Literal.string(UNKNOWN_MEMBER))],
         default=exp.column(from_column, table=table),

@@ -126,9 +126,20 @@ def test_in_enum_on_a_chain_with_no_enum_map_has_an_empty_admissible_set() -> No
 def test_in_set_carries_its_literal_members_and_unique_its_slice() -> None:
     """``in_set`` restates its members inline (it has no chain to read them
     off); ``unique``'s slice is the entity's partition — empty here, so the
-    window covers the whole table (D5)."""
+    window covers the whole table (D5).
+
+    The members here are declared as YAML integers, so each carries its
+    ``numeric_NNNN`` type flag beside its text: the IR's params are strings,
+    and a member whose declared type is lost renders as a string literal —
+    which DuckDB and Postgres coerce and Trino refuses.
+    """
     by_kind = {rule.kind: rule for rule in _both_bounds()}
-    assert params_of(by_kind["in_set"]) == {"value_0000": "1", "value_0001": "2"}
+    assert params_of(by_kind["in_set"]) == {
+        "numeric_0000": "true",
+        "numeric_0001": "true",
+        "value_0000": "1",
+        "value_0001": "2",
+    }
     assert params_of(by_kind["unique"]) == {}
     assert params_of(by_kind["length"]) == {"min": "1"}
 

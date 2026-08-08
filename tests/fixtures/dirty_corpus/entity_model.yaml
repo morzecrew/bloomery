@@ -100,6 +100,31 @@ entities:
       - {rule: referential, via: ref_of_customer, on_missing: unknown_member}
       - {rule: referential, via: ref_of_parent, on_missing: unknown_member}
 
+  # refs.csv again, under the two `on_missing` dispositions `dirty_ref` cannot
+  # also be applying to the same rows, plus the corpus's one `on_fail: fail`
+  # rule. Until this entity existed the corpus exercised `unknown_member` and
+  # nothing else, which meant D18's precedence, `referential: quarantine` and
+  # `referential: flag` had no specimen at all — and the chaos meta-test's
+  # battery *is* the corpus, so a mutation to any of those paths could not be
+  # detected there however plausible it was.
+  #
+  # Its conservation audit is deliberately absent: a `referential` rule at
+  # `quarantine` routes on a sibling entity, which an audit body cannot address
+  # (D29). That skip had been asserted only against a synthetic IR; here it is
+  # a property of a fixture that actually builds.
+  dirty_ref_routed:
+    grain: one row per order, judged under routing dispositions
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      customer_ref: {type: string}
+      parent_ref: {type: string}
+      amount: {type: "decimal(38,9)"}
+    quarantine: {retention: 90d}
+    quality:
+      - {rule: referential, via: routed_of_customer, on_missing: quarantine}
+      - {rule: referential, via: routed_of_parent, on_missing: flag}
+
   # The referenced parent side of refs.csv, built from the same rows: the row
   # `quarantining_parent_row` fails its own `coercible` rule here exactly as it
   # does in `dirty_ref`, which is what makes its children genuine orphans
@@ -183,6 +208,19 @@ relationships:
     cardinality: many_to_one
   - name: ref_of_parent
     from: dirty_ref
+    to: dirty_ref_parent
+    via: {parent_ref: order_id}
+    cardinality: many_to_one
+  # The same two joins declared *from* the routing entity: a `referential`
+  # rule's relationship must run from the entity that declares it (D46), so
+  # borrowing `dirty_ref`'s pair would be a compile refusal, not a shortcut.
+  - name: routed_of_customer
+    from: dirty_ref_routed
+    to: dirty_customer
+    via: {customer_ref: customer_id}
+    cardinality: many_to_one
+  - name: routed_of_parent
+    from: dirty_ref_routed
     to: dirty_ref_parent
     via: {parent_ref: order_id}
     cardinality: many_to_one

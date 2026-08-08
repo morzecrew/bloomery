@@ -67,8 +67,11 @@ from bloomery.quality import (
     quality_ok,
     ref_alias,
     reject_id,
+    routing_predicate,
+    sole_via_column,
     source_alias,
     unknown_member_case,
+    verdict,
     violation,
     window_alias,
     windowed,
@@ -169,23 +172,6 @@ def _windowed_rules(entity: EntityIR) -> tuple[QualityRuleIR, ...]:
     return tuple(rule for rule in entity.quality if windowed(rule))
 
 
-def _violated(rule: QualityRuleIR, table: str | None) -> Expression:
-    """The rule's verdict, *usable in any position*.
-
-    For an ordinary rule that is the violation predicate itself. For a windowed
-    one it is a reference to the column :func:`_stage` computed it into: SQL
-    allows a window function only where a projection is being built, and the
-    lowering reads a verdict from a ``WHERE`` clause (routing), an audit body,
-    and an aggregate's argument (the conservation count). Evaluating the window
-    once, in the one legal place, and referring to the result by name is what
-    makes the same rule mean the same thing in all of them — a rule that only
-    worked at ``flag`` was not a lowering, it was a coincidence.
-    """
-    if windowed(rule):
-        return exp.column(window_alias(rule), table=table)
-    return violation(rule, table=table)
-
-
 def _stage(select: exp.Select, entity: EntityIR) -> exp.Select:
     """Wrap an extract SELECT in the level that computes windowed verdicts.
 
@@ -217,7 +203,7 @@ def _stage(select: exp.Select, entity: EntityIR) -> exp.Select:
 
 
 def _flag_pairs(rules: tuple[QualityRuleIR, ...], table: str) -> list[tuple[str, Expression]]:
-    return [(rule.name, _violated(rule, table)) for rule in rules]
+    return [(rule.name, verdict(rule, table)) for rule in rules]
 
 
 def _carries_metadata(entity: EntityIR) -> bool:
@@ -366,7 +352,7 @@ def _entity_projections(entity: EntityIR, table: str) -> list[Expression]:
     """The entity's own columns, qualified — with any ``unknown_member`` fk
     rewritten to the reserved member (RFC 0016 §5.4)."""
     rewrites = {
-        params_of(rule)["via_0000"].split("=", 1)[0]: rule
+        sole_via_column(rule): rule
         for rule in _referential_rules(entity)
         if params_of(rule)["on_missing"] == "unknown_member"
     }
@@ -389,26 +375,18 @@ def _route_predicate(entity: EntityIR, table: str, *, quarantined: bool) -> Expr
     """Stage 6: the two-way split (RFC 0016 §5.4).
 
     ``quarantined=True`` selects the diverted rows for ``<entity>__reject``;
-    ``False`` is its complement, the rows the entity keeps. The complement is
-    ``NOT (…)``, which is ``UNKNOWN`` — and therefore *not* kept — only if the
-    disjunction is ``UNKNOWN``; every violation predicate is definitively TRUE
-    or not (D19), so the two sides partition the rows exactly.
+    ``False`` is its complement, the rows the entity keeps. ``None`` when the
+    entity quarantines nothing: there is no split to emit.
+
+    The predicate itself is :func:`~bloomery.quality.routing_predicate`, which
+    is where the three-valued collapse and its reasoning live — shared with the
+    §6 rule × disposition matrix, so the matrix executes the routing SQL this
+    function emits rather than a restatement of it.
     """
     rules = _rules(entity, OnFail.QUARANTINE)
     if not rules:
         return None
-    # Collapse three-valued to two-valued **here**, at the routing seam, and
-    # nowhere else: a rule predicate must stay silent on UNKNOWN (D19), but
-    # routing has to be a partition — without the collapse a row whose only
-    # quarantine rule evaluated UNKNOWN would satisfy neither ``fired`` nor
-    # ``NOT fired`` and would vanish from both sides, breaking §6's
-    # conservation law. "Did any quarantine rule *definitively* fire" is
-    # exactly ``COALESCE(…, FALSE)``.
-    fired = exp.Coalesce(
-        this=grouped(disjunction([_violated(rule, table) for rule in rules])),
-        expressions=[exp.false()],
-    )
-    return fired if quarantined else exp.Not(this=fired)
+    return routing_predicate(rules, table, quarantined=quarantined)
 
 
 def _require_try_cast(entity: EntityIR, ctx: EmitContext) -> None:
@@ -799,14 +777,23 @@ def conservation_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
                                                         disjoint — a row in
                                                         neither leg is a row
                                                         silently dropped)
-        surviving_rows <= bronze_rows                  (dedupe removes rows, it
-                                                        never invents any)
 
-    with ``deduped = bronze_rows - surviving_rows`` falling out as the third
+    with ``deduped = bronze_rows - surviving_rows`` falling out as the second
     leg. ``entity_rows`` is scoped to the source-row identities of *this* run's
     survivors, which is what keeps the audit exact under an incremental entity
     and stable across a replay: a replayed row's bronze identity has aged out
     of the window, so it is outside the scope on both sides at once.
+
+    **One leg, not two** (RFC 0016 D61). The audit also carried
+    ``surviving_rows <= bronze_rows`` — "dedupe removes rows, it never invents
+    any" — which reads like a second guarantee and is a tautology: the
+    ``_survivors`` CTE *is* the bronze relation with a ``QUALIFY`` over it, so
+    the two counts are taken over the same rows and one is a filter of the
+    other. It could not fail for any spec, any data, or any bug, and a check
+    that cannot fail is indistinguishable from a check that is not there —
+    worse, it reads as coverage. ``bronze_rows`` stays as a **projected**
+    column: an audit reports its violating rows, and the deduped count is what
+    makes the reported numbers legible.
 
     The reject table is deliberately **not** read — see
     :func:`conservation_audit`. ``diverted_rows`` is recomputed from the same
@@ -847,16 +834,9 @@ def conservation_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
         )
         .from_(_SURVIVORS_CTE)
     )
-    violated = disjunction(
-        [
-            exp.NEQ(
-                this=exp.Add(
-                    this=exp.column("entity_rows"), expression=exp.column("diverted_rows")
-                ),
-                expression=exp.column("surviving_rows"),
-            ),
-            exp.GT(this=exp.column("surviving_rows"), expression=exp.column("bronze_rows")),
-        ]
+    violated = exp.NEQ(
+        this=exp.Add(this=exp.column("entity_rows"), expression=exp.column("diverted_rows")),
+        expression=exp.column("surviving_rows"),
     )
     return (
         exp.Select()
@@ -902,7 +882,7 @@ def fail_audits(entity: EntityIR, ctx: EmitContext) -> tuple[tuple[str, exp.Sele
             exp.Select()
             .select(exp.Star())
             .from_(_extract_select(entity, ctx).subquery(alias=_EXTRACT_ALIAS))
-            .where(_violated(rule, _EXTRACT_ALIAS))
+            .where(verdict(rule, _EXTRACT_ALIAS))
         )
         audits.append((f"{entity.name}_{rule.name}", body))
     return tuple(audits)

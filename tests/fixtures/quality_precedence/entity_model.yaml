@@ -29,7 +29,12 @@ entities:
     fields:
       order_id: {type: string, required: true}
       line_no: {type: int, required: true}
-      amount: {type: "decimal(38,9)"}
+      # `order_date` and the canonical link exist for one reason: a mart over
+      # this entity, which is where `has_quality_flags` becomes observable
+      # (RFC 0016 §5.5). A measure-carrying mart declares a date role
+      # (RFC 0010 D9), and a measure needs a canonical field to require.
+      order_date: {type: date}
+      amount: {type: "decimal(38,9)", canonical: line_amount}
       code: {type: string}
       status: {type: string}
     dedupe: {keep: latest_by, field: _ingested_at, tie_break: [_load_id]}

@@ -74,24 +74,28 @@ KEPT = EVALUATED - QUARANTINED
 NARROW_SET = "values: [open, closed]"
 WIDE_SET = "values: [open, closed, legacy]"
 
-#: ``(_load_id, _ingested_at, _source_row_id, order_id, line_no, amount, code,
-#: status)``. Timestamps are text: the mapping casts them, and bronze in this
-#: project is always-text by contract.
+#: ``(_load_id, _ingested_at, _source_row_id, order_id, line_no, order_date,
+#: amount, code, status)``. Timestamps and dates are text: the mapping casts
+#: them, and bronze in this project is always-text by contract.
 _LINES: tuple[tuple[str | None, ...], ...] = (
     # Two keys delivered twice — the earlier delivery loses the dedupe QUALIFY.
-    ("load_a", "2024-01-01T00:00:01Z", "r01", "O1", "1", "10", "C01", "open"),
-    ("load_a", "2024-01-01T00:00:02Z", "r02", "O1", "1", "11", "C02", "open"),
-    ("load_a", "2024-01-01T00:00:01Z", "r03", "O1", "2", "12", "C03", "open"),
-    ("load_a", "2024-01-01T00:00:02Z", "r04", "O1", "2", "13", "C04", "open"),
+    ("load_a", "2024-01-01T00:00:01Z", "r01", "O1", "1", "2024-01-01", "10", "C01", "open"),
+    ("load_a", "2024-01-01T00:00:02Z", "r02", "O1", "1", "2024-01-01", "11", "C02", "open"),
+    ("load_a", "2024-01-01T00:00:01Z", "r03", "O1", "2", "2024-01-01", "12", "C03", "open"),
+    ("load_a", "2024-01-01T00:00:02Z", "r04", "O1", "2", "2024-01-01", "13", "C04", "open"),
     # Three rows sharing a code — `unique` diverts all three.
-    ("load_a", "2024-01-01T00:00:03Z", "r05", "O2", "1", "14", "DUP", "open"),
-    ("load_a", "2024-01-01T00:00:03Z", "r06", "O2", "2", "15", "DUP", "open"),
+    ("load_a", "2024-01-01T00:00:03Z", "r05", "O2", "1", "2024-01-01", "14", "DUP", "open"),
+    ("load_a", "2024-01-01T00:00:03Z", "r06", "O2", "2", "2024-01-01", "15", "DUP", "open"),
     # …and this one also fails `in_set` **and** the `fail`-disposition bound.
-    ("load_a", "2024-01-01T00:00:03Z", "r07", "O3", "1", "-5", "DUP", "bad"),
-    ("load_a", "2024-01-01T00:00:03Z", "r08", "O3", "2", "16", "C08", "open"),
-    # Below the bound but diverted by nothing: the `fail` rule's other row.
-    ("load_a", "2024-01-01T00:00:03Z", "r09", "O4", "1", "-7", "C09", "open"),
-    ("load_a", "2024-01-01T00:00:03Z", "r10", "O4", "2", "18", "C10", "open"),
+    ("load_a", "2024-01-01T00:00:03Z", "r07", "O3", "1", "2024-01-01", "-5", "DUP", "bad"),
+    ("load_a", "2024-01-01T00:00:03Z", "r08", "O3", "2", "2024-01-01", "16", "C08", "open"),
+    # Below the bound but diverted by nothing: the `fail` rule's other row, and
+    # therefore the fixture's one row that reaches a **mart** carrying a flag.
+    # Everything else the rules fire on is diverted before the mart sees it, so
+    # without this row `has_quality_flags` would be constant FALSE on live data
+    # — which is exactly how an inverted polarity ships green (RFC 0016 §5.5).
+    ("load_a", "2024-01-01T00:00:03Z", "r09", "O4", "1", "2024-01-01", "-7", "C09", "open"),
+    ("load_a", "2024-01-01T00:00:03Z", "r10", "O4", "2", "2024-01-01", "18", "C10", "open"),
 )
 
 #: The identities the split diverts, and the two the `fail` rule fires on.
@@ -137,6 +141,7 @@ _SEEDS: tuple[tuple[str, tuple[str, ...], tuple[tuple[str | None, ...], ...]], .
             "_source_row_id",
             "order_id",
             "line_no",
+            "order_date",
             "amount",
             "code",
             "status",

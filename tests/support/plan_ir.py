@@ -80,6 +80,8 @@ def entity(
     columns: tuple[ColumnIR, ...] | None = None,
     relation: str = "raw__items",
     source_fields: tuple[SourceFieldIR, ...] = (),
+    mapping_version: int = 1,
+    unmapped: tuple[str, ...] = (),
     audits: tuple[AuditIR, ...] = (),
     quality: tuple[QualityRuleIR, ...] = (),
     dedupe: DedupeIR | None = None,
@@ -97,6 +99,8 @@ def entity(
         source=SourceIR(
             relation=relation,
             fields=tuple(sorted(source_fields, key=lambda f: (f.target_field, f.source_path))),
+            mapping_version=mapping_version,
+            unmapped=tuple(sorted(unmapped)),
         ),
         audits=audits,
         quality=tuple(sorted(quality, key=quality_sort_key)),

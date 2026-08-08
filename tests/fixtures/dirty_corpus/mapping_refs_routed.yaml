@@ -1,0 +1,38 @@
+# The second policy over refs.csv (RFC 0016 §6). `mapping_refs.yaml` judges the
+# file under the corpus's documented default — `on_missing: unknown_member`,
+# nothing blocking. This one judges the *same rows* under the two dispositions
+# the default leaves unexercised, plus the one disposition the whole fixture
+# had no instance of.
+#
+# It is a second mapping rather than a second rule on `dirty_ref` because a
+# disposition is a property of a rule, and one rule has one: asserting what
+# `quarantine` does to an orphan means routing that orphan, which is not
+# something the `unknown_member` entity can also be doing to it.
+mapping_version: 1
+source: dirty__refs
+target: dirty_ref_routed
+key:
+  order_id: {from: "$.order_id", transform: [to_string]}
+fields:
+  customer_ref: {from: "$.customer_id", transform: [to_string]}
+  parent_ref: {from: "$.parent_order_id", transform: [to_string]}
+  # The fixture's one `on_fail: fail` rule, and it is deliberately declared on
+  # the field the synthesized payload makes NULL for exactly one row
+  # (`quarantining_parent_row`). That row also trips the implicit `coercible`
+  # rule, whose disposition is `quarantine` — so it is *diverted*, and D18's
+  # severity order says the blocking audit must report it anyway. A `fail`
+  # specimen that nothing else fires on would prove the audit runs; this one
+  # proves it wins.
+  amount:
+    from: "$.amount"
+    transform: [{to_decimal: [38, 9]}]
+    quality:
+      - {rule: not_null, on_fail: fail}
+unmapped:
+  - "$._load_id"
+  - "$._ingested_at"
+  - "$._source_row_id"
+  - "$._case"
+  - "$._parent_status"
+  - "$._expected"
+  - "$._note"

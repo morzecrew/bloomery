@@ -3,23 +3,45 @@
 Three things are asserted here, and RFC 0016 §6 names all three:
 
 - the **exhaustive** rule × disposition lowering matrix — ``product(ALL_RULES,
-  ALL_DISPOSITIONS)``, every pair lowering to SQL that parses under DuckDB,
-  because "a missing pair is exactly the gap that ships";
+  ALL_DISPOSITIONS)``, every pair **executed against DuckDB in the position
+  that disposition puts it in**, because "a missing pair is exactly the gap
+  that ships";
 - **three-valued logic** per rule: a NULL-involved comparison evaluates to SQL
   ``UNKNOWN`` and must not fire. This is asserted by *executing* the predicate
   against a null row in DuckDB and requiring ``NULL``, not ``TRUE`` — reading
   the AST would only prove the shape, not the semantics;
 - **disposition precedence** ``fail > quarantine > flag``, and the rule that a
   quarantined row records all its failures, flag-level ones included.
+
+**Why the matrix executes rather than parses.** It used to render each pair and
+assert ``parse_one(f"SELECT 1 WHERE {rendered}") is not None``, which is two
+failures wearing one name. The disposition axis was inert — ``violation()``
+never reads ``on_fail``, so thirty parametrizations carried ten distinct
+assertions — and the assertion itself was satisfied by SQL no engine will run:
+``parse_one`` happily parses a window function inside a ``WHERE`` clause, which
+is exactly the shape that shipped broken for ``unique`` at ``quarantine`` and
+``fail`` (D33). A pair is only *lowered* if the artifact it produces is legal
+where the lowering puts it, so each pair is built here the way the emitter
+builds it — the windowed verdict projected once (:func:`stage`), the routing
+split through :func:`~bloomery.quality.routing_predicate`, the flag collection
+through :func:`~bloomery.quality.flags_expression` — and then run.
+
+One pair is genuinely unrepresentable: ``referential`` at ``fail`` (D6). It is
+asserted as a **parse refusal** rather than passing silently, and
+``referential``'s real axis — ``on_missing`` — is executed beside the others.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass, replace
 from itertools import product
+from typing import TYPE_CHECKING
 
 import duckdb
+import pydantic
 import pytest
 from sqlglot import exp, parse_one
+from support.quality_rules import ON_MISSING_RULES, referential_rule, rule_of_kind
 
 from bloomery.ir import OnFail, QualityRuleIR
 from bloomery.quality import (
@@ -31,21 +53,287 @@ from bloomery.quality import (
     UNKNOWN_MEMBER,
     disposition,
     failed_rule_names,
+    flags_expression,
     ref_alias,
+    routing_predicate,
+    sole_via_column,
     source_alias,
     unknown_member_case,
+    verdict,
     violation,
     window_alias,
     windowed,
     worst,
 )
-from support.quality_rules import ON_MISSING_RULES, referential_rule, rule_of_kind
+from bloomery.spec.quality import ReferentialRule
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 pytestmark = pytest.mark.unit
 
 
 # ....................... #
-# The exhaustive matrix (RFC 0016 §6)
+# The exhaustive matrix (RFC 0016 §6), executed
+
+
+@dataclass(frozen=True)
+class _Specimen:
+    """One rule kind's two-row population: what violates it, and what does not.
+
+    ``columns`` is the DDL after the ``row_id`` identity; ``rows`` are its
+    tuples; ``violating`` names the identities whose verdict must be TRUE. A
+    clean row is not decoration — a predicate that fires on everything passes
+    every "the violation was detected" assertion there is.
+    """
+
+    columns: str
+    rows: tuple[tuple[object, ...], ...]
+    violating: tuple[str, ...]
+
+
+#: A specimen per kind of :data:`~bloomery.quality.ALL_RULES` except
+#: ``referential``, which needs a joined probe and has its own axis below.
+_SPECIMENS: dict[str, _Specimen] = {
+    # The marker is "NULL although every source it reads was not" (§5.2), so
+    # the clean row is a *genuine* null source, not merely a castable value.
+    "coercible": _Specimen(
+        "amount VARCHAR, _src_amount_coercible_0000 VARCHAR",
+        (("bad", None, "twelve"), ("ok", None, None)),
+        ("bad",),
+    ),
+    "not_null": _Specimen("amount VARCHAR", (("bad", None), ("ok", "1")), ("bad",)),
+    "range": _Specimen("amount INTEGER", (("bad", -1), ("ok", 5)), ("bad",)),
+    "length": _Specimen("amount VARCHAR", (("bad", "123456789"), ("ok", "abc")), ("bad",)),
+    "pattern": _Specimen("amount VARCHAR", (("bad", "abc"), ("ok", "ABC")), ("bad",)),
+    "in_enum": _Specimen("amount VARCHAR", (("bad", "z"), ("ok", "a")), ("bad",)),
+    "in_set": _Specimen("amount VARCHAR", (("bad", "z"), ("ok", "a")), ("bad",)),
+    # A window predicate needs a population: two rows share a value inside one
+    # slice, a third shares it across slices and so is nobody's duplicate (D5).
+    "unique": _Specimen(
+        "amount VARCHAR, order_date VARCHAR",
+        (
+            ("bad", "dup", "2024-01-01"),
+            ("bad_twin", "dup", "2024-01-01"),
+            ("ok", "dup", "2024-01-02"),
+        ),
+        ("bad", "bad_twin"),
+    ),
+    "expression": _Specimen(
+        "discount INTEGER, unit_price INTEGER, quantity INTEGER",
+        (("bad", 100, 10, 2), ("ok", 1, 10, 2)),
+        ("bad",),
+    ),
+}
+
+#: Every kind the ``on_fail`` axis applies to. ``referential`` carries
+#: ``on_missing`` instead and is exercised on that axis below.
+_DISPOSABLE_RULES = tuple(kind for kind in ALL_RULES if kind != "referential")
+
+_EXTRACT = "_extract"
+
+
+@pytest.fixture
+def seeded() -> Iterator[duckdb.DuckDBPyConnection]:
+    with duckdb.connect(":memory:") as connection:
+        yield connection
+
+
+def _seed(connection: duckdb.DuckDBPyConnection, specimen: _Specimen) -> None:
+    connection.execute(f"CREATE TABLE _rows (row_id VARCHAR, {specimen.columns})")
+    placeholders = ", ".join("?" for _ in specimen.rows[0])
+    connection.executemany(
+        f"INSERT INTO _rows VALUES ({placeholders})", [list(row) for row in specimen.rows]
+    )
+
+
+def stage(rule: QualityRuleIR) -> str:
+    """The staged extract the emitter's ``_stage`` builds (D33).
+
+    A windowed verdict is computed **once**, as a projection above the dedupe
+    ``QUALIFY``, and read back by name from every other position; an ordinary
+    rule needs no such level. Mirroring that here is the whole point — the
+    positions below then receive exactly what the emitter's positions receive.
+    """
+    if not windowed(rule):
+        return "SELECT * FROM _rows"
+    projected = violation(rule).sql(dialect="duckdb")
+    return f"SELECT *, ({projected}) AS {window_alias(rule)} FROM _rows"
+
+
+def _identities(connection: duckdb.DuckDBPyConnection, sql: str) -> tuple[str, ...]:
+    return tuple(sorted(str(row[0]) for row in connection.execute(sql).fetchall()))
+
+
+@pytest.mark.parametrize(("kind", "on_fail"), list(product(_DISPOSABLE_RULES, ALL_DISPOSITIONS)))
+def test_every_rule_disposition_pair_executes_where_that_disposition_puts_it(
+    seeded: duckdb.DuckDBPyConnection, kind: str, on_fail: OnFail
+) -> None:
+    """The §6 matrix, made real on both axes.
+
+    ``flag`` lands in the single ``_quality_flags`` construct pass; ``quarantine``
+    lands in the routing ``WHERE`` **and** in the conservation audit's
+    ``SUM(CASE …)``; ``fail`` lands in a blocking audit body's ``WHERE``. Each is
+    executed, and each is required to identify the specimen's violating rows and
+    only those — so neither a predicate that never fires nor one that always
+    fires can pass.
+    """
+    rule = rule_of_kind(kind, on_fail)
+    specimen = _SPECIMENS[kind]
+    _seed(seeded, specimen)
+    staged = stage(rule)
+
+    if on_fail is OnFail.FLAG:
+        collection = flags_expression([(rule.name, verdict(rule))], arrays=True)
+        rows = seeded.execute(
+            f"SELECT row_id, {collection.sql(dialect='duckdb')} FROM ({staged}) AS {_EXTRACT}"
+        ).fetchall()
+        fired = tuple(sorted(row_id for row_id, flags in rows if rule.name in flags))
+        # Never NULL, empty for a clean row (D23) — the read side of the
+        # contract, asserted where the collection is built.
+        assert all(flags is not None for _row_id, flags in rows)
+        assert all(flags == [] for row_id, flags in rows if row_id not in specimen.violating)
+    elif on_fail is OnFail.QUARANTINE:
+        diverted = routing_predicate([rule], quarantined=True).sql(dialect="duckdb")
+        keeps = routing_predicate([rule], quarantined=False).sql(dialect="duckdb")
+        fired = _identities(seeded, f"SELECT row_id FROM ({staged}) AS {_EXTRACT} WHERE {diverted}")
+        kept = _identities(seeded, f"SELECT row_id FROM ({staged}) AS {_EXTRACT} WHERE {keeps}")
+        # The split is a partition: every row on exactly one side (§6's
+        # conservation law is this statement, counted).
+        assert tuple(sorted((*fired, *kept))) == tuple(sorted(str(row[0]) for row in specimen.rows))
+        # …and the same predicate inside an aggregate's argument, which is the
+        # third position the lowering reads a verdict from.
+        counted = seeded.execute(
+            f"SELECT SUM(CASE WHEN {diverted} THEN 1 ELSE 0 END) FROM ({staged}) AS {_EXTRACT}"
+        ).fetchone()
+        assert counted == (len(specimen.violating),)
+    else:
+        body = verdict(rule).sql(dialect="duckdb")
+        fired = _identities(seeded, f"SELECT row_id FROM ({staged}) AS {_EXTRACT} WHERE {body}")
+
+    assert fired == tuple(sorted(specimen.violating))
+
+
+def test_the_matrix_covers_every_catalogue_kind() -> None:
+    """The specimens are the matrix's data; a kind without one would silently
+    drop out of ``product`` above rather than fail."""
+    assert set(_SPECIMENS) | {"referential"} == set(ALL_RULES)
+
+
+@pytest.mark.parametrize("on_fail", ["fail", "flag", "quarantine"])
+def test_referential_refuses_an_on_fail_disposition_at_parse(on_fail: str) -> None:
+    """The one unrepresentable cell of the matrix, refused rather than skipped.
+
+    ``referential`` carries ``on_missing``, never ``on_fail`` (D6): orphans are
+    an expected, recoverable condition, and a pipeline that stops on every one
+    punishes the normal case. The refusal is at parse because the spec model
+    forbids unknown keys — so ``on_fail: fail`` on a referential rule cannot be
+    written at all, which is what makes the missing cell a decision instead of
+    a hole.
+    """
+    with pytest.raises(pydantic.ValidationError, match="on_fail"):
+        ReferentialRule.model_validate(
+            {
+                "rule": "referential",
+                "via": "item_of_order",
+                "on_missing": "flag",
+                "on_fail": on_fail,
+            }
+        )
+
+
+def test_referential_refuses_fail_as_an_on_missing_value() -> None:
+    """The same decision from the other side: ``fail`` is not in the
+    ``on_missing`` vocabulary either (D6)."""
+    with pytest.raises(pydantic.ValidationError, match="on_missing"):
+        ReferentialRule.model_validate(
+            {"rule": "referential", "via": "item_of_order", "on_missing": "fail"}
+        )
+
+
+_REF_ROWS = (("orphan", "O9"), ("resolved", "O1"), ("null_fk", None))
+_REF_PARENTS = (("O1",),)
+
+
+def _seed_referential(connection: duckdb.DuckDBPyConnection) -> str:
+    """The dependent extract LEFT JOINed to its referenced silver entity — the
+    §5.4 probe, in the shape the emitter joins it."""
+    connection.execute("CREATE TABLE _rows (row_id VARCHAR, order_id VARCHAR)")
+    connection.executemany("INSERT INTO _rows VALUES (?, ?)", [list(r) for r in _REF_ROWS])
+    connection.execute("CREATE TABLE _parents (order_id VARCHAR)")
+    connection.executemany("INSERT INTO _parents VALUES (?)", [list(r) for r in _REF_PARENTS])
+    alias = ref_alias("item_of_order")
+    return (
+        f"_rows AS {_EXTRACT} LEFT JOIN _parents AS {alias} "
+        f"ON {_EXTRACT}.order_id = {alias}.order_id"
+    )
+
+
+@pytest.mark.parametrize("on_missing", ALL_ON_MISSING)
+def test_referential_executes_where_its_on_missing_puts_it(
+    seeded: duckdb.DuckDBPyConnection, on_missing: str
+) -> None:
+    """``referential`` contributes its own axis (RFC 0016 §6), and each value
+    lands in a different position: ``unknown_member`` rewrites the fk in the
+    entity's **projection**, ``quarantine`` drives the routing ``WHERE``,
+    ``flag`` joins the flag construct. All three read the same LEFT JOIN probe,
+    and none of them may fire on the NULL fk (D19)."""
+    rule = ON_MISSING_RULES[on_missing]
+    source = _seed_referential(seeded)
+
+    if on_missing == "unknown_member":
+        rewrite = unknown_member_case(rule, table=_EXTRACT).sql(dialect="duckdb")
+        rows = dict(seeded.execute(f"SELECT {_EXTRACT}.row_id, {rewrite} FROM {source}").fetchall())
+        # The orphan takes the reserved member; the resolved fk is untouched;
+        # the NULL fk stays NULL — Document 5's COALESCE sketch got that wrong.
+        assert rows == {"orphan": UNKNOWN_MEMBER, "resolved": "O1", "null_fk": None}
+    elif on_missing == "quarantine":
+        diverted = routing_predicate([rule], _EXTRACT, quarantined=True).sql(dialect="duckdb")
+        keeps = routing_predicate([rule], _EXTRACT, quarantined=False).sql(dialect="duckdb")
+        assert _identities(seeded, f"SELECT {_EXTRACT}.row_id FROM {source} WHERE {diverted}") == (
+            "orphan",
+        )
+        assert _identities(seeded, f"SELECT {_EXTRACT}.row_id FROM {source} WHERE {keeps}") == (
+            "null_fk",
+            "resolved",
+        )
+    else:
+        collection = flags_expression([(rule.name, verdict(rule, _EXTRACT))], arrays=True)
+        rows = dict(
+            seeded.execute(
+                f"SELECT {_EXTRACT}.row_id, {collection.sql(dialect='duckdb')} FROM {source}"
+            ).fetchall()
+        )
+        assert rows == {"orphan": [rule.name], "resolved": [], "null_fk": []}
+
+
+def test_the_unknown_member_rewrite_refuses_a_composite_relationship(
+    seeded: duckdb.DuckDBPyConnection,
+) -> None:
+    """D48 refuses composite ``unknown_member`` at compile time, which is what
+    makes :func:`~bloomery.quality.sole_via_column` total. Reading ``[0]`` and
+    ignoring the rest would be indistinguishable from the half-sentinel bug the
+    day the guardrail is widened, so the accessor refuses loudly instead."""
+    del seeded
+    composite = QualityRuleIR(
+        name="item_of_order_referential",
+        kind="referential",
+        column=None,
+        on_fail=None,
+        params=(
+            ("on_missing", "unknown_member"),
+            ("relationship", "item_of_order"),
+            ("to_entity", "order"),
+            ("via_0000", "order_id=order_id"),
+            ("via_0001", "tenant=tenant"),
+        ),
+    )
+    with pytest.raises(ValueError, match="D48"):
+        sole_via_column(composite)
+    with pytest.raises(ValueError, match="D48"):
+        unknown_member_case(composite)
+    # …and the single-column shape every compiling spec has is unchanged.
+    assert sole_via_column(ON_MISSING_RULES["unknown_member"]) == "order_id"
 
 
 def test_the_catalogue_is_the_union_of_the_two_levels() -> None:
@@ -53,13 +341,6 @@ def test_the_catalogue_is_the_union_of_the_two_levels() -> None:
     the field/row split the pipeline order separates."""
     assert set(ALL_RULES) == set(FIELD_RULES) | set(ROW_RULES)
     assert tuple(sorted(ALL_RULES)) == ALL_RULES
-
-
-@pytest.mark.parametrize(("kind", "on_fail"), list(product(ALL_RULES, ALL_DISPOSITIONS)))
-def test_every_rule_disposition_pair_lowers_and_parses(kind: str, on_fail: OnFail) -> None:
-    rule = rule_of_kind(kind, on_fail)
-    rendered = violation(rule).sql(dialect="duckdb")
-    assert parse_one(f"SELECT 1 WHERE {rendered}", dialect="duckdb") is not None
 
 
 def test_a_predicate_carrying_a_window_declares_itself_windowed() -> None:
@@ -203,6 +484,63 @@ def test_a_null_fk_is_not_an_orphan() -> None:
     )
     with duckdb.connect(":memory:") as connection:
         assert connection.execute(sql).fetchone() == (False,)
+
+
+def test_in_set_renders_an_integer_member_as_a_number_literal() -> None:
+    """The spec surface admits ``int`` beside ``str`` (``values: [1, 2]``), and
+    the IR carries params as text — so without the aligned ``numeric_NNNN``
+    params the member's type is lost and every one renders as a string.
+
+    ``tier NOT IN ('1')`` on an integer column is coerced by DuckDB and
+    Postgres and **refused** by Trino: one spec, one engine answering and
+    another failing, which is the portability bug §5.3 exists to prevent. The
+    string member beside it stays a string, because a set that mixes the two is
+    still one set.
+    """
+    rule = QualityRuleIR(
+        name="tier_in_set",
+        kind="in_set",
+        column="tier",
+        on_fail=OnFail.FLAG,
+        params=(
+            ("numeric_0000", "true"),
+            ("numeric_0001", "false"),
+            ("value_0000", "1"),
+            ("value_0001", "gold"),
+        ),
+    )
+    for dialect in ("duckdb", "postgres", "trino"):
+        assert violation(rule).sql(dialect=dialect) == "NOT tier IN (1, 'gold')", dialect
+
+    # …and executed over the column type such a set is actually written for.
+    typed = replace(rule, params=(("numeric_0000", "true"), ("value_0000", "1")))
+    with duckdb.connect(":memory:") as connection:
+        connection.execute("CREATE TABLE t (tier INTEGER)")
+        connection.execute("INSERT INTO t VALUES (1), (3)")
+        rows = connection.execute(
+            f"SELECT tier, ({violation(typed).sql(dialect='duckdb')}) FROM t ORDER BY tier"
+        ).fetchall()
+    assert rows == [(1, False), (3, True)]
+
+
+def test_in_set_without_the_type_params_is_all_strings() -> None:
+    """The params are emitted only when the set holds an integer, so an
+    all-string set's IR bytes — and its SQL — are exactly what they were."""
+    rule = QualityRuleIR(
+        name="status_in_set",
+        kind="in_set",
+        column="status",
+        on_fail=OnFail.FLAG,
+        params=(("value_0000", "open"), ("value_0001", "closed")),
+    )
+    assert violation(rule).sql() == "NOT status IN ('open', 'closed')"
+
+
+def test_in_enum_members_are_always_strings() -> None:
+    """An ``enum_map`` chain maps text to text, so its admissible set is
+    textual by construction — the ``in_set`` typing above is not shared."""
+    rendered = violation(rule_of_kind("in_enum")).sql()
+    assert rendered == "NOT amount IN ('a', 'b')"
 
 
 def test_composite_predicates_are_parenthesised() -> None:
