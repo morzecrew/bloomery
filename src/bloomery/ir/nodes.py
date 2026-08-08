@@ -640,6 +640,9 @@ class StepOutputIR:
     grain: str
     key: tuple[str, ...]
     columns: tuple[StepColumnIR, ...]
+    #: ``(column, sibling output)`` pairs this output references, sorted —
+    #: declared in the manifest, never inferred from column names (D16).
+    references: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

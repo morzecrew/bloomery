@@ -22,7 +22,7 @@ EXPECTED_PATHS = {
     # entry — RFC 0008 D2's "artifacts are file-shaped text" is what lets a
     # Python model reuse ArtifactKind.MODEL with a different suffix.
     "step_resolution": [
-        "audits/customer_xref_references_customer.sql",
+        "audits/step_customer_xref_canonical_id_references_customer.sql",
         "models/silver/customer.py",
         "models/silver/customer_xref.py",
     ],

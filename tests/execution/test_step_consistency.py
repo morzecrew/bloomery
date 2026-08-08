@@ -9,6 +9,13 @@ individually valid).
 
 So this audit is the only thing standing between that and silently wrong
 numbers, which makes executing it — rather than reading it — the point.
+
+**What this file does not prove.** It runs the audit's SELECT directly against
+DuckDB, so it verifies the *logic* and nothing about the *wiring*: an audit
+SQLMesh never runs would pass every test here. That was exactly the state the
+first version shipped in (D42). Attachment is asserted in
+``tests/unit/test_steps/test_emission.py``, where the emitted model's
+``audits=`` list is checked.
 """
 
 from __future__ import annotations
@@ -69,8 +76,8 @@ def test_a_null_reference_is_not_an_orphan() -> None:
 
 
 def test_a_single_output_step_emits_no_consistency_audit() -> None:
-    """Nothing to disagree with — an audit there would be noise that trains
-    people to ignore the ones that matter."""
+    """Nothing to reference — the manifest refuses a self-reference, so a
+    single-output step declares none and emits none."""
     from bloomery.emit.base import EmitContext
     from bloomery.emit.steps import consistency_audits
     from bloomery.dialects import get_dialect

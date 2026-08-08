@@ -68,33 +68,40 @@ RFC 0017 §5.4.
 from __future__ import annotations
 
 import typing
-from datetime import date, datetime
-from decimal import Decimal
 
 from sqlmesh import model
-
-from bloomery.steps.contract import assert_step_contract
-
-MANIFEST = {{ manifest }}
-
-PARAMETERS = {{ parameters }}
 
 
 @model(
     {{ relation }},
     kind="FULL",
-    columns={{ columns }},
+    columns={{ columns }},{% if audits %}
+    audits={{ audits }},{% endif %}
 )
 def execute(context: typing.Any, **kwargs: typing.Any) -> typing.Any:
+    # Every name this function needs is bound *inside* it, deliberately.
+    # SQLMesh computes a Python model's dependencies by serializing the module
+    # globals the function references and rebuilding them in a fresh
+    # environment; a global holding a non-literal value — a Decimal parameter,
+    # say — fails to reconstruct there, and the model does not load at all
+    # ("name 'Decimal' is not defined", before anything runs). Local state has
+    # nothing to serialize.
+    from datetime import date, datetime  # noqa: F401
+    from decimal import Decimal  # noqa: F401
+
+    from bloomery.steps.contract import assert_step_contract
+
     from {{ module }} import {{ function }}
 
+    manifest = {{ manifest }}
+    parameters = {{ parameters }}
     inputs = { {%- for name, relation in inputs %}
         {{ name }}: context.fetchdf(
             f"SELECT * FROM {context.table({{ relation }})}"
         ),{% endfor %}
     }
-    outputs = {{ function }}(**inputs, **PARAMETERS)
-    assert_step_contract(outputs, MANIFEST)
+    outputs = {{ function }}(**inputs, **parameters)
+    assert_step_contract(outputs, manifest)
     return outputs[{{ output }}]
 ''',
     autoescape=False,
@@ -266,7 +273,11 @@ def macro_expression(step: StepIR, arguments: dict[str, Expression]) -> Expressi
 
 
 def _wrapper_artifact(
-    step: StepIR, output: StepOutputIR, ir: ProjectIR, ctx: EmitContext
+    step: StepIR,
+    output: StepOutputIR,
+    ir: ProjectIR,
+    ctx: EmitContext,
+    audits: tuple[str, ...] = (),
 ) -> EmittedArtifact:
     del ir
     namespace, relation = ctx.naming.relation(_relation_name(output), Layer.SILVER)
@@ -285,6 +296,9 @@ def _wrapper_artifact(
         manifest=_manifest_literal(step),
         parameters=_parameters_literal(step),
         columns=_columns_literal(output, ctx),
+        # An audit nothing references never runs: SQLMesh loads a bare AUDIT
+        # as a *model* audit, executed only where a model's `audits` names it.
+        audits=_python_literal(list(audits)) if audits else "",
         module=module,
         function=function,
         inputs=tuple(
@@ -322,7 +336,11 @@ def _relation_name(output: StepOutputIR) -> str:
 
 
 def _sql_model_artifact(
-    step: StepIR, output: StepOutputIR, ctx: EmitContext, envelope: jinja2.Template
+    step: StepIR,
+    output: StepOutputIR,
+    ctx: EmitContext,
+    envelope: jinja2.Template,
+    audits: tuple[str, ...] = (),
 ) -> EmittedArtifact:
     namespace, relation = ctx.naming.relation(_relation_name(output), Layer.SILVER)
     content = envelope.render(
@@ -331,7 +349,7 @@ def _sql_model_artifact(
         kind="FULL",
         grain=", ".join(output.key),
         partitioned_by="",
-        audits="",
+        audits=", ".join(audits),
         select=ctx.dialect.render(step.body.ast()) if step.body is not None else "",
     )
     return EmittedArtifact.create(
@@ -348,94 +366,114 @@ _PARENT_ALIAS = "_parent"
 _CHILD_ALIAS = "_child"
 
 
-def _references(parent: StepOutputIR, child: StepOutputIR) -> bool:
-    """Whether ``child`` carries every key column of ``parent``.
+def _audit_relation(output: StepOutputIR, ctx: EmitContext) -> exp.Table:
+    """The relation an output writes, as the naming policy spells it.
 
-    That is the whole detection rule, and it is deliberately structural: it
-    reads the manifest, never a declared relationship, so a step gets its
-    consistency check without anybody remembering to ask for one. A pair that
-    shares no key is simply not checkable, and emitting nothing there is
-    honest — the alternative is an audit that compares unrelated columns.
+    Through the policy because every other step path is — the wrapper's
+    `@model` name, its `context.table(...)` read, the `sql_model` envelope.
+    An audit reading the authored binding instead would query a relation that
+    a scoping policy means does not exist, which is the defect D34 fixed on
+    the input side and this repeated on the audit side.
     """
-    if parent.name == child.name:
-        return False
-    child_columns = {column.name for column in child.columns}
-    return bool(parent.key) and set(parent.key) <= child_columns
+    namespace, relation = ctx.naming.relation(_relation_name(output), Layer.SILVER)
+    return exp.to_table(f"{namespace}.{relation}")
 
 
-def _consistency_select(parent: StepOutputIR, child: StepOutputIR) -> exp.Select:
-    """Rows of ``child`` whose key has no match in ``parent`` — the audit
-    passes when there are none.
+def _consistency_select(
+    parent: StepOutputIR, child: StepOutputIR, column: str, ctx: EmitContext
+) -> exp.Select:
+    """Rows of ``child`` whose ``column`` has no match in ``parent``'s key —
+    the audit passes when there are none.
 
-    NULL keys are excluded, the same three-valued discipline RFC 0016 applies
-    to ``referential``: a row with no key value is not an orphan, it is a row
-    that says nothing, and failing a blocking audit on it would punish the
-    ordinary case.
+    NULL references are excluded, the same three-valued discipline RFC 0016
+    applies to ``referential``: a row with no reference is not an orphan, it
+    is a row that says nothing, and failing a blocking audit on it would
+    punish the ordinary case.
     """
-    match = exp.and_(
-        *(
-            exp.EQ(
-                this=exp.column(column, table=_PARENT_ALIAS),
-                expression=exp.column(column, table=_CHILD_ALIAS),
-            )
-            for column in parent.key
-        )
-    )
+    (key,) = parent.key
     exists = (
         exp.Select()
         .select(exp.Literal.number(1))
-        .from_(exp.alias_(exp.to_table(parent.relation), _PARENT_ALIAS))
-        .where(match)
-    )
-    known = exp.and_(
-        *(is_not_null(exp.column(column, table=_CHILD_ALIAS)) for column in parent.key)
+        .from_(exp.alias_(_audit_relation(parent, ctx), _PARENT_ALIAS))
+        .where(
+            exp.EQ(
+                this=exp.column(key, table=_PARENT_ALIAS),
+                expression=exp.column(column, table=_CHILD_ALIAS),
+            )
+        )
     )
     return (
         exp.Select()
-        .select(*(exp.column(column, table=_CHILD_ALIAS) for column in parent.key))
-        .from_(exp.alias_(exp.to_table(child.relation), _CHILD_ALIAS))
-        .where(exp.and_(known, exp.Not(this=exp.Exists(this=exists))))
+        .select(exp.column(column, table=_CHILD_ALIAS))
+        .from_(exp.alias_(_audit_relation(child, ctx), _CHILD_ALIAS))
+        .where(
+            exp.and_(
+                is_not_null(exp.column(column, table=_CHILD_ALIAS)),
+                exp.Not(this=exp.Exists(this=exists)),
+            )
+        )
     )
 
 
-def consistency_audits(step: StepIR, ctx: EmitContext) -> tuple[EmittedArtifact, ...]:
-    """Blocking audits that sibling outputs of one step agree with each other
-    (RFC 0017 §5.8, D16).
+def _audit_name(child: StepOutputIR, column: str, parent: StepOutputIR) -> str:
+    """Namespaced under ``step_`` so it cannot collide with an RFC 0016
+    quality audit, whose names are ``<entity>_<rule>`` over author-chosen
+    parts. Two audits at one path is the two-writers collision D28 refuses for
+    relations, arrived at through the audit namespace."""
+    return f"step_{_relation_name(child)}_{column}_references_{_relation_name(parent)}"
+
+
+def consistency_audits(step: StepIR, ctx: EmitContext) -> tuple[tuple[str, EmittedArtifact], ...]:
+    """Blocking audits that sibling outputs of one step agree (RFC 0017 D16),
+    returned with the **child output** each one must be attached to.
 
     D16 accepts a real residual risk: each output gets its own wrapper, so the
     step runs N times, and that is only safe for a *correctly declared* step.
     A step misdeclared as ``pure`` can produce **disagreeing siblings within a
     single run** — a ``customer_xref`` referencing ``canonical_id``s the
-    ``customer`` execution never minted. Every behavioural gate the project
-    has compares run to run, so none of them can see it; the contract
-    assertion cannot either, because each output is individually valid.
+    ``customer`` execution never minted. Every behavioural gate compares run
+    to run, so none can see it; ``assert_step_contract`` cannot either,
+    because each output is individually valid and only their relationship is
+    wrong.
 
-    This is the mitigation D16 names. It is derived entirely from the
-    manifest — wherever one output carries another's key, the reference must
-    resolve — so it costs no new spec surface, and a single-output step emits
-    nothing because there is nothing to disagree with.
+    Emitted only for references the manifest **declares**. Inferring them from
+    "one output carries another's key columns" fabricates relationships from
+    coincidence: two outputs both keyed ``id`` would get a mutual pair of
+    audits asserting their id sets are identical, failing every run on correct
+    data — the failure that teaches people to ignore audits.
+
+    The name is returned beside the artifact because an audit nothing
+    references never runs: SQLMesh loads a bare ``AUDIT`` as a *model* audit,
+    executed only when a model's ``audits`` list names it.
     """
-    if len(step.outputs) < 2:
-        return ()
-    artifacts: list[EmittedArtifact] = []
-    for parent in step.outputs:
-        for child in step.outputs:
-            if not _references(parent, child):
+    # No `len(outputs) < 2` shortcut: a single output declares no
+    # references (the manifest validator refuses a self-reference), so the
+    # loop below is already empty for it. The guard was dead code its own
+    # test passed without.
+    emitted: list[tuple[str, EmittedArtifact]] = []
+    by_name = {output.name: output for output in step.outputs}
+    for child in step.outputs:
+        for column, target in child.references:
+            parent = by_name.get(target)
+            if parent is None:  # pragma: no cover — the manifest validator refuses this
                 continue
-            name = f"{_relation_name(child)}_references_{_relation_name(parent)}"
+            name = _audit_name(child, column, parent)
             content = _AUDIT.render(
                 fingerprint=ctx.fingerprint,
                 name=name,
-                select=ctx.dialect.render(_consistency_select(parent, child)),
+                select=ctx.dialect.render(_consistency_select(parent, child, column, ctx)),
             )
-            artifacts.append(
-                EmittedArtifact.create(
-                    path=f"audits/{name}.sql",
-                    content=content.rstrip("\n") + "\n",
-                    kind=ArtifactKind.AUDIT,
+            emitted.append(
+                (
+                    child.name,
+                    EmittedArtifact.create(
+                        path=f"audits/{name}.sql",
+                        content=content.rstrip("\n") + "\n",
+                        kind=ArtifactKind.AUDIT,
+                    ),
                 )
             )
-    return tuple(artifacts)
+    return tuple(emitted)
 
 
 def step_artifacts(
@@ -450,10 +488,18 @@ def step_artifacts(
     for step in ir.steps:
         if step.kind is StepKind.SQL_MACRO:
             continue
-        artifacts.extend(consistency_audits(step, ctx))
+        audits_by_output: dict[str, list[str]] = {}
+        for owner, artifact in consistency_audits(step, ctx):
+            artifacts.append(artifact)
+            # The audit is attached to the *child* — the output holding the
+            # reference — because that is the model whose rows it judges.
+            audits_by_output.setdefault(owner, []).append(
+                artifact.path.removeprefix("audits/").removesuffix(".sql")
+            )
         for output in step.outputs:
+            attached = tuple(sorted(audits_by_output.get(output.name, ())))
             if step.kind is StepKind.PYTHON_MODEL:
-                artifacts.append(_wrapper_artifact(step, output, ir, ctx))
+                artifacts.append(_wrapper_artifact(step, output, ir, ctx, attached))
             else:
-                artifacts.append(_sql_model_artifact(step, output, ctx, envelope))
+                artifacts.append(_sql_model_artifact(step, output, ctx, envelope, attached))
     return tuple(sorted(artifacts, key=lambda a: a.path))

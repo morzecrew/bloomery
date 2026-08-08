@@ -298,6 +298,7 @@ def _outputs(wiring: StepWiring, manifest: StepManifest) -> tuple[StepOutputIR, 
                 relation=wiring.outputs[name],
                 grain=declared.grain,
                 key=declared.key,
+                references=tuple(sorted(declared.references.items())),
                 columns=tuple(
                     StepColumnIR(
                         name=column,

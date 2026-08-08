@@ -50,7 +50,7 @@ def test_every_wrapper_asserts_all_declared_outputs() -> None:
     for content in wrappers().values():
         assert "'customer'" in content
         assert "'customer_xref'" in content
-        assert "assert_step_contract(outputs, MANIFEST)" in content
+        assert "assert_step_contract(outputs, manifest)" in content
 
 
 # ....................... #
@@ -61,6 +61,24 @@ def test_every_wrapper_parses_as_python() -> None:
     for path, content in wrappers().items():
         ast.parse(content)  # raises SyntaxError with a line number if not
         assert path.endswith(".py")
+
+
+def test_the_wrapper_binds_its_state_inside_the_function() -> None:
+    """SQLMesh computes a Python model's dependencies by serializing the
+    module globals the function references and rebuilding them in a fresh
+    environment. A global holding a non-literal value — the `Decimal`
+    parameter — failed to reconstruct there, so the model did not load at all:
+    ``name 'Decimal' is not defined``, before anything ran. Nothing caught it
+    because the wrapper was only ever `ast.parse`d, never loaded."""
+    tree = ast.parse(wrappers()["models/silver/customer_xref.py"])
+    assigned = {
+        target.id
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name)
+    }
+    assert assigned == set()
 
 
 def test_the_contract_call_is_unconditional() -> None:
@@ -95,7 +113,7 @@ def test_a_decimal_parameter_is_passed_as_a_decimal() -> None:
     """The IR holds values as text so canon bytes never meet a float, but the
     step body must be *called* with the real thing."""
     content = wrappers()["models/silver/customer.py"]
-    assert "PARAMETERS = {'threshold': Decimal('0.9')}" in content
+    assert "parameters = {'threshold': Decimal('0.9')}" in content
     assert "'threshold': '0.9'" not in content
 
 
@@ -178,3 +196,50 @@ def test_a_python_model_never_reaches_a_sql_harness() -> None:
         assert created[0] == 0
     finally:
         connection.close()
+
+
+def test_a_declared_reference_attaches_its_audit_to_the_child_model() -> None:
+    """An audit nothing references never runs: SQLMesh loads a bare `AUDIT` as
+    a *model* audit, executed only where a model's `audits` names it. Nothing
+    named it, so D40's blocking check was inert — and the test that "proved"
+    it ran the extracted SELECT straight against DuckDB, with SQLMesh never in
+    the loop."""
+    content = wrappers()
+    child = content["models/silver/customer_xref.py"]
+    assert "audits=['step_customer_xref_canonical_id_references_customer']" in child
+    # The parent holds no reference, so it carries no audit.
+    assert "audits=" not in content["models/silver/customer.py"]
+
+
+def test_an_undeclared_coincidence_emits_no_audit() -> None:
+    """Two outputs sharing a column name by accident must not earn a mutual
+    pair of blocking audits asserting their key sets are identical — the
+    failure that teaches people to ignore audits."""
+    from bloomery.emit.base import EmitContext
+    from bloomery.emit.steps import consistency_audits
+    from bloomery.dialects import get_dialect
+    from bloomery.ir import StepColumnIR, StepOutputIR
+    from bloomery.naming import DefaultNaming
+    from bloomery.typing import StringType
+
+    def output(name: str) -> StepOutputIR:
+        return StepOutputIR(
+            name=name,
+            relation=f"silver.{name}",
+            grain=name,
+            key=("id",),
+            columns=(StepColumnIR(name="id", type=StringType(), required=True),),
+        )
+
+    step = StepIR(
+        ref="s",
+        version=1,
+        kind=StepKind.PYTHON_MODEL,
+        determinism=Determinism.PURE,
+        runtime_lock="x",
+        lineage=Lineage.COARSE,
+        entrypoint="p.m:f",
+        outputs=(output("customer"), output("product")),
+    )
+    ctx = EmitContext(fingerprint="blm1:t", naming=DefaultNaming(), dialect=get_dialect("duckdb"))
+    assert consistency_audits(step, ctx) == ()

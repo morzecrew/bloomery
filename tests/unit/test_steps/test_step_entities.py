@@ -53,11 +53,21 @@ def test_a_synthesized_entity_says_which_step_writes_it() -> None:
     assert entities["customer"].scd is SCDKind.TYPE1
 
 
-def test_a_mapped_entity_carries_no_marker() -> None:
-    project, catalog = compile_fixture("minimal"), None
-    del project, catalog
-    ir = build_project_ir(load_project(fixture_sources("minimal")))
-    assert all(entity.produced_by is None for entity in ir.entities)
+def test_only_step_written_entities_carry_the_marker() -> None:
+    """Asserted against a project holding *both* kinds — over a step-free one
+    it was a tautology about a dataclass default that no code path can
+    violate."""
+    marts = (
+        "marts_version: 1\nmarts:\n  customers:\n    grain: customer\n"
+        "    base: customer\n    measures: []\n"
+    )
+    by_name = {e.name: e.produced_by for e in ir_of(marts=marts).entities}
+    assert by_name == {
+        "customer": "resolve_customers@3",
+        "customer_xref": "resolve_customers@3",
+    }
+    mapped = build_project_ir(load_project(fixture_sources("minimal")))
+    assert [e.produced_by for e in mapped.entities] == [None]
 
 
 def test_the_step_relation_is_emitted_once_by_the_wrapper() -> None:

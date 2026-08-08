@@ -119,6 +119,31 @@ class StepOutput(SpecModel):
     grain: str
     key: tuple[str, ...] = Field(min_length=1)
     produces: dict[str, StepProduces] = Field(min_length=1)
+    #: Columns of *this* output that reference a sibling output's key, as
+    #: ``{column: sibling_output}`` (RFC 0017 §5.8, D16).
+    #:
+    #: **Declared, never inferred.** The obvious shortcut is to notice that one
+    #: output happens to carry another's key columns and assume a reference —
+    #: which fabricates a relationship from a coincidence. Two outputs both
+    #: keyed ``id`` would get a mutual pair of blocking audits asserting their
+    #: id sets are *identical*, failing every run on correct data. Guessing a
+    #: relationship nobody declared is precisely what RFC 0006 exists to
+    #: refuse, and it does not become acceptable because the guess is cheap.
+    references: dict[str, str] = Field(default_factory=dict[str, str])
+
+    @model_validator(mode="after")
+    def _references_name_produced_columns(self) -> Self:
+        """A referencing column must be one this output produces; the sibling
+        it points at is checked one level up, where the other outputs are in
+        scope."""
+        missing = sorted(set(self.references) - set(self.produces))
+        if missing:
+            msg = (
+                f"references names column(s) {', '.join(missing)}, which this output does "
+                f"not produce; produced: {', '.join(sorted(self.produces))}"
+            )
+            raise ValueError(msg)
+        return self
 
     @model_validator(mode="after")
     def _key_columns_are_produced(self) -> Self:
@@ -237,6 +262,32 @@ class StepManifest(SpecModel):
                 "carry syntax into it"
             )
             raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def _references_point_at_siblings(self) -> Self:
+        """Each declared reference names another output of *this* step, and a
+        single-column key — the audit compares one column to one key, and a
+        composite target would need the reference to name every part of it."""
+        for name, output in sorted(self.outputs.items()):
+            for column, target in sorted(output.references.items()):
+                if target == name:
+                    msg = f"output {name!r} declares column {column!r} as referencing itself"
+                    raise ValueError(msg)
+                sibling = self.outputs.get(target)
+                if sibling is None:
+                    msg = (
+                        f"output {name!r} column {column!r} references {target!r}, which "
+                        f"this step does not produce; outputs: {', '.join(sorted(self.outputs))}"
+                    )
+                    raise ValueError(msg)
+                if len(sibling.key) != 1:
+                    msg = (
+                        f"output {name!r} column {column!r} references {target!r}, whose "
+                        f"key is composite ({', '.join(sibling.key)}); a single column "
+                        "cannot reference it"
+                    )
+                    raise ValueError(msg)
         return self
 
     @model_validator(mode="after")

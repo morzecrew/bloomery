@@ -46,6 +46,7 @@ RESOLVE_CUSTOMERS = StepManifest.model_validate(
             "customer_xref": {
                 "grain": "xref",
                 "key": ["source_system", "source_id"],
+                "references": {"canonical_id": "customer"},
                 "produces": {
                     "source_system": {"type": "string", "required": True},
                     "source_id": {"type": "string", "required": True},

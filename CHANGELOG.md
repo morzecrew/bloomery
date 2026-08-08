@@ -13,9 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `bloomery.steps.contract.assert_step_contract` — the run-time step contract, the only bloomery module intended for import outside compilation. It imports nothing but `bloomery.errors`: every check is expressed against the dataframe protocol the step already returned, so it needs no pandas of its own.
 
-- A multi-output step emits a blocking consistency audit per detectable reference between its sibling outputs: wherever one output carries another's declared key, every value must resolve. This is the check for the one risk one-wrapper-per-output creates — a step misdeclared as `pure` producing siblings that disagree *within a single run*, which no run-to-run gate and no contract assertion can see.
+- A step emits a blocking consistency audit per reference its manifest **declares** between sibling outputs (`references: {column: sibling}`), attached to the model holding the reference so SQLMesh actually runs it. This is the check for the one risk one-wrapper-per-output creates — a step misdeclared as `pure` producing siblings that disagree *within a single run*, which no run-to-run gate and no contract assertion can see.
 
-- Step outputs are entities: a mart, metric or mapping may reference `silver.customer` written by a step exactly as it would any silver entity, and `plan()` diffs those entities like any other. `EntityIR` gains `produced_by`, naming the step that writes the relation, so the emitter leaves its model to the step's generated wrapper.
+- Step outputs are entities: a mart or downstream model may reference `silver.customer` written by a step exactly as it would any silver entity, and `plan()` diffs those entities like any other. `EntityIR` gains `produced_by`, naming the step that writes the relation, so the emitter leaves its model to the step's generated wrapper.
 
 - Steps not yet wired are refused rather than silently dropped: a `sql_macro` (Tier 1 has no reference surface yet), `expression` quality rules on step outputs (they parsed and nothing lowered them), a `sql_model` with no registry body, and any step at all on the dbt or Cube targets.
 
