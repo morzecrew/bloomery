@@ -135,14 +135,44 @@ USING (
         LIST_CONCAT(
           LIST_CONCAT(
             LIST_CONCAT(
-              CASE
-                WHEN _extract.stock_date IS NULL
-                AND (
-                  NOT _extract._src_stock_date_coercible_0000 IS NULL
-                )
-                THEN ['stock_date_coercible']
-                ELSE CAST([] AS TEXT[])
-              END,
+              LIST_CONCAT(
+                CASE
+                  WHEN NOT COALESCE(
+                    (
+                      (
+                        _extract.stock_date IS NULL
+                        AND (
+                          NOT _extract._src_stock_date_coercible_0000 IS NULL
+                        )
+                      )
+                      OR (
+                        _extract.stock_level IS NULL
+                        AND (
+                          NOT _extract._src_stock_level_coercible_0000 IS NULL
+                        )
+                      )
+                      OR (
+                        _extract.warehouse_id IS NULL
+                        AND (
+                          NOT _extract._src_warehouse_id_coercible_0000 IS NULL
+                        )
+                      )
+                      OR _extract.stock_level < 0
+                    ),
+                    FALSE
+                  )
+                  THEN ['(superseded)']
+                  ELSE CAST([] AS TEXT[])
+                END,
+                CASE
+                  WHEN _extract.stock_date IS NULL
+                  AND (
+                    NOT _extract._src_stock_date_coercible_0000 IS NULL
+                  )
+                  THEN ['stock_date_coercible']
+                  ELSE CAST([] AS TEXT[])
+                END
+              ),
               CASE
                 WHEN _extract.stock_level IS NULL
                 AND (
@@ -199,5 +229,4 @@ USING (
 ) AS _replay
 ON _target._source_row_id = _replay._source_row_id
 WHEN MATCHED AND _target.resolved_at IS NULL THEN UPDATE SET
-  failed_rules = _replay.failed_rules,
-  last_seen = CURRENT_TIMESTAMP;
+  failed_rules = _replay.failed_rules;

@@ -26,6 +26,7 @@ __all__ = [
     "DEFAULT_SCHEMAS",
     "audit_body",
     "materialize",
+    "merge_assignments",
     "model_relations",
     "relation_of",
     "replay_statements",
@@ -80,6 +81,28 @@ _MERGE_SOURCE = "source"
 _INCOMING = "_incoming"
 
 
+def merge_assignments(clause: str) -> str:
+    """The rendered ``when_matched`` assignments, as a DuckDB ``SET`` list.
+
+    Two things happen here and both are structural. DuckDB rejects a qualified
+    assignment target, as every engine does — the left side of a MERGE ``SET``
+    is a bare column of the target — so the ``target.`` qualification comes off
+    the left side and stays on the right, where it names the incumbent row.
+
+    **Parsed, not split.** The clause used to be taken apart on ``", "``, which
+    also occurs inside ``COALESCE(target.first_seen, source.first_seen)``; the
+    fragments were then prefix-stripped and rejoined, and came out right only
+    because no assignment's value happened to *begin* with ``target.``. One that
+    did would have had it eaten, and the harness would have quietly diverged
+    from the artifact it exists to stand in for.
+    """
+    update = sqlglot.parse_one(f"UPDATE _t SET {clause}", dialect="duckdb")
+    return ", ".join(
+        f"{assignment.this.name} = {assignment.expression.sql(dialect='duckdb')}"
+        for assignment in update.args["expressions"]
+    )
+
+
 def _upsert(
     conn: duckdb.DuckDBPyConnection, name: str, keys: list[str], clause: str | None
 ) -> None:
@@ -94,16 +117,7 @@ def _upsert(
     With no clause the merge updates every column, which is SQLMesh's default.
     """
     predicate = " AND ".join(f"{_MERGE_TARGET}.{key} = {_MERGE_SOURCE}.{key}" for key in keys)
-    if clause is None:
-        update = "UPDATE SET *"
-    else:
-        # DuckDB rejects a qualified assignment target, as every engine does:
-        # the left side of a MERGE ``SET`` is a bare column of the target.
-        stripped = ", ".join(
-            assignment.strip().removeprefix(f"{_MERGE_TARGET}.")
-            for assignment in clause.split(", ")
-        )
-        update = f"UPDATE SET {stripped}"
+    update = "UPDATE SET *" if clause is None else f"UPDATE SET {merge_assignments(clause)}"
     conn.execute(
         f"MERGE INTO {name} AS {_MERGE_TARGET} USING {_INCOMING} AS {_MERGE_SOURCE} "
         f"ON {predicate} WHEN MATCHED THEN {update} WHEN NOT MATCHED THEN INSERT"

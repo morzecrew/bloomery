@@ -30,10 +30,19 @@ from sqlglot.expressions.core import Expression
 
 __all__ = [
     "REJECT_COLUMNS",
+    "SUPERSEDED_RULE",
     "canon_literal",
     "canon_prefixed",
     "reject_id",
 ]
+
+#: The reserved ``failed_rules`` entry naming the one way a reject row can be
+#: out of the entity without failing anything (RFC 0016 D69): another row won
+#: its entity key. Parenthesised for the same reason
+#: :data:`~bloomery.quality.ENTITY_GRAIN_ROW` is — rule names are constrained
+#: to ``[a-z0-9_]+`` at parse and at generation (D23), so no authored or
+#: generated name can ever collide with a spelling carrying parentheses.
+SUPERSEDED_RULE = "(superseded)"
 
 #: The reject table's column order (RFC 0016 §5.6). Authored order, not sorted:
 #: it is a schema, and the emitted projection reads like the RFC's DDL.

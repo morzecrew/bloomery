@@ -17,6 +17,7 @@ from support.compiling import load_fixture
 from bloomery import build_project_ir, load_project
 from bloomery import dialects as dialects_module
 from bloomery.dialects import DialectFeature, SQLGlotDialect, register_dialect
+from bloomery.errors import GuardrailError
 from bloomery.ir import OnFail, QualityRuleIR, quality_sort_key
 from bloomery.quality import (
     PATTERN_TARGET_DIALECTS,
@@ -260,9 +261,13 @@ entities:
 
 
 def _two_range_rules(first: str, second: str, *, row_rule: str = "") -> dict[str, str]:
-    entity_model = COLLIDING_ENTITY_MODEL if row_rule else COLLIDING_ENTITY_MODEL.replace(
-        '      - {rule: expression, name: a_range_min_2, expr: "a > 0", on_fail: flag}\n', ""
-    ).replace("    quality:\n", "")
+    entity_model = (
+        COLLIDING_ENTITY_MODEL
+        if row_rule
+        else COLLIDING_ENTITY_MODEL.replace(
+            '      - {rule: expression, name: a_range_min_2, expr: "a > 0", on_fail: flag}\n', ""
+        ).replace("    quality:\n", "")
+    )
     return {
         "entity_model": entity_model,
         "mapping": f"""
@@ -283,14 +288,28 @@ unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
     }
 
 
-def test_a_suffixed_name_never_collides_with_an_authored_one() -> None:
-    """Two ``range min`` rules on ``a`` generate ``a_range_min`` and
-    ``a_range_min_2`` — and an authored ``expression`` rule may legally be
-    called ``a_range_min_2``. Merging them into one name puts two rules in one
-    ``failed_rules`` entry and one quality-mart row computing the union."""
-    ir = build_project_ir(load_project(_two_range_rules("quarantine", "flag", row_rule="yes")))
+def test_two_generated_rules_of_one_shape_get_distinct_names() -> None:
+    """Two ``range min`` rules on ``a`` generate one ``a_range_min`` each.
+    Merging them into one name puts two rules in one ``failed_rules`` entry and
+    one quality-mart row computing the union of both rules' failures (D50)."""
+    ir = build_project_ir(load_project(_two_range_rules("quarantine", "flag")))
     names = [rule.name for rule in ir.entities[0].quality]
     assert len(names) == len(set(names)), names
+    assert {"a_range_min", "a_range_min_2"} <= set(names)
+
+
+def test_an_authored_name_may_not_be_one_the_suffixing_would_issue() -> None:
+    """The other half of the same collision, refused rather than arbitrated
+    (D71). ``a_range_min_2`` is a name *generation* owns here — it is the second
+    of the two rules above — so an authored ``expression`` rule claiming it
+    would push a field rule's name sideways under an edit that never touched
+    the field. Both names are in the message, so the author does not have to
+    derive the suffixing rule to fix it."""
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(load_project(_two_range_rules("quarantine", "flag", row_rule="yes")))
+    message = str(excinfo.value)
+    assert "'a_range_min_2'" in message
+    assert "a_range_min, a_range_min_2" in message
 
 
 def test_generated_names_do_not_depend_on_authored_order() -> None:

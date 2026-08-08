@@ -55,7 +55,7 @@ FROM (
       '(entity)' AS disposition,
       COUNT(*) AS rows_evaluated,
       0 AS rows_failed,
-      SUM(CASE WHEN _quarantined THEN 1 ELSE 0 END) AS rows_quarantined,
+      COALESCE(SUM(CASE WHEN _quarantined THEN 1 ELSE 0 END), 0) AS rows_quarantined,
       (
         SELECT
           COUNT(*)
@@ -90,7 +90,7 @@ FROM (
       'stock_date_coercible' AS rule,
       'quarantine' AS disposition,
       0 AS rows_evaluated,
-      SUM(CASE WHEN ARRAY_CONTAINS(_flags, 'stock_date_coercible') THEN 1 ELSE 0 END) AS rows_failed,
+      COALESCE(SUM(CASE WHEN ARRAY_CONTAINS(_flags, 'stock_date_coercible') THEN 1 ELSE 0 END), 0) AS rows_failed,
       0 AS rows_quarantined,
       0 AS rows_deduped
     FROM _quality_rows_inventory_level
@@ -101,7 +101,10 @@ FROM (
       'stock_level_coercible' AS rule,
       'quarantine' AS disposition,
       0 AS rows_evaluated,
-      SUM(CASE WHEN ARRAY_CONTAINS(_flags, 'stock_level_coercible') THEN 1 ELSE 0 END) AS rows_failed,
+      COALESCE(
+        SUM(CASE WHEN ARRAY_CONTAINS(_flags, 'stock_level_coercible') THEN 1 ELSE 0 END),
+        0
+      ) AS rows_failed,
       0 AS rows_quarantined,
       0 AS rows_deduped
     FROM _quality_rows_inventory_level
@@ -112,7 +115,10 @@ FROM (
       'warehouse_id_coercible' AS rule,
       'quarantine' AS disposition,
       0 AS rows_evaluated,
-      SUM(CASE WHEN ARRAY_CONTAINS(_flags, 'warehouse_id_coercible') THEN 1 ELSE 0 END) AS rows_failed,
+      COALESCE(
+        SUM(CASE WHEN ARRAY_CONTAINS(_flags, 'warehouse_id_coercible') THEN 1 ELSE 0 END),
+        0
+      ) AS rows_failed,
       0 AS rows_quarantined,
       0 AS rows_deduped
     FROM _quality_rows_inventory_level
@@ -123,7 +129,10 @@ FROM (
       'stock_level_not_negative' AS rule,
       'flag' AS disposition,
       0 AS rows_evaluated,
-      SUM(CASE WHEN ARRAY_CONTAINS(_flags, 'stock_level_not_negative') THEN 1 ELSE 0 END) AS rows_failed,
+      COALESCE(
+        SUM(CASE WHEN ARRAY_CONTAINS(_flags, 'stock_level_not_negative') THEN 1 ELSE 0 END),
+        0
+      ) AS rows_failed,
       0 AS rows_quarantined,
       0 AS rows_deduped
     FROM _quality_rows_inventory_level
@@ -134,7 +143,7 @@ FROM (
       'stock_level_not_null' AS rule,
       'fail' AS disposition,
       0 AS rows_evaluated,
-      SUM(CASE WHEN ARRAY_CONTAINS(_flags, 'stock_level_not_null') THEN 1 ELSE 0 END) AS rows_failed,
+      COALESCE(SUM(CASE WHEN ARRAY_CONTAINS(_flags, 'stock_level_not_null') THEN 1 ELSE 0 END), 0) AS rows_failed,
       0 AS rows_quarantined,
       0 AS rows_deduped
     FROM _quality_rows_inventory_level
@@ -145,7 +154,10 @@ FROM (
       'stock_level_range_min' AS rule,
       'quarantine' AS disposition,
       0 AS rows_evaluated,
-      SUM(CASE WHEN ARRAY_CONTAINS(_flags, 'stock_level_range_min') THEN 1 ELSE 0 END) AS rows_failed,
+      COALESCE(
+        SUM(CASE WHEN ARRAY_CONTAINS(_flags, 'stock_level_range_min') THEN 1 ELSE 0 END),
+        0
+      ) AS rows_failed,
       0 AS rows_quarantined,
       0 AS rows_deduped
     FROM _quality_rows_inventory_level
@@ -156,7 +168,7 @@ FROM (
       'stock_level_matches_snapshot' AS rule,
       'flag' AS disposition,
       0 AS rows_evaluated,
-      SUM(CASE WHEN NOT within_tolerance THEN 1 ELSE 0 END) AS rows_failed,
+      COALESCE(SUM(CASE WHEN NOT within_tolerance THEN 1 ELSE 0 END), 0) AS rows_failed,
       0 AS rows_quarantined,
       0 AS rows_deduped
     FROM silver.stock_level_matches_snapshot__reconcile

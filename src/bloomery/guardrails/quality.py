@@ -24,6 +24,7 @@ The checks:
 ``referential`` onto the entity itself  §5.4, D27 (bare ``GuardrailError``)
 ``unknown_member`` on a non-string fk   §5.4, D6 (bare ``GuardrailError``)
 ``unknown_member`` on a composite key   §5.4, D48 (bare ``GuardrailError``)
+``quality:`` name a generated rule owns §5.3, D71 (bare ``GuardrailError``)
 ``reconcile`` grammar and resolution    §5.3 (bare ``GuardrailError``)
 quality-mart metric-name collision      §5.8, D12 (bare ``GuardrailError``)
 ======================================  ==============================
@@ -55,6 +56,7 @@ from bloomery.quality import (
     SUPPORTED_SHAPES,
     ReconcileSide,
     disposition,
+    generated_rule_names,
     lower_quality,
     mapped_fields,
     parse_side,
@@ -254,6 +256,47 @@ def _check_redaction(entity_name: str, entity: Entity, mapping: Mapping) -> list
         "and a redacted path is gone by then. Fix: stop mapping the path, or stop redacting it"
     )
     return [RedactionConflict(msg, source_path=_entity_path(entity_name, "quarantine.redact"))]
+
+
+def _check_rule_names(
+    entity_name: str, entity: Entity, mapping: Mapping, relationships: tuple[Relationship, ...]
+) -> list[GuardrailError]:
+    """An authored ``expression`` name may not be one generation already issues
+    (RFC 0016 D71).
+
+    Generated names are order-independent (D50) but were not *name*-
+    independent. An authored rule named ``amount_in_set`` and the field's own
+    generated ``amount_in_set`` are two rules with one name, and the lowering
+    has to move one of them — which means an edit to the entity's ``quality:``
+    block silently renames a rule declared on a *field*. That rule's name is
+    the key of a time series: it is the ``rule`` dimension of
+    ``gold.mart_data_quality`` (§5.8) and an entry in every reject row's
+    ``failed_rules`` (D23). ``plan()`` is honest about the move — it reports a
+    removal, an addition and a replay — which is precisely the problem: none of
+    that happened to the rule, which goes on firing on the same rows under a
+    name nothing in the spec spells.
+
+    Refused rather than silently arbitrated, because both candidate
+    arbitrations are wrong: renaming the generated rule moves a series key, and
+    renaming the authored one contradicts the name a human wrote. The author
+    picks a free name, which is a one-line fix and leaves both series intact.
+    """
+    reserved = generated_rule_names(entity, mapping, relationships)
+    errors: list[GuardrailError] = []
+    for rule in entity.quality:
+        if isinstance(rule, ReferentialRule) or rule.name not in reserved:
+            continue
+        msg = (
+            f"quality rule {rule.name!r} on entity {entity_name!r} is already the name of a "
+            "rule generated from the mapping (RFC 0016 §5.3, D71) — a field rule, an implicit "
+            "coercible rule, or a referential rule named after its relationship. Two rules "
+            "cannot share one name: it is the key of a quality-mart time series (§5.8) and an "
+            "entry in failed_rules (D23), so one of them would have to be renamed and the "
+            "series would move under an edit that never touched it. Fix: rename the authored "
+            f"rule (the generated names on this entity are {', '.join(sorted(reserved))})"
+        )
+        errors.append(GuardrailError(msg, source_path=_entity_path(entity_name, "quality")))
+    return errors
 
 
 def _check_patterns(entity_name: str, mapping: Mapping) -> list[GuardrailError]:
@@ -557,6 +600,7 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
         errors.extend(_check_ingestion_metadata(entity_name, entity, mapping))
         errors.extend(_check_redaction(entity_name, entity, mapping))
         errors.extend(_check_patterns(entity_name, mapping))
+        errors.extend(_check_rule_names(entity_name, entity, mapping, relationships))
         errors.extend(_check_referential(entity_name, entity, relationships))
         # This one reads the *lowered* rules rather than the opt-in flag:
         # ``lower_quality`` is empty for an entity that never joined the

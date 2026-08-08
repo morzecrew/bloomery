@@ -31,8 +31,8 @@ from collections.abc import Iterator
 import duckdb
 import pytest
 from support.compiling import FIXTURES, fixture_sources, load_fixture
-from support.dirty import FIXTURE, build_corpus
-from support.execution import materialize, replay_statements
+from support.dirty import FIXTURE, audits_of, build_corpus
+from support.execution import audit_body, materialize, replay_statements
 
 from bloomery import Target, build_project_ir, compile_project, load_catalog, load_project, plan
 from bloomery.emit import ArtifactKind, EmittedArtifact
@@ -59,12 +59,33 @@ STILL_QUARANTINED = "misspelling"
 
 ENTITY = "dirty_status"
 
+#: The last line of the entity's declaration, and the same line with a
+#: **blocking** rule appended. It fires on exactly the status the widening
+#: admits, so a widened-and-replayed ``authorized`` row passes every quarantine
+#: rule and violates the ``fail`` one — D18's severity order, reached through
+#: the one door §5.6 opens and bronze does not.
+_ENTITY_TAIL = "      status_text: {type: string}"
+_ENTITY_TAIL_PLUS_BLOCKING = (
+    f"{_ENTITY_TAIL}\n"
+    "    quality:\n"
+    "      - {rule: expression, name: status_not_authorized,\n"
+    "         expr: \"status <> 'authorized'\", on_fail: fail}"
+)
+#: The name of that blocking rule, and of the audit carrying it.
+BLOCKING_RULE = "status_not_authorized"
+BLOCKING_AUDIT = f"{ENTITY}_{BLOCKING_RULE}"
 
-def _project(*, widened: bool) -> tuple[Project, ProjectIR]:
+
+def _project(*, widened: bool, blocking: bool = False) -> tuple[Project, ProjectIR]:
     sources = dict(fixture_sources(FIXTURE))
     if widened:
         assert NARROW in sources["mapping_enums"]
         sources["mapping_enums"] = sources["mapping_enums"].replace(NARROW, WIDE)
+    if blocking:
+        assert sources["entity_model"].count(_ENTITY_TAIL) == 1
+        sources["entity_model"] = sources["entity_model"].replace(
+            _ENTITY_TAIL, _ENTITY_TAIL_PLUS_BLOCKING
+        )
     project = load_project(sources)
     catalog = load_catalog((FIXTURES / FIXTURE / "catalog.yaml").read_text())
     return project, build_project_ir(project, catalog)
@@ -287,3 +308,62 @@ def test_the_conservation_accounting_survives_the_replay(
     _replay(conn, artifacts)
     kept_after, unresolved_after = sides()
     assert kept_after + unresolved_after == kept_before + unresolved_before
+
+
+@pytest.fixture
+def blocking_run() -> Iterator[tuple[duckdb.DuckDBPyConnection, tuple[EmittedArtifact, ...]]]:
+    """The same walkthrough, with a **blocking** rule the replayed row violates.
+
+    Step 3 is an ordinary spec edit that happens to do two things at once: it
+    widens ``in_enum`` (so ``authorized`` stops quarantining) and declares an
+    ``in_set`` rule at ``on_fail: fail`` over the *narrow* set (so ``authorized``
+    starts blocking). That is the shape D18's severity order is about, arriving
+    through the one door §5.6 opens and bronze does not: replay.
+    """
+    conn = build_corpus()
+    conn.execute(
+        "DELETE FROM bronze.dirty__enums WHERE _case IN "
+        f"({', '.join(repr(case) for case in WIDENED)})"
+    )
+    project, _ir = _project(widened=True, blocking=True)
+    artifacts = _artifacts(project)
+    materialize(conn, artifacts)
+    yield conn, artifacts
+    conn.close()
+
+
+def _blocking_violations(
+    conn: duckdb.DuckDBPyConnection, artifacts: tuple[EmittedArtifact, ...]
+) -> int:
+    """How many rows the blocking audit reports — an audit passes on zero."""
+    artifact = audits_of(artifacts)[BLOCKING_AUDIT]
+    body = audit_body(artifact, f"silver.{ENTITY}")
+    return len(conn.execute(body).fetchall())
+
+
+def test_the_blocking_audit_reports_a_replayed_row_that_violates_it(
+    blocking_run: tuple[duckdb.DuckDBPyConnection, tuple[EmittedArtifact, ...]],
+) -> None:
+    """The population a ``fail`` audit must cover includes the rows **already in
+    the entity**, not only the ones this run evaluated (RFC 0016 D32/D67).
+
+    A replayed row's bronze source has aged out of the incremental window — that
+    is the whole premise of §5.7's replay — so an audit reading only the staged
+    extract sees nothing, while the row itself sits in silver with the blocking
+    rule recorded in its own ``_quality_flags``. A model whose data contradicts
+    its own audit is worse than an uncovered population: it reads as coverage.
+    """
+    conn, artifacts = blocking_run
+    # Before the replay the audit is honestly silent: bronze no longer carries
+    # the row, and nothing in the entity violates the rule either.
+    assert _blocking_violations(conn, artifacts) == 0
+
+    _replay(conn, artifacts)
+
+    landed = conn.execute(
+        f"SELECT _quality_flags FROM silver.{ENTITY} WHERE case_name = '{WIDENED[0]}'"
+    ).fetchall()
+    # The row's own account of itself names the blocking rule…
+    assert landed and BLOCKING_RULE in landed[0][0]
+    # …so an audit reporting nothing is a model contradicting its own data.
+    assert _blocking_violations(conn, artifacts) == 1

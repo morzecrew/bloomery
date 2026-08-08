@@ -128,13 +128,16 @@ def run_with_hash_seed(seed: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _run_framework(state: str) -> subprocess.CompletedProcess[str]:
+def _run_framework(state: str, *, seed: str = "0") -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-c", FRAMEWORK_SCRIPT, str(FIXTURE_DIR), state],
         capture_output=True,
         text=True,
         check=False,
-        env={"PYTHONPATH": f"{REPO_ROOT / 'src'}:{REPO_ROOT / 'tests'}"},
+        env={
+            "PYTHONPATH": f"{REPO_ROOT / 'src'}:{REPO_ROOT / 'tests'}",
+            "PYTHONHASHSEED": seed,
+        },
         cwd=REPO_ROOT,
     )
 
@@ -160,3 +163,23 @@ def test_output_identical_whether_or_not_the_target_framework_is_imported() -> N
     assert bare.returncode == 0, bare.stderr
     assert imported.returncode == 0, imported.stderr
     assert bare.stdout == imported.stdout
+
+
+def test_the_quality_fixtures_are_identical_across_hash_seeds() -> None:
+    """The cell this guard was one short of.
+
+    One test above varies ``PYTHONHASHSEED`` over ``minimal``/``ecom_basic``/
+    ``non_additive_aov``; the other varies the sqlmesh-import axis over the
+    three *quality* fixtures. Neither crossed hash seeds over the quality
+    fixtures — and the quality lowering is where the sets are: rule-name
+    assignment, ``in_enum``'s admissible set, the flag collection's order,
+    ``redact:``'s paths. "Same specs in ⇒ byte-identical artifacts out, across
+    processes and hash seeds" (RFC 0003) is one claim, and a guard that names
+    two axes has to cross them on the code that most needs it.
+    """
+    first = _run_framework("bare", seed="0")
+    second = _run_framework("bare", seed="1")
+    assert first.returncode == 0, first.stderr
+    assert second.returncode == 0, second.stderr
+    assert first.stdout == second.stdout
+    assert first.stdout  # the fixtures compiled to something

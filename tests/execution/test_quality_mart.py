@@ -96,8 +96,9 @@ def test_every_rule_of_every_entity_reports_exactly_one_row(
         (parse_side(check.left).entity, check.name)  # type: ignore[union-attr]
         for check in fixture_ir(FIXTURE).reconcile
     }
-    entity_rows = {(entity.name, ENTITY_GRAIN_ROW) for entity in fixture_ir(FIXTURE).entities
-                   if entity.quality}
+    entity_rows = {
+        (entity.name, ENTITY_GRAIN_ROW) for entity in fixture_ir(FIXTURE).entities if entity.quality
+    }
     assert rules == declared | reconciles | entity_rows
 
 
@@ -229,3 +230,30 @@ def test_reject_tables_are_never_a_mart_base(corpus_run: duckdb.DuckDBPyConnecti
     del corpus_run
     bases = {mart.base for mart in fixture_ir(FIXTURE).marts}
     assert not any(base.endswith("__reject") for base in bases)
+
+
+def test_an_empty_run_reports_zeros_and_never_nulls() -> None:
+    """A count over a population of nothing is **0**, not NULL (RFC 0016 D68).
+
+    ``SUM(CASE WHEN … THEN 1 ELSE 0 END)`` is 0 on a never-matching partition
+    and NULL on an *empty* one — SQL's ``SUM`` over zero rows has no rows to
+    default. An entity with rules and no bronze rows this run (a source that
+    delivered nothing, a first plan, a partition ahead of the data) therefore
+    published a mart row whose every measure was NULL, ``rows_quarantined``
+    among them: the numerator of the quarantine rate §5.8 exists to make
+    correct. A NULL measure is not a small number — it drops out of a `SUM`,
+    so the rate silently answers over a smaller population than it claims.
+    """
+    conn = build_corpus(waves=0)
+    try:
+        empty = conn.execute("SELECT COUNT(*) FROM bronze.dirty__numerics").fetchone()
+        assert empty == (0,)  # the premise: nothing arrived
+        nulls = conn.execute(
+            "SELECT COUNT(*) FROM gold.mart_data_quality WHERE rows_evaluated IS NULL "
+            "OR rows_failed IS NULL OR rows_quarantined IS NULL OR rows_deduped IS NULL"
+        ).fetchone()
+        assert nulls == (0,)
+        assert _mart(conn)[("dirty_number", ENTITY_GRAIN_ROW)] == (0, 0, 0, 0)
+        assert _mart(conn)[("dirty_number", "amount_coercible")] == (0, 0, 0, 0)
+    finally:
+        conn.close()

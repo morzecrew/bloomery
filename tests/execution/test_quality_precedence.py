@@ -42,6 +42,7 @@ from support.precedence import (
 
 from bloomery import MetricRequest, Op, OrderSpec, Predicate
 from bloomery.emit import ArtifactKind, EmittedArtifact
+from bloomery.quality import SUPERSEDED_RULE
 
 pytestmark = pytest.mark.execution
 
@@ -440,12 +441,18 @@ def test_two_rejects_resolving_to_one_key_merge_as_one_row(
     assert rows == [(DUPLICATE_WINNER,)]
 
 
-def test_replay_updates_failed_rules_and_last_seen_on_rows_that_still_fail() -> None:
-    """§5.6: replay merges the passers "and updat[es] ``failed_rules``/
-    ``last_seen`` on the rest". A reject row re-evaluated against the current
-    mapping and still failing has been *observed* again, and the record has to
-    say so — otherwise the reject table's account of why a row is out ages into
-    a statement about a spec nobody runs any more."""
+def test_replay_re_stamps_failed_rules_and_leaves_last_seen_on_the_data_clock() -> None:
+    """§5.6: replay merges the passers "and updat[es] ``failed_rules`` … on the
+    rest". A reject row re-evaluated against the current mapping and still
+    failing has its account re-derived, so the reject table never ages into a
+    statement about a spec nobody runs any more.
+
+    ``last_seen`` does **not** move (RFC 0016 D70). It is one clock — the
+    latest *delivery's* ``_ingested_at`` — because retention measures unresolved
+    rows from it (§5.6): a column that a replay run advances makes an unresolved
+    reject row immortal for as long as replay keeps running, which is §9's PII
+    lake with the mitigation removed.
+    """
     conn = build()
     try:
         artifacts = compile_fixture(FIXTURE)
@@ -454,13 +461,14 @@ def test_replay_updates_failed_rules_and_last_seen_on_rows_that_still_fail() -> 
         ).fetchone()
         _replay(conn, artifacts)
         after = conn.execute(
-            "SELECT last_seen, failed_rules, resolved_at FROM silver.q_dup__reject "
-            "WHERE _source_row_id = 'd01'"
+            "SELECT last_seen, failed_rules, resolved_at, _ingested_at "
+            "FROM silver.q_dup__reject WHERE _source_row_id = 'd01'"
         ).fetchone()
         assert before is not None and after is not None
         assert after[2] is None, "a row that still fails must not resolve"
         assert after[1] == before[1]
-        assert after[0] > before[0], "last_seen did not record the re-evaluation"
+        assert after[0] == before[0], "replay moved last_seen off the delivery clock"
+        assert after[0] == after[3], "last_seen is the latest delivery's _ingested_at"
     finally:
         conn.close()
 
@@ -508,3 +516,28 @@ def test_seeding_twice_is_idempotent() -> None:
         assert rows == (EVALUATED + DEDUPED,)
     finally:
         conn.close()
+
+
+def test_a_replay_loser_says_why_it_is_still_out(
+    widened: tuple[duckdb.DuckDBPyConnection, tuple[EmittedArtifact, ...]],
+) -> None:
+    """A candidate that **passes** every rule and loses the key contest stays
+    unresolved, and its record has to explain that (RFC 0016 D69).
+
+    ``_one_winner_per_key`` (D22) keeps one candidate per entity key, and the
+    MERGE's ``WHEN MATCHED`` keeps the better of candidate and incumbent — so a
+    passing row can be left behind by either. The third statement then
+    re-derives ``failed_rules`` for every still-unresolved row, and for this one
+    the honest re-derivation is *empty*: it fails nothing. ``resolved_at IS
+    NULL, failed_rules = []`` reads as "quarantined for these reasons: none",
+    on a row that will lose the contest for as long as it exists and can only
+    leave by retention.
+    """
+    conn, artifacts = widened
+    _replay(conn, artifacts)
+    loser = conn.execute(
+        "SELECT resolved_at, failed_rules FROM silver.q_dup__reject WHERE _source_row_id = 'd01'"
+    ).fetchone()
+    assert loser is not None
+    assert loser[0] is None  # d02 won the key; d01 is not in the entity
+    assert list(loser[1]) == [SUPERSEDED_RULE]

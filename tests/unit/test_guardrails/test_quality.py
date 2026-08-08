@@ -703,3 +703,42 @@ def test_quality_leaves_batch_with_the_shipped_violations_in_one_aggregate() -> 
     keys = [(leaf.source_path or "", type(leaf).__name__) for leaf in collected]
     assert keys == sorted(keys)
     assert str(excinfo.value).startswith(f"{len(collected)} error(s):")
+
+
+# ....................... #
+# an authored rule name displacing a generated one (§5.3, D71)
+
+
+_GENERATED_IN_SET = "    quality:\n      - {rule: in_set, values: [a, b], on_fail: flag}\n"
+
+
+def _authored(name: str) -> str:
+    return (
+        "    quality:\n"
+        f'      - {{rule: expression, name: {name}, expr: "amount IS NOT NULL", on_fail: flag}}\n'
+        "    quarantine: {retention: 90d}\n"
+    )
+
+
+def test_an_authored_rule_name_that_would_displace_a_generated_one_is_refused() -> None:
+    """Generated names are order-independent (D50) but were not *name*-
+    independent: an authored ``expression`` rule named ``amount_in_set`` sorted
+    ahead of the field's own generated ``amount_in_set`` and pushed it to
+    ``amount_in_set_2``. The mart's ``rule`` dimension is a time series, so an
+    unrelated edit silently moved a series key — the rule kept firing on the
+    same rows under a name nothing in the spec spells."""
+    documents = _project(field_quality=_GENERATED_IN_SET, entity_extra=_authored("amount_in_set"))
+    message = _message(documents)
+    assert "amount_in_set" in message
+    assert "generated" in message
+
+
+def test_an_authored_rule_name_of_its_own_is_accepted() -> None:
+    documents = _project(field_quality=_GENERATED_IN_SET, entity_extra=_authored("amount_present"))
+    ir = build_project_ir(load_project(documents))
+    assert sorted(rule.name for rule in ir.entities[0].quality) == [
+        "amount_coercible",
+        "amount_in_set",
+        "amount_present",
+        "order_id_coercible",
+    ]

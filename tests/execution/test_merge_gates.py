@@ -19,7 +19,13 @@ import duckdb
 import pytest
 from support.compiling import compile_fixture
 from support.dirty import FIXTURE, LOAD_WAVES, build_corpus, seed_dirty_corpus
-from support.execution import materialize, model_relations, snapshot, warehouse
+from support.execution import (
+    materialize,
+    merge_assignments,
+    model_relations,
+    snapshot,
+    warehouse,
+)
 
 pytestmark = pytest.mark.execution
 
@@ -102,3 +108,31 @@ def test_the_incremental_history_is_not_vacuous() -> None:
         first_wave.close()
     assert partial is not None and whole is not None
     assert 0 < partial[0] < whole[0]
+
+
+# ....................... #
+# The harness's own fidelity
+
+
+def test_the_when_matched_clause_is_parsed_and_not_split_on_a_comma() -> None:
+    """``when_matched`` is where §5.6 puts the rule that ``first_seen``
+    survives a re-delivery, so the harness has to reproduce it exactly — and it
+    reassembled the clause by splitting the rendered text on ``", "``, which
+    also occurs *inside* ``COALESCE(target.first_seen, source.first_seen)``.
+
+    It came out right only because no assignment's second argument began with
+    ``target.``: the fragment after the split is prefix-stripped, so a value
+    like ``COALESCE(source.a, target.b)`` would have had its ``target.`` eaten
+    and the stand-in would have quietly diverged from the artifact it stands
+    in for. Parsed, the shape of the value cannot matter.
+    """
+    clause = (
+        "target.a = COALESCE(source.a, target.b), "
+        "target.first_seen = COALESCE(target.first_seen, source.first_seen), "
+        "target.last_seen = source.last_seen"
+    )
+    assert merge_assignments(clause) == (
+        "a = COALESCE(source.a, target.b), "
+        "first_seen = COALESCE(target.first_seen, source.first_seen), "
+        "last_seen = source.last_seen"
+    )

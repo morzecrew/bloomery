@@ -515,11 +515,13 @@ def test_the_range_rule_fires_on_no_corpus_row(
     README's own rule ("every incident adds a row"), that is a gap the next
     range-shaped incident should close.
     """
+    # ``rows_failed`` only: on a *rule* row the population counts are
+    # structurally zero (D34 moved them to the entity's accounting row), so
+    # asserting one of them here would be a check that cannot fail.
     rows = corpus_run.execute(
-        "SELECT rows_failed, rows_quarantined FROM gold.mart_data_quality "
-        "WHERE rule = 'amount_range_min'"
+        "SELECT rows_failed FROM gold.mart_data_quality WHERE rule = 'amount_range_min'"
     ).fetchall()
-    assert rows == [(0, 0)]
+    assert rows == [(0,)]
     diverted = corpus_run.execute(
         "SELECT COUNT(*) FROM silver.dirty_key__reject "
         "WHERE LIST_CONTAINS(failed_rules, 'amount_range_min')"

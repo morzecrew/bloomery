@@ -5,7 +5,12 @@ AUDIT (
 );
 
 SELECT
-  *
+  _extract.stock_date,
+  _extract.stock_level,
+  _extract.warehouse_id,
+  _extract._ingested_at,
+  _extract._load_id,
+  _extract._source_row_id
 FROM (
   SELECT
     TRY_CAST(day AS DATE) AS stock_date,
@@ -26,3 +31,14 @@ FROM (
 ) AS _extract
 WHERE
   _extract.stock_level IS NULL
+UNION
+SELECT
+  _entity.stock_date,
+  _entity.stock_level,
+  _entity.warehouse_id,
+  _entity._ingested_at,
+  _entity._load_id,
+  _entity._source_row_id
+FROM @this_model AS _entity
+WHERE
+  ARRAY_CONTAINS(_entity._quality_flags, 'stock_level_not_null')

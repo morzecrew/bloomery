@@ -26,7 +26,11 @@
   see the numbering note): lowering corrections (D32–D39), guardrail widenings
   (D45–D48), plan-diff corrections (D49–D52, D58–D60), the portable-regex
   allowlist (D53–D57), and the wave that hardened the *test suite* where it was
-  proved unable to detect a regression (D61–D66).
+  proved unable to detect a regression (D61–D66). **D67–D71 are the re-audit of
+  those waves**: the population D32's own fix stopped covering (D67), a mart count
+  that came out NULL rather than zero on an empty run (D68), the replay loser with
+  no stated reason (D69), the two clocks in `last_seen` (D70), and a generated rule
+  name displaced by an authored one (D71).
 - **Scope:** Run-time data quality as declarative spec surface: the `quality:` /
   `dedupe:` / `quarantine:` / `reconcile:` sub-schemas, the `OnFail` disposition
   model, the closed rule catalogue, the fixed pipeline order and its lowering, the
@@ -216,6 +220,16 @@ system.
 > check; the portability claim is carried by the allowlist (D55), and the dialects checked
 > are the shipped ports, not whatever the process has registered (D56).
 >
+> **Amended 2026-08-08 (D71):** rule names come from two places — generation (a
+> field rule's column and kind, an implicit `coercible`'s column, a `referential`'s
+> relationship) and an author (an `expression` rule's `name:`) — and they share one
+> namespace. An authored name equal to one generation issues is a **compile-time
+> `GuardrailError`** naming both, because either arbitration is wrong: renaming the
+> generated rule moves the key of a quality-mart time series (§5.8) under an edit
+> that never touched the field, and renaming the authored one contradicts what a
+> human wrote. Generated names are assigned in their own pass first, so they are a
+> function of the mapping alone.
+>
 > **Amended 2026-08-08 (D62):** `in_set`'s members carry their declared **type** into the
 > IR. `values` admits `int` beside `str` while `QualityRuleIR.params` is a sorted tuple of
 > strings, so `str(value)` erased the difference and an integer member rendered as a string
@@ -303,6 +317,16 @@ recency loses to any non-null one.
 > the audit body stays inside D29's two-relation scope limit, because `referential` —
 > the one kind that reads a sibling — cannot carry `fail` (D6). And `failed_rules` /
 > `_quality_flags` both record FAIL-disposition rule names.
+>
+> **Amended 2026-08-08 (D67):** the row above is **incomplete**. Moving off
+> `@this_model` stopped covering the rows *already in the entity* — which is where a
+> **replayed** row lands, and a replayed row's bronze source has aged out of the
+> incremental window by construction (§5.7). The audit body is therefore the *union*
+> of the two populations: the pre-route staged extract (D32's gain) and
+> `@this_model`, the latter read through the recorded `_quality_flags` verdict. Two
+> relations still, so D29 holds. Replay deliberately does not filter `fail` rules out
+> of its MERGE — that would be quarantine outranking fail, which is the inversion
+> D32 exists to prevent — so the row lands and the audit stops the next run.
 
 > **Amended 2026-08-08 (D33):** a rule whose violation predicate is a **window
 > function** (`unique`, the only one in the v1 catalogue) is computed once as a
@@ -461,6 +485,23 @@ remains as an attribute recording the latest observing load.
 > re-stamping `failed_rules`/`last_seen` on the rows that still fail, from the very same
 > evaluation the candidates come from.
 
+> **Amended 2026-08-08 (D69):** the third MERGE re-derives `failed_rules` for every
+> still-unresolved row, and for a candidate that now **passes everything** and merely
+> lost its entity key the honest re-derivation is *empty* — `resolved_at IS NULL,
+> failed_rules = []`, "quarantined for these reasons: none". Such a row now carries
+> the reserved entry `(superseded)`, recorded exactly when it passes routing; read
+> with the statement's own `resolved_at IS NULL` filter that says "admitted by every
+> rule and still not in the entity, because another row won its key". It stays
+> unresolved: a superseded reject is the replay-side analogue of a deduped row.
+>
+> **Amended 2026-08-08 (D70):** `last_seen` is the **latest delivery's
+> `_ingested_at`** and nothing else. The third MERGE used to advance it to the
+> engine's `CURRENT_TIMESTAMP`, which put two clocks in one column and — since
+> retention measures unresolved rows *from* `last_seen` — made an unresolved reject
+> immortal for as long as replay kept running. The re-evaluation is recorded by
+> `failed_rules`, which is the clause this section names first; the sentence below
+> about `last_seen` updating on re-evaluation is superseded.
+
 > **Amended 2026-08-08 (D37):** D22's "multiple rejects resolving to one key are ordered
 > the same way" is applied to the **replay source**, not only to the candidate-versus-
 > incumbent comparison inside the MERGE. Two reject rows on one entity key both matched
@@ -545,6 +586,13 @@ payloads, different retention; a separate, deliberately narrow operator surface.
 > additive at every group-by, which is the only reading under which "a plain
 > `MetricRequest`" holds. The price, recorded: `rows_evaluated` cannot be sliced by
 > rule, because it was never a per-rule number.
+
+> **Amended 2026-08-08 (D68):** every count is `COALESCE(SUM(…), 0)`. `SUM` over an
+> **empty** partition is NULL, not 0, so an entity with rules whose source delivered
+> nothing this run published mart rows whose every measure was NULL —
+> `rows_quarantined`, the numerator D34 exists to make correct, among them. A NULL
+> measure does not read as a small number: it drops out of the `SUM` behind the
+> quarantine rate, which then answers over a population smaller than it names.
 
 > **Amended 2026-08-08 (D35):** `rows_deduped` is `bronze − the rows that survived the
 > dedupe QUALIFY`, both measured over this run — never the residual
@@ -787,6 +835,11 @@ reference pages for the rule catalogue and `quarantine:` block; the
 | 64 | *(2026-08-08, M12 fix)* **`has_quality_flags`'s polarity is asserted behaviourally, and the chaos battery contains every quality suite.** Setting the mart dimension to a constant `FALSE` was caught by one thing only: golden byte-comparison. Execution, e2e, property and conservation tiers all stayed green, and §12 budgets golden regeneration by the wave — so an inverted quality dimension could ship inside churn a reviewer was told to expect. Two causes, both fixed. The dimension lives on a **mart**, and no suite in the chaos battery read one; the battery now includes `test_quality_precedence`, which does. And no assertion anywhere read TRUE for a flagged row: the only one that existed read `[("A", False), ("B", False)]` on a fixture where every row a rule fires on is also diverted, so the dimension was constant on live data by construction. The precedence fixture gains a mart over `q_line`, whose one blocking-rule row is kept rather than diverted, and both directions are asserted — through the mart and through the `MetricRequest` §5.5 promises ("revenue excluding flagged rows"). `quality_flags_polarity` joins the §6 mutation list; verified surviving the old five-module battery and killed by the new six-module one. |
 | 65 | *(2026-08-08, M12 fix)* **The dirty corpus judges `refs.csv` twice, because a disposition is not a property a corpus can state once.** `on_fail: fail` appeared **zero** times in the corpus and every `referential` rule sat at `on_missing: unknown_member`, so D18's precedence, `referential: quarantine`, `referential: flag` and every blocking path had no specimen — and since the corpus *is* the chaos meta-test's battery, a mutation to any of them was undetectable there however plausible. The fix is a second entity, `dirty_ref_routed`, over the same bronze relation: the same orphans, judged at `quarantine` and at `flag`, plus the corpus's only `on_fail: fail` rule, declared on the one row whose synthesized payload is uncastable so it is **diverted by `coercible` and reported by the blocking audit at once** — D18's severity order and D32's pre-route audit scope, on live data rather than on a synthetic IR. A second entity rather than a second rule on `dirty_ref`, because a rule has one disposition: asserting what `quarantine` does to an orphan means routing that orphan, which the `unknown_member` entity cannot simultaneously be keeping. Recorded consequence: `dirty_ref_routed` routes on a `referential` rule, so it emits **no** conservation audit (D29) — the skip is now a property of a fixture that builds rather than of a hand-made IR. |
 | 66 | *(2026-08-08, M12 fix)* **The `unknown_member` rewrite reads its `via` column through an accessor that refuses a composite.** `unknown_member_case` read `indexed_params(rule, "via")[0]` and the emitter's projection rewrite read `params_of(rule)["via_0000"]` — both taking the first column by sort order and ignoring the rest. D48 makes that total for every spec that compiles, but nothing in the code said so, so a future widening of the guardrail would silently reopen the half-sentinel bug D48 was written to close (`('__unknown__', 47)`, matching no reserved row). Both sites now call `sole_via_column`, which raises citing D48 when it sees anything but one column. The invariant is a *dependency on a guardrail*, and the point of spelling it is that a dependency which is invisible cannot be re-checked when the thing it depends on moves. |
+| 67 | *(2026-08-08, M12 fix)* **A `fail` rule's audit covers two populations, not one.** D32 moved the body off `@this_model` and onto the pre-route staged extract, which fixed the precedence inversion and, in the same move, stopped covering the rows *already in the entity*. That population is not empty and is not reachable from bronze: a **replayed** row is merged in from the reject table, and its bronze source has aged out of the incremental window by construction — that is the entire premise of `replay_scope` (§5.7). Reproduced end to end: after a widening plus a replay, a row sat in silver whose own `_quality_flags` recorded the blocking rule firing while that rule's audit reported **zero** violating rows — a model contradicting its own data, which is worse than an unchecked population because it reads as coverage. The body is now `pre-route extract UNION @this_model`, exactly two relations, inside D29's limit (`referential` cannot carry `fail`, D6). `UNION` rather than `UNION ALL`: the ordinary violator is in both populations and reporting it twice says nothing extra. The entity leg reads the **recorded** verdict — `_quality_flags` carries FAIL names since D32 — rather than re-deriving the predicate over model columns, which is forced: over the model the coercion marker's source conjuncts are gone and `coercible` would silently re-define itself as `not_null`, the very special case D32 retired. Recorded price: the leg covers rows evaluated under the *current* spec, and a rule added or renamed classifies RESTATING (D11), whose backfill is what re-derives the flags. Replay deliberately does **not** filter `fail` rules out of its MERGE — refusing to merge them would be quarantine outranking fail again, the inversion D32 exists to prevent; the row lands, and the audit is what stops the next run. |
+| 68 | *(2026-08-08, M12 fix)* **A quality-mart count is 0 on an empty partition, not NULL.** `SUM(CASE WHEN … THEN 1 ELSE 0 END)` answers 0 for a partition that has rows and matches none of them, and **NULL** for one with no rows at all — `SUM` over zero rows has nothing to sum, which the helper's own docstring denied. An entity with rules whose source delivered nothing this run (a first plan, a partition ahead of the data, an ordinary Tuesday) therefore published mart rows whose every measure was NULL, `rows_quarantined` among them — the numerator D34 exists to make correct. A NULL measure does not read as a small number: it drops out of the `SUM` behind `quality_quarantine_rate`, so the rate answers over a population smaller than the one it names. `COALESCE(…, 0)` around every count, and the docstring made true. |
+| 69 | *(2026-08-08, M12 fix)* **A replay loser says why it is still out.** D22's `_one_winner_per_key` keeps one candidate per entity key and the MERGE keeps the better of candidate and incumbent, so a candidate that now **passes every rule** can be left behind by either. D36's third statement then re-derives `failed_rules` for every still-unresolved row, and for that row the honest re-derivation is *empty*: `resolved_at IS NULL, failed_rules = []` reads as "quarantined for these reasons: none", on a row that will lose the contest for as long as it exists and can only leave by retention. The re-evaluation now records the reserved entry `(superseded)` — parenthesised for D34's reason, since rule names are `[a-z0-9_]+` at parse and at generation (D23), so no authored or generated name can collide with it. It is recorded exactly when the row passes routing, which, read together with the statement's own `resolved_at IS NULL` filter, has one meaning: admitted by every rule and still not in the entity, so another row won its key. The alternative — keeping the stale `failed_rules` — was rejected as a lie: those rules no longer fire, and a reject row that names rules the current spec acquits is exactly the ageing account D36 closed. The row stays **unresolved**: a superseded reject is the replay-side analogue of a deduped row, and resolving it would claim into the conservation accounting that *this* bronze row reached the entity, when a different one did. |
+| 70 | *(2026-08-08, M12 fix)* **`last_seen` is one clock — the data's.** It was written as the row's `_ingested_at` (the reject model, D36) and advanced to `CURRENT_TIMESTAMP` by replay's re-evaluation stamp: two meanings in one column, so no reader could say what a value in it was. §5.6 states both halves and settles neither, so the decision is made here. `last_seen` is **the latest delivery's `_ingested_at`** — when the source last delivered this row — and replay's third statement no longer touches it. The deciding argument is retention: §5.6 measures unresolved reject rows *from* `last_seen`, so a column a replay run advances makes an unresolved row immortal for as long as replay keeps running — §9's "quarantine as a PII lake" with its stated mitigation removed. The engine-clock reading cannot instead be pushed onto the write path either: the reject model is a MODEL query, and a clock call there breaks §6's idempotence and backfill-equivalence gates. What is lost, stated: the reject table no longer records *when* a row was last re-evaluated. What records it is `failed_rules`, re-derived from that evaluation — the clause §5.6 names first. A separate `last_evaluated_at` column is the escape hatch if that loss ever bites; it is named, not built, because it is a schema addition and §5.6's schema is this RFC's. This also strengthens D22: replay's third statement is now byte-for-byte idempotent, so the "observability columns excluded" caveat covers `resolved_at`'s timestamp alone. |
+| 71 | *(2026-08-08, M12 fix)* **An authored rule name may not be one generation already issues.** D50 made generated names order-independent; they were not **name**-independent. An authored `expression` rule called `status_in_set` sorted ahead of the field's own generated `status_in_set` and took it, pushing the generated rule to `status_in_set_2` — so an edit to the entity's `quality:` block silently renamed a rule declared on a *field*. That name is the key of a time series: the `rule` dimension of `gold.mart_data_quality` (§5.8) and an entry in every reject row's `failed_rules` (D23). `plan()` is honest about the move — a removal, an addition and a replay — which is precisely the problem: none of that happened to the rule, which goes on firing on the same rows under a name nothing in the spec spells. Refused at compile as a bare `GuardrailError` naming both the claimed name and every name generation owns on that entity, because both arbitrations are wrong: renaming the generated rule moves a series key, renaming the authored one contradicts what a human wrote. Making generated names collision-proof *by construction* was rejected as the primary fix — the only free namespace inside D23's `[a-z0-9_]+` is a prefix nobody would want in a mart dimension — but the structural half is kept anyway: name assignment reserves the generated names in their own pass first, so a generated name is a function of the mapping alone and a future suffix cannot defeat the refusal from underneath. |
 
 > **Numbering note (2026-08-08).** Rows **40–44 do not exist**. Two self-audit fix
 > waves ran concurrently, each reserved a block for the other, and neither used the

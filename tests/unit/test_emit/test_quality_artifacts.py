@@ -18,12 +18,12 @@ from bloomery import Target, build_project_ir, compile_project
 from bloomery.dialects import get_dialect
 from bloomery.emit import ArtifactKind, EmitContext
 from bloomery.emit.sqlmesh import SQLMeshEmitter
-from bloomery.emit.lowering import mart_select
-from bloomery.errors import UnsupportedByTarget
+from bloomery.emit.lowering import REJECT_KEY, _schema_column, mart_select
+from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.ir import MartJoinIR
 from bloomery.marts import HAS_QUALITY_FLAGS
 from bloomery.naming import DefaultNaming
-from bloomery.quality import FLAGS_COLUMN, INGESTION_METADATA, OK_COLUMN
+from bloomery.quality import FLAGS_COLUMN, INGESTION_METADATA, OK_COLUMN, REJECT_COLUMNS
 from bloomery.typing import BoolType
 from support.compiling import compile_fixture, extract_select, load_fixture
 from support.plan_ir import column as plan_column
@@ -198,21 +198,31 @@ def test_the_ingestion_metadata_audit_is_generated_and_referenced() -> None:
     assert "TRY_CAST(_ingested_at AS TIMESTAMP) IS NULL" in audit
 
 
-def test_a_fail_disposition_rule_becomes_a_blocking_audit() -> None:
-    """D18: the audit reads the **pre-route** population, not ``@this_model``.
+def test_a_fail_disposition_rule_becomes_a_blocking_audit_over_two_populations() -> None:
+    """D18/D32/D67: the audit reads the **pre-route** population *and* the
+    entity.
 
     Routing is stage 6 of the pipeline and the audit runs after the model is
-    built, so an audit over the entity sees only the rows the split kept — and
+    built, so an audit over the entity alone sees only the rows the split kept —
     a row that failed a blocking rule *and* a quarantine rule would sit in the
     reject table with the run carrying on, inverting the severity order the RFC
-    pins.
+    pins (D32). And an audit over the extract alone misses every row that
+    reached the entity by **replay**, whose bronze source has aged out of the
+    incremental window by construction (D67). Both legs, or the audit is silent
+    about a population that exists.
     """
     model = _artifact("models/silver/inventory_level.sql")
     assert "inventory_level_stock_level_not_null" in model
     audit = _artifact("audits/inventory_level_stock_level_not_null.sql")
-    assert "@this_model" not in audit
     assert "FROM bronze.wms__stock_levels" in audit
-    assert audit.rstrip().endswith(") AS _extract\nWHERE\n  _extract.stock_level IS NULL")
+    assert ") AS _extract\nWHERE\n  _extract.stock_level IS NULL" in audit
+    # The entity leg reads the *recorded* verdict, not a re-derived predicate:
+    # over model columns the coercion marker's source conjuncts are gone.
+    assert "FROM @this_model AS _entity" in audit
+    assert "ARRAY_CONTAINS(_entity._quality_flags, 'stock_level_not_null')" in audit
+    # UNION, not UNION ALL: the ordinary violator is in both populations.
+    assert "\nUNION\n" in audit
+    assert "UNION ALL" not in audit
 
 
 def test_the_conservation_audit_is_generated_and_blocking() -> None:
@@ -561,3 +571,18 @@ def test_a_reconcile_checks_audit_blocks_exactly_when_it_says_fail(
         if a.kind is ArtifactKind.AUDIT and a.path.endswith("_matches_snapshot_reconcile.sql")
     )
     assert ("blocking false" in audit) is not blocking
+
+
+def test_a_schema_constant_that_lost_its_column_says_so() -> None:
+    """``REJECT_KEY`` singles out one column of a schema tuple declared
+    elsewhere, so it is only correct while that column is still in the tuple.
+    Written as ``next(n for n in REJECT_COLUMNS if n == "reject_id")`` the
+    dependency is an identity filter that spells the name twice and, the day
+    the column leaves, raises a bare ``StopIteration`` at import naming neither
+    the column nor the schema."""
+    assert REJECT_KEY in REJECT_COLUMNS
+    with pytest.raises(EmitError) as excinfo:
+        _schema_column("reject_id", ("a", "b"), "the reject table's unique key")
+    message = str(excinfo.value)
+    assert "reject_id" in message
+    assert "the reject table's unique key" in message

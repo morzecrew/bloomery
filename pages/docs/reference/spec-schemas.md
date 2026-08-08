@@ -157,7 +157,7 @@ sit on the entity rather than on a mapping field.
 
 | `rule` | Field | Type | Required | Meaning |
 |---|---|---|---|---|
-| `expression` | `name` | rule name | yes | Reaches `_quality_flags` and the quality mart, so it is authored, never generated |
+| `expression` | `name` | rule name | yes | Reaches `_quality_flags` and the quality mart, so it is authored, never generated. Refused if it collides with a name generated from the mapping |
 | `expression` | `expr` | string | yes | Boolean predicate over the entity's own columns |
 | `expression` | `on_fail` | `flag` \| `quarantine` \| `fail` | yes | Disposition |
 | `referential` | `via` | relationship name | yes | The declared relationship to probe |

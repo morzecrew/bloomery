@@ -64,14 +64,18 @@ default is the one setting nobody reads before shipping.
 |---|---|
 | `flag` | The row passes through unchanged, with the rule's name appended to `_quality_flags` |
 | `quarantine` | The row is diverted to the entity's `<entity>__reject` table, where it stays replayable |
-| `fail` | The run stops — the rule compiles to a blocking audit over the rows the pipeline evaluated |
+| `fail` | The run stops — the rule compiles to a blocking audit over the rows the pipeline evaluated and the rows already in the entity |
 
 Severity settles what happens when several rules fire on one row: `fail` beats
 `quarantine` beats `flag`. A `fail` rule's audit therefore reads the **pre-route**
-population rather than the finished model — otherwise a row that failed a blocking rule
+population, not just the finished model — otherwise a row that failed a blocking rule
 *and* a quarantine rule would sit in the reject table with the run carrying on, and the
-weaker disposition would quietly win. Whichever way the row went, every rule it failed is
-recorded: in `failed_rules` if it was diverted, in `_quality_flags` if it was kept.
+weaker disposition would quietly win. It reads the finished model too, because a replayed
+row enters the entity from the reject table long after its bronze source has aged out of
+the incremental window, and an audit blind to that population would report nothing while
+the row's own `_quality_flags` named the rule. Whichever way the row went, every rule it
+failed is recorded: in `failed_rules` if it was diverted, in `_quality_flags` if it was
+kept.
 
 Two absences are deliberate.
 
@@ -222,7 +226,7 @@ enough identity to be idempotent:
 | `failed_rules` | Every rule the row failed, flag-level failures included |
 | `key_values`, `raw` | The entity key (best-effort) and the bronze payload |
 | `_load_id`, `_ingested_at`, `_source_row_id` | The ingestion-metadata contract |
-| `first_seen`, `last_seen`, `resolved_at` | The lifecycle |
+| `first_seen`, `last_seen`, `resolved_at` | The lifecycle — both timestamps are the delivery's `_ingested_at`, never a wall clock |
 
 `_load_id` is deliberately *not* part of the identity. A re-delivery of the same source
 row across loads must land on the **same** reject row — that is what `first_seen` and
@@ -237,9 +241,14 @@ fact under two names.
 passers into the entity by key, using the pipeline's own dedupe order — both against the
 incumbent row and against each other, so two reject rows resolving to one key produce one
 entity row, not two. The rows that still fail are re-stamped from that same evaluation:
-`failed_rules` re-derived, `last_seen` advanced. Replay never deletes: a resolved row
-keeps its reject entry as audit history with `resolved_at` set, and drops out of the
-conservation accounting. Retention is the only deleter.
+`failed_rules` re-derived, so the reject table's account never ages into a statement about
+a spec nobody runs. A candidate that now passes every rule and merely lost its key to a
+better one is marked `(superseded)` rather than left with an empty list of reasons.
+`last_seen` is not touched: it means "when the source last delivered this row", and since
+retention measures unresolved rows from it, a replay run advancing it would keep them
+forever. Replay never deletes: a resolved row keeps its reject entry as audit history with
+`resolved_at` set, and drops out of the conservation accounting. Retention is the only
+deleter.
 
 `retention:` is required the moment any rule can quarantine — not defaulted, because
 `raw` holds source payloads and therefore PII, and this is the sort of thing that is

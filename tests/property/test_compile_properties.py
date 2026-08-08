@@ -106,9 +106,12 @@ def test_emitted_sql_parses_under_the_target_dialect(
             continue
         # Audit bodies select from SQLMesh's @this_model macro — substitute a
         # plain relation so the SELECT itself must still parse (RFC 0008 D4).
+        # A ``fail``-rule audit is a **UNION** of its two populations — the
+        # pre-route extract and the entity (RFC 0016 D67) — which is a query
+        # like any other, and the property is that it parses as one.
         select = _sql_body(target, artifact.content).replace("@this_model", "silver.model")
         parsed = parse_one(select, dialect=dialect)
-        assert isinstance(parsed, exp.Select)
+        assert isinstance(parsed, (exp.Select, exp.Union))
 
 
 @settings(max_examples=10, deadline=None)

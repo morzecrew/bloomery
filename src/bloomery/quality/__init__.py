@@ -59,6 +59,7 @@ from bloomery.quality.flags import (
 )
 from bloomery.quality.lower import (
     field_sources,
+    generated_rule_names,
     lower_dedupe,
     lower_quality,
     lower_quarantine,
@@ -107,7 +108,13 @@ from bloomery.quality.reconcile import (
     ReconcileSide,
     parse_side,
 )
-from bloomery.quality.reject import REJECT_COLUMNS, canon_literal, canon_prefixed, reject_id
+from bloomery.quality.reject import (
+    REJECT_COLUMNS,
+    SUPERSEDED_RULE,
+    canon_literal,
+    canon_prefixed,
+    reject_id,
+)
 
 __all__ = [
     # catalogue
@@ -138,6 +145,7 @@ __all__ = [
     "quality_ok",
     # lowering
     "field_sources",
+    "generated_rule_names",
     "lower_dedupe",
     "lower_quality",
     "lower_quarantine",
@@ -186,6 +194,7 @@ __all__ = [
     "worst",
     # reject
     "REJECT_COLUMNS",
+    "SUPERSEDED_RULE",
     "canon_literal",
     "canon_prefixed",
     "reject_id",

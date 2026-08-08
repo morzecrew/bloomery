@@ -66,6 +66,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "field_sources",
+    "generated_rule_names",
     "lower_dedupe",
     "lower_quality",
     "lower_quarantine",
@@ -249,29 +250,22 @@ def _dedupe_fields(entity: Entity) -> frozenset[str]:
     return frozenset({entity.dedupe.field, *entity.dedupe.tie_break})
 
 
-def _deduplicate_names(rules: list[QualityRuleIR]) -> tuple[QualityRuleIR, ...]:
-    """Force rule names unique, deterministically (RFC 0016 D50).
+def _assign_names(rules: list[QualityRuleIR], taken: set[str]) -> list[QualityRuleIR]:
+    """Give each rule the first free name in its ``name``, ``name_2``, … chain,
+    walking :func:`~bloomery.ir.quality_sort_key` (RFC 0016 D50).
 
-    Two identical-shaped rules on one column (the same bound declared twice
-    with different dispositions) would otherwise share a name, and a shared
-    name in ``failed_rules`` is an unreadable reject row — worse, one quality
-    mart row whose counts are the union of two rules' failures.
+    The suffix counts *up until the candidate is actually free*, rather than
+    trusting ``_{n}`` to be: an authored ``expression`` rule may legally be
+    named ``a_range_min_2``, which is precisely what the second of two
+    ``a_range_min`` rules used to be renamed to — two rules, one name, silently
+    merged.
 
-    Two properties, both of which had to be *made* true:
-
-    - **Collision-free.** The suffix counts up until the candidate is actually
-      free, rather than trusting ``_{n}`` to be. It is not: an authored
-      ``expression`` rule may legally be named ``a_range_min_2``, which is
-      precisely what the second of two ``a_range_min`` rules used to be
-      renamed to — two rules, one name, silently merged.
-    - **Independent of authored order.** Assignment walks
-      :func:`~bloomery.ir.quality_sort_key`, which orders over the rule's whole
-      value, ``on_fail`` included. Without that last component two rules
-      differing only in disposition sorted equal, the stable sort fell through
-      to authored order, and swapping two YAML lines swapped which rule owned
-      the unsuffixed name (RFC 0003: same specs in, same bytes out).
+    The walk order is the sort key, which orders over the rule's whole value,
+    ``on_fail`` included. Without that last component two rules differing only
+    in disposition sorted equal, the stable sort fell through to authored
+    order, and swapping two YAML lines swapped which rule owned the unsuffixed
+    name (RFC 0003: same specs in, same bytes out).
     """
-    taken: set[str] = set()
     named: list[QualityRuleIR] = []
     for rule in sorted(rules, key=quality_sort_key):
         name, index = rule.name, 1
@@ -280,30 +274,71 @@ def _deduplicate_names(rules: list[QualityRuleIR]) -> tuple[QualityRuleIR, ...]:
             name = f"{rule.name}_{index}"
         taken.add(name)
         named.append(rule if name == rule.name else replace(rule, name=name))
+    return named
+
+
+def _deduplicate_names(
+    generated: list[QualityRuleIR], authored: list[QualityRuleIR]
+) -> tuple[QualityRuleIR, ...]:
+    """Force rule names unique, deterministically — **generated names first**
+    (RFC 0016 D50, completed by D71).
+
+    Two identical-shaped rules on one column (the same bound declared twice
+    with different dispositions) would otherwise share a name, and a shared
+    name in ``failed_rules`` is an unreadable reject row — worse, one quality
+    mart row whose counts are the union of two rules' failures.
+
+    The two passes are what make a generated name **name-independent**, not
+    only order-independent. Generated names are derived from a column and a
+    rule kind; authored ones are whatever an ``expression`` rule declares. In
+    one interleaved pass an authored ``amount_in_set`` sorted ahead of the
+    field's own generated ``amount_in_set`` and took it, pushing the generated
+    rule to ``amount_in_set_2`` — so an edit that has nothing to do with that
+    field moved the key of a *time series* in the quality mart (§5.8), while
+    ``plan()`` honestly reported a removal, an addition and a replay for a rule
+    that never stopped firing on the same rows.
+
+    Reserving the generated names first makes them a function of the mapping
+    alone. The authored side is not silently renamed instead: a collision is
+    refused at compile (:mod:`bloomery.guardrails.quality`), and this order is
+    what keeps that refusal from being defeated by a future suffix landing
+    somewhere unexpected.
+    """
+    taken: set[str] = set()
+    named = _assign_names(generated, taken)
+    named.extend(_assign_names(authored, taken))
     return tuple(sorted(named, key=quality_sort_key))
 
 
-def lower_quality(
+def _draft_rules(
     entity: Entity, mapping: Mapping, relationships: tuple[Relationship, ...]
-) -> tuple[QualityRuleIR, ...]:
-    """Every rule of one entity, field rules and row rules alike, canonically
-    sorted (:func:`~bloomery.ir.quality_sort_key`)."""
-    if not opts_in(entity, mapping):
-        return ()
+) -> tuple[list[QualityRuleIR], list[QualityRuleIR]]:
+    """``(generated, authored)`` — the entity's rules, still carrying the names
+    each side proposes, before :func:`_deduplicate_names` arbitrates.
+
+    The split is by **who names the rule**, which is the axis D71 turns on. A
+    field rule's name is derived from its column and kind, a ``referential``
+    rule's from its relationship, and the implicit ``coercible`` rule's from its
+    column: all functions of the mapping. Only an ``expression`` rule carries a
+    name a human wrote.
+    """
     slice_columns = tuple(spec.column for spec in partition_specs(entity.partition_by))
     dedupe_fields = _dedupe_fields(entity)
-    rules: list[QualityRuleIR] = []
+    generated: list[QualityRuleIR] = []
+    authored: list[QualityRuleIR] = []
 
     for column, field_mapping in mapped_fields(mapping):
         declared = _field_quality(field_mapping)
-        for rule in declared:
-            rules.append(_field_rule_ir(rule, column, mapping=mapping, slice_columns=slice_columns))
+        generated.extend(
+            _field_rule_ir(rule, column, mapping=mapping, slice_columns=slice_columns)
+            for rule in declared
+        )
         if not any(isinstance(rule, CoercibleRule) for rule in declared):
             # The implicit rule (§5.2, D3). Forced to FAIL on a field the
             # dedupe order reads (§5.4): an uncastable recency field leaves
             # dedupe ordering undefined, so quarantining it is not an option.
             on_fail = OnFail.FAIL if column in dedupe_fields else OnFail.QUARANTINE
-            rules.append(
+            generated.append(
                 QualityRuleIR(
                     name=_rule_name(f"{column}_coercible"),
                     kind="coercible",
@@ -316,7 +351,7 @@ def lower_quality(
     by_name = {relationship.name: relationship for relationship in relationships}
     for row_rule in entity.quality:
         if isinstance(row_rule, ExpressionRule):
-            rules.append(
+            authored.append(
                 QualityRuleIR(
                     name=row_rule.name,
                     kind="expression",
@@ -336,8 +371,34 @@ def lower_quality(
             # stage refuses before anything is emitted.
             relationship = by_name.get(row_rule.via)
             if relationship is not None:
-                rules.append(_referential_ir(row_rule, relationship))
-    return _deduplicate_names(rules)
+                generated.append(_referential_ir(row_rule, relationship))
+    return generated, authored
+
+
+def generated_rule_names(
+    entity: Entity, mapping: Mapping, relationships: tuple[Relationship, ...]
+) -> frozenset[str]:
+    """The names generation issues on its **own** account (RFC 0016 D71).
+
+    A function of the mapping alone — no authored ``expression`` name reaches
+    it, which is exactly what makes it usable as the set a guardrail refuses an
+    authored name for landing in. Empty for an entity that never opted in.
+    """
+    if not opts_in(entity, mapping):
+        return frozenset()
+    generated, _authored = _draft_rules(entity, mapping, relationships)
+    return frozenset(rule.name for rule in _assign_names(generated, set()))
+
+
+def lower_quality(
+    entity: Entity, mapping: Mapping, relationships: tuple[Relationship, ...]
+) -> tuple[QualityRuleIR, ...]:
+    """Every rule of one entity, field rules and row rules alike, canonically
+    sorted (:func:`~bloomery.ir.quality_sort_key`)."""
+    if not opts_in(entity, mapping):
+        return ()
+    generated, authored = _draft_rules(entity, mapping, relationships)
+    return _deduplicate_names(generated, authored)
 
 
 # ....................... #
