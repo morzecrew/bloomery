@@ -166,7 +166,16 @@ def materialize(conn: duckdb.DuckDBPyConnection, artifacts: tuple[EmittedArtifac
     its macros. Calling it a second time is a **re-run**, not a rebuild: see
     :func:`_apply`.
     """
-    models = {a.path: a for a in artifacts if a.kind is ArtifactKind.MODEL}
+    # `.sql` only: RFC 0017's python_model wrappers are ArtifactKind.MODEL too
+    # (RFC 0008 D2 — artifacts are file-shaped text, so a Python model needs no
+    # new kind), and feeding Python source to DuckDB would fail somewhere far
+    # from the cause. A step's *body* is platform code this harness never runs;
+    # its contract is exercised by the §6 battery instead.
+    models = {
+        a.path: a
+        for a in artifacts
+        if a.kind is ArtifactKind.MODEL and a.path.endswith(".sql")
+    }
     names = {path: ".".join(relation_of(a)) for path, a in models.items()}
     known = frozenset(names.values())
     pending = {

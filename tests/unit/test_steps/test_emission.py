@@ -146,3 +146,15 @@ def test_a_macro_emits_no_artifact_of_its_own() -> None:
     ctx = EmitContext(fingerprint="blm1:t", naming=DefaultNaming(), dialect=get_dialect("duckdb"))
     ir = ProjectIR(steps=(_macro("LOWER(:col)"),))
     assert step_artifacts(ir, ctx, __import__("jinja2").Template("")) == ()
+
+
+def test_a_python_model_never_reaches_a_sql_harness() -> None:
+    """A latent trap worth pinning: a `python_model` wrapper is
+    `ArtifactKind.MODEL` (RFC 0008 D2 — artifacts are file-shaped text, so a
+    Python model needs no new kind), which means anything filtering models by
+    *kind* alone would hand Python source to a SQL engine. The execution
+    harness filters on the suffix; this asserts the suffix is there to filter
+    on."""
+    for path, content in wrappers().items():
+        assert path.endswith(".py")
+        assert not content.lstrip().startswith("MODEL (")
