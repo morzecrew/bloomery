@@ -29,12 +29,21 @@ steps:
     outputs: {customer: silver.customer}
 """
 
+STEP_ENTITIES = """
+spec_version: 1
+entities:
+  customer_raw:
+    grain: one row per source row
+    key: [source_id]
+    fields:
+      source_id: {type: string, required: true}
+      email: {type: string}
+"""
+
 
 @pytest.fixture
 def step_project() -> Project:
-    return load_project(
-        {"entity_model": "spec_version: 1\nentities: {}\n", "steps": STEP_WIRING}
-    )
+    return load_project({"entity_model": STEP_ENTITIES, "steps": STEP_WIRING})
 
 
 def test_node_id_scheme_is_kind_prefixed() -> None:
@@ -98,8 +107,13 @@ def test_a_wired_step_is_a_first_class_node(step_project: Project) -> None:
     step = step_node("resolve_customers")
     assert step in graph.nodes
     labels = {(e.src.name, e.dst.name, e.label) for e in graph.edges}
-    assert ("customer_raw.*", "step.resolve_customers", "step_input") in labels
-    assert ("step.resolve_customers", "customer.*", "step_output") in labels
+    # A step reads a relation *whole*, so every field of the input entity
+    # feeds it — not a synthetic `customer_raw.*` node, which had no producer
+    # and no consumer and made the lineage claim false.
+    assert ("customer_raw.email", "step.resolve_customers", "step_input") in labels
+    assert ("customer_raw.source_id", "step.resolve_customers", "step_input") in labels
+    assert ("step.resolve_customers", "customer.customer", "step_output") in labels
+    assert not any(name.endswith(".*") for name, _, _ in labels)
 
 
 def test_a_step_with_no_wired_inputs_still_appears() -> None:

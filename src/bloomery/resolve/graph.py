@@ -155,31 +155,40 @@ def _step_edges(project: Project) -> list[Edge]:
     the step, which is what lets `plan()` compute a backfill *across* it —
     the load-bearing goal (§4: "backfillability preserved across steps").
 
-    An input relation is named as an entity field only when the wiring points
-    at ``<entity>.<field>``-shaped text; a bare relation name has no field to
-    hang an edge on, and inventing one would put a node in the DAG that
-    nothing else in the graph agrees exists.
+    A step reads a relation *whole*, so an input edge is drawn from every
+    field of the entity that relation names — not from a synthetic
+    ``<entity>.*`` node. That distinction was a real bug: the wildcard node
+    had no producer and no consumer anywhere else in the graph, so the
+    "upstream reaches it in topological order" claim above was false and the
+    step node only ever detected self-loops. An input naming no known entity
+    contributes no edge, because inventing a node nothing else agrees exists
+    is how the wildcard went wrong in the first place.
+
+    Output edges are drawn to the step's own produced columns, which is what
+    puts them downstream of the step and lets `plan()` compute a backfill
+    *across* it (§4).
     """
     if project.steps is None:
         return []
+    entities = project.entity_model.entities
     edges: list[Edge] = []
     for wiring in project.steps.steps:
         node = step_node(wiring.ref)
-        edges.extend(
-            Edge(src=entity_field_node(*_relation_field(bound)), dst=node, label="step_input")
-            for _name, bound in sorted(wiring.inputs.items())
-            if "." in bound
-        )
-        for _name, relation in sorted(wiring.outputs.items()):
-            entity = relation.rsplit(".", 1)[-1]
-            edges.append(Edge(src=node, dst=entity_field_node(entity, "*"), label="step_output"))
+        for _name, bound in sorted(wiring.inputs.items()):
+            entity_name = bound.rsplit(".", 1)[-1]
+            entity = entities.get(entity_name)
+            if entity is None:
+                continue
+            edges.extend(
+                Edge(src=entity_field_node(entity_name, field), dst=node, label="step_input")
+                for field in sorted({*entity.fields, *entity.key})
+            )
+        for output_name, relation in sorted(wiring.outputs.items()):
+            produced = relation.rsplit(".", 1)[-1]
+            edges.append(
+                Edge(src=node, dst=entity_field_node(produced, output_name), label="step_output")
+            )
     return edges
-
-
-def _relation_field(bound: str) -> tuple[str, str]:
-    """``silver.customer_raw`` reads as the relation ``customer_raw``; the
-    field half is the wildcard, because a step reads a relation whole."""
-    return (bound.rsplit(".", 1)[-1], "*")
 
 
 def build_graph(

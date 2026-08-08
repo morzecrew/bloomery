@@ -42,8 +42,8 @@ def test_every_wrapper_asserts_all_declared_outputs() -> None:
     """A step that lies about one output should be caught wherever the run
     starts, so each wrapper's embedded manifest carries both (D16)."""
     for content in wrappers().values():
-        assert '"customer"' in content
-        assert '"customer_xref"' in content
+        assert "'customer'" in content
+        assert "'customer_xref'" in content
         assert "assert_step_contract(outputs, MANIFEST)" in content
 
 
@@ -80,8 +80,8 @@ def test_the_embedded_manifest_uses_spec_type_spellings() -> None:
     ``StringType()`` would match nothing and turn a mandatory check into a
     silent no-op — the failure this assertion exists to prevent."""
     content = wrappers()["models/silver/customer.py"]
-    assert '"type": "string"' in content
-    assert '"type": "decimal(4,3)"' in content
+    assert "'type': 'string'" in content
+    assert "'type': 'decimal(4,3)'" in content
     assert "StringType" not in content
 
 
@@ -89,8 +89,8 @@ def test_a_decimal_parameter_is_passed_as_a_decimal() -> None:
     """The IR holds values as text so canon bytes never meet a float, but the
     step body must be *called* with the real thing."""
     content = wrappers()["models/silver/customer.py"]
-    assert 'PARAMETERS = {"threshold": Decimal("0.9")}' in content
-    assert '"threshold": "0.9"' not in content
+    assert "PARAMETERS = {'threshold': Decimal('0.9')}" in content
+    assert "'threshold': '0.9'" not in content
 
 
 def test_the_wrapper_imports_the_manifest_entrypoint() -> None:

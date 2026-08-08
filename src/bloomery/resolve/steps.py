@@ -122,7 +122,7 @@ def _check_bindings(wiring: StepWiring, manifest: StepManifest) -> list[Bloomery
                 f"manifest does not declare; declared {label}s: "
                 f"{', '.join(sorted(declared)) or '(none)'}"
             )
-            errors.append(UnknownStep(msg, source_path=_path(wiring)))
+            errors.append(StepError(msg, source_path=_path(wiring)))
     unbound = sorted(set(manifest.outputs) - set(wiring.outputs))
     if unbound:
         msg = (
@@ -130,14 +130,14 @@ def _check_bindings(wiring: StepWiring, manifest: StepManifest) -> list[Bloomery
             "declared output becomes its own model (RFC 0017 D16), so each needs a "
             "relation to write to. Fix: bind them under outputs:"
         )
-        errors.append(UnknownStep(msg, source_path=_path(wiring)))
+        errors.append(StepError(msg, source_path=_path(wiring)))
     missing_inputs = sorted(set(manifest.inputs) - set(wiring.inputs))
     if missing_inputs:
         msg = (
             f"step {wiring.use!r} does not bind input(s) {', '.join(missing_inputs)} the "
             "manifest declares; the step reads them, so there is nothing to read from"
         )
-        errors.append(UnknownStep(msg, source_path=_path(wiring)))
+        errors.append(StepError(msg, source_path=_path(wiring)))
     return errors
 
 
@@ -156,28 +156,33 @@ def _check_parameters(wiring: StepWiring, manifest: StepManifest) -> list[Bloome
             f"step {wiring.use!r} sets parameter(s) {', '.join(unknown)} the manifest does "
             f"not declare; declared: {', '.join(sorted(manifest.parameters)) or '(none)'}"
         )
-        errors.append(UnknownStep(msg, source_path=_path(wiring)))
+        errors.append(StepError(msg, source_path=_path(wiring)))
     for name in sorted(set(wiring.parameters) & set(manifest.parameters)):
         spec, value = manifest.parameters[name], wiring.parameters[name]
         if spec.min is None and spec.max is None:
             continue
         try:
             numeric = Decimal(str(value))
+            # Inside the guard on purpose: Decimal("NaN") *constructs* fine and
+            # raises on comparison, so a guard around construction alone let
+            # InvalidOperation escape compile_project — a non-BloomeryError
+            # crossing the boundary, which RFC 0002's contract forbids.
+            out_of_range = (spec.min is not None and numeric < spec.min) or (
+                spec.max is not None and numeric > spec.max
+            )
         except InvalidOperation:
             msg = (
                 f"step {wiring.use!r} sets parameter {name!r} to {value!r}, which is not "
                 f"numeric, but the manifest bounds it (min {spec.min}, max {spec.max})"
             )
-            errors.append(UnknownStep(msg, source_path=_path(wiring)))
+            errors.append(StepError(msg, source_path=_path(wiring)))
             continue
-        if (spec.min is not None and numeric < spec.min) or (
-            spec.max is not None and numeric > spec.max
-        ):
+        if out_of_range:
             msg = (
                 f"step {wiring.use!r} sets parameter {name!r} to {value}, outside the "
                 f"declared bounds (min {spec.min}, max {spec.max})"
             )
-            errors.append(UnknownStep(msg, source_path=_path(wiring)))
+            errors.append(StepError(msg, source_path=_path(wiring)))
     return errors
 
 
@@ -228,34 +233,111 @@ def _outputs(wiring: StepWiring, manifest: StepManifest) -> tuple[StepOutputIR, 
     return tuple(outputs)
 
 
-def _check_duplicate_relations(steps: tuple[StepIR, ...]) -> list[BloomeryError]:
-    """Two steps writing one relation is a compile error (§5.8, D8 — settling
-    Document 5 §11.5 explicitly rather than assuming it away).
+def _emitted_name(relation: str) -> str:
+    """The bare relation an output actually emits to.
+
+    Compared instead of the authored binding because the naming policy owns
+    the namespace: ``a.customer`` and ``b.customer`` are different strings and
+    the *same* emitted model. Comparing the bindings let both through and
+    produced two files at one path, the last of which won.
+    """
+    return relation.rsplit(".", 1)[-1]
+
+
+def _check_duplicate_relations(
+    steps: tuple[StepIR, ...],
+    entity_names: frozenset[str],
+    also_claimed: tuple[tuple[str, str], ...] = (),
+) -> list[BloomeryError]:
+    """Two writers for one emitted relation is a compile error (§5.8, D8 —
+    settling Document 5 §11.5 explicitly rather than assuming it away).
 
     Refused rather than merged or ordered: each output is its own model, so
     two claims on one relation is two models at one path, and whichever ran
-    last would silently win. Also caught within a single step, where the same
-    mistake is a copy-paste in the ``outputs:`` block.
+    last would silently win. Caught three ways — between two steps, within one
+    step's ``outputs:`` block, and against an **entity** of the same name,
+    which collides just as hard and was the case nothing checked at all.
     """
-    seen: dict[str, str] = {}
+    seen: dict[str, str] = {name: f"entity {name!r}" for name in entity_names}
     errors: list[BloomeryError] = []
-    for step in steps:
-        for output in step.outputs:
-            claimant = f"{step.ref}@{step.version}.{output.name}"
-            if output.relation in seen:
-                msg = (
-                    f"relation {output.relation!r} is written by two step outputs: "
-                    f"{seen[output.relation]} and {claimant} (RFC 0017 §5.8, D8). Each "
-                    "output becomes its own model, so one relation with two writers is "
-                    "two models at one path and the last run wins. Fix: bind one of them "
-                    "to a different relation"
-                )
-                errors.append(
-                    UnknownStep(msg, source_path=f"steps: steps.{step.ref}@{step.version}")
-                )
-                continue
-            seen[output.relation] = claimant
+    claims: list[tuple[str, str]] = [
+        (_emitted_name(output.relation), f"{step.ref}@{step.version}.{output.name}")
+        for step in steps
+        for output in step.outputs
+    ]
+    claims.extend(also_claimed)
+    for emitted, claimant in sorted(claims):
+        if emitted in seen and seen[emitted] != f"step output {claimant}":
+            msg = (
+                f"relation {emitted!r} is written by two things: {seen[emitted]} and "
+                f"step output {claimant} (RFC 0017 §5.8, D8). Each becomes its own "
+                "model, so one relation with two writers is two models at one path "
+                "and the last run wins. Fix: bind one of them to a different relation"
+            )
+            errors.append(StepError(msg, source_path=f"steps: steps.{claimant}"))
+            continue
+        seen[emitted] = f"step output {claimant}"
     return errors
+
+
+def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryError]:
+    """Refuse what M13 does not implement, rather than accepting it silently.
+
+    Two gaps, both of which used to compile clean and produce nothing:
+
+    **Tier 1.** ``macro_expression`` exists and is tested, but there is no
+    spec surface by which a mapping *references* a macro step, so a wired
+    ``sql_macro`` bound an output relation and then emitted nothing at all.
+    Documenting a splice that does not happen is worse than not shipping the
+    tier, so it is refused until the reference surface exists.
+
+    **Quality rules on outputs.** §5.2 permits them and §1 makes them the
+    reason RFC 0016 and 0017 ship as a pair. They parse, and nothing consumes
+    them: an author would write a rule, get no rule, and get no error either.
+    A silently ignored quality rule is the worst possible failure for a
+    feature whose entire job is to catch bad data.
+    """
+    errors: list[BloomeryError] = []
+    if manifest.kind == "sql_macro":
+        msg = (
+            f"step {wiring.use!r} is a sql_macro, which bloomery cannot yet wire: Tier 1 "
+            "splices into a consuming model's SELECT (RFC 0017 §5.1) and no spec surface "
+            "references a macro step yet, so this would compile clean and emit nothing. "
+            "Fix: declare it as a sql_model, or keep the expression in the transform "
+            "whitelist (Tier 0)"
+        )
+        errors.append(StepError(msg, source_path=_path(wiring)))
+    if wiring.quality:
+        rules = ", ".join(sorted(rule.name for rule in wiring.quality))
+        msg = (
+            f"step {wiring.use!r} declares quality rule(s) {rules} on its outputs, which "
+            "bloomery does not yet lower (RFC 0017 §5.2). They would be accepted and "
+            "never evaluated, which is worse than refusing them. Fix: drop them for now, "
+            "or model the step output as an entity and put the rules there"
+        )
+        errors.append(StepError(msg, source_path=_path(wiring)))
+    return errors
+
+
+def _check_body(
+    wiring: StepWiring, manifest: StepManifest, body: str | None
+) -> list[BloomeryError]:
+    """A Tier 2 step needs a body in the registry.
+
+    Without one the emitter rendered a MODEL with an empty SELECT — a
+    syntactically fine artifact that no engine can run. D19's whole point is
+    that a bad body is a compile error naming the step, not something an
+    engine discovers later, and a *missing* body is the same statement.
+    """
+    if manifest.kind in {"sql_macro", "sql_model"} and body is None:
+        msg = (
+            f"step {wiring.use!r} is a {manifest.kind} but the registry carries no body "
+            "for it (RFC 0017 §5.3). bloomery parses Tier 1 and Tier 2 bodies at compile; "
+            "with none there it would emit a model with no query at all. Fix: add the "
+            "body to the registry's macro_bodies/sql_bodies"
+        )
+        return [StepError(msg, source_path=_path(wiring))]
+    return []
 
 
 def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[BloomeryError]]:
@@ -291,23 +373,34 @@ def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tu
 
     errors: list[BloomeryError] = []
     steps: list[StepIR] = []
+    claimed: list[tuple[str, str]] = []
     for wiring in project.steps.steps:
         try:
             manifest = registry.resolve(wiring.ref, wiring.version, source_path=_path(wiring))
         except UnknownStep as exc:
             errors.append(exc)
             continue
-        step_errors = [
-            *_check_determinism(wiring, manifest),
-            *_check_bindings(wiring, manifest),
-            *_check_parameters(wiring, manifest),
-        ]
-        errors.extend(step_errors)
-        if step_errors:
-            continue
         body = registry.macro_body(wiring.ref, wiring.version) or registry.sql_body(
             wiring.ref, wiring.version
         )
+        step_errors = [
+            *_check_scope(wiring, manifest),
+            *_check_determinism(wiring, manifest),
+            *_check_bindings(wiring, manifest),
+            *_check_parameters(wiring, manifest),
+            *_check_body(wiring, manifest, body),
+        ]
+        errors.extend(step_errors)
+        if step_errors:
+            # Its relations still enter the collision check below: skipping a
+            # failing step there meant an author fixed a determinism error,
+            # re-ran, and only then learned two steps claim one relation —
+            # the second round-trip this module exists to prevent.
+            claimed.extend(
+                (relation.rsplit(".", 1)[-1], f"{wiring.ref}@{wiring.version}.{name}")
+                for name, relation in sorted(wiring.outputs.items())
+            )
+            continue
         parsed = None
         if body is not None:
             node, body_errors = _parse_body(wiring, body)
@@ -333,7 +426,11 @@ def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tu
         )
 
     ordered = tuple(sorted(steps, key=step_sort_key))
-    errors.extend(_check_duplicate_relations(ordered))
+    errors.extend(
+        _check_duplicate_relations(
+            ordered, frozenset(project.entity_model.entities), tuple(claimed)
+        )
+    )
     if errors:
         batched = tuple(sorted(errors, key=lambda e: (e.source_path or "", str(e))))
         if len(batched) == 1:

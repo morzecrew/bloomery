@@ -25,9 +25,11 @@ surprising number of Python steps are one expression wearing a dataframe.
 
 Tier 3's costs are real and worth naming before you choose it: data leaves the
 engine, the step becomes memory-bound, and column-level lineage is gone
-(`lineage: coarse`). Tier 1 costs nothing at run time at all — the macro body
-is spliced into the model's SELECT, so the model stays one query and lineage
-sees straight through it.
+(`lineage: coarse`). Tier 1 will cost nothing at run time at all — the macro body is spliced into
+the model's SELECT, so the model stays one query and lineage sees straight
+through it. **It is not wired yet:** there is no spec surface by which a
+mapping references a macro step, so a wired `sql_macro` is a compile error
+today rather than a splice that quietly does not happen.
 
 ## What a manifest declares
 
@@ -70,6 +72,10 @@ steps:
     outputs: {customer: silver.customer, customer_xref: silver.customer_xref}
     parameters: {threshold: 0.9}
 ```
+
+Quality rules on step outputs are described by RFC 0017 §5.2 but are **not
+lowered yet** — declaring them is a compile error rather than a rule that is
+accepted and never evaluated.
 
 There is no field here that can hold a body, and none that can name a file to
 load. That absence is the security property: a spec can no more load code than

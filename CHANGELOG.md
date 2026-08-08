@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `bloomery.steps.contract.assert_step_contract` — the run-time step contract, the only bloomery module intended for import outside compilation. It imports nothing but `bloomery.errors`: every check is expressed against the dataframe protocol the step already returned, so it needs no pandas of its own.
 
+- Steps not yet wired are refused rather than silently dropped: a `sql_macro` (Tier 1 has no reference surface yet), `expression` quality rules on step outputs (they parsed and nothing lowered them), a `sql_model` with no registry body, and any step at all on the dbt or Cube targets.
+
 - `bloomery.typing.render_type` — the spec-layer spelling of a logical type, now public because `plan()`, the step manifest embedded in a generated wrapper, and anything reporting a type to a human must all use one spelling.
 
 ### Changed

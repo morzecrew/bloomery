@@ -257,6 +257,18 @@ class CubeEmitter:
         )
 
     def emit(self, ir: ProjectIR, ctx: EmitContext) -> tuple[EmittedArtifact, ...]:
+        if ir.steps:
+            # RFC 0017 §5.8 emits steps for SQLMesh only. Dropping them here
+            # would silently withhold relations downstream models were
+            # typechecked against — fail loud, never approximate (RFC 0008 D3).
+            msg = (
+                f"project wires {len(ir.steps)} step(s), which the Cube target "
+                "cannot emit (RFC 0017 §5.8 covers SQLMesh only). Their output "
+                "relations would simply be missing. Fix: compile steps for SQLMesh, "
+                "or drop the steps: document for this target"
+            )
+            raise UnsupportedByTarget(msg)
+
         """Lower every mart to a cube and a view; artifacts sorted by path,
         content ending in exactly one newline (RFC 0003 §5.5 rule 5). A
         project without marts emits nothing — Cube has no silver surface."""

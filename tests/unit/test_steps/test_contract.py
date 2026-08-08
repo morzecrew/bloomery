@@ -187,3 +187,28 @@ def test_the_violation_names_the_step_and_the_output() -> None:
     assert "resolve_customers" in message
     assert "'customer'" in message
     assert excinfo.value.source_path == "step: resolve_customers.customer"
+
+
+def test_a_decimal_column_is_actually_type_checked() -> None:
+    """`decimal` was missing from the kind table and its absence did not
+    fail — it fell through `.get()` and skipped the check, so the RFC's own
+    flagship column (`confidence: decimal(4,3)`) accepted a `datetime64`
+    without complaint. Exactly the failure D21 records, one type short."""
+    outputs = {
+        "customer": pd.DataFrame(
+            {"canonical_id": ["c1"], "confidence": pd.to_datetime(["2020-01-01"])}
+        )
+    }
+    with pytest.raises(StepContractViolation, match="declared decimal"):
+        assert_step_contract(outputs, MANIFEST)
+
+
+def test_a_type_the_checker_does_not_know_is_refused_not_skipped() -> None:
+    """The generalisation of the bug above: an unknown base type must fail
+    loudly rather than pass silently, so the next gap cannot hide."""
+    manifest = {
+        "ref": "s",
+        "outputs": {"o": {"key": ["k"], "produces": {"k": {"type": "geography"}}}},
+    }
+    with pytest.raises(StepContractViolation, match="does not know how to verify"):
+        assert_step_contract({"o": pd.DataFrame({"k": ["x"]})}, manifest)

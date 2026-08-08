@@ -27,8 +27,7 @@ a step that lies about one output should be caught wherever the run starts.
 
 from __future__ import annotations
 
-import json
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, cast
 
 import jinja2
 from sqlglot import exp
@@ -38,6 +37,8 @@ from bloomery.ir import Layer, StepKind
 from bloomery.typing import render_type
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from sqlglot.expressions.core import Expression
 
     from bloomery.emit.base import EmitContext
@@ -86,7 +87,9 @@ def execute(context: typing.Any, **kwargs: typing.Any) -> typing.Any:
     from {{ module }} import {{ function }}
 
     inputs = { {%- for name, relation in inputs %}
-        "{{ name }}": context.fetchdf("SELECT * FROM {{ relation }}"),{% endfor %}
+        {{ name }}: context.fetchdf(
+            f"SELECT * FROM {context.table({{ relation }})}"
+        ),{% endfor %}
     }
     outputs = {{ function }}(**inputs, **PARAMETERS)
     assert_step_contract(outputs, MANIFEST)
@@ -99,15 +102,33 @@ def execute(context: typing.Any, **kwargs: typing.Any) -> typing.Any:
 def _python_literal(value: object) -> str:
     """A deterministic Python literal for the wrapper.
 
-    ``json.dumps`` with sorted keys, which is valid Python for the shapes used
-    here (dicts of strings, bools, ints) and — unlike ``repr`` over a dict —
-    is stable regardless of insertion order. ``true``/``false``/``null`` are
-    the one divergence, so they are mapped back to Python's spelling.
+    ``repr`` over canonically sorted structures. The obvious alternative —
+    ``json.dumps`` then patching ``true``/``false``/``null`` back to Python's
+    spelling — is what this used to do, and it edited *string contents* too:
+    a column named ``id, null`` came out as ``id, None``, so the embedded
+    manifest and the SQLMesh ``columns=`` named a column that does not exist
+    and a *correct* step failed its own contract at run time. The wrapper
+    still parsed, so no ``ast``-based test noticed.
+
+    ``repr`` is also the escaping boundary. Nothing here interpolates a spec
+    value into source text by hand: values arrive from an authored spec, and
+    §5.3/D3's promise is that such a spec can never become an
+    arbitrary-code-execution surface.
     """
-    rendered = json.dumps(value, sort_keys=True, indent=None)
-    for js, py in (("true", "True"), ("false", "False"), ("null", "None")):
-        rendered = rendered.replace(f": {js}", f": {py}").replace(f", {js}", f", {py}")
-    return rendered
+    if isinstance(value, dict):
+        pairs = cast("dict[object, object]", value)
+        items = ", ".join(
+            f"{_python_literal(key)}: {_python_literal(item)}"
+            for key, item in sorted(pairs.items(), key=lambda pair: str(pair[0]))
+        )
+        return "{" + items + "}"
+    if isinstance(value, (list, tuple)):
+        members: Sequence[object] = cast("Sequence[object]", value)
+        return "[" + ", ".join(_python_literal(item) for item in members) + "]"
+    if isinstance(value, (str, bool, int)) or value is None:
+        return repr(value)
+    msg = f"unsupported value in a generated wrapper literal: {type(value).__name__}"
+    raise TypeError(msg)
 
 
 def _manifest_literal(step: StepIR) -> str:
@@ -155,22 +176,32 @@ def _columns_literal(output: StepOutputIR, ctx: EmitContext) -> str:
 #: ``decimal`` has to arrive as ``Decimal("0.9")``, not as the string
 #: ``"0.9"``, or every comparison inside the step is a type error waiting for
 #: the first run.
+#:
+#: Every entry wraps a ``repr``-produced literal, never a raw value. Building
+#: these by string interpolation let an authored parameter close the quote and
+#: append an expression — ``PARAMETERS = {"label": "ACME" + __import__("os")…}``
+#: parsed and ran. §5.3/D3's promise is that a spec cannot become an
+#: arbitrary-code-execution surface, and it is only true if this function
+#: holds it.
 _PARAMETER_CTORS: Final[dict[str, str]] = {
-    "decimal": 'Decimal("{value}")',
-    "int": "{value}",
-    "bool": "{value}",
-    "string": '"{value}"',
-    "date": 'date.fromisoformat("{value}")',
-    "timestamp": 'datetime.fromisoformat("{value}")',
+    "decimal": "Decimal({literal})",
+    "date": "date.fromisoformat({literal})",
+    "timestamp": "datetime.fromisoformat({literal})",
 }
 
 
 def _parameter_expression(parameter: StepParameterIR) -> str:
     base = parameter.type.split("(", 1)[0].strip()
-    template = _PARAMETER_CTORS.get(base, '"{value}"')
     if base == "bool":
-        return "True" if parameter.value.lower() in {"true", "1"} else "False"
-    return template.format(value=parameter.value)
+        return repr(parameter.value.strip().lower() in {"true", "1"})
+    if base == "int":
+        # Validated at lowering; repr of the parsed int rather than the text,
+        # so nothing an author wrote reaches the source unquoted.
+        return repr(int(parameter.value))
+    template = _PARAMETER_CTORS.get(base)
+    if template is None:
+        return repr(parameter.value)
+    return template.format(literal=repr(parameter.value))
 
 
 def _parameters_literal(step: StepIR) -> str:
@@ -182,9 +213,9 @@ def _parameters_literal(step: StepIR) -> str:
     recorded value — which is precisely what makes N executions of a seeded
     step agree (D16).
     """
-    entries = [f'"{p.name}": {_parameter_expression(p)}' for p in step.parameters]
+    entries = [f"{_python_literal(p.name)}: {_parameter_expression(p)}" for p in step.parameters]
     if step.seed is not None:
-        entries.append(f'"seed": {step.seed}')
+        entries.append(f"{_python_literal('seed')}: {step.seed:d}")
     return "{" + ", ".join(entries) + "}"
 
 
@@ -232,7 +263,7 @@ def _wrapper_artifact(
         columns=_columns_literal(output, ctx),
         module=module,
         function=function,
-        inputs=step.inputs,
+        inputs=tuple((_python_literal(n), _python_literal(r)) for n, r in step.inputs),
     )
     return EmittedArtifact.create(
         path=f"models/{namespace}/{relation}.py",

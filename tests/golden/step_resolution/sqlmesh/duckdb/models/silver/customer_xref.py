@@ -17,21 +17,23 @@ from sqlmesh import model
 
 from bloomery.steps.contract import assert_step_contract
 
-MANIFEST = {"outputs": {"customer": {"key": ["canonical_id"], "produces": {"canonical_id": {"required": True, "type": "string"}, "confidence": {"required": False, "type": "decimal(4,3)"}}}, "customer_xref": {"key": ["source_system", "source_id"], "produces": {"canonical_id": {"required": True, "type": "string"}, "method": {"required": False, "type": "string"}, "source_id": {"required": True, "type": "string"}, "source_system": {"required": True, "type": "string"}}}}, "ref": "resolve_customers", "version": 3}
+MANIFEST = {'outputs': {'customer': {'key': ['canonical_id'], 'produces': {'canonical_id': {'required': True, 'type': 'string'}, 'confidence': {'required': False, 'type': 'decimal(4,3)'}}}, 'customer_xref': {'key': ['source_system', 'source_id'], 'produces': {'canonical_id': {'required': True, 'type': 'string'}, 'method': {'required': False, 'type': 'string'}, 'source_id': {'required': True, 'type': 'string'}, 'source_system': {'required': True, 'type': 'string'}}}}, 'ref': 'resolve_customers', 'version': 3}
 
-PARAMETERS = {"threshold": Decimal("0.9")}
+PARAMETERS = {'threshold': Decimal('0.9')}
 
 
 @model(
     "silver.customer_xref",
     kind="FULL",
-    columns={"canonical_id": "VARCHAR", "method": "VARCHAR", "source_id": "VARCHAR", "source_system": "VARCHAR"},
+    columns={'canonical_id': 'VARCHAR', 'method': 'VARCHAR', 'source_id': 'VARCHAR', 'source_system': 'VARCHAR'},
 )
 def execute(context: typing.Any, **kwargs: typing.Any) -> typing.Any:
     from platform_steps.resolve_customers import resolve
 
     inputs = {
-        "raw": context.fetchdf("SELECT * FROM silver.customer_raw"),
+        'raw': context.fetchdf(
+            f"SELECT * FROM {context.table('silver.customer_raw')}"
+        ),
     }
     outputs = resolve(**inputs, **PARAMETERS)
     assert_step_contract(outputs, MANIFEST)

@@ -211,3 +211,27 @@ def test_a_python_model_has_no_body_in_the_registry() -> None:
     registry = StepRegistry({("resolve_customers", 3): manifest()})
     assert registry.macro_body("resolve_customers", 3) is None
     assert registry.sql_body("resolve_customers", 3) is None
+
+
+def test_an_input_and_a_parameter_may_not_share_a_name() -> None:
+    """The wrapper calls the step as ``step(**inputs, **parameters)``, so the
+    two namespaces share one keyword space — a name in both is a run-time
+    ``TypeError: got multiple values``, decidable here from the manifest."""
+    with pytest.raises(ValidationError, match="both an input and a parameter"):
+        manifest(
+            inputs={"threshold": {"grain": "row"}},
+            parameters={"threshold": {"type": "decimal"}},
+        )
+
+
+def test_a_non_identifier_input_name_is_refused() -> None:
+    with pytest.raises(ValidationError, match="not Python identifiers"):
+        manifest(inputs={"raw data": {"grain": "row"}})
+
+
+def test_the_rfc_worked_manifest_spells_a_bare_decimal_parameter() -> None:
+    """§5.2 writes ``{type: decimal, default: 0.85}``. The implementation
+    rejected it and the corpus quietly wrote ``decimal(4,3)`` instead, hiding
+    the divergence — the RFC is the authority."""
+    parsed = manifest(parameters={"threshold": {"type": "decimal", "default": "0.85"}})
+    assert parsed.parameters["threshold"].type == "decimal"

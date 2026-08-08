@@ -58,6 +58,13 @@ _KIND_BY_TYPE: dict[str, frozenset[str]] = {
     "date": frozenset({"M", "O"}),
     "timestamp": frozenset({"M", "O"}),
     "variant": frozenset({"O"}),
+    #: ``decimal`` was missing here, and its absence did not fail — it fell
+    #: through ``.get()`` and skipped the check entirely, so the RFC's own
+    #: flagship column (``confidence: decimal(4,3)``) accepted a
+    #: ``datetime64`` without complaint. Exactly the failure D21 records, one
+    #: type short of it. An unknown base type is now a violation rather than a
+    #: skip (see :func:`_check_columns`), so the next gap fails loudly.
+    "decimal": frozenset({"O", "f", "i", "u"}),
 }
 
 
@@ -101,7 +108,14 @@ def _check_columns(step: str, name: str, frame: Any, produces: Mapping[str, Any]
         base = _base_type(str(spec["type"]))
         kinds = _KIND_BY_TYPE.get(base)
         series = frame[column]
-        if kinds is not None and series.dtype.kind not in kinds:
+        if kinds is None:
+            raise _violation(
+                step,
+                name,
+                f"column {column!r} declares type {spec['type']!r}, which this checker "
+                "does not know how to verify — refusing rather than passing it silently",
+            )
+        if series.dtype.kind not in kinds:
             raise _violation(
                 step,
                 name,

@@ -262,5 +262,142 @@ steps:
     registry = StepRegistry(
         {("resolve_customers", 3): manifest(), ("other_step", 1): other}
     )
-    with pytest.raises(StepError, match="written by two step outputs"):
+    with pytest.raises(StepError, match="written by two things"):
         build_project_ir(project, steps=registry)
+
+
+def test_two_steps_writing_one_relation_under_different_namespaces_are_refused() -> None:
+    """`a.customer` and `b.customer` are different bindings and the *same*
+    emitted model — the naming policy owns the namespace. Comparing the
+    authored strings let both through and produced two files at one path."""
+    project = load_project(
+        {
+            "entity_model": ENTITY_MODEL,
+            "steps": """
+steps_version: 1
+steps:
+  - use: resolve_customers@3
+    inputs: {raw: silver.customer_raw}
+    outputs: {customer: a.customer}
+  - use: other_step@1
+    outputs: {customer: b.customer}
+""",
+        }
+    )
+    other = manifest(
+        ref="other_step",
+        version=1,
+        inputs={},
+        outputs={
+            "customer": {
+                "grain": "customer",
+                "key": ["canonical_id"],
+                "produces": {"canonical_id": {"type": "string"}},
+            }
+        },
+        parameters={},
+    )
+    registry = StepRegistry({("resolve_customers", 3): manifest(), ("other_step", 1): other})
+    with pytest.raises(StepError, match="written by two things"):
+        build_project_ir(project, steps=registry)
+
+
+def test_a_step_output_colliding_with_an_entity_is_refused() -> None:
+    """The case nothing checked at all: an entity model and a step both
+    claiming ``event`` emit two models at one path."""
+    project = load_project(
+        {
+            "entity_model": (
+                "spec_version: 1\nentities:\n  customer:\n"
+                "    grain: one row per customer\n    key: [id]\n"
+                "    fields:\n      id: {type: string, required: true}\n"
+            ),
+            "steps": (
+                "steps_version: 1\nsteps:\n  - use: resolve_customers@3\n"
+                "    inputs: {raw: silver.raw}\n    outputs: {customer: silver.customer}\n"
+            ),
+        }
+    )
+    registry = StepRegistry({("resolve_customers", 3): manifest(parameters={})})
+    with pytest.raises(StepError, match="entity 'customer'"):
+        build_project_ir(project, steps=registry)
+
+
+def test_a_wired_sql_macro_is_refused_until_the_splice_site_exists() -> None:
+    """Tier 1 has no spec surface referencing it, so a wired macro bound an
+    output and emitted nothing at all. Documenting a splice that does not
+    happen is worse than not shipping the tier."""
+    with pytest.raises(StepError, match="cannot yet wire"):
+        build(
+            kind="sql_macro",
+            entrypoint=None,
+            outputs={"o": {"grain": "row", "key": ["a"], "produces": {"a": {"type": "string"}}}},
+        )
+
+
+def test_quality_rules_on_outputs_are_refused_rather_than_ignored() -> None:
+    """They parse and nothing consumes them: an author would write a rule, get
+    no rule, and get no error. Silently ignoring a quality rule is the worst
+    possible failure for a feature whose job is catching bad data."""
+    wiring = WIRING + (
+        "    quality:\n"
+        '      - {rule: expression, name: confident, expr: "confidence >= 0.8", on_fail: flag}\n'
+        "    applies_to: {confident: customer}\n"
+    )
+    with pytest.raises(StepError, match="does not yet lower"):
+        build(wiring)
+
+
+def test_a_sql_model_without_a_body_is_refused() -> None:
+    """Without one the emitter rendered a MODEL with an empty SELECT — a
+    syntactically fine artifact no engine can run."""
+    with pytest.raises(StepError, match="registry carries no body"):
+        build(kind="sql_model", entrypoint=None)
+
+
+def test_a_non_finite_parameter_is_a_bloomery_error_not_a_decimal_crash() -> None:
+    """``Decimal("NaN")`` constructs fine and raises on comparison, so a guard
+    around construction alone let ``InvalidOperation`` cross the compile
+    boundary — which RFC 0002's error contract forbids."""
+    for spelling in ("NaN", "sNaN"):
+        with pytest.raises(StepError):
+            build(WIRING.replace("threshold: 0.9", f"threshold: '{spelling}'"))
+
+
+def test_a_failing_step_still_contributes_to_the_collision_check() -> None:
+    """Skipping it meant an author fixed a determinism error, re-ran, and only
+    then learned two steps claim one relation — the second round-trip this
+    module exists to prevent."""
+    project = load_project(
+        {
+            "entity_model": ENTITY_MODEL,
+            "steps": """
+steps_version: 1
+steps:
+  - use: resolve_customers@3
+    inputs: {raw: silver.customer_raw}
+    outputs: {customer: silver.customer}
+  - use: other_step@1
+    outputs: {customer: silver.customer}
+""",
+        }
+    )
+    other = manifest(
+        ref="other_step",
+        version=1,
+        determinism="nondeterministic",
+        inputs={},
+        outputs={
+            "customer": {
+                "grain": "customer",
+                "key": ["canonical_id"],
+                "produces": {"canonical_id": {"type": "string"}},
+            }
+        },
+        parameters={},
+    )
+    registry = StepRegistry({("resolve_customers", 3): manifest(), ("other_step", 1): other})
+    with pytest.raises(StepError) as excinfo:
+        build_project_ir(project, steps=registry)
+    kinds = {type(leaf).__name__ for leaf in excinfo.value.collected}
+    assert kinds == {"StepDeterminismError", "StepError"}

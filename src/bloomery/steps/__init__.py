@@ -57,17 +57,31 @@ _LAZY: dict[str, str] = {
 }
 
 
+def __dir__() -> list[str]:
+    """Include the lazily-resolved names, which :func:`__getattr__` alone
+    hides from ``dir()`` and every tool built on it."""
+    return sorted({*globals(), *_LAZY})
+
+
 def __getattr__(name: str) -> Any:
     """Resolve a public name on first use (PEP 562).
 
-    Lazy for one concrete reason, not for style. ``contract`` is imported by
-    *generated code* in the step runtime, and importing a submodule executes
-    its package ``__init__`` first — so an eager one here would drag pydantic
-    and the spec layer into every model execution to run an assertion that
-    needs neither. Measured: eager, ``import bloomery.steps.contract`` cost
-    ~400 ms and pulled in metricflow, jinja2, sqlglot, pydantic and yaml,
-    which makes RFC 0017 §9's "dependency-light by construction" simply untrue
-    as written. This, plus the same trick one level up, is what makes it true.
+    Lazy so that importing :mod:`bloomery.steps.contract` — which *generated
+    code* does, in the step runtime — does not also pull in pydantic and the
+    spec layer to run an assertion that needs neither.
+
+    **On its own this saves nothing measurable, and the honest figure is the
+    one to quote:** ``import bloomery.steps.contract`` still costs ~400 ms and
+    ~1000 modules, because importing a submodule executes *every* parent
+    package's ``__init__`` and bloomery's top-level one eagerly imports the
+    compile surface. Making that one lazy too fixed it completely (6.5 ms, 55
+    modules) and was reverted — ``plan`` and ``resolve`` are both public
+    functions and submodule names, so the module attribute shadows the
+    function and ``from bloomery import plan`` becomes import-order-dependent.
+
+    So this is the collision-free half of a repair whose other half is unsafe;
+    RFC 0017 D22 records the measurement and names §8's escape hatch
+    (extracting ``contract`` into a micro-package) as the remaining route.
     """
     module = _LAZY.get(name)
     if module is None:

@@ -396,6 +396,18 @@ class DbtEmitter:
         )
 
     def emit(self, ir: ProjectIR, ctx: EmitContext) -> tuple[EmittedArtifact, ...]:
+        if ir.steps:
+            # RFC 0017 §5.8 emits steps for SQLMesh only. Dropping them here
+            # would silently withhold relations downstream models were
+            # typechecked against — fail loud, never approximate (RFC 0008 D3).
+            msg = (
+                f"project wires {len(ir.steps)} step(s), which the dbt target "
+                "cannot emit (RFC 0017 §5.8 covers SQLMesh only). Their output "
+                "relations would simply be missing. Fix: compile steps for SQLMesh, "
+                "or drop the steps: document for this target"
+            )
+            raise UnsupportedByTarget(msg)
+
         """Lower every entity to a model (SCD type 2 → snapshot), every mart
         and the date dimension to gold models, audits to ``schema.yml``, plus
         the project scaffold and bronze sources; artifacts sorted by path,

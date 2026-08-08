@@ -30,6 +30,8 @@ from bloomery.spec.common import SpecModel, TypeString
 
 __all__ = [
     "ENTRYPOINT_PATTERN",
+    "PARAMETER_TYPE_PATTERN",
+    "ParameterTypeString",
     "REF_PATTERN",
     "DeterminismName",
     "LineageName",
@@ -51,6 +53,19 @@ REF_PATTERN = r"^[a-z][a-z0-9_]*$"
 #: wrapper imports **at run time** (D13). Bloomery never resolves it; registry
 #: build does, caller-side, before the registry is handed over.
 ENTRYPOINT_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*$"
+
+#: A parameter's declared type. The column grammar plus a bare ``decimal``,
+#: because §5.2's own worked manifest writes ``{type: decimal, default: 0.85}``
+#: and the implementation rejected it — the RFC is the authority, and a
+#: parameter is a scalar knob rather than a stored column, so precision and
+#: scale say nothing useful about it. A ``produces`` column still needs the
+#: full ``decimal(p,s)``: that one *is* a stored column, and downstream models
+#: are typechecked against it.
+PARAMETER_TYPE_PATTERN = (
+    r"^(?:string|int|bool|date|timestamp|variant|decimal(?:\((\d{1,3}), ?(\d{1,3})\))?)$"
+)
+
+ParameterTypeString = Annotated[str, StringConstraints(pattern=PARAMETER_TYPE_PATTERN)]
 
 StepRef = Annotated[str, StringConstraints(pattern=REF_PATTERN)]
 StepEntrypoint = Annotated[str, StringConstraints(pattern=ENTRYPOINT_PATTERN)]
@@ -129,7 +144,7 @@ class StepParameter(SpecModel):
     parameters only; they are ``Decimal``, never ``float`` (RFC 0003 D5).
     """
 
-    type: TypeString
+    type: ParameterTypeString
     default: str | int | bool | Decimal | None = None
     min: Decimal | None = None
     max: Decimal | None = None
@@ -182,6 +197,33 @@ class StepManifest(SpecModel):
             msg = (
                 f"a {self.kind} step declares entrypoint {self.entrypoint!r}, but only a "
                 "python_model imports one; a SQL step's body comes from the registry"
+            )
+            raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def _inputs_and_parameters_are_disjoint_identifiers(self) -> Self:
+        """The generated wrapper calls the step as
+        ``step(**inputs, **parameters)``, so the two namespaces share one
+        keyword space: a name in both is ``TypeError: got multiple values``
+        at run time, and a name that is not an identifier cannot be passed at
+        all. Both are decidable here, from the manifest alone.
+        """
+        clashing = sorted(set(self.inputs) & set(self.parameters))
+        if clashing:
+            msg = (
+                f"{', '.join(clashing)} is declared as both an input and a parameter; the "
+                "generated wrapper passes both as keywords, so the step would be called "
+                "with two values for one argument"
+            )
+            raise ValueError(msg)
+        invalid = sorted(
+            name for name in (*self.inputs, *self.parameters) if not name.isidentifier()
+        )
+        if invalid:
+            msg = (
+                f"input/parameter name(s) {', '.join(invalid)} are not Python identifiers, "
+                "so the generated wrapper could not pass them as keyword arguments"
             )
             raise ValueError(msg)
         return self
