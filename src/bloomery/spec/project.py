@@ -23,6 +23,7 @@ from bloomery.spec.entity import EntityModel
 from bloomery.spec.mapping import Mapping
 from bloomery.spec.marts import MartSet
 from bloomery.spec.metrics import MetricSet
+from bloomery.spec.steps import StepSet
 
 __all__ = [
     "Project",
@@ -35,6 +36,7 @@ _KIND_KEYS: dict[str, type[SpecModel]] = {
     "mapping_version": Mapping,
     "metrics_version": MetricSet,
     "marts_version": MartSet,
+    "steps_version": StepSet,
 }
 
 
@@ -48,6 +50,7 @@ class Project:
     mappings: tuple[Mapping, ...]
     metric_set: MetricSet | None = None
     marts: MartSet | None = None
+    steps: StepSet | None = None
 
 
 def load_catalog(text: str) -> Catalog:
@@ -77,7 +80,7 @@ def _detect_kind(data: dict[str, object], *, document: str) -> type[SpecModel]:
     if not present:
         raise SpecParseError(
             "unknown spec kind: expected exactly one of spec_version / "
-            "mapping_version / metrics_version / marts_version",
+            "mapping_version / metrics_version / marts_version / steps_version",
             source_path=document,
         )
     if len(present) > 1:
@@ -92,6 +95,7 @@ def _check_document_counts(
     entity_models: list[tuple[str, EntityModel]],
     metric_sets: list[tuple[str, MetricSet]],
     mart_sets: list[tuple[str, MartSet]],
+    step_sets: list[tuple[str, StepSet]],
 ) -> list[BloomeryError]:
     errors: list[BloomeryError] = []
     if not entity_models:
@@ -105,7 +109,11 @@ def _check_document_counts(
                 f"a project requires exactly one EntityModel document, found {len(names)}: {names}"
             )
         )
-    for kind, sets in (("MetricSet", metric_sets), ("MartSet", mart_sets)):
+    for kind, sets in (
+        ("MetricSet", metric_sets),
+        ("MartSet", mart_sets),
+        ("StepSet", step_sets),
+    ):
         if len(sets) > 1:
             names = [name for name, _ in sets]
             errors.append(
@@ -129,6 +137,7 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
     mappings: list[Mapping] = []
     metric_sets: list[tuple[str, MetricSet]] = []
     mart_sets: list[tuple[str, MartSet]] = []
+    step_sets: list[tuple[str, StepSet]] = []
 
     for name in sorted(sources):
         try:
@@ -143,15 +152,17 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
             mappings.append(model)
         elif isinstance(model, MetricSet):
             metric_sets.append((name, model))
+        elif isinstance(model, MartSet):
+            mart_sets.append((name, model))
         else:
             # The kind table is closed (_KIND_KEYS): the only remaining kind.
-            mart_sets.append((name, cast("MartSet", model)))
+            step_sets.append((name, cast("StepSet", model)))
 
     if not errors:
         # Cardinality complaints on top of per-document failures would be
         # misleading (a failed document still *was* its kind) — report the
         # parse errors first; counts are checked once every document parses.
-        errors.extend(_check_document_counts(entity_models, metric_sets, mart_sets))
+        errors.extend(_check_document_counts(entity_models, metric_sets, mart_sets, step_sets))
     if errors:
         flat = flatten_collected(errors)
         if len(flat) == 1:
@@ -163,4 +174,5 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
         mappings=tuple(mappings),
         metric_set=metric_sets[0][1] if metric_sets else None,
         marts=mart_sets[0][1] if mart_sets else None,
+        steps=step_sets[0][1] if step_sets else None,
     )

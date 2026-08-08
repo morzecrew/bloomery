@@ -42,6 +42,10 @@ __all__ = [
     "DedupeDispositionConflict",
     "IngestionMetadataMissing",
     "RedactionConflict",
+    "StepError",
+    "UnknownStep",
+    "StepDeterminismError",
+    "StepContractViolation",
     "PlanError",
     "ContractViolation",
     "RenameTargetMissing",
@@ -248,6 +252,41 @@ class RedactionConflict(GuardrailError):
     intersecting a path the entity's mappings read (``from`` paths, recipe
     aliases included) — you cannot both require a field and destroy it at
     write time; the message names both sides."""
+
+
+# ....................... #
+# Steps — RFC 0017. Two compile-time refusals and one raised only by
+# generated code, at target runtime, which is why it is a sibling of the
+# compile hierarchy rather than a GuardrailError: nothing in bloomery ever
+# raises it, and nothing in bloomery ever catches it.
+
+
+class StepError(BloomeryError):
+    """Raised for the referenced-implementation escape hatch (RFC 0017)."""
+
+
+class UnknownStep(StepError):
+    """Compile stage (RFC 0017 §5.3, D3): a spec references a ``ref@version``
+    the :class:`~bloomery.steps.StepRegistry` does not hold. The message names
+    the versions that *are* available — there is no dynamic loading path to
+    fall back on, by design, so the registry is the whole world."""
+
+
+class StepDeterminismError(StepError):
+    """Compile stage (RFC 0017 §5.5, D5): a step declaring
+    ``determinism: nondeterministic``, or a ``seeded`` step wired without a
+    seed. A nondeterministic step makes a backfill disagree with the original
+    run, which destroys restatement — the capability the architecture is
+    organized around, so this is the load-bearing refusal, not caution."""
+
+
+class StepContractViolation(StepError):
+    """**Run time**, raised only by generated wrapper code (RFC 0017 §5.4,
+    D4): the step's actual output contradicts its manifest — a missing or
+    undeclared output, a column set that differs, an unassignable type, a null
+    in a ``required`` column, or a duplicated grain key. Non-optional and
+    non-configurable by construction: a claim that is checked is a commitment,
+    a claim that is not is a comment."""
 
 
 # ....................... #

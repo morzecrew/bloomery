@@ -43,6 +43,7 @@ from bloomery.spec.quality import (
     ReferentialRule,
     UniqueRule,
 )
+from bloomery.spec.steps import StepSet, StepUse, StepWiring
 
 __all__ = [
     # catalog
@@ -69,6 +70,10 @@ __all__ = [
     "RecipeFieldMapping",
     "SimpleFieldMapping",
     "TransformStep",
+    # steps (RFC 0017)
+    "StepSet",
+    "StepUse",
+    "StepWiring",
     # marts
     "DateRoleStep",
     "FlattenStep",

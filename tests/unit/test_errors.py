@@ -35,6 +35,10 @@ from bloomery.errors import (
     RenameTargetMissing,
     ResolutionError,
     SpecParseError,
+    StepContractViolation,
+    StepDeterminismError,
+    StepError,
+    UnknownStep,
     TaxBasisMismatch,
     TransformRegistrationError,
     TypeCheckError,
@@ -78,6 +82,10 @@ def test_every_class_has_a_stage_docstring(cls: type[BloomeryError]) -> None:
     ("leaf", "parent"),
     [
         (SpecParseError, BloomeryError),
+        (UnknownStep, StepError),
+        (StepDeterminismError, StepError),
+        (StepContractViolation, StepError),
+        (StepError, BloomeryError),
         (UnknownTransformError, BloomeryError),
         (TypeCheckError, BloomeryError),
         (TransformRegistrationError, BloomeryError),
@@ -117,9 +125,11 @@ def test_stage_hierarchy(leaf: type[BloomeryError], parent: type[BloomeryError])
 
 
 def test_step_contract_violation_belongs_to_rfc_0017() -> None:
-    # RFC 0016's guardrail leaves land here; the registered-step contract
-    # error is RFC 0017's (M13), deliberately not declared early.
-    assert not hasattr(errors_mod, "StepContractViolation")
+    """RFC 0017 (M13) landed it. It is a ``StepError``, not a
+    ``GuardrailError``: it is raised at *target* runtime by generated wrapper
+    code, so nothing in bloomery ever raises it and nothing batches it."""
+    assert issubclass(errors_mod.StepContractViolation, errors_mod.StepError)
+    assert not issubclass(errors_mod.StepContractViolation, errors_mod.GuardrailError)
 
 
 def test_retired_incompatible_artifact_is_absent() -> None:
