@@ -45,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - An authored mart named `data_quality` was silently replaced by the synthesized quality mart (SQLMesh emitted that mart twice at one path; Cube wrote two different files to one). The name is now reserved unconditionally, like the five quality metric names.
 
+- `plan()` reported no `replay_scope` for a rule change that *swaps* rather than widens — `in_set ["a"] → ["b"]`, or `range 0..10 → 5..20`. Neither is a relaxation by the superset/interval reading, but both admit values the old rule rejected, so rows quarantined on `b` (or at 15) had become admissible and stayed in the reject table with nothing naming them. Replay now asks whether the new parameters admit anything the old ones rejected.
+
 - `plan()` classified removing a `quarantine:` block as ADDITIVE "policy only", although it stops the `<entity>__reject` model being emitted and discards every unresolved row in it — now BREAKING, with the replay scope beside it. Separately, narrowing an `in_set` that contains the literal `"false"` reported as a *relaxation*, because the rule's `numeric_*` type markers carry `"true"`/`"false"` as values and were flattened in with the membership literals.
 
 - An `in_set` rule declared with integer members (`values: [1, 2]`) emitted string literals — `tier NOT IN ('1', '2')`. DuckDB and Postgres coerce that and answer correctly; Trino refuses the comparison, so the same spec ran on one engine and failed on another. Members now carry their declared type. A set written entirely with strings is unaffected, down to the artifact bytes.

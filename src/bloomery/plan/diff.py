@@ -562,16 +562,27 @@ def _members(kind: str, settings: tuple[tuple[str, str], ...]) -> frozenset[str]
     return frozenset(value for name, value in settings if name.rsplit("_", 1)[0] in families)
 
 
-def _relaxed(old_rule: QualityRuleIR, new_rule: QualityRuleIR) -> bool | None:
-    """Whether the settings change admits **more** rows than before: ``True``
-    relaxed, ``False`` unchanged-or-tightened, ``None`` undecidable.
+def _admits_previously_rejected(old_rule: QualityRuleIR, new_rule: QualityRuleIR) -> bool | None:
+    """Whether the settings change admits any value the old rule **rejected**:
+    ``True`` some quarantined row can now come back, ``False`` none can,
+    ``None`` undecidable.
+
+    This is the question :func:`_replay` asks, and it is deliberately *not*
+    "did the rule relax". The two agree on a pure widening and a pure
+    narrowing and part company on a **swap**, which is both at once: `in_set`
+    ``["a"] → ["b"]`` is not a superset of its old membership, so a
+    relaxation test answers "no" — while every row quarantined on ``b`` is now
+    admissible and, with no replay scope naming it, stays in the reject table
+    until someone finds it by hand. Rows the change *newly* rejects are not
+    this function's concern: they are in the entity, and the RESTATING
+    classification already backfills them out.
 
     ``None`` is an honest answer, not a placeholder. A ``pattern``'s regex and
-    an ``expression``'s SQL are not orderable — ``^A+$`` → ``^B+$`` is neither
-    a widening nor a narrowing — and a ``coercible`` rule's params are the
-    source expressions it reads, which say nothing about castability. The
-    caller decides what to do with the three-valued answer (see
-    :func:`_replay`); it is not this function's business to pretend.
+    an ``expression``'s SQL are not orderable — ``^A+$`` → ``^B+$`` admits an
+    unknown set — and a ``coercible`` rule's params are the source expressions
+    it reads, which say nothing about castability. The caller decides what to
+    do with the three-valued answer; it is not this function's business to
+    pretend.
     """
     old_settings, new_settings = _rule_settings(old_rule), _rule_settings(new_rule)
     if old_settings == new_settings:
@@ -579,26 +590,38 @@ def _relaxed(old_rule: QualityRuleIR, new_rule: QualityRuleIR) -> bool | None:
     if old_rule.kind in _SET_KINDS:
         # The param *names* are positions in a sorted list, so a set that grew
         # or shrank changes them; only the membership families carry values.
-        return _members(new_rule.kind, new_settings) >= _members(old_rule.kind, old_settings)
+        # Set difference, not a superset test: what matters is whether the new
+        # membership contains anything the old one did not.
+        gained = _members(new_rule.kind, new_settings) - _members(old_rule.kind, old_settings)
+        return bool(gained)
     old_params, new_params = dict(old_settings), dict(new_settings)
     if old_rule.kind in _BOUNDED_KINDS and set(old_params) == set(new_params):
-        return _relaxed_bounds(old_params, new_params)
+        return _admits_outside_bounds(old_params, new_params)
     return None
 
 
-def _relaxed_bounds(old_params: dict[str, str], new_params: dict[str, str]) -> bool | None:
-    """A ``range``/``length`` interval widens iff its floor drops and its
-    ceiling rises. Bounds are stringified ``Decimal``s (never floats — RFC
-    0003 D5); anything that will not parse is undecidable rather than guessed.
+def _admits_outside_bounds(old_params: dict[str, str], new_params: dict[str, str]) -> bool | None:
+    """Whether a ``range``/``length`` interval now admits a value outside the
+    old one — its floor dropped **or** its ceiling rose.
+
+    ``or``, not ``and``. Requiring both meant a shifted interval reported
+    nothing: ``0..10 → 5..20`` neither drops its floor nor keeps its ceiling
+    fixed, so the conjunction was false and a row quarantined at 15 — squarely
+    inside the new interval — was left stranded in the reject table. Both
+    bound sets have the same keys here (the caller checks), so a missing bound
+    on one side is a missing bound on the other and simply cannot move.
+
+    Bounds are stringified ``Decimal``s (never floats — RFC 0003 D5); anything
+    that will not parse is undecidable rather than guessed.
     """
     try:
         old_bounds = {bound: Decimal(value) for bound, value in old_params.items()}
         new_bounds = {bound: Decimal(value) for bound, value in new_params.items()}
     except InvalidOperation:  # pragma: no cover — the spec layer parses these first
         return None
-    floor_dropped = "min" not in old_bounds or new_bounds["min"] <= old_bounds["min"]
-    ceiling_rose = "max" not in old_bounds or new_bounds["max"] >= old_bounds["max"]
-    return floor_dropped and ceiling_rose
+    floor_dropped = "min" in old_bounds and new_bounds["min"] < old_bounds["min"]
+    ceiling_rose = "max" in old_bounds and new_bounds["max"] > old_bounds["max"]
+    return floor_dropped or ceiling_rose
 
 
 def _restates(acc: _Acc, entity: EntityIR, subject: str, detail: str, **reprs: str | None) -> None:
@@ -683,8 +706,17 @@ def _replay(
     - the rule is **gone** — every row it diverted returns;
     - its disposition is now ``flag`` (``unknown_member`` included, D19: the
       row is kept with its fk rewritten) — §5.7's named case;
-    - its parameters **relaxed** — the rows the widened bound now admits
-      return, whatever happens to the ones that still fail.
+    - its parameters now **admit something the old ones rejected** — those
+      rows return, whatever happens to the ones that still fail.
+
+    That third clause is :func:`_admits_previously_rejected`, and the question
+    it asks is narrower than "did the rule relax" on purpose (D81). A **swap**
+    — ``in_set ["a"] → ["b"]``, or ``range 0..10 → 5..20`` — relaxes nothing
+    by the superset/interval-widening reading, yet every row quarantined on
+    ``b`` or at 15 is admissible under the new rule. Asking the relaxation
+    question left exactly those rows in the reject table with no scope naming
+    them, which is §5.6's "drop plus recoverability" failing in the one
+    direction it must not.
 
     What is deliberately *not* a replay: ``quarantine → fail`` at unchanged
     parameters, and a **tightening**. Both leave every quarantined row still
@@ -693,7 +725,7 @@ def _replay(
     audit and halt the pipeline. Naming them was the shipped behaviour and it
     contradicted this module's own docstring.
 
-    Where :func:`_relaxed` cannot tell (an unorderable ``pattern`` or
+    Where the answer is undecidable (an unorderable ``pattern`` or
     ``expression``), the replay **is** reported. That is the conservative
     direction on purpose: a scope with nothing to drain costs a no-op MERGE,
     while a missing one strands rows in quarantine until someone notices by
@@ -705,7 +737,7 @@ def _replay(
     if new_rule is None or disposition(new_rule) is OnFail.FLAG:
         acc.replay.add(entity.name)
         return
-    if _relaxed(old_rule, new_rule) is not False:
+    if _admits_previously_rejected(old_rule, new_rule) is not False:
         acc.replay.add(entity.name)
 
 

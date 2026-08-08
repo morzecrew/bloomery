@@ -549,3 +549,75 @@ def test_a_widened_set_still_replays_with_the_markers_present() -> None:
     new = _in_set(("numeric_0000", "true"), ("numeric_0001", "false"), ("value_0000", "1"), ("value_0001", "x"))
     _backfill, replay = _scopes(old, new)
     assert replay == ("order_item",)
+
+
+# ....................... #
+# A swap admits previously-rejected rows although it relaxes nothing (D81)
+
+
+def _bounded(minimum: str | None, maximum: str | None) -> EntityIR:
+    params = tuple(
+        (name, value)
+        for name, value in (("min", minimum), ("max", maximum))
+        if value is not None
+    )
+    return entity(
+        quality=(
+            quality_rule(
+                name="amount_range",
+                kind="range",
+                column_name="amount",
+                on_fail=OnFail.QUARANTINE,
+                params=params,
+            ),
+        )
+    )
+
+
+def test_swapping_a_set_member_replays_although_it_is_not_a_widening() -> None:
+    """`["a"] → ["b"]` is a widening and a narrowing at once, so the superset
+    reading answered "not relaxed" and named no scope — while every row
+    quarantined on `b` had become admissible and stayed in the reject table
+    with nothing pointing at it. Replay asks whether the new rule admits
+    something the old one rejected, which a swap plainly does."""
+    assert _scopes(_in_enum("a"), _in_enum("b")) == (("order_item",), ("order_item",))
+
+
+def test_a_partial_set_swap_replays_too() -> None:
+    """The realistic shape: one member retired, one introduced."""
+    assert _scopes(_in_enum("a", "b"), _in_enum("b", "c")) == (
+        ("order_item",),
+        ("order_item",),
+    )
+
+
+def test_shifting_an_interval_replays_although_it_widens_neither_end() -> None:
+    """`0..10 → 5..20` drops no floor and so failed the old floor-*and*-ceiling
+    conjunction — leaving a row quarantined at 15, squarely inside the new
+    interval, stranded."""
+    assert _scopes(_bounded("0", "10"), _bounded("5", "20")) == (
+        ("order_item",),
+        ("order_item",),
+    )
+
+
+def test_shifting_an_interval_the_other_way_replays_on_the_dropped_floor() -> None:
+    assert _scopes(_bounded("5", "20"), _bounded("0", "10")) == (
+        ("order_item",),
+        ("order_item",),
+    )
+
+
+def test_a_strictly_tightened_interval_still_does_not_replay() -> None:
+    """The control the `or` must not break: nothing outside the old interval
+    is admitted, so no quarantined row can come back."""
+    assert _scopes(_bounded("0", "20"), _bounded("5", "10")) == (("order_item",), ())
+
+
+def test_raising_only_the_ceiling_replays_and_raising_only_the_floor_does_not() -> None:
+    """One end moving is enough to free rows, or to free none."""
+    assert _scopes(_bounded("0", "10"), _bounded("0", "20")) == (
+        ("order_item",),
+        ("order_item",),
+    )
+    assert _scopes(_bounded("0", "10"), _bounded("5", "10")) == (("order_item",), ())
