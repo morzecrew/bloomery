@@ -149,3 +149,33 @@ def test_a_project_without_steps_has_none() -> None:
 def test_the_unknown_kind_message_names_steps_version() -> None:
     with pytest.raises(SpecParseError, match="steps_version"):
         load_project({"entity_model": "spec_version: 1\nentities: {}\n", "x": "nothing: 1\n"})
+
+
+def test_a_bound_relation_may_not_carry_syntax() -> None:
+    """These strings reach *generated source*. A binding of
+    ``x", print("…"))\\n@model("y`` produced a wrapper that parsed, carried a
+    second decorator and executed at model import — the injection D25 claimed
+    to have closed, still open through the output binding."""
+    payloads = [
+        'x", print("PWNED"))\n@model("y',
+        "a'; import os",
+        "a\nb",
+        'a"b',
+        "a b",
+        "../escape",
+    ]
+    for payload in payloads:
+        doc = (
+            "steps_version: 1\nsteps:\n  - use: resolve_customers@3\n"
+            "    outputs: {customer: %r}\n" % payload
+        )
+        with pytest.raises(SpecParseError):
+            _steps(doc)
+
+
+def test_an_ordinary_namespaced_relation_is_accepted() -> None:
+    (wiring,) = _steps(
+        "steps_version: 1\nsteps:\n  - use: resolve_customers@3\n"
+        "    outputs: {customer: warehouse.silver.customer}\n"
+    ).steps
+    assert wiring.outputs["customer"] == "warehouse.silver.customer"

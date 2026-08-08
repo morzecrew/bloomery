@@ -146,41 +146,51 @@ def _mapping_edges(mapping: Mapping, canonical_by_field: dict[str, str | None]) 
 
 
 def _step_edges(project: Project) -> list[Edge]:
-    """Wire each step between the relations it reads and the fields it
-    produces (RFC 0017 §5.6, D11).
+    """Wire each step between what fills its inputs and what it produces
+    (RFC 0017 §5.6, D11).
 
     Both directions matter and for different reasons. Input edges put the step
     *downstream* of whatever fills its inputs, so a change upstream reaches it
-    in topological order. Output edges put every produced field downstream of
-    the step, which is what lets `plan()` compute a backfill *across* it —
-    the load-bearing goal (§4: "backfillability preserved across steps").
+    in topological order — and so a **cycle between two steps** is a cycle in
+    this graph rather than a pipeline that deadlocks at run time. Output edges
+    put the produced relation downstream of the step, which is what lets
+    `plan()` compute a backfill *across* it (§4).
 
-    A step reads a relation *whole*, so an input edge is drawn from every
-    field of the entity that relation names — not from a synthetic
-    ``<entity>.*`` node. That distinction was a real bug: the wildcard node
-    had no producer and no consumer anywhere else in the graph, so the
-    "upstream reaches it in topological order" claim above was false and the
-    step node only ever detected self-loops. An input naming no known entity
-    contributes no edge, because inventing a node nothing else agrees exists
-    is how the wildcard went wrong in the first place.
-
-    Output edges are drawn to the step's own produced columns, which is what
-    puts them downstream of the step and lets `plan()` compute a backfill
-    *across* it (§4).
+    An input is resolved two ways, and the second is the one that took a
+    regression to learn. A binding naming a **mapped entity** draws an edge
+    from each of that entity's fields — a step reads a relation whole. A
+    binding naming another **step's output** draws an edge from that step's
+    node directly, because a step-produced relation is not an entity and
+    looking only in the entity table silently produced no edge at all, which
+    is exactly the common case (one step feeding another) and exactly where
+    cycle detection was lost.
     """
     if project.steps is None:
         return []
     entities = project.entity_model.entities
+    producer_of: dict[str, str] = {
+        relation.rsplit(".", 1)[-1]: wiring.ref
+        for wiring in project.steps.steps
+        for relation in wiring.outputs.values()
+    }
     edges: list[Edge] = []
     for wiring in project.steps.steps:
         node = step_node(wiring.ref)
         for _name, bound in sorted(wiring.inputs.items()):
-            entity_name = bound.rsplit(".", 1)[-1]
-            entity = entities.get(entity_name)
+            relation = bound.rsplit(".", 1)[-1]
+            producer = producer_of.get(relation)
+            if producer is not None and producer != wiring.ref:
+                edges.append(Edge(src=step_node(producer), dst=node, label="step_input"))
+                continue
+            entity = entities.get(relation)
             if entity is None:
+                # A self-referencing binding lands here too, and must still
+                # produce the self-edge the cycle check reads.
+                if producer == wiring.ref:
+                    edges.append(Edge(src=node, dst=node, label="step_input"))
                 continue
             edges.extend(
-                Edge(src=entity_field_node(entity_name, field), dst=node, label="step_input")
+                Edge(src=entity_field_node(relation, field), dst=node, label="step_input")
                 for field in sorted({*entity.fields, *entity.key})
             )
         for output_name, relation in sorted(wiring.outputs.items()):

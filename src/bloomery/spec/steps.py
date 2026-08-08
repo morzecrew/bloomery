@@ -25,7 +25,9 @@ from bloomery.spec.common import SpecModel
 from bloomery.spec.quality import ExpressionRule
 
 __all__ = [
+    "RELATION_PATTERN",
     "USE_PATTERN",
+    "BoundRelation",
     "StepSet",
     "StepUse",
     "StepWiring",
@@ -34,7 +36,16 @@ __all__ = [
 #: ``ref@version`` — the only way a spec names a step.
 USE_PATTERN = r"^[a-z][a-z0-9_]*@[1-9][0-9]*$"
 
+#: A bound relation: an optionally-namespaced identifier and nothing else.
+#: Constrained because these strings reach *generated source* — a binding of
+#: ``x", print("…"))\n@model("y`` produced a wrapper that parsed, carried a
+#: second decorator, and executed at model import. The escaping in
+#: ``emit.steps`` is the boundary that must hold; this is the second lock, so
+#: neither alone is load-bearing (RFC 0017 §5.3, D3).
+RELATION_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$"
+
 StepUse = Annotated[str, StringConstraints(pattern=USE_PATTERN)]
+BoundRelation = Annotated[str, StringConstraints(pattern=RELATION_PATTERN)]
 
 #: A parameter value the wiring may set. ``float`` is deliberately absent
 #: (RFC 0003 D5) — a decimal arrives as ``Decimal``, and a YAML float would
@@ -54,8 +65,8 @@ class StepWiring(SpecModel):
     """
 
     use: StepUse
-    inputs: dict[str, str] = Field(default_factory=dict[str, str])
-    outputs: dict[str, str] = Field(min_length=1)
+    inputs: dict[str, BoundRelation] = Field(default_factory=dict[str, BoundRelation])
+    outputs: dict[str, BoundRelation] = Field(min_length=1)
     parameters: dict[str, ParameterValue] = Field(default_factory=dict[str, ParameterValue])
     seed: int | None = None
     #: ``expression`` rules only, deliberately. The other entity-level rule

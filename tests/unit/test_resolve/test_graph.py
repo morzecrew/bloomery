@@ -113,7 +113,11 @@ def test_a_wired_step_is_a_first_class_node(step_project: Project) -> None:
     assert ("customer_raw.email", "step.resolve_customers", "step_input") in labels
     assert ("customer_raw.source_id", "step.resolve_customers", "step_input") in labels
     assert ("step.resolve_customers", "customer.customer", "step_output") in labels
-    assert not any(name.endswith(".*") for name, _, _ in labels)
+    # Both ends: a regression reintroducing a `customer.*` *destination*
+    # passed the one-sided version of this assertion.
+    assert not any(
+        endpoint.endswith(".*") for src, dst, _ in labels for endpoint in (src, dst)
+    )
 
 
 def test_a_step_with_no_wired_inputs_still_appears() -> None:

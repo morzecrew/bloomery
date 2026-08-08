@@ -396,6 +396,10 @@ class DbtEmitter:
         )
 
     def emit(self, ir: ProjectIR, ctx: EmitContext) -> tuple[EmittedArtifact, ...]:
+        """Lower every entity to a model (SCD type 2 → snapshot), every mart
+        and the date dimension to gold models, audits to ``schema.yml``, plus
+        the project scaffold and bronze sources; artifacts sorted by path,
+        content ending in exactly one newline (RFC 0003 §5.5 rule 5)."""
         if ir.steps:
             # RFC 0017 §5.8 emits steps for SQLMesh only. Dropping them here
             # would silently withhold relations downstream models were
@@ -408,10 +412,6 @@ class DbtEmitter:
             )
             raise UnsupportedByTarget(msg)
 
-        """Lower every entity to a model (SCD type 2 → snapshot), every mart
-        and the date dimension to gold models, audits to ``schema.yml``, plus
-        the project scaffold and bronze sources; artifacts sorted by path,
-        content ending in exactly one newline (RFC 0003 §5.5 rule 5)."""
         _refuse_reconcile(ir)
         artifacts: list[EmittedArtifact] = [_project_artifact(ctx)]
         for entity in ir.entities:

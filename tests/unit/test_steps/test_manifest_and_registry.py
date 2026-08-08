@@ -235,3 +235,16 @@ def test_the_rfc_worked_manifest_spells_a_bare_decimal_parameter() -> None:
     the divergence — the RFC is the authority."""
     parsed = manifest(parameters={"threshold": {"type": "decimal", "default": "0.85"}})
     assert parsed.parameters["threshold"].type == "decimal"
+
+
+def test_an_output_name_that_is_not_an_identifier_is_refused() -> None:
+    """Output names reach the wrapper's ``return outputs[…]`` and its
+    docstring; a name carrying a quote or a newline made the generated module
+    a syntax error."""
+    for bad in ('a"] ) or print("PWN"', "a\nb", "a b"):
+        with pytest.raises(ValidationError, match="not identifiers"):
+            manifest(
+                outputs={
+                    bad: {"grain": "g", "key": ["k"], "produces": {"k": {"type": "string"}}}
+                }
+            )

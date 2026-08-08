@@ -22,6 +22,7 @@ stage, different aggregate.
 
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, cast
 
@@ -186,6 +187,62 @@ def _check_parameters(wiring: StepWiring, manifest: StepManifest) -> list[Bloome
     return errors
 
 
+def _claims(wiring: StepWiring) -> list[tuple[str, str]]:
+    """What a step would write, for the collision check to see even when the
+    step itself failed validation — otherwise the author fixes one error,
+    re-runs, and only then learns two steps claim one relation."""
+    return [
+        (relation.rsplit(".", 1)[-1], f"{wiring.ref}@{wiring.version}.{name}")
+        for name, relation in sorted(wiring.outputs.items())
+    ]
+
+
+def _check_parameter_types(
+    wiring: StepWiring, manifest: StepManifest, resolved: dict[str, str]
+) -> list[BloomeryError]:
+    """Every resolved value must parse as its declared type.
+
+    The emitter rebuilds a real ``int``/``Decimal``/``date`` from this text
+    (§5.8), so a value that will not parse used to surface as a bare
+    ``ValueError`` out of ``int()`` — a non-``BloomeryError`` crossing the
+    compile boundary, which RFC 0002 forbids — or, for the temporal and
+    decimal constructors, as an exception at *model import* in somebody's
+    warehouse. Checked here, where it is a spec error with the step's name on
+    it. Manifest **defaults** are checked too: they resolve into the IR
+    exactly like an authored value and were the path that crashed.
+    """
+    errors: list[BloomeryError] = []
+    for name in sorted(resolved):
+        declared = manifest.parameters[name].type.split("(", 1)[0].strip()
+        value = resolved[name]
+        problem: str | None = None
+        if declared == "int":
+            try:
+                int(value)
+            except ValueError:
+                problem = "an integer"
+        elif declared == "decimal":
+            try:
+                if not Decimal(value).is_finite():
+                    problem = "a finite decimal"
+            except InvalidOperation:
+                problem = "a decimal"
+        elif declared in {"date", "timestamp"}:
+            try:
+                datetime.fromisoformat(value)
+            except ValueError:
+                problem = f"an ISO {declared}"
+        if problem is not None:
+            msg = (
+                f"step {wiring.use!r} resolves parameter {name!r} to {value!r}, which is "
+                f"not {problem} as the manifest declares (RFC 0017 §5.2). The generated "
+                "wrapper builds the real value from this text, so an unparseable one "
+                "fails at model import rather than here"
+            )
+            errors.append(StepError(msg, source_path=_path(wiring)))
+    return errors
+
+
 def _resolved_parameters(wiring: StepWiring, manifest: StepManifest) -> tuple[StepParameterIR, ...]:
     """Every parameter the step will run with — the wiring's values over the
     manifest's defaults — sorted by name.
@@ -197,16 +254,30 @@ def _resolved_parameters(wiring: StepWiring, manifest: StepManifest) -> tuple[St
     meets a float (RFC 0003 D5); the declared type travels beside each one so
     the generated wrapper can rebuild the real value (§5.8).
     """
+    return tuple(
+        StepParameterIR(name=name, value=value, type=manifest.parameters[name].type)
+        for name, value in sorted(_resolved_values(wiring, manifest).items())
+    )
+
+
+def _resolved_values(wiring: StepWiring, manifest: StepManifest) -> dict[str, str]:
+    """The wiring's values over the manifest's defaults, as text. Only the
+    parameters the manifest declares — an undeclared one is
+    :func:`_check_parameters`' refusal, and including it here would make this
+    function crash on the lookup before that refusal could be reported."""
     resolved: dict[str, str] = {
         name: str(spec.default)
         for name, spec in manifest.parameters.items()
         if spec.default is not None
     }
-    resolved.update({name: str(value) for name, value in wiring.parameters.items()})
-    return tuple(
-        StepParameterIR(name=name, value=value, type=manifest.parameters[name].type)
-        for name, value in sorted(resolved.items())
+    resolved.update(
+        {
+            name: str(value)
+            for name, value in wiring.parameters.items()
+            if name in manifest.parameters
+        }
     )
+    return resolved
 
 
 def _outputs(wiring: StepWiring, manifest: StepManifest) -> tuple[StepOutputIR, ...]:
@@ -358,7 +429,7 @@ def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[Bloo
             "parses Tier 1 and Tier 2 bodies at compile (RFC 0017 §5.8), so this is a "
             "registry error rather than something an engine discovers later"
         )
-        return None, [UnknownStep(msg, source_path=_path(wiring))]
+        return None, [StepError(msg, source_path=_path(wiring))]
 
 
 def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tuple[StepIR, ...]:
@@ -390,22 +461,22 @@ def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tu
             *_check_parameters(wiring, manifest),
             *_check_body(wiring, manifest, body),
         ]
+        resolved = _resolved_values(wiring, manifest)
+        step_errors.extend(_check_parameter_types(wiring, manifest, resolved))
         errors.extend(step_errors)
         if step_errors:
             # Its relations still enter the collision check below: skipping a
             # failing step there meant an author fixed a determinism error,
             # re-ran, and only then learned two steps claim one relation —
             # the second round-trip this module exists to prevent.
-            claimed.extend(
-                (relation.rsplit(".", 1)[-1], f"{wiring.ref}@{wiring.version}.{name}")
-                for name, relation in sorted(wiring.outputs.items())
-            )
+            claimed.extend(_claims(wiring))
             continue
         parsed = None
         if body is not None:
             node, body_errors = _parse_body(wiring, body)
             errors.extend(body_errors)
             if body_errors:
+                claimed.extend(_claims(wiring))
                 continue
             parsed = canon(cast("Expression", node))
         steps.append(

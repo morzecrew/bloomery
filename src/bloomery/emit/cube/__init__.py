@@ -257,6 +257,9 @@ class CubeEmitter:
         )
 
     def emit(self, ir: ProjectIR, ctx: EmitContext) -> tuple[EmittedArtifact, ...]:
+        """Lower every mart to a cube and a view; artifacts sorted by path,
+        content ending in exactly one newline (RFC 0003 §5.5 rule 5). A
+        project without marts emits nothing — Cube has no silver surface."""
         if ir.steps:
             # RFC 0017 §5.8 emits steps for SQLMesh only. Dropping them here
             # would silently withhold relations downstream models were
@@ -269,9 +272,6 @@ class CubeEmitter:
             )
             raise UnsupportedByTarget(msg)
 
-        """Lower every mart to a cube and a view; artifacts sorted by path,
-        content ending in exactly one newline (RFC 0003 §5.5 rule 5). A
-        project without marts emits nothing — Cube has no silver surface."""
         owners = measure_owners(ir)
         artifacts: list[EmittedArtifact] = []
         for mart in ir.marts:  # sorted by name on ProjectIR

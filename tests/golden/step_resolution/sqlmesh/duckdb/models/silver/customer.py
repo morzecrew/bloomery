@@ -23,7 +23,7 @@ PARAMETERS = {'threshold': Decimal('0.9')}
 
 
 @model(
-    "silver.customer",
+    'silver.customer',
     kind="FULL",
     columns={'canonical_id': 'VARCHAR', 'confidence': 'DECIMAL(4, 3)'},
 )
@@ -37,4 +37,4 @@ def execute(context: typing.Any, **kwargs: typing.Any) -> typing.Any:
     }
     outputs = resolve(**inputs, **PARAMETERS)
     assert_step_contract(outputs, MANIFEST)
-    return outputs["customer"]
+    return outputs['customer']

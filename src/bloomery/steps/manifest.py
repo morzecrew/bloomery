@@ -226,6 +226,17 @@ class StepManifest(SpecModel):
                 "so the generated wrapper could not pass them as keyword arguments"
             )
             raise ValueError(msg)
+        # Output names are not keyword arguments, but they *are* interpolated
+        # into generated source (the wrapper's ``return outputs[…]`` and its
+        # docstring), so the same constraint applies for the same reason.
+        bad_outputs = sorted(name for name in self.outputs if not name.isidentifier())
+        if bad_outputs:
+            msg = (
+                f"output name(s) {', '.join(bad_outputs)} are not identifiers; output "
+                "names reach the generated wrapper's source and must not be able to "
+                "carry syntax into it"
+            )
+            raise ValueError(msg)
         return self
 
     @model_validator(mode="after")

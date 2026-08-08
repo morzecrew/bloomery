@@ -34,8 +34,8 @@ def test_each_declared_output_gets_its_own_wrapper() -> None:
 
 def test_each_wrapper_returns_its_own_output() -> None:
     content = wrappers()
-    assert 'return outputs["customer"]' in content["models/silver/customer.py"]
-    assert 'return outputs["customer_xref"]' in content["models/silver/customer_xref.py"]
+    assert "return outputs['customer']" in content["models/silver/customer.py"]
+    assert "return outputs['customer_xref']" in content["models/silver/customer_xref.py"]
 
 
 def test_every_wrapper_asserts_all_declared_outputs() -> None:
@@ -149,12 +149,26 @@ def test_a_macro_emits_no_artifact_of_its_own() -> None:
 
 
 def test_a_python_model_never_reaches_a_sql_harness() -> None:
-    """A latent trap worth pinning: a `python_model` wrapper is
-    `ArtifactKind.MODEL` (RFC 0008 D2 — artifacts are file-shaped text, so a
-    Python model needs no new kind), which means anything filtering models by
-    *kind* alone would hand Python source to a SQL engine. The execution
-    harness filters on the suffix; this asserts the suffix is there to filter
-    on."""
-    for path, content in wrappers().items():
-        assert path.endswith(".py")
-        assert not content.lstrip().startswith("MODEL (")
+    """A latent trap: a `python_model` wrapper is `ArtifactKind.MODEL` (RFC
+    0008 D2 — artifacts are file-shaped text, so a Python model needs no new
+    kind), so anything filtering models by *kind* alone hands Python source to
+    a SQL engine.
+
+    This drives the real harness rather than asserting the suffix and calling
+    it proof: the first version of this test named ``execution.materialize``
+    in its docstring, never called it, and passed with the filter reverted.
+    """
+    import duckdb
+
+    from support.execution import materialize
+
+    connection = duckdb.connect(":memory:")
+    try:
+        # Raises if the harness hands DuckDB a `.py` model; creates nothing,
+        # because a step body is platform code this harness never runs.
+        materialize(connection, compile_fixture("step_resolution"))
+        created = connection.execute("SELECT count(*) FROM duckdb_tables()").fetchone()
+        assert created is not None
+        assert created[0] == 0
+    finally:
+        connection.close()

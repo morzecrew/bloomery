@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 
 from bloomery import build_project_ir, load_project
-from bloomery.errors import StepDeterminismError, StepError, UnknownStep
+from bloomery.errors import CircularDerivation, StepDeterminismError, StepError, UnknownStep
 from bloomery.ir import Determinism, StepKind, project_fingerprint
 from bloomery.steps import StepManifest, StepRegistry
 from bloomery.typing import DecimalType, StringType
@@ -401,3 +401,67 @@ steps:
         build_project_ir(project, steps=registry)
     kinds = {type(leaf).__name__ for leaf in excinfo.value.collected}
     assert kinds == {"StepDeterminismError", "StepError"}
+
+
+def test_two_steps_in_a_mutual_loop_are_refused() -> None:
+    """A step reading another step's output is the common case, and the edge
+    for it was missing entirely — so a mutual loop between two steps compiled
+    clean and would have deadlocked at run time. Cycle detection through the
+    entity table alone never saw it, because a step-produced relation is not
+    an entity."""
+
+    def one(ref: str, output: str) -> StepManifest:
+        return manifest(
+            ref=ref,
+            version=1,
+            inputs={"src": {"grain": "g"}},
+            parameters={},
+            outputs={
+                output: {"grain": "g", "key": ["k"], "produces": {"k": {"type": "string"}}}
+            },
+        )
+
+    project = load_project(
+        {
+            "entity_model": ENTITY_MODEL,
+            "steps": """
+steps_version: 1
+steps:
+  - use: s@1
+    inputs: {src: silver.b}
+    outputs: {out_a: silver.a}
+  - use: t@1
+    inputs: {src: silver.a}
+    outputs: {out_b: silver.b}
+""",
+        }
+    )
+    registry = StepRegistry({("s", 1): one("s", "out_a"), ("t", 1): one("t", "out_b")})
+    with pytest.raises(CircularDerivation, match="step.s"):
+        build_project_ir(project, steps=registry)
+
+
+@pytest.mark.parametrize(
+    ("declared", "value"),
+    [("int", "2.5"), ("int", "abc"), ("decimal", "abc"), ("date", "nope"), ("timestamp", "x")],
+)
+def test_a_parameter_that_cannot_parse_as_its_type_is_refused(declared: str, value: str) -> None:
+    """The wrapper rebuilds a real value from this text, so an unparseable one
+    used to surface as a bare ``ValueError`` out of ``int()`` — crossing the
+    compile boundary as a non-``BloomeryError`` — or as an exception at model
+    import in somebody's warehouse."""
+    with pytest.raises(StepError, match="as the manifest declares"):
+        build(
+            WIRING.replace("threshold: 0.9", f"threshold: '{value}'"),
+            parameters={"threshold": {"type": declared}},
+        )
+
+
+def test_an_unparseable_manifest_default_is_refused_too() -> None:
+    """Defaults resolve into the IR exactly like an authored value, and were
+    the path that crashed."""
+    with pytest.raises(StepError, match="as the manifest declares"):
+        build(
+            WIRING.replace("    parameters: {threshold: 0.9}\n", ""),
+            parameters={"threshold": {"type": "int", "default": "abc"}},
+        )
