@@ -61,9 +61,13 @@ def test_a_mapped_entity_carries_no_marker() -> None:
 
 
 def test_the_step_relation_is_emitted_once_by_the_wrapper() -> None:
-    paths = [a.path for a in compile_fixture("step_resolution")]
-    assert paths == ["models/silver/customer.py", "models/silver/customer_xref.py"]
-    assert not any(path.endswith(".sql") for path in paths)
+    """One model per output and no second one: the entity exists for the rest
+    of the compiler to reference, and the wrapper owns emission. The `.sql`
+    artifact is the D16 consistency audit, not a rival model."""
+    models = [
+        a.path for a in compile_fixture("step_resolution") if a.path.startswith("models/")
+    ]
+    assert models == ["models/silver/customer.py", "models/silver/customer_xref.py"]
 
 
 def test_a_mart_may_be_built_over_a_step_output() -> None:

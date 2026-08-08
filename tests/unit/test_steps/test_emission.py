@@ -21,7 +21,13 @@ pytestmark = pytest.mark.unit
 
 
 def wrappers() -> dict[str, str]:
-    return {a.path: a.content for a in compile_fixture("step_resolution")}
+    """The generated Python models only — a step also emits the D16
+    cross-output consistency audits, which are ordinary SQL."""
+    return {
+        a.path: a.content
+        for a in compile_fixture("step_resolution")
+        if a.path.endswith(".py")
+    }
 
 
 # ....................... #
