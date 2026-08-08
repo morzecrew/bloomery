@@ -9,6 +9,7 @@ may pass members in any order.
 from __future__ import annotations
 
 from bloomery.ir import (
+    step_sort_key,
     Additivity,
     AuditIR,
     ColumnIR,
@@ -28,6 +29,7 @@ from bloomery.ir import (
     QuarantineIR,
     Ratio,
     ReconcileIR,
+    StepIR,
     RelationshipIR,
     SCDKind,
     SemiAdditivePolicy,
@@ -200,6 +202,7 @@ def project(
     marts: tuple[MartIR, ...] = (),
     date_dimension: DateDimensionIR | None = None,
     reconcile: tuple[ReconcileIR, ...] = (),
+    steps: tuple[StepIR, ...] = (),
 ) -> ProjectIR:
     return ProjectIR(
         bloomery_ir_version=3,
@@ -210,4 +213,5 @@ def project(
         marts=tuple(sorted(marts, key=lambda m: m.name)),
         date_dimension=date_dimension,
         reconcile=tuple(sorted(reconcile, key=lambda check: check.name)),
+        steps=tuple(sorted(steps, key=step_sort_key)),
     )
