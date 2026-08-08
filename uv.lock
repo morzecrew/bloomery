@@ -168,7 +168,7 @@ dev = [
     { name = "duckdb", specifier = ">=1.1" },
     { name = "hypothesis", specifier = ">=6.130" },
     { name = "import-linter", specifier = ">=2.3" },
-    { name = "mypy", extras = ["faster-cache"], specifier = ">=1.15" },
+    { name = "mypy", extras = ["faster-cache"], specifier = ">=2.3.0" },
     { name = "pre-commit", specifier = ">=4.1" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-cov", specifier = ">=6" },
