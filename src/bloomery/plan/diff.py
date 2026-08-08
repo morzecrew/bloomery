@@ -79,7 +79,8 @@ unit-tested per branch):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
+from datetime import datetime
+from decimal import Decimal
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
@@ -87,6 +88,7 @@ from bloomery.errors import ContractViolation, PlanError, RenameTargetMissing
 from bloomery.ir import OnFail
 from bloomery.plan.model import BackfillScope, Change, ChangeClass, Plan, ReplayScope
 from bloomery.quality import disposition, payload_key
+from bloomery.spec.quality import EXACT_DECIMAL
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -600,6 +602,52 @@ def _admits_previously_rejected(old_rule: QualityRuleIR, new_rule: QualityRuleIR
     return None
 
 
+def _bound_value(text: str) -> Decimal | datetime | None:
+    """One bound as a sortable value, or ``None`` if it is not one this module
+    can order.
+
+    A ``range`` bound is an exact decimal **or** an ISO date/timestamp (RFC
+    0016 D57) — the string carrier exists for exactly that. Parsing every
+    bound as ``Decimal`` therefore raised on every temporal one, which the
+    caller read as "undecidable"; see :func:`_admits_outside_bounds` for what
+    that cost. The numeric/temporal split is :data:`EXACT_DECIMAL`, the same
+    grammar the spec layer validated the bound against, so the two cannot
+    disagree about which carrier a bound is written in.
+
+    Parsing only; no clock is read (RFC 0003).
+    """
+    if EXACT_DECIMAL.match(text):
+        return Decimal(text)
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        return None
+
+
+def _compare_bounds(lhs_text: str, rhs_text: str) -> int | None:
+    """The sign of ``lhs - rhs``, or ``None`` when the two are incomparable.
+
+    Comparable means *like-typed*: two decimals, or two datetimes that are
+    both aware or both naive. ISO text is not lexicographically ordered —
+    ``2020-01-01T05:00:00+06:00`` sorts after ``2020-01-01T00:00:00Z`` as text
+    and is the earlier instant — so the values are parsed rather than
+    compared as strings; and Python refuses to compare an aware datetime with
+    a naive one at all, which is a genuine ambiguity (the naive one has no
+    instant until someone supplies a zone) and is reported rather than
+    guessed.
+    """
+    lhs, rhs = _bound_value(lhs_text), _bound_value(rhs_text)
+    if isinstance(lhs, Decimal) and isinstance(rhs, Decimal):
+        return (lhs > rhs) - (lhs < rhs)
+    if (
+        isinstance(lhs, datetime)
+        and isinstance(rhs, datetime)
+        and (lhs.tzinfo is None) == (rhs.tzinfo is None)
+    ):
+        return (lhs > rhs) - (lhs < rhs)
+    return None
+
+
 def _admits_outside_bounds(old_params: dict[str, str], new_params: dict[str, str]) -> bool | None:
     """Whether a ``range``/``length`` interval now admits a value outside the
     old one — its floor dropped **or** its ceiling rose.
@@ -611,17 +659,16 @@ def _admits_outside_bounds(old_params: dict[str, str], new_params: dict[str, str
     bound sets have the same keys here (the caller checks), so a missing bound
     on one side is a missing bound on the other and simply cannot move.
 
-    Bounds are stringified ``Decimal``s (never floats — RFC 0003 D5); anything
-    that will not parse is undecidable rather than guessed.
+    A bound pair :func:`_compare_bounds` cannot order makes the whole answer
+    ``None``, undecidable, rather than a guess about the end it could read.
     """
-    try:
-        old_bounds = {bound: Decimal(value) for bound, value in old_params.items()}
-        new_bounds = {bound: Decimal(value) for bound, value in new_params.items()}
-    except InvalidOperation:  # pragma: no cover — the spec layer parses these first
-        return None
-    floor_dropped = "min" in old_bounds and new_bounds["min"] < old_bounds["min"]
-    ceiling_rose = "max" in old_bounds and new_bounds["max"] > old_bounds["max"]
-    return floor_dropped or ceiling_rose
+    moved: dict[str, int] = {}
+    for bound, old_text in old_params.items():
+        order = _compare_bounds(new_params[bound], old_text)
+        if order is None:
+            return None
+        moved[bound] = order
+    return moved.get("min", 0) < 0 or moved.get("max", 0) > 0
 
 
 def _restates(acc: _Acc, entity: EntityIR, subject: str, detail: str, **reprs: str | None) -> None:

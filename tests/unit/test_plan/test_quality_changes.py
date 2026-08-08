@@ -621,3 +621,81 @@ def test_raising_only_the_ceiling_replays_and_raising_only_the_floor_does_not() 
         ("order_item",),
     )
     assert _scopes(_bounded("0", "10"), _bounded("5", "10")) == (("order_item",), ())
+
+
+# ....................... #
+# Temporal range bounds are ordered, not read as undecidable (D57 × D81)
+
+
+def test_a_tightened_timestamp_range_does_not_replay() -> None:
+    """RFC 0016 D57 permits ISO date/timestamp `range` bounds — the string
+    carrier exists for them. Parsing every bound as `Decimal` raised on those,
+    which the caller read as "undecidable" and therefore replayable, so a pure
+    temporal *tightening* scheduled a MERGE that can free nothing. Under
+    `quarantine → fail` that is worse than noise: it feeds the replay runner
+    rows that trip the new blocking audit."""
+    wide = _bounded("2020-01-01T00:00:00Z", "2030-01-01T00:00:00Z")
+    tight = _bounded("2021-01-01T00:00:00Z", "2029-01-01T00:00:00Z")
+    assert _scopes(wide, tight) == (("order_item",), ())
+
+
+def test_a_widened_timestamp_range_replays() -> None:
+    wide = _bounded("2020-01-01T00:00:00Z", "2030-01-01T00:00:00Z")
+    tight = _bounded("2021-01-01T00:00:00Z", "2029-01-01T00:00:00Z")
+    assert _scopes(tight, wide) == (("order_item",), ("order_item",))
+
+
+def test_a_shifted_timestamp_range_replays() -> None:
+    """The D81 swap, in the temporal carrier."""
+    old = _bounded("2020-01-01T00:00:00Z", "2030-01-01T00:00:00Z")
+    new = _bounded("2025-01-01T00:00:00Z", "2035-01-01T00:00:00Z")
+    assert _scopes(old, new) == (("order_item",), ("order_item",))
+
+
+def test_date_only_bounds_order_too() -> None:
+    assert _scopes(_bounded("2020-01-01", "2030-01-01"), _bounded("2021-01-01", "2029-01-01")) == (
+        ("order_item",),
+        (),
+    )
+
+
+def test_an_offset_bound_is_ordered_by_instant_not_by_text() -> None:
+    """ISO text is not lexicographically ordered, which is why the bounds are
+    parsed rather than compared as strings. `2020-01-01T05:00:00+06:00` is the
+    *earlier* instant than `2020-01-01T00:00:00Z` (it is 2019-12-31T23:00Z)
+    while sorting after it as text — so the two readings disagree here, in
+    both directions."""
+    utc, offset = "2020-01-01T00:00:00Z", "2020-01-01T05:00:00+06:00"
+    ceiling = "2030-01-01T00:00:00Z"
+    # The floor moves earlier: a widening, which a text comparison would miss.
+    assert _scopes(_bounded(utc, ceiling), _bounded(offset, ceiling)) == (
+        ("order_item",),
+        ("order_item",),
+    )
+    # ...and back: the floor moves later, a tightening a text comparison would
+    # have called a widening and replayed for nothing.
+    assert _scopes(_bounded(offset, ceiling), _bounded(utc, ceiling)) == (("order_item",), ())
+
+
+def test_bounds_of_different_kinds_are_undecidable_and_replay() -> None:
+    """A naive bound and an aware one cannot be compared at all (Python
+    refuses), and a decimal cannot be compared to a timestamp. Undecidable
+    reports the replay — the conservative direction, per D52."""
+    naive = _bounded("2020-01-01T00:00:00", "2030-01-01T00:00:00")
+    aware = _bounded("2021-01-01T00:00:00Z", "2029-01-01T00:00:00Z")
+    assert _scopes(naive, aware) == (("order_item",), ("order_item",))
+    assert _scopes(_bounded("0", "10"), _bounded("2021-01-01", "2029-01-01")) == (
+        ("order_item",),
+        ("order_item",),
+    )
+
+
+def test_an_unparseable_bound_is_undecidable_and_replays() -> None:
+    """The spec layer refuses these at parse, so this is the belt-and-braces
+    branch — but it is reachable through a hand-built IR, and the `pragma: no
+    cover` that used to sit on it was simply false once D57 admitted temporal
+    bounds."""
+    assert _scopes(_bounded("0", "10"), _bounded("0", "not-a-bound")) == (
+        ("order_item",),
+        ("order_item",),
+    )

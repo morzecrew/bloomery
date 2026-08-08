@@ -49,6 +49,7 @@ __all__ = [
     "OnFailName",
     "OnMissingName",
     "PatternRule",
+    "EXACT_DECIMAL",
     "PortableRegex",
     "Quarantine",
     "QualityRule",
@@ -392,7 +393,12 @@ PortableRegex = Annotated[str, AfterValidator(_portable_regex)]
 #: exponent — ``1e10`` renders as a double literal, and no float ever reaches
 #: an emission path (RFC 0003 D5). No ``NaN``/``Infinity`` — ``Decimal``
 #: parses both, and ``amount < nan`` fails open.
-_EXACT_DECIMAL = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$")
+#: An exact decimal bound: optional sign, digits, optional fraction, no
+#: exponent (D57). Public because :mod:`bloomery.plan.diff` reads bounds
+#: back out of the IR to order them, and must split numeric from temporal
+#: exactly where this grammar does — two spellings of one grammar is how
+#: they drift.
+EXACT_DECIMAL = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$")
 
 #: The ISO temporal carrier: ``str`` bounds also exist for dates and
 #: timestamps (RFC 0015 D5), which lower to string literals compared in the
@@ -415,7 +421,7 @@ def _exact_bound(value: int | Decimal | str) -> int | Decimal | str:
     spellings, which stay strings precisely because ``Decimal`` refused them.
     """
     text = str(value)
-    if _EXACT_DECIMAL.match(text) or (isinstance(value, str) and _ISO_TEMPORAL.match(text)):
+    if EXACT_DECIMAL.match(text) or (isinstance(value, str) and _ISO_TEMPORAL.match(text)):
         return value
     lowered = text.lower().lstrip("+-")
     if lowered.startswith(("nan", "snan", "inf")):
