@@ -64,7 +64,14 @@ default is the one setting nobody reads before shipping.
 |---|---|
 | `flag` | The row passes through unchanged, with the rule's name appended to `_quality_flags` |
 | `quarantine` | The row is diverted to the entity's `<entity>__reject` table, where it stays replayable |
-| `fail` | The run stops — the rule compiles to a blocking audit on the model |
+| `fail` | The run stops — the rule compiles to a blocking audit over the rows the pipeline evaluated |
+
+Severity settles what happens when several rules fire on one row: `fail` beats
+`quarantine` beats `flag`. A `fail` rule's audit therefore reads the **pre-route**
+population rather than the finished model — otherwise a row that failed a blocking rule
+*and* a quarantine rule would sit in the reject table with the run carrying on, and the
+weaker disposition would quietly win. Whichever way the row went, every rule it failed is
+recorded: in `failed_rules` if it was diverted, in `_quality_flags` if it was kept.
 
 Two absences are deliberate.
 
@@ -188,14 +195,19 @@ enough identity to be idempotent:
 `_load_id` is deliberately *not* part of the identity. A re-delivery of the same source
 row across loads must land on the **same** reject row — that is what `first_seen` and
 `last_seen` track. A per-load identity would mint a new reject row per retry and destroy
-replay idempotence.
+replay idempotence. The reject model is incremental on `reject_id` and its merge is
+selective: a re-delivery advances `last_seen`, `_load_id` and `failed_rules` while
+`first_seen` keeps the value it already had. `first_seen` is the column that says when
+the problem started, and a merge that overwrote it would leave the pair carrying one
+fact under two names.
 
 **Replay** re-runs the current mapping against `raw` for unresolved rows and merges the
-passers into the entity by key, using the pipeline's own dedupe order so a replayed
-candidate wins or loses against an incumbent exactly as it would have the first time.
-Replay never deletes: a resolved row keeps its reject entry as audit history with
-`resolved_at` set, and drops out of the conservation accounting. Retention is the only
-deleter.
+passers into the entity by key, using the pipeline's own dedupe order — both against the
+incumbent row and against each other, so two reject rows resolving to one key produce one
+entity row, not two. The rows that still fail are re-stamped from that same evaluation:
+`failed_rules` re-derived, `last_seen` advanced. Replay never deletes: a resolved row
+keeps its reject entry as audit history with `resolved_at` set, and drops out of the
+conservation accounting. Retention is the only deleter.
 
 `retention:` is required the moment any rule can quarantine — not defaulted, because
 `raw` holds source payloads and therefore PII, and this is the sort of thing that is
@@ -240,12 +252,22 @@ Every rule evaluation contributes a row to `gold.mart_data_quality` — `entity`
 `mapping`, `rule`, `disposition`, the four counts (`rows_evaluated`, `rows_failed`,
 `rows_quarantined`, `rows_deduped`), and the run context. It is a `MartIR` with measures
 and a date role like any other, which is the entire point: quarantine rate is a plain
-`MetricRequest`, groupable by entity or rule, filterable, and answerable through the
-same planner as revenue.
+`MetricRequest`, groupable by entity, filterable, and answerable through the same planner
+as revenue.
 
 The counts are stored, the rate is not. `quality_quarantine_rate` is a ratio metric over
 two additive measures, so it stays correct at every grouping — a stored rate column
 would not be.
+
+"Additive" is a claim about the rows, not just the columns, and the mart is shaped to
+make it true. Only `rows_failed` is a fact about a *rule*; the other three describe the
+entity's population — how many rows the rules ran over, how many the split diverted, how
+many dedupe removed before any rule saw them. So each entity contributes one extra
+**accounting row**, marked `(entity)` in the `rule` and `disposition` dimensions, and
+rule rows carry zero in those columns. Summing then works at any grouping. The trade is
+explicit: `rows_evaluated` cannot be sliced *by rule*, because it was never a per-rule
+number — an absent denominator reads as absent, where a repeated one read as a number
+and was wrong by the rule count.
 
 A rising quarantine rate is a *semantic* drift signal that structural detection misses
 entirely: prices arriving in cents change no schema.

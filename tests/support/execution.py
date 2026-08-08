@@ -71,7 +71,43 @@ def _referenced(select: str, known: frozenset[str]) -> frozenset[str]:
     return frozenset(names & known)
 
 
-_UNIQUE_KEY = re.compile(r"kind INCREMENTAL_BY_UNIQUE_KEY \(unique_key \((?P<keys>[^)]*)\)\)")
+_UNIQUE_KEY = re.compile(r"kind INCREMENTAL_BY_UNIQUE_KEY \(unique_key \((?P<keys>[^)]*)\)")
+_WHEN_MATCHED = re.compile(r"when_matched \(WHEN MATCHED THEN UPDATE SET (?P<clause>.*)\)\)")
+
+#: SQLMesh's spelling of the two sides of a merge inside ``when_matched``.
+_MERGE_TARGET = "target"
+_MERGE_SOURCE = "source"
+_INCOMING = "_incoming"
+
+
+def _upsert(
+    conn: duckdb.DuckDBPyConnection, name: str, keys: list[str], clause: str | None
+) -> None:
+    """The ``INCREMENTAL_BY_UNIQUE_KEY`` branch, honouring ``when_matched``.
+
+    The framework's job, stood in for — and it has to be stood in for
+    *honestly*, because ``when_matched`` is where RFC 0016 §5.6 puts the rule
+    that ``first_seen`` survives a re-delivery. A harness that always replaced
+    the whole row would pass a test the real target fails, which is worse than
+    no harness at all.
+
+    With no clause the merge updates every column, which is SQLMesh's default.
+    """
+    predicate = " AND ".join(f"{_MERGE_TARGET}.{key} = {_MERGE_SOURCE}.{key}" for key in keys)
+    if clause is None:
+        update = "UPDATE SET *"
+    else:
+        # DuckDB rejects a qualified assignment target, as every engine does:
+        # the left side of a MERGE ``SET`` is a bare column of the target.
+        stripped = ", ".join(
+            assignment.strip().removeprefix(f"{_MERGE_TARGET}.")
+            for assignment in clause.split(", ")
+        )
+        update = f"UPDATE SET {stripped}"
+    conn.execute(
+        f"MERGE INTO {name} AS {_MERGE_TARGET} USING {_INCOMING} AS {_MERGE_SOURCE} "
+        f"ON {predicate} WHEN MATCHED THEN {update} WHEN NOT MATCHED THEN INSERT"
+    )
 
 
 def _apply(conn: duckdb.DuckDBPyConnection, artifact: EmittedArtifact, name: str) -> None:
@@ -96,12 +132,15 @@ def _apply(conn: duckdb.DuckDBPyConnection, artifact: EmittedArtifact, name: str
     elif match is None:
         conn.execute(f"CREATE OR REPLACE TABLE {name} AS {select}")
     else:
-        keys = [key.strip() for key in match.group("keys").split(",")]
-        predicate = " AND ".join(f"{name}.{key} = _incoming.{key}" for key in keys)
-        conn.execute(f"CREATE OR REPLACE TEMP TABLE _incoming AS {select}")
-        conn.execute(f"DELETE FROM {name} WHERE EXISTS (SELECT 1 FROM _incoming WHERE {predicate})")
-        conn.execute(f"INSERT INTO {name} SELECT * FROM _incoming")
-        conn.execute("DROP TABLE _incoming")
+        when_matched = _WHEN_MATCHED.search(artifact.content)
+        conn.execute(f"CREATE OR REPLACE TEMP TABLE {_INCOMING} AS {select}")
+        _upsert(
+            conn,
+            name,
+            [key.strip() for key in match.group("keys").split(",")],
+            when_matched.group("clause") if when_matched else None,
+        )
+        conn.execute(f"DROP TABLE {_INCOMING}")
 
 
 def materialize(conn: duckdb.DuckDBPyConnection, artifacts: tuple[EmittedArtifact, ...]) -> None:

@@ -58,14 +58,17 @@ want to happen to the row:
 |---|---|---|
 | To know, without changing anything | `on_fail: flag` | passes, its rule name appended to `_quality_flags` |
 | The row held back, recoverably | `on_fail: quarantine` | moves to `inventory_level__reject`, replayable |
-| The run stopped | `on_fail: fail` | never lands; a blocking audit fires |
+| The run stopped | `on_fail: fail` | a blocking audit fires, whatever else the row tripped |
 
 There is no `drop`, deliberately. If you want rows gone, quarantine them and let
 retention delete them — a deletion with a paper trail.
 
 If a row fails several rules at once, severity decides: `fail` beats `quarantine` beats
-`flag`. The reject row still records *every* rule the row failed, flag-level ones
-included, so nothing about the failure is lost by the routing.
+`flag`. A `fail` rule's audit reads the rows the pipeline evaluated rather than the
+finished model, so a row that quarantines *and* trips a blocking rule still stops the
+run. Every rule the row failed is recorded either way — in `failed_rules` if it was
+diverted, in `_quality_flags` if it was kept — so nothing about the failure is lost by
+the routing.
 
 ## Add row rules on the entity
 
@@ -178,6 +181,11 @@ reconcile:
      tolerance: "0.01", on_fail: flag}
 ```
 
+`on_fail` decides whether the check's audit stops the run. `flag` reports and carries on
+— which is usually what you want, since a disagreement is exactly when someone needs to
+read the comparison table. `fail` blocks: this is the pipeline-stopping gate to reach for
+when a rule's disposition is not enough.
+
 Both sides come from a closed grammar — `<agg>(<entity>.<column>) by <columns>` or a
 plain `<entity>.<column>` — and must key on the same columns, since the two sides join
 on their keys. `tolerance` must be a **quoted** decimal: an unquoted `0.01` is a YAML
@@ -236,7 +244,7 @@ query = planner.plan(
     ir,
     MetricRequest(
         metrics=("quality_quarantine_rate", "quality_rows_quarantined"),
-        dimensions=("entity", "rule", "run_month"),
+        dimensions=("entity", "run_month"),
     ),
     dialect="duckdb",
 )
@@ -244,13 +252,19 @@ print(query.mart, [column.name for column in query.columns])
 ```
 
 ```text
-data_quality ['entity', 'rule', 'run_month', 'quality_quarantine_rate', 'quality_rows_quarantined']
+data_quality ['entity', 'run_month', 'quality_quarantine_rate', 'quality_rows_quarantined']
 ```
 
 Five metric names are reserved for it — `quality_rows_evaluated`,
 `quality_rows_failed`, `quality_rows_quarantined`, `quality_rows_deduped`, and the
 `quality_quarantine_rate` ratio. A project metric colliding with one of them is a
 compile error, since they share one flat namespace.
+
+Group by `rule` to ask what one predicate did — that is `quality_rows_failed`'s grain.
+The other three counts describe the entity's population, so they ride on one accounting
+row per entity (`rule = '(entity)'`) rather than being repeated on every rule row. That
+is what keeps `SUM` honest: a repeated population count returns a multiple of the truth
+as soon as you aggregate over rules.
 
 ## Check what a rule change costs before you ship it
 

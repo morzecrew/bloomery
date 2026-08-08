@@ -20,7 +20,12 @@ from support.dirty import FIXTURE, build_corpus
 from support.planning import fixture_ir, make_planner, quantized
 
 from bloomery import MetricRequest, Op, OrderSpec, Predicate
-from bloomery.quality import QUALITY_MART_COLUMNS, QUALITY_METRICS, parse_side
+from bloomery.quality import (
+    ENTITY_GRAIN_ROW,
+    QUALITY_MART_COLUMNS,
+    QUALITY_METRICS,
+    parse_side,
+)
 
 pytestmark = pytest.mark.execution
 
@@ -67,7 +72,11 @@ def test_every_rule_of_every_entity_reports_exactly_one_row(
 ) -> None:
     """ "Every rule evaluation emits a row" — one, not one per firing and not
     none for a rule that never fired. A rule silently absent from the mart is a
-    rule nobody can see stop working."""
+    rule nobody can see stop working.
+
+    Beside them, one **accounting row** per quality-carrying entity: three of
+    §5.8's four counts describe the population rather than a rule, and giving
+    them a row of their own is what keeps every measure additive (§5.8)."""
     rules = {
         (entity, rule)
         for entity, rule in corpus_run.execute(
@@ -87,26 +96,35 @@ def test_every_rule_of_every_entity_reports_exactly_one_row(
         (parse_side(check.left).entity, check.name)  # type: ignore[union-attr]
         for check in fixture_ir(FIXTURE).reconcile
     }
-    assert rules == declared | reconciles
+    entity_rows = {(entity.name, ENTITY_GRAIN_ROW) for entity in fixture_ir(FIXTURE).entities
+                   if entity.quality}
+    assert rules == declared | reconciles | entity_rows
 
 
 @pytest.mark.parametrize(
     ("entity", "rule", "counts"),
     [
+        # A rule row reports `rows_failed` and nothing else: the population
+        # counts beside it belong to the entity, not to any one predicate.
         # 12 of 20 numerics quarantine on the implicit coercible rule; the flag
         # beside it fires on 15 and diverts none, which is what `flag` means.
-        ("dirty_number", "amount_coercible", (20, 12, 12, 0)),
-        ("dirty_number", "amount_text_pattern", (20, 15, 0, 0)),
+        ("dirty_number", "amount_coercible", (0, 12, 0, 0)),
+        ("dirty_number", "amount_text_pattern", (0, 15, 0, 0)),
         # Membership, not coercion: 14 of 18 enum specimens are outliers.
-        ("dirty_status", "status_in_enum", (18, 14, 14, 0)),
-        ("dirty_status", "status_text_in_set", (18, 14, 0, 0)),
-        # The dedupe leg: three losers, reported against every rule of the
-        # entity because it is a per-entity count, not a per-rule one.
-        ("dirty_key", "order_id_present", (11, 1, 1, 3)),
+        ("dirty_status", "status_in_enum", (0, 14, 0, 0)),
+        ("dirty_status", "status_text_in_set", (0, 14, 0, 0)),
+        ("dirty_key", "order_id_present", (0, 1, 0, 0)),
         # `unknown_member` keeps the row, so it fails and quarantines nothing.
-        ("dirty_ref", "ref_of_customer_referential", (16, 6, 0, 0)),
+        ("dirty_ref", "ref_of_customer_referential", (0, 6, 0, 0)),
         # A rule that fires on nothing still reports itself.
-        ("dirty_name", "name_unique", (22, 0, 0, 0)),
+        ("dirty_name", "name_unique", (0, 0, 0, 0)),
+        # …and the entity's own row carries the population: rows evaluated,
+        # rows the split diverted (counted once per *row*), rows dedupe removed.
+        ("dirty_number", ENTITY_GRAIN_ROW, (20, 0, 12, 0)),
+        ("dirty_status", ENTITY_GRAIN_ROW, (18, 0, 14, 0)),
+        ("dirty_key", ENTITY_GRAIN_ROW, (11, 0, 3, 3)),
+        ("dirty_ref", ENTITY_GRAIN_ROW, (16, 0, 1, 0)),
+        ("dirty_name", ENTITY_GRAIN_ROW, (22, 0, 1, 0)),
     ],
 )
 def test_the_counts_are_what_the_run_actually_did(
@@ -127,16 +145,12 @@ def test_rows_evaluated_is_the_survivors_of_dedupe_on_both_sides_of_the_split(
             f"SELECT (SELECT COUNT(*) FROM silver.{entity})"
             f"     + (SELECT COUNT(*) FROM silver.{entity}__reject WHERE resolved_at IS NULL)"
         ).fetchone()
-        evaluated = {
-            value
-            for (value,) in corpus_run.execute(
-                "SELECT DISTINCT rows_evaluated FROM gold.mart_data_quality "
-                "WHERE entity = ? AND rows_deduped IS NOT NULL AND rule NOT LIKE '%matches_row'",
-                [entity],
-            ).fetchall()
-        }
-        assert sides is not None
-        assert evaluated == {sides[0]}, entity
+        evaluated = corpus_run.execute(
+            "SELECT SUM(rows_evaluated) FROM gold.mart_data_quality WHERE entity = ?",
+            [entity],
+        ).fetchone()
+        assert sides is not None and evaluated is not None
+        assert evaluated[0] == sides[0], entity
 
 
 def test_the_quarantine_rate_is_a_plain_metric_request_by_entity(
@@ -165,35 +179,31 @@ def test_the_quarantine_rate_is_a_plain_metric_request_by_entity(
 def test_the_rate_is_a_ratio_so_it_stays_correct_when_the_grouping_changes(
     corpus_run: duckdb.DuckDBPyConnection,
 ) -> None:
-    """A stored rate column would not survive this: filtering to one
-    disposition must recompute the ratio over that slice, not average
-    pre-computed rates."""
+    """A stored rate column would not survive this: asked for the whole
+    project at once, the rate has to be recomputed over the union of the
+    populations — a stored-per-entity rate could only be averaged, which is a
+    different number whenever the entities differ in size.
+
+    The grouping that *cannot* be asked for is per-rule: the population counts
+    are entity-level facts (:data:`ENTITY_GRAIN_ROW`), so slicing the rules
+    slices the numerator's rows away from the denominator's. That is the price
+    of every measure being additive, and it is the honest side of the trade —
+    a denominator that is absent reads as absent, where a fanned-out one read
+    as a number.
+    """
     request = MetricRequest(
         metrics=("quality_quarantine_rate",),
-        dimensions=("entity",),
-        filters=(Predicate("disposition", Op.EQ, ("quarantine",)),),
-        order_by=(OrderSpec(field="entity"),),
+        dimensions=("run_day",),
+        order_by=(OrderSpec(field="run_day"),),
     )
     plan = PLANNER.plan(fixture_ir(FIXTURE), request, dialect="duckdb")
-    scoped = dict(corpus_run.execute(plan.sql).fetchall())
+    whole = corpus_run.execute(plan.sql).fetchall()
 
     counts = _mart(corpus_run)
-    dispositions = dict(
-        corpus_run.execute(
-            "SELECT entity || '|' || rule, disposition FROM gold.mart_data_quality"
-        ).fetchall()
-    )
-    evaluated = sum(
-        row[0]
-        for (entity, rule), row in counts.items()
-        if entity == "dirty_status" and dispositions[f"{entity}|{rule}"] == "quarantine"
-    )
-    quarantined = sum(
-        row[2]
-        for (entity, rule), row in counts.items()
-        if entity == "dirty_status" and dispositions[f"{entity}|{rule}"] == "quarantine"
-    )
-    assert quantized(scoped["dirty_status"]) == quantized(Decimal(quarantined) / Decimal(evaluated))
+    evaluated = sum(row[0] for row in counts.values())
+    quarantined = sum(row[2] for row in counts.values())
+    assert len(whole) == 1
+    assert quantized(whole[0][1]) == quantized(Decimal(quarantined) / Decimal(evaluated))
 
 
 def test_the_run_context_is_the_engines_and_never_a_clock_bloomery_read(

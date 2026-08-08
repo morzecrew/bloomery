@@ -35,6 +35,8 @@ from bloomery.quality import (
     source_alias,
     unknown_member_case,
     violation,
+    window_alias,
+    windowed,
     worst,
 )
 from support.quality_rules import ON_MISSING_RULES, referential_rule, rule_of_kind
@@ -58,6 +60,29 @@ def test_every_rule_disposition_pair_lowers_and_parses(kind: str, on_fail: OnFai
     rule = rule_of_kind(kind, on_fail)
     rendered = violation(rule).sql(dialect="duckdb")
     assert parse_one(f"SELECT 1 WHERE {rendered}", dialect="duckdb") is not None
+
+
+def test_a_predicate_carrying_a_window_declares_itself_windowed() -> None:
+    """The catalogue's own statement of where its predicates are legal.
+
+    SQL allows a window function in a projection and forbids it in a ``WHERE``
+    clause, and the lowering reads a violation predicate from *both* — routing
+    filters on it, an audit body filters on it, the conservation audit sums
+    over it. A kind whose predicate contains a window must therefore be
+    computed once as a column and referenced by name
+    (:func:`~bloomery.quality.window_alias`), and this is the assertion that
+    keeps the declaration and the predicate from drifting: a rule that grows a
+    window later fails here rather than at the first engine that binds it.
+    """
+    for kind in ALL_RULES:
+        rule = rule_of_kind(kind)
+        carries = violation(rule).find(exp.Window) is not None
+        assert carries is windowed(rule), kind
+
+
+def test_the_window_alias_is_derived_from_the_rule_name() -> None:
+    """Two windowed rules on one entity each need their own column."""
+    assert window_alias(rule_of_kind("unique")) == "_win_amount_unique"
 
 
 @pytest.mark.parametrize("on_missing", ALL_ON_MISSING)

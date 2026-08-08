@@ -10,6 +10,21 @@ observability endpoint, not a log, not a side channel. It is a
 ``MetricRequest`` — and a rising rate is a *semantic* drift signal structural
 detection misses (prices arriving in cents change no schema).
 
+**Two grains in one table, and why the schema still has one shape.** §5.8's
+column list is flat, but its four counts are not all facts about a *rule*.
+``rows_failed`` is: it is what one predicate did. ``rows_evaluated``,
+``rows_quarantined`` and ``rows_deduped`` are facts about the entity's
+population — how many rows the rules ran over, how many the split diverted,
+how many dedupe removed before any rule saw them. Repeating those on every
+rule row is a fan-out: summing them multiplies by the rule count, and the
+quarantine rate §5.8 promises comes out wrong by that factor (and wrong again
+in its numerator, since a row tripping two quarantine rules is *one* diverted
+row). So each entity contributes one extra row — :data:`ENTITY_GRAIN_ROW` in
+the ``rule`` and ``disposition`` dimensions — carrying the population counts,
+and rule rows carry zero in those columns. Every measure is then additive at
+every group-by, which is the only reading under which "a plain
+``MetricRequest``" is true rather than true-if-you-group-by-rule.
+
 Deliberate divergences, both recorded in the RFC:
 
 - **No per-customer scoping column.** Document 5 §7.5's schema carries one;
@@ -56,6 +71,7 @@ from bloomery.ir import (
 from bloomery.typing import DateType, IntType, LogicalType, StringType
 
 __all__ = [
+    "ENTITY_GRAIN_ROW",
     "QUALITY_MART",
     "QUALITY_MART_COLUMNS",
     "QUALITY_MEASURE_COLUMNS",
@@ -66,6 +82,15 @@ __all__ = [
     "is_quality_mart",
     "quality_mart_ir",
 ]
+
+#: The reserved ``rule`` / ``disposition`` value of an entity's accounting row
+#: (see this module's docstring on the two grains).
+#:
+#: It carries parentheses **deliberately**: rule names and reconcile names are
+#: constrained to ``[a-z0-9_]+`` at spec parse (D23), so no authored name can
+#: ever equal this one. A reserved word spelled inside the authorable alphabet
+#: would be a collision waiting for the project that uses it.
+ENTITY_GRAIN_ROW = "(entity)"
 
 #: The mart's logical name. Under any :class:`~bloomery.naming.NamingPolicy`
 #: it becomes the gold relation §5.8 names — ``gold.mart_data_quality`` under
@@ -85,6 +110,14 @@ _DATE_BUCKETS = ("day", "week", "month", "quarter", "year")
 #: The four count columns of §5.8, in schema order, with the metric each is
 #: measured by. Counts, never rates: a rate is a ratio *metric* over two
 #: additive measures, so it stays correct under any group-by.
+#:
+#: "Additive" is a claim about the emitted rows, not only about the column
+#: types, and it is the reason the mart carries an entity accounting row
+#: (:data:`ENTITY_GRAIN_ROW`): three of these four counts describe the entity's
+#: population, and repeating them per rule would make ``SUM`` return a multiple
+#: of the truth. Each count is emitted on exactly one row per entity-and-grain,
+#: zero elsewhere — which is what makes the sentence above true rather than
+#: aspirational.
 QUALITY_MEASURE_COLUMNS: tuple[tuple[str, str], ...] = (
     ("rows_evaluated", "quality_rows_evaluated"),
     ("rows_failed", "quality_rows_failed"),
@@ -115,9 +148,15 @@ QUALITY_METRICS: tuple[str, ...] = tuple(
 )
 
 _DESCRIPTIONS: dict[str, str] = {
-    "quality_rows_evaluated": "Rows the rule was evaluated over (survivors of dedupe).",
+    "quality_rows_evaluated": (
+        "Rows the entity's rules were evaluated over (survivors of dedupe), "
+        "reported once per entity."
+    ),
     "quality_rows_failed": "Rows whose violation predicate fired, whatever its disposition.",
-    "quality_rows_quarantined": "Rows this rule diverted to the entity's reject table.",
+    "quality_rows_quarantined": (
+        "Rows the split diverted to the entity's reject table, counted once per row "
+        "however many rules diverted it."
+    ),
     "quality_rows_deduped": "Rows dedupe removed before the rules ran (per entity).",
     _RATE_METRIC: "Quarantined rows as a share of rows evaluated.",
 }

@@ -205,6 +205,14 @@ system.
 `DedupeTieBreakMissing`: two rows sharing a timestamp
 otherwise make the winner arbitrary — a nondeterministic model violates the core
 invariant (RFC 0003) and makes backfills disagree with original runs.
+> **Amended 2026-08-08 (D38):** `reconcile.on_fail` is not a mart label. `fail` emits a
+> **blocking** audit — §5.3 nominates reconcile as the pipeline-stopping gate ("a
+> pipeline-stopping orphan gate, where genuinely wanted, is expressed as a `reconcile`
+> check instead"), and that sentence is only true if the value blocks. `flag` stays
+> non-blocking for the reason below. `quarantine` also lowers non-blocking: a reconcile
+> compares aggregates and routes no row, so the value has nothing to divert — refusing
+> it belongs to the spec surface, where `on_fail` is typed.
+
 `referential.on_missing` ∈ `{unknown_member, quarantine, flag}`; `unknown_member`
 keeps aggregates *correct*: "Dropping orphan rows makes revenue quietly lower than
 the source system's. Routing them to a reserved `Unknown` member keeps the total
@@ -264,6 +272,23 @@ sort key is the stable source-row identity `_source_row_id` (§5.6's ingestion m
 contract), so the winner is unique by construction — no two rows can compare equal. Null
 ordering is pinned: `NULLS LAST` for the recency field and every tie-break column — a null
 recency loses to any non-null one.
+
+> **Amended 2026-08-08 (D32):** the `fail` audit reads the **pre-route population**
+> (the staged extract), not `@this_model`. Routing is stage 6 and an audit runs after
+> the model is built, so an audit over the entity sees only the rows the split *kept* —
+> a row failing a blocking rule **and** a quarantine rule landed in the reject table
+> with the run carrying on, inverting the severity order this very section pins. Every
+> `fail` rule lowers through the same `violation` predicate its other dispositions use;
+> the audit body stays inside D29's two-relation scope limit, because `referential` —
+> the one kind that reads a sibling — cannot carry `fail` (D6). And `failed_rules` /
+> `_quality_flags` both record FAIL-disposition rule names.
+
+> **Amended 2026-08-08 (D33):** a rule whose violation predicate is a **window
+> function** (`unique`, the only one in the v1 catalogue) is computed once as a
+> projected column above the dedupe `QUALIFY` and referenced by name from every other
+> position. SQL forbids a window in a `WHERE` clause, in an aggregate's argument, and in
+> a foreign `QUALIFY` — and the lowering reads a violation predicate from all three, so
+> only `unique/flag` produced executable SQL before.
 
 **Disposition precedence.** A row can fail several rules carrying different dispositions;
 severity order is `fail > quarantine > flag`. Any failing `fail` rule stops the run (the
@@ -381,6 +406,23 @@ would mint a new reject row per retry and violate replay idempotence. A re-deliv
 updates `last_seen`, `_load_id`, and `failed_rules` on the existing row; `_load_id`
 remains as an attribute recording the latest observing load.
 
+> **Amended 2026-08-08 (D36):** `first_seen`/`last_seen` are both written as the row's
+> `_ingested_at`; what separates them is the **merge**. The reject model declares a
+> `when_matched` clause keeping the existing `first_seen` while every other column takes
+> the arriving value. They were a `MIN`/`MAX` window over `PARTITION BY _source_row_id`,
+> which is a singleton by construction (D21 makes the identity unique, and dedupe has
+> already run) — so both were the identity and `first_seen` tracked the newest delivery.
+> Replay also gained the statement §5.6's sentence always required: a third MERGE
+> re-stamping `failed_rules`/`last_seen` on the rows that still fail, from the very same
+> evaluation the candidates come from.
+
+> **Amended 2026-08-08 (D37):** D22's "multiple rejects resolving to one key are ordered
+> the same way" is applied to the **replay source**, not only to the candidate-versus-
+> incumbent comparison inside the MERGE. Two reject rows on one entity key both matched
+> the `ON` clause and both merged, leaving the entity holding two rows at a grain it
+> declares as one; the `MERGE`'s `WHEN MATCHED` cannot arbitrate that, because it never
+> compares candidate against candidate.
+
 `raw` holds source payloads — quarantine tables hold PII. When any rule carries a
 `quarantine` disposition, the entity **must** declare a `quarantine:` block with
 `retention:`; absence is a compile error (`QuarantineRetentionMissing`), not a default — "this is the sort of thing
@@ -436,6 +478,26 @@ RFC 0013 D3), so quarantine rate is a plain `MetricRequest`, and a rising rate i
 a *semantic* drift signal structural detection misses (prices arriving in cents
 change no schema). Reject tables are **not** exposed through `MetricRequest` — raw
 payloads, different retention; a separate, deliberately narrow operator surface.
+> **Amended 2026-08-08 (D34):** the schema is flat, its counts are **not one grain**.
+> `rows_failed` is a fact about a rule; `rows_evaluated`, `rows_quarantined` and
+> `rows_deduped` are facts about the entity's population. Repeating the latter on every
+> rule row fans them out — `SUM(rows_evaluated)` returned the population times the rule
+> count, and the quarantine rate was wrong by that factor *and* again in its numerator
+> (a row tripping two quarantine rules is one diverted row). Each entity therefore emits
+> one **accounting row** carrying the population counts, under the reserved
+> `rule`/`disposition` value `(entity)` — parenthesised so no D23-conformant authored
+> name can collide — and rule rows carry zero in those columns. Every measure is then
+> additive at every group-by, which is the only reading under which "a plain
+> `MetricRequest`" holds. The price, recorded: `rows_evaluated` cannot be sliced by
+> rule, because it was never a per-rule number.
+
+> **Amended 2026-08-08 (D35):** `rows_deduped` is `bronze − the rows that survived the
+> dedupe QUALIFY`, both measured over this run — never the residual
+> `bronze − (entity + unresolved rejects)`. The entity is rebuilt in full while the
+> reject table is `INCREMENTAL_BY_UNIQUE_KEY` and accumulates, so the residual form went
+> **negative** as soon as bronze's window moved past a still-unresolved reject. A count
+> that can be negative is not a count.
+
 **Deliberate divergence from Document 5 §7.5:** the doc's schema includes
 `tenant_id`, which violates hard invariant #3 and the tenant guard (RFC 0009 D14).
 Bloomery emits the mart **without** a tenant column: namespace scoping via
@@ -602,6 +664,14 @@ reference pages for the rule catalogue and `quarantine:` block; the
 | 29 | *(2026-08-08, M12)* **Conservation audit shape.** The emitted per-entity audit reads exactly two relations — the bronze source and `@this_model` — because SQLMesh does not rewrite model references inside an `AUDIT` body, so a body naming a sibling silver entity would resolve against whatever that name means outside the plan. It is therefore **skipped** for the one shape an audit body cannot express: `referential` with `on_missing: quarantine`, whose routing predicate reads a sibling entity. The skip is asserted in a unit test rather than silently dropped, and §6's conservation *property* still covers that shape. |
 | 30 | *(2026-08-08, M12)* **Postgres cannot host quality-carrying entities.** `coercible` needs a real NULL-on-failure cast (`DialectFeature.TRY_CAST`); sqlglot renders `TRY_CAST` on Postgres as a plain `CAST`, which aborts the run instead of marking the row, so the dialect declares the feature gap and compiling a quality-carrying entity for it raises `UnsupportedByTarget` — loud, never a silent degradation into an aborted run. Consequence for §6's dialect matrix: there is no Postgres dirty-corpus tier to add until either sqlglot renders a real `TRY_CAST` or the lowering grows a per-type `CASE`-based fallback whose semantics are proven equal to `TRY_CAST`'s on the corpus. Named as the escape hatch, not built. |
 | 31 | *(2026-08-08, M12)* **D25's contract is implemented; the strict `xfail` is closed.** The D21 blocking audit now reports a third condition beside the null and duplicate `_source_row_id` checks: `_ingested_at IS NOT NULL AND TRY_CAST(_ingested_at AS TIMESTAMP) IS NULL` — *present but uncastable*, built as a SQLGlot AST through the dialect port like every other term of the audit. `keys.csv::uncastable_ingested_at` (`key_018`) is now an ordinary passing execution assertion, paired with a non-trigger probe of two rows differing only in whether `_ingested_at` parses, so the check cannot go vacuous. Consequence for D30: the metadata audit needs `DialectFeature.TRY_CAST` **independently** of any `coercible` rule, and under D24 a *dedupe-only* entity carries no rules at all — so the audit lowering restates the refusal instead of relying on the coercible-rule one, and a dedupe-only entity compiled for Postgres is now `UnsupportedByTarget` as well. That is the edge of D30's sentence, reached, not a widening of it. |
+| 32 | *(2026-08-08, M12 fix)* **A `fail` rule's audit reads the pre-route population.** Routing is stage 6 and an audit runs after the model is built, so an audit over `@this_model` sees only the rows the split kept — a row failing a `fail` rule *and* a `quarantine` rule was diverted and the run carried on, inverting D18's severity order. The body is a query over the staged extract (the same rows the routing predicate is evaluated over), which stays inside D29's two-relation scope limit because `referential` cannot carry `fail` (D6). Consequences: every kind lowers through the same `violation` predicate (retiring a `coercible`-at-`fail` special case that had silently redefined the rule as `not_null`), and FAIL-disposition rule names are recorded in **both** `failed_rules` and `_quality_flags`, so the quality mart's `rows_failed` is no longer structurally zero for the rules whose firing matters most. |
+| 33 | *(2026-08-08, M12 fix)* **A window-valued violation predicate is projected once and referenced by name.** SQL allows a window function only where a projection is being built; the lowering reads a violation predicate from a `WHERE` (routing), an audit body, and an aggregate's argument (the conservation count). `unique` — the only windowed kind in the v1 catalogue (D5) — is therefore computed as a column above the dedupe `QUALIFY` (rules run after dedupe, D7) and read back from there. Before this only `unique/flag` produced executable SQL; the other two dispositions emitted a binder error. `WINDOWED_KINDS` carries the declaration, and a unit test pins it against the predicates themselves so a future rule that grows a window cannot ship unnoticed. |
+| 34 | *(2026-08-08, M12 fix)* **The quality mart carries an entity accounting row.** §5.8's schema is flat but its counts are not one grain: `rows_failed` describes a rule, while `rows_evaluated`/`rows_quarantined`/`rows_deduped` describe the entity's population. Repeating the latter per rule fanned them out — `SUM(rows_evaluated)` returned the population times the rule count — and the quarantine rate was wrong by that factor and again in its numerator (two quarantine rules firing on one row divert one row). Each entity emits one row under the reserved `rule`/`disposition` value `(entity)`, parenthesised so no D23-conformant authored name can collide; rule rows carry zero in the population columns. Every measure is additive at every group-by, which is the only reading under which D12's "a plain `MetricRequest`" holds. Recorded price: `rows_evaluated` cannot be sliced by rule, because it was never a per-rule number. A reconcile check is a rule row by the same rule — its own row count is a count of keys, not of the left entity's rows. |
+| 35 | *(2026-08-08, M12 fix)* **`rows_deduped` is measured at the dedupe stage, not as a residual.** `bronze − the rows that survived the QUALIFY`, both scalar subqueries over this run. The residual form `bronze − (entity + unresolved rejects)` went negative the moment bronze's incremental window moved past a row still sitting in the reject table, because the entity is rebuilt in full while the reject table accumulates. A count that can be negative is not a count. |
+| 36 | *(2026-08-08, M12 fix)* **`first_seen` is preserved by the merge, and replay re-stamps the rows that still fail.** Both timestamps are written as the row's `_ingested_at`; the reject model's `when_matched` clause keeps the existing `first_seen` while every other column takes the arriving value, which is what D21's "a re-delivery updates `last_seen`, `_load_id`, and `failed_rules` on the existing row" actually requires. They had been a `MIN`/`MAX` window over `PARTITION BY _source_row_id` — a singleton partition by construction, so both were the identity and a re-delivery moved `first_seen` forward. §5.6's "updating `failed_rules`/`last_seen` on the rest" gained the statement it never had: a third MERGE in the replay artifact, re-deriving `failed_rules` from the same evaluation the candidates come from and advancing `last_seen`. |
+| 37 | *(2026-08-08, M12 fix)* **D22's ordering applies to the replay *source*.** Two unresolved rejects resolving to one entity key both matched the MERGE's `ON` clause and both merged, leaving the entity holding two rows at a declared one-row-per-key grain and doubling every mart measure over it. The `WHEN MATCHED` comparison cannot prevent that — it arbitrates candidate against incumbent, never candidate against candidate — so the dedupe total order is applied to the candidate set first. Its no-`dedupe:` form is the final sort key alone (D20). |
+| 38 | *(2026-08-08, M12 fix)* **`reconcile.on_fail` is not a label.** All three values emitted the same non-blocking audit while the quality mart reported `disposition = 'fail'`. `fail` now emits a **blocking** audit — §5.3 nominates reconcile as the pipeline-stopping gate, and that sentence is only true if the value blocks; `flag` stays non-blocking so a disagreement does not withhold the comparison table; `quarantine` lowers non-blocking because a reconcile routes no row, and refusing the value belongs to the spec surface where `on_fail` is typed. |
+| 39 | *(2026-08-08, M12 fix)* **Compilation must not depend on whether the target framework is imported.** Importing `sqlmesh` extends SQLGlot globally, including how some node types render, so a lowering that emits one of those nodes makes the artifact bytes a function of the calling process — an RFC 0003 break invisible to every existing guard (the hash-seed pair imports neither framework; the goldens only meet sqlmesh in the e2e lane). The reject model's `when_matched` clause is therefore built from per-assignment renders and envelope text rather than from an `exp.Whens`, and a subprocess guard compares the quality fixtures compiled with and without `sqlmesh` imported. |
 
 ## 12. Phasing
 

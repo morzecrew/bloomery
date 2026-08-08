@@ -39,6 +39,8 @@ from sqlmesh import Context
 
 from support.compiling import compile_fixture
 
+from bloomery.quality import ENTITY_GRAIN_ROW
+
 pytestmark = pytest.mark.e2e
 
 CONFIG_TEMPLATE = """\
@@ -130,14 +132,20 @@ def _verify_semi_additive_inventory(conn: duckdb.DuckDBPyConnection) -> None:
     ).fetchall()
     assert reconciled == [("A", 0, True), ("B", 0, True)]
 
-    quality = dict(
-        conn.execute(
-            "SELECT rule, rows_quarantined FROM gold.mart_data_quality ORDER BY rule"
+    quality = {
+        rule: (evaluated, failed, quarantined)
+        for rule, evaluated, failed, quarantined in conn.execute(
+            "SELECT rule, rows_evaluated, rows_failed, rows_quarantined "
+            "FROM gold.mart_data_quality ORDER BY rule"
         ).fetchall()
-    )
-    # One row per rule evaluation plus one per reconcile check (§5.8).
-    assert quality["stock_level_range_min"] == 1
-    assert quality["stock_level_not_negative"] == 0  # a flag rule diverts nothing
+    }
+    # One row per rule evaluation, one per reconcile check, and one accounting
+    # row per entity (§5.8): a rule row reports what its own predicate did, and
+    # the population counts beside it belong to the entity — repeating them per
+    # rule made SUM return a multiple of the truth.
+    assert quality["stock_level_range_min"] == (0, 1, 0)
+    assert quality["stock_level_not_negative"] == (0, 1, 0)  # fired; diverts nothing
+    assert quality[ENTITY_GRAIN_ROW] == (3, 0, 1)  # 2 kept + 1 diverted, 1 diverted row
     assert "stock_level_matches_snapshot" in quality
     (run,) = conn.execute(
         "SELECT DISTINCT run_id IS NULL, run_date IS NOT NULL FROM gold.mart_data_quality"

@@ -40,12 +40,14 @@ from bloomery.ir import (
 )
 from bloomery.marts import DATE_BUCKETS, HAS_QUALITY_FLAGS
 from bloomery.quality import (
+    ENTITY_GRAIN_ROW,
     FLAGS_COLUMN,
     INGESTION_METADATA,
     OK_COLUMN,
     QUALITY_MEASURE_COLUMNS,
     QUALITY_RUN_ROLE,
     RECONCILE_SUFFIX,
+    REJECT_COLUMNS,
     REJECT_SUFFIX,
     ROW_ID_COLUMN,
     ReconcileSide,
@@ -68,6 +70,8 @@ from bloomery.quality import (
     source_alias,
     unknown_member_case,
     violation,
+    window_alias,
+    windowed,
     with_dedupe_qualify,
 )
 from bloomery.typing import DecimalType, IntType, LogicalType
@@ -89,12 +93,15 @@ __all__ = [
     "ingestion_audit_predicate",
     "mart_select",
     "quality_mart_select",
+    "reconcile_audit_blocking",
     "reconcile_audit_predicate",
     "reconcile_keys",
     "reconcile_relation",
     "reconcile_select",
+    "REJECT_KEY",
     "reject_relation",
     "reject_select",
+    "reject_when_matched",
     "replay_statements",
 ]
 
@@ -116,6 +123,9 @@ __all__ = [
 #: The alias of the extract/dedupe subquery. Entity columns are qualified with
 #: it so a ``referential`` LEFT JOIN can never make a reference ambiguous.
 _EXTRACT_ALIAS = "_extract"
+#: The alias of the *inner* extract, below the staging level that computes
+#: window-valued rule verdicts (:data:`~bloomery.quality.WINDOWED_KINDS`).
+_DEDUPED_ALIAS = "_deduped"
 _EVALUATED_ALIAS = "_evaluated"
 _TARGET_ALIAS = "_target"
 #: The column the D21 audit body projects its duplicate count under.
@@ -142,8 +152,72 @@ def _rules(entity: EntityIR, *dispositions: OnFail) -> tuple[QualityRuleIR, ...]
     return tuple(rule for rule in entity.quality if disposition(rule) in dispositions)
 
 
+def _recorded_rules(entity: EntityIR) -> tuple[QualityRuleIR, ...]:
+    """Every rule whose name a reject row records in ``failed_rules`` (D18).
+
+    All of them — a reject row is the full account of why a row is not in the
+    entity, "its flag-level failures included", and by the same argument its
+    blocking ones. Excluding ``fail`` rules left the account silent about the
+    most serious thing that happened to the row.
+    """
+    return _rules(entity, OnFail.FLAG, OnFail.QUARANTINE, OnFail.FAIL)
+
+
+def _windowed_rules(entity: EntityIR) -> tuple[QualityRuleIR, ...]:
+    """The entity's rules whose predicate is a window function, in canonical
+    order (:data:`~bloomery.quality.WINDOWED_KINDS`)."""
+    return tuple(rule for rule in entity.quality if windowed(rule))
+
+
+def _violated(rule: QualityRuleIR, table: str | None) -> Expression:
+    """The rule's verdict, *usable in any position*.
+
+    For an ordinary rule that is the violation predicate itself. For a windowed
+    one it is a reference to the column :func:`_stage` computed it into: SQL
+    allows a window function only where a projection is being built, and the
+    lowering reads a verdict from a ``WHERE`` clause (routing), an audit body,
+    and an aggregate's argument (the conservation count). Evaluating the window
+    once, in the one legal place, and referring to the result by name is what
+    makes the same rule mean the same thing in all of them — a rule that only
+    worked at ``flag`` was not a lowering, it was a coincidence.
+    """
+    if windowed(rule):
+        return exp.column(window_alias(rule), table=table)
+    return violation(rule, table=table)
+
+
+def _stage(select: exp.Select, entity: EntityIR) -> exp.Select:
+    """Wrap an extract SELECT in the level that computes windowed verdicts.
+
+    The window is deliberately computed **above** the dedupe ``QUALIFY``, not
+    beside it: rules run after dedupe (§5.4's fixed order), so ``unique`` must
+    see the survivors and not the raw deliveries. A row that lost its key to a
+    later delivery is not a duplicate — it is a superseded version, which is
+    dedupe's business and never ``unique``'s (D5).
+
+    No windowed rules means no extra level: the specialization is the general
+    form evaluated at compile.
+    """
+    rules = _windowed_rules(entity)
+    if not rules:
+        return select
+    return (
+        exp.Select()
+        .select(
+            exp.Star(),
+            *(
+                # Parenthesised: a bare ``a AND b AS name`` reads correctly to
+                # every parser here, and reads *ambiguously* to every human.
+                cast("Expression", exp.alias_(grouped(violation(rule)), window_alias(rule)))
+                for rule in rules
+            ),
+        )
+        .from_(select.subquery(alias=_DEDUPED_ALIAS))
+    )
+
+
 def _flag_pairs(rules: tuple[QualityRuleIR, ...], table: str) -> list[tuple[str, Expression]]:
-    return [(rule.name, violation(rule, table=table)) for rule in rules]
+    return [(rule.name, _violated(rule, table)) for rule in rules]
 
 
 def _carries_metadata(entity: EntityIR) -> bool:
@@ -268,10 +342,11 @@ def _extract_select(
         projections.append(cast("Expression", exp.alias_(payload, "_raw")))
     select = exp.Select().select(*projections).from_(exp.table_(relation, db=namespace))
     if from_payload:
-        return select.where(exp.Is(this=exp.column("resolved_at"), expression=exp.null()))
+        unresolved = select.where(exp.Is(this=exp.column("resolved_at"), expression=exp.null()))
+        return _stage(unresolved, entity)
     if entity.dedupe is not None:
         select = with_dedupe_qualify(select, entity.dedupe, entity.key)
-    return select
+    return _stage(select, entity)
 
 
 def _from_payload(node: Expression) -> Expression:
@@ -330,7 +405,7 @@ def _route_predicate(entity: EntityIR, table: str, *, quarantined: bool) -> Expr
     # conservation law. "Did any quarantine rule *definitively* fire" is
     # exactly ``COALESCE(…, FALSE)``.
     fired = exp.Coalesce(
-        this=grouped(disjunction([violation(rule, table=table) for rule in rules])),
+        this=grouped(disjunction([_violated(rule, table) for rule in rules])),
         expressions=[exp.false()],
     )
     return fired if quarantined else exp.Not(this=fired)
@@ -409,7 +484,16 @@ def _quality_pipeline(entity: EntityIR, ctx: EmitContext, extract: exp.Select) -
             ),
             exp.alias_(
                 flags_expression(
-                    _flag_pairs(_rules(entity, OnFail.FLAG), _EXTRACT_ALIAS), arrays=arrays
+                    # FLAG **and** FAIL (D18). A quarantine rule cannot appear
+                    # on a kept row — firing one diverts it — but a fail rule
+                    # can: routing does not move it, the blocking audit stops
+                    # the run instead. Leaving its name out made such a row
+                    # read as clean everywhere the package looks, including
+                    # ``_quality_ok`` and the mart's ``has_quality_flags``,
+                    # which is precisely the "currently suspect" meaning §10
+                    # says those columns must keep.
+                    _flag_pairs(_rules(entity, OnFail.FLAG, OnFail.FAIL), _EXTRACT_ALIAS),
+                    arrays=arrays,
                 ),
                 FLAGS_COLUMN,
             ),
@@ -458,20 +542,31 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     """The ``<entity>__reject`` SELECT (RFC 0016 §5.6): the diverted side of
     the stage-6 split, projected into the reject schema.
 
-    ``failed_rules`` records **all** the row's failures, flag-level ones
-    included (D18) — a reject row is the full account of why a row is not in
-    the entity, not merely the part that diverted it. ``first_seen`` /
-    ``last_seen`` are the batch's window over the row identity; ``resolved_at``
-    is null until a replay sets it, and retention — never replay — is what
-    eventually deletes the row.
+    ``failed_rules`` records **all** the row's failures — flag-level *and*
+    blocking ones (D18): a reject row is the full account of why a row is not
+    in the entity, not merely the part that diverted it, and a row that also
+    tripped a ``fail`` rule is the case where the omission mattered most.
+
+    ``first_seen`` / ``last_seen`` are both the row's ``_ingested_at`` **as
+    written**; what makes them differ is the merge. The reject model is
+    ``INCREMENTAL_BY_UNIQUE_KEY`` on ``reject_id``, so a re-delivery of the
+    same source row lands on the same reject row (D21), and the merge keeps the
+    existing ``first_seen`` while ``last_seen`` takes the new value
+    (:func:`reject_when_matched`). The pair used to be a ``MIN``/``MAX`` window
+    over ``PARTITION BY _source_row_id`` here — but that partition is a
+    singleton by construction (D21 declares the identity unique per source row,
+    and dedupe has already run), so both aggregates were the identity and
+    ``first_seen`` was clobbered on every re-delivery: two names for one value.
+
+    ``resolved_at`` is null until a replay sets it, and retention — never
+    replay — is what eventually deletes the row.
     """
     _require_try_cast(entity, ctx)
     arrays = _arrays(ctx)
     extract = _extract_select(entity, ctx, include_raw=True)
-    recorded = _rules(entity, OnFail.FLAG, OnFail.QUARANTINE)
+    recorded = _recorded_rules(entity)
     row_id = exp.column(ROW_ID_COLUMN, table=_EXTRACT_ALIAS)
     ingested = exp.column("_ingested_at", table=_EXTRACT_ALIAS)
-    seen_window = [row_id.copy()]
     projections: list[Expression] = [
         cast(
             "Expression", exp.alias_(reject_id(entity.source.relation, row_id.copy()), "reject_id")
@@ -508,23 +603,8 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
         exp.column("_load_id", table=_EXTRACT_ALIAS),
         ingested.copy(),
         row_id.copy(),
-        cast(
-            "Expression",
-            exp.alias_(
-                exp.Window(this=exp.Min(this=ingested.copy()), partition_by=seen_window),
-                "first_seen",
-            ),
-        ),
-        cast(
-            "Expression",
-            exp.alias_(
-                exp.Window(
-                    this=exp.Max(this=ingested.copy()),
-                    partition_by=[row_id.copy()],
-                ),
-                "last_seen",
-            ),
-        ),
+        cast("Expression", exp.alias_(ingested.copy(), "first_seen")),
+        cast("Expression", exp.alias_(ingested.copy(), "last_seen")),
         cast(
             "Expression",
             exp.alias_(exp.cast(exp.null(), exp.DataType.build("TIMESTAMP")), "resolved_at"),
@@ -536,6 +616,63 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     if diverted is not None:  # pragma: no branch — a reject model implies one
         select = select.where(diverted)
     return select
+
+
+#: The merge aliases SQLMesh resolves inside a ``when_matched`` clause — its
+#: documented spelling for "the row already there" and "the row arriving".
+_MERGE_TARGET = "target"
+_MERGE_SOURCE = "source"
+
+#: The reject columns whose value on a re-delivery is the **existing** one, not
+#: the arriving one (RFC 0016 §5.6). Only ``first_seen``: it records when the
+#: problem started, and every other column describes the latest observation.
+_PRESERVED_ON_MERGE = frozenset({"first_seen"})
+
+#: The reject table's unique key — the column the merge matches on and the
+#: model's declared ``unique_key``, drawn from the schema tuple rather than
+#: spelled once per emitter.
+REJECT_KEY = next(name for name in REJECT_COLUMNS if name == "reject_id")
+
+
+def reject_when_matched() -> tuple[Expression, ...]:
+    """The assignments of the reject table's ``WHEN MATCHED`` clause
+    (RFC 0016 §5.6, D21).
+
+    "A re-delivery updates ``last_seen``, ``_load_id``, and ``failed_rules`` on
+    the existing row" — which is a statement about the *merge*, not about the
+    SELECT: both timestamps are written as the row's ``_ingested_at``, and what
+    keeps ``first_seen`` at its original value is this clause. The default
+    merge overwrites every column from the source, so without it ``first_seen``
+    tracked the newest delivery and the pair carried one fact under two names.
+
+    ``COALESCE`` rather than a bare ``target.first_seen``: a row inserted
+    before this clause existed may carry a null there, and the first
+    re-delivery should heal it rather than pin the null forever.
+
+    ``reject_id`` itself is absent from the assignments: it is the merge key,
+    equal on both sides by the ``ON`` clause, and several engines refuse to let
+    a ``MERGE`` assign to the column it matched on.
+
+    **Assignments, not an ``exp.Whens``** — and that is not a style choice.
+    Importing ``sqlmesh`` extends SQLGlot *globally*, and one of the things it
+    changes is how a ``Whens`` node renders (it gains a wrapping paren and a
+    different indent). Emitting one would therefore make the compiled bytes a
+    function of whether the calling process had imported the target framework,
+    which is precisely the determinism invariant RFC 0003 exists to hold. The
+    assignment nodes render identically either way, and the clause around them
+    is envelope text — pre-rendered strings interpolated by the emitter, the
+    RFC 0008 D4 doctrine.
+    """
+    assignments: list[Expression] = []
+    for column in (name for name in REJECT_COLUMNS if name != REJECT_KEY):
+        arriving = exp.column(column, table=_MERGE_SOURCE)
+        value: Expression = (
+            exp.Coalesce(this=exp.column(column, table=_MERGE_TARGET), expressions=[arriving])
+            if column in _PRESERVED_ON_MERGE
+            else arriving
+        )
+        assignments.append(exp.EQ(this=exp.column(column, table=_MERGE_TARGET), expression=value))
+    return tuple(assignments)
 
 
 def _uncastable_ingested_at() -> Expression:
@@ -730,39 +867,125 @@ def conservation_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     )
 
 
-def fail_audits(entity: EntityIR) -> tuple[tuple[str, Expression], ...]:
-    """``(audit name, violating-row predicate)`` per ``on_fail: fail`` rule.
+def fail_audits(entity: EntityIR, ctx: EmitContext) -> tuple[tuple[str, exp.Select], ...]:
+    """``(audit name, violating-row query)`` per ``on_fail: fail`` rule.
 
-    SQLMesh audits run over the model's own output, so the predicate is
-    rendered over model columns. For ``coercible`` that means the marker's
-    source conjuncts are unavailable and the audit reduces to ``col IS NULL``
-    — **stricter** than the marker, never weaker: every coercion failure is a
-    null, so no violation can slip past, and the extra rows it can catch
-    (a source that was genuinely null) are rows a fail-disposition coercible
-    rule already declares intolerable.
+    **The body reads the pre-route population, not the model** (RFC 0016 D18).
+    Severity order is ``fail > quarantine > flag``, and routing is stage 6 of
+    the pipeline while the audit runs after the model is built — so an audit
+    over ``@this_model`` sees only the rows the split *kept*. A row failing a
+    blocking rule **and** a quarantine rule would then sit in the reject table
+    with the run carrying on, which inverts the order the RFC pins: the
+    quarantine disposition would beat the fail one. Auditing the staged extract
+    — the same rows the routing predicate is evaluated over — makes "any
+    failing ``fail`` rule stops the run" true regardless of what else fired.
+
+    The body addresses exactly two relations, the bronze source and (through
+    the extract) nothing else, so it stays inside the audit-body scope limit
+    D29 records. That costs nothing here: ``referential`` is the one rule kind
+    that reads a sibling entity, and it cannot carry a ``fail`` disposition at
+    all (D6).
+
+    Every kind lowers through the **same** :func:`~bloomery.quality.violation`
+    predicate its other dispositions use. There is no decision row licensing a
+    disposition-dependent rule meaning, and the previous ``coercible`` special
+    case had one: over model columns the marker's source conjuncts are gone, so
+    it degenerated to ``col IS NULL`` and quietly re-defined ``coercible`` at
+    ``fail`` as ``not_null``. Over the extract the source projections are right
+    there (:func:`~bloomery.quality.source_alias`), so the special case is not
+    merely unnecessary — it is unavailable.
     """
-    audits: list[tuple[str, Expression]] = []
+    _require_try_cast(entity, ctx)
+    audits: list[tuple[str, exp.Select]] = []
     for rule in _rules(entity, OnFail.FAIL):
-        if rule.kind == "coercible":
-            predicate: Expression = exp.Is(
-                this=exp.column(rule.column or ""), expression=exp.null()
-            )
-        else:
-            predicate = violation(rule)
-        audits.append((f"{entity.name}_{rule.name}", predicate))
+        body = (
+            exp.Select()
+            .select(exp.Star())
+            .from_(_extract_select(entity, ctx).subquery(alias=_EXTRACT_ALIAS))
+            .where(_violated(rule, _EXTRACT_ALIAS))
+        )
+        audits.append((f"{entity.name}_{rule.name}", body))
     return tuple(audits)
 
 
+def _one_winner_per_key(select: exp.Select, entity: EntityIR) -> exp.Select:
+    """Keep exactly one row per entity key, by the D20 total order.
+
+    The pipeline's own ``QUALIFY`` cannot do this job for replay: it lives
+    inside :func:`_extract_select`, which reads *bronze*, and replay reads the
+    reject table. And the reject table genuinely holds several rows on one
+    entity key — an entity may carry ``quarantine:`` without ``dedupe:``, and
+    even with it the reject table accumulates across runs while its identity is
+    the source row, not the key.
+
+    D22 says "multiple rejects resolving to one key are ordered the same way"
+    as the pipeline orders duplicates. Without this the merge source offers two
+    candidates for one key, both match the ``ON`` clause, and the entity ends
+    up holding two rows at a grain it declares as one — every mart measure over
+    it doubled. The ``MERGE``'s own ``WHEN MATCHED`` comparison cannot rescue
+    that: it arbitrates candidate against *incumbent*, never candidate against
+    candidate.
+    """
+    if entity.dedupe is not None:
+        return with_dedupe_qualify(select, entity.dedupe, entity.key)
+    # The no-``dedupe:`` form of the total order is its final sort key alone
+    # (D20): the stable source-row identity, which D21 guarantees exists and is
+    # unique on any entity with a reject table.
+    winner = exp.EQ(
+        this=exp.Window(
+            this=exp.RowNumber(),
+            partition_by=[exp.column(name) for name in entity.key],
+            order=exp.Order(
+                expressions=[
+                    exp.Ordered(this=exp.column(ROW_ID_COLUMN), desc=True, nulls_first=False)
+                ]
+            ),
+        ),
+        expression=exp.Literal.number(1),
+    )
+    qualified = select.copy()
+    qualified.set("qualify", exp.Qualify(this=winner))
+    return qualified
+
+
 def _replay_candidates(entity: EntityIR, ctx: EmitContext) -> exp.Select:
-    """The unresolved reject rows that now pass, re-derived from ``raw``.
+    """The unresolved reject rows that now pass, re-derived from ``raw`` — one
+    per entity key.
 
     Replay "re-runs the current mapping against ``raw``" for unresolved rows
     (RFC 0016 §5.6). Running them back through :func:`_quality_pipeline` is
     what makes "passers merge, the rest stay" true by construction: a
     candidate that still fires a quarantine rule is filtered out by the very
-    same routing predicate the pipeline uses.
+    same routing predicate the pipeline uses. :func:`_one_winner_per_key` then
+    applies the D20 order the pipeline would have applied (D22).
     """
-    return _quality_pipeline(entity, ctx, _extract_select(entity, ctx, from_payload=True))
+    pipeline = _quality_pipeline(entity, ctx, _extract_select(entity, ctx, from_payload=True))
+    return _one_winner_per_key(pipeline, entity)
+
+
+def _reevaluated(entity: EntityIR, ctx: EmitContext) -> exp.Select:
+    """``(_source_row_id, failed_rules)`` re-derived from ``raw`` for every
+    unresolved reject row (RFC 0016 §5.6).
+
+    The very same flag construction the reject model writes with, over the very
+    same extract replay's candidates come from — so "still failing" and "would
+    have been quarantined" are one evaluation, not two implementations that
+    have to be kept in agreement.
+    """
+    select = (
+        exp.Select()
+        .select(
+            exp.column(ROW_ID_COLUMN, table=_EXTRACT_ALIAS),
+            exp.alias_(
+                flags_expression(
+                    _flag_pairs(_recorded_rules(entity), _EXTRACT_ALIAS), arrays=_arrays(ctx)
+                ),
+                "failed_rules",
+            ),
+        )
+        .from_(_extract_select(entity, ctx, from_payload=True).subquery(alias=_EXTRACT_ALIAS))
+    )
+    return _with_probes(select, entity, ctx)
 
 
 def _dedupe_tuple(entity: EntityIR, table: str) -> exp.Tuple:
@@ -786,20 +1009,37 @@ def _dedupe_tuple(entity: EntityIR, table: str) -> exp.Tuple:
 
 
 def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, ...]:
-    """The replay artifact (RFC 0016 §5.6, D22): one MERGE plus the resolution
-    stamp.
+    """The replay artifact (RFC 0016 §5.6, D22): one MERGE and two updates.
 
-    Replay merges by the **same dedupe ordering as the pipeline** — a replayed
-    candidate wins or loses against an incumbent by the dedupe total order
-    (recency field, tie-breaks, ``_source_row_id``), which is what makes
-    re-running replay re-derive identical winners. The comparison is the row
-    constructor over exactly :func:`~bloomery.quality.dedupe_order`'s columns;
-    null ordering is the D21 blocking audit's job, upstream of here.
+    §5.6 states replay in one sentence — "re-runs the current mapping against
+    ``raw`` for unresolved rows, merging passers into the entity by key and
+    updating ``failed_rules``/``last_seen`` on the rest" — and each clause is a
+    statement here:
 
-    ``resolved_at`` is stamped by the **executing engine's** clock
-    (``CURRENT_TIMESTAMP``) — bloomery never reads a clock (RFC 0003), it
-    emits the statement and the caller runs it. The reject row is kept as
-    audit history; retention, never replay, is what deletes it.
+    1. the **MERGE**, which admits the passers. Candidates are ordered against
+       each other by the D20 total order before they reach it
+       (:func:`_one_winner_per_key`) and against the incumbent by the same
+       order inside it, which is what makes re-running replay re-derive
+       identical winners. The comparison is the row constructor over exactly
+       :func:`~bloomery.quality.dedupe_order`'s columns; null ordering is the
+       D21 blocking audit's job, upstream of here.
+    2. the **resolution stamp**, setting ``resolved_at`` on the rows that made
+       it into the entity;
+    3. the **re-evaluation stamp** — the clause that had no statement. A reject
+       row that still fails has been read against the current mapping and found
+       wanting again: ``failed_rules`` is re-derived from that evaluation and
+       ``last_seen`` advances, which §5.6 explicitly calls "an event worth
+       recording, not an idempotence violation". Without it the reject table's
+       account of why a row is out ages into a statement about a spec nobody
+       runs any more.
+
+    Order matters between 2 and 3: the stamp runs first, so 3's
+    ``resolved_at IS NULL`` filter is exactly "the rest".
+
+    Both stamps read the **executing engine's** clock (``CURRENT_TIMESTAMP``) —
+    bloomery never reads a clock (RFC 0003), it emits the statements and the
+    caller runs them. The reject row is kept as audit history; retention, never
+    replay, is what deletes it.
     """
     entity_namespace, entity_relation = ctx.naming.relation(entity.name, Layer.SILVER)
     reject_namespace, reject_rel = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
@@ -881,7 +1121,41 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
             )
         ),
     )
-    return (merge, resolve)
+    still_failing = exp.Merge(
+        this=exp.table_(reject_rel, db=reject_namespace, alias=_TARGET_ALIAS),
+        using=_reevaluated(entity, ctx).subquery(alias=_REPLAY_ALIAS),
+        on=exp.EQ(
+            this=exp.column(ROW_ID_COLUMN, table=_TARGET_ALIAS),
+            expression=exp.column(ROW_ID_COLUMN, table=_REPLAY_ALIAS),
+        ),
+        whens=exp.Whens(
+            expressions=[
+                exp.When(
+                    matched=True,
+                    # "the rest": everything the resolution stamp above did not
+                    # just claim. Reading it off ``resolved_at`` rather than
+                    # recomputing membership keeps the two statements agreeing
+                    # by construction.
+                    condition=exp.Is(
+                        this=exp.column("resolved_at", table=_TARGET_ALIAS), expression=exp.null()
+                    ),
+                    then=exp.Update(
+                        expressions=[
+                            exp.EQ(
+                                this=exp.column("failed_rules"),
+                                expression=exp.column("failed_rules", table=_REPLAY_ALIAS),
+                            ),
+                            exp.EQ(
+                                this=exp.column("last_seen"),
+                                expression=exp.CurrentTimestamp(),
+                            ),
+                        ]
+                    ),
+                )
+            ]
+        ),
+    )
+    return (merge, resolve, still_failing)
 
 
 # ....................... #
@@ -1041,12 +1315,34 @@ def reconcile_select(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> exp
 def reconcile_audit_predicate() -> Expression:
     """The violating-row predicate of a check's audit: rows outside tolerance.
 
-    The audit is **non-blocking** (§5.3): a reconcile disagreement means the
-    numbers are wrong, which is exactly when a human needs to see the table —
-    stopping the run would withhold the evidence. ``within_tolerance`` is
-    already two-valued, so ``NOT`` is total here.
+    ``within_tolerance`` is already two-valued, so ``NOT`` is total here.
     """
     return exp.Not(this=exp.column("within_tolerance"))
+
+
+def reconcile_audit_blocking(check: ReconcileIR) -> bool:
+    """Whether a reconcile check's audit **stops the run** (RFC 0016 §5.3).
+
+    ``reconcile`` carries an ``on_fail`` like every other disposition-bearing
+    surface, and §5.3 gives it a job no rule can do: "a pipeline-stopping
+    orphan gate, where genuinely wanted, is expressed as a ``reconcile`` check
+    instead". That sentence is only true if ``on_fail: fail`` actually blocks.
+    Emitting the same non-blocking audit for all three values made the field
+    decoration — the mart said ``disposition = 'fail'`` while the run carried
+    on regardless.
+
+    ``flag`` stays non-blocking, and deliberately so: a reconcile disagreement
+    means the numbers are wrong, which is exactly when a human needs to read
+    the comparison table, and stopping the run would withhold the evidence.
+
+    ``quarantine`` also lowers non-blocking — a reconcile check compares two
+    aggregates and routes **no row** (§5.4's table: "separate model +
+    non-blocking audit"), so there is nothing for a quarantine disposition to
+    divert. Refusing the value belongs to the spec surface, where ``on_fail``
+    is typed; treating it as "report, do not stop" is the conservative reading
+    until that refusal lands.
+    """
+    return check.on_fail is OnFail.FAIL
 
 
 # ....................... #
@@ -1120,12 +1416,21 @@ def _counted(predicate: Expression) -> Expression:
 
 
 def _rows_deduped(entity: EntityIR, ctx: EmitContext) -> Expression:
-    """Rows dedupe removed before the rules ran — §6's conservation residual.
+    """Rows dedupe removed before the rules ran — read off the dedupe stage
+    itself, not as a residual against the surviving surfaces.
 
-    ``bronze rows − (entity rows + unresolved rejects)``: everything that
-    entered the pipeline and is in neither surviving surface was dropped by
-    the stage-3 ``QUALIFY``. It is an entity-level quantity repeated on each of
-    that entity's rule rows, because dedupe happens once, before any rule.
+    ``bronze rows − rows that survived the stage-3 QUALIFY``. Both sides are
+    scalar subqueries over **this run's** population, which is what makes the
+    result a count: it is a difference between two numbers measured at the same
+    moment, over the same relation, and it cannot be negative because the
+    subtrahend is a subset of the minuend by construction.
+
+    It used to be ``bronze − (entity rows + unresolved rejects)``. That looks
+    like the same quantity and is not: the entity is rebuilt in full each run
+    while the reject table is ``INCREMENTAL_BY_UNIQUE_KEY`` and *accumulates*,
+    so as soon as bronze's incremental window moves past a row that is still an
+    unresolved reject, the subtrahend exceeds the minuend and the "count" goes
+    negative. A count that can be negative is not a count.
 
     Zero where it cannot be measured honestly: an entity without ``dedupe``
     loses nothing (the subtraction would always yield 0 anyway, at the cost of
@@ -1141,39 +1446,23 @@ def _rows_deduped(entity: EntityIR, ctx: EmitContext) -> Expression:
         .from_(exp.table_(relation, db=namespace))
         .subquery()
     )
-    return exp.Sub(this=bronze, expression=exp.Count(this=exp.Star()))
+    survivors = (
+        exp.Select()
+        .select(exp.Count(this=exp.Star()))
+        .from_(_extract_select(entity, ctx).subquery(alias=_EXTRACT_ALIAS))
+        .subquery()
+    )
+    return exp.Sub(this=bronze, expression=survivors)
 
 
-def _rule_branch(
-    entity: EntityIR, rule: QualityRuleIR, ctx: EmitContext, *, arrays: bool
-) -> exp.Select:
-    """One row of the quality mart: what one rule did to one entity's rows.
-
-    Counts are read back off the **recorded** flag names (D23), never by
-    re-evaluating the rule: the rule already ran upstream, the reject table no
-    longer carries the source columns a re-evaluation would need, and a second
-    implementation of a predicate is a second thing to keep in agreement.
-
-    An ``on_fail: fail`` rule therefore reports ``rows_failed = 0``, which is
-    the truth for every run that produced a mart at all: its lowering is a
-    **blocking** audit, so a firing rule stops the run before this model is
-    built (§5.4).
-    """
-    fired = flag_member(exp.column(_FLAGS_ALIAS), rule.name, arrays=arrays)
-    quarantined: Expression = exp.Literal.number(0)
-    if disposition(rule) is OnFail.QUARANTINE:
-        quarantined = _counted(
-            exp.And(this=grouped(fired.copy()), expression=exp.column(_QUARANTINED_ALIAS))
-        )
+def _branch(entity: EntityIR, rule: str, verdict: str, counts: list[Expression]) -> exp.Select:
+    """One mart row over an entity's population CTE, in §5.8's schema order."""
     values: list[Expression] = [
         exp.Literal.string(entity.name),
         exp.Literal.string(_mapping_identity(entity)),
-        exp.Literal.string(rule.name),
-        exp.Literal.string(str(disposition(rule))),
-        exp.Count(this=exp.Star()),
-        _counted(fired),
-        quarantined,
-        _rows_deduped(entity, ctx),
+        exp.Literal.string(rule),
+        exp.Literal.string(verdict),
+        *counts,
     ]
     return (
         exp.Select()
@@ -1187,6 +1476,65 @@ def _rule_branch(
     )
 
 
+def _entity_branch(entity: EntityIR, ctx: EmitContext) -> exp.Select:
+    """The entity's **accounting row**: the counts that belong to the entity
+    rather than to any one rule (RFC 0016 §5.8, resolved per D12 — see
+    :data:`~bloomery.quality.ENTITY_GRAIN_ROW`).
+
+    ``rows_evaluated``, ``rows_quarantined`` and ``rows_deduped`` are facts
+    about the *population*: how many rows the rules ran over, how many of them
+    the split diverted, how many dedupe removed first. Carrying them on every
+    rule row — which is what the schema's flat shape invites — makes them fan
+    out: ``SUM(rows_evaluated)`` over an entity with eight rules returns eight
+    times the population, and the quarantine rate built from it is wrong by
+    that factor and again by the number of rules a diverted row happened to
+    trip. Giving each count exactly one row to live on is what makes every
+    measure of this mart additive, which is the only property that lets §5.8's
+    "a plain ``MetricRequest``" be true at *any* group-by.
+    """
+    return _branch(
+        entity,
+        ENTITY_GRAIN_ROW,
+        ENTITY_GRAIN_ROW,
+        [
+            exp.Count(this=exp.Star()),
+            exp.Literal.number(0),
+            _counted(exp.column(_QUARANTINED_ALIAS)),
+            _rows_deduped(entity, ctx),
+        ],
+    )
+
+
+def _rule_branch(entity: EntityIR, rule: QualityRuleIR, *, arrays: bool) -> exp.Select:
+    """One row of the quality mart: what one rule did to one entity's rows.
+
+    Counts are read back off the **recorded** flag names (D23), never by
+    re-evaluating the rule: the rule already ran upstream, the reject table no
+    longer carries the source columns a re-evaluation would need, and a second
+    implementation of a predicate is a second thing to keep in agreement.
+
+    A rule row reports ``rows_failed`` and nothing else. The population counts
+    beside it are the entity's, and they live on the entity's own row
+    (:func:`_entity_branch`); ``rows_quarantined`` is there too, counting
+    *rows* rather than rule-level diversions, because two quarantine rules
+    firing on one row divert one row and not two. For a ``quarantine``-
+    disposition rule ``rows_failed`` **is** the number of rows it diverted —
+    firing one diverts the row — so nothing is lost by the move.
+    """
+    fired = flag_member(exp.column(_FLAGS_ALIAS), rule.name, arrays=arrays)
+    return _branch(
+        entity,
+        rule.name,
+        str(disposition(rule)),
+        [
+            exp.Literal.number(0),
+            _counted(fired),
+            exp.Literal.number(0),
+            exp.Literal.number(0),
+        ],
+    )
+
+
 def _reconcile_branch(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> exp.Select:
     """One row per reconcile check, read off its own model.
 
@@ -1194,6 +1542,12 @@ def _reconcile_branch(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> ex
     this ``rule`` dimension (see ``RULE_NAME_PATTERN``). ``entity`` and
     ``mapping`` name the check's **left** side: a reconcile relates two
     entities, and the left is the one whose aggregate is under test.
+
+    A rule row, therefore counted like one: ``rows_failed`` is the number of
+    compared keys outside tolerance, and the population columns stay zero. A
+    reconcile's own row count is a count of *keys*, not of the left entity's
+    rows — adding it to that entity's ``rows_evaluated`` would mix two grains
+    under one column and put a second wrong number into the quarantine rate.
     """
     _side, entity, _keys = _resolved_side(check.left, ir)
     namespace, relation = ctx.naming.relation(reconcile_relation(check), Layer.SILVER)
@@ -1202,7 +1556,7 @@ def _reconcile_branch(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> ex
         exp.Literal.string(_mapping_identity(entity)),
         exp.Literal.string(check.name),
         exp.Literal.string(str(check.on_fail)),
-        exp.Count(this=exp.Star()),
+        exp.Literal.number(0),
         _counted(reconcile_audit_predicate()),
         exp.Literal.number(0),  # a reconcile check routes no row (§5.3)
         exp.Literal.number(0),
@@ -1256,7 +1610,8 @@ def quality_mart_select(ir: ProjectIR, ctx: EmitContext, run: RunContext) -> exp
     branches: list[exp.Select] = []
     entities = [entity for entity in ir.entities if entity.quality]
     for entity in entities:  # sorted on ProjectIR; rules sorted on EntityIR
-        branches.extend(_rule_branch(entity, rule, ctx, arrays=arrays) for rule in entity.quality)
+        branches.append(_entity_branch(entity, ctx))
+        branches.extend(_rule_branch(entity, rule, arrays=arrays) for rule in entity.quality)
     branches.extend(_reconcile_branch(check, ir, ctx) for check in ir.reconcile)
     evaluations: exp.Select | exp.Union = branches[0]
     for branch in branches[1:]:

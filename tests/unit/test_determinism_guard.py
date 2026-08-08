@@ -82,6 +82,38 @@ for manifest_fixture in ("ecom_basic", "non_additive_aov"):
 """
 
 
+# The quality-carrying fixtures, compiled with and without the *target
+# framework* imported into the same process (RFC 0016). SQLMesh extends SQLGlot
+# globally on import — it registers dialects and replaces generator methods —
+# so a lowering that leans on a node type SQLMesh re-renders produces different
+# bytes depending on who imported what. Nobody would notice locally (``just
+# test`` never imports sqlmesh) and the e2e tier would start disagreeing with
+# the goldens for reasons no diff explains.
+FRAMEWORK_SCRIPT = """
+import pathlib
+import sys
+
+if sys.argv[2] == "imported":
+    import sqlmesh  # noqa: F401
+
+from bloomery import Target, compile_project, load_catalog, load_project
+
+for name in ("semi_additive_inventory", "dirty_corpus", "quality_precedence"):
+    fixture_dir = pathlib.Path(sys.argv[1]).parent / name
+    sources = {
+        path.stem: path.read_text()
+        for path in sorted(fixture_dir.glob("*.yaml"))
+        if path.stem != "catalog"
+    }
+    catalog = load_catalog((fixture_dir / "catalog.yaml").read_text())
+    for artifact in compile_project(
+        load_project(sources), target=Target.SQLMESH, dialect="duckdb", catalog=catalog
+    ):
+        print(artifact.path, artifact.checksum)
+        print(artifact.content)
+"""
+
+
 def run_with_hash_seed(seed: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-c", SCRIPT, str(FIXTURE_DIR)],
@@ -96,6 +128,17 @@ def run_with_hash_seed(seed: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _run_framework(state: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-c", FRAMEWORK_SCRIPT, str(FIXTURE_DIR), state],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={"PYTHONPATH": f"{REPO_ROOT / 'src'}:{REPO_ROOT / 'tests'}"},
+        cwd=REPO_ROOT,
+    )
+
+
 def test_output_identical_across_hash_seeds() -> None:
     first = run_with_hash_seed("0")
     second = run_with_hash_seed("1")
@@ -103,3 +146,17 @@ def test_output_identical_across_hash_seeds() -> None:
     assert second.returncode == 0, second.stderr
     assert first.stdout == second.stdout
     assert "blm1:" in first.stdout
+
+
+def test_output_identical_whether_or_not_the_target_framework_is_imported() -> None:
+    """Compilation is a pure function of the specs — including of *nothing
+    else in the process*. A target framework that patches SQLGlot on import is
+    exactly the kind of ambient state RFC 0003's "same specs in ⇒ byte-identical
+    artifacts out" rules out, and it is invisible to every other guard here:
+    the hash-seed pair above imports neither, and the golden tier only imports
+    sqlmesh in the e2e lane."""
+    bare = _run_framework("bare")
+    imported = _run_framework("imported")
+    assert bare.returncode == 0, bare.stderr
+    assert imported.returncode == 0, imported.stderr
+    assert bare.stdout == imported.stdout

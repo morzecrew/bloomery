@@ -124,16 +124,14 @@ def test_dedupe_losers_are_counted_never_silently_vanished(
     clean_run: duckdb.DuckDBPyConnection,
 ) -> None:
     """The whole point of ``rows_deduped`` (§5.8): a loser leaves the entity
-    and leaves a *number* behind. Three losers in ``keys.csv``, and the quality
-    mart reports exactly three for every rule of the entity."""
-    counts = {
-        rule: deduped
-        for rule, deduped in clean_run.execute(
-            "SELECT rule, rows_deduped FROM gold.mart_data_quality WHERE entity = 'dirty_key'"
-        ).fetchall()
-    }
-    per_rule = {value for rule, value in counts.items() if not rule.endswith("_matches_row")}
-    assert per_rule == {3}
+    and leaves a *number* behind. Three losers in ``keys.csv``, reported once
+    on the entity's accounting row — dedupe happens once, before any rule, so
+    the count belongs to the entity and summing it must give three, not three
+    per rule."""
+    total = clean_run.execute(
+        "SELECT SUM(rows_deduped) FROM gold.mart_data_quality WHERE entity = 'dirty_key'"
+    ).fetchone()
+    assert total == (3,)
     bronze, silver, rejects = clean_run.execute(
         "SELECT (SELECT COUNT(*) FROM bronze.dirty__keys),"
         "       (SELECT COUNT(*) FROM silver.dirty_key),"

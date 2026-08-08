@@ -101,7 +101,7 @@
     },
     {
       "config": null,
-      "description": "Rows the rule was evaluated over (survivors of dedupe).",
+      "description": "Rows the entity's rules were evaluated over (survivors of dedupe), reported once per entity.",
       "filter": null,
       "label": null,
       "metadata": null,
@@ -193,7 +193,7 @@
     },
     {
       "config": null,
-      "description": "Rows this rule diverted to the entity's reject table.",
+      "description": "Rows the split diverted to the entity's reject table, counted once per row however many rules diverted it.",
       "filter": null,
       "label": null,
       "metadata": null,

@@ -31,6 +31,7 @@ from bloomery.ir import DedupeIR, OnFail, ProjectIR, SCDKind
 from bloomery.naming import DefaultNaming, PrefixNaming
 from bloomery.planner.coverage import check
 from bloomery.quality import (
+    ENTITY_GRAIN_ROW,
     QUALITY_MART,
     QUALITY_MART_COLUMNS,
     QUALITY_METRICS,
@@ -106,8 +107,17 @@ def test_the_schema_carries_no_per_customer_scoping_column() -> None:
 
 
 def test_one_row_per_rule_evaluation_plus_one_per_reconcile_check() -> None:
+    """…plus one **accounting row** per quality-carrying entity, carrying the
+    counts that describe the population rather than any one rule (§5.8, and
+    :data:`~bloomery.quality.ENTITY_GRAIN_ROW`). Repeating those on every rule
+    row is what made ``SUM(rows_evaluated)`` return a multiple of the truth."""
     ir = fixture_ir(FIXTURE)
-    expected = sum(len(entity.quality) for entity in ir.entities) + len(ir.reconcile)
+    quality_entities = [entity for entity in ir.entities if entity.quality]
+    expected = (
+        sum(len(entity.quality) for entity in ir.entities)
+        + len(ir.reconcile)
+        + len(quality_entities)
+    )
     select = parse_one(extract_select(_quality_model()), dialect="duckdb")
     branches = [
         node
@@ -117,6 +127,7 @@ def test_one_row_per_rule_evaluation_plus_one_per_reconcile_check() -> None:
     assert len(branches) == expected
     rules = {p.this.this for branch in branches for p in branch.expressions if p.alias == "rule"}
     assert "stock_level_matches_snapshot" in rules  # the reconcile check's own row
+    assert ENTITY_GRAIN_ROW in rules  # the entity's accounting row
 
 
 def test_each_entitys_population_is_one_cte_not_one_scan_per_rule() -> None:
@@ -318,7 +329,11 @@ def test_an_entity_without_a_reject_table_counts_only_its_own_rows() -> None:
     body = _rendered(ir)
     assert "FROM silver.order_item" in body
     assert "__reject" not in body
-    assert "UNION ALL" not in body  # nothing to union: one population, one rule
+    # One population: the CTE has a single leg, so nothing is ever marked
+    # diverted. (The branches *above* the CTE are unioned like any others —
+    # the entity's accounting row and its one rule.)
+    assert body.count("AS _quarantined") == 1
+    assert "TRUE AS _quarantined" not in body
 
 
 def test_rows_deduped_is_zero_where_it_cannot_be_measured_honestly() -> None:
@@ -353,6 +368,11 @@ def test_a_dedupe_carrying_entity_reports_the_conservation_residual() -> None:
         )
     )
     body = _rendered(ir)
-    # bronze rows − (entity rows + unresolved rejects): §6's residual.
+    # bronze rows − the rows that survived the dedupe QUALIFY, both measured
+    # over *this* run. Never a residual against the surviving surfaces: the
+    # reject table accumulates while the entity is rebuilt, so that form goes
+    # negative as soon as bronze's window moves.
     assert "FROM bronze.raw__items" in body
-    assert ") - COUNT(*) AS rows_deduped" in body
+    assert "AS rows_deduped" in body
+    assert "ROW_NUMBER() OVER (" in body.split("AS rows_deduped")[0]
+    assert "COUNT(*) AS rows_deduped" not in body

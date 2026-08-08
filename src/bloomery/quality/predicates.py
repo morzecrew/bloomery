@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
 __all__ = [
+    "WINDOWED_KINDS",
     "conjunction",
     "disjunction",
     "disposition",
@@ -51,6 +52,8 @@ __all__ = [
     "source_alias",
     "unknown_member_case",
     "violation",
+    "window_alias",
+    "windowed",
     "worst",
 ]
 
@@ -125,6 +128,35 @@ def source_alias(rule: QualityRuleIR, index: int) -> str:
     by the emitter that projects them.
     """
     return f"_src_{rule.name}_{index:04d}"
+
+
+#: Rule kinds whose violation predicate contains a **window function**.
+#:
+#: SQL allows a window function in a projection and forbids it everywhere a
+#: projection has not yet been computed — a ``WHERE`` clause, an aggregate's
+#: argument, a ``QUALIFY`` other than the query's own. The lowering puts a
+#: violation predicate in all three positions (the routing split, the audit
+#: bodies, the conservation audit's ``SUM(CASE …)``), so a windowed rule has to
+#: be *computed once, as a column*, and referenced by name from then on
+#: (:func:`window_alias`). ``unique`` is the only such kind in the v1 catalogue
+#: (D5); a rule added later that needs a window joins this set rather than
+#: growing a special case at each position.
+WINDOWED_KINDS = frozenset({"unique"})
+
+
+def windowed(rule: QualityRuleIR) -> bool:
+    """Whether this rule's predicate must be projected before it can be used."""
+    return rule.kind in WINDOWED_KINDS
+
+
+def window_alias(rule: QualityRuleIR) -> str:
+    """The projection name a windowed rule's verdict is computed under.
+
+    One convention, spelled once, used by the emitter that projects the column
+    and by every position that reads it back. It carries the rule name, so two
+    windowed rules on one entity never collide.
+    """
+    return f"_win_{rule.name}"
 
 
 def ref_alias(relationship: str) -> str:

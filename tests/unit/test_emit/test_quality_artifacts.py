@@ -88,13 +88,18 @@ def test_the_silver_model_renders_the_fixed_pipeline_order() -> None:
     assert "ARRAY_LENGTH(_evaluated._quality_flags) = 0 AS _quality_ok" in body
 
 
-def test_the_flag_pass_is_single_and_carries_only_flag_rules() -> None:
+def test_the_flag_pass_is_single_and_records_what_a_kept_row_can_fire() -> None:
+    """One array construct, one pass (§5.4) — over the rules a *kept* row can
+    actually trip: ``flag`` and ``fail``. A quarantine rule firing diverts the
+    row, so its name could never appear here; a ``fail`` rule firing does not
+    move the row at all, and leaving its name out made such a row read as clean
+    everywhere the package looks (D18)."""
     body = extract_select(_artifact("models/silver/inventory_level.sql"))
-    # One array construct, one CASE — the fixture has exactly one flag rule.
     assert body.count("AS _quality_flags") == 1
-    assert body.count("stock_level_not_negative") == 1
-    # Quarantine-disposition names never enter _quality_flags; they route.
     flags_clause = body.split("AS _quality_flags")[0]
+    assert "stock_level_not_negative" in flags_clause  # flag
+    assert "stock_level_not_null" in flags_clause  # fail
+    # Quarantine-disposition names never enter _quality_flags; they route.
     assert "stock_level_range_min" not in flags_clause
 
 
@@ -112,7 +117,15 @@ def test_the_reject_model_carries_the_rfc_schema() -> None:
     content = _artifact("models/silver/inventory_level__reject.sql")
     assert "name silver.inventory_level__reject" in content
     # Re-deliveries land on the same row: the identity is the unique key.
-    assert "INCREMENTAL_BY_UNIQUE_KEY (unique_key (reject_id))" in content
+    assert "INCREMENTAL_BY_UNIQUE_KEY (unique_key (reject_id)" in content
+    # …and land on it *selectively*: `first_seen` records when the problem
+    # started, so the merge keeps the existing value while every other column
+    # takes the arriving one (§5.6). Without the clause the default merge
+    # overwrites the whole row and the column tracks the newest delivery.
+    assert "when_matched (WHEN MATCHED THEN UPDATE SET " in content
+    assert "target.first_seen = COALESCE(target.first_seen, source.first_seen)" in content
+    assert "target.last_seen = source.last_seen" in content
+    assert "target.reject_id" not in content  # the merge key is never assigned
     select = parse_one(extract_select(content), dialect="duckdb")
     assert isinstance(select, exp.Select)
     assert [projection.alias_or_name for projection in select.expressions] == [
@@ -132,13 +145,17 @@ def test_the_reject_model_carries_the_rfc_schema() -> None:
     ]
 
 
-def test_failed_rules_records_flag_level_failures_too() -> None:
+def test_failed_rules_records_every_failure_the_row_had() -> None:
     """D18: the reject row is the full account of why a row is not in the
-    entity."""
+    entity — "all failed rule names … its flag-level failures included", and by
+    the same argument its blocking ones. A diverted row that also tripped a
+    ``fail`` rule is the case where the omission mattered most: it is the row
+    the run was supposed to stop for."""
     body = extract_select(_artifact("models/silver/inventory_level__reject.sql"))
     failed = body.split("AS failed_rules")[0]
     assert "stock_level_range_min" in failed  # the rule that diverted the row
     assert "stock_level_not_negative" in failed  # a flag-level failure
+    assert "stock_level_not_null" in failed  # the blocking one
 
 
 def test_redacted_paths_never_reach_raw() -> None:
@@ -182,10 +199,20 @@ def test_the_ingestion_metadata_audit_is_generated_and_referenced() -> None:
 
 
 def test_a_fail_disposition_rule_becomes_a_blocking_audit() -> None:
+    """D18: the audit reads the **pre-route** population, not ``@this_model``.
+
+    Routing is stage 6 of the pipeline and the audit runs after the model is
+    built, so an audit over the entity sees only the rows the split kept — and
+    a row that failed a blocking rule *and* a quarantine rule would sit in the
+    reject table with the run carrying on, inverting the severity order the RFC
+    pins.
+    """
     model = _artifact("models/silver/inventory_level.sql")
     assert "inventory_level_stock_level_not_null" in model
     audit = _artifact("audits/inventory_level_stock_level_not_null.sql")
-    assert audit.rstrip().endswith("SELECT * FROM @this_model WHERE stock_level IS NULL")
+    assert "@this_model" not in audit
+    assert "FROM bronze.wms__stock_levels" in audit
+    assert audit.rstrip().endswith(") AS _extract\nWHERE\n  _extract.stock_level IS NULL")
 
 
 def test_the_conservation_audit_is_generated_and_blocking() -> None:
@@ -494,3 +521,41 @@ def test_the_quality_dimension_projects_from_the_base_alongside_joins() -> None:
     assert "NOT order_item._quality_ok AS has_quality_flags" in rendered
     assert 'LEFT JOIN silver."order" AS o_' in rendered
     assert "order_item.order_id = o_.id" in rendered
+
+
+# ....................... #
+# The reconcile audit's disposition (§5.3)
+
+
+@pytest.mark.parametrize(
+    ("on_fail", "blocking"),
+    [("flag", False), ("fail", True), ("quarantine", False)],
+)
+def test_a_reconcile_checks_audit_blocks_exactly_when_it_says_fail(
+    on_fail: str, blocking: bool
+) -> None:
+    """§5.3 nominates ``reconcile`` as the pipeline-stopping gate — "a
+    pipeline-stopping orphan gate, where genuinely wanted, is expressed as a
+    ``reconcile`` check instead" — and that sentence is only true if
+    ``on_fail: fail`` actually blocks. Emitting the same non-blocking audit for
+    every value made the field decoration: the quality mart reported
+    ``disposition = 'fail'`` while the run carried on regardless.
+
+    ``quarantine`` lowers non-blocking: a reconcile compares two aggregates and
+    routes no row, so there is nothing for it to divert (refusing the value is
+    the spec surface's job, where ``on_fail`` is typed).
+    """
+    project, catalog = load_fixture(FIXTURE)
+    checks = tuple(
+        check.model_copy(update={"on_fail": on_fail}) for check in project.entity_model.reconcile
+    )
+    project = replace(
+        project, entity_model=project.entity_model.model_copy(update={"reconcile": checks})
+    )
+    artifacts = compile_project(project, target=Target.SQLMESH, dialect="duckdb", catalog=catalog)
+    audit = next(
+        a.content
+        for a in artifacts
+        if a.kind is ArtifactKind.AUDIT and a.path.endswith("_matches_snapshot_reconcile.sql")
+    )
+    assert ("blocking false" in audit) is not blocking

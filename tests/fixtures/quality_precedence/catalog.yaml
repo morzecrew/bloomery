@@ -1,0 +1,11 @@
+catalog_version: 1
+vertical: quality_precedence
+
+# No canonical fields: this fixture states dispositions, not domain concepts.
+# The catalog exists for the time spine the quality mart's `run_date` role
+# needs (RFC 0013 R1 rule 4).
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2023
+  end_year: 2027

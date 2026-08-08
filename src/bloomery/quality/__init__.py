@@ -67,6 +67,7 @@ from bloomery.quality.lower import (
     opts_in,
 )
 from bloomery.quality.mart import (
+    ENTITY_GRAIN_ROW,
     QUALITY_MART,
     QUALITY_MART_COLUMNS,
     QUALITY_MEASURE_COLUMNS,
@@ -79,6 +80,7 @@ from bloomery.quality.mart import (
 )
 from bloomery.quality.pattern import unsupported_dialects
 from bloomery.quality.predicates import (
+    WINDOWED_KINDS,
     conjunction,
     disjunction,
     disposition,
@@ -91,6 +93,8 @@ from bloomery.quality.predicates import (
     source_alias,
     unknown_member_case,
     violation,
+    window_alias,
+    windowed,
     worst,
 )
 from bloomery.quality.reconcile import (
@@ -138,6 +142,7 @@ __all__ = [
     "mapped_fields",
     "opts_in",
     # the quality mart (§5.8)
+    "ENTITY_GRAIN_ROW",
     "QUALITY_MART",
     "QUALITY_MART_COLUMNS",
     "QUALITY_MEASURE_COLUMNS",
@@ -156,6 +161,7 @@ __all__ = [
     "ReconcileSide",
     "parse_side",
     # predicates
+    "WINDOWED_KINDS",
     "conjunction",
     "disjunction",
     "disposition",
@@ -168,6 +174,8 @@ __all__ = [
     "source_alias",
     "unknown_member_case",
     "violation",
+    "window_alias",
+    "windowed",
     "worst",
     # reject
     "REJECT_COLUMNS",
