@@ -24,6 +24,7 @@ EXPECTED_PATHS = {
     "step_resolution": [
         "audits/step_customer_xref_canonical_id_references_customer.sql",
         "models/silver/customer.py",
+        "models/silver/customer_raw.sql",
         "models/silver/customer_xref.py",
     ],
     "minimal": ["models/silver/event.sql"],

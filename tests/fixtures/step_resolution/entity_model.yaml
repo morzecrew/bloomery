@@ -1,6 +1,19 @@
 # The step fixture (RFC 0017): a python_model step with two outputs, so the
-# one-wrapper-per-output rule (D16) is visible in the goldens rather than
-# asserted in prose. The entity model declares nothing — a step produces its
-# own relations, and this fixture is about the step, not about mappings.
+# one-wrapper-per-output rule (D16) and the declared-reference consistency
+# audit (D43) are visible in the goldens rather than asserted in prose.
+#
+# `customer_raw` is a real mapped entity, not a bare relation name: a step's
+# input binding is resolved through SQLMesh's `context.table(...)`, which
+# resolves *models*. Binding a relation nothing produces compiles fine and
+# then fails at run time with "unable to find a table mapping" — which is what
+# the e2e tier is here to catch.
 spec_version: 1
-entities: {}
+entities:
+  customer_raw:
+    grain: one row per source row
+    key: [source_system, source_id]
+    fields:
+      source_system: {type: string, required: true}
+      source_id: {type: string, required: true}
+      email: {type: string}
+      name: {type: string}

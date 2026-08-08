@@ -291,6 +291,42 @@ class StepManifest(SpecModel):
         return self
 
     @model_validator(mode="after")
+    def _references_are_acyclic(self) -> Self:
+        """References order the outputs' models, so a cycle is a cycle.
+
+        Each reference becomes a real ``depends_on`` edge — the audit has to
+        read the sibling's *snapshot*, not a virtual-layer view — so two
+        outputs referencing each other is a DAG cycle SQLMesh refuses at load,
+        long after the manifest that caused it. Refused here, where the
+        message can name the outputs.
+        """
+        edges = {
+            name: {target for _column, target in output.references.items()}
+            for name, output in self.outputs.items()
+        }
+        state: dict[str, int] = {}
+
+        def walk(node: str, path: list[str]) -> None:
+            state[node] = 1
+            for target in sorted(edges.get(node, ())):
+                if state.get(target) == 1:
+                    cycle = " → ".join([*path, node, target])
+                    msg = (
+                        f"outputs reference each other in a cycle: {cycle}. Each reference "
+                        "orders the two models so the audit can read a materialized "
+                        "sibling, and a cycle has no order"
+                    )
+                    raise ValueError(msg)
+                if state.get(target) is None:
+                    walk(target, [*path, node])
+            state[node] = 2
+
+        for name in sorted(edges):
+            if state.get(name) is None:
+                walk(name, [])
+        return self
+
+    @model_validator(mode="after")
     def _sql_macro_produces_one_expression(self) -> Self:
         """Tier 1 is an *expression* (§5.1): it splices into a SELECT, so it
         has exactly one output of exactly one column. A macro declaring a

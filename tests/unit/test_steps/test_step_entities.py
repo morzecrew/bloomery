@@ -77,7 +77,11 @@ def test_the_step_relation_is_emitted_once_by_the_wrapper() -> None:
     models = [
         a.path for a in compile_fixture("step_resolution") if a.path.startswith("models/")
     ]
-    assert models == ["models/silver/customer.py", "models/silver/customer_xref.py"]
+    assert models == [
+        "models/silver/customer.py",
+        "models/silver/customer_raw.sql",
+        "models/silver/customer_xref.py",
+    ]
 
 
 def test_a_mart_may_be_built_over_a_step_output() -> None:

@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `bloomery.steps.contract.assert_step_contract` — the run-time step contract, the only bloomery module intended for import outside compilation. It imports nothing but `bloomery.errors`: every check is expressed against the dataframe protocol the step already returned, so it needs no pandas of its own.
 
-- A step emits a blocking consistency audit per reference its manifest **declares** between sibling outputs (`references: {column: sibling}`), attached to the model holding the reference so SQLMesh actually runs it. This is the check for the one risk one-wrapper-per-output creates — a step misdeclared as `pure` producing siblings that disagree *within a single run*, which no run-to-run gate and no contract assertion can see.
+- A step emits a blocking consistency audit per reference its manifest **declares** between sibling outputs (`references: {column: sibling}`), attached to the model holding the reference, and that model declares the sibling in `depends_on` so SQLMesh resolves it to the plan's snapshot rather than a virtual-layer view. Mutual references are refused: each one orders the two models. This is the check for the one risk one-wrapper-per-output creates — a step misdeclared as `pure` producing siblings that disagree *within a single run*, which no run-to-run gate and no contract assertion can see.
 
 - Step outputs are entities: a mart or downstream model may reference `silver.customer` written by a step exactly as it would any silver entity, and `plan()` diffs those entities like any other. `EntityIR` gains `produced_by`, naming the step that writes the relation, so the emitter leaves its model to the step's generated wrapper.
 

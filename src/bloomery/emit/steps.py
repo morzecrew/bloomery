@@ -76,7 +76,15 @@ from sqlmesh import model
     {{ relation }},
     kind="FULL",
     columns={{ columns }},{% if audits %}
-    audits={{ audits }},{% endif %}
+    audits={{ audits }},
+    # Declared because an audit reads the sibling: SQLMesh substitutes
+    # physical snapshot tables only for relations in the audited model's
+    # depends_on, so without this the audit resolves `silver.customer` to a
+    # virtual-layer view that does not exist on a first plan — failing the run
+    # it exists to protect — and on later plans compares against the *promoted*
+    # view rather than this plan's data. Inference is replaced, not extended,
+    # so the read relations are listed too.
+    depends_on={{ depends_on }},{% endif %}
 )
 def execute(context: typing.Any, **kwargs: typing.Any) -> typing.Any:
     # Every name this function needs is bound *inside* it, deliberately.
@@ -86,23 +94,28 @@ def execute(context: typing.Any, **kwargs: typing.Any) -> typing.Any:
     # say — fails to reconstruct there, and the model does not load at all
     # ("name 'Decimal' is not defined", before anything runs). Local state has
     # nothing to serialize.
-    from datetime import date, datetime  # noqa: F401
-    from decimal import Decimal  # noqa: F401
+    # Every generated name is `_blm_`-prefixed: the entrypoint is imported into
+    # this same scope, and a step function called `parameters` or `Decimal`
+    # would otherwise shadow the local the next line needs — `Decimal` silently
+    # rebinding a value constructor to caller code is the bad one.
+    from datetime import date as _blm_date  # noqa: F401
+    from datetime import datetime as _blm_datetime  # noqa: F401
+    from decimal import Decimal as _blm_Decimal  # noqa: F401, N812
 
-    from bloomery.steps.contract import assert_step_contract
+    from bloomery.steps.contract import assert_step_contract as _blm_assert
 
     from {{ module }} import {{ function }}
 
-    manifest = {{ manifest }}
-    parameters = {{ parameters }}
-    inputs = { {%- for name, relation in inputs %}
+    _blm_manifest = {{ manifest }}
+    _blm_parameters = {{ parameters }}
+    _blm_inputs = { {%- for name, relation in inputs %}
         {{ name }}: context.fetchdf(
             f"SELECT * FROM {context.table({{ relation }})}"
         ),{% endfor %}
     }
-    outputs = {{ function }}(**inputs, **parameters)
-    assert_step_contract(outputs, manifest)
-    return outputs[{{ output }}]
+    _blm_outputs = {{ function }}(**_blm_inputs, **_blm_parameters)
+    _blm_assert(_blm_outputs, _blm_manifest)
+    return _blm_outputs[{{ output }}]
 ''',
     autoescape=False,
 )
@@ -210,9 +223,9 @@ def _columns_literal(output: StepOutputIR, ctx: EmitContext) -> str:
 #: arbitrary-code-execution surface, and it is only true if this function
 #: holds it.
 _PARAMETER_CTORS: Final[dict[str, str]] = {
-    "decimal": "Decimal({literal})",
-    "date": "date.fromisoformat({literal})",
-    "timestamp": "datetime.fromisoformat({literal})",
+    "decimal": "_blm_Decimal({literal})",
+    "date": "_blm_date.fromisoformat({literal})",
+    "timestamp": "_blm_datetime.fromisoformat({literal})",
 }
 
 
@@ -278,6 +291,7 @@ def _wrapper_artifact(
     ir: ProjectIR,
     ctx: EmitContext,
     audits: tuple[str, ...] = (),
+    reads: tuple[str, ...] = (),
 ) -> EmittedArtifact:
     del ir
     namespace, relation = ctx.naming.relation(_relation_name(output), Layer.SILVER)
@@ -299,6 +313,7 @@ def _wrapper_artifact(
         # An audit nothing references never runs: SQLMesh loads a bare AUDIT
         # as a *model* audit, executed only where a model's `audits` names it.
         audits=_python_literal(list(audits)) if audits else "",
+        depends_on=_python_literal(sorted(reads)) if audits else "",
         module=module,
         function=function,
         inputs=tuple(
@@ -341,6 +356,7 @@ def _sql_model_artifact(
     ctx: EmitContext,
     envelope: jinja2.Template,
     audits: tuple[str, ...] = (),
+    reads: tuple[str, ...] = (),
 ) -> EmittedArtifact:
     namespace, relation = ctx.naming.relation(_relation_name(output), Layer.SILVER)
     content = envelope.render(
@@ -350,6 +366,7 @@ def _sql_model_artifact(
         grain=", ".join(output.key),
         partitioned_by="",
         audits=", ".join(audits),
+        depends_on=", ".join(sorted(reads)) if audits else "",
         select=ctx.dialect.render(step.body.ast()) if step.body is not None else "",
     )
     return EmittedArtifact.create(
@@ -366,6 +383,12 @@ _PARENT_ALIAS = "_parent"
 _CHILD_ALIAS = "_child"
 
 
+def _qualified(output: StepOutputIR, ctx: EmitContext) -> str:
+    """The relation an output writes, as the naming policy spells it."""
+    namespace, relation = ctx.naming.relation(_relation_name(output), Layer.SILVER)
+    return f"{namespace}.{relation}"
+
+
 def _audit_relation(output: StepOutputIR, ctx: EmitContext) -> exp.Table:
     """The relation an output writes, as the naming policy spells it.
 
@@ -375,8 +398,7 @@ def _audit_relation(output: StepOutputIR, ctx: EmitContext) -> exp.Table:
     a scoping policy means does not exist, which is the defect D34 fixed on
     the input side and this repeated on the audit side.
     """
-    namespace, relation = ctx.naming.relation(_relation_name(output), Layer.SILVER)
-    return exp.to_table(f"{namespace}.{relation}")
+    return exp.to_table(_qualified(output, ctx))
 
 
 def _consistency_select(
@@ -496,10 +518,24 @@ def step_artifacts(
             audits_by_output.setdefault(owner, []).append(
                 artifact.path.removeprefix("audits/").removesuffix(".sql")
             )
+        by_name = {output.name: output for output in step.outputs}
         for output in step.outputs:
             attached = tuple(sorted(audits_by_output.get(output.name, ())))
+            # Inference is replaced by an explicit depends_on, so the relations
+            # the model reads must be listed alongside the siblings its audits
+            # read — otherwise `context.table(...)` has nothing to resolve.
+            reads = tuple(
+                sorted(
+                    {_bound(relation, ctx) for _name, relation in step.inputs}
+                    | {
+                        _qualified(by_name[target], ctx)
+                        for _column, target in output.references
+                        if target in by_name
+                    }
+                )
+            )
             if step.kind is StepKind.PYTHON_MODEL:
-                artifacts.append(_wrapper_artifact(step, output, ir, ctx, attached))
+                artifacts.append(_wrapper_artifact(step, output, ir, ctx, attached, reads))
             else:
-                artifacts.append(_sql_model_artifact(step, output, ctx, envelope, attached))
+                artifacts.append(_sql_model_artifact(step, output, ctx, envelope, attached, reads))
     return tuple(sorted(artifacts, key=lambda a: a.path))

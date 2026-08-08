@@ -108,7 +108,8 @@ _ENVELOPE = jinja2.Template(  # nosec B701
 MODEL (
   name {{ name }},
   kind {{ kind }},
-  grain ({{ grain }}){% if partitioned_by %},
+  grain ({{ grain }}){% if depends_on %},
+  depends_on ({{ depends_on }}){% endif %}{% if partitioned_by %},
   partitioned_by ({{ partitioned_by }}){% endif %}{% if audits %},
   audits ({{ audits }}){% endif %}
 );

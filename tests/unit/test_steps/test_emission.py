@@ -40,8 +40,8 @@ def test_each_declared_output_gets_its_own_wrapper() -> None:
 
 def test_each_wrapper_returns_its_own_output() -> None:
     content = wrappers()
-    assert "return outputs['customer']" in content["models/silver/customer.py"]
-    assert "return outputs['customer_xref']" in content["models/silver/customer_xref.py"]
+    assert "return _blm_outputs['customer']" in content["models/silver/customer.py"]
+    assert "return _blm_outputs['customer_xref']" in content["models/silver/customer_xref.py"]
 
 
 def test_every_wrapper_asserts_all_declared_outputs() -> None:
@@ -50,7 +50,7 @@ def test_every_wrapper_asserts_all_declared_outputs() -> None:
     for content in wrappers().values():
         assert "'customer'" in content
         assert "'customer_xref'" in content
-        assert "assert_step_contract(outputs, manifest)" in content
+        assert "_blm_assert(_blm_outputs, _blm_manifest)" in content
 
 
 # ....................... #
@@ -71,14 +71,22 @@ def test_the_wrapper_binds_its_state_inside_the_function() -> None:
     ``name 'Decimal' is not defined``, before anything ran. Nothing caught it
     because the wrapper was only ever `ast.parse`d, never loaded."""
     tree = ast.parse(wrappers()["models/silver/customer_xref.py"])
-    assigned = {
+    # Every binding form, not just `ast.Assign`: the first version of this
+    # collected plain assignments only, so reintroducing the defect as an
+    # *annotated* assignment (`PARAMETERS: dict = {...}`) kept it green while
+    # SQLMesh refused to load the model. The real check is the e2e tier, which
+    # loads the emitted project through SQLMesh; this is the cheap sentinel.
+    bound = {
         target.id
         for node in tree.body
-        if isinstance(node, ast.Assign)
-        for target in node.targets
+        for target in (
+            [*node.targets] if isinstance(node, ast.Assign)
+            else [node.target] if isinstance(node, ast.AnnAssign)
+            else []
+        )
         if isinstance(target, ast.Name)
     }
-    assert assigned == set()
+    assert bound == set()
 
 
 def test_the_contract_call_is_unconditional() -> None:
@@ -94,7 +102,7 @@ def test_the_contract_call_is_unconditional() -> None:
         if isinstance(node, ast.Expr)
         and isinstance(node.value, ast.Call)
         and isinstance(node.value.func, ast.Name)
-        and node.value.func.id == "assert_step_contract"
+        and node.value.func.id == "_blm_assert"
     ]
     assert len(calls) == 1
 
@@ -113,7 +121,7 @@ def test_a_decimal_parameter_is_passed_as_a_decimal() -> None:
     """The IR holds values as text so canon bytes never meet a float, but the
     step body must be *called* with the real thing."""
     content = wrappers()["models/silver/customer.py"]
-    assert "parameters = {'threshold': Decimal('0.9')}" in content
+    assert "_blm_parameters = {'threshold': _blm_Decimal('0.9')}" in content
     assert "'threshold': '0.9'" not in content
 
 
@@ -188,12 +196,25 @@ def test_a_python_model_never_reaches_a_sql_harness() -> None:
 
     connection = duckdb.connect(":memory:")
     try:
+        connection.execute("CREATE SCHEMA IF NOT EXISTS silver")
+        connection.execute("CREATE SCHEMA IF NOT EXISTS bronze")
+        connection.execute(
+            "CREATE TABLE bronze.crm__customers AS SELECT 'crm' AS system, "
+            "'c1' AS id, 'a@x' AS email, 'Ada' AS name"
+        )
         # Raises if the harness hands DuckDB a `.py` model; creates nothing,
         # because a step body is platform code this harness never runs.
+        # Raises if the harness hands DuckDB a `.py` model. The fixture's one
+        # ordinary SQL model (`customer_raw`, the step's input) does run — the
+        # assertion is that the two `.py` wrappers did not.
         materialize(connection, compile_fixture("step_resolution"))
-        created = connection.execute("SELECT count(*) FROM duckdb_tables()").fetchone()
-        assert created is not None
-        assert created[0] == 0
+        built = {
+            row[0]
+            for row in connection.execute("SELECT table_name FROM duckdb_tables()").fetchall()
+        }
+        # The seed table is mine;  is the fixture's one SQL
+        # model. Neither  wrapper produced a relation, which is the point.
+        assert built == {"crm__customers", "customer_raw"}
     finally:
         connection.close()
 
@@ -207,8 +228,13 @@ def test_a_declared_reference_attaches_its_audit_to_the_child_model() -> None:
     content = wrappers()
     child = content["models/silver/customer_xref.py"]
     assert "audits=['step_customer_xref_canonical_id_references_customer']" in child
-    # The parent holds no reference, so it carries no audit.
+    # And the sibling it reads is declared, or SQLMesh resolves it to a
+    # virtual-layer view that does not exist on a first plan — the audit
+    # failing the run it exists to protect (D44).
+    assert "depends_on=['silver.customer', 'silver.customer_raw']" in child
+    # The parent holds no reference, so it carries neither.
     assert "audits=" not in content["models/silver/customer.py"]
+    assert "depends_on=" not in content["models/silver/customer.py"]
 
 
 def test_an_undeclared_coincidence_emits_no_audit() -> None:
