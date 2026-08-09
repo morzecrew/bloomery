@@ -33,6 +33,7 @@ import jinja2
 from sqlglot import exp
 
 from bloomery.emit.base import ArtifactKind, EmittedArtifact
+from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import Layer, StepKind
 from bloomery.quality import is_not_null
 from bloomery.typing import render_type
@@ -48,8 +49,33 @@ if TYPE_CHECKING:
 __all__ = [
     "consistency_audits",
     "macro_expression",
+    "refuse_steps",
     "step_artifacts",
 ]
+
+
+def refuse_steps(ir: ProjectIR, target: str) -> None:
+    """Refuse a project wiring steps on a target that cannot emit them.
+
+    Shared by the two such targets rather than copied into each: the message,
+    the count and the two suggested fixes are the same statement, and a
+    wording change applied to one copy and not the other is how a refusal
+    starts disagreeing with itself.
+
+    RFC 0017 §5.8 emits steps for SQLMesh only. Dropping them here would
+    silently withhold relations downstream models were typechecked against —
+    fail loud, never approximate (RFC 0008 D3).
+    """
+    if not ir.steps:
+        return
+    msg = (
+        f"project wires {len(ir.steps)} step(s), which the {target} target "
+        "cannot emit (RFC 0017 §5.8 covers SQLMesh only). Their output "
+        "relations would simply be missing. Fix: compile steps for SQLMesh, "
+        "or drop the steps: document for this target"
+    )
+    raise UnsupportedByTarget(msg)
+
 
 # The wrapper is Python, so the envelope interpolates *pre-rendered* strings
 # exactly as the SQL envelopes do (RFC 0008 D4) — the manifest arrives as a

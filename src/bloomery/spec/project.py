@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping as AbcMapping
 from dataclasses import dataclass
-from typing import cast
 
 from bloomery.errors import BloomeryError, SpecParseError
 from bloomery.spec.catalog import Catalog
@@ -154,9 +153,14 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
             metric_sets.append((name, model))
         elif isinstance(model, MartSet):
             mart_sets.append((name, model))
-        else:
-            # The kind table is closed (_KIND_KEYS): the only remaining kind.
-            step_sets.append((name, cast("StepSet", model)))
+        elif isinstance(model, StepSet):
+            step_sets.append((name, model))
+        else:  # pragma: no cover — _KIND_KEYS is closed
+            # Not a `cast` on the closed table: the cast made a seventh kind
+            # silently *become* a StepSet, and hid the mismatch from pyright
+            # too. The table stays closed; this makes it verifiable.
+            msg = f"unhandled spec kind {type(model).__name__}"
+            raise SpecParseError(msg, source_path=name)
 
     if not errors:
         # Cardinality complaints on top of per-document failures would be
