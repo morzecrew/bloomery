@@ -33,6 +33,7 @@ surprise. Everything else keeps the shipped produce-or-raise lowering.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping as AbcMapping
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
@@ -230,9 +231,19 @@ def _field_rule_ir(
     *,
     mapping: Mapping,
     slice_columns: tuple[str, ...],
+    repair_body: str | None = None,
 ) -> QualityRuleIR:
     params: list[tuple[str, str]] = []
     stem = f"{column}_{rule.rule}"
+    if rule.repair is not None:
+        # The recipe travels as SQL, already spliced with this column and the
+        # call site's parameters — resolved one layer up, where the step
+        # registry is (RFC 0016 D87). ``via`` rides along beside it so a
+        # ``plan()`` diff and an error message can name the macro rather than
+        # quote its body back at the reader.
+        params.append(("fallback", rule.repair.fallback))
+        params.append(("via", rule.repair.via))
+        params.append(("body", repair_body or ""))
     if isinstance(rule, CoercibleRule):
         params.extend(_indexed("source", field_sources(mapping, column)))
     elif isinstance(rule, (RangeRule, LengthRule)):
@@ -377,7 +388,10 @@ def _deduplicate_names(
 
 
 def _draft_rules(
-    entity: Entity, mapping: Mapping, relationships: tuple[Relationship, ...]
+    entity: Entity,
+    mapping: Mapping,
+    relationships: tuple[Relationship, ...],
+    repairs: AbcMapping[str, str],
 ) -> tuple[list[QualityRuleIR], list[QualityRuleIR]]:
     """``(generated, authored)`` — the entity's rules, still carrying the names
     each side proposes, before :func:`_deduplicate_names` arbitrates.
@@ -396,7 +410,13 @@ def _draft_rules(
     for column, field_mapping in mapped_fields(mapping):
         declared = _field_quality(field_mapping)
         generated.extend(
-            _field_rule_ir(rule, column, mapping=mapping, slice_columns=slice_columns)
+            _field_rule_ir(
+                rule,
+                column,
+                mapping=mapping,
+                slice_columns=slice_columns,
+                repair_body=repairs.get(column),
+            )
             for rule in declared
         )
         # The implicit rule (§5.2, D3) is skipped where the chain nulls a
@@ -460,18 +480,27 @@ def generated_rule_names(
     """
     if not opts_in(entity, mapping):
         return frozenset()
-    generated, _authored = _draft_rules(entity, mapping, relationships)
+    generated, _authored = _draft_rules(entity, mapping, relationships, {})
     return frozenset(rule.name for rule in _assign_names(generated, set()))
 
 
 def lower_quality(
-    entity: Entity, mapping: Mapping, relationships: tuple[Relationship, ...]
+    entity: Entity,
+    mapping: Mapping,
+    relationships: tuple[Relationship, ...],
+    repairs: AbcMapping[str, str] | None = None,
 ) -> tuple[QualityRuleIR, ...]:
     """Every rule of one entity, field rules and row rules alike, canonically
-    sorted (:func:`~bloomery.ir.quality_sort_key`)."""
+    sorted (:func:`~bloomery.ir.quality_sort_key`).
+
+    ``repairs`` maps a column to its already-spliced repair recipe (RFC 0016
+    D87). It arrives from the resolver rather than being built here because
+    splicing needs the step registry and the field's declared type, neither of
+    which this module may reach.
+    """
     if not opts_in(entity, mapping):
         return ()
-    generated, authored = _draft_rules(entity, mapping, relationships)
+    generated, authored = _draft_rules(entity, mapping, relationships, repairs or {})
     return _deduplicate_names(generated, authored)
 
 

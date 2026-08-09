@@ -16,25 +16,22 @@ any other silver relation.
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import Annotated, Literal, Self
 
 from pydantic import Field, StringConstraints, model_validator
 
-from bloomery.spec.common import SpecModel
+from bloomery.spec.common import USE_PATTERN, ParameterValue, SpecModel, StepUse
 from bloomery.spec.quality import ExpressionRule
 
 __all__ = [
     "RELATION_PATTERN",
     "USE_PATTERN",
     "BoundRelation",
+    "ParameterValue",
     "StepSet",
     "StepUse",
     "StepWiring",
 ]
-
-#: ``ref@version`` — the only way a spec names a step.
-USE_PATTERN = r"^[a-z][a-z0-9_]*@[1-9][0-9]*$"
 
 #: A bound relation: an optionally-namespaced identifier and nothing else.
 #: Constrained because these strings reach *generated source* — a binding of
@@ -44,13 +41,7 @@ USE_PATTERN = r"^[a-z][a-z0-9_]*@[1-9][0-9]*$"
 #: neither alone is load-bearing (RFC 0017 §5.3, D3).
 RELATION_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$"
 
-StepUse = Annotated[str, StringConstraints(pattern=USE_PATTERN)]
 BoundRelation = Annotated[str, StringConstraints(pattern=RELATION_PATTERN)]
-
-#: A parameter value the wiring may set. ``float`` is deliberately absent
-#: (RFC 0003 D5) — a decimal arrives as ``Decimal``, and a YAML float would
-#: reach emission as a binary approximation of what the author wrote.
-ParameterValue = str | int | bool | Decimal
 
 
 class StepWiring(SpecModel):

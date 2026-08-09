@@ -196,11 +196,13 @@ def test_on_fail_is_required_never_defaulted() -> None:
     assert "Field required" in str(excinfo.value)
 
 
-def test_repair_is_not_a_v1_disposition() -> None:
-    # RFC 0016 D17: repair is deferred out of v1 on a repair-recipe contract.
+def test_repair_never_stands_alone() -> None:
+    """RFC 0016 D87: the disposition names no recipe on its own, so it is only
+    ever half a declaration. (``unique`` could not carry one in any case — see
+    ``tests/unit/test_quality/test_repair.py`` for that axis.)"""
     with pytest.raises(SpecParseError) as excinfo:
         mapping_with("      - {rule: unique, on_fail: repair}\n")
-    assert "Input should be 'flag', 'quarantine' or 'fail'" in str(excinfo.value)
+    assert "one declaration" in str(excinfo.value)
 
 
 def test_drop_is_not_a_disposition() -> None:

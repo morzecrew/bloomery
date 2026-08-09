@@ -52,6 +52,9 @@ __all__ = [
     "params_of",
     "qualify_columns",
     "ref_alias",
+    "repair_alias",
+    "repair_body",
+    "repairs",
     "routing_predicate",
     "sole_via_column",
     "source_alias",
@@ -138,6 +141,36 @@ def source_alias(rule: QualityRuleIR, index: int) -> str:
     by the emitter that projects them.
     """
     return f"_src_{rule.name}_{index:04d}"
+
+
+def repairs(rule: QualityRuleIR) -> bool:
+    """Whether this rule carries a repair recipe (RFC 0016 D87)."""
+    return rule.on_fail is OnFail.REPAIR
+
+
+def repair_alias(rule: QualityRuleIR) -> str:
+    """The projection name recording that this rule's recipe *ran* on a row.
+
+    A second column is needed because the verdict alone cannot tell "never
+    violated" from "violated and repaired" — after the rewrite both are simply
+    not violations. This one is computed at the extract level over the value
+    **as delivered**, and read one level up beside the post-repair verdict:
+    together they say "the recipe ran, and it worked", which is exactly what
+    ``_quality_repairs`` records and what D17 asked for a distinct marker of.
+    """
+    return f"_rep_{rule.name}"
+
+
+def repair_body(rule: QualityRuleIR) -> Expression:
+    """The recipe, already spliced with the column and its parameters.
+
+    The macro is resolved and spliced at IR build (where the step registry
+    lives) and travels as SQL text in the rule's params, the way an
+    ``expression`` rule's body does. Emission therefore needs no registry —
+    and the recipe is *in* the IR, so a version or ``runtime_lock`` bump moves
+    the fingerprint and ``plan()`` classifies it like any other change.
+    """
+    return SqlExpr(params_of(rule)["body"]).ast()
 
 
 #: Rule kinds whose violation predicate contains a **window function**.
@@ -580,7 +613,16 @@ def disposition(rule: QualityRuleIR) -> OnFail:
     because the row is kept and the rule's firing is still recorded — never to
     ``QUARANTINE``, which would divert the very row the reserved member exists
     to keep.
+
+    ``repair`` is not a disposition either (D87): it names a recipe, and the
+    row's fate is whatever the recipe *failed* to prevent. Resolving it here to
+    the rule's ``fallback`` is what keeps every other function in this package
+    — severity, routing, the flag collection, the audit bodies — unaware that
+    the disposition exists at all. A repaired row simply stops violating its
+    rule, so it never reaches any of them.
     """
+    if rule.on_fail is OnFail.REPAIR:
+        return OnFail(params_of(rule)["fallback"])
     if rule.on_fail is not None:
         return rule.on_fail
     if params_of(rule)["on_missing"] == "quarantine":

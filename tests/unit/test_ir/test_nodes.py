@@ -74,9 +74,11 @@ def test_ir_version_is_three() -> None:
     assert ProjectIR().bloomery_ir_version == 3
 
 
-def test_on_fail_is_the_v1_disposition_set() -> None:
-    # RFC 0016 §5.1/D2/D17: no `drop`, no `repair` in v1.
-    assert [member.value for member in OnFail] == ["flag", "quarantine", "fail"]
+def test_on_fail_is_the_disposition_set() -> None:
+    # RFC 0016 §5.1/D2: deliberately no `drop`. `repair` joined in D87, once
+    # RFC 0017's registry supplied the recipe contract D17 gated it on — and it
+    # is last because it is the one member that resolves to another.
+    assert [member.value for member in OnFail] == ["flag", "quarantine", "fail", "repair"]
 
 
 def test_field_rule_carries_its_column_and_params() -> None:

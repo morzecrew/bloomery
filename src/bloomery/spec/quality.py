@@ -2,8 +2,9 @@
 
 Cleansing is declared, never coded: a **closed** rule catalogue attaches to
 mapping fields and to entities, every rule carrying an explicit disposition
-(``flag | quarantine | fail`` — no global default, deliberately no ``drop``,
-and no ``repair`` in v1, RFC 0016 D2/D17). Alongside the rules sit the two
+(``flag | quarantine | fail | repair`` — no global default, deliberately no
+``drop``, and ``repair`` only since D87 gave it a recipe contract, RFC 0016
+D2/D17/D87). Alongside the rules sit the two
 entity-level blocks — ``dedupe:`` and ``quarantine:`` — and the
 document-level ``reconcile:`` list.
 
@@ -26,11 +27,11 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping as AbcMapping
 from decimal import Decimal
-from typing import Annotated, Literal, NoReturn, Self, cast
+from typing import Annotated, ClassVar, Literal, NoReturn, Self, cast
 
 from pydantic import AfterValidator, Discriminator, Field, StringConstraints, model_validator
 
-from bloomery.spec.common import JsonPath, SpecModel
+from bloomery.spec.common import JsonPath, ParameterValue, SpecModel, StepUse
 
 __all__ = [
     "PORTABLE_REGEX_REJECTED",
@@ -57,6 +58,7 @@ __all__ = [
     "EXACT_DECIMAL",
     "PortableRegex",
     "Quarantine",
+    "Repair",
     "QualityRule",
     "RangeBound",
     "RangeRule",
@@ -70,10 +72,14 @@ __all__ = [
 # ....................... #
 # Vocabularies and grammars
 
-#: The v1 disposition vocabulary (RFC 0016 §5.1, D2): explicit per rule, never
-#: a global default. No ``drop`` — quarantine is drop plus recoverability; no
-#: ``repair`` — deferred out of v1 on a repair-recipe contract (D17).
-OnFailName = Literal["flag", "quarantine", "fail"]
+#: The disposition vocabulary (RFC 0016 §5.1, D2): explicit per rule, never a
+#: global default. No ``drop`` — quarantine is drop plus recoverability, and
+#: deletion happens through retention, with a paper trail. ``repair`` was
+#: deferred out of v1 on a repair-recipe contract (D17) and joined the
+#: vocabulary when RFC 0017's step registry supplied one (D87); it never stands
+#: alone, always beside a ``repair:`` block naming the recipe and the
+#: disposition for a row the recipe did not fix.
+OnFailName = Literal["flag", "quarantine", "fail", "repair"]
 
 #: ``referential.on_missing`` (RFC 0016 §5.3, D6). ``fail`` is deliberately
 #: absent: orphans are an expected, recoverable data condition, and a pipeline
@@ -478,13 +484,63 @@ RangeBound = Annotated[int | Decimal | str, AfterValidator(_exact_bound)]
 # Field-level rules (RFC 0016 §5.3) — the closed catalogue
 
 
+class Repair(SpecModel):
+    """The repair-recipe contract D17 gated the disposition on (RFC 0016 D87).
+
+    ``via`` names a registered Tier 1 ``sql_macro`` as ``ref@version``, which
+    settles §10's open question — *inline vs catalog-referenced* — in favour of
+    referenced, and not by preference: D1 holds that specs reference
+    implementations and never contain them, and RFC 0017's registry is where a
+    referenced implementation already lives, with a version, a declared
+    signature, a ``runtime_lock`` and a trust-then-verify contract. An inline
+    recipe would have been a second, weaker copy of all of that, reachable only
+    from here.
+
+    ``fallback`` is the disposition for a row the recipe did **not** fix, and
+    it is required for the same reason ``on_fail`` is (D2): a repair that
+    silently kept a still-broken value would be the ``drop`` this RFC refuses,
+    wearing a friendlier name. It cannot itself be ``repair`` — a second
+    attempt at the same value with the same recipe returns the same answer.
+    """
+
+    via: StepUse
+    parameters: dict[str, ParameterValue] = Field(default_factory=dict)
+    fallback: Literal["flag", "quarantine", "fail"]
+
+
 class QualityRule(SpecModel):
     """Base of every disposition-carrying rule: ``on_fail`` is **required**,
     never inherited from a project-wide default (RFC 0016 D2). The implicit
     ``coercible`` rule's ``quarantine`` default applies to the rule nobody
     wrote; a rule an author *did* write states its own disposition."""
 
+    #: Whether ``on_fail: repair`` is meaningful for this kind (RFC 0016 D87).
+    #: ``False`` where the rule has no repairable value in hand: ``coercible``
+    #: fires *because* the projection is already NULL, ``unique`` is a property
+    #: of a population rather than of a value, and a row rule has no column to
+    #: rewrite.
+    repairable: ClassVar[bool] = True
+
     on_fail: OnFailName
+    repair: Repair | None = None
+
+    @model_validator(mode="after")
+    def _repair_accompanies_its_disposition(self) -> Self:
+        if (self.on_fail == "repair") != (self.repair is not None):
+            msg = (
+                "on_fail: repair and a repair: block are one declaration — the disposition "
+                "names no recipe on its own, and a recipe with any other disposition would "
+                "never run (RFC 0016 D87)"
+            )
+            raise ValueError(msg)
+        if self.repair is not None and not type(self).repairable:
+            msg = (
+                f"a {getattr(self, 'rule', 'row')!r} rule cannot carry on_fail: repair — it has "
+                "no repairable value in hand when it fires (RFC 0016 D87). Fix the value earlier "
+                "instead: a sql_macro spliced into the mapping runs before any rule sees it"
+            )
+            raise ValueError(msg)
+        return self
 
 
 class CoercibleRule(QualityRule):
@@ -494,6 +550,11 @@ class CoercibleRule(QualityRule):
     marker. It absorbs the retired ``Mapping.on_unmapped_enum``."""
 
     rule: Literal["coercible"]
+    # The marker means "the projection is NULL although every source it reads
+    # was not", so by the time this fires the castable text is gone and a
+    # recipe would be handed the NULL. Fixing a value *before* it is coerced is
+    # what a Tier 1 macro in the mapping is for (RFC 0017 D50).
+    repairable: ClassVar[bool] = False
 
 
 class NotNullRule(QualityRule):
@@ -629,6 +690,10 @@ class UniqueRule(QualityRule):
     dedupe's job in every mode, and sampling is rejected outright."""
 
     rule: Literal["unique"]
+    # A property of a population, not of a value: no rewrite of one row's
+    # column can make a duplicate unique, and the predicate is a window
+    # besides.
+    repairable: ClassVar[bool] = False
 
 
 FieldQualityRule = Annotated[
@@ -659,6 +724,9 @@ class ExpressionRule(QualityRule):
     unreadable."""
 
     rule: Literal["expression"]
+    # A row rule names no column, so there is nothing for a recipe to rewrite.
+    repairable: ClassVar[bool] = False
+
     name: RuleName
     expr: str
 

@@ -132,15 +132,41 @@ class OnFail(StrEnum):
     FLAG       = "flag"        # row passes unchanged; recorded in _quality_flags
     QUARANTINE = "quarantine"  # row diverted to <entity>__reject; replayable
     FAIL       = "fail"        # blocking audit; the run stops
+    REPAIR     = "repair"      # recipe rewrites the value; resolves to `fallback`
 ```
 
-Explicit per rule, never a global default. There is no `REPAIR` in v1 — deferred to §10,
-demand-gated on a repair-recipe contract (decision 17). **There is deliberately no `DROP`**:
+Explicit per rule, never a global default. **There is deliberately no `DROP`**:
 silently discarding rows is the fastest way for a BI product to lose trust
 permanently, and it is the disposition everyone reaches for first. `QUARANTINE` is
 `DROP` plus recoverability — which matters because most quarantined rows return after
 a spec fix (enum widening is the normal path, not the exception). Wanting rows gone
 means quarantine plus a retention policy (§5.6): a deletion with a paper trail.
+
+> **Amended 2026-08-10 (D87):** `REPAIR` joined the vocabulary. It was deferred out of
+> v1 (D17) pending a repair-recipe contract, and RFC 0017's step registry is one: a
+> recipe is a registered Tier 1 `sql_macro`, named `ref@version`, with a declared
+> signature, a `runtime_lock` and a determinism tier. That also settles §10's *inline vs
+> catalog-referenced* question, and not by preference — D1 holds that specs reference
+> implementations and never contain them.
+>
+> It is the one member that is not a disposition on its own. A repair rule carries a
+> `fallback` for the row its recipe did **not** fix, and `disposition()` resolves
+> `repair` to that fallback, so severity, routing and precedence never see it. A
+> repaired row simply stops violating its rule.
+>
+> ```yaml
+> - rule: charset
+>   forbid: [U+200B, U+FFFD]
+>   on_fail: repair
+>   repair: {via: strip_invisible@1, fallback: quarantine}
+> ```
+>
+> Refused where there is no repairable value in hand: `coercible` fires *because* the
+> projection is already NULL, so the recipe would be handed the NULL rather than the
+> text that failed to cast; `unique` is a property of a population; a row rule names no
+> column. Fixing a value *before* it is coerced is a different job with its own shape —
+> a Tier 1 macro spliced into the mapping (RFC 0017 D50), which runs before any rule
+> sees the value.
 
 ### 5.2 Coercion failure is a rule; the `assert:` boundary
 
@@ -777,8 +803,8 @@ reference pages for the rule catalogue and `quarantine:` block; the
 
 ## 8. Out of scope
 
-- **Repair** — the disposition itself is deferred out of v1, demand-gated on a
-  repair-recipe contract (§10, decision 17).
+- ~~**Repair**~~ — landed in D87; RFC 0017's step registry supplied the recipe
+  contract it was gated on.
 - **Mart-level quality rules** — blurs into reconciliation; deferred until a real case.
 - **Retention/redaction execution** — bloomery emits schema and policy; deletion jobs
   are the caller's.
@@ -795,11 +821,14 @@ reference pages for the rule catalogue and `quarantine:` block; the
 
 ## 10. Unresolved questions
 
-- **Repair** (deferred out of v1 — decision 17): the disposition is demand-gated on a
-  repair-recipe contract; inline vs catalog-referenced recipes is part
-  of that contract question. Constraint discovered in review (credit: cubic): when repair
-  lands it must carry a **distinct marker** separating "repaired, now correct" from
-  "currently flagged bad", so `has_quality_flags` keeps meaning "currently suspect".
+- ~~**Repair**~~ (deferred 2026-08-08 — decision 17; **settled 2026-08-10, D87**): the
+  recipe is a registered Tier 1 `sql_macro`, which answers *inline vs catalog-referenced*
+  in favour of referenced. The review constraint (credit: cubic) is met by
+  `_quality_repairs`, a column distinct from `_quality_flags`, so `has_quality_flags`
+  keeps meaning "currently suspect" and a repaired row is simply clean. Still open, and
+  deliberately: repairs are visible in silver and **not** in `gold.mart_data_quality`,
+  which has no `rows_repaired` measure — adding one changes the mart schema, and no
+  demand has asked for it yet.
 - ~~**A `normalize`/`confusables` rule**~~ (added 2026-08-08, D26; **settled 2026-08-10,
   D86**): built as `normalize` + `charset`. The confusables *table* was deliberately not
   built — versioned Unicode data would make a row's disposition depend on the compiler's
@@ -821,7 +850,7 @@ reference pages for the rule catalogue and `quarantine:` block; the
 | # | Decision |
 | --- | --- |
 | 1 | The governing principle: **specs describe, specs reference implementations, specs never contain implementations.** Bronze gets no cleansing (replay source); gold gets none (rebuildable). |
-| 2 | `OnFail = flag \| quarantine \| fail` (v1 — `repair` deferred, decision 17), explicit per rule, never a global default. Deliberately no `drop`: quarantine is drop plus recoverability; deletion happens via retention policy, with a paper trail. |
+| 2 | `OnFail = flag \| quarantine \| fail` (v1 — `repair` deferred, decision 17; landed in D87), explicit per rule, never a global default. Deliberately no `drop`: quarantine is drop plus recoverability; deletion happens via retention policy, with a paper trail. |
 | 3 | Coercion failure is a rule: transform chains lower to failure-marker form (`TRY_CAST`-style per dialect); the implicit, overridable `coercible` rule (default `quarantine`) disposes of it. Retires `Mapping.on_unmapped_enum` (RFC 0002 amendment — absorbed into `in_enum`/`coercible`) and supersedes RFC 0008 D7's never-implemented emitter convention with the modeled reject table. |
 | 4 | `assert:` clauses (RFC 0006 D8) remain as compile-to-audit, non-row-routing checks ("alert me"); `quality:` rules are the row-disposition system ("act on the row"). A field may carry both; docs state when to use which. |
 | 5 | Closed field-rule catalogue: `coercible`, `not_null`, `range`, `length`, `pattern` (portable regex subset, compile-time validated per target dialect via sqlglot), `in_enum`, `in_set`, `normalize` and `charset` (added by D86, which closed D26), `unique` (evaluated per partition slice in both full and incremental modes — the partition is the scope unit either way; cross-partition duplicates out of scope in every mode, dedupe's job; sampling rejected per Document 5 §11.3). New rules are RFC amendments, not config. |
@@ -836,7 +865,7 @@ reference pages for the rule catalogue and `quarantine:` block; the
 | 14 | Testing per §6 (RFC 0009 amendment): dirty corpus, exhaustive rule×disposition matrix, quarantine-contents assertions, the conservation-law property doubled as a runtime audit, idempotence + backfill-equivalence merge gates, replay tests, dialect-matrix emphasis, quarterly chaos meta-test. |
 | 15 | A mart's `base` must be a silver entity, never a reject table — a mart over `<entity>__reject` is a compile error. Mart rowcounts legitimately differ from bronze (quarantined rows never reach marts); the conservation audit is what makes the difference explainable. |
 | 16 | New compile errors: `QuarantineRetentionMissing` (quarantine disposition without `retention:`), `DedupeTieBreakMissing` (`keep: latest_by` without `tie_break`), `DedupeDispositionConflict` (user-declared weaker disposition on a dedupe-referenced field where `coercible` is forced to `fail`) — all `GuardrailError` leaves declared in `errors.py` per RFC 0002 D3. |
-| 17 | **Repair deferred out of v1** (amends rows 2 and 8 as originally drafted): dispositions v1 = `flag \| quarantine \| fail`; `repair` moves to §10, demand-gated on a repair-recipe contract. Constraint recorded from review (credit: cubic): when repair lands it must carry a **distinct marker** separating "repaired, now correct" from "currently flagged bad", so `has_quality_flags` keeps meaning "currently suspect". |
+| 17 | *(closed by D87)* **Repair deferred out of v1** (amends rows 2 and 8 as originally drafted): dispositions v1 = `flag \| quarantine \| fail`; `repair` moves to §10, demand-gated on a repair-recipe contract. Constraint recorded from review (credit: cubic): when repair lands it must carry a **distinct marker** separating "repaired, now correct" from "currently flagged bad", so `has_quality_flags` keeps meaning "currently suspect". |
 | 18 | Disposition precedence for a row failing multiple rules — severity order `fail > quarantine > flag`: any failing `fail` rule stops the run (blocking audit); else any failing `quarantine` rule diverts the row, with **all** failed rule names recorded in the reject's `failed_rules` (flag-level failures included); else flags accumulate in `_quality_flags`. Deterministic for every combination — no compile-time rejection of rule/disposition combinations needed. |
 | 19 | Three-valued logic: each rule defines a violation predicate and fires only when it is definitively TRUE — NULL-involved comparisons evaluating to SQL `UNKNOWN` do **not** fire (`not_null`/`coercible` own nulls; declare them if nulls are invalid). Applies to `range`/`length`/`pattern`/`in_enum`/`in_set`/`expression`/`referential` — a NULL fk is not an orphan. Corrects Document 5's referential lowering: the bare `COALESCE(fk, '__unknown__')` sketch was wrong (it maps a NULL fk to the unknown member); the lowering is `CASE WHEN ref.<pk> IS NULL AND fk IS NOT NULL THEN '__unknown__' ELSE fk END`. |
 | 20 | Dedupe is a total order: after `field` DESC and the `tie_break` columns, the final sort key is the stable source-row identity `_source_row_id` — the winner is unique by construction *given the metadata contract* (D21): `_source_row_id` is declared **NOT NULL and unique per source row**, an ingestion-layer obligation enforced at run time by a generated blocking audit on the metadata columns (a data property, not compile-checkable). Null ordering pinned: `NULLS LAST` on **every** sort key including `_source_row_id` (defense in depth — DESC defaults to NULLS FIRST on several engines, so an illegally-null identity must still lose, never win). |
@@ -910,6 +939,8 @@ reference pages for the rule catalogue and `quarantine:` block; the
 | 85 | *(2026-08-10)* **The corpus has a `range` specimen, and it is a pair. D28 is closed.** D28 recorded that no corpus row casts cleanly and *then* violates a declared bound, so `range` was lowered, matrixed, and reported in the quality mart while diverting nothing anywhere in the corpus. The scope of that gap is narrower than the sentence sounds and worth stating exactly: `range` *was* live at execution, in the `quality_precedence` fixture at `on_fail: fail`, where it blocks a run rather than diverting a row. What had no specimen was the **quarantine** side — the two-way split, the reject row, the conservation accounting — which is the side the rest of this RFC is built around. `keys.csv` gains a **pair**, not a row, because one row cannot pin a bound: `amount_at_range_min` (`0.000000000`) and `amount_below_range_min` (`-0.000000001`) are one ulp apart with opposite dispositions, so `min` lowering to `col <= min` instead of `col < min` becomes a test failure rather than a silently over-eager quarantine. A chaos mutation that drops the `min` bound entirely was written and then **removed**: measured against the pre-D28 corpus it was already caught by `test_quality_precedence`, so it detects nothing the battery could not already see, and a mutation that adds no detection inflates the battery without strengthening it. Recorded because the measurement contradicted the reason for adding it. |
 
 | 86 | *(2026-08-10)* **The catalogue gains `normalize` and `charset`, and the confusables table is deliberately not among them. D26 is closed.** D26 offered "a Unicode normal form **and/or** a confusables table"; only the first half is built as offered. `normalize` is `NORMALIZE(col, NFC) <> col` — the dialect-neutral node, rewritten to `NFC_NORMALIZE` inside DuckDB's `render` because DuckDB has that function and no `NORMALIZE`, while SQLGlot's duckdb generator renders one verbatim (the D83 shape: renders everywhere, defined in two places out of three). One form only: Postgres and Trino spell all four, DuckDB spells one, and a rule that compiles everywhere and runs on two engines out of three is what RFC 0008 D3 exists to refuse. It is a **rule and never a transform** — normalizing silently would rewrite what a source delivered, which D1 forbids. **The table is refused on determinism grounds:** UTS#39 confusables is versioned Unicode data, so embedding it would make a row's disposition depend on which Unicode revision the compiler shipped — an ambient input by another name (RFC 0003), and one that would move dispositions under a dependency bump nobody read as a semantic change. `charset` declares the admissible characters instead, as `U+` codepoints and inclusive ranges, exactly one of `allow:`/`forbid:`, lowering through a single `TRANSLATE(col, members, '')` read two ways. Codepoints rather than characters because every character the rule exists to catch is invisible: a literal one in YAML is unreadable in review and indistinguishable from a space in a diff. The `allow` reading turns out to be *stronger* than the table would have been for the case that motivated it — an allow-list of the script a column is written in catches a Cyrillic homoglyph, a fullwidth digit and an Arabic-Indic digit alike, none of which any denylist enumerates completely. Three declaration refusals, all decidable from the spec alone and so `GuardrailError`s: a backwards range, a range crossing the surrogate block (checked on the *span*, not the endpoints — the block is 2048 wide, so an endpoint-only check would leave the real refusal to arrive from `MAX_CHARSET_SIZE`, a constant that has nothing to do with surrogates and could grow), and a set past that cap, which exists because the members become a string literal in every row's predicate and in the IR fingerprint. `TRANSLATE` carries **no** `DialectFeature`: all three engines spell it identically and its delete-when-shorter behaviour was executed on each rather than assumed; a feature flag earns its place where the *port* has to differ, which is why `normalize` has one and this does not. Verified by execution on postgres 16 as a permanent engine tier and on `trinodb/trino:483` by hand (no Trino client dependency yet — RFC 0009's outstanding work), both agreeing with DuckDB on every specimen including the null. **Found on the way:** the §6 matrix rendered through `node.sql(dialect="duckdb")` rather than through the port, so it executed SQL the emitter never emits. Here that surfaced as a failure — DuckDB has no `NORMALIZE` at all — but the failure is incidental to the direction of this particular rewrite. A port rewrite that produces something the *direct* render also accepts would have diverged silently, with the matrix green on SQL no artifact contains. It is routed through the port now. |
+
+| 87 | *(2026-08-10)* **`repair` lands, its recipe is a registered `sql_macro`, and its marker is its own column. D17 is closed.** D17 gated the disposition on a repair-recipe contract and left §10 asking *inline vs catalog-referenced*. RFC 0017's step registry answers both at once: a recipe is `ref@version` into the registry — declared signature, `runtime_lock`, determinism tier, trust-then-verify — and D1 already holds that specs reference implementations and never contain them, so an inline recipe would have been a second, weaker copy of all of it reachable only from here. **The lowering.** The recipe is spliced at IR build, where the registry lives, and travels as SQL in the rule's params the way an `expression` rule's body does — so emission needs no registry, and a version or `runtime_lock` bump lands in the IR where the fingerprint and `plan()` see it (measured: a body change classifies RESTATING and puts the entity in `replay_scope`, because the kind's params define neither an ordered interval nor a membership set and D52's undecidable-means-replay applies). The rewrite happens at the **extract** level, inside the column's own projection: `CASE WHEN <violation over the raw expression> THEN <recipe> ELSE <raw> END`. That placement is what makes every other rule see the repaired value with no extra nesting, and it forces both halves to be rewritten to read the column's expression rather than its name, since the column is being defined in the same `SELECT`. **The marker.** `_quality_repairs` is a separate column, which was cubic's condition in review and is the right one: a rule is recorded there when its recipe *ran and worked* — it fired over the value as delivered and no longer fires over the value that replaced it. `_quality_flags` stays empty for a repaired row, so `has_quality_flags` keeps meaning **currently suspect** and no mart already asking that question changes its answer. Unlike the two universal columns it is emitted only where a repair rule exists: §12 budgeted the silver-schema churn once, and a third column empty for every project not using the feature is not worth re-opening every golden and fingerprint for. **`fallback` is required**, for the same reason `on_fail` is (D2): a recipe that ran and failed leaves the rule violated and the row is disposed of exactly as if no repair had been declared — the alternative, a still-broken value landing in silver marked as fixed, is the `drop` this RFC refuses wearing a friendlier name. **Refusals**, each a property of the declaration alone: `repair` on `coercible` (it fires *because* the projection is already NULL, so the recipe would be handed the NULL rather than the text that failed to cast — fixing a value before coercion is a Tier 1 macro in the mapping, and the message says so), on `unique` (a property of a population; no rewrite of one row makes a duplicate unique), on a row rule (no column to rewrite), two repair rules on one column (both rewrite the same projection, so which value survives would depend on authoring order and the second recipe would judge a value the first had changed), a recipe accepting more than one column (a rule has no `from:` map, and inventing one would make a rule a second mapping surface), and a column the dedupe order reads (dedupe runs *before* the field rules per D7, so the winner would be chosen on the value as delivered and then have that value rewritten underneath it — D6's reasoning exactly). Verified by executing the emitted pipeline over three rows — one the recipe fixes, one it cannot, one it must not touch — and by sabotage: disabling the recipe, and dropping the "did it run" conjunct from the marker, each fail the assertion that names them. **Not built:** `gold.mart_data_quality` gains no `rows_repaired`, so repairs are observable in silver and not in the quality mart. Recorded rather than implied — adding a measure changes the mart schema, and no demand has asked for it. |
 
 > **Numbering note (2026-08-08).** Rows **40–44 do not exist**. Two self-audit fix
 > waves ran concurrently, each reserved a block for the other, and neither used the

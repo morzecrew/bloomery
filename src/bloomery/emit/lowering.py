@@ -49,6 +49,7 @@ from bloomery.quality import (
     RECONCILE_SUFFIX,
     REJECT_COLUMNS,
     REJECT_SUFFIX,
+    REPAIRS_COLUMN,
     ROW_ID_COLUMN,
     SUPERSEDED_RULE,
     ReconcileSide,
@@ -70,6 +71,9 @@ from bloomery.quality import (
     quality_ok,
     ref_alias,
     reject_id,
+    repair_alias,
+    repair_body,
+    repairs,
     routing_predicate,
     sole_via_column,
     source_alias,
@@ -332,10 +336,36 @@ def _extract_select(
     def source(node: Expression) -> Expression:
         return _from_payload(node) if from_payload else node
 
-    projections: list[Expression] = [
-        cast("Expression", exp.alias_(source(column.expr.ast()), column.name))
-        for column in entity.columns
-    ]
+    repaired = {rule.column: rule for rule in entity.quality if repairs(rule)}
+    projections: list[Expression] = []
+    for column in entity.columns:
+        raw = source(column.expr.ast())
+        rule = repaired.get(column.name)
+        if rule is None:
+            projections.append(cast("Expression", exp.alias_(raw, column.name)))
+            continue
+        fired = _over(violation(rule), column.name, raw)
+        projections.append(
+            cast(
+                "Expression",
+                exp.alias_(
+                    exp.Case(
+                        ifs=[
+                            exp.If(
+                                this=fired,
+                                true=_over(repair_body(rule), column.name, raw),
+                            )
+                        ],
+                        default=raw.copy(),
+                    ),
+                    column.name,
+                ),
+            )
+        )
+        # The recipe *ran* — recorded beside the repaired value because after
+        # the rewrite the verdict alone cannot tell "never violated" from
+        # "violated and fixed" (RFC 0016 D87).
+        projections.append(cast("Expression", exp.alias_(fired.copy(), repair_alias(rule))))
     if _carries_metadata(entity):
         projections.extend(exp.column(name) for name in INGESTION_METADATA)
     # The coercion-failure marker compares the produced column against the raw
@@ -363,6 +393,30 @@ def _extract_select(
     if entity.dedupe is not None:
         select = with_dedupe_qualify(select, entity.dedupe, entity.key)
     return _stage(select, entity)
+
+
+def _over(node: Expression, column: str, value: Expression) -> Expression:
+    """``node`` with every bare reference to ``column`` replaced by ``value``.
+
+    A repair lives at the *extract* level, where the column it repairs is being
+    defined in the same ``SELECT`` and so cannot be referred to by name. Both
+    halves of the construction — the verdict that decides whether the recipe
+    runs and the recipe itself — are therefore rewritten to read the column's
+    expression directly.
+
+    Only unqualified references are rewritten: a qualified one belongs to some
+    other level, and a repairable rule's predicate never has one (the kinds
+    whose predicates reach outside their own column — ``coercible`` through its
+    source aliases, ``unique`` through a window, the row rules through a join —
+    are exactly the kinds that cannot carry a repair at all).
+    """
+
+    def substitute(child: Expression) -> Expression:
+        if isinstance(child, exp.Column) and not child.table and child.name == column:
+            return value.copy()
+        return child
+
+    return node.transform(substitute)
 
 
 def _from_payload(node: Expression) -> Expression:
@@ -494,6 +548,42 @@ def _require_try_cast_for_audit(entity: EntityIR, ctx: EmitContext) -> None:
     raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
 
 
+def _repair_projections(entity: EntityIR, *, arrays: bool) -> list[Expression]:
+    """``_quality_repairs``, or nothing at all (RFC 0016 D87).
+
+    The distinct marker D17 made a condition of the disposition landing:
+    "repaired, now correct" and "currently flagged bad" are different facts, so
+    ``has_quality_flags`` keeps meaning *currently suspect* and a repaired row
+    is simply clean.
+
+    A rule is recorded when its recipe **ran and worked** — it fired over the
+    value as delivered (``_rep_…``, projected one level down) and no longer
+    fires over the value that replaced it. A recipe that ran and failed leaves
+    the rule violated, so the rule's ``fallback`` disposes of the row through
+    the ordinary routing and this column stays silent about it: the row is not
+    repaired, and saying so twice in two columns is how they come to disagree.
+
+    Absent entirely on an entity with no repair rule, unlike the two universal
+    columns — §12 budgeted the silver-schema churn once, and a third column
+    that is empty for every project not using the feature is not worth
+    re-opening every golden and fingerprint for.
+    """
+    repaired = [rule for rule in entity.quality if repairs(rule)]
+    if not repaired:
+        return []
+    pairs = [
+        (
+            rule.name,
+            exp.And(
+                this=exp.column(repair_alias(rule), table=_EXTRACT_ALIAS),
+                expression=grouped(exp.Not(this=grouped(verdict(rule, _EXTRACT_ALIAS)))),
+            ),
+        )
+        for rule in repaired
+    ]
+    return [cast("Expression", exp.alias_(flags_expression(pairs, arrays=arrays), REPAIRS_COLUMN))]
+
+
 def _quality_pipeline(entity: EntityIR, ctx: EmitContext, extract: exp.Select) -> exp.Select:
     """Stages 4–6 over an extract SELECT: the rule predicates, the single
     ``_quality_flags`` pass, the routing ``WHERE``, and ``_quality_ok``.
@@ -527,6 +617,7 @@ def _quality_pipeline(entity: EntityIR, ctx: EmitContext, extract: exp.Select) -
                 ),
                 FLAGS_COLUMN,
             ),
+            *_repair_projections(entity, arrays=arrays),
         )
         .from_(extract.subquery(alias=_EXTRACT_ALIAS))
     )
@@ -543,6 +634,11 @@ def _quality_pipeline(entity: EntityIR, ctx: EmitContext, extract: exp.Select) -
             *(exp.column(name, table=_EVALUATED_ALIAS) for name in carried),
             exp.column(FLAGS_COLUMN, table=_EVALUATED_ALIAS),
             exp.alias_(quality_ok(table=_EVALUATED_ALIAS, arrays=arrays), OK_COLUMN),
+            *(
+                [exp.column(REPAIRS_COLUMN, table=_EVALUATED_ALIAS)]
+                if any(repairs(rule) for rule in entity.quality)
+                else []
+            ),
         )
         .from_(evaluated.subquery(alias=_EVALUATED_ALIAS))
     )

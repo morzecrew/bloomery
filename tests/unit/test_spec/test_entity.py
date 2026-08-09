@@ -156,6 +156,7 @@ def test_the_reserved_set_is_exactly_the_generated_names() -> None:
         "_load_id",
         "_quality_flags",
         "_quality_ok",
+        "_quality_repairs",
         "_source_row_id",
         "has_quality_flags",
         "metric_time",

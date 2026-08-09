@@ -70,6 +70,7 @@ from bloomery.quality import (
     lower_quality,
     lower_quarantine,
     lower_reconcile,
+    mapped_fields,
     opts_in,
 )
 from bloomery.resolve.metrics import effective_metrics
@@ -481,6 +482,88 @@ def _refuse_macro_disagreement(
         raise StepError(msg, source_path=source_path)
 
 
+def _repair_bodies(
+    entity_name: str,
+    entity: Entity,
+    mapping: Mapping,
+    steps: StepRegistry,
+) -> dict[str, str]:
+    """``{column: spliced recipe SQL}`` for every ``on_fail: repair`` rule
+    (RFC 0016 D87).
+
+    Resolved here, not in ``quality/``, because splicing needs three things
+    that live at this stage: the step registry, the field's declared type, and
+    the extraction machinery. The result travels as SQL in the rule's params —
+    the arrangement an ``expression`` rule already uses — so emission needs no
+    registry, and a version or ``runtime_lock`` bump lands in the IR where the
+    fingerprint and ``plan()`` can see it.
+
+    The recipe reads the column *after* extraction and transforms, so its
+    argument is a column reference rather than a source path: repair is a
+    disposition on a rule, and a rule sees the produced value. Fixing a value
+    on its way in is a different job with its own shape — a Tier 1 macro in the
+    mapping (RFC 0017 D50).
+    """
+    dedupe_columns: frozenset[str] = (
+        frozenset[str]()
+        if entity.dedupe is None
+        else frozenset({entity.dedupe.field, *entity.dedupe.tie_break})
+    )
+    bodies: dict[str, str] = {}
+    for column, field_mapping in mapped_fields(mapping):
+        if field_mapping is None:
+            continue
+        for rule in field_mapping.quality:
+            if rule.repair is None:
+                continue
+            where = f"{mapping_doc(mapping)}: fields.{column}.quality"
+            if column in bodies:
+                msg = (
+                    f"field {column!r} carries two repair rules. Each rewrites the column in "
+                    "the same projection, so which value survives would depend on the order "
+                    "they happened to be written in (RFC 0016 D87) — and the second recipe "
+                    "would judge a value the first had already changed"
+                )
+                raise StepError(msg, source_path=where)
+            if column in dedupe_columns:
+                msg = (
+                    f"field {column!r} is read by the dedupe order, so it cannot carry a "
+                    "repair rule (RFC 0016 D87). Dedupe runs *before* the field rules (D7), "
+                    "so the winner would be chosen on the value as delivered and then have "
+                    "that value rewritten underneath it — the same reason D6 forces "
+                    "coercible to fail here"
+                )
+                raise StepError(msg, source_path=where)
+            manifest, body = _macro_parts(rule.repair.via, steps, source_path=where)
+            _refuse_unrepairing(rule.repair.via, manifest, column, where=where)
+            declared = _field_type(entity_name, column, entity.fields[column])
+            arguments: dict[str, Expression] = {
+                next(iter(manifest.accepts)): exp.column(column),
+                **_macro_parameters(manifest, dict(rule.repair.parameters)),
+            }
+            bodies[column] = canon(exp.cast(splice(body, arguments), generic_type(declared))).sql
+    return bodies
+
+
+def _refuse_unrepairing(use: str, manifest: StepManifest, column: str, *, where: str) -> None:
+    """A repair recipe takes the column it repairs, and nothing else.
+
+    Exactly one accepted column, because the recipe is bound to *this* rule's
+    value and there is no second path for it to read — the ``from:`` map a
+    Tier 1 field shape uses has no counterpart on a quality rule, and inventing
+    one would make a rule a second mapping surface.
+    """
+    if len(manifest.accepts) != 1:
+        accepted = ", ".join(sorted(manifest.accepts)) or "(nothing)"
+        msg = (
+            f"repair recipe {use!r} accepts {len(manifest.accepts)} column(s) ({accepted}), "
+            f"but a repair rule hands it exactly one — {column}, the value the rule fired "
+            "on (RFC 0016 D87). A recipe needing more than the value it repairs is a "
+            "mapping, not a repair"
+        )
+        raise StepError(msg, source_path=where)
+
+
 def _materialization(entity: Entity) -> Materialization:
     """RFC 0002 D7: declared wins; the derived default is only the default."""
     if entity.materialization is not None:
@@ -607,7 +690,12 @@ def _build_entity(
         # The rules are one sorted tuple — the fixed pipeline order, not the
         # node type, is what separates a field rule from a row rule, and
         # emission renders the stages in that order.
-        quality=lower_quality(entity, mapping, project.entity_model.relationships),
+        quality=lower_quality(
+            entity,
+            mapping,
+            project.entity_model.relationships,
+            _repair_bodies(entity_name, entity, mapping, steps),
+        ),
         dedupe=lower_dedupe(entity),
         quarantine=lower_quarantine(entity),
     )

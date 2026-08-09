@@ -13,6 +13,7 @@ nothing internal but errors (import-linter contract).
 from __future__ import annotations
 
 from collections.abc import Hashable
+from decimal import Decimal
 from typing import Annotated, Any, Literal, cast
 
 import yaml
@@ -32,11 +33,14 @@ __all__ = [
     "JsonPath",
     "MaterializationName",
     "MemberName",
+    "ParameterValue",
     "PartitionSpecString",
     "RatioSpec",
     "SemiAdditivePolicy",
     "SpecModel",
+    "StepUse",
     "TypeString",
+    "USE_PATTERN",
     "flatten_collected",
     "load_yaml_mapping",
     "source_path_from_loc",
@@ -71,6 +75,7 @@ _RESERVED_MEMBER_REASONS: dict[str, str] = {
     "metric_time": "RFC 0013 R4: the canonical query-time dimension",
     "_quality_flags": "RFC 0016 D9: the generated silver quality-flag column",
     "_quality_ok": "RFC 0016 D9: generated from _quality_flags",
+    "_quality_repairs": "RFC 0016 D87: the generated repair marker",
     "_load_id": "RFC 0016 D21: bronze ingestion metadata",
     "_ingested_at": "RFC 0016 D21: bronze ingestion metadata",
     "_source_row_id": "RFC 0016 D21: the stable source-row identity",
@@ -244,3 +249,24 @@ def flatten_collected(errors: list[BloomeryError]) -> tuple[BloomeryError, ...]:
         else:
             flat.append(err)
     return tuple(flat)
+
+
+# ....................... #
+# Naming and binding a step (RFC 0017 §5.2)
+#
+# Defined here rather than in ``spec.steps`` — which re-exports both, so every
+# shipped import path is unchanged — because two documents name a step and
+# ``spec.steps`` imports one of them: ``quality.Repair.via`` references a
+# ``sql_macro`` (RFC 0016 D87) while ``spec.steps`` reads ``quality``'s
+# ``ExpressionRule`` for a step output's rules. Whichever way that pair is
+# written it is a cycle, so the two primitives move below both.
+
+#: ``ref@version`` — the only way a spec names a step.
+USE_PATTERN = r"^[a-z][a-z0-9_]*@[1-9][0-9]*$"
+
+StepUse = Annotated[str, StringConstraints(pattern=USE_PATTERN)]
+
+#: A parameter value a call site may set. ``float`` is deliberately absent
+#: (RFC 0003 D5) — a decimal arrives as ``Decimal``, and a YAML float would
+#: reach emission as a binary approximation of what the author wrote.
+ParameterValue = str | int | bool | Decimal

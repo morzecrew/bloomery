@@ -35,6 +35,7 @@ __all__ = [
     "FLAGS_COLUMN",
     "OK_COLUMN",
     "REJECT_SUFFIX",
+    "REPAIRS_COLUMN",
     "Additivity",
     "AuditIR",
     "Cardinality",
@@ -85,6 +86,17 @@ __all__ = [
 FLAGS_COLUMN = "_quality_flags"
 #: The generated boolean, ``cardinality(_quality_flags) = 0`` per shape.
 OK_COLUMN = "_quality_ok"
+#: The **distinct** marker D17 required of ``repair`` before it could land: the
+#: rules whose recipe rewrote this row's value (RFC 0016 D87). Separate from
+#: :data:`FLAGS_COLUMN` on purpose — "repaired, now correct" and "currently
+#: suspect" are different facts, and folding the first into the second would
+#: change what ``has_quality_flags`` means for every mart that already reads it.
+#:
+#: Emitted only on entities that carry a repair rule, unlike the two above.
+#: §12 budgeted the silver-schema churn of ``_quality_flags`` once; a third
+#: universal column would re-open every golden and fingerprint again to add a
+#: column that is empty for every project not using the feature.
+REPAIRS_COLUMN = "_quality_repairs"
 #: One ``<entity>__reject`` per entity, never per mapping (D10).
 REJECT_SUFFIX = "__reject"
 
@@ -187,8 +199,14 @@ class OnFail(StrEnum):
     Deliberately no ``DROP``: silently discarding rows is the fastest way for a
     BI product to lose trust permanently, and it is the disposition everyone
     reaches for first. ``QUARANTINE`` *is* drop plus recoverability — most
-    quarantined rows return after a spec fix. Deliberately no ``REPAIR`` in v1
-    (D17), deferred on a repair-recipe contract.
+    quarantined rows return after a spec fix.
+
+    ``REPAIR`` was deferred out of v1 (D17) and joined the vocabulary when
+    RFC 0017's step registry supplied the recipe contract it was gated on
+    (D87). It is the one member that is not a disposition on its own: a repair
+    rule carries a ``fallback`` for the row its recipe did not fix, and
+    :func:`~bloomery.quality.disposition` resolves it to that fallback — so
+    severity, routing and precedence never see ``REPAIR`` at all.
 
     Severity order for a row failing several rules is ``FAIL > QUARANTINE >
     FLAG`` (D18), which makes every combination deterministic — so no
@@ -198,6 +216,7 @@ class OnFail(StrEnum):
     FLAG = "flag"  # row passes unchanged; recorded in _quality_flags
     QUARANTINE = "quarantine"  # row diverted to <entity>__reject; replayable
     FAIL = "fail"  # blocking audit; the run stops
+    REPAIR = "repair"  # recipe rewrites the value; resolves to `fallback`
 
 
 class SemiAdditiveRule(StrEnum):

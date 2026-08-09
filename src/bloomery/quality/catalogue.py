@@ -8,7 +8,8 @@ consumer that invents its own list is exactly how a rule ships lowered but
 untested (RFC 0016 §6: the matrix is ``product(ALL_RULES, ALL_DISPOSITIONS)``
 over *these* tuples).
 
-Three of those names — ``FLAGS_COLUMN``, ``OK_COLUMN``, ``REJECT_SUFFIX`` —
+Four of those names — ``FLAGS_COLUMN``, ``OK_COLUMN``, ``REPAIRS_COLUMN``,
+``REJECT_SUFFIX`` —
 are *defined* one layer down, in :mod:`bloomery.ir.nodes`, and re-exported
 here so this module stays the single place to read them from. They have to
 live below this package because ``bloomery/marts`` needs them too (the
@@ -18,7 +19,7 @@ and the import contract forbids ``marts → quality``.
 
 from __future__ import annotations
 
-from bloomery.ir import FLAGS_COLUMN, OK_COLUMN, REJECT_SUFFIX, OnFail
+from bloomery.ir import FLAGS_COLUMN, OK_COLUMN, REJECT_SUFFIX, REPAIRS_COLUMN, OnFail
 
 __all__ = [
     "ALL_DISPOSITIONS",
@@ -28,6 +29,7 @@ __all__ = [
     "FLAGS_COLUMN",
     "INGESTION_METADATA",
     "OK_COLUMN",
+    "REPAIRS_COLUMN",
     "PIPELINE_STAGES",
     "REJECT_SUFFIX",
     "ROW_RULES",
@@ -57,10 +59,18 @@ ROW_RULES: tuple[str, ...] = ("expression", "referential")
 #: Every rule kind, sorted. The unit matrix iterates this (RFC 0016 §6).
 ALL_RULES: tuple[str, ...] = tuple(sorted((*FIELD_RULES, *ROW_RULES)))
 
-#: The v1 disposition vocabulary in *severity* order, weakest first — the
-#: reverse of RFC 0016 D18's precedence, which reads ``fail > quarantine >
-#: flag``. Iterating weakest-first keeps the matrix output readable; the
-#: precedence itself lives in :func:`bloomery.quality.predicates.disposition`.
+#: The disposition vocabulary in *severity* order, weakest first — the reverse
+#: of RFC 0016 D18's precedence, which reads ``fail > quarantine > flag``.
+#: Iterating weakest-first keeps the matrix output readable; the precedence
+#: itself lives in :func:`bloomery.quality.predicates.disposition`.
+#:
+#: ``repair`` is deliberately **not** here, and the §6 matrix is why: this
+#: tuple is one axis of ``product(ALL_RULES, ALL_DISPOSITIONS)``, and repair is
+#: neither valid for every rule (D87 refuses it where there is no repairable
+#: value) nor a disposition in its own right — it resolves to the rule's
+#: ``fallback``, which is already one of these three. Adding it would multiply
+#: the matrix by a column of cells that either cannot exist or restate a row
+#: already in it.
 ALL_DISPOSITIONS: tuple[OnFail, ...] = (OnFail.FLAG, OnFail.QUARANTINE, OnFail.FAIL)
 
 #: ``referential.on_missing`` (RFC 0016 D6), sorted. ``fail`` is deliberately
