@@ -1,6 +1,6 @@
 """The dirty-data corpus as a seedable warehouse (RFC 0016 §6).
 
-``tests/fixtures/dirty/*.csv`` is **data**: 137 curated specimens, each with an
+``tests/fixtures/dirty/*.csv`` is **data**: 139 curated specimens, each with an
 ``_expected`` disposition under the corpus's documented default rule set.
 ``tests/fixtures/dirty_corpus/`` is the **spec** that judges them. This module
 is the third piece — the bridge that gets the one into the other without losing

@@ -65,7 +65,7 @@ class PostgresDialect(SQLGlotDialect):
 
     name: str = "postgres"
     sqlglot_dialect: str = "postgres"
-    #: Everything, since RFC 0016 D77 gave ``TRY_CAST`` a Postgres spelling.
+    #: Everything, since RFC 0016 D84 gave ``TRY_CAST`` a Postgres spelling.
     #: Postgres has no ``TRY_CAST`` keyword and SQLGlot's generator quietly
     #: renders one as a plain ``CAST``; :meth:`render` rewrites it instead
     #: into a guard around Postgres' *own* input parser, so the accept/reject
@@ -85,7 +85,7 @@ class PostgresDialect(SQLGlotDialect):
         shares ASTs across dialects).
 
         ``TRY_CAST`` becomes a guard around Postgres' own input parser
-        (RFC 0016 D77) — see :func:`_guarded_try_cast`.
+        (RFC 0016 D84) — see :func:`_guarded_try_cast`.
 
         SQLGlot's postgres generator renders extraction as
         ``JSON_EXTRACT_PATH_TEXT(...)``, which exists only for the ``json``
@@ -116,7 +116,7 @@ class PostgresDialect(SQLGlotDialect):
         Postgres' ``sha256`` takes and returns ``bytea``, so the plain
         spelling does not fail — it silently yields *bytes* where every other
         dialect yields a hex string, which would make ``reject_id`` disagree
-        across engines while looking like it worked (RFC 0016 D76). Verified
+        across engines while looking like it worked (RFC 0016 D83). Verified
         against postgres 16 to equal the digest DuckDB returns directly.
         """
         encoded = exp.func("CONVERT_TO", value, exp.Literal.string("UTF8"))
@@ -137,7 +137,7 @@ class PostgresDialect(SQLGlotDialect):
 
 
 #: Datetime inputs Postgres accepts whose value depends on *when the query
-#: runs* — they resolve to the transaction timestamp (RFC 0016 D77).
+#: runs* — they resolve to the transaction timestamp (RFC 0016 D84).
 #:
 #: A bronze cell literally spelling ``now`` would otherwise coerce to a
 #: different value on every run, so a backfill would disagree with the run it

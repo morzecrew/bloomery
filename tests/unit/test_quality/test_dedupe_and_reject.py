@@ -134,7 +134,7 @@ def test_reject_id_is_sha256_over_the_length_prefixed_pair() -> None:
 def test_reject_id_is_stable_across_calls_and_agrees_across_dialects() -> None:
     """Stable per dialect, and — the property that actually matters — the
     *same digest* on all three. The spellings differ because the engines do
-    (D76); the value may not, or a row re-delivered to a different engine
+    (D83); the value may not, or a row re-delivered to a different engine
     would land on a different reject row."""
     duck = get_dialect("duckdb")
     node = reject_id("rel", exp.column(ROW_ID_COLUMN), duck.text_sha256)

@@ -457,7 +457,7 @@ def test_postgres_renders_the_coercion_failure_marker_as_a_guarded_cast() -> Non
     """Postgres has no ``TRY_CAST`` keyword, and SQLGlot renders one as a
     plain ``CAST`` — the silent downgrade of quarantine into abort that D30
     refused the dialect for. It is now rewritten into a guard around
-    Postgres' *own* input parser (D77), so the accept/reject set is the
+    Postgres' *own* input parser (D84), so the accept/reject set is the
     engine's rather than a regex approximation of it.
     """
     project, catalog = load_fixture(FIXTURE)
@@ -536,7 +536,7 @@ def test_trino_now_emits_the_reject_table_it_used_to_be_refused() -> None:
     """Trino was refused here because both constructions the reject table is
     built from were DuckDB's spellings: ``SHA256`` over text, and the
     positional ``JSON_OBJECT('k', v)``. Each dialect now spells both through
-    its own port (RFC 0016 D76), verified against ``trinodb/trino:483``.
+    its own port (RFC 0016 D83), verified against ``trinodb/trino:483``.
     """
     project, catalog = load_fixture(FIXTURE)
     artifacts = compile_project(
@@ -554,7 +554,7 @@ def test_the_three_dialects_spell_the_reject_constructions_differently() -> None
 
     The property is that the three *differ*: one rendering passing everywhere
     would mean the split never happened. Each was executed against its engine
-    (RFC 0016 D76) — DuckDB's returns hex directly, Postgres' ``sha256``
+    (RFC 0016 D83) — DuckDB's returns hex directly, Postgres' ``sha256``
     returns ``bytea``, and Trino's does not take text at all.
     """
     digests, objects = set(), set()

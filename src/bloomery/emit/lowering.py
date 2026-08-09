@@ -302,7 +302,7 @@ def _payload_columns(entity: EntityIR) -> tuple[str, ...]:
 def _json_object(pairs: list[tuple[str, Expression]], ctx: EmitContext) -> Expression:
     """A JSON object from sorted key/value pairs, spelled by the dialect port.
 
-    Not one construction after all (RFC 0016 D76): the positional
+    Not one construction after all (RFC 0016 D83): the positional
     ``JSON_OBJECT('k', v)`` this used to build is DuckDB's spelling, Postgres
     has no positional ``json_object`` at all (it wants ``json_build_object``),
     and Trino parses only the SQL-standard keyword form. The claim that it was

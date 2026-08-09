@@ -501,19 +501,21 @@ def test_unique_fires_over_the_whole_table_slice_and_stays_silent_on_nulls(
     assert rejected == [(["amount_coercible"],)]  # the null row, and only coercible
 
 
-def test_the_range_rule_fires_on_no_corpus_row(
+def test_the_range_rule_diverts_the_row_that_casts_and_then_violates_the_bound(
     corpus_run: duckdb.DuckDBPyConnection,
 ) -> None:
     """RFC 0016 §5.3's worked example (``range, min: 0, on_fail: quarantine``)
-    is declared on ``dirty_key.amount`` and fires on nothing — and that is a
-    statement about the **corpus**, not about the rule.
+    on ``dirty_key.amount``, and the specimen D28 recorded the corpus as
+    missing.
 
-    Every out-of-bounds specimen the corpus carries is also uncastable, so
+    Every *other* out-of-bounds value in the corpus is also uncastable, so
     ``coercible`` reaches it first and ``range`` stays ``UNKNOWN`` over the
-    resulting NULL (D19). The corpus has no row that casts cleanly and then
-    violates a declared bound. Recorded here rather than papered over: by the
-    README's own rule ("every incident adds a row"), that is a gap the next
-    range-shaped incident should close.
+    resulting NULL (D19). That left the corpus with no specimen for ``range``
+    *routing* a row — the rule was live at execution only in the
+    ``quality_precedence`` fixture, where it sits at ``fail`` and blocks the run
+    rather than diverting anything. ``amount_below_range_min`` casts cleanly and
+    then violates the bound, so this is where ``range`` and the two-way split
+    meet.
     """
     # ``rows_failed`` only: on a *rule* row the population counts are
     # structurally zero (D34 moved them to the entity's accounting row), so
@@ -521,9 +523,23 @@ def test_the_range_rule_fires_on_no_corpus_row(
     rows = corpus_run.execute(
         "SELECT rows_failed FROM gold.mart_data_quality WHERE rule = 'amount_range_min'"
     ).fetchall()
-    assert rows == [(0,)]
+    assert rows == [(1,)]
+    by_case = {case: row_id for row_id, case in cases("keys.csv").items()}
     diverted = corpus_run.execute(
-        "SELECT COUNT(*) FROM silver.dirty_key__reject "
+        "SELECT _source_row_id, failed_rules FROM silver.dirty_key__reject "
         "WHERE LIST_CONTAINS(failed_rules, 'amount_range_min')"
-    ).fetchone()
-    assert diverted == (0,)
+    ).fetchall()
+    assert diverted == [(by_case["amount_below_range_min"], ["amount_range_min"])]
+
+
+def test_the_inclusive_edge_of_the_range_bound_is_kept(
+    corpus_run: duckdb.DuckDBPyConnection,
+) -> None:
+    """The other half of the pair. ``min`` lowers to ``col < min``, so the bound
+    itself is *in* bounds — and the two adjacent specimens one ulp apart are
+    what makes an off-by-one in that comparison a test failure rather than a
+    silently over-eager quarantine."""
+    by_case = {case: row_id for row_id, case in cases("keys.csv").items()}
+    landed = dispositions(corpus_run, "dirty_key")
+    assert landed[by_case["amount_at_range_min"]] == (KEPT, ())
+    assert landed[by_case["amount_below_range_min"]] == (QUARANTINED, ("amount_range_min",))

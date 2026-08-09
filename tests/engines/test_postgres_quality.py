@@ -1,5 +1,5 @@
 """Engine tier (RFC 0009 §5.2 tier 5): the data-quality pipeline on real
-PostgreSQL — the tier D30 refused the dialect for, now that D77 gives
+PostgreSQL — the tier D30 refused the dialect for, now that D84 gives
 ``TRY_CAST`` a Postgres spelling.
 
 The assertion that matters is not that the SQL renders. It is that the *right
@@ -31,7 +31,7 @@ ROWS = [
     ("w3", "2026-01-02", "abc", "s3", "L1", "2026-01-01T00:00:00", "r3"),
     # The determinism specimen: postgres accepts `now` as datetime input and
     # resolves it to the transaction timestamp, so this cell would coerce to a
-    # different value on every run (D77).
+    # different value on every run (D84).
     ("w4", "now", "9", "s4", "L1", "2026-01-01T00:00:00", "r4"),
     ("w5", "2026-01-03", "-5", "s5", "L1", "2026-01-01T00:00:00", "r5"),
 ]
@@ -101,7 +101,7 @@ def test_an_uncastable_value_is_quarantined_rather_than_aborting_the_run(
 def test_a_run_dependent_datetime_is_quarantined_not_silently_unstable(
     quality_db: psycopg.Connection,
 ) -> None:
-    """The narrowing D77 adds. Without it postgres coerces `now` to the
+    """The narrowing D84 adds. Without it postgres coerces `now` to the
     transaction timestamp and the row lands in silver carrying a value no
     backfill can reproduce — green, and unrestatable."""
     rows = dict(

@@ -90,7 +90,7 @@ def reject_id(
     first, then the row identity — so the value is stable, idempotent under
     replay, and recomputable from the reject row itself.
 
-    ``digest`` comes from the dialect port (RFC 0016 D76). The spellings are
+    ``digest`` comes from the dialect port (RFC 0016 D83). The spellings are
     genuinely different rather than cosmetically so — DuckDB's
     ``SHA256(VARCHAR)`` already returns hex, Postgres' returns ``bytea``, and
     Trino's does not accept text at all — so a single AST here produced a
