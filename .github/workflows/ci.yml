@@ -345,6 +345,22 @@ jobs:
     permissions:
       contents: read
 
+    # Docker Hub rate-limits anonymous pulls by runner IP, which on shared
+    # GitHub runners is a budget this job shares with strangers — the failure
+    # mode is testcontainers timing out on a pull, nightly, for reasons no
+    # test changed. A token moves the pulls onto this account's budget.
+    #
+    # Absent, they stay anonymous and everything still runs. That is not a
+    # tidiness fallback: secrets are unavailable to a pull request from a
+    # fork, so anonymous is the contributor path, and a login that was
+    # required would lock out exactly the people it is meant to serve.
+    env:
+      # Whether a token exists, never the token. A step's `if:` cannot read the
+      # secrets context, so the *answer* has to be a job-level value — while the
+      # credentials themselves stay bound to the single step that needs them,
+      # rather than sitting in the environment of every step after it.
+      DOCKERHUB_CONFIGURED: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
+
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
@@ -353,6 +369,22 @@ jobs:
 
       - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Before anything pulls. Guarded on the token's presence rather than on
+      # the event, so a fork's run skips it silently; --password-stdin keeps
+      # the token out of the process table.
+      #
+      # `docker login` does leave the credential in the runner's Docker config
+      # for the rest of the job, which is unavoidable while later steps have to
+      # pull with it. What bounds that is the token's scope: it needs
+      # `Public Repo Read-only` and nothing more, so the worst a leaked one
+      # buys is the right to pull public images against this account's limit.
+      - name: Log in to Docker Hub when a token is configured
+        if: ${{ env.DOCKERHUB_CONFIGURED == 'true' }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: printf '%s' "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
 
       - name: Install uv
         uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
