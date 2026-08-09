@@ -502,21 +502,51 @@ def test_trino_and_duckdb_both_express_the_marker() -> None:
         assert "TRY_CAST" in entity_select(ir.entities[0], ctx).sql(dialect=dialect)
 
 
-def test_trino_refuses_the_reject_table_it_cannot_run() -> None:
-    """Trino keeps ``TRY_CAST`` and hosts everything else in RFC 0016, but
-    both constructions the reject table is built from are ones it rejects:
-    ``SHA256`` takes ``varbinary`` there, not text, and the positional
-    ``JSON_OBJECT('k', v)`` is not the spelling it parses. Verified against
-    ``trinodb/trino:483`` — the emitted model failed to plan, so it is refused
-    at emit instead of shipped as SQL the engine will not run."""
+def test_trino_now_emits_the_reject_table_it_used_to_be_refused() -> None:
+    """Trino was refused here because both constructions the reject table is
+    built from were DuckDB's spellings: ``SHA256`` over text, and the
+    positional ``JSON_OBJECT('k', v)``. Each dialect now spells both through
+    its own port (RFC 0016 D76), verified against ``trinodb/trino:483``.
+    """
+    project, catalog = load_fixture(FIXTURE)
+    artifacts = compile_project(
+        project, target=Target.SQLMESH, dialect="trino", catalog=catalog
+    )
+    (reject,) = [a for a in artifacts if a.path.endswith("__reject.sql")]
+    assert "TO_HEX(" in reject.content and "TO_UTF8(" in reject.content
+    assert "JSON_OBJECT(" in reject.content
+
+
+def test_postgres_is_still_refused_but_for_the_other_gap() -> None:
+    """D76 closes the reject *constructions* on every shipped dialect. It does
+    not close D30: Postgres has no NULL-on-failure cast, so an entity carrying
+    ``coercible`` rules is still refused there — a different gap, and the
+    message has to be the one that names it, not a reject-table one."""
     project, catalog = load_fixture(FIXTURE)
     with pytest.raises(UnsupportedByTarget) as excinfo:
-        compile_project(project, target=Target.SQLMESH, dialect="trino", catalog=catalog)
+        compile_project(project, target=Target.SQLMESH, dialect="postgres", catalog=catalog)
     message = str(excinfo.value)
-    assert "reject_id" in message
-    assert "JSON payloads" in message
-    # …and the dialect that carries both still compiles the same project.
-    assert compile_project(project, target=Target.SQLMESH, dialect="duckdb", catalog=catalog)
+    assert "NULL-on-failure cast" in message
+    assert "reject_id" not in message
+
+
+def test_the_three_dialects_spell_the_reject_constructions_differently() -> None:
+    """Asserted on the port rather than through a compile, because Postgres
+    cannot reach emission while D30 stands — and a spelling that is only
+    exercised once D30 lifts is exactly the kind that rots unnoticed.
+
+    The property is that the three *differ*: one rendering passing everywhere
+    would mean the split never happened. Each was executed against its engine
+    (RFC 0016 D76) — DuckDB's returns hex directly, Postgres' ``sha256``
+    returns ``bytea``, and Trino's does not take text at all.
+    """
+    digests, objects = set(), set()
+    for name in ("duckdb", "postgres", "trino"):
+        dialect = get_dialect(name)
+        digests.add(dialect.render(dialect.text_sha256(exp.Literal.string("abc"))))
+        objects.add(dialect.render(dialect.json_object([("a", exp.Literal.number(1))])))
+    assert len(digests) == 3
+    assert len(objects) == 3
 
 
 def test_the_ir_still_compiles_for_every_dialect() -> None:

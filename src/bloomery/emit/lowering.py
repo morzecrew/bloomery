@@ -16,7 +16,7 @@ shipped dialect; the choice is documented at the node.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, cast
+from typing import TYPE_CHECKING, cast
 
 from sqlglot import exp, parse_one
 from sqlglot.expressions.core import Expression
@@ -299,13 +299,16 @@ def _payload_columns(entity: EntityIR) -> tuple[str, ...]:
     return tuple(sorted({payload_key(path) for path in paths} - redacted))
 
 
-def _json_object(pairs: list[tuple[str, Expression]]) -> Expression:
-    """``JSON_OBJECT('k', v, …)`` — the one construction SQLGlot renders
-    verbatim on every shipped dialect, keys in the caller's (sorted) order."""
-    arguments: list[Expression] = []
-    for key, value in pairs:
-        arguments.extend((exp.Literal.string(key), value))
-    return cast("Expression", exp.func("JSON_OBJECT", *arguments))
+def _json_object(pairs: list[tuple[str, Expression]], ctx: EmitContext) -> Expression:
+    """A JSON object from sorted key/value pairs, spelled by the dialect port.
+
+    Not one construction after all (RFC 0016 D76): the positional
+    ``JSON_OBJECT('k', v)`` this used to build is DuckDB's spelling, Postgres
+    has no positional ``json_object`` at all (it wants ``json_build_object``),
+    and Trino parses only the SQL-standard keyword form. The claim that it was
+    portable held because only DuckDB ever executed it.
+    """
+    return ctx.dialect.json_object(pairs)
 
 
 def _extract_select(
@@ -350,7 +353,7 @@ def _extract_select(
         )
     if include_raw:
         payload = _json_object(
-            [(column, exp.column(column)) for column in _payload_columns(entity)]
+            [(column, exp.column(column)) for column in _payload_columns(entity)], ctx
         )
         projections.append(cast("Expression", exp.alias_(payload, "_raw")))
     select = exp.Select().select(*projections).from_(exp.table_(relation, db=namespace))
@@ -469,40 +472,6 @@ def _require_try_cast_for_audit(entity: EntityIR, ctx: EmitContext) -> None:
     raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
 
 
-#: The dialect features the ``<entity>__reject`` model is built from, with the
-#: construction each one names — see :class:`~bloomery.dialects.DialectFeature`.
-_REJECT_FEATURES: Final[tuple[tuple[DialectFeature, str], ...]] = (
-    (DialectFeature.TEXT_SHA256, "reject_id, a SHA-256 hex digest over the row's canon bytes"),
-    (DialectFeature.JSON_OBJECT_POSITIONAL, "the raw and key_values JSON payloads"),
-)
-
-
-def _require_reject_constructions(entity: EntityIR, ctx: EmitContext) -> None:
-    """Refuse a reject table the dialect cannot actually run.
-
-    The sibling of :func:`_require_try_cast`, and the same discipline (RFC
-    0008 D3: fail loud, never approximate) applied one layer out. ``TRY_CAST``
-    is about a marker meaning the wrong thing; these two are about SQL the
-    engine refuses outright — verified by executing the emitted model, not by
-    reading it, which is how both were found at all. Emitting a model that
-    cannot plan is worse than refusing to emit it: the refusal names the
-    dialect at compile time, where the author can act on it.
-    """
-    if entity.quarantine is None:
-        return
-    missing = [why for feature, why in _REJECT_FEATURES if not ctx.dialect.supports(feature)]
-    if not missing:
-        return
-    msg = (
-        f"entity {entity.name!r} declares a quarantine: block, so it emits a "
-        f"{entity.name}__reject model — but dialect {ctx.dialect.name!r} cannot express "
-        f"{'; '.join(missing)} (RFC 0016 §5.6). The emitted SQL would be rejected by the "
-        "engine rather than run, so it is refused here instead. Fix: compile this project "
-        "for a dialect that carries the reject table, or drop the quarantine: block"
-    )
-    raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
-
-
 def _quality_pipeline(entity: EntityIR, ctx: EmitContext, extract: exp.Select) -> exp.Select:
     """Stages 4–6 over an extract SELECT: the rule predicates, the single
     ``_quality_flags`` pass, the routing ``WHERE``, and ``_quality_ok``.
@@ -601,7 +570,6 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     replay — is what eventually deletes the row.
     """
     _require_try_cast(entity, ctx)
-    _require_reject_constructions(entity, ctx)
     arrays = _arrays(ctx)
     extract = _extract_select(entity, ctx, include_raw=True)
     recorded = _recorded_rules(entity)
@@ -609,7 +577,11 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     ingested = exp.column("_ingested_at", table=_EXTRACT_ALIAS)
     projections: list[Expression] = [
         cast(
-            "Expression", exp.alias_(reject_id(entity.source.relation, row_id.copy()), "reject_id")
+            "Expression",
+            exp.alias_(
+                reject_id(entity.source.relation, row_id.copy(), ctx.dialect.text_sha256),
+                "reject_id",
+            ),
         ),
         cast(
             "Expression",
@@ -634,7 +606,8 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
             "Expression",
             exp.alias_(
                 _json_object(
-                    [(name, exp.column(name, table=_EXTRACT_ALIAS)) for name in sorted(entity.key)]
+                    [(name, exp.column(name, table=_EXTRACT_ALIAS)) for name in sorted(entity.key)],
+                    ctx,
                 ),
                 "key_values",
             ),

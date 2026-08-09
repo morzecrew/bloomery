@@ -51,7 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reserved field/dimension/role names now cover the generated data-quality and ingestion-metadata columns (`_quality_flags`, `_quality_ok`, `_load_id`, `_ingested_at`, `_source_row_id`, `has_quality_flags`) alongside `metric_time`; the refusal message names the RFC that owns each. The quality mart's five metric names are reserved in the same way.
 
-- Quality-carrying entities no longer compile for the `trino` dialect when they declare a `quarantine:` block: Trino's `sha256` takes `varbinary`, and it does not parse the positional `JSON_OBJECT('k', v)` form — both constructions the reject table is built from — so the emitted model could not run there. Verified against a real Trino container and now a loud `UnsupportedByTarget` at emit rather than SQL the engine refuses. Trino keeps `TRY_CAST` and still hosts quality rules without a reject table; Postgres remains refused for the separate D30 reason.
+- The reject table's two constructions — the `reject_id` SHA-256 digest and the `raw`/`key_values` JSON payloads — are now spelled by the dialect port rather than emitted as one AST, so **Trino hosts a reject table**. Both were verified by executing the emitted model against `trinodb/trino:483`, and its `reject_id` is byte-identical to the digest the other engines produce. Postgres declared support for both and had neither: its `sha256` returns `bytea`, so `reject_id` would have been bytes rather than hex — silently disagreeing across engines — and it has no positional `json_object` at all. Postgres now has correct spellings too, though they stay unreachable until it gains a NULL-on-failure cast.
 
 ### Removed
 

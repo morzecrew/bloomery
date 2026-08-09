@@ -4,7 +4,8 @@ port-validation milestone, and the engine-tier execution dialect (RFC 0009
 
 from __future__ import annotations
 
-from typing import ClassVar
+from collections.abc import Sequence
+from typing import ClassVar, cast
 
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
@@ -107,3 +108,28 @@ class PostgresDialect(SQLGlotDialect):
             else:
                 extract.set("this", exp.cast(extract.this, exp.DataType.build("JSON")))
         return super().render(rewritten)
+
+    def text_sha256(self, value: Expression) -> Expression:
+        """``ENCODE(SHA256(CONVERT_TO(…, 'UTF8')), 'hex')``.
+
+        Postgres' ``sha256`` takes and returns ``bytea``, so the plain
+        spelling does not fail — it silently yields *bytes* where every other
+        dialect yields a hex string, which would make ``reject_id`` disagree
+        across engines while looking like it worked (RFC 0016 D76). Verified
+        against postgres 16 to equal the digest DuckDB returns directly.
+        """
+        encoded = exp.func("CONVERT_TO", value, exp.Literal.string("UTF8"))
+        digest = exp.func("SHA256", encoded)
+        return cast("Expression", exp.func("ENCODE", digest, exp.Literal.string("hex")))
+
+    def json_object(self, pairs: Sequence[tuple[str, Expression]]) -> Expression:
+        """``JSON_BUILD_OBJECT('k', v, …)``.
+
+        Postgres has no positional ``json_object``: the SQL/JSON one arrived
+        in 16 taking the ``KEY … VALUE`` form only, and the positional builder
+        has always been spelled ``json_build_object``.
+        """
+        arguments: list[Expression] = []
+        for key, value in pairs:
+            arguments.extend((exp.Literal.string(key), value))
+        return cast("Expression", exp.func("JSON_BUILD_OBJECT", *arguments))

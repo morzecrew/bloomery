@@ -9,9 +9,11 @@ A transform whose AST cannot render on some dialect is an emit-time
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from enum import StrEnum
-from typing import ClassVar, Protocol
+from typing import ClassVar, Protocol, cast
 
+from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
 from bloomery.typing import (
@@ -88,6 +90,10 @@ class DialectPort(Protocol):
 
     def supports(self, feature: DialectFeature) -> bool: ...
 
+    def text_sha256(self, value: Expression) -> Expression: ...
+
+    def json_object(self, pairs: Sequence[tuple[str, Expression]]) -> Expression: ...
+
 
 class SQLGlotDialect:
     """Base adapter: renders through SQLGlot's generator for
@@ -121,3 +127,24 @@ class SQLGlotDialect:
 
     def supports(self, feature: DialectFeature) -> bool:
         return feature in self.features
+
+    def text_sha256(self, value: Expression) -> Expression:
+        """A SHA-256 hex *string* over a text value (RFC 0016 D21).
+
+        Built here rather than in the emitter because the portable spellings
+        are not interchangeable: DuckDB's ``SHA256(VARCHAR)`` already returns
+        hex, and applying Trino's ``LOWER(TO_HEX(SHA256(TO_UTF8(…))))`` to it
+        would hex-encode an already-hex digest and double its length. A
+        construction that differs per engine belongs to the port that knows
+        the engine (RFC 0008 D1), not to a lowering that is supposed to be
+        dialect-neutral.
+        """
+        return exp.SHA2(this=value, length=exp.Literal.number(256))
+
+    def json_object(self, pairs: Sequence[tuple[str, Expression]]) -> Expression:
+        """``JSON_OBJECT('k', v, …)`` — the positional form, keys in the
+        caller's order."""
+        arguments: list[Expression] = []
+        for key, value in pairs:
+            arguments.extend((exp.Literal.string(key), value))
+        return cast("Expression", exp.func("JSON_OBJECT", *arguments))
