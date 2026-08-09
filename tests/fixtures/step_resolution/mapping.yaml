@@ -1,0 +1,9 @@
+mapping_version: 1
+source: crm__customers
+target: customer_raw
+key:
+  source_system: {from: "$.system", transform: [to_string]}
+  source_id: {from: "$.id", transform: [to_string]}
+fields:
+  email: {from: "$.email", transform: [to_string]}
+  name: {from: "$.name", transform: [to_string]}

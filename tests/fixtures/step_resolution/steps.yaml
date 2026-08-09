@@ -1,0 +1,11 @@
+# Wiring only: ref@version, bindings, parameters within the manifest's bounds.
+# There is no field here that could carry a body — that absence is the whole
+# reason a spec can never become an arbitrary-code-execution surface (§5.3).
+steps_version: 1
+steps:
+  - use: resolve_customers@3
+    inputs: {raw: silver.customer_raw}
+    outputs:
+      customer: silver.customer
+      customer_xref: silver.customer_xref
+    parameters: {threshold: 0.9}

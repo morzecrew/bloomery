@@ -31,16 +31,19 @@ __all__ = [
     "entity_field_node",
     "metric_node",
     "source_column_node",
+    "step_node",
 ]
 
 
 class NodeKind(StrEnum):
-    """The four node kinds of the dependency DAG (RFC 0005 §5.1)."""
+    """The node kinds of the dependency DAG (RFC 0005 §5.1; ``STEP`` added by
+    RFC 0017 §5.6, D11)."""
 
     SOURCE_COLUMN = "source_column"
     ENTITY_FIELD = "entity_field"
     CANONICAL_FIELD = "canonical_field"
     METRIC = "metric"
+    STEP = "step"
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +92,20 @@ def metric_node(name: str) -> Node:
     return Node(kind=NodeKind.METRIC, name=f"metric.{name}")
 
 
+def step_node(ref: str) -> Node:
+    """A referenced implementation, e.g. ``step.resolve_customers``
+    (RFC 0017 §5.6, D11).
+
+    Keyed by ``ref`` alone, not ``ref@version``: the node is the *place in the
+    lineage* where a step sits, and a version bump does not move it. What the
+    version changes is the step's fingerprint, which is `plan()`'s business
+    (D6) — encoding it in the node id would instead make an upgrade read as a
+    node removed and a different one added, breaking the very lineage this
+    node exists to preserve.
+    """
+    return Node(kind=NodeKind.STEP, name=f"step.{ref}")
+
+
 def _mapping_edges(mapping: Mapping, canonical_by_field: dict[str, str | None]) -> list[Edge]:
     edges: list[Edge] = []
     for field_name, key_field in mapping.key.items():
@@ -128,6 +145,62 @@ def _mapping_edges(mapping: Mapping, canonical_by_field: dict[str, str | None]) 
     return edges
 
 
+def _step_edges(project: Project) -> list[Edge]:
+    """Wire each step between what fills its inputs and what it produces
+    (RFC 0017 §5.6, D11).
+
+    Both directions matter and for different reasons. Input edges put the step
+    *downstream* of whatever fills its inputs, so a change upstream reaches it
+    in topological order — and so a **cycle between two steps** is a cycle in
+    this graph rather than a pipeline that deadlocks at run time. Output edges
+    put the produced relation downstream of the step, which is what lets
+    `plan()` compute a backfill *across* it (§4).
+
+    An input is resolved two ways, and the second is the one that took a
+    regression to learn. A binding naming a **mapped entity** draws an edge
+    from each of that entity's fields — a step reads a relation whole. A
+    binding naming another **step's output** draws an edge from that step's
+    node directly, because a step-produced relation is not an entity and
+    looking only in the entity table silently produced no edge at all, which
+    is exactly the common case (one step feeding another) and exactly where
+    cycle detection was lost.
+    """
+    if project.steps is None:
+        return []
+    entities = project.entity_model.entities
+    producer_of: dict[str, str] = {
+        relation.rsplit(".", 1)[-1]: wiring.ref
+        for wiring in project.steps.steps
+        for relation in wiring.outputs.values()
+    }
+    edges: list[Edge] = []
+    for wiring in project.steps.steps:
+        node = step_node(wiring.ref)
+        for _name, bound in sorted(wiring.inputs.items()):
+            relation = bound.rsplit(".", 1)[-1]
+            producer = producer_of.get(relation)
+            if producer is not None and producer != wiring.ref:
+                edges.append(Edge(src=step_node(producer), dst=node, label="step_input"))
+                continue
+            entity = entities.get(relation)
+            if entity is None:
+                # A self-referencing binding lands here too, and must still
+                # produce the self-edge the cycle check reads.
+                if producer == wiring.ref:
+                    edges.append(Edge(src=node, dst=node, label="step_input"))
+                continue
+            edges.extend(
+                Edge(src=entity_field_node(relation, field), dst=node, label="step_input")
+                for field in sorted({*entity.fields, *entity.key})
+            )
+        for output_name, relation in sorted(wiring.outputs.items()):
+            produced = relation.rsplit(".", 1)[-1]
+            edges.append(
+                Edge(src=node, dst=entity_field_node(produced, output_name), label="step_output")
+            )
+    return edges
+
+
 def build_graph(
     project: Project,
     catalog: Catalog | None,
@@ -141,6 +214,7 @@ def build_graph(
     metrics (``requires_metrics``).
     """
     edges: list[Edge] = []
+    edges.extend(_step_edges(project))
     for mapping in project.mappings:
         entity = project.entity_model.entities[mapping.target]
         canonical_by_field = {name: field.canonical for name, field in entity.fields.items()}
@@ -160,6 +234,10 @@ def build_graph(
     if catalog is not None:
         nodes.update(canonical_field_node(name) for name in catalog.canonical_fields)
     nodes.update(metric_node(metric.name) for metric in metrics)
+    if project.steps is not None:
+        # A step with no wired inputs still exists in the lineage; without
+        # this it would vanish from the topological order entirely.
+        nodes.update(step_node(wiring.ref) for wiring in project.steps.steps)
     for edge in edges:
         nodes.add(edge.src)
         nodes.add(edge.dst)

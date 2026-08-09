@@ -7,7 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Steps: referenced implementations (RFC 0017). A project may now wire platform-owned steps through a new `steps_version: 1` document — `use: ref@version`, input/output bindings, parameters within the manifest's declared bounds, and `expression` quality rules on outputs. Manifests reach the compiler as a frozen `StepRegistry` passed to `compile_project(..., steps=…)`; bloomery reads no step files and has no dynamic loading path, so a spec cannot name code to load. Three tiers emit: `sql_macro` splices into the consuming SELECT, `sql_model` emits an ordinary model, and `python_model` emits one generated SQLMesh Python-model wrapper *per declared output*, each carrying a non-optional `assert_step_contract` call.
+
+- `bloomery.steps.contract.assert_step_contract` — the run-time step contract, the only bloomery module intended for import outside compilation. It imports nothing but `bloomery.errors`: every check is expressed against the dataframe protocol the step already returned, so it needs no pandas of its own.
+
+- A step emits a blocking consistency audit per reference its manifest **declares** between sibling outputs (`references: {column: sibling}`), attached to the model holding the reference, and that model declares the sibling in `depends_on` so SQLMesh resolves it to the plan's snapshot rather than a virtual-layer view. Mutual references are refused: each one orders the two models. This is the check for the one risk one-wrapper-per-output creates — a step misdeclared as `pure` producing siblings that disagree *within a single run*, which no run-to-run gate and no contract assertion can see.
+
+- Step outputs are entities: a mart or downstream model may reference `silver.customer` written by a step exactly as it would any silver entity, and `plan()` diffs those entities like any other. `EntityIR` gains `produced_by`, naming the step that writes the relation, so the emitter leaves its model to the step's generated wrapper.
+
+- Steps not yet wired are refused rather than silently dropped: a `sql_macro` (Tier 1 has no reference surface yet), `expression` quality rules on step outputs (they parsed and nothing lowered them), a `sql_model` with no registry body, and any step at all on the dbt or Cube targets.
+
+- `bloomery.typing.render_type` — the spec-layer spelling of a logical type, now public because `plan()`, the step manifest embedded in a generated wrapper, and anything reporting a type to a human must all use one spelling.
+
 ### Changed
+
+- `bloomery_ir_version` is now `3` — `ProjectIR` gained a `steps` tuple, so every artifact's `fingerprint:` header changes and `plan()` refuses to diff a v2 IR against a v3 one. The bump moves fingerprints even for projects with no steps: the canonical encoder covers each node's field *names and count*, not merely its values, so an IR shape change is loud by construction.
+
+- `plan()` diffs steps by `ref`: a `runtime_lock` bump, a version upgrade, a changed parameter, a new seed or rewired inputs each classify `RESTATING` and put the step's output relations in `backfill_scope`. Keyed by `ref@version` an upgrade would have read as one step removed and another added, losing the backfill exactly where it matters most. Removing a step is `BREAKING` and names the relations nothing produces afterwards.
 
 - Planner filter vocabulary is now CNF (breaking, pre-0.1): `FilterExpr` becomes `Predicate`, filters accept one level of OR via `AnyOf` groups, `between` and `contains` are removed (compose `gte`+`lte`; write `like`/`ilike` patterns with your own wildcards), `is_null` takes exactly one bool, and `RowPolicy.as_filter()` is renamed `as_clause()`.
 

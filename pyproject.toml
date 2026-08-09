@@ -245,6 +245,14 @@ exclude_type_checking_imports = true
 # the compile path can import the planner, and the runtime/compile sibling
 # isolation below is unchanged — `planner → runtime` is a downward edge,
 # while `compile ↛ runtime` and `compile ↛ planner` stay forbidden.
+# M13 (RFC 0017 §5.3): `steps` sits just above `typing` and below `transforms`.
+# It needs `typing` (a manifest's `produces` carries logical types) and `spec`
+# (the frozen SpecModel base), and nothing else — deliberately, because
+# `steps.contract` is imported by *generated code* at target runtime, where
+# dragging the compile pipeline in behind it would be a packaging bug. Every
+# consumer is above it: resolve/guardrails lower manifests into `StepIR`, and
+# the emit side reads only that IR (the forbidden contract below is unchanged
+# — a step emitter never touches the manifest models).
 # M12 (RFC 0016 §5.9): `quality` is the run-time-rule *lowering* package —
 # spec blocks to IR nodes, IR nodes to dialect-neutral ASTs. It sits between
 # `guardrails` and `ir` because both of its consumers are above it: the
@@ -273,6 +281,7 @@ layers = [
     "(bloomery.ir)",
     "(bloomery.dialects)",
     "(bloomery.transforms)",
+    "(bloomery.steps)",
     "(bloomery.typing)",
     "(bloomery.spec)",
     "(bloomery.errors)",

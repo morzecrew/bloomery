@@ -31,6 +31,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
+import sys
 from pathlib import Path
 
 import duckdb
@@ -186,6 +187,31 @@ def _verify_ecom_basic(conn: duckdb.DuckDBPyConnection) -> None:
     assert mart == ("o1", 1, 3, "c1")
 
 
+def _seed_step_resolution(connection: duckdb.DuckDBPyConnection) -> None:
+    """The step fixture's only bronze input. Its two silver relations are
+    written by generated Python wrappers, not by bloomery SQL."""
+    connection.execute("CREATE SCHEMA IF NOT EXISTS bronze")
+    connection.execute(
+        "CREATE TABLE bronze.crm__customers AS SELECT * FROM (VALUES "
+        "('crm', 'c-1', 'a@example.com', 'Ada'), ('crm', 'c-2', 'b@example.com', 'Bea')) "
+        "AS t(system, id, email, name)"
+    )
+
+
+def _verify_step_resolution(connection: duckdb.DuckDBPyConnection) -> None:
+    """Both wrappers ran, the contract assertion passed, and the consistency
+    audit resolved its sibling — a plan that applies at all is the assertion
+    (RFC 0017 D42/D44)."""
+    customers = connection.execute(
+        "SELECT canonical_id FROM silver.customer ORDER BY 1"
+    ).fetchall()
+    assert customers == [("c-1",), ("c-2",)]
+    xref = connection.execute(
+        "SELECT source_id, canonical_id FROM silver.customer_xref ORDER BY 1"
+    ).fetchall()
+    assert xref == [("c-1", "c-1"), ("c-2", "c-2")]
+
+
 Seeder = Callable[[duckdb.DuckDBPyConnection], None]
 Verifier = Callable[[duckdb.DuckDBPyConnection], None]
 
@@ -216,6 +242,19 @@ FIXTURES: dict[str, tuple[Seeder, Verifier, frozenset[str]]] = {
             }
         ),
     ),
+    # RFC 0017: the step fixture is here because *nothing else loads SQLMesh*,
+    # and that gap hid three defects in a row — an audit emitted and never run,
+    # a wrapper that never loaded at all (a module-global `Decimal` broke
+    # SQLMesh's dependency serialization), and an audit whose sibling resolved
+    # to a virtual-layer view that does not exist on a first plan. Each was
+    # green in every other tier: the goldens pinned bytes, `ast.parse` proved
+    # grammar, and the execution tier ran the audit's SELECT with SQLMesh
+    # nowhere in the loop. Only a real plan sees any of it.
+    "step_resolution": (
+        _seed_step_resolution,
+        _verify_step_resolution,
+        frozenset({"silver.customer_raw", "silver.customer", "silver.customer_xref"}),
+    ),
 }
 
 
@@ -226,6 +265,37 @@ def _write_project(root: Path, fixture: str, warehouse: Path) -> None:
         dest = root / artifact.path
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(artifact.content)
+    _write_platform_steps(root, fixture)
+
+
+def _write_platform_steps(root: Path, fixture: str) -> None:
+    """The platform package a generated wrapper imports at run time.
+
+    It lives here rather than in ``tests/fixtures/`` because it is *step body*
+    — platform-repo territory the RFC puts outside bloomery entirely (§6). The
+    body is deliberately trivial and honest: it resolves each source row to
+    itself, so both outputs agree and the consistency audit has something
+    correct to pass on.
+    """
+    if fixture != "step_resolution":
+        return
+    package = root / "platform_steps"
+    package.mkdir(exist_ok=True)
+    (package / "__init__.py").write_text("")
+    (package / "resolve_customers.py").write_text(
+        "import pandas as pd\n\n\n"
+        "def resolve(raw, threshold):\n"
+        "    canonical = raw['source_id']\n"
+        "    return {\n"
+        "        'customer': pd.DataFrame(\n"
+        "            {'canonical_id': canonical, 'confidence': [threshold] * len(raw)}\n"
+        "        ),\n"
+        "        'customer_xref': pd.DataFrame(\n"
+        "            {'source_system': raw['source_system'], 'source_id': raw['source_id'],\n"
+        "             'canonical_id': canonical, 'method': ['exact'] * len(raw)}\n"
+        "        ),\n"
+        "    }\n"
+    )
 
 
 @pytest.mark.parametrize("fixture", sorted(FIXTURES))
@@ -241,6 +311,10 @@ def test_replan_is_a_no_op(fixture: str, tmp_path: Path) -> None:
 
     first = compile_fixture(fixture)
     _write_project(tmp_path, fixture, warehouse)
+    # A generated step wrapper imports its platform package at *run* time
+    # (RFC 0017 D13), so the project root has to be importable — in a real
+    # deployment the step runtime installs it.
+    sys.path.insert(0, str(tmp_path))
 
     # Context raises on malformed MODEL blocks — loading alone is a check.
     context = Context(paths=str(tmp_path))

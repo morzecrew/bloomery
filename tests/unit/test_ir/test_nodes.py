@@ -67,10 +67,11 @@ def test_partition_spec_identity_transform() -> None:
 # Data quality (RFC 0016 §5.3–§5.6)
 
 
-def test_ir_version_is_two() -> None:
-    # RFC 0016 M12 changes the IR shape; RFC 0003 D3 makes the version part of
-    # the fingerprint, so the bump is deliberate and loud.
-    assert ProjectIR().bloomery_ir_version == 2
+def test_ir_version_is_three() -> None:
+    # RFC 0016 M12 and RFC 0017 M13 each change the IR shape; RFC 0003 D3
+    # makes the version part of the fingerprint, so each bump is deliberate
+    # and loud.
+    assert ProjectIR().bloomery_ir_version == 3
 
 
 def test_on_fail_is_the_v1_disposition_set() -> None:

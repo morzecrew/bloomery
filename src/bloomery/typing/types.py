@@ -32,6 +32,7 @@ __all__ = [
     "VariantType",
     "assignable",
     "parse_type",
+    "render_type",
 ]
 
 
@@ -153,3 +154,31 @@ def assignable(actual: LogicalType, declared: LogicalType) -> bool:
             and declared.precision - declared.scale >= actual.precision - actual.scale
         )
     return actual == declared
+
+
+#: The spec-layer spelling of each scalar logical type — the inverse of
+#: :func:`parse_type`'s grammar.
+_SCALAR_NAMES: dict[type[LogicalType], str] = {
+    StringType: "string",
+    IntType: "int",
+    BoolType: "bool",
+    DateType: "date",
+    TimestampType: "timestamp",
+    VariantType: "variant",
+}
+
+
+def render_type(logical: LogicalType) -> str:
+    """A logical type as the string a spec would have written.
+
+    The round-trip partner of :func:`parse_type`, and public because three
+    unrelated consumers need the *same* spelling: `plan()`'s change reprs, the
+    step manifest a generated wrapper embeds (RFC 0017 §5.4), and anything
+    else that reports a type back to a human. A second spelling somewhere
+    would not merely be untidy — the step contract looks its declared types up
+    in a table, so a repr like ``StringType()`` silently matches nothing and
+    turns a mandatory check into a no-op.
+    """
+    if isinstance(logical, DecimalType):
+        return f"decimal({logical.precision},{logical.scale})"
+    return _SCALAR_NAMES[type(logical)]

@@ -235,3 +235,8 @@ junit.xml
 .claude/projects/
 
 # NOTE: rfcs/ is deliberately committed here — the RFC corpus is a deliverable.
+
+# Stray warehouse files from local SQLMesh/DuckDB runs — the e2e tier builds
+# its own under tmp_path and never writes into the repo.
+*.duckdb
+*.duckdb.wal

@@ -55,6 +55,7 @@ from bloomery.emit.lowering import (
     entity_select,
     mart_select,
 )
+from bloomery.emit.steps import refuse_steps
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import (
     AuditIR,
@@ -400,6 +401,7 @@ class DbtEmitter:
         and the date dimension to gold models, audits to ``schema.yml``, plus
         the project scaffold and bronze sources; artifacts sorted by path,
         content ending in exactly one newline (RFC 0003 §5.5 rule 5)."""
+        refuse_steps(ir, "dbt")
         _refuse_reconcile(ir)
         artifacts: list[EmittedArtifact] = [_project_artifact(ctx)]
         for entity in ir.entities:

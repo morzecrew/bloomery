@@ -9,6 +9,7 @@ from pathlib import Path
 from bloomery import Target, compile_project, load_catalog, load_project
 from bloomery.emit import EmittedArtifact
 from bloomery.spec import Catalog, Project
+from support.steps import registry_for
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
@@ -33,7 +34,16 @@ def compile_fixture(
     name: str, *, target: Target | str = Target.SQLMESH, dialect: str = "duckdb"
 ) -> tuple[EmittedArtifact, ...]:
     project, catalog = load_fixture(name)
-    return compile_project(project, target=target, dialect=dialect, catalog=catalog)
+    return compile_project(
+        project,
+        target=target,
+        dialect=dialect,
+        catalog=catalog,
+        # Empty for every fixture that wires no step, which is all of them but
+        # one — so the registry is a lookup rather than a parameter each
+        # caller has to remember (RFC 0017 §5.3).
+        steps=registry_for(name),
+    )
 
 
 #: What the execution tier substitutes for SQLMesh's run-context macros — the

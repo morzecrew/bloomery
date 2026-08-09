@@ -32,6 +32,7 @@ nav = [
         "concepts/guardrails.md",
         "concepts/data-quality.md",
         "concepts/wide-marts.md",
+        "concepts/step-registry.md",
     ] },
     { "How-to" = [
         "how-to/emit-sqlmesh.md",

@@ -15,6 +15,7 @@ from bloomery.typing.types import (
     VariantType,
     assignable,
     parse_type,
+    render_type,
 )
 
 __all__ = [
@@ -30,6 +31,7 @@ __all__ = [
     "VariantType",
     "assignable",
     "parse_type",
+    "render_type",
     "typecheck_chain",
     "typecheck_chains",
 ]

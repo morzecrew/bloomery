@@ -76,7 +76,9 @@ from bloomery.resolve.metrics import effective_metrics
 from bloomery.resolve.recipes import resolve_recipe
 from bloomery.resolve.refs import mapping_doc
 from bloomery.resolve.resolution import resolve
+from bloomery.resolve.steps import lower_steps, step_entities
 from bloomery.spec.mapping import RecipeFieldMapping
+from bloomery.steps import EMPTY_REGISTRY
 from bloomery.transforms import registry
 from bloomery.typing import (
     ChainCheck,
@@ -92,6 +94,7 @@ if TYPE_CHECKING:
     from bloomery.spec.entity import Entity, Field
     from bloomery.spec.mapping import Mapping, TransformStep
     from bloomery.spec.project import Project
+    from bloomery.steps import StepRegistry
     from bloomery.transforms import Registry
 
 __all__ = [
@@ -451,7 +454,12 @@ def _build_date_dimension(catalog: Catalog | None) -> DateDimensionIR | None:
     )
 
 
-def build_project_ir(project: Project, catalog: Catalog | None = None) -> ProjectIR:
+def build_project_ir(
+    project: Project,
+    catalog: Catalog | None = None,
+    *,
+    steps: StepRegistry = EMPTY_REGISTRY,
+) -> ProjectIR:
     """Compile parsed specs into the frozen, fingerprintable IR (RFC 0003).
 
     Pure function: resolution (RFC 0005) and the batched typecheck (RFC 0004)
@@ -464,9 +472,19 @@ def build_project_ir(project: Project, catalog: Catalog | None = None) -> Projec
     reg = registry()
     _typecheck_project(project, reg)
 
+    steps_ir = lower_steps(project, steps)
     draft = ProjectIR(
-        bloomery_ir_version=2,
-        entities=_build_entities(project, catalog, reg),
+        bloomery_ir_version=3,
+        # Mapped entities plus one per step output: §5.8 makes a step output an
+        # entity so marts, metrics and downstream mappings can reference it
+        # like any other. Sorted together, because the IR's ordering rule is
+        # about the collection, not about how a member got there.
+        entities=tuple(
+            sorted(
+                (*_build_entities(project, catalog, reg), *step_entities(steps_ir)),
+                key=lambda entity: entity.name,
+            )
+        ),
         metrics=_build_metrics(project, catalog, resolution.reachable_metrics),
         unreachable=resolution.unreachable_metrics,
         relationships=_build_relationships(project),
@@ -475,6 +493,10 @@ def build_project_ir(project: Project, catalog: Catalog | None = None) -> Projec
         # Document-level reconcile checks (RFC 0016 §5.3): they relate two
         # entities, so they belong to neither — they live on the root.
         reconcile=lower_reconcile(project.entity_model),
+        # Steps lower before the mart flattener and the guardrail stage, because
+        # step outputs are relations both of them must be able to see
+        # (RFC 0017 §5.8).
+        steps=steps_ir,
     )
     # Mart flattening (RFC 0010 D6): pure, total — violations are re-derived
     # and raised by the guardrail stage below; only clean marts attach here.

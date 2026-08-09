@@ -90,15 +90,8 @@ from bloomery.plan.model import BackfillScope, Change, ChangeClass, Plan, Replay
 from bloomery.quality import disposition, payload_key
 from bloomery.spec.quality import EXACT_DECIMAL
 from bloomery.typing import (
-    BoolType,
-    DateType,
-    DecimalType,
-    IntType,
-    LogicalType,
-    StringType,
-    TimestampType,
-    VariantType,
     assignable,
+    render_type,
 )
 
 if TYPE_CHECKING:
@@ -114,6 +107,7 @@ if TYPE_CHECKING:
         QualityRuleIR,
         QuarantineIR,
         ReconcileIR,
+        StepIR,
         TransformStepIR,
     )
 
@@ -121,22 +115,10 @@ __all__ = [
     "plan",
 ]
 
-_SCALAR_NAMES: dict[type[LogicalType], str] = {
-    StringType: "string",
-    IntType: "int",
-    BoolType: "bool",
-    DateType: "date",
-    TimestampType: "timestamp",
-    VariantType: "variant",
-}
-
-
-def _render_type(logical: LogicalType) -> str:
-    """The spec-layer spelling of a logical type — deterministic reprs for
-    ``Change.old``/``Change.new``."""
-    if isinstance(logical, DecimalType):
-        return f"decimal({logical.precision},{logical.scale})"
-    return _SCALAR_NAMES[type(logical)]
+#: Deterministic reprs for ``Change.old``/``Change.new``. Delegated to the
+#: type layer so the spelling a plan reports and the spelling a step manifest
+#: embeds cannot drift apart.
+_render_type = render_type
 
 
 def _render_shape(column: ColumnIR) -> str:
@@ -997,6 +979,107 @@ def _diff_reconcile(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
             )
 
 
+def _step_identity(step: StepIR) -> tuple[object, ...]:
+    """Everything about a step that can change what it produces.
+
+    Deliberately *everything but the ref*: the RFC's whole mechanism is that a
+    step has no privileged fields (D11). ``runtime_lock`` is the field the
+    design is named for — a ``rapidfuzz`` bump silently changing a scorer is
+    invisible in every spec — but a version, a parameter, a seed, a rewired
+    input and a changed output contract are the same kind of fact, and reading
+    them off one tuple is what keeps them treated the same.
+    """
+    return (
+        step.version,
+        step.kind,
+        step.determinism,
+        step.runtime_lock,
+        step.lineage,
+        step.entrypoint,
+        step.seed,
+        step.inputs,
+        step.parameters,
+        step.outputs,
+        step.body.sql if step.body is not None else None,
+    )
+
+
+def _step_entities(step: StepIR) -> frozenset[str]:
+    """The entities a step's outputs write — what a step change backfills.
+
+    A step is project-level like a reconcile check, but unlike one it *writes
+    relations*, so its changes do enter ``backfill_scope``. That is the
+    load-bearing half of §4's "backfillability preserved across steps": a
+    dependency bump that restated nothing downstream would leave the warehouse
+    holding rows no current code can reproduce.
+    """
+    return frozenset(output.relation.rsplit(".", 1)[-1] for output in step.outputs)
+
+
+def _diff_steps(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
+    """Steps are diffed by ``ref`` (RFC 0017 §5.6, D6/D11).
+
+    By ref rather than by ``ref@version`` on purpose: upgrading
+    ``resolve_customers@3`` to ``@4`` is one step *changing*, which restates
+    its outputs. Keyed by version it would read as one step removed and a
+    different one added — losing the backfill exactly where it matters most.
+    """
+    old_map = {step.ref: step for step in old.steps} if old is not None else {}
+    new_map = {step.ref: step for step in new.steps}
+    for ref in sorted(old_map.keys() | new_map.keys()):
+        subject = f"step:{ref}"
+        if ref not in old_map:
+            # Carrying the version for the same reason removal carries it and
+            # an upgrade carries both: the version is half of what identifies
+            # the step that arrived.
+            acc.changes.append(
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.ADDITIVE,
+                    "step added",
+                    new=f"@{new_map[ref].version}",
+                )
+            )
+            continue
+        if ref not in new_map:
+            old_step = old_map[ref]
+            acc.changes.append(
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.BREAKING,
+                    f"step removed — {', '.join(sorted(_step_entities(old_step)))} is no "
+                    "longer produced by anything",
+                    old=f"@{old_step.version}",
+                )
+            )
+            continue
+        old_step, new_step = old_map[ref], new_map[ref]
+        if _step_identity(old_step) == _step_identity(new_step):
+            continue
+        detail = "step definition changed — its outputs restate"
+        if old_step.runtime_lock != new_step.runtime_lock:
+            # Named separately because it is the case nothing else would show:
+            # no spec moved, and the step still computes something different.
+            detail = (
+                "step runtime_lock changed — its pinned dependencies moved, so its "
+                "outputs restate although no spec did"
+            )
+        acc.changes.append(
+            Change(
+                None,
+                subject,
+                ChangeClass.RESTATING,
+                detail,
+                old=f"@{old_step.version}",
+                new=f"@{new_step.version}",
+            )
+        )
+        acc.backfill |= _step_entities(new_step)
+        acc.seeds |= {column.name for output in new_step.outputs for column in output.columns}
+
+
 def _entity_pair(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
     _entity_level_changes(old_e, new_e, acc)
     _quality_changes(old_e, new_e, acc)
@@ -1369,6 +1452,7 @@ def plan(old: ProjectIR | None, new: ProjectIR) -> Plan:
     _diff_relationships(old, new, acc)
     _diff_date_dimension(old, new, acc)
     _diff_reconcile(old, new, acc)
+    _diff_steps(old, new, acc)
     _enforce_contract(old, new, acc)
     changes = tuple(sorted(acc.changes, key=_sort_key))
     return Plan(
