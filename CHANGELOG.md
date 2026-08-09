@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reserved field/dimension/role names now cover the generated data-quality and ingestion-metadata columns (`_quality_flags`, `_quality_ok`, `_load_id`, `_ingested_at`, `_source_row_id`, `has_quality_flags`) alongside `metric_time`; the refusal message names the RFC that owns each. The quality mart's five metric names are reserved in the same way.
 
+- Postgres hosts quality-carrying entities. `TRY_CAST` renders there as a guard around `pg_input_is_valid` — Postgres' own input parser, not a regex approximation of it — so it accepts exactly what `CAST` accepts and yields NULL exactly where `CAST` would raise. Verified by executing the pipeline on postgres 16, not by reading the SQL. One deliberate narrowing: `now`, `today`, `tomorrow` and `yesterday` are refused for date and timestamp columns, because Postgres resolves them to the transaction timestamp and a cell spelling `now` would otherwise coerce to a different value on every run. Such a cell is a coercion failure the `coercible` rule quarantines, rather than a row no backfill can reproduce.
+
+- Note that cast *semantics* still differ between engines — DuckDB coerces `'1.5'` to an int and Postgres does not — so the same spec can quarantine different rows on different engines. That is inherent to running on different engines and is not changed here.
+
 - The reject table's two constructions — the `reject_id` SHA-256 digest and the `raw`/`key_values` JSON payloads — are now spelled by the dialect port rather than emitted as one AST, so **Trino hosts a reject table**. Both were verified by executing the emitted model against `trinodb/trino:483`, and its `reject_id` is byte-identical to the digest the other engines produce. Postgres declared support for both and had neither: its `sha256` returns `bytea`, so `reject_id` would have been bytes rather than hex — silently disagreeing across engines — and it has no positional `json_object` at all. Postgres now has correct spellings too, though they stay unreachable until it gains a NULL-on-failure cast.
 
 ### Removed
