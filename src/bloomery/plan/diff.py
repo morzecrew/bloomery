@@ -1029,7 +1029,18 @@ def _diff_steps(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     for ref in sorted(old_map.keys() | new_map.keys()):
         subject = f"step:{ref}"
         if ref not in old_map:
-            acc.changes.append(Change(None, subject, ChangeClass.ADDITIVE, "step added"))
+            # Carrying the version for the same reason removal carries it and
+            # an upgrade carries both: the version is half of what identifies
+            # the step that arrived.
+            acc.changes.append(
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.ADDITIVE,
+                    "step added",
+                    new=f"@{new_map[ref].version}",
+                )
+            )
             continue
         if ref not in new_map:
             old_step = old_map[ref]

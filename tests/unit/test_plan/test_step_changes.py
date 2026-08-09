@@ -111,11 +111,18 @@ def test_an_unchanged_step_is_the_empty_plan() -> None:
 # Presence
 
 
-def test_adding_a_step_is_additive() -> None:
+def test_adding_a_step_is_additive_and_names_the_version() -> None:
     """RFC 0007 D2: an initial deploy is all-ADDITIVE, and adding a step is
-    that same statement in the small."""
+    that same statement in the small.
+
+    The version is half the identity of what arrived — a removal reports
+    ``old="@3"`` and an upgrade reports ``@3 → @4``, so an addition that
+    reported neither was the one presence change a reader could not act on
+    without opening the registry.
+    """
     (change,) = changes(None, step()).changes
     assert change.change_class is ChangeClass.ADDITIVE
+    assert (change.old, change.new) == (None, "@3")
 
 
 def test_removing_a_step_is_breaking_and_names_the_orphaned_relation() -> None:
