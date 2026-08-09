@@ -231,6 +231,9 @@ pages/.cache/
 .benchmarks
 .just/
 junit.xml
+# Per-interpreter results the CI test matrix writes (junit-3.12.xml, …).
+junit-*.xml
+coverage-data/
 .envrc
 .claude/projects/
 
