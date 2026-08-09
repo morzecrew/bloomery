@@ -465,3 +465,60 @@ def test_an_unparseable_manifest_default_is_refused_too() -> None:
             WIRING.replace("    parameters: {threshold: 0.9}\n", ""),
             parameters={"threshold": {"type": "int", "default": "abc"}},
         )
+
+
+def test_a_date_parameter_may_not_carry_a_time_component() -> None:
+    """The check has to use the constructor the *emitter* uses, not a wider
+    one. Validated with ``datetime.fromisoformat``, a ``date`` parameter set
+    to ``2024-01-01T10:00:00`` passed compile and then emitted
+    ``_blm_date.fromisoformat('2024-01-01T10:00:00')`` — which raises at model
+    import, the exact failure this check exists to move to compile time.
+    """
+    with pytest.raises(StepError, match="not an ISO date"):
+        build(
+            WIRING.replace("threshold: 0.9", "threshold: '2024-01-01T10:00:00'"),
+            parameters={"threshold": {"type": "date"}},
+        )
+
+
+def test_a_timestamp_parameter_still_accepts_a_time_component() -> None:
+    """The control for the test above: narrowing ``date`` must not narrow
+    ``timestamp``, whose whole point is carrying a time."""
+    ir = build(
+        WIRING.replace("threshold: 0.9", "threshold: '2024-01-01T10:00:00'"),
+        parameters={"threshold": {"type": "timestamp"}},
+    )
+    assert ir.steps[0].parameters[0].value == "2024-01-01T10:00:00"
+
+
+def test_a_body_that_fails_to_tokenize_is_a_step_error_not_a_crash() -> None:
+    """``TokenError`` is a *sibling* of ``ParseError`` under ``SqlglotError``,
+    so an unterminated string slipped the handler entirely and crossed the
+    compile boundary as a non-``BloomeryError`` — which RFC 0002 forbids and
+    D30(b) was written to prevent for the parameter path.
+    """
+    project = load_project(
+        {
+            "entity_model": ENTITY_MODEL,
+            "steps": """
+steps_version: 1
+steps:
+  - use: s@1
+    outputs: {out: silver.a}
+""",
+        }
+    )
+    body = manifest(
+        ref="s",
+        version=1,
+        kind="sql_model",
+        entrypoint=None,
+        inputs={},
+        parameters={},
+        outputs={
+            "out": {"grain": "g", "key": ["k"], "produces": {"k": {"type": "string"}}},
+        },
+    )
+    registry = StepRegistry({("s", 1): body}, sql_bodies={("s", 1): "SELECT 'abc"})
+    with pytest.raises(StepError, match="does not parse as SQL"):
+        build_project_ir(project, steps=registry)

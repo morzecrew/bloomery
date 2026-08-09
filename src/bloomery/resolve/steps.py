@@ -22,13 +22,13 @@ stage, different aggregate.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, cast
 
 import sqlglot
 from sqlglot import exp
-from sqlglot.errors import ParseError
+from sqlglot.errors import SqlglotError
 
 from bloomery.errors import BloomeryError, StepDeterminismError, StepError, UnknownStep
 from bloomery.ir import (
@@ -234,11 +234,21 @@ def _check_parameter_types(
                     problem = "a finite decimal"
             except InvalidOperation:
                 problem = "a decimal"
-        elif declared in {"date", "timestamp"}:
+        elif declared == "date":
+            # `date`, not `datetime`: the emitter renders
+            # `_blm_date.fromisoformat(...)`, which rejects a time component.
+            # Checking with the wider constructor let `2024-01-01T10:00:00`
+            # pass compile and fail at model import — the failure this whole
+            # function exists to move to compile time (D34).
+            try:
+                date.fromisoformat(value)
+            except ValueError:
+                problem = "an ISO date"
+        elif declared == "timestamp":
             try:
                 datetime.fromisoformat(value)
             except ValueError:
-                problem = f"an ISO {declared}"
+                problem = "an ISO timestamp"
         if problem is not None:
             msg = (
                 f"step {wiring.use!r} resolves parameter {name!r} to {value!r}, which is "
@@ -431,7 +441,11 @@ def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[Bloo
     """
     try:
         return sqlglot.parse_one(body), []
-    except ParseError as exc:
+    # The base class, not `ParseError`: `TokenError` is its *sibling* under
+    # `SqlglotError`, so an unterminated string (`SELECT 'abc`) bypassed a
+    # `ParseError`-only handler and crossed the compile boundary as a
+    # non-`BloomeryError` — which RFC 0002 forbids.
+    except SqlglotError as exc:
         msg = (
             f"step {wiring.use!r} has a body that does not parse as SQL: {exc}. Bloomery "
             "parses Tier 1 and Tier 2 bodies at compile (RFC 0017 §5.8), so this is a "
