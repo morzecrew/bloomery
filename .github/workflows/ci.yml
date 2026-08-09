@@ -115,9 +115,9 @@ jobs:
 
   # Default test tiers (unit/golden/property/execution) across the supported
   # Python range. Single job per interpreter — a one-package pure library needs
-  # no sharding (RFC 0001 D1). The coverage floor is enforced here, in the same
-  # job that measured it: the gate is ours, not an external service's, so there
-  # is no Codecov upload (deliberate — no token, no third-party authority).
+  # no sharding (RFC 0001 D1). Each leg only *measures*; the floor is enforced
+  # once over the combined data in `coverage` below, which is what RFC 0001 §7
+  # lays out (`test` → `coverage`) and what makes version-gated lines honest.
   test:
     name: Test (Python ${{ matrix.python }})
     needs: [changes, quality]
@@ -132,6 +132,11 @@ jobs:
       fail-fast: false
       matrix:
         python: ["3.12", "3.13", "3.14"]
+    env:
+      # One data file per interpreter so the legs combine rather than clobber.
+      # `relative_files = true` (pyproject) is the other half — without it the
+      # runner's absolute paths differ per leg and `combine` matches nothing.
+      COVERAGE_FILE: .coverage.${{ matrix.python }}
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -154,11 +159,104 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-groups
 
+      # `--cov-fail-under=0` because this leg does not gate: the floor belongs
+      # to the combined report. Left at 80 here it would fail a leg for lines
+      # another interpreter covers.
       - name: Run tests
         run: |
           uv run pytest -m "not engine and not e2e and not perf" \
-            --cov=src --cov-report=xml
+            --cov=src \
+            --cov-report= \
+            --cov-fail-under=0 \
+            --junitxml="junit-${{ matrix.python }}.xml" \
+            -o junit_family=legacy
 
+      - name: Upload coverage data
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: coverage-data-${{ matrix.python }}
+          path: .coverage.${{ matrix.python }}
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 1
+
+      # Uploaded even on failure — a failing suite is exactly when the
+      # per-test breakdown is worth having.
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          report_type: test_results
+          files: ./junit-${{ matrix.python }}.xml
+          # Explicit although it is the action's default: this is what keeps a
+          # fork's tokenless upload — or a Codecov outage — from failing a job
+          # and, through `required-ci`, blocking a merge. D4 says informational,
+          # and a default is not a guarantee.
+          fail_ci_if_error: false
+
+  # Combine the per-interpreter coverage into one report, upload it, then
+  # enforce the floor (RFC 0001 §7). The order matters: Codecov is
+  # informational only (D4) — the gate is this job's own `coverage report`,
+  # not the service's status — but the upload still has to happen on a
+  # regression, which it would not if the gate ran first and aborted the job.
+  coverage:
+    name: Coverage gate
+    needs: [changes, quality, test]
+    if: |
+      !cancelled() &&
+      (needs.changes.outputs.force_full == 'true' || needs.changes.outputs.code == 'true') &&
+      needs.quality.result == 'success' &&
+      needs.test.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Download coverage data
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: coverage-data-*
+          path: coverage-data
+          merge-multiple: true
+
+      - name: Combine coverage + generate report
+        run: bash .github/scripts/combine-coverage.sh
+
+      - name: Upload coverage to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          report_type: coverage
+          files: ./coverage.xml
+          # See the note on the test-results upload: the service never gates.
+          fail_ci_if_error: false
+
+      # The gate. `combine-coverage.sh` deliberately swallows its own failures,
+      # so an empty or missing report surfaces here as a floor failure rather
+      # than as a green job that measured nothing.
       - name: Enforce coverage threshold
         run: uv run coverage report --fail-under=80
 
@@ -169,7 +267,7 @@ jobs:
   # gate self-contained.
   required-ci:
     name: Required Continuous Integration
-    needs: [changes, quality, test]
+    needs: [changes, quality, test, coverage]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -184,12 +282,14 @@ jobs:
           CHANGES_RESULT: ${{ needs.changes.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
           TEST_RESULT: ${{ needs.test.result }}
+          COVERAGE_RESULT: ${{ needs.coverage.result }}
           CODE: ${{ needs.changes.outputs.code }}
           FORCE_FULL: ${{ needs.changes.outputs.force_full }}
         run: |
           echo "changes.result=${CHANGES_RESULT}"
           echo "quality.result=${QUALITY_RESULT}"
           echo "test.result=${TEST_RESULT}"
+          echo "coverage.result=${COVERAGE_RESULT}"
           echo "code=${CODE}"
           echo "force_full=${FORCE_FULL}"
 
@@ -207,6 +307,12 @@ jobs:
               echo "test matrix did not succeed"
               exit 1
             fi
+            # The coverage floor lives in that job now, so a skipped or failed
+            # `coverage` means the floor went unenforced — which must not pass.
+            if [[ "${COVERAGE_RESULT}" != "success" ]]; then
+              echo "coverage gate did not succeed"
+              exit 1
+            fi
           else
             if [[ "${QUALITY_RESULT}" != "skipped" ]]; then
               echo "quality was expected to be skipped"
@@ -214,6 +320,10 @@ jobs:
             fi
             if [[ "${TEST_RESULT}" != "skipped" ]]; then
               echo "test was expected to be skipped"
+              exit 1
+            fi
+            if [[ "${COVERAGE_RESULT}" != "skipped" ]]; then
+              echo "coverage was expected to be skipped"
               exit 1
             fi
           fi

@@ -1,0 +1,52 @@
+# Codecov is informational only (RFC 0001 D4).
+#
+# The coverage gate is ours: `coverage report --fail-under=80` runs in the
+# `coverage` job, and `required-ci` — the sole branch-protection check —
+# refuses to pass unless that job succeeded. This file exists to make sure the
+# service never becomes a *second*, differently-configured authority that can
+# block a merge on its own arithmetic.
+#
+# `informational: true` is what enforces that: the status is still posted and
+# still shows the delta, but it always reports success, so a Codecov status
+# accidentally added to branch protection cannot block anything either.
+
+codecov:
+  require_ci_to_pass: false
+  notify:
+    # Three interpreter legs upload test results and one uploads coverage;
+    # waiting for a fixed count would stall the report whenever a leg is
+    # skipped by the paths filter.
+    wait_for_ci: false
+
+coverage:
+  precision: 1
+  round: down
+  # Matches [tool.coverage.report] fail_under in pyproject.toml. Kept in sync
+  # by hand — the number appears twice because two systems read it, but only
+  # the pyproject one gates.
+  range: "80...100"
+
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+# Uncovered lines annotated inline on the diff. This is the part that earns
+# Codecov its place here: the gate says a number, the annotations say which
+# lines, and only the second one is actionable during review.
+comment:
+  layout: "condensed_header, diff, flags, components"
+  behavior: default
+  require_changes: true
+
+# `src/` only. Tests are measured by whether they run, not by their own
+# coverage, and counting them would inflate the number with the one kind of
+# code that is executed by definition.
+ignore:
+  - "tests/**"
+  - "spikes/**"
+  - "examples/**"
+  - "**/_version.py"
