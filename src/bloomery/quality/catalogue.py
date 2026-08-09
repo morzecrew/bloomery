@@ -38,10 +38,12 @@ __all__ = [
 #: The field-rule catalogue (RFC 0016 D5), sorted. ``coercible`` is implicit
 #: and always present on a quality-carrying entity; the rest are authored.
 FIELD_RULES: tuple[str, ...] = (
+    "charset",
     "coercible",
     "in_enum",
     "in_set",
     "length",
+    "normalize",
     "not_null",
     "pattern",
     "range",

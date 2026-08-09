@@ -70,6 +70,16 @@ class DialectFeature(StrEnum):
     #: its length. Until the rendering is split per dialect, a dialect without
     #: this feature cannot carry a reject table.
     TEXT_SHA256 = "text_sha256"
+    #: Unicode normalization to NFC — what a ``normalize`` rule compares a
+    #: value against (RFC 0016 D86). Postgres and Trino spell it
+    #: ``NORMALIZE(x, NFC)``; DuckDB has ``nfc_normalize(x)`` and no
+    #: ``NORMALIZE`` at all, and SQLGlot's duckdb generator renders
+    #: :class:`sqlglot.exp.Normalize` verbatim — a call the engine has never
+    #: heard of — so :meth:`DuckDBDialect.render` rewrites it. All three
+    #: shipped dialects have the capability; the flag exists so a fourth
+    #: without one refuses the rule rather than emitting a function nothing
+    #: defines.
+    UNICODE_NORMALIZE = "unicode_normalize"
     #: ``JSON_OBJECT('k', v, ...)`` in its positional form — how the reject
     #: table builds ``raw`` and ``key_values`` (RFC 0016 §5.6). Trino accepts
     #: only the SQL-standard ``JSON_OBJECT(KEY 'k' VALUE v)`` spelling and

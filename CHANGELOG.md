@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `bloomery.typing.render_type` — the spec-layer spelling of a logical type, now public because `plan()`, the step manifest embedded in a generated wrapper, and anything reporting a type to a human must all use one spelling.
 
+- Two rules join the closed quality catalogue (RFC 0016 D86). `{rule: normalize, form: nfc}` fires when a value is not already in Unicode NFC — the case where `café` spelled with a combining acute and `café` spelled precomposed are one value to a reader and two to every join, `unique` and dedupe. `{rule: charset, allow: [...]}` / `{rule: charset, forbid: [...]}` declares the admissible characters as `U+` codepoints and inclusive ranges (exactly one side), which is how a column says it holds no zero-width space, no bidi override, and no Cyrillic letter drawn like a Latin one. Codepoints rather than the characters themselves: every character these rules exist to catch is invisible, and a literal one in a YAML file is unreadable in review.
+
+- A confusables *table* was considered and deliberately not built. It is versioned Unicode data, so embedding it would make a row's disposition depend on which Unicode revision bloomery happened to ship — and `charset`'s allow-list reading covers the homoglyph case more completely than any denylist, since it enumerates what a column may contain rather than guessing what it may not.
+
 ### Changed
 
 - `bloomery_ir_version` is now `3` — `ProjectIR` gained a `steps` tuple, so every artifact's `fingerprint:` header changes and `plan()` refuses to diff a v2 IR against a v3 one. The bump moves fingerprints even for projects with no steps: the canonical encoder covers each node's field *names and count*, not merely its values, so an IR shape change is loud by construction.

@@ -34,6 +34,7 @@ from sqlglot.expressions.core import Expression
 
 from bloomery.ir import OnFail, QualityRuleIR, SqlExpr
 from bloomery.quality.catalogue import UNKNOWN_MEMBER
+from bloomery.quality.charset import expand_codepoints
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -283,6 +284,61 @@ def _pattern(rule: QualityRuleIR, table: str | None) -> Expression:
     return exp.Not(this=matches)
 
 
+def _normalize(rule: QualityRuleIR, table: str | None) -> Expression:
+    """``NORMALIZE(col, NFC) <> col`` — the value is *not already* in the named
+    normal form (RFC 0016 D86).
+
+    ``exp.Normalize`` is the dialect-neutral node, the same arrangement
+    ``TRY_CAST`` uses: Postgres and Trino spell it exactly this way, and DuckDB
+    — which has ``nfc_normalize`` and no ``NORMALIZE`` at all — rewrites it in
+    its own ``render``. A predicate builder knows the IR and nothing else, so
+    it cannot ask a dialect anything.
+
+    Both sides are the column, so a null makes the comparison ``UNKNOWN`` and
+    the rule stays silent (D19). Note this compares *the value as delivered*
+    against its normalization — the rule reports, it never rewrites, because a
+    rule that silently reshaped the value would be a transform wearing a
+    disposition (D1).
+    """
+    column = exp.column(rule.column or "", table=table)
+    normalized = exp.Normalize(this=column.copy(), form=exp.var(params_of(rule)["form"].upper()))
+    return exp.NEQ(this=normalized, expression=column)
+
+
+def _charset(rule: QualityRuleIR, table: str | None) -> Expression:
+    """The value contains a character the set does not admit (RFC 0016 D86).
+
+    One construction serves both readings, because ``TRANSLATE(x, members, '')``
+    *deletes* every member from the value:
+
+    - ``allow``: ``LENGTH(TRANSLATE(col, allowed, '')) > 0`` — something
+      survived deletion, so the value holds a character outside the set;
+    - ``forbid``: ``LENGTH(TRANSLATE(col, forbidden, '')) < LENGTH(col)`` — the
+      value shrank, so it held one of them.
+
+    ``TRANSLATE`` is spelled identically on all three shipped dialects and its
+    delete-when-``to``-is-shorter behaviour was verified on each (DuckDB 1.x,
+    postgres 16, ``trinodb/trino:483``) rather than assumed — the D83 lesson
+    being that "SQLGlot renders it everywhere" is not "every engine has it".
+    It therefore carries no ``DialectFeature`` of its own: a feature flag earns
+    its place where the *port* has to differ, and here nothing does.
+
+    ``TRANSLATE(NULL, …)`` is NULL and ``LENGTH(NULL)`` is NULL, so both shapes
+    stay ``UNKNOWN`` on a null column (D19).
+    """
+    column = exp.column(rule.column or "", table=table)
+    side = "allow" if any(key.startswith("allow_") for key in params_of(rule)) else "forbid"
+    members = expand_codepoints(indexed_params(rule, side), where=f"rule {rule.name!r}")
+    stripped = exp.Length(
+        this=exp.func(
+            "TRANSLATE", column.copy(), exp.Literal.string(members), exp.Literal.string("")
+        )
+    )
+    if side == "allow":
+        return exp.GT(this=stripped, expression=exp.Literal.number(0))
+    return exp.LT(this=stripped, expression=exp.Length(this=column.copy()))
+
+
 def _not_in(rule: QualityRuleIR, table: str | None, members: Sequence[Expression]) -> Expression:
     return exp.Not(
         this=exp.In(this=exp.column(rule.column or "", table=table), expressions=list(members))
@@ -388,6 +444,8 @@ _BUILDERS = {
     "length": _length,
     "not_null": _not_null,
     "pattern": _pattern,
+    "charset": _charset,
+    "normalize": _normalize,
     "range": _range,
     "referential": _referential,
     "unique": _unique,

@@ -441,6 +441,28 @@ def _require_try_cast(entity: EntityIR, ctx: EmitContext) -> None:
     raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
 
 
+def _require_unicode_normalize(entity: EntityIR, ctx: EmitContext) -> None:
+    """Refuse a ``normalize`` rule the dialect cannot evaluate.
+
+    The rule's whole content is the comparison against a normal form; there is
+    no weaker reading of it. A dialect with no normalization would render
+    ``NORMALIZE(...)`` — SQLGlot emits it verbatim for any generator — and the
+    engine would fail at run time on a function it does not define, which is
+    the "renders beautifully, aborts the run" shape RFC 0008 D3 refuses.
+    """
+    if not any(rule.kind == "normalize" for rule in entity.quality):
+        return
+    if ctx.dialect.supports(DialectFeature.UNICODE_NORMALIZE):
+        return
+    msg = (
+        f"entity {entity.name!r} carries a normalize quality rule, which compares a value "
+        f"against its Unicode normal form, but dialect {ctx.dialect.name!r} has no "
+        "normalization function (RFC 0016 D86). Fix: compile this project for a dialect "
+        "with one, or drop the normalize rules"
+    )
+    raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
+
+
 def _require_try_cast_for_audit(entity: EntityIR, ctx: EmitContext) -> None:
     """Refuse the D21 audit on a dialect with no NULL-on-failure cast.
 
@@ -537,6 +559,7 @@ def entity_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     specialization is the general form evaluated at compile.
     """
     _require_try_cast(entity, ctx)
+    _require_unicode_normalize(entity, ctx)
     extract = _extract_select(entity, ctx)
     if not entity.quality:
         return extract.select(
@@ -570,6 +593,7 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     replay — is what eventually deletes the row.
     """
     _require_try_cast(entity, ctx)
+    _require_unicode_normalize(entity, ctx)
     arrays = _arrays(ctx)
     extract = _extract_select(entity, ctx, include_raw=True)
     recorded = _recorded_rules(entity)
@@ -935,6 +959,7 @@ def fail_audits(
     ``fail`` disposition at all (D6).
     """
     _require_try_cast(entity, ctx)
+    _require_unicode_normalize(entity, ctx)
     arrays = _arrays(ctx)
     columns = [column.name for column in entity.columns]
     if _carries_metadata(entity):

@@ -26,17 +26,22 @@ against. The suites that consume both are:
 | [`tests/property/test_conservation.py`](../../property/test_conservation.py) | the conservation law over generated batches |
 | [`tests/chaos/test_mutation_harness.py`](../../chaos/test_mutation_harness.py) | that the suites above would notice a deliberate lowering defect |
 
-One departure from "every row is asserted", recorded rather than hidden:
-`unicode.csv`'s `flag` marks encode a judgement about *deceptive characters* that no v1
-rule can express (the portable regex subset forbids exactly what a codepoint-class test
-would need), so that family asserts the rows a declared rule decides plus the invariant
-that no row is ever dropped.
+There were two departures from "every row is asserted". Both closed on 2026-08-10, and
+what is left of them is two rows.
 
-There were two. The second closed on 2026-08-10: no corpus row cast cleanly and *then*
-violated a declared `range` bound, so the rule was lowered, matrixed, reported in the
-quality mart, and diverted nothing anywhere in the corpus. `keys.csv` now carries the
-adjacent pair `amount_at_range_min` / `amount_below_range_min` — one ulp apart, opposite
-dispositions — which pins the bound's inclusive edge as well as its firing.
+No corpus row cast cleanly and *then* violated a declared `range` bound, so the rule was
+lowered, matrixed, reported in the quality mart, and diverted nothing anywhere in the
+corpus. `keys.csv` now carries the adjacent pair `amount_at_range_min` /
+`amount_below_range_min` — one ulp apart, opposite dispositions — which pins the bound's
+inclusive edge as well as its firing (RFC 0016 D85).
+
+`unicode.csv`'s `flag` marks encode a judgement about *deceptive characters* that no v1
+rule could express. The `normalize` and `charset` rules (D86) now decide twenty of its
+twenty-two specimens. The remaining two are named in the suite and are not gaps a bigger
+character set would close: **`zero_width_joiner`** — U+200D is required by
+`emoji_zwj_sequence` and forbidden here, so what separates them is *context* — and
+**`combining_mark_alone`**, a well-formed, NFC-stable value holding no forbidden
+character, whose problem is *where* the mark sits.
 
 ## The rule
 
@@ -57,7 +62,7 @@ by disagreeing with the first about a disposition.
 | `enums.csv` | 18 | Membership against `{paid, pending, refunded}`: case and whitespace variants, a misspelling, a numeric code, a zero-width space, an NBSP, a Cyrillic homoglyph, and two **valid-but-unmapped** values — the enum-widening path RFC 0016 calls the normal case, not the exception | `in_enum`, `in_set`, `coercible` | `pass`, `quarantine` |
 | `keys.csv` | 22 | Identity and dedupe order: exact duplicates, a recency tie broken by `_load_id`, a tie broken through `_load_id` down to `_source_row_id` (D20's total order), case/whitespace near-duplicates that collide only after normalization, null and empty-string key parts, **deliberate ingestion-metadata violations** for the blocking audit, and the adjacent pair that pins §5.3's `range` bound | `dedupe`, `unique`, `not_null`, `range`, `coercible` (forced to `fail` on dedupe-referenced fields, D6) | `pass`, `dedupe_winner`, `dedupe_loser`, `quarantine`, `fail` |
 | `refs.csv` | 16 | Referential integrity: an orphan FK (§5.4's `CASE` lowering), a NULL FK that is **not** an orphan (D19), an empty-string FK that **is** one, self-references, a mutual cycle, an FK to a row that quarantines on its own rules, and a source value colliding with the reserved `__unknown__` member | `referential` (`on_missing`), `not_null` | `pass`, `unknown_member`, `quarantine` |
-| `unicode.csv` | 22 | Invisible and deceptive text: RTL mark and bidi override, ZWJ and ZWSP, NBSP, soft hyphen, a BOM inside a field, Cyrillic homoglyphs, fullwidth and Arabic-Indic digits, NFC vs NFD of the same string, an astral emoji, a ZWJ emoji sequence, a 13-codepoint grapheme cluster, U+FFFD, and the escape form of a lone surrogate | `pattern`, `length`, `in_enum`, `unique` | `pass`, `flag`, `quarantine` |
+| `unicode.csv` | 22 | Invisible and deceptive text: RTL mark and bidi override, ZWJ and ZWSP, NBSP, soft hyphen, a BOM inside a field, Cyrillic homoglyphs, fullwidth and Arabic-Indic digits, NFC vs NFD of the same string, an astral emoji, a ZWJ emoji sequence, a 13-codepoint grapheme cluster, U+FFFD, and the escape form of a lone surrogate | `pattern`, `length`, `unique`, `normalize`, `charset` | `pass`, `flag`, `quarantine` |
 | `extremes.csv` | 20 | Boundaries: `decimal(38,9)` max/min and one-past, one ulp and half a ulp, signed zero, `NaN`/±`Infinity`, int64 max/min/overflow, epoch 0, year 0001 and 9999, empty string vs NULL **in one row**, a 10 000-character string, and an all-payload-empty row | `coercible`, `not_null`, `length`, `pattern` | `pass`, `flag`, `quarantine` |
 
 ## Column contract

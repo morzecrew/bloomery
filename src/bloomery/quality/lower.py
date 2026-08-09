@@ -47,13 +47,16 @@ from bloomery.ir import (
     partition_specs,
     quality_sort_key,
 )
+from bloomery.quality.charset import expand_codepoints
 from bloomery.spec.mapping import ALIAS_BOUND
 from bloomery.spec.quality import (
+    CharsetRule,
     CoercibleRule,
     ExpressionRule,
     InEnumRule,
     InSetRule,
     LengthRule,
+    NormalizeRule,
     PatternRule,
     RangeRule,
     ReferentialRule,
@@ -241,6 +244,20 @@ def _field_rule_ir(
             stem = f"{stem}_{'min' if rule.min is not None else 'max'}"
     elif isinstance(rule, PatternRule):
         params.append(("regex", rule.regex))
+    elif isinstance(rule, NormalizeRule):
+        params.append(("form", rule.form))
+    elif isinstance(rule, CharsetRule):
+        # Exactly one side is set — the spec's own validator guarantees it, and
+        # `or ()` is how that guarantee is spelled without a second refusal
+        # here saying the same thing in a worse place.
+        side = "allow" if rule.allow is not None else "forbid"
+        items = rule.allow or rule.forbid or ()
+        # Expanded here purely to *refuse* a bad declaration at compile time
+        # (backwards range, surrogate, oversized set); the params carry the
+        # items as written, because a `plan()` diff of invisible characters is
+        # unreadable and the whole rule exists for invisible characters.
+        expand_codepoints(items, where=f"rule {stem!r}")
+        params.extend(_indexed(side, items))
     elif isinstance(rule, InEnumRule):
         spellings, targets = _enum_chain(mapping, column)
         params.extend(_indexed("value", targets))

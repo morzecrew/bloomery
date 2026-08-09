@@ -36,6 +36,9 @@ __all__ = [
     "PORTABLE_REGEX_REJECTED",
     "RETENTION_PATTERN",
     "RULE_NAME_PATTERN",
+    "CODEPOINT_ITEM_PATTERN",
+    "CharsetRule",
+    "CodepointItem",
     "CoercibleRule",
     "Dedupe",
     "DedupeKeepName",
@@ -45,7 +48,9 @@ __all__ = [
     "InEnumRule",
     "InSetRule",
     "LengthRule",
+    "NormalizeRule",
     "NotNullRule",
+    "NormalFormName",
     "OnFailName",
     "OnMissingName",
     "PatternRule",
@@ -95,8 +100,29 @@ RULE_NAME_PATTERN = r"^[a-z0-9_]+$"
 #: minutes are absent because ``m`` would read as either.
 RETENTION_PATTERN = r"^[1-9][0-9]{0,4}[hdw]$"
 
+#: The Unicode normal form a ``normalize`` rule may name (RFC 0016 D86). One
+#: value, and the reason is portability rather than taste: Postgres and Trino
+#: spell all four forms (``NORMALIZE(x, NFKC)``), DuckDB has ``nfc_normalize``
+#: and nothing else. Admitting ``nfkc`` here would mean a rule that compiles
+#: everywhere and runs on two engines out of three — the failure mode RFC 0008
+#: D3 exists to prevent. Widening a closed vocabulary later is
+#: backward-compatible; narrowing one is not.
+NormalFormName = Literal["nfc"]
+
+#: A ``charset`` member: one codepoint (``U+200B``) or an inclusive range
+#: (``U+0020-U+007E``). Uppercase hex, four to six digits, canonical spelling
+#: only — ``u+200b`` and ``U+200B`` naming one character two ways would make
+#: two specs with identical meaning produce different IR bytes.
+#:
+#: Codepoints rather than the characters themselves, and that is the whole
+#: point of the rule: every character a ``charset`` set is written to catch is
+#: invisible, so a literal one in a YAML file is unreadable in review and
+#: indistinguishable from a space in a diff.
+CODEPOINT_ITEM_PATTERN = r"^U\+[0-9A-F]{4,6}(-U\+[0-9A-F]{4,6})?$"
+
 RuleName = Annotated[str, StringConstraints(pattern=RULE_NAME_PATTERN)]
 RetentionDuration = Annotated[str, StringConstraints(pattern=RETENTION_PATTERN)]
+CodepointItem = Annotated[str, StringConstraints(pattern=CODEPOINT_ITEM_PATTERN)]
 
 # ....................... #
 # The portable regex subset (RFC 0016 §5.3, D5) — an allowlist scanner
@@ -539,6 +565,64 @@ class InSetRule(QualityRule):
     values: tuple[str | int, ...] = Field(min_length=1)
 
 
+class NormalizeRule(QualityRule):
+    """``{rule: normalize, form: nfc}`` — the value must **already be** in the
+    named Unicode normal form (RFC 0016 D86).
+
+    A rule, not a transform, and deliberately so: normalizing silently would
+    rewrite the value a source delivered, and RFC 0016 D1 holds that specs
+    describe rather than repair. What this says is "``café`` spelled with a
+    combining acute is not the same bytes as ``café`` spelled precomposed, and
+    I want to know" — which is what dedupe, ``unique`` and every join already
+    believe, while a human reading the two rows sees one value.
+    """
+
+    rule: Literal["normalize"]
+    form: NormalFormName
+
+
+class CharsetRule(QualityRule):
+    """``{rule: charset, allow: [...]}`` or ``{rule: charset, forbid: [...]}``
+    — exactly one, each a list of ``U+`` codepoints or inclusive ranges
+    (RFC 0016 D86).
+
+    This is the half of D26 that a *confusables table* was supposed to answer,
+    and the table is deliberately not what this is. A confusables table is
+    versioned Unicode data: embedding it would make the disposition of a row
+    depend on which Unicode revision the compiler happened to ship, which is
+    an ambient input by another name (RFC 0003). Declaring the admissible
+    characters instead keeps the knowledge where D1 puts it — in the spec —
+    and it is *stronger* for the case that motivated it: an allow-list of the
+    script a column is actually written in catches a Cyrillic homoglyph, a
+    fullwidth digit and an Arabic-Indic digit alike, none of which any
+    denylist enumerates completely.
+
+    ``forbid`` is the complementary shape, for the class that is genuinely
+    small and closed: the invisible formatting characters (zero-width space,
+    bidi controls, soft hyphen, BOM).
+
+    Neither is expressible as a ``pattern``: the portable regex subset (D5)
+    forbids exactly the codepoint-class constructs this would need, because
+    such a class means one thing under RE2 and another under Postgres ARE.
+    A literal *set* is not a regex at all, and lowers through ``TRANSLATE``.
+    """
+
+    rule: Literal["charset"]
+    allow: tuple[CodepointItem, ...] | None = Field(default=None, min_length=1)
+    forbid: tuple[CodepointItem, ...] | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def _exactly_one_side(self) -> Self:
+        if (self.allow is None) == (self.forbid is None):
+            msg = (
+                "a charset rule declares exactly one of allow: / forbid: — the two are "
+                "opposite readings of one set, and declaring both states a policy twice "
+                "with nothing making the halves agree"
+            )
+            raise ValueError(msg)
+        return self
+
+
 class UniqueRule(QualityRule):
     """``{rule: unique}`` — evaluated **per partition slice** in both full and
     incremental runs (RFC 0016 D5); cross-partition duplicates are key-based
@@ -555,6 +639,8 @@ FieldQualityRule = Annotated[
     | PatternRule
     | InEnumRule
     | InSetRule
+    | NormalizeRule
+    | CharsetRule
     | UniqueRule,
     Discriminator("rule"),
 ]
