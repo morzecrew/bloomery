@@ -269,6 +269,54 @@ def _parameter_expression(parameter: StepParameterIR) -> str:
     return template.format(literal=repr(parameter.value))
 
 
+def _parameter_literal(parameter: StepParameterIR) -> Expression:
+    """A resolved parameter as a SQL *literal node*, typed per the manifest.
+
+    The SQL twin of :func:`_parameter_expression`, and it carries the same
+    obligation: a value authored in a spec reaches emitted SQL here, so it is
+    built as an AST literal and never interpolated as text. That is what makes
+    ``x' OR 1=1 --`` a string containing an apostrophe rather than a predicate
+    (RFC 0013's injection-boundary lesson, RFC 0004 D7's SQLGlot-only rule).
+
+    The *declared* type decides the spelling rather than the shape of the
+    digits — the guessing game D20 refused on the Python side, where ``"0.9"``
+    and ``"09"`` cannot be told apart by looking. ``date`` and ``timestamp``
+    render as string literals the engine compares in the column's own type,
+    which is the convention ``_bound_literal`` already established for RFC
+    0016's range bounds (D57); no ``CAST`` spelling is invented here.
+    """
+    base = parameter.type.split("(", 1)[0].strip()
+    if base == "bool":
+        return exp.Boolean(this=parameter.value.strip().lower() in {"true", "1"})
+    if base in {"int", "decimal"}:
+        # The text, not a parsed float: RFC 0003 D5 keeps floats out of every
+        # emission path, and the value arrived validated at lowering.
+        return exp.Literal.number(parameter.value)
+    return exp.Literal.string(parameter.value)
+
+
+def _with_parameters(step: StepIR) -> Expression:
+    """The Tier 2 body with its ``:name`` placeholders substituted.
+
+    Lowering has already refused any disagreement between the placeholders and
+    the declared parameters, so every placeholder found here has a value and
+    every value is used.
+    """
+    if step.body is None:  # pragma: no cover — lowering refuses a bodiless Tier 2 step
+        msg = f"step {step.ref}@{step.version} is a sql_model with no body"
+        raise ValueError(msg)
+    values = {parameter.name: parameter for parameter in step.parameters}
+
+    def _substitute(node: Expression) -> Expression:
+        if isinstance(node, exp.Placeholder) and isinstance(node.this, str):
+            parameter = values.get(node.this)
+            if parameter is not None:
+                return _parameter_literal(parameter)
+        return node
+
+    return step.body.ast().transform(_substitute)
+
+
 def _parameters_literal(step: StepIR) -> str:
     """Resolved parameters as a Python dict *expression*, typed per the
     manifest.
@@ -393,7 +441,7 @@ def _sql_model_artifact(
         partitioned_by="",
         audits=", ".join(audits),
         depends_on=", ".join(sorted(reads)) if audits else "",
-        select=ctx.dialect.render(step.body.ast()) if step.body is not None else "",
+        select=ctx.dialect.render(_with_parameters(step)) if step.body is not None else "",
     )
     return EmittedArtifact.create(
         path=f"models/{namespace}/{relation}.sql",

@@ -429,6 +429,88 @@ def _check_body(
     return []
 
 
+def _check_placeholders(
+    wiring: StepWiring,
+    manifest: StepManifest,
+    node: Expression,
+    resolved: dict[str, str],
+) -> list[BloomeryError]:
+    """A Tier 2 body's ``:name`` placeholders and its *resolved* parameters
+    name exactly the same set (§10, settled).
+
+    Resolved, not declared: a manifest parameter with no default that the
+    wiring never sets is declared and has no value, so checking against
+    ``manifest.parameters`` let it through to emit as an unsubstituted
+    ``$p`` — the same hole this check exists to close, one path over.
+
+    Both directions are refusals, and each closes a silent hole:
+
+    - a placeholder nothing declares emitted **unsubstituted**, so the engine
+      met an unknown macro variable — the author wrote a parameter, got no
+      parameter, and got no error;
+    - a declared parameter the body never mentions changes the step's
+      fingerprint and no SQL, so bumping it restates the outputs and
+      reproduces byte-identical data. That is the same "believing something is
+      pinned that is not" D18(c) refused for a seed on a ``pure`` step.
+
+    Tier 1 is deliberately excluded: a ``sql_macro``'s placeholders are the
+    *columns* its call site supplies, which is why :func:`macro_expression`
+    ignores an unused argument rather than refusing it.
+    """
+    if manifest.kind != "sql_model":
+        return []
+    used = {
+        placeholder.this
+        for placeholder in node.find_all(exp.Placeholder)
+        if isinstance(placeholder.this, str)
+    }
+    declared = set(manifest.parameters)
+    available = set(resolved)
+    errors: list[BloomeryError] = []
+    # Split so the message names the actual fault: a typo in the body, versus
+    # a parameter that is declared but was never given a value.
+    if undeclared := sorted(used - declared):
+        msg = (
+            f"step {wiring.use!r} has a body referencing :{', :'.join(undeclared)}, which "
+            f"the manifest does not declare as a parameter (declared: "
+            f"{', '.join(sorted(declared)) or 'none'}). An unsubstituted placeholder "
+            "reaches the engine as an unknown variable"
+        )
+        errors.append(StepError(msg, source_path=_path(wiring)))
+    if unresolved := sorted((used & declared) - available):
+        msg = (
+            f"step {wiring.use!r} has a body referencing :{', :'.join(unresolved)}, which "
+            "the manifest declares with no value: it has no default and the wiring does "
+            "not set it, so the placeholder would be emitted unsubstituted. Fix: set it "
+            "in the step's parameters:, or give the manifest a default"
+        )
+        errors.append(StepError(msg, source_path=_path(wiring)))
+    variants = sorted(
+        name
+        for name in used & available
+        if manifest.parameters[name].type.split("(", 1)[0].strip() == "variant"
+    )
+    if variants:
+        msg = (
+            f"step {wiring.use!r} substitutes parameter(s) {', '.join(variants)} of type "
+            "variant into its body, which bloomery cannot spell portably: DuckDB, "
+            "Postgres and Trino do not write a semi-structured literal the same way, and "
+            "emitting one of the three would compile everywhere and compare correctly in "
+            "one. Fix: pass the value as a string/int/decimal parameter and cast in the "
+            "body, or keep the structure in a relation the body joins"
+        )
+        errors.append(StepError(msg, source_path=_path(wiring)))
+    if unused := sorted(available - used):
+        msg = (
+            f"step {wiring.use!r} resolves parameter(s) {', '.join(unused)} that its body "
+            "never uses (RFC 0017 §5.8). The value is part of the step's identity, so "
+            "changing it would restate the outputs and recompute the same rows. Fix: "
+            f"reference :{unused[0]} in the body, or drop it from the manifest"
+        )
+        errors.append(StepError(msg, source_path=_path(wiring)))
+    return errors
+
+
 def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[BloomeryError]]:
     """A Tier 1/2 body, parsed at compile (§5.8).
 
@@ -568,7 +650,13 @@ def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tu
             if body_errors:
                 claimed.extend(_claims(wiring))
                 continue
-            parsed = canon(cast("Expression", node))
+            tree = cast("Expression", node)
+            placeholder_errors = _check_placeholders(wiring, manifest, tree, resolved)
+            errors.extend(placeholder_errors)
+            if placeholder_errors:
+                claimed.extend(_claims(wiring))
+                continue
+            parsed = canon(tree)
         steps.append(
             StepIR(
                 ref=manifest.ref,

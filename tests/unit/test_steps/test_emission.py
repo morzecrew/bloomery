@@ -269,3 +269,156 @@ def test_an_undeclared_coincidence_emits_no_audit() -> None:
     )
     ctx = EmitContext(fingerprint="blm1:t", naming=DefaultNaming(), dialect=get_dialect("duckdb"))
     assert consistency_audits(step, ctx) == ()
+
+
+# ....................... #
+# Tier 2 parameters (§10's open question, settled)
+
+
+SQL_MANIFEST: dict[str, object] = {
+    "ref": "scored",
+    "version": 1,
+    "kind": "sql_model",
+    "determinism": "pure",
+    "runtime_lock": "sha256:x",
+    "outputs": {
+        "out": {"grain": "g", "key": ["k"], "produces": {"k": {"type": "string"}}},
+    },
+}
+
+
+def sql_step(body: str, parameters: dict[str, object], wired: str) -> str:
+    """Compile a one-step Tier 2 project and return the emitted *query* — the
+    text after the ``MODEL (...)`` block.
+
+    The header is excluded deliberately: it carries a hex fingerprint, and an
+    assertion like ``"7" in artifact`` passes against that hex without the
+    substitution happening at all. Two of these tests did exactly that.
+    """
+    from bloomery import compile_project, load_project
+    from bloomery.steps import StepManifest, StepRegistry
+
+    manifest = StepManifest.model_validate(SQL_MANIFEST | {"parameters": parameters})
+    project = load_project(
+        {
+            "entity_model": "spec_version: 1\nentities: {}\n",
+            "steps": (
+                "steps_version: 1\nsteps:\n  - use: scored@1\n"
+                "    outputs: {out: silver.scored}\n"
+                f"    parameters: {wired}\n"
+            ),
+        }
+    )
+    registry = StepRegistry({("scored", 1): manifest}, sql_bodies={("scored", 1): body})
+    artifacts = compile_project(
+        project, target="sqlmesh", dialect="duckdb", steps=registry
+    )
+    content = next(a.content for a in artifacts if a.path == "models/silver/scored.sql")
+    _header, _, query = content.partition(");")
+    return query
+
+
+def test_a_sql_model_parameter_reaches_the_body() -> None:
+    """The gap this settles: the value was carried in the IR — so it changed
+    the fingerprint and restated the step — and never reached the SQL, which
+    emitted a bare ``$threshold`` placeholder. An author wrote a parameter,
+    got no parameter, and got no error."""
+    sql = sql_step(
+        "SELECT k FROM silver.src WHERE score > :threshold",
+        {"threshold": {"type": "decimal(4,3)", "default": "0.85"}},
+        "{threshold: 0.9}",
+    )
+    assert "0.9" in sql
+    assert "threshold" not in sql
+
+
+@pytest.mark.parametrize(
+    ("declared", "wired", "expected"),
+    [
+        ("int", "{p: 7}", "7"),
+        ("decimal", "{p: 0.25}", "0.25"),
+        ("string", "{p: 'abc'}", "'abc'"),
+        ("bool", "{p: true}", "TRUE"),
+        ("date", "{p: '2024-01-01'}", "'2024-01-01'"),
+    ],
+)
+def test_each_parameter_type_renders_its_own_literal(
+    declared: str, wired: str, expected: str
+) -> None:
+    """The declared type decides the spelling. Inferring it from how the
+    digits look is the guessing game D20 already refused on the Python side."""
+    sql = sql_step("SELECT k FROM silver.src WHERE c = :p", {"p": {"type": declared}}, wired)
+    assert expected in sql
+
+
+def test_a_parameter_value_cannot_carry_sql_into_the_body() -> None:
+    """The substitution builds an AST literal, so a value is data wherever it
+    lands. String interpolation here would be RFC 0013's injection boundary
+    reopened in the one place a spec value reaches emitted SQL."""
+    sql = sql_step(
+        "SELECT k FROM silver.src WHERE c = :p",
+        {"p": {"type": "string"}},
+        "{p: \"x' OR 1=1 --\"}",
+    )
+    # Present as *data*: one escaped string literal, still one comparison.
+    assert "'x'' OR 1=1 --'" in sql
+    tree = parse_one(sql, read="duckdb")
+    assert tree is not None
+    literals = [n.this for n in tree.find_all(exp.Literal) if n.is_string]
+    assert literals == ["x' OR 1=1 --"]
+    assert tree.find(exp.Or) is None
+
+
+def test_a_placeholder_the_manifest_does_not_declare_is_refused() -> None:
+    """Otherwise it emits unsubstituted and the engine meets an unknown macro
+    variable — the silent-hole failure this whole change closes."""
+    from bloomery.errors import StepError
+
+    with pytest.raises(StepError, match="does not declare"):
+        sql_step(
+            "SELECT k FROM silver.src WHERE score > :nope",
+            {"threshold": {"type": "decimal", "default": "0.85"}},
+            "{threshold: 0.9}",
+        )
+
+
+def test_a_declared_parameter_the_body_never_uses_is_refused() -> None:
+    """A parameter that changes the fingerprint and no SQL restates the step
+    and reproduces identical data — the same "believing something is pinned
+    that is not" D18(c) refused for a seed on a pure step."""
+    from bloomery.errors import StepError
+
+    with pytest.raises(StepError, match="never uses"):
+        sql_step(
+            "SELECT k FROM silver.src",
+            {"threshold": {"type": "decimal", "default": "0.85"}},
+            "{threshold: 0.9}",
+        )
+
+
+def test_a_placeholder_whose_parameter_has_no_value_is_refused() -> None:
+    """Declared is not the same as *resolved*. A manifest parameter with no
+    default that the wiring never sets resolves to nothing, so it reached emit
+    as an unsubstituted ``$p`` — the same silent hole, one path over. The
+    check has to compare the body against the values the step will actually
+    run with, not against the names the manifest lists."""
+    from bloomery.errors import StepError
+
+    with pytest.raises(StepError, match="no value"):
+        sql_step("SELECT k FROM silver.src WHERE c = :p", {"p": {"type": "int"}}, "{}")
+
+
+def test_a_variant_parameter_in_a_body_is_refused_rather_than_guessed() -> None:
+    """`variant` is semi-structured, and its literal spelling differs per
+    engine — DuckDB, Postgres and Trino do not agree on how a JSON value is
+    written. Rendering it as a string literal is a guess that compiles and
+    compares wrongly, which is what RFC 0006 exists to refuse. Named as the
+    escape hatch, not built: it needs a per-dialect literal hook."""
+    from bloomery.errors import StepError
+
+    with pytest.raises(StepError, match="variant"):
+        sql_step(
+            "SELECT k FROM silver.src WHERE c = :p",
+            {"p": {"type": "variant", "default": "xyz"}},
+            "{}",
+        )

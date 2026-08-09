@@ -77,6 +77,36 @@ Quality rules on step outputs are described by RFC 0017 §5.2 but are **not
 lowered yet** — declaring them is a compile error rather than a rule that is
 accepted and never evaluated.
 
+### How a parameter reaches a SQL body
+
+A Tier 2 body refers to its parameters as sqlglot placeholders, the same
+`:name` spelling Tier 1 uses:
+
+```sql
+SELECT canonical_id, confidence
+FROM silver.candidates
+WHERE confidence >= :threshold
+```
+
+Each placeholder is replaced by a **literal node**, not by text, so a value is
+data wherever it lands — a parameter cannot carry SQL into the body. The
+declared type picks the spelling: `int` and `decimal` become number literals,
+`bool` a boolean, and `string`, `date` and `timestamp` string literals the
+engine compares in the column's own type.
+
+The body and the step's parameters must name the same set, and each mismatch
+is a compile error rather than something an engine discovers:
+
+| Situation | Why it is refused |
+|---|---|
+| `:x` that no parameter declares | it would reach the engine as an unknown variable |
+| `:x` declared with no default and not wired | same — declaring a parameter is not giving it a value |
+| a parameter the body never uses | its value is part of the step's identity, so changing it restates the outputs and recomputes identical rows |
+
+A `variant` parameter cannot be substituted into a body: DuckDB, Postgres and
+Trino do not write a semi-structured literal the same way. Pass a scalar and
+cast in the body instead.
+
 There is no field here that can hold a body, and none that can name a file to
 load. That absence is the security property: a spec can no more load code than
 a metric name can. The registry is assembled by the caller and passed in —
