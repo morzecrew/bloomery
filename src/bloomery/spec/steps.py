@@ -135,14 +135,26 @@ class StepSet(SpecModel):
     steps: tuple[StepWiring, ...] = ()
 
     @model_validator(mode="after")
-    def _uses_are_unique(self) -> Self:
-        """One wiring per ``ref@version``. Two wirings of one step are either
-        a copy-paste or a fork attempt (§5.7, D7); both want the same answer,
-        and neither can be resolved by picking one."""
+    def _refs_are_unique(self) -> Self:
+        """One wiring per ``ref`` — not per ``ref@version``.
+
+        Two wirings of one step are either a copy-paste or a fork attempt
+        (§5.7, D7); both want the same answer, and neither can be resolved by
+        picking one. Keyed on ``ref@version`` this missed the fork that
+        matters: ``resolve_customers@3`` beside ``@4`` compiled, while
+        everything downstream keys on ``ref`` alone — ``plan/diff.py`` builds
+        ``{step.ref: step}`` and the DAG node is ``step.<ref>`` (D24) — so one
+        of the two was silently dropped from the plan meant to restate it. A
+        version bump is a step *changing*, not a second step appearing.
+        """
         seen: set[str] = set()
         for wiring in self.steps:
-            if wiring.use in seen:
-                msg = f"step {wiring.use!r} is wired more than once"
+            if wiring.ref in seen:
+                msg = (
+                    f"step {wiring.ref!r} is wired more than once (as {wiring.use!r}); one "
+                    "wiring per step ref, since a version bump is that step changing rather "
+                    "than a second step"
+                )
                 raise ValueError(msg)
-            seen.add(wiring.use)
+            seen.add(wiring.ref)
         return self

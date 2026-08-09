@@ -75,6 +75,23 @@ def test_wiring_one_step_twice_is_refused() -> None:
         _steps(doubled)
 
 
+def test_wiring_two_versions_of_one_step_is_refused() -> None:
+    """Keyed on ``use``, ``@3`` and ``@4`` were two different keys and both
+    compiled — while everything downstream keys on ``ref`` alone (D24: steps
+    diff by ref, the DAG node is ``step.<ref>``). ``{step.ref: step}`` in
+    ``plan/diff.py`` therefore kept exactly one of them, silently dropping the
+    other's outputs from the plan that is supposed to restate them.
+
+    Running two versions side by side is also the fork §5.7 refuses: a version
+    bump is a step *changing*, not a second step appearing.
+    """
+    forked = WIRING + """  - use: resolve_customers@4
+    outputs: {customer: silver.customer_v4}
+"""
+    with pytest.raises(SpecParseError, match="wired more than once"):
+        _steps(forked)
+
+
 def test_a_step_must_bind_at_least_one_output() -> None:
     with pytest.raises(SpecParseError):
         _steps(WIRING.replace(
