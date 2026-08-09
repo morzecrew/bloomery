@@ -191,7 +191,7 @@ docs = [
 ]
 engines = [
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
-    { name = "testcontainers", extras = ["postgres"], specifier = ">=4.9" },
+    { name = "testcontainers", extras = ["postgres"], specifier = ">=4.15.0" },
 ]
 
 [[package]]
