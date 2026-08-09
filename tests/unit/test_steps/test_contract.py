@@ -203,6 +203,34 @@ def test_a_decimal_column_is_actually_type_checked() -> None:
         assert_step_contract(outputs, MANIFEST)
 
 
+def test_a_duplicated_column_label_is_a_violation_not_an_attribute_error() -> None:
+    """pandas permits a repeated label, and every check here assumed it could
+    not happen: the column set was compared as a *set*, so a frame carrying
+    ``a`` twice matched a manifest declaring one ``a``; ``frame['a']`` then
+    returned a DataFrame and the type check died with ``AttributeError:
+    'DataFrame' object has no attribute 'dtype'`` — an opaque crash inside
+    somebody's warehouse instead of the designed violation.
+    """
+    manifest = {
+        "ref": "s",
+        "outputs": {"o": {"key": ["a"], "produces": {"a": {"type": "string"}}}},
+    }
+    frame = pd.DataFrame([["x", "y"]], columns=["a", "a"])
+    with pytest.raises(StepContractViolation, match="appears more than once"):
+        assert_step_contract({"o": frame}, manifest)
+
+
+def test_a_manifest_without_outputs_fails_loudly_rather_than_checking_nothing() -> None:
+    """``manifest.get("outputs", {})`` made the whole assertion a no-op: no
+    declared outputs, so nothing missing, nothing undeclared, and an empty
+    loop — a mandatory check silently degraded to a pass, which is the exact
+    failure mode D21 and D29 both record. The wrapper always embeds the key,
+    so its absence is a generation defect that must surface as a crash.
+    """
+    with pytest.raises(KeyError):
+        assert_step_contract({}, {"ref": "s"})
+
+
 def test_a_type_the_checker_does_not_know_is_refused_not_skipped() -> None:
     """The generalisation of the bug above: an unknown base type must fail
     loudly rather than pass silently, so the next gap cannot hide."""

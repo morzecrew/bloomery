@@ -87,6 +87,19 @@ def _check_columns(step: str, name: str, frame: Any, produces: Mapping[str, Any]
     complaint noise, so it is reported alone and first.
     """
     actual = list(frame.columns)
+    # Before anything compares column *sets*: a repeated label survives that
+    # comparison intact, and then `frame[label]` yields a DataFrame rather
+    # than a Series — so the type check died on `.dtype` and the grain check
+    # on `.duplicated()`, both as opaque `AttributeError`s rather than as the
+    # violation this module exists to raise.
+    repeated = sorted({column for column in actual if actual.count(column) > 1})
+    if repeated:
+        raise _violation(
+            step,
+            name,
+            f"column {', '.join(repeated)} appears more than once — a duplicated label "
+            "makes the declared type and grain unverifiable",
+        )
     declared = set(produces)
     missing = sorted(declared - set(actual))
     undeclared = sorted(set(actual) - declared)
@@ -166,8 +179,13 @@ def assert_step_contract(outputs: Mapping[str, Any], manifest: Mapping[str, Any]
     wherever the run happens to start, not only in the model that returns the
     output it lied about.
     """
-    step = str(manifest.get("ref", "?"))
-    declared_outputs: Mapping[str, Any] = manifest.get("outputs", {})
+    # Indexed, never defaulted: the wrapper always embeds both keys, so a
+    # missing one is a generation defect, and defaulting `outputs` to `{}`
+    # turned this entire assertion into a silent pass — nothing missing,
+    # nothing undeclared, and an empty loop. A gap is a violation, not a skip
+    # (D29); the same reasoning `declared["produces"]` below already follows.
+    step = str(manifest["ref"])
+    declared_outputs: Mapping[str, Any] = manifest["outputs"]
 
     missing = sorted(set(declared_outputs) - set(outputs))
     if missing:
