@@ -127,6 +127,36 @@ A `variant` parameter cannot be substituted into a body: DuckDB, Postgres and
 Trino do not write a semi-structured literal the same way. Pass a scalar and
 cast in the body instead.
 
+### Linking an output to canonical fields
+
+A mart can read a step output as soon as it exists. A **metric** needs one
+more thing: it resolves against canonical fields, and something has to say
+which canonical field a produced column *is*.
+
+```yaml
+steps_version: 1
+steps:
+  - use: resolve_customers@3
+    outputs: {customer: silver.customer}
+    canonical:
+      customer:
+        confidence: match_confidence
+```
+
+The link lives on the wiring rather than in the manifest, because canonical
+names are your spec's vocabulary — a manifest naming them could not be reused
+by a project that spells them differently, which is the fork "parameterize,
+never fork" exists to prevent.
+
+It is never inferred from a matching column name. A column called
+`confidence` is not assumed to be the canonical `confidence`: guessing a link
+nobody declared is exactly what the compiler refuses elsewhere, and it does
+not become acceptable because the guess is cheap.
+
+With the link declared, nothing else is special. The column becomes available,
+metrics over it are reachable, and a `reconcile:` check may name the step's
+relation on either side.
+
 There is no field here that can hold a body, and none that can name a file to
 load. That absence is the security property: a spec can no more load code than
 a metric name can. The registry is assembled by the caller and passed in —

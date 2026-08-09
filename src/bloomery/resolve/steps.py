@@ -61,6 +61,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "lower_steps",
+    "output_canonicals",
     "step_entities",
 ]
 
@@ -412,6 +413,33 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
     return errors
 
 
+def _check_canonical(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryError]:
+    """Each ``canonical:`` link names a column the bound output actually
+    produces (D49).
+
+    The output name is the spec layer's business and already checked there;
+    the *column* is not, because only the manifest says what an output
+    produces and the spec layer has never seen one. A link naming a column
+    that does not exist would draw a DAG edge from a field nothing writes, so
+    a metric would read as reachable and its mart would then fail to build —
+    the kind of late failure this stage exists to pull forward.
+    """
+    errors: list[BloomeryError] = []
+    for output, links in sorted(wiring.canonical.items()):
+        declared = manifest.outputs.get(output)
+        if declared is None:  # pragma: no cover — _check_bindings refuses this first
+            continue
+        missing = sorted(set(links) - set(declared.produces))
+        if missing:
+            msg = (
+                f"step {wiring.use!r} links canonical field(s) to column(s) "
+                f"{', '.join(missing)} of output {output!r}, which it does not produce; "
+                f"produced: {', '.join(sorted(declared.produces))}"
+            )
+            errors.append(StepError(msg, source_path=_path(wiring)))
+    return errors
+
+
 def _check_body(
     wiring: StepWiring, manifest: StepManifest, body: str | None
 ) -> list[BloomeryError]:
@@ -581,6 +609,7 @@ def step_entities(
     wrapper writes the rows.
     """
     rules = _output_rules(project)
+    links = output_canonicals(project)
     entities: list[EntityIR] = []
     for step in steps:
         for output in step.outputs:
@@ -596,7 +625,9 @@ def step_entities(
                         ColumnIR(
                             name=column.name,
                             type=column.type,
-                            canonical=None,
+                            canonical=links.get((step.ref, step.version, output.name), {}).get(
+                                column.name
+                            ),
                             unit=None,
                             tax_basis=None,
                             # A step column has no lowering: the wrapper wrote
@@ -617,6 +648,26 @@ def step_entities(
                 )
             )
     return tuple(sorted(entities, key=lambda entity: entity.name))
+
+
+def output_canonicals(
+    project: Project | None,
+) -> dict[tuple[str, int, str], dict[str, str]]:
+    """Authored ``canonical:`` links, keyed by ``(ref, version, output)``.
+
+    Shared by :func:`step_entities` and the DAG builder on purpose: the IR's
+    ``ColumnIR.canonical`` and the graph's ``canonical`` edge are two readings
+    of one declaration, and deriving them separately is how they drift — a
+    column claiming a link the graph never drew reads as reachable and then
+    has no derivation path.
+    """
+    if project is None or project.steps is None:
+        return {}
+    return {
+        (wiring.ref, wiring.version, output): dict(links)
+        for wiring in project.steps.steps
+        for output, links in wiring.canonical.items()
+    }
 
 
 def _output_rules(
@@ -677,6 +728,7 @@ def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tu
             *_check_bindings(wiring, manifest),
             *_check_parameters(wiring, manifest),
             *_check_body(wiring, manifest, body),
+            *_check_canonical(wiring, manifest),
         ]
         resolved = _resolved_values(wiring, manifest)
         step_errors.extend(_check_parameter_types(wiring, manifest, resolved))

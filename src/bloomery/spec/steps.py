@@ -81,6 +81,20 @@ class StepWiring(SpecModel):
     #: step has several outputs, so "on this step" is not specific enough to
     #: lower — unlike an entity's ``quality:``, which has one relation.
     applies_to: dict[str, str] = Field(default_factory=dict[str, str])
+    #: Which canonical field each produced column *is*, keyed by output then
+    #: column (RFC 0017 D49).
+    #:
+    #: On the wiring rather than in the manifest deliberately: canonical names
+    #: are the authored spec's vocabulary, so a manifest naming them could not
+    #: be reused by a second project spelling them differently — which is the
+    #: fork §5.7 exists to refuse. Without the link a step output's columns
+    #: are never *available*, so every metric over one is unreachable; with
+    #: it, nothing about metric resolution changes at all.
+    #:
+    #: Never inferred from a matching column name. Guessing a link nobody
+    #: declared is what RFC 0006 refuses, and it does not become acceptable
+    #: because the guess is cheap (the same argument D43 made for references).
+    canonical: dict[str, dict[str, str]] = Field(default_factory=dict[str, dict[str, str]])
 
     @property
     def ref(self) -> str:
@@ -91,6 +105,28 @@ class StepWiring(SpecModel):
     def version(self) -> int:
         """The version half of ``use``."""
         return int(self.use.split("@", 1)[1])
+
+    @model_validator(mode="after")
+    def _canonical_names_a_bound_output(self) -> Self:
+        """Shape-only (RFC 0002): the *output* must be one this wiring binds.
+        Whether the column exists is the manifest's business, and the spec
+        layer has never seen a manifest — that check waits for lowering."""
+        unbound = sorted(set(self.canonical) - set(self.outputs))
+        if unbound:
+            msg = (
+                f"canonical names output(s) {', '.join(unbound)} this step does not bind; "
+                f"bound outputs: {', '.join(sorted(self.outputs))}"
+            )
+            raise ValueError(msg)
+        for output, links in sorted(self.canonical.items()):
+            bad = sorted(name for pair in links.items() for name in pair if not name.isidentifier())
+            if bad:
+                msg = (
+                    f"canonical.{output} names {', '.join(bad)}, which are not identifiers; "
+                    "both a produced column and a canonical field are plain names"
+                )
+                raise ValueError(msg)
+        return self
 
     @model_validator(mode="after")
     def _rules_name_a_bound_output(self) -> Self:

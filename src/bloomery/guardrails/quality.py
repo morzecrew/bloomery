@@ -38,7 +38,7 @@ would put names in ``errors.py`` the design authority does not have.
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from bloomery.errors import (
@@ -594,6 +594,52 @@ def _check_referential(
     return errors
 
 
+@dataclass(frozen=True, slots=True)
+class _SideEntity:
+    """What resolving a ``reconcile`` side needs from an entity: its field
+    names and its key.
+
+    A view rather than the spec ``Entity`` because a side may now name a
+    **step output** (RFC 0017 D41/D49), which is not in the entity model at
+    all — it is synthesized during lowering, and no mapping targets it. The
+    two kinds answer the same two questions, so the check asks them through
+    one shape instead of branching on provenance.
+    """
+
+    fields: frozenset[str]
+    key: tuple[str, ...]
+
+
+def _side_entities(project: Project, draft: ProjectIR) -> dict[str, _SideEntity]:
+    """Every relation a reconcile side may read: mapped entities, and the
+    entities a step writes.
+
+    Declared-but-unmapped stays excluded, which is the point of the original
+    refusal — ``build_project_ir`` builds one silver relation per mapping, so
+    an unmapped entity has nothing for a side to read. A step-produced entity
+    *does* have one; it is simply written by the step's wrapper rather than by
+    a mapping, which is a fact about who writes it, not about whether it
+    exists.
+    """
+    mapped = frozenset(mapping.target for mapping in project.mappings)
+    view = {
+        name: _SideEntity(fields=frozenset(entity.fields), key=tuple(entity.key))
+        for name, entity in project.entity_model.entities.items()
+        if name in mapped
+    }
+    view.update(
+        {
+            entity.name: _SideEntity(
+                fields=frozenset(column.name for column in entity.columns),
+                key=tuple(entity.key),
+            )
+            for entity in draft.entities
+            if entity.produced_by is not None
+        }
+    )
+    return view
+
+
 def _reconcile_path(check_name: str, suffix: str) -> str:
     return f"entity_model: reconcile.{check_name}.{suffix}"
 
@@ -602,8 +648,7 @@ def _resolve_side(
     check_name: str,
     side: str,
     text: str,
-    entities: dict[str, Entity],
-    mapped: frozenset[str],
+    entities: dict[str, _SideEntity],
 ) -> tuple[ReconcileSide | None, list[GuardrailError]]:
     """Parse one side and resolve it against the declared model.
 
@@ -634,15 +679,10 @@ def _resolve_side(
     if entity is None:
         msg = (
             f"reconcile check {check_name!r} {side} side names entity {parsed.entity!r}, "
-            f"which the entity model does not declare; declared: {sorted(entities)}"
-        )
-        return None, [GuardrailError(msg, source_path=path)]
-    if parsed.entity not in mapped:
-        msg = (
-            f"reconcile check {check_name!r} {side} side names entity {parsed.entity!r}, "
-            "which is declared but no mapping targets, so no silver relation is built for "
-            f"it to read; mapped entities: {sorted(mapped)}. Fix: add a mapping whose "
-            f"target is {parsed.entity!r}, or drop the check"
+            "for which no silver relation is built — it is neither the target of a mapping "
+            "nor the output of a step; readable relations: "
+            f"{sorted(entities)}. Fix: add a mapping whose target is {parsed.entity!r}, "
+            "wire a step that writes it, or drop the check"
         )
         return None, [GuardrailError(msg, source_path=path)]
     repeated = sorted({name for name in parsed.by if parsed.by.count(name) > 1})
@@ -655,7 +695,7 @@ def _resolve_side(
             "(verified on PostgreSQL). Fix: name each by column once"
         )
         return None, [GuardrailError(msg, source_path=path)]
-    missing = sorted({parsed.column, *parsed.by} - set(entity.fields) - set(entity.key))
+    missing = sorted({parsed.column, *parsed.by} - entity.fields - set(entity.key))
     if missing:
         msg = (
             f"reconcile check {check_name!r} {side} side reads {', '.join(missing)} on entity "
@@ -670,7 +710,7 @@ def _resolve_side(
     return replace(parsed, by=tuple(entity.key)), []
 
 
-def _check_reconcile(project: Project) -> list[GuardrailError]:
+def _check_reconcile(project: Project, draft: ProjectIR) -> list[GuardrailError]:
     """The ``reconcile:`` block: grammar, resolution, key agreement, and name
     uniqueness (RFC 0016 §5.3).
 
@@ -681,8 +721,7 @@ def _check_reconcile(project: Project) -> list[GuardrailError]:
     disagree would either fan out or compare nothing at all — refused, with
     both key lists named, rather than emitted as a join nobody can read.
     """
-    entities = project.entity_model.entities
-    mapped = frozenset(mapping.target for mapping in project.mappings)
+    entities = _side_entities(project, draft)
     errors: list[GuardrailError] = []
     seen: set[str] = set()
     for check in project.entity_model.reconcile:
@@ -694,8 +733,8 @@ def _check_reconcile(project: Project) -> list[GuardrailError]:
             errors.append(GuardrailError(msg, source_path=_reconcile_path(check.name, "name")))
             continue
         seen.add(check.name)
-        left, left_errors = _resolve_side(check.name, "left", check.left, entities, mapped)
-        right, right_errors = _resolve_side(check.name, "right", check.right, entities, mapped)
+        left, left_errors = _resolve_side(check.name, "left", check.left, entities)
+        right, right_errors = _resolve_side(check.name, "right", check.right, entities)
         errors.extend(left_errors)
         errors.extend(right_errors)
         if left is None or right is None:
@@ -765,7 +804,6 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     keep the seam honest — these refusals are all decidable from the spec, so
     nothing here reads the lowered IR.
     """
-    del draft
     relationships = project.entity_model.relationships
     by_target = {mapping.target: mapping for mapping in project.mappings}
     errors: list[GuardrailError] = []
@@ -789,7 +827,7 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
         errors.extend(_check_retention(entity_name, entity, mapping, relationships))
     # Project-level, not per entity: a reconcile check relates two entities and
     # belongs to neither, and the reserved metric names are one flat namespace.
-    errors.extend(_check_reconcile(project))
+    errors.extend(_check_reconcile(project, draft))
     errors.extend(_check_reserved_metric_names(project))
     errors.extend(_check_reserved_mart_name(project))
     return errors

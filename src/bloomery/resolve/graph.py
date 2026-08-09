@@ -198,6 +198,17 @@ def _step_edges(project: Project) -> list[Edge]:
             edges.append(
                 Edge(src=node, dst=entity_field_node(produced, output_name), label="step_output")
             )
+            # A declared `canonical:` link makes the column *available*, which
+            # is the whole of what a metric's reachability asks (RFC 0005
+            # §5.3, RFC 0017 D49). The column node hangs off the step for the
+            # same reason the output node does — so the link is reachable in
+            # topological order rather than floating free of its producer.
+            for column, canonical in sorted(wiring.canonical.get(output_name, {}).items()):
+                field = entity_field_node(produced, column)
+                edges.append(Edge(src=node, dst=field, label="step_output"))
+                edges.append(
+                    Edge(src=field, dst=canonical_field_node(canonical), label="canonical")
+                )
     return edges
 
 

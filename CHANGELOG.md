@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Step outputs are entities: a mart or downstream model may reference `silver.customer` written by a step exactly as it would any silver entity, and `plan()` diffs those entities like any other. `EntityIR` gains `produced_by`, naming the step that writes the relation, so the emitter leaves its model to the step's generated wrapper.
 
+- A step wiring may declare `canonical: {<output>: {<column>: <canonical_field>}}`, which is what lets **metrics** and **`reconcile`** read a step output — a metric resolves against canonical fields, and only mapped entity fields could previously draw that link. The link lives on the wiring rather than in the manifest, because canonical names are the authored spec's vocabulary and a manifest naming them could not be reused by a project spelling them differently. It is never inferred from a matching column name.
+
 - Steps not yet wired are refused rather than silently dropped: a `sql_macro` (Tier 1 has no reference surface yet), a `sql_model` with no registry body, and any step at all on the dbt or Cube targets.
 
 - An `expression` quality rule on a step output with `on_fail: fail` lowers to a blocking audit over the relation, attached to that output's own model so SQLMesh runs it. `flag` and `quarantine` stay compile errors: both work by rewriting the silver `SELECT` — the `_quality_flags` projection and the routing `WHERE` — and a step-produced relation has none, because its wrapper writes the rows.

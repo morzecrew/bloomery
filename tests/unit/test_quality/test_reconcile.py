@@ -194,5 +194,7 @@ def test_a_side_naming_a_declared_but_unmapped_entity_is_refused() -> None:
             "      stock_level: {type: int}\n"
         ),
     )
-    assert "which is declared but no mapping targets" in message
     assert "no silver relation is built" in message
+    # Named both ways since RFC 0017 D49: a step output has a relation without
+    # a mapping, so "no mapping targets it" stopped being the whole reason.
+    assert "neither the target of a mapping nor the output of a step" in message
