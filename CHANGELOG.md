@@ -17,7 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Step outputs are entities: a mart or downstream model may reference `silver.customer` written by a step exactly as it would any silver entity, and `plan()` diffs those entities like any other. `EntityIR` gains `produced_by`, naming the step that writes the relation, so the emitter leaves its model to the step's generated wrapper.
 
-- Steps not yet wired are refused rather than silently dropped: a `sql_macro` (Tier 1 has no reference surface yet), `expression` quality rules on step outputs (they parsed and nothing lowered them), a `sql_model` with no registry body, and any step at all on the dbt or Cube targets.
+- Steps not yet wired are refused rather than silently dropped: a `sql_macro` (Tier 1 has no reference surface yet), a `sql_model` with no registry body, and any step at all on the dbt or Cube targets.
+
+- An `expression` quality rule on a step output with `on_fail: fail` lowers to a blocking audit over the relation, attached to that output's own model so SQLMesh runs it. `flag` and `quarantine` stay compile errors: both work by rewriting the silver `SELECT` — the `_quality_flags` projection and the routing `WHERE` — and a step-produced relation has none, because its wrapper writes the rows.
 
 - A `sql_model` body takes its parameters as sqlglot `:name` placeholders, substituted as AST literal nodes so a spec value is data wherever it lands and cannot carry SQL into the body. The declared type picks the literal: `int`/`decimal` render as numbers, `bool` as a boolean, and `string`/`date`/`timestamp` as string literals the engine compares in the column's own type. Body and parameters must name the same *resolved* set — a placeholder nothing declares, a placeholder whose parameter has neither default nor wiring, and a resolved parameter the body never mentions are each a compile error. A `variant` parameter cannot be substituted, because the three supported engines do not spell a semi-structured literal alike.
 

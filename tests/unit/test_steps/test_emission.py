@@ -13,6 +13,7 @@ import ast
 import pytest
 from sqlglot import exp, parse_one
 
+from bloomery.emit.base import EmittedArtifact
 from bloomery.emit.steps import macro_expression
 from bloomery.ir import Determinism, Lineage, StepIR, StepKind, canon
 from support.compiling import compile_fixture
@@ -422,3 +423,118 @@ def test_a_variant_parameter_in_a_body_is_refused_rather_than_guessed() -> None:
             {"p": {"type": "variant", "default": "xyz"}},
             "{}",
         )
+
+
+# ....................... #
+# Quality rules on step outputs (D39: the `on_fail: fail` subset)
+
+
+QUALITY_MANIFEST: dict[str, object] = {
+    "ref": "resolve_customers",
+    "version": 3,
+    "kind": "python_model",
+    "entrypoint": "platform_steps.resolve_customers:resolve",
+    "determinism": "pure",
+    "runtime_lock": "sha256:a91f",
+    "outputs": {
+        "customer": {
+            "grain": "customer",
+            "key": ["canonical_id"],
+            "produces": {
+                "canonical_id": {"type": "string", "required": True},
+                "confidence": {"type": "decimal(4,3)"},
+            },
+        }
+    },
+}
+
+
+def quality_step(on_fail: str = "fail") -> tuple[EmittedArtifact, ...]:
+    from bloomery import compile_project, load_project
+    from bloomery.steps import StepManifest, StepRegistry
+
+    manifest = StepManifest.model_validate(QUALITY_MANIFEST)
+    project = load_project(
+        {
+            "entity_model": "spec_version: 1\nentities: {}\n",
+            "steps": (
+                "steps_version: 1\nsteps:\n  - use: resolve_customers@3\n"
+                "    outputs: {customer: silver.customer}\n"
+                "    quality:\n"
+                "      - {rule: expression, name: confident, "
+                f'expr: "confidence >= 0.8", on_fail: {on_fail}}}\n'
+                "    applies_to: {confident: customer}\n"
+            ),
+        }
+    )
+    registry = StepRegistry({("resolve_customers", 3): manifest})
+    return compile_project(project, target="sqlmesh", dialect="duckdb", steps=registry)
+
+
+def test_a_fail_rule_on_a_step_output_emits_a_blocking_audit() -> None:
+    """D39's tractable subset. A step-produced relation has no SELECT to route
+    rows into — the wrapper writes it in Python — but an audit reads the
+    relation after the fact, which is exactly what `on_fail: fail` means."""
+    audits = {a.path for a in quality_step() if a.path.startswith("audits/")}
+    assert audits == {"audits/step_customer_confident.sql"}
+
+
+def test_the_audit_is_named_by_the_model_that_owns_the_output() -> None:
+    """SQLMesh loads a bare AUDIT as a *model* audit and runs it only where a
+    model's `audits:` names it — the defect D42 records. An emitted audit
+    nothing references never runs."""
+    wrapper = next(
+        a.content for a in quality_step() if a.path == "models/silver/customer.py"
+    )
+    assert "audits=['step_customer_confident']" in wrapper
+
+
+def test_the_audit_returns_the_violating_rows() -> None:
+    """An audit passes when its query returns nothing, so the body has to be
+    the *violation*, not the assertion."""
+    body = next(
+        a.content for a in quality_step() if a.path == "audits/step_customer_confident.sql"
+    )
+    assert "NOT" in body or "<" in body
+    assert "confidence" in body
+
+
+@pytest.mark.parametrize("disposition", ["flag", "quarantine"])
+def test_a_flag_or_quarantine_rule_on_a_step_output_is_still_refused(
+    disposition: str,
+) -> None:
+    """The half that cannot lower: both dispositions compile into the silver
+    SELECT's projection and routing WHERE, and a step-produced relation has
+    neither. Shipping a rule kind that works for one disposition and silently
+    does nothing for the other two is worse than the refusal (D39)."""
+    from bloomery.errors import StepError
+
+    with pytest.raises(StepError, match="on_fail: fail"):
+        quality_step(disposition)
+
+
+def test_the_step_output_entity_carries_the_rule() -> None:
+    """The rule lands on the synthesized entity rather than on a new StepIR
+    field: `EntityIR.quality` already exists, so nothing about the IR's shape
+    changes and no fingerprint moves for a project that declares no rule."""
+    from bloomery import build_project_ir, load_project
+    from bloomery.steps import StepManifest, StepRegistry
+
+    manifest = StepManifest.model_validate(QUALITY_MANIFEST)
+    project = load_project(
+        {
+            "entity_model": "spec_version: 1\nentities: {}\n",
+            "steps": (
+                "steps_version: 1\nsteps:\n  - use: resolve_customers@3\n"
+                "    outputs: {customer: silver.customer}\n"
+                "    quality:\n"
+                '      - {rule: expression, name: confident, expr: "confidence >= 0.8", '
+                "on_fail: fail}\n"
+                "    applies_to: {confident: customer}\n"
+            ),
+        }
+    )
+    ir = build_project_ir(project, steps=StepRegistry({("resolve_customers", 3): manifest}))
+    (entity,) = [e for e in ir.entities if e.name == "customer"]
+    assert [rule.name for rule in entity.quality] == ["confident"]
+    assert entity.quality[0].kind == "expression"

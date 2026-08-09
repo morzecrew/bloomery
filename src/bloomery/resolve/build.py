@@ -481,7 +481,7 @@ def build_project_ir(
         # about the collection, not about how a member got there.
         entities=tuple(
             sorted(
-                (*_build_entities(project, catalog, reg), *step_entities(steps_ir)),
+                (*_build_entities(project, catalog, reg), *step_entities(steps_ir, project)),
                 key=lambda entity: entity.name,
             )
         ),

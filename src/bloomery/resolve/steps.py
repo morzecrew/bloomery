@@ -37,6 +37,8 @@ from bloomery.ir import (
     EntityIR,
     Lineage,
     Materialization,
+    OnFail,
+    QualityRuleIR,
     SCDKind,
     SourceIR,
     StepColumnIR,
@@ -396,13 +398,15 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
             "whitelist (Tier 0)"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
-    if wiring.quality:
-        rules = ", ".join(sorted(rule.name for rule in wiring.quality))
+    routed = sorted(rule.name for rule in wiring.quality if rule.on_fail != "fail")
+    if routed:
         msg = (
-            f"step {wiring.use!r} declares quality rule(s) {rules} on its outputs, which "
-            "bloomery does not yet lower (RFC 0017 §5.2). They would be accepted and "
-            "never evaluated, which is worse than refusing them. Fix: drop them for now, "
-            "or model the step output as an entity and put the rules there"
+            f"step {wiring.use!r} declares quality rule(s) {', '.join(routed)} on its "
+            "outputs with a disposition other than on_fail: fail (RFC 0017 D39). flag and "
+            "quarantine compile into the silver SELECT — the _quality_flags projection and "
+            "the routing WHERE — and a step-produced relation has no SELECT: its wrapper "
+            "writes the rows. Only on_fail: fail lowers, as an audit over the relation. "
+            "Fix: use on_fail: fail, or move the rule to a downstream mapped entity"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
     return errors
@@ -536,7 +540,9 @@ def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[Bloo
         return None, [StepError(msg, source_path=_path(wiring))]
 
 
-def step_entities(steps: tuple[StepIR, ...]) -> tuple[EntityIR, ...]:
+def step_entities(
+    steps: tuple[StepIR, ...], project: Project | None = None
+) -> tuple[EntityIR, ...]:
     """One :class:`EntityIR` per step output (RFC 0017 §5.8).
 
     This is what §5.8 means by "step outputs are entities in the DAG:
@@ -561,12 +567,20 @@ def step_entities(steps: tuple[StepIR, ...]) -> tuple[EntityIR, ...]:
       has no lowering — the wrapper wrote it — and an identity is what a
       downstream model selecting from the relation would emit anyway.
 
-    Quality rules on these entities are still refused (:func:`_check_scope`):
-    RFC 0016's dispositions lower into a silver *SELECT*, and a step-produced
-    relation does not have one — the wrapper writes it in Python. Synthesizing
-    the entity does not change that, so the refusal stays rather than becoming
-    a rule that is accepted and silently never evaluated.
+    ``quality`` carries the wiring's ``on_fail: fail`` rules, routed by
+    ``applies_to`` (D39). They live on the *entity* rather than on a new
+    ``StepOutputIR`` field for a reason worth stating: ``EntityIR.quality``
+    already exists, so nothing about the IR's shape changes and no fingerprint
+    moves for a project that declares no rule — where a new IR field would
+    move every fingerprint in the corpus, the type-driven encoder covering
+    field names and count rather than values (RFC 0003).
+
+    ``flag`` and ``quarantine`` stay refused in :func:`_check_scope`: both
+    compile into a silver *SELECT* — the ``_quality_flags`` projection and the
+    routing ``WHERE`` — and a step-produced relation has none, because its
+    wrapper writes the rows.
     """
+    rules = _output_rules(project)
     entities: list[EntityIR] = []
     for step in steps:
         for output in step.outputs:
@@ -598,10 +612,41 @@ def step_entities(steps: tuple[StepIR, ...]) -> tuple[EntityIR, ...]:
                         for column in output.columns
                     ),
                     source=SourceIR(relation=output.relation),
+                    quality=rules.get((step.ref, step.version, output.name), ()),
                     produced_by=f"{step.ref}@{step.version}",
                 )
             )
     return tuple(sorted(entities, key=lambda entity: entity.name))
+
+
+def _output_rules(
+    project: Project | None,
+) -> dict[tuple[str, int, str], tuple[QualityRuleIR, ...]]:
+    """Authored ``on_fail: fail`` rules, keyed by ``(ref, version, output)``.
+
+    ``applies_to`` is what makes this addressable: an entity's ``quality:`` has
+    one relation to mean, a step has several, so a rule names the output it
+    judges (§5.2). Rules of one output are sorted by name so the entity's
+    ``quality`` tuple is canonical whatever order they were authored in.
+    """
+    if project is None or project.steps is None:
+        return {}
+    rules: dict[tuple[str, int, str], list[QualityRuleIR]] = {}
+    for wiring in project.steps.steps:
+        for rule in wiring.quality:
+            output = wiring.applies_to.get(rule.name)
+            if output is None:  # pragma: no cover — the spec model requires it
+                continue
+            rules.setdefault((wiring.ref, wiring.version, output), []).append(
+                QualityRuleIR(
+                    name=rule.name,
+                    kind="expression",
+                    column=None,
+                    on_fail=OnFail(rule.on_fail),
+                    params=(("expr", rule.expr),),
+                )
+            )
+    return {key: tuple(sorted(value, key=lambda rule: rule.name)) for key, value in rules.items()}
 
 
 def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tuple[StepIR, ...]:

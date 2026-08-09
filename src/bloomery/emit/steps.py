@@ -33,9 +33,10 @@ import jinja2
 from sqlglot import exp
 
 from bloomery.emit.base import ArtifactKind, EmittedArtifact
+from bloomery.emit.lowering import THIS_MODEL
 from bloomery.errors import UnsupportedByTarget
-from bloomery.ir import Layer, StepKind
-from bloomery.quality import is_not_null
+from bloomery.ir import Layer, OnFail, StepKind
+from bloomery.quality import is_not_null, verdict
 from bloomery.typing import render_type
 
 if TYPE_CHECKING:
@@ -44,7 +45,7 @@ if TYPE_CHECKING:
     from sqlglot.expressions.core import Expression
 
     from bloomery.emit.base import EmitContext
-    from bloomery.ir import ProjectIR, StepIR, StepOutputIR, StepParameterIR
+    from bloomery.ir import ProjectIR, QualityRuleIR, StepIR, StepOutputIR, StepParameterIR
 
 __all__ = [
     "consistency_audits",
@@ -519,6 +520,82 @@ def _audit_name(child: StepOutputIR, column: str, parent: StepOutputIR) -> str:
     return f"step_{_relation_name(child)}_{column}_references_{_relation_name(parent)}"
 
 
+#: The alias a step-output quality audit reads its own relation under. Fixed,
+#: like the consistency audit's pair, so the authored predicate is qualified
+#: against one known name.
+_OUTPUT_ALIAS = "_output"
+
+
+def _quality_audit_name(output: StepOutputIR, rule: QualityRuleIR) -> str:
+    """``step_<output>_<rule>`` — under the same ``step_`` namespace the
+    consistency audits use, so an authored rule name cannot collide with an
+    RFC 0016 audit (``<entity>_<rule>``) on a mapped entity of the same name.
+    """
+    return f"step_{_relation_name(output)}_{rule.name}"
+
+
+def quality_audits(
+    step: StepIR, ir: ProjectIR, ctx: EmitContext
+) -> tuple[tuple[str, EmittedArtifact], ...]:
+    """Blocking audits for ``on_fail: fail`` rules on step outputs (D39),
+    returned with the output each is attached to.
+
+    Only ``fail`` reaches here — lowering refuses ``flag`` and ``quarantine``,
+    which compile into a silver SELECT that a step-produced relation does not
+    have. ``fail`` needs no SELECT: it reads the finished relation and returns
+    the rows that violate the rule, which is what a blocking audit is.
+
+    Deliberately *not* RFC 0016's two-leg :func:`fail_audits` shape. Both of
+    that function's legs are unavailable here rather than merely unnecessary:
+    there is no staged bronze extract to read the evaluated population from —
+    the wrapper writes the rows in Python — and no ``_quality_flags`` column to
+    read a recorded verdict out of, because the manifest's ``produces`` is the
+    entity's whole column set. One leg over the relation itself is the honest
+    whole of what can be checked, and it is the population that matters: the
+    rows the step actually produced.
+
+    The relation is addressed through ``@this_model``, never through the
+    naming policy. That is the doctrine ``lowering.py`` states and D44 had to
+    relearn on the consistency audit: a policy-spelled relation resolves to a
+    virtual-layer view rather than the plan\'s snapshot.
+    """
+    rules = {
+        entity.name: entity.quality for entity in ir.entities if entity.produced_by is not None
+    }
+    emitted: list[tuple[str, EmittedArtifact]] = []
+    for output in step.outputs:
+        for rule in rules.get(_relation_name(output), ()):
+            if rule.on_fail is not OnFail.FAIL:  # pragma: no cover — lowering refuses these
+                continue
+            name = _quality_audit_name(output, rule)
+            select = (
+                exp.Select()
+                .select(exp.Star())
+                .from_(
+                    # Unquoted: `@` is not an identifier character, and a
+                    # quoted macro is a table named `@this_model`.
+                    exp.Table(this=exp.to_identifier(THIS_MODEL, quoted=False), alias=_OUTPUT_ALIAS)
+                )
+                .where(verdict(rule, _OUTPUT_ALIAS))
+            )
+            content = _AUDIT.render(
+                fingerprint=ctx.fingerprint,
+                name=name,
+                select=ctx.dialect.render(select),
+            )
+            emitted.append(
+                (
+                    output.name,
+                    EmittedArtifact.create(
+                        path=f"audits/{name}.sql",
+                        content=content.rstrip("\n") + "\n",
+                        kind=ArtifactKind.AUDIT,
+                    ),
+                )
+            )
+    return tuple(emitted)
+
+
 def consistency_audits(step: StepIR, ctx: EmitContext) -> tuple[tuple[str, EmittedArtifact], ...]:
     """Blocking audits that sibling outputs of one step agree (RFC 0017 D16),
     returned with the **child output** each one must be attached to.
@@ -585,7 +662,7 @@ def step_artifacts(
         if step.kind is StepKind.SQL_MACRO:
             continue
         audits_by_output: dict[str, list[str]] = {}
-        for owner, artifact in consistency_audits(step, ctx):
+        for owner, artifact in (*consistency_audits(step, ctx), *quality_audits(step, ir, ctx)):
             artifacts.append(artifact)
             # The audit is attached to the *child* — the output holding the
             # reference — because that is the model whose rows it judges.

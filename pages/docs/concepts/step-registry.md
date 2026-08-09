@@ -73,9 +73,29 @@ steps:
     parameters: {threshold: 0.9}
 ```
 
-Quality rules on step outputs are described by RFC 0017 §5.2 but are **not
-lowered yet** — declaring them is a compile error rather than a rule that is
-accepted and never evaluated.
+### Quality rules on an output
+
+A step output takes RFC 0016 `expression` rules, and `applies_to` says which
+output each judges — an entity's `quality:` has one relation to mean, a step
+has several:
+
+```yaml
+steps_version: 1
+steps:
+  - use: resolve_customers@3
+    outputs: {customer: silver.customer}
+    quality:
+      - {rule: expression, name: confident, expr: "confidence >= 0.8", on_fail: fail}
+    applies_to: {confident: customer}
+```
+
+**`on_fail: fail` only.** It lowers to a blocking audit over the relation, so
+a run whose step produced a violating row stops. `flag` and `quarantine` are
+compile errors: both work by rewriting the silver `SELECT` — adding to
+`_quality_flags`, routing rows into the reject table — and a step-produced
+relation has no `SELECT` to rewrite, because its wrapper writes the rows in
+Python. A rule kind that worked for one disposition and silently did nothing
+for the other two would be worse than the refusal.
 
 ### How a parameter reaches a SQL body
 

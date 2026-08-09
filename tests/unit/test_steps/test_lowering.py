@@ -335,17 +335,32 @@ def test_a_wired_sql_macro_is_refused_until_the_splice_site_exists() -> None:
         )
 
 
-def test_quality_rules_on_outputs_are_refused_rather_than_ignored() -> None:
-    """They parse and nothing consumes them: an author would write a rule, get
-    no rule, and get no error. Silently ignoring a quality rule is the worst
-    possible failure for a feature whose job is catching bad data."""
-    wiring = WIRING + (
+def _with_rule(on_fail: str) -> str:
+    return WIRING + (
         "    quality:\n"
-        '      - {rule: expression, name: confident, expr: "confidence >= 0.8", on_fail: flag}\n'
+        '      - {rule: expression, name: confident, expr: "confidence >= 0.8", '
+        f"on_fail: {on_fail}}}\n"
         "    applies_to: {confident: customer}\n"
     )
-    with pytest.raises(StepError, match="does not yet lower"):
-        build(wiring)
+
+
+@pytest.mark.parametrize("disposition", ["flag", "quarantine"])
+def test_a_routed_quality_rule_on_an_output_is_refused(disposition: str) -> None:
+    """The half that cannot lower (D39). Both dispositions compile into the
+    silver SELECT — the `_quality_flags` projection and the routing WHERE —
+    and a step-produced relation has neither, because its wrapper writes the
+    rows. Accepting them would be a rule that never evaluates, which is the
+    worst possible failure for a feature whose job is catching bad data."""
+    with pytest.raises(StepError, match="on_fail: fail"):
+        build(_with_rule(disposition))
+
+
+def test_a_fail_rule_on_an_output_lowers_onto_the_synthesized_entity() -> None:
+    """The half that can (D39): `fail` needs no SELECT — it reads the finished
+    relation and returns violating rows, which is what a blocking audit is."""
+    ir = build(_with_rule("fail"))
+    (entity,) = [e for e in ir.entities if e.name == "customer"]
+    assert [(rule.name, rule.kind) for rule in entity.quality] == [("confident", "expression")]
 
 
 def test_a_sql_model_without_a_body_is_refused() -> None:
