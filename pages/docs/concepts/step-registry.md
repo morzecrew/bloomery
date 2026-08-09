@@ -25,11 +25,9 @@ surprising number of Python steps are one expression wearing a dataframe.
 
 Tier 3's costs are real and worth naming before you choose it: data leaves the
 engine, the step becomes memory-bound, and column-level lineage is gone
-(`lineage: coarse`). Tier 1 will cost nothing at run time at all — the macro body is spliced into
-the model's SELECT, so the model stays one query and lineage sees straight
-through it. **It is not wired yet:** there is no spec surface by which a
-mapping references a macro step, so a wired `sql_macro` is a compile error
-today rather than a splice that quietly does not happen.
+(`lineage: coarse`). Tier 1 costs nothing at run time at all — the macro body is spliced into the
+model's query, so the model stays one query and lineage sees straight through
+it.
 
 ## What a manifest declares
 
@@ -162,6 +160,76 @@ load. That absence is the security property: a spec can no more load code than
 a metric name can. The registry is assembled by the caller and passed in —
 `compile_project(project, …, steps=registry)` — so bloomery never reads a step
 file from disk, and there is no dynamic loading path to abuse.
+
+## Using a macro (Tier 1)
+
+A macro is referenced from the mapping that uses it, never wired in the
+`steps:` document — it writes no relation, so it has no output to bind there,
+and one wiring per step ref would make a macro usable in exactly one mapping.
+
+Its manifest declares a **signature**: what it accepts, and (through
+`produces`) what it returns.
+
+```yaml
+ref: extract_domain
+version: 1
+kind: sql_macro
+determinism: pure
+runtime_lock: sha256:beef…
+accepts:
+  email: string
+outputs:
+  value: {grain: row, key: [v], produces: {v: {type: string}}}
+```
+
+The body lives in the registry the caller assembles, as one expression whose
+`:name` placeholders are exactly what the manifest declares:
+
+```sql
+SPLIT_PART(:email, '@', 2)
+```
+
+### Two ways to call it
+
+**As a field**, binding each accepted column to a source path — the shape to
+reach for when a macro takes more than one column:
+
+```yaml
+fields:
+  email_domain:
+    step: extract_domain@1
+    from: {email: "$.email"}
+```
+
+**As a chain link**, so whitelist transforms and the macro compose on one
+field. The running value fills the macro's single accepted column, so this
+shape needs a macro that accepts exactly one:
+
+```yaml
+fields:
+  email_domain:
+    from: "$.email"
+    transform: [lower, {step: extract_domain@1}, trim]
+```
+
+### What is checked
+
+Because the signature is declared rather than guessed from the body, a chain
+is typechecked *around* the macro: the transforms before it against what it
+accepts, the transforms after it from what it produces. A macro is therefore
+no weaker than a Tier 0 transform, which declares the same two things.
+
+| Situation | Why it is refused |
+|---|---|
+| the body refers to something the manifest does not declare | the signature would be decoration, and a call site could not know what to supply |
+| a call site binds something the macro does not accept | the path would be read for nothing — a typo is otherwise silent |
+| a call site omits something it accepts | the placeholder would reach the engine unfilled |
+| a two-column macro used as a chain link | a chain carries one running value, so an argument would be dropped |
+| a macro declaring anything but `determinism: pure` | it is re-evaluated on every backfill by construction |
+
+A genuinely polymorphic macro has to pick a type. That is the same constraint
+a Tier 0 transform carries through its input domain, and the same trade:
+a declared type is what makes the check possible at all.
 
 ## Trust at compile, verify at run time
 

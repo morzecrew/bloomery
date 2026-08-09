@@ -95,7 +95,7 @@ if TYPE_CHECKING:
     from bloomery.spec.entity import Entity, Field
     from bloomery.spec.mapping import Mapping, TransformStep
     from bloomery.spec.project import Project
-    from bloomery.steps import StepRegistry
+    from bloomery.steps import StepManifest, StepRegistry
     from bloomery.transforms import Registry
 
 __all__ = [
@@ -142,6 +142,7 @@ def _lower_chain(
     steps: tuple[TransformStep, ...],
     declared: LogicalType,
     reg: Registry,
+    macros: StepRegistry,
     *,
     source_path: str,
 ) -> Expression:
@@ -149,14 +150,91 @@ def _lower_chain(
     if not steps:
         return exp.cast(node, generic_type(declared))
     for step in steps:
+        if step.step is not None:
+            node = _splice_link(step.step, node, macros, source_path=source_path)
+            continue
         node = reg[step.name].builder(node, *step.args)
-    terminal = typecheck_chain(StringType(), steps, declared, registry=reg, source_path=source_path)
+    terminal = _chain_terminal(steps, declared, reg, macros, source_path=source_path)
     if terminal != declared:
         node = exp.cast(node, generic_type(declared))
     return node
 
 
-def _typecheck_project(project: Project, reg: Registry) -> None:
+def _splice_link(
+    use: str, running: Expression, macros: StepRegistry, *, source_path: str
+) -> Expression:
+    """One Tier 1 link in a chain: the running value fills the macro's single
+    accepted column.
+
+    Which name that column has does not matter and is deliberately not a
+    convention — the manifest declares it, and :func:`_refuse_unchainable`
+    has already established there is exactly one.
+    """
+    manifest, body = _macro_parts(use, macros, source_path=source_path)
+    _refuse_unchainable(use, manifest, source_path=source_path)
+    (column,) = manifest.accepts
+    arguments: dict[str, Expression] = {column: running}
+    arguments.update(_macro_parameters(manifest, {}))
+    return splice(body, arguments)
+
+
+def chain_segments(
+    steps: tuple[TransformStep, ...],
+    declared: LogicalType,
+    macros: StepRegistry,
+    *,
+    source_path: str,
+) -> tuple[tuple[LogicalType, tuple[TransformStep, ...], LogicalType], ...]:
+    """A chain split *around* each Tier 1 link, as ``(input, run, declared)``.
+
+    A macro is where the transform whitelist stops being able to reason: its
+    body is opaque SQL. So the run of transforms before it is checked against
+    the type the macro **declares** it accepts, and the run after it starts
+    from the type its ``produces`` declares — which is exactly what makes
+    Tier 1 no weaker than Tier 0, whose ``TransformSpec`` declares
+    ``input_domain`` and ``output_type`` for the same reason (D51).
+
+    Returned as segments rather than checked here so both callers can use
+    one implementation: the batch stage queues them as ordinary
+    ``ChainCheck``s — keeping RFC 0006 D2's one-aggregate property for chains
+    containing a macro — and lowering walks them for the terminal type.
+    """
+    segments: list[tuple[LogicalType, tuple[TransformStep, ...], LogicalType]] = []
+    current: LogicalType = StringType()
+    run: list[TransformStep] = []
+    for step in steps:
+        if step.step is None:
+            run.append(step)
+            continue
+        manifest, _body = _macro_parts(step.step, macros, source_path=source_path)
+        _refuse_unchainable(step.step, manifest, source_path=source_path)
+        (accepted,) = manifest.accepts.values()
+        segments.append((current, tuple(run), parse_type(accepted, source_path=source_path)))
+        run = []
+        (output,) = manifest.outputs.values()
+        (produced,) = output.produces.values()
+        current = parse_type(produced.type, source_path=source_path)
+    segments.append((current, tuple(run), declared))
+    return tuple(segments)
+
+
+def _chain_terminal(
+    steps: tuple[TransformStep, ...],
+    declared: LogicalType,
+    reg: Registry,
+    macros: StepRegistry,
+    *,
+    source_path: str,
+) -> LogicalType:
+    terminal = declared
+    for input_type, run, expected in chain_segments(
+        steps, declared, macros, source_path=source_path
+    ):
+        terminal = typecheck_chain(input_type, run, expected, registry=reg, source_path=source_path)
+    return terminal
+
+
+def _typecheck_project(project: Project, reg: Registry, macros: StepRegistry) -> None:
     """Batch-check every non-empty transform chain (RFC 0004 §5.4). Empty
     chains are declared-type casts at extraction and carry no chain to check."""
     checks: list[ChainCheck] = []
@@ -167,18 +245,23 @@ def _typecheck_project(project: Project, reg: Registry) -> None:
             steps = mapping.key[field_name].transform
             if steps:
                 declared = _field_type(mapping.target, field_name, entity.fields[field_name])
-                checks.append(ChainCheck(StringType(), steps, declared, f"{doc}: key.{field_name}"))
+                path = f"{doc}: key.{field_name}"
+                checks.extend(
+                    ChainCheck(input_type, run, expected, path)
+                    for input_type, run, expected in chain_segments(
+                        steps, declared, macros, source_path=path
+                    )
+                )
         for field_name in sorted(mapping.fields):
             field_mapping = mapping.fields[field_name]
             if isinstance(field_mapping, ALIAS_BOUND) or not field_mapping.transform:
                 continue
             declared = _field_type(mapping.target, field_name, entity.fields[field_name])
-            checks.append(
-                ChainCheck(
-                    StringType(),
-                    field_mapping.transform,
-                    declared,
-                    f"{doc}: fields.{field_name}",
+            path = f"{doc}: fields.{field_name}"
+            checks.extend(
+                ChainCheck(input_type, run, expected, path)
+                for input_type, run, expected in chain_segments(
+                    field_mapping.transform, declared, macros, source_path=path
                 )
             )
     typecheck_chains(checks, registry=reg)
@@ -243,6 +326,72 @@ def _recipe_expr(
     return exp.cast(body, generic_type(declared)), recipe.id
 
 
+def _macro_parts(
+    use: str, macros: StepRegistry, *, source_path: str
+) -> tuple[StepManifest, Expression]:
+    """The manifest and parsed body behind a ``ref@version``, with every
+    refusal about *which steps may be spliced at all* applied once."""
+    ref, version = use.split("@", 1)
+    manifest = macros.resolve(ref, int(version), source_path=source_path)
+    if manifest.kind != "sql_macro":
+        msg = (
+            f"field references step {use!r}, which is a {manifest.kind} and cannot be "
+            "spliced into a column: only a sql_macro is an expression (RFC 0017 §5.1). "
+            "Fix: wire it in the steps: document, which is where a step that writes a "
+            "relation belongs"
+        )
+        raise StepError(msg, source_path=source_path)
+    if manifest.determinism != "pure":
+        msg = (
+            f"field references step {use!r}, which declares determinism: "
+            f"{manifest.determinism} (RFC 0017 §5.5). A macro is spliced into the "
+            "entity's query and re-evaluated on every backfill, so anything but pure "
+            "makes a restatement disagree with the run it replaces"
+        )
+        raise StepDeterminismError(msg, source_path=source_path)
+    body = macros.macro_body(ref, int(version))
+    if body is None:
+        msg = (
+            f"field references step {use!r} but the registry carries no macro body for it "
+            "(RFC 0017 §5.3); with none there the column would lower to nothing at all"
+        )
+        raise StepError(msg, source_path=source_path)
+    parsed = cast("Expression", parse_one(body))
+    _refuse_body_disagreement(use, manifest, parsed, source_path=source_path)
+    return manifest, parsed
+
+
+def _refuse_unchainable(use: str, manifest: StepManifest, *, source_path: str) -> None:
+    """A chain carries exactly one running value, so a link must accept
+    exactly one column — checked rather than assumed, because a two-column
+    macro reached this way would silently drop an argument."""
+    if len(manifest.accepts) != 1:
+        expected = ", ".join(sorted(manifest.accepts)) or "(nothing)"
+        msg = (
+            f"step {use!r} accepts {len(manifest.accepts)} column(s) ({expected}), so it "
+            "cannot be a link in a transform chain — a chain carries exactly one running "
+            "value. Fix: use it as a field's step:/from: pair, where each accepted column "
+            "is bound to its own source path"
+        )
+        raise StepError(msg, source_path=source_path)
+
+
+def _macro_parameters(
+    manifest: StepManifest, overrides: dict[str, object]
+) -> dict[str, Expression]:
+    """Declared defaults under the call site's values, as typed literals."""
+    resolved = {
+        name: str(spec.default)
+        for name, spec in manifest.parameters.items()
+        if spec.default is not None
+    }
+    resolved.update({name: str(value) for name, value in overrides.items()})
+    return {
+        name: parameter_literal(value, manifest.parameters[name].type)
+        for name, value in resolved.items()
+    }
+
+
 def _macro_expr(
     field_mapping: MacroFieldMapping,
     declared: LogicalType,
@@ -250,103 +399,84 @@ def _macro_expr(
     *,
     source_path: str,
 ) -> Expression:
-    """A Tier 1 macro spliced into the consuming column (RFC 0017 D50).
+    """A Tier 1 macro spliced into the consuming column (RFC 0017 D50/D51).
 
-    Every refusal here is the same shape D47 settled for Tier 2, and for the
-    same reason: the body's placeholders and what the call site supplies must
-    name **one** set. A placeholder nothing fills reaches the engine as an
-    unknown variable; an argument the body never mentions is a column read for
-    nothing, or a typo silently doing nothing.
-
-    Two populations fill placeholders, and they are disjoint by construction:
-    ``from`` binds *columns* (substituted as extraction expressions) and
-    ``parameters`` binds *scalars* (substituted as typed literals, so a value
-    is data wherever it lands). A name in both is refused rather than resolved
-    by precedence — a rule nobody can predict is worse than an error.
+    Two populations fill the body's placeholders, disjoint by declaration:
+    ``from`` binds the columns the manifest ``accepts`` (substituted as
+    extraction expressions) and ``parameters`` binds the scalars it declares
+    (substituted as typed literals, so a value is data wherever it lands).
     """
-    ref, version = field_mapping.step.split("@", 1)
-    manifest = steps.resolve(ref, int(version), source_path=source_path)
-    if manifest.kind != "sql_macro":
-        msg = (
-            f"field references step {field_mapping.step!r}, which is a {manifest.kind} "
-            "and cannot be spliced into a column: only a sql_macro is an expression "
-            "(RFC 0017 §5.1). Fix: wire it in the steps: document, which is where a "
-            "step that writes a relation belongs"
-        )
-        raise StepError(msg, source_path=source_path)
-    if manifest.determinism != "pure":
-        msg = (
-            f"field references step {field_mapping.step!r}, which declares determinism: "
-            f"{manifest.determinism} (RFC 0017 §5.5). A macro is spliced into the "
-            "entity's SELECT and re-evaluated on every backfill, so anything but pure "
-            "makes a restatement disagree with the run it replaces"
-        )
-        raise StepDeterminismError(msg, source_path=source_path)
-    body = steps.macro_body(ref, int(version))
-    if body is None:
-        msg = (
-            f"field references step {field_mapping.step!r} but the registry carries no "
-            "macro body for it (RFC 0017 §5.3); with none there the column would lower "
-            "to nothing at all"
-        )
-        raise StepError(msg, source_path=source_path)
-    # `parse_one` is typed against `sqlglot.expressions`; the codebase reads
-    # the same class through `.core` (the spelling pyright resolves).
-    parsed = cast("Expression", parse_one(body))
-    used = placeholders(parsed)
-    columns = set(field_mapping.from_)
-    scalars = set(field_mapping.parameters) | {
-        name for name, spec in manifest.parameters.items() if spec.default is not None
-    }
-    overlap = sorted(columns & scalars)
-    if overlap:
-        msg = (
-            f"field binds {', '.join(overlap)} as both a column (from:) and a parameter "
-            f"of step {field_mapping.step!r}. One placeholder cannot be two things, and "
-            "picking one silently is a rule nobody can predict"
-        )
-        raise StepError(msg, source_path=source_path)
-    _refuse_macro_disagreement(field_mapping, used, columns, scalars, source_path=source_path)
+    manifest, body = _macro_parts(field_mapping.step, steps, source_path=source_path)
+    _refuse_macro_disagreement(field_mapping, manifest, source_path=source_path)
     arguments: dict[str, Expression] = {
         alias: extraction(path) for alias, path in field_mapping.from_.items()
     }
-    resolved = {
-        name: str(spec.default)
-        for name, spec in manifest.parameters.items()
-        if spec.default is not None
-    }
-    resolved.update({name: str(value) for name, value in field_mapping.parameters.items()})
-    arguments.update(
-        {
-            name: parameter_literal(value, manifest.parameters[name].type)
-            for name, value in resolved.items()
-        }
-    )
-    return exp.cast(splice(parsed, arguments), generic_type(declared))
+    arguments.update(_macro_parameters(manifest, dict(field_mapping.parameters)))
+    return exp.cast(splice(body, arguments), generic_type(declared))
+
+
+def _refuse_body_disagreement(
+    use: str, manifest: StepManifest, parsed: Expression, *, source_path: str
+) -> None:
+    """The macro's *body* and its *declared signature* name one set (D51).
+
+    Checked once, against the manifest rather than against any call site: the
+    registry is where a macro's body and its declaration meet, and a
+    disagreement there is the platform's bug, not the spec author's. Without
+    it the signature would be decoration — a body could refer to a
+    placeholder nothing declares, and the call site would have no way to know
+    it was supposed to supply one.
+    """
+    declared = set(manifest.accepts) | set(manifest.parameters)
+    used = placeholders(parsed)
+    if undeclared := sorted(used - declared):
+        msg = (
+            f"step {use!r} has a body referring to :{', :'.join(undeclared)}, which its "
+            "manifest declares neither in accepts: nor in parameters:. A macro's signature "
+            "is declared, never read off its body (RFC 0017 D51)"
+        )
+        raise StepError(msg, source_path=source_path)
+    if unused := sorted(declared - used):
+        msg = (
+            f"step {use!r} declares {', '.join(unused)}, which its body never refers to. "
+            f"A call site would be required to supply :{unused[0]} for nothing"
+        )
+        raise StepError(msg, source_path=source_path)
 
 
 def _refuse_macro_disagreement(
     field_mapping: MacroFieldMapping,
-    used: frozenset[str],
-    columns: set[str],
-    scalars: set[str],
+    manifest: StepManifest,
     *,
     source_path: str,
 ) -> None:
-    """The body and the call site name one set, or it is a compile error."""
-    supplied = columns | scalars
-    if unfilled := sorted(used - supplied):
+    """The call site supplies exactly the signature the macro declares.
+
+    Against the declaration, not against the body: that is the difference D51
+    makes. The message can now name what the macro *expects*, and a body
+    change that adds a placeholder is the platform's error rather than a
+    puzzle handed to whoever wired it.
+    """
+    supplied = set(field_mapping.from_)
+    if missing := sorted(set(manifest.accepts) - supplied):
         msg = (
-            f"step {field_mapping.step!r} has a body referring to :{', :'.join(unfilled)}, "
-            "which this field supplies neither as a column (from:) nor as a parameter. "
-            "An unfilled placeholder reaches the engine as an unknown variable"
+            f"field does not bind {', '.join(missing)}, which step {field_mapping.step!r} "
+            f"accepts; bind it under from:, as a source path. Expected: "
+            f"{', '.join(f'{n}: {t}' for n, t in sorted(manifest.accepts.items()))}"
         )
         raise StepError(msg, source_path=source_path)
-    if unused := sorted(supplied - used):
+    if spare := sorted(supplied - set(manifest.accepts)):
         msg = (
-            f"field supplies {', '.join(unused)} to step {field_mapping.step!r}, whose body "
-            f"never refers to :{unused[0]}. It would be read for nothing — and a typo here "
-            "is otherwise silent"
+            f"field binds {', '.join(spare)}, which step {field_mapping.step!r} does not "
+            f"accept; it accepts {', '.join(sorted(manifest.accepts)) or '(nothing)'}. "
+            "The path would be read for nothing — and a typo here is otherwise silent"
+        )
+        raise StepError(msg, source_path=source_path)
+    if unknown := sorted(set(field_mapping.parameters) - set(manifest.parameters)):
+        msg = (
+            f"field sets parameter(s) {', '.join(unknown)} that step "
+            f"{field_mapping.step!r} does not declare; declared: "
+            f"{', '.join(sorted(manifest.parameters)) or '(none)'}"
         )
         raise StepError(msg, source_path=source_path)
 
@@ -386,6 +516,7 @@ def _build_entity(
             key_field.transform,
             declared,
             reg,
+            steps,
             source_path=f"{doc}: key.{field_name}",
         )
         columns.append(_column_ir(field_name, field, declared, shape(expr), catalog))
@@ -443,6 +574,7 @@ def _build_entity(
                 field_mapping.transform,
                 declared,
                 reg,
+                steps,
                 source_path=f"{doc}: fields.{field_name}",
             )
             columns.append(_column_ir(field_name, field, declared, shape(expr), catalog))
@@ -591,7 +723,7 @@ def build_project_ir(
     """
     resolution = resolve(project, catalog)
     reg = registry()
-    _typecheck_project(project, reg)
+    _typecheck_project(project, reg, steps)
 
     steps_ir = lower_steps(project, steps)
     draft = ProjectIR(

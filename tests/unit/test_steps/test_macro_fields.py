@@ -41,6 +41,7 @@ def manifest(**overrides: object) -> StepManifest:
         "kind": "sql_macro",
         "determinism": "pure",
         "runtime_lock": "sha256:beef",
+        "accepts": {"email": "string"},
         "outputs": {
             "value": {"grain": "row", "key": ["v"], "produces": {"v": {"type": "string"}}}
         },
@@ -152,25 +153,44 @@ def test_a_parameter_value_cannot_carry_sql_into_the_body() -> None:
 # Agreement between the body and the call site
 
 
-def test_a_placeholder_nothing_supplies_is_refused() -> None:
-    with pytest.raises(StepError, match="unknown variable"):
+def test_a_body_referring_to_something_undeclared_is_refused() -> None:
+    """The manifest is where a macro's body and its declaration meet, so a
+    disagreement there is the platform's bug — caught once, rather than
+    handed to every call site as a puzzle."""
+    with pytest.raises(StepError, match="declares neither in accepts"):
         build(CALL, registry(body="SPLIT_PART(:email, :missing, 2)"))
 
 
-def test_an_argument_the_body_never_uses_is_refused() -> None:
+def test_a_declared_name_the_body_never_uses_is_refused() -> None:
+    """The other direction: a call site would be made to supply it for
+    nothing."""
+    with pytest.raises(StepError, match="never refers"):
+        build(CALL, registry(accepts={"email": "string", "spare": "string"}))
+
+
+def test_a_call_site_that_does_not_bind_what_the_macro_accepts_is_refused() -> None:
+    """The message names the expected signature, which is what declaring it
+    buys — before D51 the call site could only be told a placeholder was
+    unfilled, never what the macro wanted."""
+    with pytest.raises(StepError, match="accepts; bind it under from"):
+        build("    step: extract_domain@1\n    from: {}\n")
+
+
+def test_a_call_site_binding_something_unaccepted_is_refused() -> None:
     """A typo here is otherwise completely silent — the column would simply
     ignore a source path the mapping says it reads."""
-    with pytest.raises(StepError, match="never refers"):
+    with pytest.raises(StepError, match="does not accept"):
         build('    step: extract_domain@1\n    from: {email: "$.email", nope: "$.x"}\n')
 
 
-def test_a_name_bound_as_both_a_column_and_a_parameter_is_refused() -> None:
-    with pytest.raises(StepError, match="cannot be two things"):
-        build(
-            '    step: extract_domain@1\n    from: {email: "$.email"}\n'
-            "    parameters: {email: 'x'}\n",
-            registry(parameters={"email": {"type": "string", "default": "x"}}),
-        )
+def test_a_name_declared_as_both_a_column_and_a_parameter_is_refused() -> None:
+    """Refused at the *manifest* now, not at the call site: one placeholder
+    cannot be filled by two things, and that is decidable from the
+    declaration alone."""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="cannot be filled by two things"):
+        manifest(parameters={"email": {"type": "string", "default": "x"}})
 
 
 # ....................... #
@@ -181,7 +201,10 @@ def test_splicing_a_step_that_writes_a_relation_is_refused() -> None:
     """A `sql_model` or `python_model` produces a table, not a value. Naming
     one here is a tier confusion the message has to say out loud."""
     with pytest.raises(StepError, match="cannot be spliced"):
-        build(CALL, registry(kind="sql_model"))
+        # `accepts` is refused on a non-macro at the manifest, so a step that
+        # writes a relation reaches the splice site without one — which is the
+        # shape this refusal has to catch.
+        build(CALL, registry(kind="sql_model", accepts={}))
 
 
 def test_a_nondeterministic_macro_is_refused() -> None:
@@ -233,3 +256,86 @@ def test_the_column_expression_is_a_single_expression() -> None:
     (column,) = [c for c in entity.columns if c.name == "email_domain"]
     tree = column.expr.ast()
     assert tree.find(exp.Select) is None
+
+
+# ....................... #
+# The chain form: Tier 0 and Tier 1 composed on one field (D51)
+
+
+def chain_registry(**overrides: object) -> StepRegistry:
+    base: dict[str, object] = {"accepts": {"v": "string"}}
+    return registry(body="SPLIT_PART(:v, '@', 2)", **(base | overrides))
+
+
+CHAIN = "    from: \"$.email\"\n    transform: [lower, {step: extract_domain@1}, trim]\n"
+
+
+def test_a_macro_composes_with_tier_0_transforms_in_one_chain() -> None:
+    """The reason the chain form exists at all: the field form binds a raw
+    source path, so it cannot run a whitelist transform before the macro."""
+    sql = domain_expr(build(CHAIN, chain_registry()))
+    assert "LOWER" in sql
+    assert "SPLIT_PART" in sql
+    assert "TRIM" in sql
+
+
+def test_the_running_value_fills_the_macro_s_single_accepted_column() -> None:
+    ir = build(CHAIN, chain_registry())
+    (entity,) = [e for e in ir.entities if e.name == "customer"]
+    (column,) = [c for c in entity.columns if c.name == "email_domain"]
+    tree = column.expr.ast()
+    assert tree.find(exp.Placeholder) is None
+    # The macro wraps the *lowered* value, not the raw extraction.
+    assert "LOWER" in tree.sql()
+
+
+def test_a_macro_accepting_two_columns_cannot_be_a_chain_link() -> None:
+    """A chain carries exactly one running value, so a two-column macro would
+    silently drop an argument. Refused, naming the surface that fits."""
+    with pytest.raises(StepError, match="cannot be a link in a transform chain"):
+        build(
+            CHAIN,
+            registry(
+                body="similarity(:a, :b)", accepts={"a": "string", "b": "string"}
+            ),
+        )
+
+
+def test_the_chain_is_typechecked_around_the_macro() -> None:
+    """The point of declaring a signature (D51): the run before the macro is
+    checked against what it accepts. Here `to_int` makes the running value an
+    int where the macro declares it takes a string."""
+    from bloomery.errors import TypeCheckError
+
+    bad = "    from: \"$.email\"\n    transform: [to_int, {step: extract_domain@1}]\n"
+    with pytest.raises(TypeCheckError):
+        build(bad, chain_registry())
+
+
+def test_the_macro_s_declared_output_type_starts_the_rest_of_the_chain() -> None:
+    """And the other half: after the macro, checking resumes from what its
+    `produces` declares rather than from whatever came in."""
+    from bloomery.errors import TypeCheckError
+
+    # `upper` takes a string; the macro declares it produces an int here, so
+    # the suffix is checked against the *declared* output and refuses.
+    numeric = registry(
+        body="LENGTH(:v)",
+        accepts={"v": "string"},
+        outputs={"value": {"grain": "row", "key": ["v"], "produces": {"v": {"type": "int"}}}},
+    )
+    with pytest.raises(TypeCheckError):
+        build("    from: \"$.email\"\n    transform: [{step: extract_domain@1}, upper]\n", numeric)
+
+
+def test_a_chain_step_is_either_a_transform_or_a_step_never_both() -> None:
+    with pytest.raises(SpecParseError, match="never both"):
+        load_project(
+            {
+                "entity_model": ENTITY_MODEL,
+                "mapping": mapping(
+                    "    from: \"$.email\"\n"
+                    "    transform: [{name: lower, step: extract_domain@1}]\n"
+                ),
+            }
+        )

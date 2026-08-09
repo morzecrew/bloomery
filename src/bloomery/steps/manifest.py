@@ -203,12 +203,60 @@ class StepManifest(SpecModel):
     outputs: dict[str, StepOutput] = Field(min_length=1)
     inputs: dict[str, StepInput] = Field(default_factory=dict[str, StepInput])
     parameters: dict[str, StepParameter] = Field(default_factory=dict[str, StepParameter])
+    #: A ``sql_macro``'s *signature*: the column each ``:name`` in its body
+    #: expects, by declared type (§5.1, D51).
+    #:
+    #: Declared rather than read off the body, for the reason D43 and D49 both
+    #: settled: a contract inferred from structure is a guess, and it does not
+    #: become a fact because the guess is easy. It is also what makes Tier 1
+    #: no weaker than the rung below it — a Tier 0 ``TransformSpec`` declares
+    #: ``input_domain`` and ``output_type``, so a macro that declared neither
+    #: would be the one tier whose inputs nothing checks, while §5.1's table
+    #: claims Tier 1 can *parse and typecheck*.
+    #:
+    #: Separate from ``inputs`` deliberately: that key is relation-shaped
+    #: (a grain and the columns a table step reads), and one key meaning two
+    #: different things by kind reads fine only to whoever wrote it.
+    #:
+    #: The *output* type needs no new field — a macro has exactly one output
+    #: of exactly one column (D18b), so ``produces`` already states it.
+    accepts: dict[str, TypeString] = Field(default_factory=dict[str, TypeString])
     lineage: LineageName = "column"
     #: ``python_model`` only: the function the generated wrapper imports at
     #: run time. Required there and refused elsewhere — a SQL step has no
     #: Python to call, and a manifest naming one is describing something the
     #: emitter would silently ignore.
     entrypoint: StepEntrypoint | None = None
+
+    @model_validator(mode="after")
+    def _accepts_matches_kind(self) -> Self:
+        """Only a macro has a signature to declare, and its names must be
+        usable as placeholders and distinct from its parameters.
+
+        A placeholder is filled by exactly one of the two, so a name in both
+        is a call site that cannot be resolved without a precedence rule —
+        and a rule nobody can predict is worse than an error (D47's finding,
+        one tier down).
+        """
+        if self.kind != "sql_macro" and self.accepts:
+            msg = (
+                f"a {self.kind} declares accepts, which only a sql_macro has: a step that "
+                "writes a relation reads its inputs as tables (inputs:), not as columns "
+                "spliced into an expression"
+            )
+            raise ValueError(msg)
+        bad = sorted(name for name in self.accepts if not name.isidentifier())
+        if bad:
+            msg = f"accepts names {', '.join(bad)}, which are not identifiers"
+            raise ValueError(msg)
+        both = sorted(set(self.accepts) & set(self.parameters))
+        if both:
+            msg = (
+                f"{', '.join(both)} is declared as both an accepted column and a "
+                "parameter; one placeholder cannot be filled by two things"
+            )
+            raise ValueError(msg)
+        return self
 
     @model_validator(mode="after")
     def _entrypoint_matches_kind(self) -> Self:

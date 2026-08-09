@@ -11,7 +11,7 @@ parse (RFC 0002 D4).
 from __future__ import annotations
 
 from collections.abc import Mapping as AbcMapping
-from typing import Annotated, cast
+from typing import Annotated, Self, cast
 
 from pydantic import Discriminator, Field, Tag, model_validator
 
@@ -35,10 +35,26 @@ __all__ = [
 class TransformStep(SpecModel):
     """One step of a transform chain, normalized at parse (RFC 0002 §5.5) from
     either a bare name (``to_int``) or a single-key mapping
-    (``{parse_ts: "ISO8601"}``) into ``(name, args)``."""
+    (``{parse_ts: "ISO8601"}``) into ``(name, args)``.
 
-    name: str
+    ``step`` is the Tier 1 link (RFC 0017 D51): ``{step: extract_domain@1}``
+    splices a ``sql_macro`` into the chain at that position. It is a separate
+    field rather than a reserved transform *name* because a whitelist entry
+    called ``step`` would otherwise shadow it silently — and the whitelist is
+    open to additions by RFC amendment (RFC 0004), so "no transform is called
+    that today" is not a property anything guarantees.
+    """
+
+    name: str = ""
     args: tuple[str | int, ...] = ()
+    step: StepUse | None = None
+
+    @model_validator(mode="after")
+    def _is_one_kind_of_link(self) -> Self:
+        if bool(self.name) == (self.step is not None):
+            msg = "a chain step is either a transform name or a step: reference, never both"
+            raise ValueError(msg)
+        return self
 
     @model_validator(mode="before")
     @classmethod
@@ -47,6 +63,8 @@ class TransformStep(SpecModel):
             return {"name": value}
         if isinstance(value, AbcMapping):
             mapping = cast("AbcMapping[object, object]", value)
+            if "step" in mapping:
+                return mapping  # the Tier 1 link — no name/args to normalize
             if set(mapping.keys()) in ({"name"}, {"name", "args"}):
                 return mapping  # already-normalized form (round-trips)
             if len(mapping) == 1:

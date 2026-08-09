@@ -19,7 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A step wiring may declare `canonical: {<output>: {<column>: <canonical_field>}}`, which is what lets **metrics** and **`reconcile`** read a step output — a metric resolves against canonical fields, and only mapped entity fields could previously draw that link. The link lives on the wiring rather than in the manifest, because canonical names are the authored spec's vocabulary and a manifest naming them could not be reused by a project spelling them differently. It is never inferred from a matching column name.
 
-- Steps not yet wired are refused rather than silently dropped: a `sql_macro` (Tier 1 has no reference surface yet), a `sql_model` with no registry body, and any step at all on the dbt or Cube targets.
+- Tier 1 is wired: a mapping may splice a `sql_macro` into a field, either as a field shape (`step: ref@version` with `from:` binding each accepted column to a source path) or as a `{step: ref@version}` link in a transform chain, so whitelist transforms and a macro compose on one field. A macro is referenced inline rather than wired in `steps:` — it writes no relation, and one wiring per ref would make it usable in exactly one mapping. The splice happens at lowering, so the model stays one query and column-level lineage sees through it.
+
+- A `sql_macro` manifest declares its signature with `accepts: {column: type}`, never inferred from the body's placeholders. The body is checked against the declaration at the registry, call sites are checked against it (so the error names what the macro expects), and a chain is typechecked *around* the link — the transforms before it against what it accepts, those after it from what it produces. A polymorphic macro must pick a concrete type, the same constraint a Tier 0 transform carries through its input domain.
+
+- Steps not wired in the `steps:` document are refused rather than silently dropped: a `sql_macro` (which belongs at its call site), a `sql_model` with no registry body, and any step at all on the dbt or Cube targets.
 
 - An `expression` quality rule on a step output with `on_fail: fail` lowers to a blocking audit over the relation, attached to that output's own model so SQLMesh runs it. `flag` and `quarantine` stay compile errors: both work by rewriting the silver `SELECT` — the `_quality_flags` projection and the routing `WHERE` — and a step-produced relation has none, because its wrapper writes the rows.
 
