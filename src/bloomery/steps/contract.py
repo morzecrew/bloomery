@@ -92,13 +92,17 @@ def _check_columns(step: str, name: str, frame: Any, produces: Mapping[str, Any]
     # than a Series — so the type check died on `.dtype` and the grain check
     # on `.duplicated()`, both as opaque `AttributeError`s rather than as the
     # violation this module exists to raise.
-    repeated = sorted({column for column in actual if actual.count(column) > 1})
+    # Sorted and rendered `str`-first because a dataframe label is any
+    # hashable, not a `str`: integer labels made `join` raise and a mix of the
+    # two made `sorted` raise, which is the same opaque `TypeError`-instead-of-
+    # violation this guard exists to prevent, one type short.
+    repeated = sorted({column for column in actual if actual.count(column) > 1}, key=str)
     if repeated:
         raise _violation(
             step,
             name,
-            f"column {', '.join(repeated)} appears more than once — a duplicated label "
-            "makes the declared type and grain unverifiable",
+            f"column(s) {', '.join(map(str, repeated))} appear more than once — a "
+            "duplicated label makes the declared type and grain unverifiable",
         )
     declared = set(produces)
     missing = sorted(declared - set(actual))

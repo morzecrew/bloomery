@@ -216,8 +216,33 @@ def test_a_duplicated_column_label_is_a_violation_not_an_attribute_error() -> No
         "outputs": {"o": {"key": ["a"], "produces": {"a": {"type": "string"}}}},
     }
     frame = pd.DataFrame([["x", "y"]], columns=["a", "a"])
-    with pytest.raises(StepContractViolation, match="appears more than once"):
+    with pytest.raises(StepContractViolation, match="appear more than once"):
         assert_step_contract({"o": frame}, manifest)
+
+
+@pytest.mark.parametrize(
+    ("label", "columns"),
+    [
+        ("integer labels", [7, 7]),
+        ("mixed labels", [7, 7, "b", "b"]),
+    ],
+)
+def test_a_duplicated_label_that_is_not_a_string_is_still_a_violation(
+    label: str, columns: list[object]
+) -> None:
+    """A dataframe label is any hashable, not a `str`. The duplicate-label
+    guard above sorted and ``join``ed them directly, so integer labels raised
+    ``TypeError: sequence item 0: expected str instance`` and mixed ones
+    ``TypeError: '<' not supported between 'int' and 'str'`` — reintroducing
+    the opaque crash that guard was written to replace, one type short.
+    """
+    manifest = {
+        "ref": "s",
+        "outputs": {"o": {"key": ["a"], "produces": {"a": {"type": "string"}}}},
+    }
+    frame = pd.DataFrame([list(range(len(columns)))], columns=columns)
+    with pytest.raises(StepContractViolation, match="appear more than once"):
+        assert_step_contract({"o": frame}, manifest), label
 
 
 def test_a_manifest_without_outputs_fails_loudly_rather_than_checking_nothing() -> None:
