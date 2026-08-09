@@ -392,11 +392,11 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
     errors: list[BloomeryError] = []
     if manifest.kind == "sql_macro":
         msg = (
-            f"step {wiring.use!r} is a sql_macro, which bloomery cannot yet wire: Tier 1 "
-            "splices into a consuming model's SELECT (RFC 0017 §5.1) and no spec surface "
-            "references a macro step yet, so this would compile clean and emit nothing. "
-            "Fix: declare it as a sql_model, or keep the expression in the transform "
-            "whitelist (Tier 0)"
+            f"step {wiring.use!r} is a sql_macro, which is not wired here: Tier 1 splices "
+            "into the consuming model's query (RFC 0017 §5.1), so it writes no relation "
+            "and has no output to bind. A macro is referenced from the mapping that uses "
+            "it, as a field's step:/from: pair (D50) — which is also what lets one macro "
+            "serve several call sites with different arguments"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
     routed = sorted(rule.name for rule in wiring.quality if rule.on_fail != "fail")

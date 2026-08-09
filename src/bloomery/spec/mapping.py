@@ -17,10 +17,13 @@ from pydantic import Discriminator, Field, Tag, model_validator
 
 from bloomery.spec.common import JsonPath, MemberName, SpecModel
 from bloomery.spec.quality import FieldQualityRule
+from bloomery.spec.steps import ParameterValue, StepUse
 
 __all__ = [
+    "ALIAS_BOUND",
     "FieldMapping",
     "KeyField",
+    "MacroFieldMapping",
     "Mapping",
     "RecipeFieldMapping",
     "SimpleFieldMapping",
@@ -97,19 +100,61 @@ class RecipeFieldMapping(SpecModel):
     quality: tuple[FieldQualityRule, ...] = ()
 
 
+class MacroFieldMapping(SpecModel):
+    """A field computed by a Tier 1 ``sql_macro`` (RFC 0017 §5.1, D50).
+
+    The third field shape, beside a direct ``from:`` and a catalog
+    ``recipe:``. ``step`` names the macro as ``ref@version``; ``from`` binds
+    each ``:name`` its body refers to, exactly as a recipe binds the aliases
+    its ``requires`` names. Both read the same way on purpose — a macro is a
+    recipe the platform owns and versions, rather than one the catalog
+    declares.
+
+    ``parameters`` are supplied **here**, at the call site, not in the
+    ``steps:`` document. A macro writes no relation, so it has no output to
+    bind there; and one wiring per ref (RFC 0017 D13) would make a macro
+    usable in exactly one mapping, with one parameter set — which is the
+    pressure that produces ``fuzzy_score_strict`` and is the fork §5.7 exists
+    to refuse.
+
+    There is still no field here that can hold a body. The macro's SQL comes
+    from the registry the caller assembled, never from the spec (§5.3, D3).
+    """
+
+    step: StepUse
+    from_: dict[str, JsonPath] = Field(alias="from", default_factory=dict[str, JsonPath])
+    parameters: dict[str, ParameterValue] = Field(default_factory=dict[str, ParameterValue])
+    quality: tuple[FieldQualityRule, ...] = ()
+
+
 def _field_mapping_tag(value: object) -> str:
-    if isinstance(value, AbcMapping) and "recipe" in value:
-        return "recipe"
+    if isinstance(value, AbcMapping):
+        if "recipe" in value:
+            return "recipe"
+        if "step" in value:
+            return "macro"
     if isinstance(value, RecipeFieldMapping):
         return "recipe"
+    if isinstance(value, MacroFieldMapping):
+        return "macro"
     return "simple"
 
 
 FieldMapping = Annotated[
-    Annotated[SimpleFieldMapping, Tag("simple")] | Annotated[RecipeFieldMapping, Tag("recipe")],
+    Annotated[SimpleFieldMapping, Tag("simple")]
+    | Annotated[RecipeFieldMapping, Tag("recipe")]
+    | Annotated[MacroFieldMapping, Tag("macro")],
     Discriminator(_field_mapping_tag),
 ]
-"""Discriminated union on the presence of ``recipe`` (RFC 0002 §5.5)."""
+"""Discriminated union on the presence of ``recipe`` or ``step`` (RFC 0002
+§5.5, RFC 0017 D50)."""
+
+#: The two shapes that bind **several** source paths under aliases, rather
+#: than one path directly. They differ in where the expression comes from — a
+#: catalog recipe or a platform macro — and agree on everything a caller that
+#: only wants the paths cares about, which is why those callers test for this
+#: pair instead of naming one class and falling through on the other.
+ALIAS_BOUND = (RecipeFieldMapping, MacroFieldMapping)
 
 
 class Mapping(SpecModel):

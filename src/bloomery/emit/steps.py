@@ -4,7 +4,9 @@ Three kinds, one per tier above the DSL:
 
 - **``sql_macro``** splices into the consuming entity's SELECT and emits no
   artifact of its own — the model stays one query and column-level lineage
-  sees straight through it (§5.1). :func:`macro_expression` is that splice.
+  sees straight through it (§5.1). The splice itself happens at *lowering*
+  (:mod:`bloomery.steps.splice`), so the macro is already part of the
+  consuming column's expression by the time this module sees the IR.
 - **``sql_model``** emits an ordinary model artifact from the registry body,
   which reached the IR canonicalized at lowering.
 - **``python_model``** emits a generated SQLMesh Python-model ``.py``
@@ -37,6 +39,7 @@ from bloomery.emit.lowering import THIS_MODEL
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import Layer, OnFail, StepKind
 from bloomery.quality import is_not_null, verdict
+from bloomery.steps.splice import parameter_literal
 from bloomery.typing import render_type
 
 if TYPE_CHECKING:
@@ -49,7 +52,6 @@ if TYPE_CHECKING:
 
 __all__ = [
     "consistency_audits",
-    "macro_expression",
     "refuse_steps",
     "step_artifacts",
 ]
@@ -270,32 +272,6 @@ def _parameter_expression(parameter: StepParameterIR) -> str:
     return template.format(literal=repr(parameter.value))
 
 
-def _parameter_literal(parameter: StepParameterIR) -> Expression:
-    """A resolved parameter as a SQL *literal node*, typed per the manifest.
-
-    The SQL twin of :func:`_parameter_expression`, and it carries the same
-    obligation: a value authored in a spec reaches emitted SQL here, so it is
-    built as an AST literal and never interpolated as text. That is what makes
-    ``x' OR 1=1 --`` a string containing an apostrophe rather than a predicate
-    (RFC 0013's injection-boundary lesson, RFC 0004 D7's SQLGlot-only rule).
-
-    The *declared* type decides the spelling rather than the shape of the
-    digits — the guessing game D20 refused on the Python side, where ``"0.9"``
-    and ``"09"`` cannot be told apart by looking. ``date`` and ``timestamp``
-    render as string literals the engine compares in the column's own type,
-    which is the convention ``_bound_literal`` already established for RFC
-    0016's range bounds (D57); no ``CAST`` spelling is invented here.
-    """
-    base = parameter.type.split("(", 1)[0].strip()
-    if base == "bool":
-        return exp.Boolean(this=parameter.value.strip().lower() in {"true", "1"})
-    if base in {"int", "decimal"}:
-        # The text, not a parsed float: RFC 0003 D5 keeps floats out of every
-        # emission path, and the value arrived validated at lowering.
-        return exp.Literal.number(parameter.value)
-    return exp.Literal.string(parameter.value)
-
-
 def _with_parameters(step: StepIR) -> Expression:
     """The Tier 2 body with its ``:name`` placeholders substituted.
 
@@ -312,7 +288,7 @@ def _with_parameters(step: StepIR) -> Expression:
         if isinstance(node, exp.Placeholder) and isinstance(node.this, str):
             parameter = values.get(node.this)
             if parameter is not None:
-                return _parameter_literal(parameter)
+                return parameter_literal(parameter.value, parameter.type)
         return node
 
     return step.body.ast().transform(_substitute)
@@ -331,33 +307,6 @@ def _parameters_literal(step: StepIR) -> str:
     if step.seed is not None:
         entries.append(f"{_python_literal('seed')}: {step.seed:d}")
     return "{" + ", ".join(entries) + "}"
-
-
-def macro_expression(step: StepIR, arguments: dict[str, Expression]) -> Expression:
-    """A Tier 1 body as an expression, with its named parameters substituted.
-
-    The body reached the IR parsed and canonicalized (RFC 0017 §5.8), so this
-    is a substitution over an AST rather than string interpolation — which is
-    what keeps the splice inside the SQLGlot-only discipline (RFC 0004 D7) and
-    lets the resulting model stay one query.
-
-    Placeholders are SQLGlot ``:name`` parameters. An argument the body does
-    not mention is ignored rather than refused: the caller supplies the
-    columns in scope, and a macro is entitled to use fewer than it is offered.
-    """
-    if step.body is None:  # pragma: no cover — lowering guarantees a Tier 1 body
-        msg = f"step {step.ref}@{step.version} is a sql_macro with no body"
-        raise ValueError(msg)
-    tree = step.body.ast()
-
-    def _substitute(node: Expression) -> Expression:
-        if isinstance(node, exp.Placeholder) and isinstance(node.this, str):
-            replacement = arguments.get(node.this)
-            if replacement is not None:
-                return replacement.copy()
-        return node
-
-    return tree.transform(_substitute)
 
 
 def _wrapper_artifact(

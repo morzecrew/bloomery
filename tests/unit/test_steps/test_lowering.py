@@ -323,11 +323,12 @@ def test_a_step_output_colliding_with_an_entity_is_refused() -> None:
         build_project_ir(project, steps=registry)
 
 
-def test_a_wired_sql_macro_is_refused_until_the_splice_site_exists() -> None:
-    """Tier 1 has no spec surface referencing it, so a wired macro bound an
-    output and emitted nothing at all. Documenting a splice that does not
-    happen is worse than not shipping the tier."""
-    with pytest.raises(StepError, match="cannot yet wire"):
+def test_a_sql_macro_is_not_wired_in_the_steps_document() -> None:
+    """Tier 1 writes no relation, so it has no output to bind here — and one
+    wiring per ref (D13) would make a macro usable in exactly one mapping,
+    with one parameter set. It is referenced from the mapping that uses it
+    instead (D50), and the refusal says so rather than saying "not yet"."""
+    with pytest.raises(StepError, match="referenced from the mapping"):
         build(
             kind="sql_macro",
             entrypoint=None,

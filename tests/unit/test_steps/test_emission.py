@@ -14,7 +14,6 @@ import pytest
 from sqlglot import exp, parse_one
 
 from bloomery.emit.base import EmittedArtifact
-from bloomery.emit.steps import macro_expression
 from bloomery.ir import Determinism, Lineage, StepIR, StepKind, canon
 from support.compiling import compile_fixture
 
@@ -150,21 +149,6 @@ def _macro(body: str) -> StepIR:
         outputs=(),
         body=canon(parse_one(body)),
     )
-
-
-def test_a_macro_splices_its_arguments() -> None:
-    """An AST substitution, not string interpolation — which is what keeps the
-    splice inside the SQLGlot-only discipline (RFC 0004 D7) and lets the model
-    stay one query."""
-    spliced = macro_expression(_macro("LOWER(:col)"), {"col": exp.column("email")})
-    assert spliced.sql() == "LOWER(email)"
-
-
-def test_a_macro_argument_the_body_ignores_is_not_an_error() -> None:
-    """The caller supplies the columns in scope; a macro may use fewer than it
-    is offered."""
-    spliced = macro_expression(_macro("UPPER(:a)"), {"a": exp.column("x"), "b": exp.column("y")})
-    assert spliced.sql() == "UPPER(x)"
 
 
 def test_a_macro_emits_no_artifact_of_its_own() -> None:

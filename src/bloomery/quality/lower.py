@@ -47,7 +47,7 @@ from bloomery.ir import (
     partition_specs,
     quality_sort_key,
 )
-from bloomery.spec.mapping import RecipeFieldMapping
+from bloomery.spec.mapping import ALIAS_BOUND
 from bloomery.spec.quality import (
     CoercibleRule,
     ExpressionRule,
@@ -116,7 +116,7 @@ def field_sources(mapping: Mapping, field_name: str) -> tuple[str, ...]:
     if field_name in mapping.key:
         return (canon(extraction(mapping.key[field_name].from_)).sql,)
     field_mapping = mapping.fields[field_name]
-    if isinstance(field_mapping, RecipeFieldMapping):
+    if isinstance(field_mapping, ALIAS_BOUND):
         paths = sorted(field_mapping.from_.values())
     else:
         paths = [field_mapping.from_]
@@ -141,8 +141,8 @@ def _enum_chain(mapping: Mapping, field_name: str) -> tuple[tuple[str, ...], tup
     # Only a value field can carry ``in_enum`` (key fields have no
     # ``quality:`` surface), so the lookup is total.
     field_mapping = mapping.fields[field_name]
-    if isinstance(field_mapping, RecipeFieldMapping):
-        return ((), ())  # a recipe binds aliases, not a chain — no enum_map
+    if isinstance(field_mapping, ALIAS_BOUND):
+        return ((), ())  # a recipe or macro binds aliases, not a chain — no enum_map
     spellings: set[str] = set()
     targets: set[str] = set()
     for step in field_mapping.transform:
@@ -178,8 +178,8 @@ def nullifying_steps(
     is not this function's error to raise: the chain typecheck already owns
     it, and reporting it twice would only crowd the batch.
     """
-    if isinstance(field_mapping, RecipeFieldMapping):
-        return ()  # a recipe binds aliases, not a chain
+    if isinstance(field_mapping, ALIAS_BOUND):
+        return ()  # a recipe or macro binds aliases, not a chain
     if field_mapping is None:
         key_field = mapping.key.get(column)
         if key_field is None:

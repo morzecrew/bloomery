@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING, cast
 from sqlglot import exp, parse_one
 from sqlglot.expressions.core import Expression
 
-from bloomery.errors import ResolutionError
+from bloomery.errors import ResolutionError, StepDeterminismError, StepError
 from bloomery.guardrails import check_guardrails
 from bloomery.ir import (
     Additivity,
@@ -77,8 +77,9 @@ from bloomery.resolve.recipes import resolve_recipe
 from bloomery.resolve.refs import mapping_doc
 from bloomery.resolve.resolution import resolve
 from bloomery.resolve.steps import lower_steps, step_entities
-from bloomery.spec.mapping import RecipeFieldMapping
+from bloomery.spec.mapping import ALIAS_BOUND, MacroFieldMapping, RecipeFieldMapping
 from bloomery.steps import EMPTY_REGISTRY
+from bloomery.steps.splice import parameter_literal, placeholders, splice
 from bloomery.transforms import registry
 from bloomery.typing import (
     ChainCheck,
@@ -169,7 +170,7 @@ def _typecheck_project(project: Project, reg: Registry) -> None:
                 checks.append(ChainCheck(StringType(), steps, declared, f"{doc}: key.{field_name}"))
         for field_name in sorted(mapping.fields):
             field_mapping = mapping.fields[field_name]
-            if isinstance(field_mapping, RecipeFieldMapping) or not field_mapping.transform:
+            if isinstance(field_mapping, ALIAS_BOUND) or not field_mapping.transform:
                 continue
             declared = _field_type(mapping.target, field_name, entity.fields[field_name])
             checks.append(
@@ -242,6 +243,114 @@ def _recipe_expr(
     return exp.cast(body, generic_type(declared)), recipe.id
 
 
+def _macro_expr(
+    field_mapping: MacroFieldMapping,
+    declared: LogicalType,
+    steps: StepRegistry,
+    *,
+    source_path: str,
+) -> Expression:
+    """A Tier 1 macro spliced into the consuming column (RFC 0017 D50).
+
+    Every refusal here is the same shape D47 settled for Tier 2, and for the
+    same reason: the body's placeholders and what the call site supplies must
+    name **one** set. A placeholder nothing fills reaches the engine as an
+    unknown variable; an argument the body never mentions is a column read for
+    nothing, or a typo silently doing nothing.
+
+    Two populations fill placeholders, and they are disjoint by construction:
+    ``from`` binds *columns* (substituted as extraction expressions) and
+    ``parameters`` binds *scalars* (substituted as typed literals, so a value
+    is data wherever it lands). A name in both is refused rather than resolved
+    by precedence — a rule nobody can predict is worse than an error.
+    """
+    ref, version = field_mapping.step.split("@", 1)
+    manifest = steps.resolve(ref, int(version), source_path=source_path)
+    if manifest.kind != "sql_macro":
+        msg = (
+            f"field references step {field_mapping.step!r}, which is a {manifest.kind} "
+            "and cannot be spliced into a column: only a sql_macro is an expression "
+            "(RFC 0017 §5.1). Fix: wire it in the steps: document, which is where a "
+            "step that writes a relation belongs"
+        )
+        raise StepError(msg, source_path=source_path)
+    if manifest.determinism != "pure":
+        msg = (
+            f"field references step {field_mapping.step!r}, which declares determinism: "
+            f"{manifest.determinism} (RFC 0017 §5.5). A macro is spliced into the "
+            "entity's SELECT and re-evaluated on every backfill, so anything but pure "
+            "makes a restatement disagree with the run it replaces"
+        )
+        raise StepDeterminismError(msg, source_path=source_path)
+    body = steps.macro_body(ref, int(version))
+    if body is None:
+        msg = (
+            f"field references step {field_mapping.step!r} but the registry carries no "
+            "macro body for it (RFC 0017 §5.3); with none there the column would lower "
+            "to nothing at all"
+        )
+        raise StepError(msg, source_path=source_path)
+    # `parse_one` is typed against `sqlglot.expressions`; the codebase reads
+    # the same class through `.core` (the spelling pyright resolves).
+    parsed = cast("Expression", parse_one(body))
+    used = placeholders(parsed)
+    columns = set(field_mapping.from_)
+    scalars = set(field_mapping.parameters) | {
+        name for name, spec in manifest.parameters.items() if spec.default is not None
+    }
+    overlap = sorted(columns & scalars)
+    if overlap:
+        msg = (
+            f"field binds {', '.join(overlap)} as both a column (from:) and a parameter "
+            f"of step {field_mapping.step!r}. One placeholder cannot be two things, and "
+            "picking one silently is a rule nobody can predict"
+        )
+        raise StepError(msg, source_path=source_path)
+    _refuse_macro_disagreement(field_mapping, used, columns, scalars, source_path=source_path)
+    arguments: dict[str, Expression] = {
+        alias: extraction(path) for alias, path in field_mapping.from_.items()
+    }
+    resolved = {
+        name: str(spec.default)
+        for name, spec in manifest.parameters.items()
+        if spec.default is not None
+    }
+    resolved.update({name: str(value) for name, value in field_mapping.parameters.items()})
+    arguments.update(
+        {
+            name: parameter_literal(value, manifest.parameters[name].type)
+            for name, value in resolved.items()
+        }
+    )
+    return exp.cast(splice(parsed, arguments), generic_type(declared))
+
+
+def _refuse_macro_disagreement(
+    field_mapping: MacroFieldMapping,
+    used: frozenset[str],
+    columns: set[str],
+    scalars: set[str],
+    *,
+    source_path: str,
+) -> None:
+    """The body and the call site name one set, or it is a compile error."""
+    supplied = columns | scalars
+    if unfilled := sorted(used - supplied):
+        msg = (
+            f"step {field_mapping.step!r} has a body referring to :{', :'.join(unfilled)}, "
+            "which this field supplies neither as a column (from:) nor as a parameter. "
+            "An unfilled placeholder reaches the engine as an unknown variable"
+        )
+        raise StepError(msg, source_path=source_path)
+    if unused := sorted(supplied - used):
+        msg = (
+            f"field supplies {', '.join(unused)} to step {field_mapping.step!r}, whose body "
+            f"never refers to :{unused[0]}. It would be read for nothing — and a typo here "
+            "is otherwise silent"
+        )
+        raise StepError(msg, source_path=source_path)
+
+
 def _materialization(entity: Entity) -> Materialization:
     """RFC 0002 D7: declared wins; the derived default is only the default."""
     if entity.materialization is not None:
@@ -258,6 +367,7 @@ def _build_entity(
     project: Project,
     catalog: Catalog | None,
     reg: Registry,
+    steps: StepRegistry,
 ) -> EntityIR:
     doc = mapping_doc(mapping)
     columns: list[ColumnIR] = []
@@ -293,7 +403,16 @@ def _build_entity(
         field_mapping = mapping.fields[field_name]
         field = entity.fields[field_name]
         declared = _field_type(entity_name, field_name, field)
-        if isinstance(field_mapping, RecipeFieldMapping):
+        if isinstance(field_mapping, MacroFieldMapping):
+            expr = _macro_expr(
+                field_mapping, declared, steps, source_path=f"{doc}: fields.{field_name}"
+            )
+            columns.append(_column_ir(field_name, field, declared, shape(expr), catalog))
+            source_fields.extend(
+                SourceFieldIR(target_field=field_name, source_path=path)
+                for _alias, path in sorted(field_mapping.from_.items())
+            )
+        elif isinstance(field_mapping, RecipeFieldMapping):
             expr, recipe_id = _recipe_expr(
                 field_mapping, declared, mapping, field_name, project, catalog
             )
@@ -363,7 +482,7 @@ def _build_entity(
 
 
 def _build_entities(
-    project: Project, catalog: Catalog | None, reg: Registry
+    project: Project, catalog: Catalog | None, reg: Registry, steps: StepRegistry
 ) -> tuple[EntityIR, ...]:
     by_target: dict[str, list[Mapping]] = {}
     for mapping in project.mappings:
@@ -378,7 +497,9 @@ def _build_entities(
             )
             raise ResolutionError(msg, source_path=f"{mapping_doc(mappings[1])}: target")
         entity = project.entity_model.entities[entity_name]
-        entities.append(_build_entity(entity_name, entity, mappings[0], project, catalog, reg))
+        entities.append(
+            _build_entity(entity_name, entity, mappings[0], project, catalog, reg, steps)
+        )
     return tuple(entities)  # sorted: by_target iterated in sorted order
 
 
@@ -481,7 +602,7 @@ def build_project_ir(
         # about the collection, not about how a member got there.
         entities=tuple(
             sorted(
-                (*_build_entities(project, catalog, reg), *step_entities(steps_ir, project)),
+                (*_build_entities(project, catalog, reg, steps), *step_entities(steps_ir, project)),
                 key=lambda entity: entity.name,
             )
         ),

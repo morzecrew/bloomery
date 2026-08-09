@@ -65,7 +65,7 @@ from bloomery.quality import (
     payload_key,
     unsupported_dialects,
 )
-from bloomery.spec.mapping import RecipeFieldMapping, mapping_doc
+from bloomery.spec.mapping import ALIAS_BOUND, RecipeFieldMapping, mapping_doc
 from bloomery.spec.quality import CoercibleRule, InEnumRule, PatternRule, ReferentialRule
 from bloomery.typing import StringType, parse_type
 
@@ -97,9 +97,9 @@ def _read_paths(mapping: Mapping) -> tuple[str, ...]:
     """
     paths: set[str] = {key_field.from_ for key_field in mapping.key.values()}
     for field_mapping in mapping.fields.values():
-        if isinstance(field_mapping, RecipeFieldMapping):
+        if isinstance(field_mapping, ALIAS_BOUND):
             paths.update(field_mapping.from_.values())
-            if field_mapping.direct is not None:
+            if isinstance(field_mapping, RecipeFieldMapping) and field_mapping.direct is not None:
                 paths.add(field_mapping.direct)
         else:
             paths.add(field_mapping.from_)
@@ -379,7 +379,7 @@ def _check_chain_derived_rules(
         {entity.dedupe.field, *entity.dedupe.tie_break} if entity.dedupe else set[str]()
     )
     for column, field_mapping in mapped_fields(mapping):
-        if field_mapping is None or isinstance(field_mapping, RecipeFieldMapping):
+        if field_mapping is None or isinstance(field_mapping, ALIAS_BOUND):
             continue
         path = f"{mapping_doc(mapping)}: fields.{column}"
         names = [step.name for step in field_mapping.transform]

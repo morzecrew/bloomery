@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from bloomery.spec.mapping import RecipeFieldMapping
+from bloomery.spec.mapping import ALIAS_BOUND, RecipeFieldMapping
 
 if TYPE_CHECKING:
     from bloomery.resolve.metrics import EffectiveMetric
@@ -118,8 +118,12 @@ def _mapping_edges(mapping: Mapping, canonical_by_field: dict[str, str | None]) 
         )
     for field_name, field_mapping in mapping.fields.items():
         dst = entity_field_node(mapping.target, field_name)
-        if isinstance(field_mapping, RecipeFieldMapping):
-            label = f"recipe:{field_mapping.recipe}"
+        if isinstance(field_mapping, ALIAS_BOUND):
+            label = (
+                f"recipe:{field_mapping.recipe}"
+                if isinstance(field_mapping, RecipeFieldMapping)
+                else f"step:{field_mapping.step}"
+            )
             edges.extend(
                 Edge(src=source_column_node(mapping.source, path), dst=dst, label=label)
                 for path in field_mapping.from_.values()
