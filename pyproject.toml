@@ -69,7 +69,7 @@ dev = [
 # Tier-5 engine matrix (RFC 0009 §5.2): opt-in, needs Docker. Kept out of `dev`
 # so the default sync stays light on machines without Docker.
 engines = [
-    "psycopg[binary]>=3.2",
+    "psycopg[binary]>=3.3.4",
     "testcontainers[postgres]>=4.15.0",
 ]
 docs = [
