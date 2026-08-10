@@ -166,7 +166,7 @@ WHEN NOT MATCHED THEN INSERT (
   _replay._quality_ok
 );
 
-UPDATE silver.inventory_level__reject SET resolved_at = CURRENT_TIMESTAMP
+UPDATE silver.inventory_level__reject SET resolved_at = CURRENT_TIMESTAMP, last_evaluated_at = CURRENT_TIMESTAMP
 WHERE
   resolved_at IS NULL
   AND _source_row_id IN (
@@ -278,4 +278,5 @@ USING (
 ) AS _replay
 ON _target._source_row_id = _replay._source_row_id
 WHEN MATCHED AND _target.resolved_at IS NULL THEN UPDATE SET
-  failed_rules = _replay.failed_rules;
+  failed_rules = _replay.failed_rules,
+  last_evaluated_at = CURRENT_TIMESTAMP;

@@ -287,6 +287,62 @@ def test_a_second_replay_re_derives_identical_semantic_state(
     assert len(once["resolved"]) == len(WIDENED)  # type: ignore[arg-type]
 
 
+def test_every_row_replay_read_carries_the_time_it_was_read(
+    widened_run: tuple[duckdb.DuckDBPyConnection, tuple[EmittedArtifact, ...]],
+) -> None:
+    """D88, the escape hatch D70 named. ``last_seen`` cannot answer "when was
+    this last re-evaluated" — it is the data's clock, and advancing it would
+    make an unresolved row immortal under retention — so a second column does,
+    on **both** branches of the replay.
+
+    Both, not just the still-failing one: a resolved row was re-evaluated too,
+    and a column that stopped at the last *unsuccessful* look would read as a
+    stale lie the moment a later run resolved the row.
+    """
+    conn, artifacts = widened_run
+    before = conn.execute(
+        f"SELECT COUNT(*) FROM silver.{ENTITY}__reject WHERE last_evaluated_at IS NOT NULL"
+    ).fetchone()
+    assert before == (0,)  # the model that inserts a reject row cannot read a clock
+    _replay(conn, artifacts)
+    unstamped = conn.execute(
+        f"SELECT _source_row_id FROM silver.{ENTITY}__reject WHERE last_evaluated_at IS NULL"
+    ).fetchall()
+    assert unstamped == []
+    resolved_first = conn.execute(
+        f"SELECT COUNT(*) FROM silver.{ENTITY}__reject "
+        "WHERE resolved_at IS NOT NULL AND last_evaluated_at IS NULL"
+    ).fetchone()
+    assert resolved_first == (0,)
+
+
+def test_the_evaluation_clock_advances_where_the_delivery_clock_must_not(
+    widened_run: tuple[duckdb.DuckDBPyConnection, tuple[EmittedArtifact, ...]],
+) -> None:
+    """The whole point of a second column, asserted as a difference.
+
+    ``last_seen`` is what retention measures an unresolved row's age from
+    (§5.6), so a replay run that advanced it would keep the row alive for as
+    long as replay keeps running — §9's PII lake with its mitigation removed
+    (D70). ``last_evaluated_at`` is read by nothing, which is exactly what
+    makes it free to move.
+    """
+    conn, artifacts = widened_run
+    query = (
+        f"SELECT _source_row_id, last_seen FROM silver.{ENTITY}__reject ORDER BY _source_row_id"
+    )
+    before = conn.execute(query).fetchall()
+    _replay(conn, artifacts)
+    _replay(conn, artifacts)
+    assert conn.execute(query).fetchall() == before
+    moved = conn.execute(
+        f"SELECT COUNT(*) FROM silver.{ENTITY}__reject "
+        "WHERE last_evaluated_at IS NOT NULL AND last_evaluated_at <> last_seen"
+    ).fetchone()
+    assert moved is not None
+    assert moved[0] > 0
+
+
 def test_the_conservation_accounting_survives_the_replay(
     widened_run: tuple[duckdb.DuckDBPyConnection, tuple[EmittedArtifact, ...]],
 ) -> None:

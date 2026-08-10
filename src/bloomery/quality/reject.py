@@ -63,6 +63,7 @@ REJECT_COLUMNS: tuple[str, ...] = (
     "first_seen",
     "last_seen",
     "resolved_at",
+    "last_evaluated_at",
 )
 
 

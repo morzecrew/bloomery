@@ -16,6 +16,7 @@ wrong by a factor, and only an engine can tell you which.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import datetime
 from decimal import Decimal
 
 import duckdb
@@ -376,6 +377,40 @@ def test_first_seen_is_preserved_across_a_redelivery_and_last_seen_advances() ->
             "SELECT COUNT(*) FROM silver.q_line__reject WHERE _source_row_id = 'r05'"
         ).fetchone()
         assert rows == (1,)  # the same row, not a second one
+    finally:
+        conn.close()
+
+
+def test_a_redelivery_does_not_erase_the_replay_clock() -> None:
+    """D88's merge half. The reject *model* projects ``last_evaluated_at`` NULL
+    — a model query may not read a clock — and that model is the merge's
+    source, so the default overwrite would wipe the column on every
+    re-delivery: a row would forget it had ever been replayed because the
+    source delivered it again.
+
+    The stamp is written here rather than by running a replay, which isolates
+    the merge from everything else: this asserts what ``when_matched`` does
+    with an existing value, and that value's provenance is
+    ``test_quarantine_replay``'s business.
+    """
+    conn = build()
+    try:
+        conn.execute(
+            "UPDATE silver.q_line__reject SET last_evaluated_at = TIMESTAMP '2024-03-01 00:00:00' "
+            "WHERE _source_row_id = 'r05'"
+        )
+        conn.execute(
+            "UPDATE bronze.q__lines SET _ingested_at = '2024-02-01T00:00:00Z', "
+            "_load_id = 'load_b' WHERE _source_row_id = 'r05'"
+        )
+        materialize(conn, compile_fixture(FIXTURE))
+        after = conn.execute(
+            "SELECT last_evaluated_at, last_seen FROM silver.q_line__reject "
+            "WHERE _source_row_id = 'r05'"
+        ).fetchone()
+        assert after is not None
+        assert after[0] == datetime(2024, 3, 1, tzinfo=None), "the replay clock was erased"
+        assert after[1] is not None  # …while the delivery clock did advance
     finally:
         conn.close()
 

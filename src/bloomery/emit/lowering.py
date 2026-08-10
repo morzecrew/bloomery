@@ -742,6 +742,14 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
             "Expression",
             exp.alias_(exp.cast(exp.null(), exp.DataType.build("TIMESTAMP")), "resolved_at"),
         ),
+        # NULL for the same reason ``resolved_at`` is, and for one more: this
+        # column is *replay's* to write (D88), and a model query may not read a
+        # clock at all without breaking §6's idempotence and
+        # backfill-equivalence gates.
+        cast(
+            "Expression",
+            exp.alias_(exp.cast(exp.null(), exp.DataType.build("TIMESTAMP")), "last_evaluated_at"),
+        ),
     ]
     select = exp.Select().select(*projections).from_(extract.subquery(alias=_EXTRACT_ALIAS))
     select = _with_probes(select, entity, ctx)
@@ -757,9 +765,13 @@ _MERGE_TARGET = "target"
 _MERGE_SOURCE = "source"
 
 #: The reject columns whose value on a re-delivery is the **existing** one, not
-#: the arriving one (RFC 0016 §5.6). Only ``first_seen``: it records when the
-#: problem started, and every other column describes the latest observation.
-_PRESERVED_ON_MERGE = frozenset({"first_seen"})
+#: the arriving one (RFC 0016 §5.6). ``first_seen`` records when the problem
+#: started; ``last_evaluated_at`` records a *replay* run, and the reject model
+#: — which is the merge's source — projects it NULL because a model query may
+#: not read a clock (D88). Without it here, a re-delivery would erase the
+#: replay history of a row nobody replayed, which is the opposite of what a
+#: re-delivery observed. Every other column describes the latest delivery.
+_PRESERVED_ON_MERGE = frozenset({"first_seen", "last_evaluated_at"})
 
 #: The reject table's unique key — the column the merge matches on and the
 #: model's declared ``unique_key``, drawn from the schema tuple rather than
@@ -1279,6 +1291,18 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
     lake with its stated mitigation removed. The re-evaluation is recorded by
     ``failed_rules``, which is the clause §5.6 names first.
 
+    **``last_evaluated_at`` is the other clock — the engine's** (D88). D70
+    named it as the escape hatch for what that decision gave up, and this is
+    it: statements 2 and 3 both stamp it, so it reads "when replay last looked
+    at this row" for every row in the table rather than for the unresolved
+    ones only. It is safe to advance precisely because **retention never reads
+    it** — unresolved rows age from ``last_seen``, resolved ones from
+    ``resolved_at``, and neither is touched here. The two statements are
+    disjoint by ``resolved_at IS NULL``, so a row is stamped exactly once per
+    run; on the resolving branch it is a second ``CURRENT_TIMESTAMP`` beside
+    ``resolved_at`` rather than a copy of it, so the two may differ by however
+    long the statement takes on engines that do not pin a transaction clock.
+
     The resolution stamp reads the **executing engine's** clock
     (``CURRENT_TIMESTAMP``) — bloomery never reads a clock (RFC 0003), it emits
     the statements and the caller runs them. The reject row is kept as audit
@@ -1343,7 +1367,10 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
     )
     resolve = exp.Update(
         this=exp.table_(reject_rel, db=reject_namespace),
-        expressions=[exp.EQ(this=exp.column("resolved_at"), expression=exp.CurrentTimestamp())],
+        expressions=[
+            exp.EQ(this=exp.column("resolved_at"), expression=exp.CurrentTimestamp()),
+            exp.EQ(this=exp.column("last_evaluated_at"), expression=exp.CurrentTimestamp()),
+        ],
         where=exp.Where(
             this=conjunction(
                 [
@@ -1384,7 +1411,11 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
                             exp.EQ(
                                 this=exp.column("failed_rules"),
                                 expression=exp.column("failed_rules", table=_REPLAY_ALIAS),
-                            )
+                            ),
+                            exp.EQ(
+                                this=exp.column("last_evaluated_at"),
+                                expression=exp.CurrentTimestamp(),
+                            ),
                         ]
                     ),
                 )

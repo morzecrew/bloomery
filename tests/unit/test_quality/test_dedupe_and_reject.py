@@ -177,4 +177,8 @@ def test_the_reject_schema_matches_the_rfc() -> None:
         "first_seen",
         "last_seen",
         "resolved_at",
+        # D88: replay's own clock, appended rather than slotted beside the
+        # other timestamps — the tuple is the emitted column *order*, and
+        # inserting in the middle would rewrite every reject table in place.
+        "last_evaluated_at",
     )

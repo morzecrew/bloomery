@@ -131,6 +131,14 @@ def test_the_reject_model_carries_the_rfc_schema() -> None:
     assert "when_matched (WHEN MATCHED THEN UPDATE SET " in content
     assert "target.first_seen = COALESCE(target.first_seen, source.first_seen)" in content
     assert "target.last_seen = source.last_seen" in content
+    # …and `last_evaluated_at` joins `first_seen` on the preserved side (D88):
+    # the model that feeds this merge projects it NULL, because a model query
+    # may not read a clock, so an arriving re-delivery would otherwise erase a
+    # replay history it observed nothing about.
+    assert (
+        "target.last_evaluated_at = COALESCE(target.last_evaluated_at, source.last_evaluated_at)"
+        in content
+    )
     assert "target.reject_id" not in content  # the merge key is never assigned
     select = parse_one(extract_select(content), dialect="duckdb")
     assert isinstance(select, exp.Select)
@@ -148,6 +156,7 @@ def test_the_reject_model_carries_the_rfc_schema() -> None:
         "first_seen",
         "last_seen",
         "resolved_at",
+        "last_evaluated_at",
     ]
 
 
