@@ -190,7 +190,7 @@ docs = [
     { name = "zensical", specifier = ">=0.0.43" },
 ]
 engines = [
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.4" },
     { name = "testcontainers", extras = ["postgres"], specifier = ">=4.15.0" },
 ]
 
