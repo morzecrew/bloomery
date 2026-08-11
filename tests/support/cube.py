@@ -31,9 +31,9 @@ from pathlib import Path
 from typing import Any
 
 import psycopg
+from testcontainers.community.postgres import PostgresContainer
 from testcontainers.core.container import DockerContainer
 from testcontainers.core.network import Network
-from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 
 from bloomery.dialects import get_dialect
 from bloomery.ir import Layer, MartIR
@@ -130,17 +130,23 @@ def cube_stack(
     hand-written schema.
     """
     with Network() as network:
+        # ``PostgresContainer`` rather than a bare ``DockerContainer`` waiting on
+        # the ready line: Postgres logs "database system is ready to accept
+        # connections" **twice** — once on the unix socket while initdb runs its
+        # scripts, then again for real — so matching the first occurrence
+        # connects during the init shutdown and fails with "server closed the
+        # connection unexpectedly". That is a race, so it failed intermittently
+        # and looked like container pressure rather than a wait bug.
         postgres = (
-            DockerContainer(POSTGRES_IMAGE)
-            .with_env("POSTGRES_DB", _DB)
-            .with_env("POSTGRES_USER", _USER)
-            .with_env("POSTGRES_PASSWORD", _PASSWORD)
-            .with_exposed_ports(5432)
+            PostgresContainer(
+                POSTGRES_IMAGE,
+                username=_USER,
+                password=_PASSWORD,
+                dbname=_DB,
+                driver=None,
+            )
             .with_network(network)
             .with_network_aliases("warehouse")
-            .waiting_for(
-                LogMessageWaitStrategy("database system is ready to accept connections")
-            )
         )
         with postgres:
             connection = psycopg.connect(

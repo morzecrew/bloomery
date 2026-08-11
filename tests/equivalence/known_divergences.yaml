@@ -1,0 +1,9 @@
+# Reviewed exceptions (RFC 0009 §5.8): a request where MetricFlow and Cube
+# disagree *and* the disagreement has been judged acceptable. Each entry needs
+# `request`, `reason`, and the date it was reviewed.
+#
+# Deliberately empty. §5.8 says "a silent divergence is a bug in one of the
+# implementations", and an empty file is the only honest state until one is
+# found and argued for — a pre-populated one would let the first real
+# divergence hide among plausible-looking neighbours.
+divergences: []
