@@ -91,7 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Security: a Tier 1 step parameter could splice SQL into a projection.** `parameter_literal` builds an *unquoted* literal for `int`/`decimal` — the branch its own docstring called the injection boundary — and never checked the text was a number. A mapping spelling `parameters: {factor: "1 OR 1=1"}` emitted `CAST(amt * 1 OR 1 = 1 AS DECIMAL(12, 4))`. The check now lives below both SQL tiers, where the rendering happens, rather than at the call site Tier 1 was missing (RFC 0017 D53).
+- **Security: a Tier 1 step parameter could splice SQL into a projection.** `parameter_literal` builds an *unquoted* literal for `int`/`decimal` — the branch its own docstring called the injection boundary — and never checked the text was a number. A mapping spelling `parameters: {factor: "1 OR 1=1"}` emitted `CAST(amt * 1 OR 1 = 1 AS DECIMAL(12, 4))`. The check now lives below both SQL tiers, where the rendering happens, rather than at the call site Tier 1 was missing (RFC 0017 D53) — and it matches SQL numeric-literal *syntax* rather than parsing with `Decimal`, which accepts `1_0`, `Infinity` and `1e400`; `int` is held to integer syntax, so `"1.5"` no longer emits `1.5` (D56).
 
 - A `coverage:` check crashed emission with a bare `StopIteration` when its referenced entity was declared but unmapped, and emitted an audit attached to no model when the dependent side was step-produced — a check that reports clean because it never runs. Both are guardrail refusals now (RFC 0016 D91).
 

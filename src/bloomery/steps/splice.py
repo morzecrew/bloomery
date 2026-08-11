@@ -20,8 +20,8 @@ generated wrapper.
 
 from __future__ import annotations
 
-from decimal import Decimal, InvalidOperation
-from typing import TYPE_CHECKING
+import re
+from typing import TYPE_CHECKING, Final
 
 from sqlglot import exp
 
@@ -75,26 +75,48 @@ def parameter_literal(value: str, declared: str) -> Expression:
     return exp.Literal.string(value)
 
 
+#: SQL numeric-literal syntax, per declared type (RFC 0017 D56).
+#:
+#: A *syntax* check rather than a parse, because Python's numeric parsers accept
+#: strings SQL does not and the emitted text is the original: ``Decimal("1_0")``
+#: is 10 and ``int("1_0")`` is 10, but ``1_0`` in a projection is not a number.
+#: ``Decimal`` also accepts ``Infinity``/``NaN``, which render as bare
+#: identifiers. Matching what may be emitted is the only check that answers the
+#: question actually being asked.
+#:
+#: No exponent form: a spec author writes ``0.85``, not ``8.5e-1``, and
+#: admitting ``1e400`` would mean deciding what an unrepresentable bound means.
+_NUMERIC_SYNTAX: Final[dict[str, re.Pattern[str]]] = {
+    "int": re.compile(r"^[+-]?[0-9]+$"),
+    "decimal": re.compile(r"^[+-]?([0-9]+(\.[0-9]*)?|\.[0-9]+)$"),
+}
+
+
 def _refuse_non_numeric(value: str, declared: str) -> None:
-    """``value`` must be a number, because it is about to render as one.
+    """``value`` must look like the number it is about to render as.
 
     The check lives *below* both tiers deliberately. Tier 2 validates its
     parameters at the registry and Tier 1 did not, and the fix for that shape
     of bug is not to add the missing call at the second call site — it is to
     put the guarantee where the rendering happens, so a third caller cannot
     reintroduce it.
+
+    ``int`` is held to integer syntax rather than merely numeric: a parameter
+    declared ``int`` and given ``"1.5"`` emitted ``1.5``, which is a different
+    type reaching the SQL than the manifest promised.
     """
-    try:
-        Decimal(value.strip())
-    except (InvalidOperation, ValueError) as exc:
-        msg = (
-            f"step parameter value {value!r} is declared {declared!r} but is not a number. "
-            "A numeric parameter renders as an unquoted SQL literal, so a non-numeric value "
-            "would reach the emitted SQL as syntax rather than as data "
-            "(feature: steps). Fix: give the parameter a numeric value, or declare it "
-            "'string' so it renders as a quoted literal"
-        )
-        raise StepError(msg) from exc
+    base = declared.split("(", 1)[0].strip()
+    if _NUMERIC_SYNTAX[base].fullmatch(value.strip()):
+        return
+    msg = (
+        f"step parameter value {value!r} is declared {declared!r} but is not written as "
+        f"{'an integer' if base == 'int' else 'a decimal number'}. A numeric parameter renders "
+        "as an unquoted SQL literal, so anything else reaches the emitted SQL as syntax rather "
+        "than as data (feature: steps). Fix: give the parameter a plain numeric value — no "
+        "exponent, no underscores, no Infinity/NaN — or declare it 'string' so it renders as a "
+        "quoted literal"
+    )
+    raise StepError(msg)
 
 
 def placeholders(body: Expression) -> frozenset[str]:

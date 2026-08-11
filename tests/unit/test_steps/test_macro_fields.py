@@ -386,11 +386,29 @@ def test_a_non_numeric_value_for_a_numeric_parameter_is_refused() -> None:
     boundary. The string branch was always safe; a string literal is quoted."""
     from bloomery.steps.splice import parameter_literal
 
-    for hostile in ("1 OR 1=1", "1; DROP TABLE x", "not-a-number"):
-        with pytest.raises(StepError, match="is not a number"):
+    for hostile in ("1 OR 1=1", "1; DROP TABLE x", "not-a-number", ""):
+        with pytest.raises(StepError, match="is not written as"):
             parameter_literal(hostile, "int")
+
+    # A *syntax* check rather than a parse, because Python's numeric parsers
+    # accept strings SQL does not and the emitted text is the original.
+    # `Decimal("1_0")` and `int("1_0")` are both 10 — but `1_0` in a
+    # projection is not a number, and `Infinity`/`NaN` render as bare
+    # identifiers. A parse-based check passed all three (D56).
+    for unrepresentable in ("1_0", "Infinity", "NaN", "-Infinity", "1e400"):
+        with pytest.raises(StepError, match="is not written as"):
+            parameter_literal(unrepresentable, "decimal(12,4)")
+
+    # `int` is held to *integer* syntax, not merely numeric: `1.5` on an
+    # `int` parameter emitted `1.5`, a different type than the manifest
+    # promised reaching the SQL.
+    with pytest.raises(StepError, match="is not written as an integer"):
+        parameter_literal("1.5", "int")
+
     # The control: real numbers still render, and still unquoted.
     assert parameter_literal("42", "int").sql() == "42"
+    assert parameter_literal("-3", "int").sql() == "-3"
     assert parameter_literal("0.85", "decimal(4,3)").sql() == "0.85"
+    assert parameter_literal("12", "decimal(12,4)").sql() == "12"
     # ...and the string branch never needed this, because it quotes.
     assert parameter_literal("1 OR 1=1", "string").sql() == "'1 OR 1=1'"
