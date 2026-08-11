@@ -47,6 +47,8 @@ dependencies = [
 [dependency-groups]
 dev = [
     "bandit>=1.8",
+    "dbt-core>=1.9",
+    "dbt-duckdb>=1.9",
     "deptry>=0.23",
     "duckdb>=1.1",
     "hypothesis>=6.130",
@@ -70,7 +72,13 @@ dev = [
 # so the default sync stays light on machines without Docker.
 engines = [
     "psycopg[binary]>=3.2",
-    "testcontainers[postgres]>=4.15.0",
+    # Trino's client and container. RFC 0009 §5.2 sketches this cell as
+    # "trino+iceberg+minio (compose)"; the memory connector is enough for what
+    # bloomery actually asserts there — it emits SELECTs and models, never
+    # storage-format DDL, so an object store and a table format would be three
+    # more moving parts serving no assertion (D24).
+    "trino>=0.330",
+    "testcontainers[postgres,trino]>=4.15.0",
 ]
 docs = [
     "mike",

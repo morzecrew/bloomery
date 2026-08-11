@@ -397,17 +397,11 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-groups
 
-      # Exit code 5 (no tests collected) is tolerated until the tier 5/6
-      # suites land (RFC 0009 §12, M7) — an empty lane must not fail the
-      # nightly, but a failing engine test must.
+      # Exit code 5 (no tests collected) is now a **failure**, not a
+      # tolerance. It was allowed while the tier 5/6 suites were unwritten;
+      # they exist (postgres, trino, sqlmesh replan, dbt parse), so an empty
+      # lane can only mean a collection error — and tolerating it would let a
+      # broken import turn the whole nightly green (RFC 0009 D23).
       - name: Run engine and e2e tiers
         run: |
-          set +e
           uv run pytest -m "engine or e2e"
-          code=$?
-          set -e
-          if [[ "$code" == "5" ]]; then
-            echo "no engine/e2e tests collected yet (tiers land with M7)"
-            exit 0
-          fi
-          exit "$code"
