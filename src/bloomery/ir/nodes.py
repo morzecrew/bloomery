@@ -45,6 +45,7 @@ __all__ = [
     "DimensionRef",
     "EntityIR",
     "Layer",
+    "MartAssertIR",
     "MartColumnIR",
     "MartDimensionIR",
     "MartIR",
@@ -589,6 +590,28 @@ class MartJoinIR:
 
 
 @dataclass(frozen=True, slots=True)
+class MartAssertIR:
+    """One aggregate assertion over a mart (RFC 0016 D89).
+
+    Not a :class:`QualityRuleIR`, and the difference is the whole decision: a
+    quality rule carries an ``OnFail`` that *routes a row*, and a mart row has
+    no source identity to route. This carries a blocking flag instead — an
+    audit either stops the run or reports beside it.
+
+    ``by`` keeps its authored order (it is a ``GROUP BY``, and the emitted
+    column order follows it); ``params`` is sorted, like every other params
+    tuple in this module.
+    """
+
+    name: str
+    column: str
+    agg: str
+    by: tuple[str, ...]
+    params: tuple[tuple[str, str], ...]
+    blocking: bool
+
+
+@dataclass(frozen=True, slots=True)
 class MartIR:
     """One wide pre-joined mart — read by both the mart builder (joins at
     build) and the planner (no joins), so they cannot disagree (RFC 0010 D1).
@@ -604,6 +627,10 @@ class MartIR:
     joins: tuple[MartJoinIR, ...]
     partition_by: tuple[PartitionSpec, ...]
     materialization: Materialization
+    #: Aggregate assertions over this mart (RFC 0016 D89), sorted by name.
+    #: Assertions rather than quality rules because a mart row has nothing to
+    #: dispose of — no source identity, no reject table, no replay.
+    asserts: tuple[MartAssertIR, ...] = ()
     cost_hint: int = 1
 
 

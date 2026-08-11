@@ -52,6 +52,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "consistency_audits",
+    "refuse_mart_asserts",
     "refuse_steps",
     "step_artifacts",
 ]
@@ -76,6 +77,30 @@ def refuse_steps(ir: ProjectIR, target: str) -> None:
         "cannot emit (RFC 0017 §5.8 covers SQLMesh only). Their output "
         "relations would simply be missing. Fix: compile steps for SQLMesh, "
         "or drop the steps: document for this target"
+    )
+    raise UnsupportedByTarget(msg)
+
+
+def refuse_mart_asserts(ir: ProjectIR, target: str) -> None:
+    """Refuse a mart assertion on a target that cannot emit it (RFC 0016 D89).
+
+    An assertion lowers to a SQLMesh ``AUDIT`` the mart model names, and
+    neither dbt's schema tests nor Cube's schema has that shape today. Dropping
+    it would leave a project compiling clean while the gate its author declared
+    silently does not exist — which is the failure mode D83 caught in the
+    dialect ports and the one RFC 0008 D3 exists to refuse.
+
+    Lives beside :func:`refuse_steps` because it is the same refusal for the
+    same reason, and two copies of one message drift.
+    """
+    declared = [f"{mart.name}.{clause.name}" for mart in ir.marts for clause in mart.asserts]
+    if not declared:
+        return
+    msg = (
+        f"mart assertion(s) {', '.join(sorted(declared))} lower to a SQLMesh audit, which "
+        f"the {target} target cannot emit (RFC 0016 D89). Compiling anyway would ship a "
+        "project whose declared data-quality gate does not exist. Fix: compile for "
+        "SQLMesh, or drop the assert: block for this target"
     )
     raise UnsupportedByTarget(msg)
 

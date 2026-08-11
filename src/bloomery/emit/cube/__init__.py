@@ -52,7 +52,7 @@ from bloomery.emit.base import (
     TargetCapabilities,
 )
 from bloomery.emit.metricflow import measure_owners
-from bloomery.emit.steps import refuse_steps
+from bloomery.emit.steps import refuse_mart_asserts, refuse_steps
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import (
     Additivity,
@@ -262,6 +262,7 @@ class CubeEmitter:
         content ending in exactly one newline (RFC 0003 §5.5 rule 5). A
         project without marts emits nothing — Cube has no silver surface."""
         refuse_steps(ir, "Cube")
+        refuse_mart_asserts(ir, "Cube")
 
         owners = measure_owners(ir)
         artifacts: list[EmittedArtifact] = []

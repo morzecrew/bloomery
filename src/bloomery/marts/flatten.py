@@ -40,6 +40,7 @@ from bloomery.ir import (
     REJECT_SUFFIX,
     Cardinality,
     DimensionRef,
+    MartAssertIR,
     MartColumnIR,
     MartDimensionIR,
     MartIR,
@@ -334,6 +335,41 @@ def _check_measures(
     return violations
 
 
+def _check_asserts(mart: Mart, path: str, state: _Flatten) -> list[GuardrailError]:
+    """Every assertion names columns of the **flattened** mart (RFC 0016 D89).
+
+    Checked against ``state.columns`` rather than the base entity's, because
+    that is the schema the audit runs over: a ``by:`` naming a bucket column a
+    ``date:`` role produced is legitimate — it is the ``ordered_month`` case
+    §10's example is about — and a ``measure:`` naming a prefixed column
+    flattened from a joined entity is too.
+
+    Names are checked here rather than at parse for the reason every other
+    resolution check is: the mart's column set does not exist until the
+    flatten steps have run (RFC 0002 D4).
+    """
+    violations: list[GuardrailError] = []
+    seen: set[str] = set()
+    for index, clause in enumerate(mart.assert_):
+        where = f"{path}.assert[{index}]"
+        if clause.name in seen:
+            msg = (
+                f"two assertions on this mart are named {clause.name!r} — the name is the "
+                "audit's identity, so the second would overwrite the first's artifact"
+            )
+            violations.append(GuardrailError(msg, source_path=f"{where}.name"))
+        seen.add(clause.name)
+        for role, column in (("measure", clause.measure), *(("by", name) for name in clause.by)):
+            if column in state.columns:
+                continue
+            msg = (
+                f"assertion {clause.name!r} names {role} column {column!r}, which this mart "
+                f"does not carry; flattened columns: {sorted(state.columns)}"
+            )
+            violations.append(GuardrailError(msg, source_path=f"{where}.{role}"))
+    return violations
+
+
 def _materialization(mart: Mart) -> Materialization:
     """RFC 0002 D7, applied to marts as to entities (RFC 0010 §4): explicit
     wins; else partitioned marts default to incremental-by-partition."""
@@ -366,7 +402,40 @@ def _mart_ir(name: str, mart: Mart, state: _Flatten) -> MartIR:
         joins=tuple(state.joins),  # authored order — join order is semantic
         partition_by=partition_specs(mart.partition_by),
         materialization=_materialization(mart),
+        asserts=_mart_asserts(mart),
         cost_hint=mart.cost_hint,
+    )
+
+
+def _mart_asserts(mart: Mart) -> tuple[MartAssertIR, ...]:
+    """The mart's aggregate assertions, sorted by name (RFC 0016 D89).
+
+    Bounds ride in ``params`` as text, the carrier every other bounded rule in
+    this compiler uses (RFC 0016 D57): a ``range`` bound and a mart assertion's
+    bound are the same kind of value, and a second representation for it is how
+    the two come to disagree about ``1e3``.
+    """
+    return tuple(
+        sorted(
+            (
+                MartAssertIR(
+                    name=clause.name,
+                    column=clause.measure,
+                    agg=clause.agg,
+                    by=clause.by,
+                    params=tuple(
+                        sorted(
+                            (bound, str(value))
+                            for bound, value in (("min", clause.min), ("max", clause.max))
+                            if value is not None
+                        )
+                    ),
+                    blocking=clause.on_fail == "fail",
+                )
+                for clause in mart.assert_
+            ),
+            key=lambda clause: clause.name,
+        )
     )
 
 
@@ -441,6 +510,7 @@ def _lower_mart(
         else:
             violations.extend(_flatten_date(step, index, path, base, state))
     violations.extend(_check_measures(mart, path, draft, entities))
+    violations.extend(_check_asserts(mart, path, state))
     if mart.measures and not state.roles:
         msg = (
             f"mart carries measures {sorted(mart.measures)} but declares no date role — "

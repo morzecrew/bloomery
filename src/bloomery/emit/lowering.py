@@ -28,6 +28,7 @@ from bloomery.ir import (
     DateDimensionIR,
     EntityIR,
     Layer,
+    MartAssertIR,
     MartColumnIR,
     MartIR,
     OnFail,
@@ -101,6 +102,8 @@ __all__ = [
     "fail_audits",
     "ROW_ID_COUNT_COLUMN",
     "ingestion_audit_predicate",
+    "mart_assert_name",
+    "mart_assert_select",
     "mart_select",
     "quality_mart_select",
     "reconcile_audit_blocking",
@@ -1444,6 +1447,75 @@ _AGGREGATES: dict[str, type[exp.AggFunc]] = {
     "min": exp.Min,
     "sum": exp.Sum,
 }
+
+
+def mart_assert_name(mart: MartIR, clause: MartAssertIR) -> str:
+    """``<mart>_<assertion>`` — the audit's name, and its artifact path.
+
+    Prefixed by the mart because audit names share one namespace across the
+    project (the same reason a rule name is prefixed by its column), and two
+    marts asserting ``revenue_present`` are two different checks.
+    """
+    return f"{mart.name}_{clause.name}"
+
+
+def mart_assert_select(mart: MartIR, clause: MartAssertIR) -> exp.Select:
+    """The audit body for one mart assertion (RFC 0016 D89).
+
+    ``SELECT <by…>, <agg>(<measure>) AS value FROM @this_model [GROUP BY <by…>]
+    HAVING <agg>(<measure>) < min OR <agg>(<measure>) > max`` — an audit passes
+    when it returns no rows, so this projects the offending **groups**, with
+    the value beside them: a failure a human has to open the warehouse to
+    understand is a failure report that gets ignored.
+
+    A bare ``HAVING`` with no ``GROUP BY`` is the whole-mart form and is legal
+    on all three shipped dialects (the implicit single group), so the empty
+    ``by`` needs no second shape.
+
+    **Three-valued logic applies here as everywhere else** (D19): the bound
+    comparisons are the same ``<``/``>`` a ``range`` rule uses, so an aggregate
+    that comes back NULL — which is what every aggregate but ``count`` does
+    over an empty group — leaves the predicate ``UNKNOWN`` and the assertion
+    silent. That is the honest answer for a group with no rows, and it is
+    *also* why an assertion cannot see a group that is missing altogether:
+    there is no row to aggregate and therefore no group at all.
+    """
+    alias = "_mart"
+    aggregate = _AGGREGATES[clause.agg](this=exp.column(clause.column, table=alias))
+    bound_type = _assert_bound_type(mart, clause)
+    params = dict(clause.params)
+    parts: list[Expression] = []
+    if "min" in params:
+        parts.append(
+            exp.LT(this=aggregate.copy(), expression=_bound_literal(params["min"], bound_type))
+        )
+    if "max" in params:
+        parts.append(
+            exp.GT(this=aggregate.copy(), expression=_bound_literal(params["max"], bound_type))
+        )
+    grouped_by = [exp.column(name, table=alias) for name in clause.by]
+    select = (
+        exp.Select()
+        .select(*[column.copy() for column in grouped_by], exp.alias_(aggregate.copy(), "value"))
+        .from_(_this_model(alias))
+    )
+    if grouped_by:
+        select = select.group_by(*[column.copy() for column in grouped_by])
+    return select.having(disjunction(parts))
+
+
+def _assert_bound_type(mart: MartIR, clause: MartAssertIR) -> LogicalType:
+    """The type an assertion's bounds are literals of.
+
+    ``count`` answers in rows however the column is typed; every other
+    aggregate answers in the column's own type, so a ``min``/``max`` over a
+    date compares against a date literal rather than against a string the
+    engine has to coerce — the same reason :func:`_bound_literal` is typed at
+    all.
+    """
+    if clause.agg == "count":
+        return IntType()
+    return next(column.type for column in mart.columns if column.name == clause.column)
 
 
 def reconcile_relation(check: ReconcileIR) -> str:

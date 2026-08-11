@@ -346,6 +346,30 @@ def test_excluding_flagged_rows_is_a_plain_metric_request(
     assert run.execute(split.sql).fetchall() == [(False, CLEAN_TOTAL), (True, FLAGGED_TOTAL)]
 
 
+def test_a_mart_assertion_runs_against_the_mart_it_was_written_for(
+    run: duckdb.DuckDBPyConnection,
+) -> None:
+    """RFC 0016 D89 against the real gold relation, not a synthetic stand-in.
+
+    The unit suite next door proves the two body shapes execute; what only the
+    materialized mart can prove is that the columns the assertion names are the
+    columns the mart actually **projects**. A ``by:`` that resolves at compile
+    against the flatten state but never reaches the SELECT is exactly the kind
+    of gap a rendering test cannot see.
+    """
+    body = _violation_body("lines_amount_positive_every_month")
+    assert run.execute(body).fetchall() == []  # every month's total is positive
+    run.execute("CREATE TABLE _flipped AS SELECT * FROM gold.mart_lines")
+    run.execute("UPDATE _flipped SET amount = -amount")
+    flipped = body.replace("gold.mart_lines", "_flipped")
+    assert run.execute(flipped).fetchall() != []
+
+
+def _violation_body(name: str) -> str:
+    artifact = _audits(compile_fixture(FIXTURE))[name]
+    return audit_body(artifact, "gold.mart_lines")
+
+
 # ....................... #
 # §5.6 — the reject row's own history
 
