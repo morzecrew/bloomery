@@ -60,6 +60,7 @@ from bloomery.emit.lowering import (
     mart_select,
 )
 from bloomery.emit.steps import (
+    refuse_coverage,
     refuse_mart_asserts,
     refuse_python_models,
     refuse_step_audits,
@@ -445,6 +446,7 @@ class DbtEmitter:
         refuse_python_models(ir, "dbt")
         refuse_step_audits(ir, ctx, "dbt")
         refuse_mart_asserts(ir, "dbt")
+        refuse_coverage(ir, "dbt")
         _refuse_reconcile(ir)
         artifacts: list[EmittedArtifact] = [_project_artifact(ctx), *_step_artifacts(ir, ctx)]
         for entity in ir.entities:

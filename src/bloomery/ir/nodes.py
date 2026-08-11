@@ -39,6 +39,7 @@ __all__ = [
     "Additivity",
     "AuditIR",
     "Cardinality",
+    "CoverageIR",
     "ColumnIR",
     "DateDimensionIR",
     "DedupeIR",
@@ -438,6 +439,23 @@ class ReconcileIR:
 
 
 @dataclass(frozen=True, slots=True)
+class CoverageIR:
+    """One cross-entity coverage check (RFC 0016 D90): every row of a
+    relationship's referenced entity has at least ``minimum`` rows referencing
+    it.
+
+    Carries ``blocking`` rather than an :class:`OnFail`, for the reason
+    :class:`MartAssertIR` does: an ``OnFail`` routes a *row*, and this check's
+    verdict is about a row of the entity the audit is **not** attached to.
+    """
+
+    name: str
+    relationship: str
+    minimum: int
+    blocking: bool
+
+
+@dataclass(frozen=True, slots=True)
 class EntityIR:
     """One silver entity: key in authored order (it is meaningful), columns
     sorted by name, audits sorted by (kind, column).
@@ -782,4 +800,5 @@ class ProjectIR:
     marts: tuple[MartIR, ...] = ()
     date_dimension: DateDimensionIR | None = None
     reconcile: tuple[ReconcileIR, ...] = ()
+    coverage: tuple[CoverageIR, ...] = ()
     steps: tuple[StepIR, ...] = ()

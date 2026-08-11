@@ -61,6 +61,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "consistency_audits",
+    "refuse_coverage",
     "refuse_mart_asserts",
     "refuse_python_models",
     "refuse_step_audits",
@@ -142,6 +143,29 @@ def step_body(step: StepIR) -> Expression:
 def step_output_relation(output: StepOutputIR, ctx: EmitContext) -> tuple[str, str]:
     """``(namespace, relation)`` for one output, under the naming policy."""
     return ctx.naming.relation(_relation_name(output), Layer.SILVER)
+
+
+def refuse_coverage(ir: ProjectIR, target: str) -> None:
+    """Refuse a cross-entity coverage check on a target without audits.
+
+    Same argument as :func:`refuse_mart_asserts`, one relation further out: the
+    body joins two relations and groups, and dbt's schema tests are per-column
+    or per-model predicates. dbt **builds** the models, so a check it silently
+    does not emit is a check that does not exist (RFC 0008 D3).
+
+    Cube is not a caller: it builds nothing (RFC 0017 D52).
+    """
+    declared = sorted(check.name for check in ir.coverage)
+    if not declared:
+        return
+    msg = (
+        f"coverage check(s) {', '.join(declared)} lower to an audit joining two silver "
+        f"relations (RFC 0016 D90), which the {target} target cannot express: its schema "
+        "tests are per-column or per-model predicates, and there is no grouped "
+        "cross-relation form to approximate one with. Fix: compile for SQLMesh, or drop "
+        "the coverage: block for this target"
+    )
+    raise UnsupportedByTarget(msg, source_path="entity_model: coverage")
 
 
 def refuse_mart_asserts(ir: ProjectIR, target: str) -> None:

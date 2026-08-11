@@ -797,6 +797,36 @@ def _check_reserved_mart_name(project: Project) -> list[GuardrailError]:
     return [GuardrailError(msg, source_path=f"marts: marts.{QUALITY_MART}")]
 
 
+def _check_coverage(project: Project) -> list[GuardrailError]:
+    """Every ``coverage:`` check names a declared relationship, once
+    (RFC 0016 D90).
+
+    Project-level for the same reason ``reconcile`` is: a check that relates
+    two entities belongs to neither. The relationship has to exist before
+    emission can find the two relations and the ``via`` pairs to join them on,
+    and a repeated name would overwrite an audit artifact rather than add one.
+    """
+    declared = {rel.name for rel in project.entity_model.relationships}
+    errors: list[GuardrailError] = []
+    seen: set[str] = set()
+    for index, check in enumerate(project.entity_model.coverage):
+        where = f"entity_model: coverage[{index}]"
+        if check.name in seen:
+            msg = (
+                f"two coverage checks are named {check.name!r} — the name is the audit's "
+                "identity and its artifact path, so the second would overwrite the first"
+            )
+            errors.append(GuardrailError(msg, source_path=f"{where}.name"))
+        seen.add(check.name)
+        if check.relationship not in declared:
+            msg = (
+                f"coverage check {check.name!r} names no declared relationship "
+                f"{check.relationship!r}; declared: {sorted(declared)}"
+            )
+            errors.append(GuardrailError(msg, source_path=f"{where}.relationship"))
+    return errors
+
+
 def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     """Every data-quality guardrail over the whole project, in one pass.
 
@@ -828,6 +858,7 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     # Project-level, not per entity: a reconcile check relates two entities and
     # belongs to neither, and the reserved metric names are one flat namespace.
     errors.extend(_check_reconcile(project, draft))
+    errors.extend(_check_coverage(project))
     errors.extend(_check_reserved_metric_names(project))
     errors.extend(_check_reserved_mart_name(project))
     return errors

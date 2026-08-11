@@ -66,6 +66,7 @@ from bloomery.ir import (
 from bloomery.marts import lower_marts
 from bloomery.quality import (
     attach_quality_mart,
+    lower_coverage,
     lower_dedupe,
     lower_quality,
     lower_quarantine,
@@ -834,6 +835,7 @@ def build_project_ir(
         # Document-level reconcile checks (RFC 0016 §5.3): they relate two
         # entities, so they belong to neither — they live on the root.
         reconcile=lower_reconcile(project.entity_model),
+        coverage=lower_coverage(project.entity_model),
         # Steps lower before the mart flattener and the guardrail stage, because
         # step outputs are relations both of them must be able to see
         # (RFC 0017 §5.8).

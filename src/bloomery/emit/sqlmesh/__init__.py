@@ -62,6 +62,9 @@ from bloomery.emit.lowering import (
     column_type,
     conservation_audit,
     conservation_audit_select,
+    coverage_audit_name,
+    coverage_audit_select,
+    coverage_owner,
     dim_date_select,
     entity_select,
     enum_literal,
@@ -328,6 +331,56 @@ def _mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArti
         content=content.rstrip("\n") + "\n",
         kind=ArtifactKind.MODEL,
     )
+
+
+def _coverage_artifacts(ir: ProjectIR, ctx: EmitContext) -> list[EmittedArtifact]:
+    """One AUDIT per coverage check (RFC 0016 D90), attached to the
+    **dependent** entity's model by :func:`_coverage_audits_for`.
+
+    Blocking-ness is the check's own, as a reconcile check's is (D38)."""
+    return [
+        EmittedArtifact.create(
+            path=f"audits/{coverage_audit_name(check)}.sql",
+            content=_MART_ASSERT_ENVELOPE.render(
+                fingerprint=ctx.fingerprint,
+                name=coverage_audit_name(check),
+                blocking=check.blocking,
+                select=ctx.dialect.render(coverage_audit_select(check, ir, ctx)),
+            ).rstrip("\n")
+            + "\n",
+            kind=ArtifactKind.AUDIT,
+        )
+        for check in ir.coverage
+    ]
+
+
+def _coverage_audits_for(
+    entity: EntityIR, ir: ProjectIR
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """``(audit names, relations the body reads)`` for one entity.
+
+    Attached to the relationship's **dependent** side — the entity that already
+    reads the referenced one through this very relationship — so the check adds
+    no edge the relationship did not already imply, and the pair that most
+    wants it does not become a model cycle (D90).
+
+    The read relations are returned so the model can declare ``depends_on``:
+    SQLMesh does not rewrite model references inside an AUDIT body (D29), so
+    the sibling has to be declared or it resolves to a virtual-layer view that
+    may not exist on a first plan — the trap D40 closed for step audits.
+    """
+    names: list[str] = []
+    reads: set[str] = set()
+    for check in ir.coverage:
+        relationship = coverage_owner(check, ir)
+        if relationship.from_entity != entity.name:
+            continue
+        names.append(coverage_audit_name(check))
+        # The *referenced* side only. The dependent side is this very model,
+        # reached through ``@this_model``; declaring it would put the model in
+        # its own ``depends_on``.
+        reads.add(relationship.to_entity)
+    return tuple(sorted(names)), tuple(sorted(reads))
 
 
 def _mart_assert_artifacts(mart: MartIR, ctx: EmitContext) -> list[EmittedArtifact]:
@@ -693,13 +746,21 @@ class SQLMeshEmitter:
                 continue
             namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
             audits, audit_artifacts = _entity_audits(entity, ctx)
+            coverage, coverage_reads = _coverage_audits_for(entity, ir)
             content = _ENVELOPE.render(
                 fingerprint=ctx.fingerprint,
                 name=f"{namespace}.{relation}",
                 kind=_kind_clause(entity),
                 grain=", ".join(entity.key),
+                # A coverage audit names two relations, and SQLMesh does not
+                # rewrite model references inside an AUDIT body (D29) — so both
+                # are declared or the sibling resolves to a virtual-layer view
+                # that need not exist on a first plan (the D40 trap).
+                depends_on=", ".join(
+                    ".".join(ctx.naming.relation(name, Layer.SILVER)) for name in coverage_reads
+                ),
                 partitioned_by=_partitioned_by(entity.partition_by),
-                audits=audits,
+                audits=", ".join(filter(None, (audits, *coverage))),
                 select=ctx.dialect.render(entity_select(entity, ctx)),
             )
             artifacts.append(
@@ -723,6 +784,7 @@ class SQLMeshEmitter:
         artifacts.extend(step_artifacts(ir, ctx, _ENVELOPE))
         for check in ir.reconcile:  # sorted by name on ProjectIR
             artifacts.extend(_reconcile_artifacts(check, ir, ctx))
+        artifacts.extend(_coverage_artifacts(ir, ctx))
         artifacts.extend(_mart_artifact(mart, ir, ctx) for mart in ir.marts)
         for mart in ir.marts:
             artifacts.extend(_mart_assert_artifacts(mart, ctx))

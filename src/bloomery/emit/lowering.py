@@ -25,6 +25,7 @@ from bloomery.dialects import DialectFeature
 from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.ir import (
     AuditIR,
+    CoverageIR,
     DateDimensionIR,
     EntityIR,
     Layer,
@@ -35,6 +36,7 @@ from bloomery.ir import (
     ProjectIR,
     QualityRuleIR,
     ReconcileIR,
+    RelationshipIR,
     SCDKind,
     SqlExpr,
     generic_type,
@@ -102,6 +104,9 @@ __all__ = [
     "fail_audits",
     "ROW_ID_COUNT_COLUMN",
     "ingestion_audit_predicate",
+    "coverage_audit_name",
+    "coverage_audit_select",
+    "coverage_owner",
     "mart_assert_name",
     "mart_assert_select",
     "mart_select",
@@ -1447,6 +1452,77 @@ _AGGREGATES: dict[str, type[exp.AggFunc]] = {
     "min": exp.Min,
     "sum": exp.Sum,
 }
+
+
+def coverage_audit_name(check: CoverageIR) -> str:
+    """``<check>_coverage`` — the audit's name and artifact path, suffixed the
+    way a reconcile check's relation is (RFC 0016 D90)."""
+    return f"{check.name}_coverage"
+
+
+def coverage_owner(check: CoverageIR, ir: ProjectIR) -> RelationshipIR:
+    """The relationship a coverage check reads. Total by construction: the
+    guardrail stage refuses an unresolvable name before emission runs."""
+    return next(rel for rel in ir.relationships if rel.name == check.relationship)
+
+
+def coverage_audit_select(check: CoverageIR, ir: ProjectIR, ctx: EmitContext) -> exp.Select:
+    """The audit body: rows of the **referenced** entity with too few
+    dependents (RFC 0016 D90).
+
+    ``LEFT JOIN`` from the referenced side and ``COUNT`` of a *from-side*
+    column, never ``COUNT(*)``: an unmatched left row still produces one output
+    row, so ``COUNT(*)`` would answer 1 for a referenced row with no dependents
+    at all and the check would pass on exactly the rows it exists to find.
+
+    Only the *referenced* side is named: the dependent side is ``@this_model``,
+    because the audit is attached to that entity's model and the macro is the
+    one reference SQLMesh rewrites inside an AUDIT body (D29). The referenced
+    side is a sibling and has to be declared in ``depends_on`` — the trap D40
+    closed for step audits. See D90 on why the audit hangs off the dependent
+    side and not the other.
+    """
+    relationship = coverage_owner(check, ir)
+    to_namespace, to_relation = ctx.naming.relation(relationship.to_entity, Layer.SILVER)
+    referenced = exp.table_(to_relation, db=to_namespace, alias=_COVERAGE_TO)
+    # The dependent side is ``@this_model``: the audit is attached to that
+    # entity's model, and the macro is the one reference SQLMesh *does* rewrite
+    # inside an AUDIT body (D29). Naming the relation instead would resolve to
+    # the virtual-layer view and put the model in its own ``depends_on``.
+    dependent = _this_model(_COVERAGE_FROM)
+    on = conjunction(
+        [
+            exp.EQ(
+                this=exp.column(from_column, table=_COVERAGE_FROM),
+                expression=exp.column(to_column, table=_COVERAGE_TO),
+            )
+            for from_column, to_column in relationship.via
+        ]
+    )
+    keys = [exp.column(name, table=_COVERAGE_TO) for name in _referenced_key(relationship, ir)]
+    matched = exp.Count(this=exp.column(relationship.via[0][0], table=_COVERAGE_FROM))
+    return (
+        exp.Select()
+        .select(*[key.copy() for key in keys], exp.alias_(matched.copy(), "matched"))
+        .from_(referenced)
+        .join(dependent, on=on, join_type="LEFT")
+        .group_by(*[key.copy() for key in keys])
+        .having(exp.LT(this=matched.copy(), expression=exp.Literal.number(check.minimum)))
+    )
+
+
+def _referenced_key(relationship: RelationshipIR, ir: ProjectIR) -> tuple[str, ...]:
+    """The referenced entity's declared key — what identifies a row the audit
+    reports, so a failure names the customer rather than a row number."""
+    entity = next(e for e in ir.entities if e.name == relationship.to_entity)
+    return entity.key
+
+
+#: Aliases for the two sides of a coverage audit. Fixed rather than derived
+#: from entity names, which could collide with each other on a self-referencing
+#: relationship.
+_COVERAGE_TO = "_referenced"
+_COVERAGE_FROM = "_dependent"
 
 
 def mart_assert_name(mart: MartIR, clause: MartAssertIR) -> str:

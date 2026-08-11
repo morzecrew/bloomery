@@ -200,6 +200,15 @@ entities:
       value: {type: string}
     quarantine: {retention: 90d}
 
+# RFC 0016 D90 — §10's "every customer has >=1 order", declarable. Non-blocking:
+# a customer nobody has ordered from is a fact worth reporting, not a reason to
+# stop the run, and `refs.csv` deliberately seeds customers in both states.
+coverage:
+  - name: every_customer_is_referenced
+    relationship: ref_of_customer
+    min: 1
+    on_fail: flag
+
 relationships:
   - name: ref_of_customer
     from: dirty_ref

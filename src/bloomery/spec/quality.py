@@ -40,6 +40,7 @@ __all__ = [
     "CODEPOINT_ITEM_PATTERN",
     "CharsetRule",
     "CodepointItem",
+    "Coverage",
     "CoercibleRule",
     "Dedupe",
     "DedupeKeepName",
@@ -781,6 +782,46 @@ class Quarantine(SpecModel):
 
     retention: RetentionDuration
     redact: tuple[JsonPath, ...] = ()
+
+
+class Coverage(SpecModel):
+    """One cross-entity **coverage** check (RFC 0016 §10 → D90) — §10's "every
+    customer has ≥1 order", made declarable.
+
+    §10 guessed "probably reconcile-style". It is not: a ``reconcile`` compares
+    two *values* and alerts when they differ beyond a tolerance, while this
+    asserts *existence* — there is no right-hand value on the referenced entity
+    to compare against, and ``right: 1`` is not a shape the reconcile grammar
+    admits or should.
+
+    It is a property of a declared **relationship**, which is what makes it
+    expressible at all: ``referential`` already asks whether every *dependent*
+    row has a parent, and this asks the mirror question — whether every
+    *referenced* row has at least ``min`` dependents. Both read the same two
+    relations through the same ``via`` pairs.
+
+    **Why it is an audit and not a disposition-carrying rule.** A childless
+    customer is a perfectly well-formed row; what is "wrong" is another table's
+    contents. Routing it would need the referenced entity's model to read the
+    dependent one — and the dependent one already reads the referenced one
+    through this very relationship, so the pair that most wants this check is
+    exactly the pair whose models would form a cycle. The audit is attached to
+    the **dependent** side instead, which already depends on the referenced
+    side, so the check adds no edge the relationship did not already imply.
+    """
+
+    name: RuleName
+    relationship: str
+    #: The minimum number of dependent rows each referenced row must have.
+    #: ``1`` is §10's case; higher values state "every order has at least two
+    #: lines" without a second surface.
+    min: int = Field(default=1, ge=1)
+    #: ``fail`` blocks the run, ``flag`` reports beside it — the two readings
+    #: ``reconcile.on_fail`` carries (D38). ``quarantine`` and ``repair`` are
+    #: absent: an audit attached to the dependent side cannot route a row of
+    #: the referenced one, and pretending otherwise would be the silent
+    #: degradation RFC 0008 D3 refuses.
+    on_fail: Literal["flag", "fail"]
 
 
 class Reconcile(SpecModel):

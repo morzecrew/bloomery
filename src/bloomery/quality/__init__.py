@@ -61,6 +61,7 @@ from bloomery.quality.flags import (
 from bloomery.quality.lower import (
     field_sources,
     generated_rule_names,
+    lower_coverage,
     lower_dedupe,
     lower_quality,
     lower_quarantine,
@@ -154,6 +155,7 @@ __all__ = [
     # lowering
     "field_sources",
     "generated_rule_names",
+    "lower_coverage",
     "lower_dedupe",
     "lower_quality",
     "lower_quarantine",

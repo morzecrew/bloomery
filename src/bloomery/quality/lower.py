@@ -38,6 +38,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from bloomery.ir import (
+    CoverageIR,
     DedupeIR,
     OnFail,
     QualityRuleIR,
@@ -72,6 +73,7 @@ if TYPE_CHECKING:
 __all__ = [
     "field_sources",
     "generated_rule_names",
+    "lower_coverage",
     "lower_dedupe",
     "lower_quality",
     "lower_quarantine",
@@ -525,6 +527,25 @@ def lower_quarantine(entity: Entity) -> QuarantineIR | None:
         return None
     return QuarantineIR(
         retention=entity.quarantine.retention, redact=tuple(sorted(entity.quarantine.redact))
+    )
+
+
+def lower_coverage(entity_model: EntityModel) -> tuple[CoverageIR, ...]:
+    """The document-level ``coverage:`` list → :class:`CoverageIR`, sorted by
+    name (RFC 0016 D90)."""
+    return tuple(
+        sorted(
+            (
+                CoverageIR(
+                    name=check.name,
+                    relationship=check.relationship,
+                    minimum=check.min,
+                    blocking=check.on_fail == "fail",
+                )
+                for check in entity_model.coverage
+            ),
+            key=lambda check: check.name,
+        )
     )
 
 

@@ -1,0 +1,7 @@
+mapping_version: 1
+target: customer
+source: crm__customers
+key:
+  customer_id: {from: "$.id", transform: [to_string]}
+fields:
+  name: {from: "$.name", transform: [to_string]}

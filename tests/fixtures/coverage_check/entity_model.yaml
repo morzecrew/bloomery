@@ -1,0 +1,36 @@
+# The smallest project a cross-entity coverage check needs (RFC 0016 D90):
+# two entities and the relationship between them.
+#
+# It exists as its own fixture rather than as a clause on an existing one
+# because a coverage check makes a project uncompilable for dbt — the check is
+# a whole-query audit and dbt's tests are predicates — and every fixture with a
+# relationship to spare is one the dbt goldens are built on.
+spec_version: 1
+entities:
+  customer:
+    grain: one row per customer
+    key: [customer_id]
+    fields:
+      customer_id: {type: string, required: true}
+      name: {type: string}
+
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      customer_id: {type: string}
+      amount: {type: "decimal(12,4)"}
+
+coverage:
+  - name: every_customer_has_an_order
+    relationship: order_of_customer
+    min: 1
+    on_fail: flag
+
+relationships:
+  - name: order_of_customer
+    from: order
+    to: customer
+    via: {customer_id: customer_id}
+    cardinality: many_to_one
