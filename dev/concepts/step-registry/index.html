@@ -829,6 +829,84 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What a spec wires">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#quality-rules-on-an-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Quality rules on an output
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-a-parameter-reaches-a-sql-body" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How a parameter reaches a SQL body
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#linking-an-output-to-canonical-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Linking an output to canonical fields
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#using-a-macro-tier-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Using a macro (Tier 1)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Using a macro (Tier 1)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-ways-to-call-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Two ways to call it
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-checked" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What is checked
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1357,6 +1435,84 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What a spec wires">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#quality-rules-on-an-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Quality rules on an output
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-a-parameter-reaches-a-sql-body" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How a parameter reaches a SQL body
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#linking-an-output-to-canonical-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Linking an output to canonical fields
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#using-a-macro-tier-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Using a macro (Tier 1)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Using a macro (Tier 1)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-ways-to-call-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Two ways to call it
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-checked" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What is checked
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1540,11 +1696,9 @@ and referenced from a spec by <code>use: ref@version</code>.</p>
 surprising number of Python steps are one expression wearing a dataframe.</p>
 <p>Tier 3's costs are real and worth naming before you choose it: data leaves the
 engine, the step becomes memory-bound, and column-level lineage is gone
-(<code>lineage: coarse</code>). Tier 1 will cost nothing at run time at all — the macro body is spliced into
-the model's SELECT, so the model stays one query and lineage sees straight
-through it. <strong>It is not wired yet:</strong> there is no spec surface by which a
-mapping references a macro step, so a wired <code>sql_macro</code> is a compile error
-today rather than a splice that quietly does not happen.</p>
+(<code>lineage: coarse</code>). Tier 1 costs nothing at run time at all — the macro body is spliced into the
+model's query, so the model stays one query and lineage sees straight through
+it.</p>
 <h2 id="what-a-manifest-declares">What a manifest declares<a class="headerlink" href="#what-a-manifest-declares" title="Permanent link">&para;</a></h2>
 <p>The manifest lives in the platform repo, beside the step body — never in
 bloomery, never in a spec:</p>
@@ -1578,14 +1732,166 @@ difference matters — a grain sentence cannot be checked, a key can.</p>
 <span class="w">    </span><span class="nt">outputs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">customer</span><span class="p">:</span><span class="w"> </span><span class="nv">silver.customer</span><span class="p p-Indicator">,</span><span class="nt"> customer_xref</span><span class="p">:</span><span class="w"> </span><span class="nv">silver.customer_xref</span><span class="p p-Indicator">}</span>
 <span class="w">    </span><span class="nt">parameters</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">threshold</span><span class="p">:</span><span class="w"> </span><span class="nv">0.9</span><span class="p p-Indicator">}</span>
 </code></pre></div>
-<p>Quality rules on step outputs are described by RFC 0017 §5.2 but are <strong>not
-lowered yet</strong> — declaring them is a compile error rather than a rule that is
-accepted and never evaluated.</p>
+<h3 id="quality-rules-on-an-output">Quality rules on an output<a class="headerlink" href="#quality-rules-on-an-output" title="Permanent link">&para;</a></h3>
+<p>A step output takes RFC 0016 <code>expression</code> rules, and <code>applies_to</code> says which
+output each judges — an entity's <code>quality:</code> has one relation to mean, a step
+has several:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">steps_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="nt">steps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">use</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">resolve_customers@3</span>
+<span class="w">    </span><span class="nt">outputs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">customer</span><span class="p">:</span><span class="w"> </span><span class="nv">silver.customer</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">quality</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">rule</span><span class="p">:</span><span class="w"> </span><span class="nv">expression</span><span class="p p-Indicator">,</span><span class="nt"> name</span><span class="p">:</span><span class="w"> </span><span class="nv">confident</span><span class="p p-Indicator">,</span><span class="nt"> expr</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;confidence</span><span class="nv"> </span><span class="s">&gt;=</span><span class="nv"> </span><span class="s">0.8&quot;</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">fail</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">applies_to</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">confident</span><span class="p">:</span><span class="w"> </span><span class="nv">customer</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p><strong><code>on_fail: fail</code> only.</strong> It lowers to a blocking audit over the relation, so
+a run whose step produced a violating row stops. <code>flag</code> and <code>quarantine</code> are
+compile errors: both work by rewriting the silver <code>SELECT</code> — adding to
+<code>_quality_flags</code>, routing rows into the reject table — and a step-produced
+relation has no <code>SELECT</code> to rewrite, because its wrapper writes the rows in
+Python. A rule kind that worked for one disposition and silently did nothing
+for the other two would be worse than the refusal.</p>
+<h3 id="how-a-parameter-reaches-a-sql-body">How a parameter reaches a SQL body<a class="headerlink" href="#how-a-parameter-reaches-a-sql-body" title="Permanent link">&para;</a></h3>
+<p>A Tier 2 body refers to its parameters as sqlglot placeholders, the same
+<code>:name</code> spelling Tier 1 uses:</p>
+<div class="highlight"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">canonical_id</span><span class="p">,</span><span class="w"> </span><span class="n">confidence</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">silver</span><span class="p">.</span><span class="n">candidates</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">confidence</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="p">:</span><span class="n">threshold</span>
+</code></pre></div>
+<p>Each placeholder is replaced by a <strong>literal node</strong>, not by text, so a value is
+data wherever it lands — a parameter cannot carry SQL into the body. The
+declared type picks the spelling: <code>int</code> and <code>decimal</code> become number literals,
+<code>bool</code> a boolean, and <code>string</code>, <code>date</code> and <code>timestamp</code> string literals the
+engine compares in the column's own type.</p>
+<p>The body and the step's parameters must name the same set, and each mismatch
+is a compile error rather than something an engine discovers:</p>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Why it is refused</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>:x</code> that no parameter declares</td>
+<td>it would reach the engine as an unknown variable</td>
+</tr>
+<tr>
+<td><code>:x</code> declared with no default and not wired</td>
+<td>same — declaring a parameter is not giving it a value</td>
+</tr>
+<tr>
+<td>a parameter the body never uses</td>
+<td>its value is part of the step's identity, so changing it restates the outputs and recomputes identical rows</td>
+</tr>
+</tbody>
+</table>
+<p>A <code>variant</code> parameter cannot be substituted into a body: DuckDB, Postgres and
+Trino do not write a semi-structured literal the same way. Pass a scalar and
+cast in the body instead.</p>
+<h3 id="linking-an-output-to-canonical-fields">Linking an output to canonical fields<a class="headerlink" href="#linking-an-output-to-canonical-fields" title="Permanent link">&para;</a></h3>
+<p>A mart can read a step output as soon as it exists. A <strong>metric</strong> needs one
+more thing: it resolves against canonical fields, and something has to say
+which canonical field a produced column <em>is</em>.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">steps_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="nt">steps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">use</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">resolve_customers@3</span>
+<span class="w">    </span><span class="nt">outputs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">customer</span><span class="p">:</span><span class="w"> </span><span class="nv">silver.customer</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">canonical</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">customer</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">confidence</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">match_confidence</span>
+</code></pre></div>
+<p>The link lives on the wiring rather than in the manifest, because canonical
+names are your spec's vocabulary — a manifest naming them could not be reused
+by a project that spells them differently, which is the fork "parameterize,
+never fork" exists to prevent.</p>
+<p>It is never inferred from a matching column name. A column called
+<code>confidence</code> is not assumed to be the canonical <code>confidence</code>: guessing a link
+nobody declared is exactly what the compiler refuses elsewhere, and it does
+not become acceptable because the guess is cheap.</p>
+<p>With the link declared, nothing else is special. The column becomes available,
+metrics over it are reachable, and a <code>reconcile:</code> check may name the step's
+relation on either side.</p>
 <p>There is no field here that can hold a body, and none that can name a file to
 load. That absence is the security property: a spec can no more load code than
 a metric name can. The registry is assembled by the caller and passed in —
 <code>compile_project(project, …, steps=registry)</code> — so bloomery never reads a step
 file from disk, and there is no dynamic loading path to abuse.</p>
+<h2 id="using-a-macro-tier-1">Using a macro (Tier 1)<a class="headerlink" href="#using-a-macro-tier-1" title="Permanent link">&para;</a></h2>
+<p>A macro is referenced from the mapping that uses it, never wired in the
+<code>steps:</code> document — it writes no relation, so it has no output to bind there,
+and one wiring per step ref would make a macro usable in exactly one mapping.</p>
+<p>Its manifest declares a <strong>signature</strong>: what it accepts, and (through
+<code>produces</code>) what it returns.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">ref</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">extract_domain</span>
+<span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sql_macro</span>
+<span class="nt">determinism</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pure</span>
+<span class="nt">runtime_lock</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sha256:beef…</span>
+<span class="nt">accepts</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">email</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span>
+<span class="nt">outputs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="nv">row</span><span class="p p-Indicator">,</span><span class="nt"> key</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">v</span><span class="p p-Indicator">],</span><span class="nt"> produces</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">v</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="nv">string</span><span class="p p-Indicator">}}}</span>
+</code></pre></div>
+<p>The body lives in the registry the caller assembles, as one expression whose
+<code>:name</code> placeholders are exactly what the manifest declares:</p>
+<div class="highlight"><pre><span></span><code><span class="n">SPLIT_PART</span><span class="p">(:</span><span class="n">email</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;@&#39;</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span>
+</code></pre></div>
+<h3 id="two-ways-to-call-it">Two ways to call it<a class="headerlink" href="#two-ways-to-call-it" title="Permanent link">&para;</a></h3>
+<p><strong>As a field</strong>, binding each accepted column to a source path — the shape to
+reach for when a macro takes more than one column:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">fields</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">email_domain</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">step</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">extract_domain@1</span>
+<span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">email</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.email&quot;</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p><strong>As a chain link</strong>, so whitelist transforms and the macro compose on one
+field. The running value fills the macro's single accepted column, so this
+shape needs a macro that accepts exactly one:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">fields</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">email_domain</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.email&quot;</span>
+<span class="w">    </span><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">lower</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">step</span><span class="p">:</span><span class="w"> </span><span class="nv">extract_domain@1</span><span class="p p-Indicator">},</span><span class="w"> </span><span class="nv">trim</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<h3 id="what-is-checked">What is checked<a class="headerlink" href="#what-is-checked" title="Permanent link">&para;</a></h3>
+<p>Because the signature is declared rather than guessed from the body, a chain
+is typechecked <em>around</em> the macro: the transforms before it against what it
+accepts, the transforms after it from what it produces. A macro is therefore
+no weaker than a Tier 0 transform, which declares the same two things.</p>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Why it is refused</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the body refers to something the manifest does not declare</td>
+<td>the signature would be decoration, and a call site could not know what to supply</td>
+</tr>
+<tr>
+<td>a call site binds something the macro does not accept</td>
+<td>the path would be read for nothing — a typo is otherwise silent</td>
+</tr>
+<tr>
+<td>a call site omits something it accepts</td>
+<td>the placeholder would reach the engine unfilled</td>
+</tr>
+<tr>
+<td>a two-column macro used as a chain link</td>
+<td>a chain carries one running value, so an argument would be dropped</td>
+</tr>
+<tr>
+<td>a macro declaring anything but <code>determinism: pure</code></td>
+<td>it is re-evaluated on every backfill by construction</td>
+</tr>
+</tbody>
+</table>
+<p>A genuinely polymorphic macro has to pick a type. That is the same constraint
+a Tier 0 transform carries through its input domain, and the same trade:
+a declared type is what makes the check possible at all.</p>
 <h2 id="trust-at-compile-verify-at-run-time">Trust at compile, verify at run time<a class="headerlink" href="#trust-at-compile-verify-at-run-time" title="Permanent link">&para;</a></h2>
 <p>bloomery cannot infer a Python function's output schema, so it trusts
 <code>produces</code> at compile time: downstream models typecheck against it, the DAG
