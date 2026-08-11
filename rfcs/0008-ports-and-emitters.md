@@ -244,10 +244,17 @@ for `EmittedArtifact` / capabilities / naming policies.
 
 ## 10. Unresolved questions
 
-- Exact SQLMesh audit vocabulary for range-sanity clauses (builtin `not_null` etc. vs
-  custom audit files) — implementation settles against the pinned sqlmesh version.
-- Whether Cube views should be emitted per metric or per metric-grain group —
-  implementation settles; goldens lock the choice.
+- ~~Exact SQLMesh audit vocabulary for range-sanity clauses (builtin `not_null` etc. vs
+  custom audit files)~~ — **settled 2026-08-10, D16.** Both, and the criterion is not
+  what SQLMesh has: a clause takes each framework's **native** audit where *both*
+  frameworks have one meaning exactly it, and otherwise both render one predicate
+  bloomery builds. The pinned sqlmesh does ship `accepted_range` and
+  `match_regex_pattern_list`, semantically equal to what bloomery emits; taking them
+  would strand the shared predicate with dbt as its only consumer.
+- ~~Whether Cube views should be emitted per metric or per metric-grain group~~ —
+  **settled 2026-08-10, D17.** Neither: **per mart**. A per-grain view over two marts
+  at one grain would need a `join_path` between them, and bloomery models no
+  relationship between marts — so it could only be emitted by inventing a join.
 
 ## 11. Decisions
 
@@ -266,7 +273,12 @@ for `EmittedArtifact` / capabilities / naming policies.
 | 11 | (Amended, RFC 0010) The SQLMesh emitter also builds marts: one gold-layer model per `MartIR`, the only join-emitting path for marts. |
 | 12 | (Amended for `_bloomery-metricflow-pivot.md` R8) `Feature` gains `CUMULATIVE` and `DERIVED_METRIC`. The planner's declared capabilities are RFC 0013's; `QUERY_TIME_JOIN` is refused **by policy** at the coverage precheck even though MetricFlow supports it. |
 | 13 | (Reverses D6) Bloomery owns the date dimension: one catalog definition emits both the SQLMesh `gold.dim_date` model and the MetricFlow time-spine declaration (RFC 0013 R1). D6's demand-gate is satisfied — MetricFlow is the demand. |
+
 | 14 | (Amended, RFC 0013) A sixth artifact consumer joins the emit family: `emit/metricflow` produces a `PydanticSemanticManifest` (an object, not text — the one emitter whose output is data for `runtime/` hydration rather than an `EmittedArtifact` file; manifest JSON goldens keep it reviewable). |
+
+| 16 | *(2026-08-10)* **A clause takes a native audit where both targets have one, and a shared predicate otherwise. §10's audit-vocabulary question is settled — and not by availability.** The split that shipped is `not_null`/`enum` inline in SQLMesh's `MODEL` block and as dbt's native tests, with `min`/`max`/`regex` as an `audits/*.sql` artifact on one side and `dbt_utils.expression_is_true` on the other. §10 framed the question as "builtin vs custom, settled against the pinned sqlmesh" — which turns out to be the wrong axis. The pinned sqlmesh (0.236) **does** ship `accepted_range` and `match_regex_pattern_list`, and their queries read identically to `audit_predicate`'s: `accepted_range(min_v := N)` is `column < N`, and `match_regex_pattern_list(patterns := [p])` is `NOT REGEXP_LIKE(column, p)`. (Compared by reading both ASTs, not by executing them — stated because "identical" is the kind of claim that deserves to say how it was reached.) So availability was never the constraint. **The criterion is agreement between the two targets.** dbt-core has native `not_null` and `accepted_values` and no range or regex test at all — `dbt_utils` is a package, not core. For the first two, each framework says the same thing in its own vocabulary and bloomery uses each one's, which is why they read natively on both. For the rest, only SQLMesh has a builtin, and taking it would leave `audit_predicate` with dbt as its sole consumer: one function builds the violations form and the assertion form side by side, and that shared construction is the only thing making "select `amount > 100`" and "assert `amount <= 100`" provably the same check rather than two opinions that happen to agree today. A test pins the split per kind per target, and a second asserts the declined builtins still exist — a decision resting on a fact nobody checks is how an RFC row rots. |
+
+| 17 | *(2026-08-10)* **One Cube view per mart. §10's grouping question is settled, and the answer is neither of the two it offered.** §10 asked "per metric or per metric-grain group"; what shipped is per **mart**, and the emitter's own comment called it "the simplest defensible grouping" — true but weaker than the actual reason. **Per-grain is not expressible.** Two marts may share a grain (nothing forbids it, and the corpus now has a case), and merging them into one view means a Cube view over two cubes, which needs a `join_path` between them. bloomery models **no relationship between marts** — they are independently pre-joined at build time (RFC 0010 D1) — so the join would have to be invented, which is the move this project refuses everywhere from `unknown_member` sentinels to fabricated step references. **Per-metric buys nothing.** `measure_owners` already resolves each metric to exactly one mart, so a per-metric view would carry that mart's whole dimension set once per metric and fragment the subject area a view exists to present. The distinguishing case — two marts at one grain — was untested until this decision, because every fixture's marts happened to differ in grain; it now has a test, along with one asserting a view names exactly one cube, which is the structural half of the same argument. |
 
 ## 12. Phasing
 

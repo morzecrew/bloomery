@@ -3,8 +3,12 @@
 One ``model/cubes/<mart>.yml`` per mart (``sql_table`` from
 ``NamingPolicy.relation(mart, Layer.GOLD)`` — the same pair the SQLMesh mart
 build uses, so the cube and the built table cannot disagree) plus one
-``model/views/<mart>_view.yml`` exposing the mart's members (RFC 0008 §10:
-one view per mart, the simplest defensible grouping — the goldens lock it).
+``model/views/<mart>_view.yml`` exposing the mart's members (RFC 0008 §10 → D17:
+one view per **mart**, and not per metric-grain group — two marts may share
+a grain, and merging them would need a ``join_path`` between cubes that
+bloomery models no relationship to build from; per metric would repeat the
+whole dimension set once per measure, since each metric already resolves to
+exactly one mart).
 The YAML is **dialect-independent**: measure SQL is the metric's canonical
 neutral expression and ``ctx.dialect`` is never consulted — Cube renders SQL
 against its own configured database.
