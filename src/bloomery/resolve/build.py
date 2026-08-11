@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING, cast
 from sqlglot import exp, parse_one
 from sqlglot.expressions.core import Expression
 
-from bloomery.errors import ResolutionError
+from bloomery.errors import ResolutionError, StepDeterminismError, StepError
 from bloomery.guardrails import check_guardrails
 from bloomery.ir import (
     Additivity,
@@ -66,10 +66,12 @@ from bloomery.ir import (
 from bloomery.marts import lower_marts
 from bloomery.quality import (
     attach_quality_mart,
+    lower_coverage,
     lower_dedupe,
     lower_quality,
     lower_quarantine,
     lower_reconcile,
+    mapped_fields,
     opts_in,
 )
 from bloomery.resolve.metrics import effective_metrics
@@ -77,8 +79,9 @@ from bloomery.resolve.recipes import resolve_recipe
 from bloomery.resolve.refs import mapping_doc
 from bloomery.resolve.resolution import resolve
 from bloomery.resolve.steps import lower_steps, step_entities
-from bloomery.spec.mapping import RecipeFieldMapping
+from bloomery.spec.mapping import ALIAS_BOUND, MacroFieldMapping, RecipeFieldMapping
 from bloomery.steps import EMPTY_REGISTRY
+from bloomery.steps.splice import parameter_literal, placeholders, splice
 from bloomery.transforms import registry
 from bloomery.typing import (
     ChainCheck,
@@ -94,7 +97,7 @@ if TYPE_CHECKING:
     from bloomery.spec.entity import Entity, Field
     from bloomery.spec.mapping import Mapping, TransformStep
     from bloomery.spec.project import Project
-    from bloomery.steps import StepRegistry
+    from bloomery.steps import StepManifest, StepRegistry
     from bloomery.transforms import Registry
 
 __all__ = [
@@ -141,6 +144,7 @@ def _lower_chain(
     steps: tuple[TransformStep, ...],
     declared: LogicalType,
     reg: Registry,
+    macros: StepRegistry,
     *,
     source_path: str,
 ) -> Expression:
@@ -148,14 +152,91 @@ def _lower_chain(
     if not steps:
         return exp.cast(node, generic_type(declared))
     for step in steps:
+        if step.step is not None:
+            node = _splice_link(step.step, node, macros, source_path=source_path)
+            continue
         node = reg[step.name].builder(node, *step.args)
-    terminal = typecheck_chain(StringType(), steps, declared, registry=reg, source_path=source_path)
+    terminal = _chain_terminal(steps, declared, reg, macros, source_path=source_path)
     if terminal != declared:
         node = exp.cast(node, generic_type(declared))
     return node
 
 
-def _typecheck_project(project: Project, reg: Registry) -> None:
+def _splice_link(
+    use: str, running: Expression, macros: StepRegistry, *, source_path: str
+) -> Expression:
+    """One Tier 1 link in a chain: the running value fills the macro's single
+    accepted column.
+
+    Which name that column has does not matter and is deliberately not a
+    convention — the manifest declares it, and :func:`_refuse_unchainable`
+    has already established there is exactly one.
+    """
+    manifest, body = _macro_parts(use, macros, source_path=source_path)
+    _refuse_unchainable(use, manifest, source_path=source_path)
+    (column,) = manifest.accepts
+    arguments: dict[str, Expression] = {column: running}
+    arguments.update(_macro_parameters(manifest, {}))
+    return splice(body, arguments)
+
+
+def chain_segments(
+    steps: tuple[TransformStep, ...],
+    declared: LogicalType,
+    macros: StepRegistry,
+    *,
+    source_path: str,
+) -> tuple[tuple[LogicalType, tuple[TransformStep, ...], LogicalType], ...]:
+    """A chain split *around* each Tier 1 link, as ``(input, run, declared)``.
+
+    A macro is where the transform whitelist stops being able to reason: its
+    body is opaque SQL. So the run of transforms before it is checked against
+    the type the macro **declares** it accepts, and the run after it starts
+    from the type its ``produces`` declares — which is exactly what makes
+    Tier 1 no weaker than Tier 0, whose ``TransformSpec`` declares
+    ``input_domain`` and ``output_type`` for the same reason (D51).
+
+    Returned as segments rather than checked here so both callers can use
+    one implementation: the batch stage queues them as ordinary
+    ``ChainCheck``s — keeping RFC 0006 D2's one-aggregate property for chains
+    containing a macro — and lowering walks them for the terminal type.
+    """
+    segments: list[tuple[LogicalType, tuple[TransformStep, ...], LogicalType]] = []
+    current: LogicalType = StringType()
+    run: list[TransformStep] = []
+    for step in steps:
+        if step.step is None:
+            run.append(step)
+            continue
+        manifest, _body = _macro_parts(step.step, macros, source_path=source_path)
+        _refuse_unchainable(step.step, manifest, source_path=source_path)
+        (accepted,) = manifest.accepts.values()
+        segments.append((current, tuple(run), parse_type(accepted, source_path=source_path)))
+        run = []
+        (output,) = manifest.outputs.values()
+        (produced,) = output.produces.values()
+        current = parse_type(produced.type, source_path=source_path)
+    segments.append((current, tuple(run), declared))
+    return tuple(segments)
+
+
+def _chain_terminal(
+    steps: tuple[TransformStep, ...],
+    declared: LogicalType,
+    reg: Registry,
+    macros: StepRegistry,
+    *,
+    source_path: str,
+) -> LogicalType:
+    terminal = declared
+    for input_type, run, expected in chain_segments(
+        steps, declared, macros, source_path=source_path
+    ):
+        terminal = typecheck_chain(input_type, run, expected, registry=reg, source_path=source_path)
+    return terminal
+
+
+def _typecheck_project(project: Project, reg: Registry, macros: StepRegistry) -> None:
     """Batch-check every non-empty transform chain (RFC 0004 §5.4). Empty
     chains are declared-type casts at extraction and carry no chain to check."""
     checks: list[ChainCheck] = []
@@ -166,18 +247,23 @@ def _typecheck_project(project: Project, reg: Registry) -> None:
             steps = mapping.key[field_name].transform
             if steps:
                 declared = _field_type(mapping.target, field_name, entity.fields[field_name])
-                checks.append(ChainCheck(StringType(), steps, declared, f"{doc}: key.{field_name}"))
+                path = f"{doc}: key.{field_name}"
+                checks.extend(
+                    ChainCheck(input_type, run, expected, path)
+                    for input_type, run, expected in chain_segments(
+                        steps, declared, macros, source_path=path
+                    )
+                )
         for field_name in sorted(mapping.fields):
             field_mapping = mapping.fields[field_name]
-            if isinstance(field_mapping, RecipeFieldMapping) or not field_mapping.transform:
+            if isinstance(field_mapping, ALIAS_BOUND) or not field_mapping.transform:
                 continue
             declared = _field_type(mapping.target, field_name, entity.fields[field_name])
-            checks.append(
-                ChainCheck(
-                    StringType(),
-                    field_mapping.transform,
-                    declared,
-                    f"{doc}: fields.{field_name}",
+            path = f"{doc}: fields.{field_name}"
+            checks.extend(
+                ChainCheck(input_type, run, expected, path)
+                for input_type, run, expected in chain_segments(
+                    field_mapping.transform, declared, macros, source_path=path
                 )
             )
     typecheck_chains(checks, registry=reg)
@@ -242,6 +328,258 @@ def _recipe_expr(
     return exp.cast(body, generic_type(declared)), recipe.id
 
 
+def _macro_parts(
+    use: str, macros: StepRegistry, *, source_path: str
+) -> tuple[StepManifest, Expression]:
+    """The manifest and parsed body behind a ``ref@version``, with every
+    refusal about *which steps may be spliced at all* applied once."""
+    ref, version = use.split("@", 1)
+    manifest = macros.resolve(ref, int(version), source_path=source_path)
+    if manifest.kind != "sql_macro":
+        msg = (
+            f"field references step {use!r}, which is a {manifest.kind} and cannot be "
+            "spliced into a column: only a sql_macro is an expression (RFC 0017 §5.1). "
+            "Fix: wire it in the steps: document, which is where a step that writes a "
+            "relation belongs"
+        )
+        raise StepError(msg, source_path=source_path)
+    if manifest.determinism != "pure":
+        msg = (
+            f"field references step {use!r}, which declares determinism: "
+            f"{manifest.determinism} (RFC 0017 §5.5). A macro is spliced into the "
+            "entity's query and re-evaluated on every backfill, so anything but pure "
+            "makes a restatement disagree with the run it replaces"
+        )
+        raise StepDeterminismError(msg, source_path=source_path)
+    body = macros.macro_body(ref, int(version))
+    if body is None:
+        msg = (
+            f"field references step {use!r} but the registry carries no macro body for it "
+            "(RFC 0017 §5.3); with none there the column would lower to nothing at all"
+        )
+        raise StepError(msg, source_path=source_path)
+    parsed = cast("Expression", parse_one(body))
+    _refuse_body_disagreement(use, manifest, parsed, source_path=source_path)
+    return manifest, parsed
+
+
+def _refuse_unchainable(use: str, manifest: StepManifest, *, source_path: str) -> None:
+    """A chain carries exactly one running value, so a link must accept
+    exactly one column — checked rather than assumed, because a two-column
+    macro reached this way would silently drop an argument."""
+    if len(manifest.accepts) != 1:
+        expected = ", ".join(sorted(manifest.accepts)) or "(nothing)"
+        msg = (
+            f"step {use!r} accepts {len(manifest.accepts)} column(s) ({expected}), so it "
+            "cannot be a link in a transform chain — a chain carries exactly one running "
+            "value. Fix: use it as a field's step:/from: pair, where each accepted column "
+            "is bound to its own source path"
+        )
+        raise StepError(msg, source_path=source_path)
+    undefaulted = sorted(name for name, spec in manifest.parameters.items() if spec.default is None)
+    if undefaulted:
+        # A chain link has nowhere to put parameter values — the `{step: ref@v}`
+        # form is a bare reference, unlike the `step:`/`from:` field shape which
+        # carries a `parameters:` map. So a parameter with no default is never
+        # resolved, and `splice` leaves its `:name` alone: the emitted SQL
+        # carried a live `$factor` placeholder into the model (RFC 0017 D54).
+        msg = (
+            f"step {use!r} declares parameter(s) {', '.join(undefaulted)} with no default, so "
+            "it cannot be a link in a transform chain — a chain link is a bare reference with "
+            "nowhere to pass a value, and an unresolved parameter would reach the emitted SQL "
+            "as a placeholder. Fix: give the parameter a default in the manifest, or use the "
+            "step as a field's step:/from: pair, which carries a parameters: map"
+        )
+        raise StepError(msg, source_path=source_path)
+
+
+def _macro_parameters(
+    manifest: StepManifest, overrides: dict[str, object]
+) -> dict[str, Expression]:
+    """Declared defaults under the call site's values, as typed literals."""
+    resolved = {
+        name: str(spec.default)
+        for name, spec in manifest.parameters.items()
+        if spec.default is not None
+    }
+    resolved.update({name: str(value) for name, value in overrides.items()})
+    return {
+        name: parameter_literal(value, manifest.parameters[name].type)
+        for name, value in resolved.items()
+    }
+
+
+def _macro_expr(
+    field_mapping: MacroFieldMapping,
+    declared: LogicalType,
+    steps: StepRegistry,
+    *,
+    source_path: str,
+) -> Expression:
+    """A Tier 1 macro spliced into the consuming column (RFC 0017 D50/D51).
+
+    Two populations fill the body's placeholders, disjoint by declaration:
+    ``from`` binds the columns the manifest ``accepts`` (substituted as
+    extraction expressions) and ``parameters`` binds the scalars it declares
+    (substituted as typed literals, so a value is data wherever it lands).
+    """
+    manifest, body = _macro_parts(field_mapping.step, steps, source_path=source_path)
+    _refuse_macro_disagreement(field_mapping, manifest, source_path=source_path)
+    arguments: dict[str, Expression] = {
+        alias: extraction(path) for alias, path in field_mapping.from_.items()
+    }
+    arguments.update(_macro_parameters(manifest, dict(field_mapping.parameters)))
+    return exp.cast(splice(body, arguments), generic_type(declared))
+
+
+def _refuse_body_disagreement(
+    use: str, manifest: StepManifest, parsed: Expression, *, source_path: str
+) -> None:
+    """The macro's *body* and its *declared signature* name one set (D51).
+
+    Checked once, against the manifest rather than against any call site: the
+    registry is where a macro's body and its declaration meet, and a
+    disagreement there is the platform's bug, not the spec author's. Without
+    it the signature would be decoration — a body could refer to a
+    placeholder nothing declares, and the call site would have no way to know
+    it was supposed to supply one.
+    """
+    declared = set(manifest.accepts) | set(manifest.parameters)
+    used = placeholders(parsed)
+    if undeclared := sorted(used - declared):
+        msg = (
+            f"step {use!r} has a body referring to :{', :'.join(undeclared)}, which its "
+            "manifest declares neither in accepts: nor in parameters:. A macro's signature "
+            "is declared, never read off its body (RFC 0017 D51)"
+        )
+        raise StepError(msg, source_path=source_path)
+    if unused := sorted(declared - used):
+        msg = (
+            f"step {use!r} declares {', '.join(unused)}, which its body never refers to. "
+            f"A call site would be required to supply :{unused[0]} for nothing"
+        )
+        raise StepError(msg, source_path=source_path)
+
+
+def _refuse_macro_disagreement(
+    field_mapping: MacroFieldMapping,
+    manifest: StepManifest,
+    *,
+    source_path: str,
+) -> None:
+    """The call site supplies exactly the signature the macro declares.
+
+    Against the declaration, not against the body: that is the difference D51
+    makes. The message can now name what the macro *expects*, and a body
+    change that adds a placeholder is the platform's error rather than a
+    puzzle handed to whoever wired it.
+    """
+    supplied = set(field_mapping.from_)
+    if missing := sorted(set(manifest.accepts) - supplied):
+        msg = (
+            f"field does not bind {', '.join(missing)}, which step {field_mapping.step!r} "
+            f"accepts; bind it under from:, as a source path. Expected: "
+            f"{', '.join(f'{n}: {t}' for n, t in sorted(manifest.accepts.items()))}"
+        )
+        raise StepError(msg, source_path=source_path)
+    if spare := sorted(supplied - set(manifest.accepts)):
+        msg = (
+            f"field binds {', '.join(spare)}, which step {field_mapping.step!r} does not "
+            f"accept; it accepts {', '.join(sorted(manifest.accepts)) or '(nothing)'}. "
+            "The path would be read for nothing — and a typo here is otherwise silent"
+        )
+        raise StepError(msg, source_path=source_path)
+    if unknown := sorted(set(field_mapping.parameters) - set(manifest.parameters)):
+        msg = (
+            f"field sets parameter(s) {', '.join(unknown)} that step "
+            f"{field_mapping.step!r} does not declare; declared: "
+            f"{', '.join(sorted(manifest.parameters)) or '(none)'}"
+        )
+        raise StepError(msg, source_path=source_path)
+
+
+def _repair_bodies(
+    entity_name: str,
+    entity: Entity,
+    mapping: Mapping,
+    steps: StepRegistry,
+) -> dict[str, str]:
+    """``{column: spliced recipe SQL}`` for every ``on_fail: repair`` rule
+    (RFC 0016 D87).
+
+    Resolved here, not in ``quality/``, because splicing needs three things
+    that live at this stage: the step registry, the field's declared type, and
+    the extraction machinery. The result travels as SQL in the rule's params —
+    the arrangement an ``expression`` rule already uses — so emission needs no
+    registry, and a version or ``runtime_lock`` bump lands in the IR where the
+    fingerprint and ``plan()`` can see it.
+
+    The recipe reads the column *after* extraction and transforms, so its
+    argument is a column reference rather than a source path: repair is a
+    disposition on a rule, and a rule sees the produced value. Fixing a value
+    on its way in is a different job with its own shape — a Tier 1 macro in the
+    mapping (RFC 0017 D50).
+    """
+    dedupe_columns: frozenset[str] = (
+        frozenset[str]()
+        if entity.dedupe is None
+        else frozenset({entity.dedupe.field, *entity.dedupe.tie_break})
+    )
+    bodies: dict[str, str] = {}
+    for column, field_mapping in mapped_fields(mapping):
+        if field_mapping is None:
+            continue
+        for rule in field_mapping.quality:
+            if rule.repair is None:
+                continue
+            where = f"{mapping_doc(mapping)}: fields.{column}.quality"
+            if column in bodies:
+                msg = (
+                    f"field {column!r} carries two repair rules. Each rewrites the column in "
+                    "the same projection, so which value survives would depend on the order "
+                    "they happened to be written in (RFC 0016 D87) — and the second recipe "
+                    "would judge a value the first had already changed"
+                )
+                raise StepError(msg, source_path=where)
+            if column in dedupe_columns:
+                msg = (
+                    f"field {column!r} is read by the dedupe order, so it cannot carry a "
+                    "repair rule (RFC 0016 D87). Dedupe runs *before* the field rules (D7), "
+                    "so the winner would be chosen on the value as delivered and then have "
+                    "that value rewritten underneath it — the same reason D6 forces "
+                    "coercible to fail here"
+                )
+                raise StepError(msg, source_path=where)
+            manifest, body = _macro_parts(rule.repair.via, steps, source_path=where)
+            _refuse_unrepairing(rule.repair.via, manifest, column, where=where)
+            declared = _field_type(entity_name, column, entity.fields[column])
+            arguments: dict[str, Expression] = {
+                next(iter(manifest.accepts)): exp.column(column),
+                **_macro_parameters(manifest, dict(rule.repair.parameters)),
+            }
+            bodies[column] = canon(exp.cast(splice(body, arguments), generic_type(declared))).sql
+    return bodies
+
+
+def _refuse_unrepairing(use: str, manifest: StepManifest, column: str, *, where: str) -> None:
+    """A repair recipe takes the column it repairs, and nothing else.
+
+    Exactly one accepted column, because the recipe is bound to *this* rule's
+    value and there is no second path for it to read — the ``from:`` map a
+    Tier 1 field shape uses has no counterpart on a quality rule, and inventing
+    one would make a rule a second mapping surface.
+    """
+    if len(manifest.accepts) != 1:
+        accepted = ", ".join(sorted(manifest.accepts)) or "(nothing)"
+        msg = (
+            f"repair recipe {use!r} accepts {len(manifest.accepts)} column(s) ({accepted}), "
+            f"but a repair rule hands it exactly one — {column}, the value the rule fired "
+            "on (RFC 0016 D87). A recipe needing more than the value it repairs is a "
+            "mapping, not a repair"
+        )
+        raise StepError(msg, source_path=where)
+
+
 def _materialization(entity: Entity) -> Materialization:
     """RFC 0002 D7: declared wins; the derived default is only the default."""
     if entity.materialization is not None:
@@ -258,6 +596,7 @@ def _build_entity(
     project: Project,
     catalog: Catalog | None,
     reg: Registry,
+    steps: StepRegistry,
 ) -> EntityIR:
     doc = mapping_doc(mapping)
     columns: list[ColumnIR] = []
@@ -276,6 +615,7 @@ def _build_entity(
             key_field.transform,
             declared,
             reg,
+            steps,
             source_path=f"{doc}: key.{field_name}",
         )
         columns.append(_column_ir(field_name, field, declared, shape(expr), catalog))
@@ -293,7 +633,16 @@ def _build_entity(
         field_mapping = mapping.fields[field_name]
         field = entity.fields[field_name]
         declared = _field_type(entity_name, field_name, field)
-        if isinstance(field_mapping, RecipeFieldMapping):
+        if isinstance(field_mapping, MacroFieldMapping):
+            expr = _macro_expr(
+                field_mapping, declared, steps, source_path=f"{doc}: fields.{field_name}"
+            )
+            columns.append(_column_ir(field_name, field, declared, shape(expr), catalog))
+            source_fields.extend(
+                SourceFieldIR(target_field=field_name, source_path=path)
+                for _alias, path in sorted(field_mapping.from_.items())
+            )
+        elif isinstance(field_mapping, RecipeFieldMapping):
             expr, recipe_id = _recipe_expr(
                 field_mapping, declared, mapping, field_name, project, catalog
             )
@@ -324,6 +673,7 @@ def _build_entity(
                 field_mapping.transform,
                 declared,
                 reg,
+                steps,
                 source_path=f"{doc}: fields.{field_name}",
             )
             columns.append(_column_ir(field_name, field, declared, shape(expr), catalog))
@@ -356,14 +706,19 @@ def _build_entity(
         # The rules are one sorted tuple — the fixed pipeline order, not the
         # node type, is what separates a field rule from a row rule, and
         # emission renders the stages in that order.
-        quality=lower_quality(entity, mapping, project.entity_model.relationships),
+        quality=lower_quality(
+            entity,
+            mapping,
+            project.entity_model.relationships,
+            _repair_bodies(entity_name, entity, mapping, steps),
+        ),
         dedupe=lower_dedupe(entity),
         quarantine=lower_quarantine(entity),
     )
 
 
 def _build_entities(
-    project: Project, catalog: Catalog | None, reg: Registry
+    project: Project, catalog: Catalog | None, reg: Registry, steps: StepRegistry
 ) -> tuple[EntityIR, ...]:
     by_target: dict[str, list[Mapping]] = {}
     for mapping in project.mappings:
@@ -378,7 +733,9 @@ def _build_entities(
             )
             raise ResolutionError(msg, source_path=f"{mapping_doc(mappings[1])}: target")
         entity = project.entity_model.entities[entity_name]
-        entities.append(_build_entity(entity_name, entity, mappings[0], project, catalog, reg))
+        entities.append(
+            _build_entity(entity_name, entity, mappings[0], project, catalog, reg, steps)
+        )
     return tuple(entities)  # sorted: by_target iterated in sorted order
 
 
@@ -470,18 +827,18 @@ def build_project_ir(
     """
     resolution = resolve(project, catalog)
     reg = registry()
-    _typecheck_project(project, reg)
+    _typecheck_project(project, reg, steps)
 
     steps_ir = lower_steps(project, steps)
     draft = ProjectIR(
-        bloomery_ir_version=3,
+        bloomery_ir_version=4,
         # Mapped entities plus one per step output: §5.8 makes a step output an
         # entity so marts, metrics and downstream mappings can reference it
         # like any other. Sorted together, because the IR's ordering rule is
         # about the collection, not about how a member got there.
         entities=tuple(
             sorted(
-                (*_build_entities(project, catalog, reg), *step_entities(steps_ir)),
+                (*_build_entities(project, catalog, reg, steps), *step_entities(steps_ir, project)),
                 key=lambda entity: entity.name,
             )
         ),
@@ -493,6 +850,7 @@ def build_project_ir(
         # Document-level reconcile checks (RFC 0016 §5.3): they relate two
         # entities, so they belong to neither — they live on the root.
         reconcile=lower_reconcile(project.entity_model),
+        coverage=lower_coverage(project.entity_model),
         # Steps lower before the mart flattener and the guardrail stage, because
         # step outputs are relations both of them must be able to see
         # (RFC 0017 §5.8).

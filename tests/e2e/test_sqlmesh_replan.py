@@ -212,6 +212,33 @@ def _verify_step_resolution(connection: duckdb.DuckDBPyConnection) -> None:
     assert xref == [("c-1", "c-1"), ("c-2", "c-2")]
 
 
+def _seed_coverage_check(conn: duckdb.DuckDBPyConnection) -> None:
+    conn.execute("CREATE TABLE bronze.crm__customers (id VARCHAR, name VARCHAR)")
+    conn.executemany(
+        "INSERT INTO bronze.crm__customers VALUES (?, ?)",
+        [("c1", "Ordering Customer"), ("c2", "Silent Customer")],
+    )
+    conn.execute(
+        "CREATE TABLE bronze.shop__orders (id VARCHAR, customer_id VARCHAR, amount VARCHAR)"
+    )
+    # `c2` deliberately has none: the check exists to notice exactly that row.
+    conn.executemany(
+        "INSERT INTO bronze.shop__orders VALUES (?, ?, ?)",
+        [("o1", "c1", "10.0"), ("o2", "c1", "20.0")],
+    )
+
+
+def _verify_coverage_check(conn: duckdb.DuckDBPyConnection) -> None:
+    """The audit is **non-blocking**, so a plan that applies is the assertion
+    that it loaded and ran without stopping the run — which is the half no
+    other tier can see (RFC 0016 D90). The rows are checked too, because an
+    audit attached to a model that failed to build would also "not block"."""
+    rows = conn.execute("SELECT customer_id FROM silver.customer ORDER BY 1").fetchall()
+    assert rows == [("c1",), ("c2",)]
+    orders = conn.execute("SELECT COUNT(*) FROM silver.\"order\"").fetchone()
+    assert orders == (2,)
+
+
 Seeder = Callable[[duckdb.DuckDBPyConnection], None]
 Verifier = Callable[[duckdb.DuckDBPyConnection], None]
 
@@ -254,6 +281,16 @@ FIXTURES: dict[str, tuple[Seeder, Verifier, frozenset[str]]] = {
         _seed_step_resolution,
         _verify_step_resolution,
         frozenset({"silver.customer_raw", "silver.customer", "silver.customer_xref"}),
+    ),
+    # RFC 0016 D90: a coverage audit is a shape nothing else here has — a body
+    # joining ``@this_model`` to a *sibling*, and a ``depends_on`` that exists
+    # only because of the audit. The comment above ``step_resolution`` is the
+    # argument for it being here: that exact combination is what hid three
+    # defects, and only a real plan resolves a sibling reference at all.
+    "coverage_check": (
+        _seed_coverage_check,
+        _verify_coverage_check,
+        frozenset({"silver.customer", "silver.order"}),
     ),
 }
 

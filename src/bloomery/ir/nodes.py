@@ -35,15 +35,18 @@ __all__ = [
     "FLAGS_COLUMN",
     "OK_COLUMN",
     "REJECT_SUFFIX",
+    "REPAIRS_COLUMN",
     "Additivity",
     "AuditIR",
     "Cardinality",
+    "CoverageIR",
     "ColumnIR",
     "DateDimensionIR",
     "DedupeIR",
     "DimensionRef",
     "EntityIR",
     "Layer",
+    "MartAssertIR",
     "MartColumnIR",
     "MartDimensionIR",
     "MartIR",
@@ -85,6 +88,17 @@ __all__ = [
 FLAGS_COLUMN = "_quality_flags"
 #: The generated boolean, ``cardinality(_quality_flags) = 0`` per shape.
 OK_COLUMN = "_quality_ok"
+#: The **distinct** marker D17 required of ``repair`` before it could land: the
+#: rules whose recipe rewrote this row's value (RFC 0016 D87). Separate from
+#: :data:`FLAGS_COLUMN` on purpose — "repaired, now correct" and "currently
+#: suspect" are different facts, and folding the first into the second would
+#: change what ``has_quality_flags`` means for every mart that already reads it.
+#:
+#: Emitted only on entities that carry a repair rule, unlike the two above.
+#: §12 budgeted the silver-schema churn of ``_quality_flags`` once; a third
+#: universal column would re-open every golden and fingerprint again to add a
+#: column that is empty for every project not using the feature.
+REPAIRS_COLUMN = "_quality_repairs"
 #: One ``<entity>__reject`` per entity, never per mapping (D10).
 REJECT_SUFFIX = "__reject"
 
@@ -187,8 +201,14 @@ class OnFail(StrEnum):
     Deliberately no ``DROP``: silently discarding rows is the fastest way for a
     BI product to lose trust permanently, and it is the disposition everyone
     reaches for first. ``QUARANTINE`` *is* drop plus recoverability — most
-    quarantined rows return after a spec fix. Deliberately no ``REPAIR`` in v1
-    (D17), deferred on a repair-recipe contract.
+    quarantined rows return after a spec fix.
+
+    ``REPAIR`` was deferred out of v1 (D17) and joined the vocabulary when
+    RFC 0017's step registry supplied the recipe contract it was gated on
+    (D87). It is the one member that is not a disposition on its own: a repair
+    rule carries a ``fallback`` for the row its recipe did not fix, and
+    :func:`~bloomery.quality.disposition` resolves it to that fallback — so
+    severity, routing and precedence never see ``REPAIR`` at all.
 
     Severity order for a row failing several rules is ``FAIL > QUARANTINE >
     FLAG`` (D18), which makes every combination deterministic — so no
@@ -198,6 +218,7 @@ class OnFail(StrEnum):
     FLAG = "flag"  # row passes unchanged; recorded in _quality_flags
     QUARANTINE = "quarantine"  # row diverted to <entity>__reject; replayable
     FAIL = "fail"  # blocking audit; the run stops
+    REPAIR = "repair"  # recipe rewrites the value; resolves to `fallback`
 
 
 class SemiAdditiveRule(StrEnum):
@@ -418,6 +439,23 @@ class ReconcileIR:
 
 
 @dataclass(frozen=True, slots=True)
+class CoverageIR:
+    """One cross-entity coverage check (RFC 0016 D90): every row of a
+    relationship's referenced entity has at least ``minimum`` rows referencing
+    it.
+
+    Carries ``blocking`` rather than an :class:`OnFail`, for the reason
+    :class:`MartAssertIR` does: an ``OnFail`` routes a *row*, and this check's
+    verdict is about a row of the entity the audit is **not** attached to.
+    """
+
+    name: str
+    relationship: str
+    minimum: int
+    blocking: bool
+
+
+@dataclass(frozen=True, slots=True)
 class EntityIR:
     """One silver entity: key in authored order (it is meaningful), columns
     sorted by name, audits sorted by (kind, column).
@@ -570,6 +608,28 @@ class MartJoinIR:
 
 
 @dataclass(frozen=True, slots=True)
+class MartAssertIR:
+    """One aggregate assertion over a mart (RFC 0016 D89).
+
+    Not a :class:`QualityRuleIR`, and the difference is the whole decision: a
+    quality rule carries an ``OnFail`` that *routes a row*, and a mart row has
+    no source identity to route. This carries a blocking flag instead — an
+    audit either stops the run or reports beside it.
+
+    ``by`` keeps its authored order (it is a ``GROUP BY``, and the emitted
+    column order follows it); ``params`` is sorted, like every other params
+    tuple in this module.
+    """
+
+    name: str
+    column: str
+    agg: str
+    by: tuple[str, ...]
+    params: tuple[tuple[str, str], ...]
+    blocking: bool
+
+
+@dataclass(frozen=True, slots=True)
 class MartIR:
     """One wide pre-joined mart — read by both the mart builder (joins at
     build) and the planner (no joins), so they cannot disagree (RFC 0010 D1).
@@ -585,6 +645,10 @@ class MartIR:
     joins: tuple[MartJoinIR, ...]
     partition_by: tuple[PartitionSpec, ...]
     materialization: Materialization
+    #: Aggregate assertions over this mart (RFC 0016 D89), sorted by name.
+    #: Assertions rather than quality rules because a mart row has nothing to
+    #: dispose of — no source identity, no reject table, no replay.
+    asserts: tuple[MartAssertIR, ...] = ()
     cost_hint: int = 1
 
 
@@ -717,9 +781,10 @@ class ProjectIR:
 
     Version 2 (RFC 0016 M12) adds the data-quality shape: ``reconcile`` here,
     ``quality``/``dedupe``/``quarantine`` on every :class:`EntityIR`. Version 3
-    (RFC 0017 M13) adds ``steps``. The bump is the point — every artifact's
-    fingerprint header moves, and ``plan()`` refuses to diff across versions
-    rather than misreading one as the other.
+    (RFC 0017 M13) adds ``steps``. Version 4 adds ``coverage`` here and
+    ``asserts`` on every :class:`MartIR` (RFC 0016 D89/D90). The bump is the
+    point — every artifact's fingerprint header moves, and ``plan()`` refuses
+    to diff across versions rather than misreading one as the other.
 
     Note that ``steps`` shifts every fingerprint even for a project with no
     steps at all: the canonical encoder writes each dataclass's field count
@@ -728,7 +793,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 3
+    bloomery_ir_version: int = 4
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()
@@ -736,4 +801,5 @@ class ProjectIR:
     marts: tuple[MartIR, ...] = ()
     date_dimension: DateDimensionIR | None = None
     reconcile: tuple[ReconcileIR, ...] = ()
+    coverage: tuple[CoverageIR, ...] = ()
     steps: tuple[StepIR, ...] = ()

@@ -37,6 +37,8 @@ from bloomery.ir import (
     EntityIR,
     Lineage,
     Materialization,
+    OnFail,
+    QualityRuleIR,
     SCDKind,
     SourceIR,
     StepColumnIR,
@@ -59,6 +61,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "lower_steps",
+    "output_canonicals",
     "step_entities",
 ]
 
@@ -389,22 +392,51 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
     errors: list[BloomeryError] = []
     if manifest.kind == "sql_macro":
         msg = (
-            f"step {wiring.use!r} is a sql_macro, which bloomery cannot yet wire: Tier 1 "
-            "splices into a consuming model's SELECT (RFC 0017 §5.1) and no spec surface "
-            "references a macro step yet, so this would compile clean and emit nothing. "
-            "Fix: declare it as a sql_model, or keep the expression in the transform "
-            "whitelist (Tier 0)"
+            f"step {wiring.use!r} is a sql_macro, which is not wired here: Tier 1 splices "
+            "into the consuming model's query (RFC 0017 §5.1), so it writes no relation "
+            "and has no output to bind. A macro is referenced from the mapping that uses "
+            "it, as a field's step:/from: pair (D50) — which is also what lets one macro "
+            "serve several call sites with different arguments"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
-    if wiring.quality:
-        rules = ", ".join(sorted(rule.name for rule in wiring.quality))
+    routed = sorted(rule.name for rule in wiring.quality if rule.on_fail != "fail")
+    if routed:
         msg = (
-            f"step {wiring.use!r} declares quality rule(s) {rules} on its outputs, which "
-            "bloomery does not yet lower (RFC 0017 §5.2). They would be accepted and "
-            "never evaluated, which is worse than refusing them. Fix: drop them for now, "
-            "or model the step output as an entity and put the rules there"
+            f"step {wiring.use!r} declares quality rule(s) {', '.join(routed)} on its "
+            "outputs with a disposition other than on_fail: fail (RFC 0017 D39). flag and "
+            "quarantine compile into the silver SELECT — the _quality_flags projection and "
+            "the routing WHERE — and a step-produced relation has no SELECT: its wrapper "
+            "writes the rows. Only on_fail: fail lowers, as an audit over the relation. "
+            "Fix: use on_fail: fail, or move the rule to a downstream mapped entity"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
+    return errors
+
+
+def _check_canonical(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryError]:
+    """Each ``canonical:`` link names a column the bound output actually
+    produces (D49).
+
+    The output name is the spec layer's business and already checked there;
+    the *column* is not, because only the manifest says what an output
+    produces and the spec layer has never seen one. A link naming a column
+    that does not exist would draw a DAG edge from a field nothing writes, so
+    a metric would read as reachable and its mart would then fail to build —
+    the kind of late failure this stage exists to pull forward.
+    """
+    errors: list[BloomeryError] = []
+    for output, links in sorted(wiring.canonical.items()):
+        declared = manifest.outputs.get(output)
+        if declared is None:  # pragma: no cover — _check_bindings refuses this first
+            continue
+        missing = sorted(set(links) - set(declared.produces))
+        if missing:
+            msg = (
+                f"step {wiring.use!r} links canonical field(s) to column(s) "
+                f"{', '.join(missing)} of output {output!r}, which it does not produce; "
+                f"produced: {', '.join(sorted(declared.produces))}"
+            )
+            errors.append(StepError(msg, source_path=_path(wiring)))
     return errors
 
 
@@ -427,6 +459,88 @@ def _check_body(
         )
         return [StepError(msg, source_path=_path(wiring))]
     return []
+
+
+def _check_placeholders(
+    wiring: StepWiring,
+    manifest: StepManifest,
+    node: Expression,
+    resolved: dict[str, str],
+) -> list[BloomeryError]:
+    """A Tier 2 body's ``:name`` placeholders and its *resolved* parameters
+    name exactly the same set (§10, settled).
+
+    Resolved, not declared: a manifest parameter with no default that the
+    wiring never sets is declared and has no value, so checking against
+    ``manifest.parameters`` let it through to emit as an unsubstituted
+    ``$p`` — the same hole this check exists to close, one path over.
+
+    Both directions are refusals, and each closes a silent hole:
+
+    - a placeholder nothing declares emitted **unsubstituted**, so the engine
+      met an unknown macro variable — the author wrote a parameter, got no
+      parameter, and got no error;
+    - a declared parameter the body never mentions changes the step's
+      fingerprint and no SQL, so bumping it restates the outputs and
+      reproduces byte-identical data. That is the same "believing something is
+      pinned that is not" D18(c) refused for a seed on a ``pure`` step.
+
+    Tier 1 is deliberately excluded: a ``sql_macro``'s placeholders are the
+    *columns* its call site supplies, which is why :func:`macro_expression`
+    ignores an unused argument rather than refusing it.
+    """
+    if manifest.kind != "sql_model":
+        return []
+    used = {
+        placeholder.this
+        for placeholder in node.find_all(exp.Placeholder)
+        if isinstance(placeholder.this, str)
+    }
+    declared = set(manifest.parameters)
+    available = set(resolved)
+    errors: list[BloomeryError] = []
+    # Split so the message names the actual fault: a typo in the body, versus
+    # a parameter that is declared but was never given a value.
+    if undeclared := sorted(used - declared):
+        msg = (
+            f"step {wiring.use!r} has a body referencing :{', :'.join(undeclared)}, which "
+            f"the manifest does not declare as a parameter (declared: "
+            f"{', '.join(sorted(declared)) or 'none'}). An unsubstituted placeholder "
+            "reaches the engine as an unknown variable"
+        )
+        errors.append(StepError(msg, source_path=_path(wiring)))
+    if unresolved := sorted((used & declared) - available):
+        msg = (
+            f"step {wiring.use!r} has a body referencing :{', :'.join(unresolved)}, which "
+            "the manifest declares with no value: it has no default and the wiring does "
+            "not set it, so the placeholder would be emitted unsubstituted. Fix: set it "
+            "in the step's parameters:, or give the manifest a default"
+        )
+        errors.append(StepError(msg, source_path=_path(wiring)))
+    variants = sorted(
+        name
+        for name in used & available
+        if manifest.parameters[name].type.split("(", 1)[0].strip() == "variant"
+    )
+    if variants:
+        msg = (
+            f"step {wiring.use!r} substitutes parameter(s) {', '.join(variants)} of type "
+            "variant into its body, which bloomery cannot spell portably: DuckDB, "
+            "Postgres and Trino do not write a semi-structured literal the same way, and "
+            "emitting one of the three would compile everywhere and compare correctly in "
+            "one. Fix: pass the value as a string/int/decimal parameter and cast in the "
+            "body, or keep the structure in a relation the body joins"
+        )
+        errors.append(StepError(msg, source_path=_path(wiring)))
+    if unused := sorted(available - used):
+        msg = (
+            f"step {wiring.use!r} resolves parameter(s) {', '.join(unused)} that its body "
+            "never uses (RFC 0017 §5.8). The value is part of the step's identity, so "
+            "changing it would restate the outputs and recompute the same rows. Fix: "
+            f"reference :{unused[0]} in the body, or drop it from the manifest"
+        )
+        errors.append(StepError(msg, source_path=_path(wiring)))
+    return errors
 
 
 def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[BloomeryError]]:
@@ -454,7 +568,9 @@ def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[Bloo
         return None, [StepError(msg, source_path=_path(wiring))]
 
 
-def step_entities(steps: tuple[StepIR, ...]) -> tuple[EntityIR, ...]:
+def step_entities(
+    steps: tuple[StepIR, ...], project: Project | None = None
+) -> tuple[EntityIR, ...]:
     """One :class:`EntityIR` per step output (RFC 0017 §5.8).
 
     This is what §5.8 means by "step outputs are entities in the DAG:
@@ -479,12 +595,21 @@ def step_entities(steps: tuple[StepIR, ...]) -> tuple[EntityIR, ...]:
       has no lowering — the wrapper wrote it — and an identity is what a
       downstream model selecting from the relation would emit anyway.
 
-    Quality rules on these entities are still refused (:func:`_check_scope`):
-    RFC 0016's dispositions lower into a silver *SELECT*, and a step-produced
-    relation does not have one — the wrapper writes it in Python. Synthesizing
-    the entity does not change that, so the refusal stays rather than becoming
-    a rule that is accepted and silently never evaluated.
+    ``quality`` carries the wiring's ``on_fail: fail`` rules, routed by
+    ``applies_to`` (D39). They live on the *entity* rather than on a new
+    ``StepOutputIR`` field for a reason worth stating: ``EntityIR.quality``
+    already exists, so nothing about the IR's shape changes and no fingerprint
+    moves for a project that declares no rule — where a new IR field would
+    move every fingerprint in the corpus, the type-driven encoder covering
+    field names and count rather than values (RFC 0003).
+
+    ``flag`` and ``quarantine`` stay refused in :func:`_check_scope`: both
+    compile into a silver *SELECT* — the ``_quality_flags`` projection and the
+    routing ``WHERE`` — and a step-produced relation has none, because its
+    wrapper writes the rows.
     """
+    rules = _output_rules(project)
+    links = output_canonicals(project)
     entities: list[EntityIR] = []
     for step in steps:
         for output in step.outputs:
@@ -500,7 +625,9 @@ def step_entities(steps: tuple[StepIR, ...]) -> tuple[EntityIR, ...]:
                         ColumnIR(
                             name=column.name,
                             type=column.type,
-                            canonical=None,
+                            canonical=links.get((step.ref, step.version, output.name), {}).get(
+                                column.name
+                            ),
                             unit=None,
                             tax_basis=None,
                             # A step column has no lowering: the wrapper wrote
@@ -516,10 +643,61 @@ def step_entities(steps: tuple[StepIR, ...]) -> tuple[EntityIR, ...]:
                         for column in output.columns
                     ),
                     source=SourceIR(relation=output.relation),
+                    quality=rules.get((step.ref, step.version, output.name), ()),
                     produced_by=f"{step.ref}@{step.version}",
                 )
             )
     return tuple(sorted(entities, key=lambda entity: entity.name))
+
+
+def output_canonicals(
+    project: Project | None,
+) -> dict[tuple[str, int, str], dict[str, str]]:
+    """Authored ``canonical:`` links, keyed by ``(ref, version, output)``.
+
+    Shared by :func:`step_entities` and the DAG builder on purpose: the IR's
+    ``ColumnIR.canonical`` and the graph's ``canonical`` edge are two readings
+    of one declaration, and deriving them separately is how they drift — a
+    column claiming a link the graph never drew reads as reachable and then
+    has no derivation path.
+    """
+    if project is None or project.steps is None:
+        return {}
+    return {
+        (wiring.ref, wiring.version, output): dict(links)
+        for wiring in project.steps.steps
+        for output, links in wiring.canonical.items()
+    }
+
+
+def _output_rules(
+    project: Project | None,
+) -> dict[tuple[str, int, str], tuple[QualityRuleIR, ...]]:
+    """Authored ``on_fail: fail`` rules, keyed by ``(ref, version, output)``.
+
+    ``applies_to`` is what makes this addressable: an entity's ``quality:`` has
+    one relation to mean, a step has several, so a rule names the output it
+    judges (§5.2). Rules of one output are sorted by name so the entity's
+    ``quality`` tuple is canonical whatever order they were authored in.
+    """
+    if project is None or project.steps is None:
+        return {}
+    rules: dict[tuple[str, int, str], list[QualityRuleIR]] = {}
+    for wiring in project.steps.steps:
+        for rule in wiring.quality:
+            output = wiring.applies_to.get(rule.name)
+            if output is None:  # pragma: no cover — the spec model requires it
+                continue
+            rules.setdefault((wiring.ref, wiring.version, output), []).append(
+                QualityRuleIR(
+                    name=rule.name,
+                    kind="expression",
+                    column=None,
+                    on_fail=OnFail(rule.on_fail),
+                    params=(("expr", rule.expr),),
+                )
+            )
+    return {key: tuple(sorted(value, key=lambda rule: rule.name)) for key, value in rules.items()}
 
 
 def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tuple[StepIR, ...]:
@@ -550,6 +728,7 @@ def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tu
             *_check_bindings(wiring, manifest),
             *_check_parameters(wiring, manifest),
             *_check_body(wiring, manifest, body),
+            *_check_canonical(wiring, manifest),
         ]
         resolved = _resolved_values(wiring, manifest)
         step_errors.extend(_check_parameter_types(wiring, manifest, resolved))
@@ -568,7 +747,13 @@ def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tu
             if body_errors:
                 claimed.extend(_claims(wiring))
                 continue
-            parsed = canon(cast("Expression", node))
+            tree = cast("Expression", node)
+            placeholder_errors = _check_placeholders(wiring, manifest, tree, resolved)
+            errors.extend(placeholder_errors)
+            if placeholder_errors:
+                claimed.extend(_claims(wiring))
+                continue
+            parsed = canon(tree)
         steps.append(
             StepIR(
                 ref=manifest.ref,

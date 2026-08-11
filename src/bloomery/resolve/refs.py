@@ -114,6 +114,54 @@ def _check_canonical_links(
                 )
 
 
+def _check_step_canonical_links(
+    project: Project, catalog: Catalog | None, errors: list[BloomeryError]
+) -> None:
+    """A step output's ``canonical:`` links resolve against the catalog, on
+    the same terms a mapped field's do (RFC 0017 D49).
+
+    The same two checks and for the same reasons: an unknown canonical field
+    would make the metric over it read as reachable while nothing declares
+    what it means, and a field declared for a *different* entity is the
+    grain confusion RFC 0006 exists to refuse — a step output is an entity
+    like any other, so it earns no exemption.
+    """
+    if project.steps is None:
+        return
+    for wiring in project.steps.steps:
+        for output, links in sorted(wiring.canonical.items()):
+            entity_name = wiring.outputs[output].rsplit(".", 1)[-1]
+            for column, canonical in sorted(links.items()):
+                path = f"steps: steps.{wiring.use}.canonical.{output}.{column}"
+                if catalog is None:
+                    errors.append(
+                        MissingReference(
+                            f"step output column links canonical field {canonical!r} but no "
+                            "catalog was provided (RFC 0005 §5.6: a catalog-free project is "
+                            "direct-only)",
+                            source_path=path,
+                        )
+                    )
+                    continue
+                canonical_field = catalog.canonical_fields.get(canonical)
+                if canonical_field is None:
+                    known = sorted(catalog.canonical_fields)
+                    errors.append(
+                        MissingReference(
+                            f"unknown canonical field {canonical!r}; known: {known}",
+                            source_path=path,
+                        )
+                    )
+                elif canonical_field.entity != entity_name:
+                    errors.append(
+                        MissingReference(
+                            f"canonical field {canonical!r} is declared for entity "
+                            f"{canonical_field.entity!r}, not {entity_name!r}",
+                            source_path=path,
+                        )
+                    )
+
+
 def _check_relationships(project: Project, errors: list[BloomeryError]) -> None:
     entities = project.entity_model.entities
     for index, rel in enumerate(project.entity_model.relationships):
@@ -208,6 +256,7 @@ def validate_references(project: Project, catalog: Catalog | None) -> None:
     for mapping in project.mappings:
         _check_mapping(mapping, project, errors)
     _check_canonical_links(project, catalog, errors)
+    _check_step_canonical_links(project, catalog, errors)
     _check_relationships(project, errors)
     _check_metrics(project, catalog, errors)
     if errors:

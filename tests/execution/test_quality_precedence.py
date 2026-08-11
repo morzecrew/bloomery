@@ -16,6 +16,7 @@ wrong by a factor, and only an engine can tell you which.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import datetime
 from decimal import Decimal
 
 import duckdb
@@ -345,6 +346,30 @@ def test_excluding_flagged_rows_is_a_plain_metric_request(
     assert run.execute(split.sql).fetchall() == [(False, CLEAN_TOTAL), (True, FLAGGED_TOTAL)]
 
 
+def test_a_mart_assertion_runs_against_the_mart_it_was_written_for(
+    run: duckdb.DuckDBPyConnection,
+) -> None:
+    """RFC 0016 D89 against the real gold relation, not a synthetic stand-in.
+
+    The unit suite next door proves the two body shapes execute; what only the
+    materialized mart can prove is that the columns the assertion names are the
+    columns the mart actually **projects**. A ``by:`` that resolves at compile
+    against the flatten state but never reaches the SELECT is exactly the kind
+    of gap a rendering test cannot see.
+    """
+    body = _violation_body("lines_amount_positive_every_month")
+    assert run.execute(body).fetchall() == []  # every month's total is positive
+    run.execute("CREATE TABLE _flipped AS SELECT * FROM gold.mart_lines")
+    run.execute("UPDATE _flipped SET amount = -amount")
+    flipped = body.replace("gold.mart_lines", "_flipped")
+    assert run.execute(flipped).fetchall() != []
+
+
+def _violation_body(name: str) -> str:
+    artifact = _audits(compile_fixture(FIXTURE))[name]
+    return audit_body(artifact, "gold.mart_lines")
+
+
 # ....................... #
 # §5.6 — the reject row's own history
 
@@ -376,6 +401,40 @@ def test_first_seen_is_preserved_across_a_redelivery_and_last_seen_advances() ->
             "SELECT COUNT(*) FROM silver.q_line__reject WHERE _source_row_id = 'r05'"
         ).fetchone()
         assert rows == (1,)  # the same row, not a second one
+    finally:
+        conn.close()
+
+
+def test_a_redelivery_does_not_erase_the_replay_clock() -> None:
+    """D88's merge half. The reject *model* projects ``last_evaluated_at`` NULL
+    — a model query may not read a clock — and that model is the merge's
+    source, so the default overwrite would wipe the column on every
+    re-delivery: a row would forget it had ever been replayed because the
+    source delivered it again.
+
+    The stamp is written here rather than by running a replay, which isolates
+    the merge from everything else: this asserts what ``when_matched`` does
+    with an existing value, and that value's provenance is
+    ``test_quarantine_replay``'s business.
+    """
+    conn = build()
+    try:
+        conn.execute(
+            "UPDATE silver.q_line__reject SET last_evaluated_at = TIMESTAMP '2024-03-01 00:00:00' "
+            "WHERE _source_row_id = 'r05'"
+        )
+        conn.execute(
+            "UPDATE bronze.q__lines SET _ingested_at = '2024-02-01T00:00:00Z', "
+            "_load_id = 'load_b' WHERE _source_row_id = 'r05'"
+        )
+        materialize(conn, compile_fixture(FIXTURE))
+        after = conn.execute(
+            "SELECT last_evaluated_at, last_seen FROM silver.q_line__reject "
+            "WHERE _source_row_id = 'r05'"
+        ).fetchone()
+        assert after is not None
+        assert after[0] == datetime(2024, 3, 1, tzinfo=None), "the replay clock was erased"
+        assert after[1] is not None  # …while the delivery clock did advance
     finally:
         conn.close()
 

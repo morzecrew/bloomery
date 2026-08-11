@@ -19,13 +19,12 @@ the corpus's own README:
   cast and trims before casting; other engines do neither). §6 assigns them to
   the dialect matrix, so this module asserts only that the outcome is
   *recorded consistently* on both sides of the split — never a single answer.
-- ``unicode.csv``'s ``flag`` marks encode "contains an invisible or deceptive
-  character", which is not expressible in the v1 rule catalogue at all: the
-  portable regex subset (D5) forbids exactly the constructs a codepoint-class
-  test would need, and a class that means one thing under RE2 and another under
-  Postgres ARE is the divergence the subset exists to prevent. So the unicode
-  family asserts ``_expected`` for the rows a declared rule decides, plus the
-  class invariant §5.1 actually promises: **flagged, never dropped**.
+- ``unicode.csv`` used to be the second: its ``flag`` marks encode "contains an
+  invisible or deceptive character", which no v1 rule expressed. D86's
+  ``normalize`` and ``charset`` rules closed that down to **two rows**, named
+  and argued for in :data:`UNDECIDABLE_UNICODE` — and neither is a gap a bigger
+  character set would close, because what is wrong with each is a fact about
+  *context* or *position* rather than about the value's characters.
 """
 
 from __future__ import annotations
@@ -74,10 +73,29 @@ FAMILIES: dict[str, str] = {
     "dirty_date": "dates.csv",
     "dirty_status": "enums.csv",
     "dirty_ref": "refs.csv",
+    "dirty_name": "unicode.csv",
     "dirty_decimal_extreme": "extremes.csv",
     "dirty_integer_extreme": "extremes.csv",
     "dirty_timestamp_extreme": "extremes.csv",
     "dirty_text_extreme": "extremes.csv",
+}
+
+#: The unicode specimens no v1 rule decides, with the reason each is beyond a
+#: rule's reach — ``{case: why}``. D26 recorded the whole family as
+#: unassertable; D86's ``normalize`` and ``charset`` rules left exactly these
+#: two, and neither is a gap a *bigger character set* would close.
+#:
+#: Named here rather than dropped from :data:`FAMILIES`, so the exclusion is
+#: reviewable, has to be argued for, and shrinks visibly in a diff.
+UNDECIDABLE_UNICODE: dict[str, str] = {
+    # `emoji_zwj_sequence` needs U+200D and `zero_width_joiner` must not have
+    # it. Same codepoint, opposite verdicts: what separates them is what sits
+    # on either side, which is not a property of the character.
+    "zero_width_joiner": "the joiner's legitimacy is contextual, not a set membership",
+    # A combining acute with no base character. The value is well-formed, in
+    # NFC, and holds no forbidden character — what is wrong with it is *where*
+    # the mark sits, which neither a normal form nor a character set can see.
+    "combining_mark_alone": "a mark with no base is a positional property, not a value one",
 }
 
 #: ``_expected``'s own vocabulary for "the row survives with its fk rewritten
@@ -115,6 +133,8 @@ def test_every_specimen_lands_where_the_corpus_says(
         wanted = declared[case]
         if wanted == DIALECT_DIVERGENT:
             continue  # asserted for consistency below, never for an answer
+        if corpus_file == "unicode.csv" and case in UNDECIDABLE_UNICODE:
+            continue  # the two rows nothing in the catalogue reaches
         if wanted == UNKNOWN_MEMBER:
             wanted = FLAGGED
         assert disposition == wanted, f"{corpus_file}:{case}"
@@ -356,10 +376,11 @@ def test_unicode_rows_are_flagged_never_dropped(
     is no ``drop``. Every unicode specimen is accounted for on one side of the
     split, and only the row the declared ``pattern`` rule refuses is diverted.
 
-    The corpus marks fourteen further rows ``flag`` on a judgement about
-    *deceptive characters* that no v1 rule can express — see this module's
-    docstring. Those rows are asserted here as "kept", which is the part of
-    ``flag`` that matters for row conservation.
+    This is the assertion that held the family together while D26 was open and
+    the dispositions themselves were unassertable. It stays after D86 closed
+    that, because it says something the row-by-row check does not: whatever a
+    rule decides, a flagged row is *kept*, and no specimen leaves the pipeline
+    by a third door.
     """
     landed = dispositions(corpus_run, "dirty_name")
     row_ids = cases("unicode.csv")
@@ -380,6 +401,27 @@ def test_unicode_rows_are_flagged_never_dropped(
         # Thirteen codepoints rendering as one grapheme — the upper bound any
         # `length` rule has to have an answer for.
         ("long_grapheme_cluster", "name_length_max"),
+        # THE normalization specimen (D86): `café` decomposed. Byte-unequal to
+        # the precomposed row beside it, canonically equal to it, and no other
+        # rule in the catalogue can tell the two apart.
+        ("nfd_form", "name_normalize"),
+        # …and the same rule on the row whose base composes under NFC.
+        ("long_grapheme_cluster", "name_normalize"),
+        # The invisible half of the charset set: each of these renders exactly
+        # like `ascii_control`, which is the clean row.
+        ("zero_width_space", "name_charset"),
+        ("rtl_mark", "name_charset"),
+        ("bidi_override", "name_charset"),
+        ("soft_hyphen", "name_charset"),
+        ("nbsp", "name_charset"),
+        ("leading_bom_in_field", "name_charset"),
+        ("tab_in_field", "name_charset"),
+        ("replacement_char", "name_charset"),
+        # The confusable-script half — the rows a denylist of *blocks* reaches
+        # and no enumeration of invisible characters ever would.
+        ("homoglyph_cyrillic", "name_charset"),
+        ("homoglyph_digits_fullwidth", "name_charset"),
+        ("arabic_indic_digits", "name_charset"),
     ],
 )
 def test_the_unicode_rows_a_declared_rule_decides(
@@ -501,19 +543,21 @@ def test_unique_fires_over_the_whole_table_slice_and_stays_silent_on_nulls(
     assert rejected == [(["amount_coercible"],)]  # the null row, and only coercible
 
 
-def test_the_range_rule_fires_on_no_corpus_row(
+def test_the_range_rule_diverts_the_row_that_casts_and_then_violates_the_bound(
     corpus_run: duckdb.DuckDBPyConnection,
 ) -> None:
     """RFC 0016 §5.3's worked example (``range, min: 0, on_fail: quarantine``)
-    is declared on ``dirty_key.amount`` and fires on nothing — and that is a
-    statement about the **corpus**, not about the rule.
+    on ``dirty_key.amount``, and the specimen D28 recorded the corpus as
+    missing.
 
-    Every out-of-bounds specimen the corpus carries is also uncastable, so
+    Every *other* out-of-bounds value in the corpus is also uncastable, so
     ``coercible`` reaches it first and ``range`` stays ``UNKNOWN`` over the
-    resulting NULL (D19). The corpus has no row that casts cleanly and then
-    violates a declared bound. Recorded here rather than papered over: by the
-    README's own rule ("every incident adds a row"), that is a gap the next
-    range-shaped incident should close.
+    resulting NULL (D19). That left the corpus with no specimen for ``range``
+    *routing* a row — the rule was live at execution only in the
+    ``quality_precedence`` fixture, where it sits at ``fail`` and blocks the run
+    rather than diverting anything. ``amount_below_range_min`` casts cleanly and
+    then violates the bound, so this is where ``range`` and the two-way split
+    meet.
     """
     # ``rows_failed`` only: on a *rule* row the population counts are
     # structurally zero (D34 moved them to the entity's accounting row), so
@@ -521,9 +565,23 @@ def test_the_range_rule_fires_on_no_corpus_row(
     rows = corpus_run.execute(
         "SELECT rows_failed FROM gold.mart_data_quality WHERE rule = 'amount_range_min'"
     ).fetchall()
-    assert rows == [(0,)]
+    assert rows == [(1,)]
+    by_case = {case: row_id for row_id, case in cases("keys.csv").items()}
     diverted = corpus_run.execute(
-        "SELECT COUNT(*) FROM silver.dirty_key__reject "
+        "SELECT _source_row_id, failed_rules FROM silver.dirty_key__reject "
         "WHERE LIST_CONTAINS(failed_rules, 'amount_range_min')"
-    ).fetchone()
-    assert diverted == (0,)
+    ).fetchall()
+    assert diverted == [(by_case["amount_below_range_min"], ["amount_range_min"])]
+
+
+def test_the_inclusive_edge_of_the_range_bound_is_kept(
+    corpus_run: duckdb.DuckDBPyConnection,
+) -> None:
+    """The other half of the pair. ``min`` lowers to ``col < min``, so the bound
+    itself is *in* bounds — and the two adjacent specimens one ulp apart are
+    what makes an off-by-one in that comparison a test failure rather than a
+    silently over-eager quarantine."""
+    by_case = {case: row_id for row_id, case in cases("keys.csv").items()}
+    landed = dispositions(corpus_run, "dirty_key")
+    assert landed[by_case["amount_at_range_min"]] == (KEPT, ())
+    assert landed[by_case["amount_below_range_min"]] == (QUARANTINED, ("amount_range_min",))

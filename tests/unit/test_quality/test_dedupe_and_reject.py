@@ -17,6 +17,7 @@ import pytest
 from sqlglot import exp
 
 from bloomery.ir import DedupeIR
+from bloomery.dialects import get_dialect
 from bloomery.quality import (
     REJECT_COLUMNS,
     ROW_ID_COLUMN,
@@ -118,7 +119,8 @@ def test_reject_id_is_sha256_over_the_length_prefixed_pair() -> None:
     """The value is recomputable from the reject row itself, so the test
     recomputes it in Python and compares against what the SQL produces."""
     relation, row_id = "wms__stock_levels", "row-42"
-    node = reject_id(relation, exp.column("_source_row_id"))
+    duck = get_dialect("duckdb")
+    node = reject_id(relation, exp.column("_source_row_id"), duck.text_sha256)
     sql = f"SELECT {node.sql(dialect='duckdb')} FROM (SELECT ? AS _source_row_id)"
     with duckdb.connect(":memory:") as connection:
         emitted = connection.execute(sql, [row_id]).fetchone()
@@ -129,12 +131,21 @@ def test_reject_id_is_sha256_over_the_length_prefixed_pair() -> None:
     assert emitted[0] == expected
 
 
-def test_reject_id_is_stable_across_calls_and_dialects() -> None:
-    node = reject_id("rel", exp.column(ROW_ID_COLUMN))
-    again = reject_id("rel", exp.column(ROW_ID_COLUMN))
+def test_reject_id_is_stable_across_calls_and_agrees_across_dialects() -> None:
+    """Stable per dialect, and — the property that actually matters — the
+    *same digest* on all three. The spellings differ because the engines do
+    (D83); the value may not, or a row re-delivered to a different engine
+    would land on a different reject row."""
+    duck = get_dialect("duckdb")
+    node = reject_id("rel", exp.column(ROW_ID_COLUMN), duck.text_sha256)
+    again = reject_id("rel", exp.column(ROW_ID_COLUMN), duck.text_sha256)
     assert node.sql() == again.sql()
-    for dialect in ("duckdb", "postgres", "trino"):
-        assert "SHA256" in node.sql(dialect=dialect)
+    for name in ("duckdb", "postgres", "trino"):
+        dialect = get_dialect(name)
+        rendered = dialect.render(
+            reject_id("rel", exp.column(ROW_ID_COLUMN), dialect.text_sha256)
+        )
+        assert "SHA256" in rendered.upper()
 
 
 def test_length_prefixing_makes_the_pair_injective() -> None:
@@ -146,7 +157,7 @@ def test_length_prefixing_makes_the_pair_injective() -> None:
 def test_load_id_is_not_part_of_the_identity() -> None:
     """D21: re-deliveries of the same source row across loads land on the
     **same** reject row; a per-load identity would violate replay idempotence."""
-    node = reject_id("rel", exp.column(ROW_ID_COLUMN))
+    node = reject_id("rel", exp.column(ROW_ID_COLUMN), get_dialect("duckdb").text_sha256)
     assert "_load_id" not in node.sql()
     assert "_load_id" in REJECT_COLUMNS  # still carried, as an attribute
 
@@ -166,4 +177,8 @@ def test_the_reject_schema_matches_the_rfc() -> None:
         "first_seen",
         "last_seen",
         "resolved_at",
+        # D88: replay's own clock, appended rather than slotted beside the
+        # other timestamps — the tuple is the emitted column *order*, and
+        # inserting in the middle would rewrite every reject table in place.
+        "last_evaluated_at",
     )

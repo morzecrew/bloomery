@@ -13,7 +13,7 @@ import ast
 import pytest
 from sqlglot import exp, parse_one
 
-from bloomery.emit.steps import macro_expression
+from bloomery.emit.base import EmittedArtifact
 from bloomery.ir import Determinism, Lineage, StepIR, StepKind, canon
 from support.compiling import compile_fixture
 
@@ -151,21 +151,6 @@ def _macro(body: str) -> StepIR:
     )
 
 
-def test_a_macro_splices_its_arguments() -> None:
-    """An AST substitution, not string interpolation — which is what keeps the
-    splice inside the SQLGlot-only discipline (RFC 0004 D7) and lets the model
-    stay one query."""
-    spliced = macro_expression(_macro("LOWER(:col)"), {"col": exp.column("email")})
-    assert spliced.sql() == "LOWER(email)"
-
-
-def test_a_macro_argument_the_body_ignores_is_not_an_error() -> None:
-    """The caller supplies the columns in scope; a macro may use fewer than it
-    is offered."""
-    spliced = macro_expression(_macro("UPPER(:a)"), {"a": exp.column("x"), "b": exp.column("y")})
-    assert spliced.sql() == "UPPER(x)"
-
-
 def test_a_macro_emits_no_artifact_of_its_own() -> None:
     """Tier 1's whole point: it lives inside a consuming model's SELECT, so
     column-level lineage sees straight through it."""
@@ -269,3 +254,271 @@ def test_an_undeclared_coincidence_emits_no_audit() -> None:
     )
     ctx = EmitContext(fingerprint="blm1:t", naming=DefaultNaming(), dialect=get_dialect("duckdb"))
     assert consistency_audits(step, ctx) == ()
+
+
+# ....................... #
+# Tier 2 parameters (§10's open question, settled)
+
+
+SQL_MANIFEST: dict[str, object] = {
+    "ref": "scored",
+    "version": 1,
+    "kind": "sql_model",
+    "determinism": "pure",
+    "runtime_lock": "sha256:x",
+    "outputs": {
+        "out": {"grain": "g", "key": ["k"], "produces": {"k": {"type": "string"}}},
+    },
+}
+
+
+def sql_step(body: str, parameters: dict[str, object], wired: str) -> str:
+    """Compile a one-step Tier 2 project and return the emitted *query* — the
+    text after the ``MODEL (...)`` block.
+
+    The header is excluded deliberately: it carries a hex fingerprint, and an
+    assertion like ``"7" in artifact`` passes against that hex without the
+    substitution happening at all. Two of these tests did exactly that.
+    """
+    from bloomery import compile_project, load_project
+    from bloomery.steps import StepManifest, StepRegistry
+
+    manifest = StepManifest.model_validate(SQL_MANIFEST | {"parameters": parameters})
+    project = load_project(
+        {
+            "entity_model": "spec_version: 1\nentities: {}\n",
+            "steps": (
+                "steps_version: 1\nsteps:\n  - use: scored@1\n"
+                "    outputs: {out: silver.scored}\n"
+                f"    parameters: {wired}\n"
+            ),
+        }
+    )
+    registry = StepRegistry({("scored", 1): manifest}, sql_bodies={("scored", 1): body})
+    artifacts = compile_project(
+        project, target="sqlmesh", dialect="duckdb", steps=registry
+    )
+    content = next(a.content for a in artifacts if a.path == "models/silver/scored.sql")
+    _header, _, query = content.partition(");")
+    return query
+
+
+def test_a_sql_model_parameter_reaches_the_body() -> None:
+    """The gap this settles: the value was carried in the IR — so it changed
+    the fingerprint and restated the step — and never reached the SQL, which
+    emitted a bare ``$threshold`` placeholder. An author wrote a parameter,
+    got no parameter, and got no error."""
+    sql = sql_step(
+        "SELECT k FROM silver.src WHERE score > :threshold",
+        {"threshold": {"type": "decimal(4,3)", "default": "0.85"}},
+        "{threshold: 0.9}",
+    )
+    assert "0.9" in sql
+    assert "threshold" not in sql
+
+
+@pytest.mark.parametrize(
+    ("declared", "wired", "expected"),
+    [
+        ("int", "{p: 7}", "7"),
+        ("decimal", "{p: 0.25}", "0.25"),
+        ("string", "{p: 'abc'}", "'abc'"),
+        ("bool", "{p: true}", "TRUE"),
+        ("date", "{p: '2024-01-01'}", "'2024-01-01'"),
+    ],
+)
+def test_each_parameter_type_renders_its_own_literal(
+    declared: str, wired: str, expected: str
+) -> None:
+    """The declared type decides the spelling. Inferring it from how the
+    digits look is the guessing game D20 already refused on the Python side."""
+    sql = sql_step("SELECT k FROM silver.src WHERE c = :p", {"p": {"type": declared}}, wired)
+    assert expected in sql
+
+
+def test_a_parameter_value_cannot_carry_sql_into_the_body() -> None:
+    """The substitution builds an AST literal, so a value is data wherever it
+    lands. String interpolation here would be RFC 0013's injection boundary
+    reopened in the one place a spec value reaches emitted SQL."""
+    sql = sql_step(
+        "SELECT k FROM silver.src WHERE c = :p",
+        {"p": {"type": "string"}},
+        "{p: \"x' OR 1=1 --\"}",
+    )
+    # Present as *data*: one escaped string literal, still one comparison.
+    assert "'x'' OR 1=1 --'" in sql
+    tree = parse_one(sql, read="duckdb")
+    assert tree is not None
+    literals = [n.this for n in tree.find_all(exp.Literal) if n.is_string]
+    assert literals == ["x' OR 1=1 --"]
+    assert tree.find(exp.Or) is None
+
+
+def test_a_placeholder_the_manifest_does_not_declare_is_refused() -> None:
+    """Otherwise it emits unsubstituted and the engine meets an unknown macro
+    variable — the silent-hole failure this whole change closes."""
+    from bloomery.errors import StepError
+
+    with pytest.raises(StepError, match="does not declare"):
+        sql_step(
+            "SELECT k FROM silver.src WHERE score > :nope",
+            {"threshold": {"type": "decimal", "default": "0.85"}},
+            "{threshold: 0.9}",
+        )
+
+
+def test_a_declared_parameter_the_body_never_uses_is_refused() -> None:
+    """A parameter that changes the fingerprint and no SQL restates the step
+    and reproduces identical data — the same "believing something is pinned
+    that is not" D18(c) refused for a seed on a pure step."""
+    from bloomery.errors import StepError
+
+    with pytest.raises(StepError, match="never uses"):
+        sql_step(
+            "SELECT k FROM silver.src",
+            {"threshold": {"type": "decimal", "default": "0.85"}},
+            "{threshold: 0.9}",
+        )
+
+
+def test_a_placeholder_whose_parameter_has_no_value_is_refused() -> None:
+    """Declared is not the same as *resolved*. A manifest parameter with no
+    default that the wiring never sets resolves to nothing, so it reached emit
+    as an unsubstituted ``$p`` — the same silent hole, one path over. The
+    check has to compare the body against the values the step will actually
+    run with, not against the names the manifest lists."""
+    from bloomery.errors import StepError
+
+    with pytest.raises(StepError, match="no value"):
+        sql_step("SELECT k FROM silver.src WHERE c = :p", {"p": {"type": "int"}}, "{}")
+
+
+def test_a_variant_parameter_in_a_body_is_refused_rather_than_guessed() -> None:
+    """`variant` is semi-structured, and its literal spelling differs per
+    engine — DuckDB, Postgres and Trino do not agree on how a JSON value is
+    written. Rendering it as a string literal is a guess that compiles and
+    compares wrongly, which is what RFC 0006 exists to refuse. Named as the
+    escape hatch, not built: it needs a per-dialect literal hook."""
+    from bloomery.errors import StepError
+
+    with pytest.raises(StepError, match="variant"):
+        sql_step(
+            "SELECT k FROM silver.src WHERE c = :p",
+            {"p": {"type": "variant", "default": "xyz"}},
+            "{}",
+        )
+
+
+# ....................... #
+# Quality rules on step outputs (D39: the `on_fail: fail` subset)
+
+
+QUALITY_MANIFEST: dict[str, object] = {
+    "ref": "resolve_customers",
+    "version": 3,
+    "kind": "python_model",
+    "entrypoint": "platform_steps.resolve_customers:resolve",
+    "determinism": "pure",
+    "runtime_lock": "sha256:a91f",
+    "outputs": {
+        "customer": {
+            "grain": "customer",
+            "key": ["canonical_id"],
+            "produces": {
+                "canonical_id": {"type": "string", "required": True},
+                "confidence": {"type": "decimal(4,3)"},
+            },
+        }
+    },
+}
+
+
+def quality_step(on_fail: str = "fail") -> tuple[EmittedArtifact, ...]:
+    from bloomery import compile_project, load_project
+    from bloomery.steps import StepManifest, StepRegistry
+
+    manifest = StepManifest.model_validate(QUALITY_MANIFEST)
+    project = load_project(
+        {
+            "entity_model": "spec_version: 1\nentities: {}\n",
+            "steps": (
+                "steps_version: 1\nsteps:\n  - use: resolve_customers@3\n"
+                "    outputs: {customer: silver.customer}\n"
+                "    quality:\n"
+                "      - {rule: expression, name: confident, "
+                f'expr: "confidence >= 0.8", on_fail: {on_fail}}}\n'
+                "    applies_to: {confident: customer}\n"
+            ),
+        }
+    )
+    registry = StepRegistry({("resolve_customers", 3): manifest})
+    return compile_project(project, target="sqlmesh", dialect="duckdb", steps=registry)
+
+
+def test_a_fail_rule_on_a_step_output_emits_a_blocking_audit() -> None:
+    """D39's tractable subset. A step-produced relation has no SELECT to route
+    rows into — the wrapper writes it in Python — but an audit reads the
+    relation after the fact, which is exactly what `on_fail: fail` means."""
+    audits = {a.path for a in quality_step() if a.path.startswith("audits/")}
+    assert audits == {"audits/step_customer_confident.sql"}
+
+
+def test_the_audit_is_named_by_the_model_that_owns_the_output() -> None:
+    """SQLMesh loads a bare AUDIT as a *model* audit and runs it only where a
+    model's `audits:` names it — the defect D42 records. An emitted audit
+    nothing references never runs."""
+    wrapper = next(
+        a.content for a in quality_step() if a.path == "models/silver/customer.py"
+    )
+    assert "audits=['step_customer_confident']" in wrapper
+
+
+def test_the_audit_returns_the_violating_rows() -> None:
+    """An audit passes when its query returns nothing, so the body has to be
+    the *violation*, not the assertion."""
+    body = next(
+        a.content for a in quality_step() if a.path == "audits/step_customer_confident.sql"
+    )
+    assert "NOT" in body or "<" in body
+    assert "confidence" in body
+
+
+@pytest.mark.parametrize("disposition", ["flag", "quarantine"])
+def test_a_flag_or_quarantine_rule_on_a_step_output_is_still_refused(
+    disposition: str,
+) -> None:
+    """The half that cannot lower: both dispositions compile into the silver
+    SELECT's projection and routing WHERE, and a step-produced relation has
+    neither. Shipping a rule kind that works for one disposition and silently
+    does nothing for the other two is worse than the refusal (D39)."""
+    from bloomery.errors import StepError
+
+    with pytest.raises(StepError, match="on_fail: fail"):
+        quality_step(disposition)
+
+
+def test_the_step_output_entity_carries_the_rule() -> None:
+    """The rule lands on the synthesized entity rather than on a new StepIR
+    field: `EntityIR.quality` already exists, so nothing about the IR's shape
+    changes and no fingerprint moves for a project that declares no rule."""
+    from bloomery import build_project_ir, load_project
+    from bloomery.steps import StepManifest, StepRegistry
+
+    manifest = StepManifest.model_validate(QUALITY_MANIFEST)
+    project = load_project(
+        {
+            "entity_model": "spec_version: 1\nentities: {}\n",
+            "steps": (
+                "steps_version: 1\nsteps:\n  - use: resolve_customers@3\n"
+                "    outputs: {customer: silver.customer}\n"
+                "    quality:\n"
+                '      - {rule: expression, name: confident, expr: "confidence >= 0.8", '
+                "on_fail: fail}\n"
+                "    applies_to: {confident: customer}\n"
+            ),
+        }
+    )
+    ir = build_project_ir(project, steps=StepRegistry({("resolve_customers", 3): manifest}))
+    (entity,) = [e for e in ir.entities if e.name == "customer"]
+    assert [rule.name for rule in entity.quality] == ["confident"]
+    assert entity.quality[0].kind == "expression"

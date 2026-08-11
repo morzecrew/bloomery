@@ -4,6 +4,7 @@ artifact SELECT extraction the execution tier uses."""
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from bloomery import Target, compile_project, load_catalog, load_project
@@ -12,6 +13,13 @@ from bloomery.spec import Catalog, Project
 from support.steps import registry_for
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
+
+#: ``{{ ref('x') }}`` and ``{{ source('ns', 'x') }}`` as the dbt emitter writes
+#: them (RFC 0008 D20) — anchored on the exact rendering rather than on loose
+#: brace matching, so a change in how they are emitted fails here rather than
+#: silently stopping to match.
+_DBT_REF = re.compile(r"\{\{ ref\('(?P<relation>[^']+)'\) \}\}")
+_DBT_SOURCE = re.compile(r"\{\{ source\('(?P<namespace>[^']+)', '(?P<relation>[^']+)'\) \}\}")
 
 
 def fixture_sources(name: str) -> dict[str, str]:
@@ -69,3 +77,23 @@ def extract_select(content: str) -> str:
     envelope's closing ``);`` (the envelope contains no other ``);``)."""
     _envelope, _sep, select = content.partition(");")
     return expand_engine_macros(select.strip())
+
+
+def resolve_dbt_references(sql: str) -> str:
+    """dbt references back to the relations they resolve to (RFC 0008 D20).
+
+    A dbt model body is a *template*, not SQL: since D20 its inputs are
+    ``{{ ref(...) }}`` and ``{{ source(...) }}`` so that dbt can order the DAG
+    and place the relations. Two tiers need the SQL underneath — the
+    port-abstraction proof (D5) compares it against what SQLMesh renders, and
+    the parse property checks it is well-formed — and both would otherwise have
+    to stop looking at dbt, which is the coverage loss rather than the
+    substitution.
+
+    ``ref()`` names a *model*, not a relation, so it resolves without a
+    namespace; the namespace it will materialize into is the ``+schema``
+    config's business and is asserted where that config is. ``source()``
+    carries its namespace and keeps it.
+    """
+    sql = _DBT_SOURCE.sub(lambda m: f"{m['namespace']}.{m['relation']}", sql)
+    return _DBT_REF.sub(lambda m: m["relation"], sql)

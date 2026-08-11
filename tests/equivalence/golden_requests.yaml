@@ -1,0 +1,56 @@
+# The equivalence corpus (RFC 0009 §5.8): one MetricRequest per entry, planned
+# by the MetricFlow-backed planner and issued to Cube, both against one
+# Postgres holding the same mart.
+#
+# §5.8 asks for ~40 requests. This is fewer, deliberately and visibly: each one
+# costs a Cube round trip in a nightly lane, and the classes are what buy
+# coverage rather than the count — an additive measure at three grains, a
+# filtered request, a ratio recomputed per group, and a request the planner
+# refuses. Growing the list is adding entries here; nothing else changes.
+#
+# `reference` names a file under `reference_sql/`, executed as the third leg.
+# §5.8 makes it the tiebreaker "when the two engines disagree" — it runs on
+# every request that declares one, because a tiebreaker consulted only after a
+# disagreement is a tiebreaker nobody has ever checked.
+
+- name: revenue_by_month
+  fixture: ecom_basic
+  metrics: [gross_revenue]
+  dimensions: [ordered_month]
+  reference: revenue_by_month.sql
+
+- name: revenue_by_day
+  fixture: ecom_basic
+  metrics: [gross_revenue]
+  dimensions: [ordered_day]
+
+- name: revenue_by_customer
+  fixture: ecom_basic
+  metrics: [gross_revenue]
+  dimensions: [order_customer_id]
+
+- name: revenue_ungrouped
+  fixture: ecom_basic
+  metrics: [gross_revenue]
+  dimensions: []
+  reference: revenue_ungrouped.sql
+
+# The hardest class Cube and MetricFlow are most likely to disagree on: a
+# non-additive ratio is recomputed *per group* rather than summed, so an
+# implementation that stored it would answer a different number here.
+- name: aov_by_month
+  fixture: non_additive_aov
+  metrics: [average_order_value]
+  dimensions: [ordered_month]
+  reference: aov_by_month.sql
+
+- name: aov_by_store
+  fixture: non_additive_aov
+  metrics: [average_order_value]
+  dimensions: [store]
+  reference: aov_by_store.sql
+
+- name: revenue_and_orders_by_store
+  fixture: non_additive_aov
+  metrics: [revenue, order_count]
+  dimensions: [store]

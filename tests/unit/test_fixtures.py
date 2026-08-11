@@ -184,3 +184,14 @@ def test_dirty_corpus_loads_clean() -> None:
         "routed_of_parent",
     }
     assert [check.name for check in project.entity_model.reconcile] == ["key_amount_matches_row"]
+
+
+def test_coverage_check_loads_clean() -> None:
+    """The smallest project a cross-entity coverage check needs (RFC 0016 D90):
+    two entities and the relationship between them. Its own fixture because a
+    coverage check makes a project uncompilable for dbt, and every existing
+    fixture with a spare relationship is one the dbt goldens are built on."""
+    project = load_fixture_project("coverage_check")
+    assert set(project.entity_model.entities) == {"customer", "order"}
+    (check,) = project.entity_model.coverage
+    assert (check.relationship, check.min, check.on_fail) == ("order_of_customer", 1, "flag")

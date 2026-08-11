@@ -25,11 +25,9 @@ surprising number of Python steps are one expression wearing a dataframe.
 
 Tier 3's costs are real and worth naming before you choose it: data leaves the
 engine, the step becomes memory-bound, and column-level lineage is gone
-(`lineage: coarse`). Tier 1 will cost nothing at run time at all — the macro body is spliced into
-the model's SELECT, so the model stays one query and lineage sees straight
-through it. **It is not wired yet:** there is no spec surface by which a
-mapping references a macro step, so a wired `sql_macro` is a compile error
-today rather than a splice that quietly does not happen.
+(`lineage: coarse`). Tier 1 costs nothing at run time at all — the macro body is spliced into the
+model's query, so the model stays one query and lineage sees straight through
+it.
 
 ## What a manifest declares
 
@@ -73,15 +71,165 @@ steps:
     parameters: {threshold: 0.9}
 ```
 
-Quality rules on step outputs are described by RFC 0017 §5.2 but are **not
-lowered yet** — declaring them is a compile error rather than a rule that is
-accepted and never evaluated.
+### Quality rules on an output
+
+A step output takes RFC 0016 `expression` rules, and `applies_to` says which
+output each judges — an entity's `quality:` has one relation to mean, a step
+has several:
+
+```yaml
+steps_version: 1
+steps:
+  - use: resolve_customers@3
+    outputs: {customer: silver.customer}
+    quality:
+      - {rule: expression, name: confident, expr: "confidence >= 0.8", on_fail: fail}
+    applies_to: {confident: customer}
+```
+
+**`on_fail: fail` only.** It lowers to a blocking audit over the relation, so
+a run whose step produced a violating row stops. `flag` and `quarantine` are
+compile errors: both work by rewriting the silver `SELECT` — adding to
+`_quality_flags`, routing rows into the reject table — and a step-produced
+relation has no `SELECT` to rewrite, because its wrapper writes the rows in
+Python. A rule kind that worked for one disposition and silently did nothing
+for the other two would be worse than the refusal.
+
+### How a parameter reaches a SQL body
+
+A Tier 2 body refers to its parameters as sqlglot placeholders, the same
+`:name` spelling Tier 1 uses:
+
+```sql
+SELECT canonical_id, confidence
+FROM silver.candidates
+WHERE confidence >= :threshold
+```
+
+Each placeholder is replaced by a **literal node**, not by text, so a value is
+data wherever it lands — a parameter cannot carry SQL into the body. The
+declared type picks the spelling: `int` and `decimal` become number literals,
+`bool` a boolean, and `string`, `date` and `timestamp` string literals the
+engine compares in the column's own type.
+
+The body and the step's parameters must name the same set, and each mismatch
+is a compile error rather than something an engine discovers:
+
+| Situation | Why it is refused |
+|---|---|
+| `:x` that no parameter declares | it would reach the engine as an unknown variable |
+| `:x` declared with no default and not wired | same — declaring a parameter is not giving it a value |
+| a parameter the body never uses | its value is part of the step's identity, so changing it restates the outputs and recomputes identical rows |
+
+A `variant` parameter cannot be substituted into a body: DuckDB, Postgres and
+Trino do not write a semi-structured literal the same way. Pass a scalar and
+cast in the body instead.
+
+### Linking an output to canonical fields
+
+A mart can read a step output as soon as it exists. A **metric** needs one
+more thing: it resolves against canonical fields, and something has to say
+which canonical field a produced column *is*.
+
+```yaml
+steps_version: 1
+steps:
+  - use: resolve_customers@3
+    outputs: {customer: silver.customer}
+    canonical:
+      customer:
+        confidence: match_confidence
+```
+
+The link lives on the wiring rather than in the manifest, because canonical
+names are your spec's vocabulary — a manifest naming them could not be reused
+by a project that spells them differently, which is the fork "parameterize,
+never fork" exists to prevent.
+
+It is never inferred from a matching column name. A column called
+`confidence` is not assumed to be the canonical `confidence`: guessing a link
+nobody declared is exactly what the compiler refuses elsewhere, and it does
+not become acceptable because the guess is cheap.
+
+With the link declared, nothing else is special. The column becomes available,
+metrics over it are reachable, and a `reconcile:` check may name the step's
+relation on either side.
 
 There is no field here that can hold a body, and none that can name a file to
 load. That absence is the security property: a spec can no more load code than
 a metric name can. The registry is assembled by the caller and passed in —
 `compile_project(project, …, steps=registry)` — so bloomery never reads a step
 file from disk, and there is no dynamic loading path to abuse.
+
+## Using a macro (Tier 1)
+
+A macro is referenced from the mapping that uses it, never wired in the
+`steps:` document — it writes no relation, so it has no output to bind there,
+and one wiring per step ref would make a macro usable in exactly one mapping.
+
+Its manifest declares a **signature**: what it accepts, and (through
+`produces`) what it returns.
+
+```yaml
+ref: extract_domain
+version: 1
+kind: sql_macro
+determinism: pure
+runtime_lock: sha256:beef…
+accepts:
+  email: string
+outputs:
+  value: {grain: row, key: [v], produces: {v: {type: string}}}
+```
+
+The body lives in the registry the caller assembles, as one expression whose
+`:name` placeholders are exactly what the manifest declares:
+
+```sql
+SPLIT_PART(:email, '@', 2)
+```
+
+### Two ways to call it
+
+**As a field**, binding each accepted column to a source path — the shape to
+reach for when a macro takes more than one column:
+
+```yaml
+fields:
+  email_domain:
+    step: extract_domain@1
+    from: {email: "$.email"}
+```
+
+**As a chain link**, so whitelist transforms and the macro compose on one
+field. The running value fills the macro's single accepted column, so this
+shape needs a macro that accepts exactly one:
+
+```yaml
+fields:
+  email_domain:
+    from: "$.email"
+    transform: [lower, {step: extract_domain@1}, trim]
+```
+
+### What is checked
+
+Because the signature is declared rather than guessed from the body, a chain
+is typechecked *around* the macro: the transforms before it against what it
+accepts, the transforms after it from what it produces. A macro is therefore
+no weaker than a Tier 0 transform, which declares the same two things.
+
+| Situation | Why it is refused |
+|---|---|
+| the body refers to something the manifest does not declare | the signature would be decoration, and a call site could not know what to supply |
+| a call site binds something the macro does not accept | the path would be read for nothing — a typo is otherwise silent |
+| a call site omits something it accepts | the placeholder would reach the engine unfilled |
+| a two-column macro used as a chain link | a chain carries one running value, so an argument would be dropped |
+| a macro declaring anything but `determinism: pure` | it is re-evaluated on every backfill by construction |
+
+A genuinely polymorphic macro has to pick a type. That is the same constraint
+a Tier 0 transform carries through its input domain, and the same trade:
+a declared type is what makes the check possible at all.
 
 ## Trust at compile, verify at run time
 

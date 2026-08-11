@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from bloomery.spec.mapping import RecipeFieldMapping
+from bloomery.spec.mapping import ALIAS_BOUND, RecipeFieldMapping
 
 if TYPE_CHECKING:
     from bloomery.resolve.metrics import EffectiveMetric
@@ -118,8 +118,12 @@ def _mapping_edges(mapping: Mapping, canonical_by_field: dict[str, str | None]) 
         )
     for field_name, field_mapping in mapping.fields.items():
         dst = entity_field_node(mapping.target, field_name)
-        if isinstance(field_mapping, RecipeFieldMapping):
-            label = f"recipe:{field_mapping.recipe}"
+        if isinstance(field_mapping, ALIAS_BOUND):
+            label = (
+                f"recipe:{field_mapping.recipe}"
+                if isinstance(field_mapping, RecipeFieldMapping)
+                else f"step:{field_mapping.step}"
+            )
             edges.extend(
                 Edge(src=source_column_node(mapping.source, path), dst=dst, label=label)
                 for path in field_mapping.from_.values()
@@ -198,6 +202,17 @@ def _step_edges(project: Project) -> list[Edge]:
             edges.append(
                 Edge(src=node, dst=entity_field_node(produced, output_name), label="step_output")
             )
+            # A declared `canonical:` link makes the column *available*, which
+            # is the whole of what a metric's reachability asks (RFC 0005
+            # §5.3, RFC 0017 D49). The column node hangs off the step for the
+            # same reason the output node does — so the link is reachable in
+            # topological order rather than floating free of its producer.
+            for column, canonical in sorted(wiring.canonical.get(output_name, {}).items()):
+                field = entity_field_node(produced, column)
+                edges.append(Edge(src=node, dst=field, label="step_output"))
+                edges.append(
+                    Edge(src=field, dst=canonical_field_node(canonical), label="canonical")
+                )
     return edges
 
 

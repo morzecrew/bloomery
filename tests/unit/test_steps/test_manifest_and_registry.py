@@ -182,12 +182,12 @@ def test_the_registry_snapshots_its_input() -> None:
 def test_the_registry_is_canonically_sorted_whatever_the_caller_built() -> None:
     """Insertion order is the caller's business; the compile input's order is
     not (RFC 0003: no ambient nondeterminism)."""
-    forwards = StepRegistry(
-        {("a_step", 2): manifest(ref="a_step", version=2), ("a_step", 1): manifest(ref="a_step")}
-    )
-    backwards = StepRegistry(
-        {("a_step", 1): manifest(ref="a_step"), ("a_step", 2): manifest(ref="a_step", version=2)}
-    )
+    # Each manifest is keyed by the identity it declares — the registry refuses
+    # a disagreement (D55), and this helper defaults to version 3.
+    one = manifest(ref="a_step", version=1)
+    two = manifest(ref="a_step", version=2)
+    forwards = StepRegistry({("a_step", 2): two, ("a_step", 1): one})
+    backwards = StepRegistry({("a_step", 1): one, ("a_step", 2): two})
     assert [key for key, _ in forwards.steps] == [key for key, _ in backwards.steps]
     assert [key for key, _ in forwards.steps] == [("a_step", 1), ("a_step", 2)]
 
@@ -248,3 +248,24 @@ def test_an_output_name_that_is_not_an_identifier_is_refused() -> None:
                     bad: {"grain": "g", "key": ["k"], "produces": {"k": {"type": "string"}}}
                 }
             )
+
+
+def test_a_key_disagreeing_with_its_manifest_is_refused() -> None:
+    """RFC 0017 D55. The registry is keyed by ``(ref, version)`` and the
+    manifest carries the same pair, so the two can disagree — and the
+    disagreement was silent, not loud: ``lower_steps`` builds ``StepIR`` from
+    the *manifest* identity while the wiring's canonical links and
+    ``on_fail: fail`` rules are keyed by the *wiring* identity, so those stop
+    matching and are dropped without a word.
+
+    Checked at construction because the registry is a frozen compile input —
+    one place, once, for every later reader."""
+    from bloomery.errors import StepError
+
+    with pytest.raises(StepError, match=r"key wrong@9 does not match.*resolve_customers@3"):
+        StepRegistry({("wrong", 9): manifest()})
+
+
+def test_the_matching_key_is_still_accepted() -> None:
+    """The control: a check that refused everything would pass the test above."""
+    assert StepRegistry({("resolve_customers", 3): manifest()}).get("resolve_customers", 3)

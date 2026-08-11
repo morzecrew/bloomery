@@ -1,0 +1,8 @@
+mapping_version: 1
+target: order
+source: shop__orders
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  customer_id: {from: "$.customer_id", transform: [to_string]}
+  amount: {from: "$.amount", transform: [{to_decimal: [12, 4]}]}

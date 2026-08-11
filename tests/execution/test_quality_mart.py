@@ -123,7 +123,9 @@ def test_every_rule_of_every_entity_reports_exactly_one_row(
         # rows the split diverted (counted once per *row*), rows dedupe removed.
         ("dirty_number", ENTITY_GRAIN_ROW, (20, 0, 12, 0)),
         ("dirty_status", ENTITY_GRAIN_ROW, (18, 0, 14, 0)),
-        ("dirty_key", ENTITY_GRAIN_ROW, (11, 0, 3, 3)),
+        # Four diverted, not three: `amount_below_range_min` (D28) is the one
+        # corpus row `range` — rather than `coercible` — is what quarantines.
+        ("dirty_key", ENTITY_GRAIN_ROW, (13, 0, 4, 3)),
         ("dirty_ref", ENTITY_GRAIN_ROW, (16, 0, 1, 0)),
         ("dirty_name", ENTITY_GRAIN_ROW, (22, 0, 1, 0)),
     ],

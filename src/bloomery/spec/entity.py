@@ -23,7 +23,7 @@ from bloomery.spec.common import (
     SpecModel,
     TypeString,
 )
-from bloomery.spec.quality import Dedupe, EntityQualityRule, Quarantine, Reconcile
+from bloomery.spec.quality import Coverage, Dedupe, EntityQualityRule, Quarantine, Reconcile
 
 __all__ = [
     "AssertClause",
@@ -106,3 +106,7 @@ class EntityModel(SpecModel):
     entities: dict[str, Entity]
     relationships: tuple[Relationship, ...] = ()
     reconcile: tuple[Reconcile, ...] = ()
+    #: Cross-entity coverage checks (RFC 0016 D90). Beside ``reconcile:`` for
+    #: the same reason it is there: a check that relates two entities belongs
+    #: to neither of them.
+    coverage: tuple[Coverage, ...] = ()

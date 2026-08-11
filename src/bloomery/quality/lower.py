@@ -33,10 +33,12 @@ surprise. Everything else keeps the shipped produce-or-raise lowering.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping as AbcMapping
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from bloomery.ir import (
+    CoverageIR,
     DedupeIR,
     OnFail,
     QualityRuleIR,
@@ -47,13 +49,16 @@ from bloomery.ir import (
     partition_specs,
     quality_sort_key,
 )
-from bloomery.spec.mapping import RecipeFieldMapping
+from bloomery.quality.charset import expand_codepoints
+from bloomery.spec.mapping import ALIAS_BOUND
 from bloomery.spec.quality import (
+    CharsetRule,
     CoercibleRule,
     ExpressionRule,
     InEnumRule,
     InSetRule,
     LengthRule,
+    NormalizeRule,
     PatternRule,
     RangeRule,
     ReferentialRule,
@@ -68,6 +73,7 @@ if TYPE_CHECKING:
 __all__ = [
     "field_sources",
     "generated_rule_names",
+    "lower_coverage",
     "lower_dedupe",
     "lower_quality",
     "lower_quarantine",
@@ -116,7 +122,7 @@ def field_sources(mapping: Mapping, field_name: str) -> tuple[str, ...]:
     if field_name in mapping.key:
         return (canon(extraction(mapping.key[field_name].from_)).sql,)
     field_mapping = mapping.fields[field_name]
-    if isinstance(field_mapping, RecipeFieldMapping):
+    if isinstance(field_mapping, ALIAS_BOUND):
         paths = sorted(field_mapping.from_.values())
     else:
         paths = [field_mapping.from_]
@@ -141,8 +147,8 @@ def _enum_chain(mapping: Mapping, field_name: str) -> tuple[tuple[str, ...], tup
     # Only a value field can carry ``in_enum`` (key fields have no
     # ``quality:`` surface), so the lookup is total.
     field_mapping = mapping.fields[field_name]
-    if isinstance(field_mapping, RecipeFieldMapping):
-        return ((), ())  # a recipe binds aliases, not a chain — no enum_map
+    if isinstance(field_mapping, ALIAS_BOUND):
+        return ((), ())  # a recipe or macro binds aliases, not a chain — no enum_map
     spellings: set[str] = set()
     targets: set[str] = set()
     for step in field_mapping.transform:
@@ -178,8 +184,8 @@ def nullifying_steps(
     is not this function's error to raise: the chain typecheck already owns
     it, and reporting it twice would only crowd the batch.
     """
-    if isinstance(field_mapping, RecipeFieldMapping):
-        return ()  # a recipe binds aliases, not a chain
+    if isinstance(field_mapping, ALIAS_BOUND):
+        return ()  # a recipe or macro binds aliases, not a chain
     if field_mapping is None:
         key_field = mapping.key.get(column)
         if key_field is None:
@@ -227,9 +233,19 @@ def _field_rule_ir(
     *,
     mapping: Mapping,
     slice_columns: tuple[str, ...],
+    repair_body: str | None = None,
 ) -> QualityRuleIR:
     params: list[tuple[str, str]] = []
     stem = f"{column}_{rule.rule}"
+    if rule.repair is not None:
+        # The recipe travels as SQL, already spliced with this column and the
+        # call site's parameters — resolved one layer up, where the step
+        # registry is (RFC 0016 D87). ``via`` rides along beside it so a
+        # ``plan()`` diff and an error message can name the macro rather than
+        # quote its body back at the reader.
+        params.append(("fallback", rule.repair.fallback))
+        params.append(("via", rule.repair.via))
+        params.append(("body", repair_body or ""))
     if isinstance(rule, CoercibleRule):
         params.extend(_indexed("source", field_sources(mapping, column)))
     elif isinstance(rule, (RangeRule, LengthRule)):
@@ -241,6 +257,20 @@ def _field_rule_ir(
             stem = f"{stem}_{'min' if rule.min is not None else 'max'}"
     elif isinstance(rule, PatternRule):
         params.append(("regex", rule.regex))
+    elif isinstance(rule, NormalizeRule):
+        params.append(("form", rule.form))
+    elif isinstance(rule, CharsetRule):
+        # Exactly one side is set — the spec's own validator guarantees it, and
+        # `or ()` is how that guarantee is spelled without a second refusal
+        # here saying the same thing in a worse place.
+        side = "allow" if rule.allow is not None else "forbid"
+        items = rule.allow or rule.forbid or ()
+        # Expanded here purely to *refuse* a bad declaration at compile time
+        # (backwards range, surrogate, oversized set); the params carry the
+        # items as written, because a `plan()` diff of invisible characters is
+        # unreadable and the whole rule exists for invisible characters.
+        expand_codepoints(items, where=f"rule {stem!r}")
+        params.extend(_indexed(side, items))
     elif isinstance(rule, InEnumRule):
         spellings, targets = _enum_chain(mapping, column)
         params.extend(_indexed("value", targets))
@@ -360,7 +390,10 @@ def _deduplicate_names(
 
 
 def _draft_rules(
-    entity: Entity, mapping: Mapping, relationships: tuple[Relationship, ...]
+    entity: Entity,
+    mapping: Mapping,
+    relationships: tuple[Relationship, ...],
+    repairs: AbcMapping[str, str],
 ) -> tuple[list[QualityRuleIR], list[QualityRuleIR]]:
     """``(generated, authored)`` — the entity's rules, still carrying the names
     each side proposes, before :func:`_deduplicate_names` arbitrates.
@@ -379,7 +412,13 @@ def _draft_rules(
     for column, field_mapping in mapped_fields(mapping):
         declared = _field_quality(field_mapping)
         generated.extend(
-            _field_rule_ir(rule, column, mapping=mapping, slice_columns=slice_columns)
+            _field_rule_ir(
+                rule,
+                column,
+                mapping=mapping,
+                slice_columns=slice_columns,
+                repair_body=repairs.get(column),
+            )
             for rule in declared
         )
         # The implicit rule (§5.2, D3) is skipped where the chain nulls a
@@ -443,18 +482,27 @@ def generated_rule_names(
     """
     if not opts_in(entity, mapping):
         return frozenset()
-    generated, _authored = _draft_rules(entity, mapping, relationships)
+    generated, _authored = _draft_rules(entity, mapping, relationships, {})
     return frozenset(rule.name for rule in _assign_names(generated, set()))
 
 
 def lower_quality(
-    entity: Entity, mapping: Mapping, relationships: tuple[Relationship, ...]
+    entity: Entity,
+    mapping: Mapping,
+    relationships: tuple[Relationship, ...],
+    repairs: AbcMapping[str, str] | None = None,
 ) -> tuple[QualityRuleIR, ...]:
     """Every rule of one entity, field rules and row rules alike, canonically
-    sorted (:func:`~bloomery.ir.quality_sort_key`)."""
+    sorted (:func:`~bloomery.ir.quality_sort_key`).
+
+    ``repairs`` maps a column to its already-spliced repair recipe (RFC 0016
+    D87). It arrives from the resolver rather than being built here because
+    splicing needs the step registry and the field's declared type, neither of
+    which this module may reach.
+    """
     if not opts_in(entity, mapping):
         return ()
-    generated, authored = _draft_rules(entity, mapping, relationships)
+    generated, authored = _draft_rules(entity, mapping, relationships, repairs or {})
     return _deduplicate_names(generated, authored)
 
 
@@ -479,6 +527,25 @@ def lower_quarantine(entity: Entity) -> QuarantineIR | None:
         return None
     return QuarantineIR(
         retention=entity.quarantine.retention, redact=tuple(sorted(entity.quarantine.redact))
+    )
+
+
+def lower_coverage(entity_model: EntityModel) -> tuple[CoverageIR, ...]:
+    """The document-level ``coverage:`` list → :class:`CoverageIR`, sorted by
+    name (RFC 0016 D90)."""
+    return tuple(
+        sorted(
+            (
+                CoverageIR(
+                    name=check.name,
+                    relationship=check.relationship,
+                    minimum=check.min,
+                    blocking=check.on_fail == "fail",
+                )
+                for check in entity_model.coverage
+            ),
+            key=lambda check: check.name,
+        )
     )
 
 

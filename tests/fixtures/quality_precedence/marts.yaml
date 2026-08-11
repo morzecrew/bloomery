@@ -17,3 +17,21 @@ marts:
     flatten:
       - {date: order_date, role: ordered}
     measures: [line_amount_total]
+    # RFC 0016 D89 — §10's "no month has zero revenue", made declarable, and
+    # declared here rather than on a general-purpose fixture because an
+    # assertion makes a project refuse to compile for dbt and Cube (neither has
+    # the audit shape, and silently dropping a declared gate is what RFC 0008
+    # D3 refuses). Two clauses, so the pair the surface exists for is present:
+    # one groups and blocks, one does neither.
+    assert:
+      - name: amount_positive_every_month
+        measure: amount
+        agg: sum
+        by: [ordered_month]
+        min: "0.000000001"
+        on_fail: fail
+      - name: rows_present
+        measure: amount
+        agg: count
+        min: 1
+        on_fail: flag

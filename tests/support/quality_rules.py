@@ -36,6 +36,12 @@ def rule_of_kind(kind: str, on_fail: OnFail = OnFail.FLAG) -> QualityRuleIR:
         params = {"regex": "^[A-Z]{3}$"}
     elif kind in {"in_enum", "in_set"}:
         params = {"value_0000": "a", "value_0001": "b"}
+    elif kind == "normalize":
+        params = {"form": "nfc"}
+    elif kind == "charset":
+        # The forbid side: U+200B ZERO WIDTH SPACE. The allow side lowers
+        # through the same TRANSLATE and has its own assertions.
+        params = {"forbid_0000": "U+200B"}
     elif kind == "unique":
         params = {"slice_0000": "order_date"}
     elif kind == "expression":

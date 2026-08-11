@@ -38,7 +38,7 @@ would put names in ``errors.py`` the design authority does not have.
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from bloomery.errors import (
@@ -65,7 +65,7 @@ from bloomery.quality import (
     payload_key,
     unsupported_dialects,
 )
-from bloomery.spec.mapping import RecipeFieldMapping, mapping_doc
+from bloomery.spec.mapping import ALIAS_BOUND, RecipeFieldMapping, mapping_doc
 from bloomery.spec.quality import CoercibleRule, InEnumRule, PatternRule, ReferentialRule
 from bloomery.typing import StringType, parse_type
 
@@ -97,9 +97,9 @@ def _read_paths(mapping: Mapping) -> tuple[str, ...]:
     """
     paths: set[str] = {key_field.from_ for key_field in mapping.key.values()}
     for field_mapping in mapping.fields.values():
-        if isinstance(field_mapping, RecipeFieldMapping):
+        if isinstance(field_mapping, ALIAS_BOUND):
             paths.update(field_mapping.from_.values())
-            if field_mapping.direct is not None:
+            if isinstance(field_mapping, RecipeFieldMapping) and field_mapping.direct is not None:
                 paths.add(field_mapping.direct)
         else:
             paths.add(field_mapping.from_)
@@ -379,7 +379,7 @@ def _check_chain_derived_rules(
         {entity.dedupe.field, *entity.dedupe.tie_break} if entity.dedupe else set[str]()
     )
     for column, field_mapping in mapped_fields(mapping):
-        if field_mapping is None or isinstance(field_mapping, RecipeFieldMapping):
+        if field_mapping is None or isinstance(field_mapping, ALIAS_BOUND):
             continue
         path = f"{mapping_doc(mapping)}: fields.{column}"
         names = [step.name for step in field_mapping.transform]
@@ -594,6 +594,52 @@ def _check_referential(
     return errors
 
 
+@dataclass(frozen=True, slots=True)
+class _SideEntity:
+    """What resolving a ``reconcile`` side needs from an entity: its field
+    names and its key.
+
+    A view rather than the spec ``Entity`` because a side may now name a
+    **step output** (RFC 0017 D41/D49), which is not in the entity model at
+    all — it is synthesized during lowering, and no mapping targets it. The
+    two kinds answer the same two questions, so the check asks them through
+    one shape instead of branching on provenance.
+    """
+
+    fields: frozenset[str]
+    key: tuple[str, ...]
+
+
+def _side_entities(project: Project, draft: ProjectIR) -> dict[str, _SideEntity]:
+    """Every relation a reconcile side may read: mapped entities, and the
+    entities a step writes.
+
+    Declared-but-unmapped stays excluded, which is the point of the original
+    refusal — ``build_project_ir`` builds one silver relation per mapping, so
+    an unmapped entity has nothing for a side to read. A step-produced entity
+    *does* have one; it is simply written by the step's wrapper rather than by
+    a mapping, which is a fact about who writes it, not about whether it
+    exists.
+    """
+    mapped = frozenset(mapping.target for mapping in project.mappings)
+    view = {
+        name: _SideEntity(fields=frozenset(entity.fields), key=tuple(entity.key))
+        for name, entity in project.entity_model.entities.items()
+        if name in mapped
+    }
+    view.update(
+        {
+            entity.name: _SideEntity(
+                fields=frozenset(column.name for column in entity.columns),
+                key=tuple(entity.key),
+            )
+            for entity in draft.entities
+            if entity.produced_by is not None
+        }
+    )
+    return view
+
+
 def _reconcile_path(check_name: str, suffix: str) -> str:
     return f"entity_model: reconcile.{check_name}.{suffix}"
 
@@ -602,8 +648,7 @@ def _resolve_side(
     check_name: str,
     side: str,
     text: str,
-    entities: dict[str, Entity],
-    mapped: frozenset[str],
+    entities: dict[str, _SideEntity],
 ) -> tuple[ReconcileSide | None, list[GuardrailError]]:
     """Parse one side and resolve it against the declared model.
 
@@ -634,15 +679,10 @@ def _resolve_side(
     if entity is None:
         msg = (
             f"reconcile check {check_name!r} {side} side names entity {parsed.entity!r}, "
-            f"which the entity model does not declare; declared: {sorted(entities)}"
-        )
-        return None, [GuardrailError(msg, source_path=path)]
-    if parsed.entity not in mapped:
-        msg = (
-            f"reconcile check {check_name!r} {side} side names entity {parsed.entity!r}, "
-            "which is declared but no mapping targets, so no silver relation is built for "
-            f"it to read; mapped entities: {sorted(mapped)}. Fix: add a mapping whose "
-            f"target is {parsed.entity!r}, or drop the check"
+            "for which no silver relation is built — it is neither the target of a mapping "
+            "nor the output of a step; readable relations: "
+            f"{sorted(entities)}. Fix: add a mapping whose target is {parsed.entity!r}, "
+            "wire a step that writes it, or drop the check"
         )
         return None, [GuardrailError(msg, source_path=path)]
     repeated = sorted({name for name in parsed.by if parsed.by.count(name) > 1})
@@ -655,12 +695,16 @@ def _resolve_side(
             "(verified on PostgreSQL). Fix: name each by column once"
         )
         return None, [GuardrailError(msg, source_path=path)]
-    missing = sorted({parsed.column, *parsed.by} - set(entity.fields) - set(entity.key))
+    # One set for both the test and the message: reporting only `fields` while
+    # accepting `fields | key` pointed a user who mistyped a key column at a
+    # list that could not contain it.
+    readable = entity.fields | set(entity.key)
+    missing = sorted({parsed.column, *parsed.by} - readable)
     if missing:
         msg = (
             f"reconcile check {check_name!r} {side} side reads {', '.join(missing)} on entity "
             f"{parsed.entity!r}, which declares no such field(s); known: "
-            f"{sorted(entity.fields)}"
+            f"{sorted(readable)}"
         )
         return None, [GuardrailError(msg, source_path=path)]
     if parsed.aggregated:
@@ -670,7 +714,7 @@ def _resolve_side(
     return replace(parsed, by=tuple(entity.key)), []
 
 
-def _check_reconcile(project: Project) -> list[GuardrailError]:
+def _check_reconcile(project: Project, draft: ProjectIR) -> list[GuardrailError]:
     """The ``reconcile:`` block: grammar, resolution, key agreement, and name
     uniqueness (RFC 0016 §5.3).
 
@@ -681,8 +725,7 @@ def _check_reconcile(project: Project) -> list[GuardrailError]:
     disagree would either fan out or compare nothing at all — refused, with
     both key lists named, rather than emitted as a join nobody can read.
     """
-    entities = project.entity_model.entities
-    mapped = frozenset(mapping.target for mapping in project.mappings)
+    entities = _side_entities(project, draft)
     errors: list[GuardrailError] = []
     seen: set[str] = set()
     for check in project.entity_model.reconcile:
@@ -694,8 +737,8 @@ def _check_reconcile(project: Project) -> list[GuardrailError]:
             errors.append(GuardrailError(msg, source_path=_reconcile_path(check.name, "name")))
             continue
         seen.add(check.name)
-        left, left_errors = _resolve_side(check.name, "left", check.left, entities, mapped)
-        right, right_errors = _resolve_side(check.name, "right", check.right, entities, mapped)
+        left, left_errors = _resolve_side(check.name, "left", check.left, entities)
+        right, right_errors = _resolve_side(check.name, "right", check.right, entities)
         errors.extend(left_errors)
         errors.extend(right_errors)
         if left is None or right is None:
@@ -758,14 +801,83 @@ def _check_reserved_mart_name(project: Project) -> list[GuardrailError]:
     return [GuardrailError(msg, source_path=f"marts: marts.{QUALITY_MART}")]
 
 
+def _check_coverage(project: Project, draft: ProjectIR) -> list[GuardrailError]:
+    """Every ``coverage:`` check names a declared relationship, once, whose
+    **both endpoints have a relation** (RFC 0016 D90, D91).
+
+    Project-level for the same reason ``reconcile`` is: a check that relates
+    two entities belongs to neither. The relationship has to exist before
+    emission can find the two relations and the ``via`` pairs to join them on,
+    and a repeated name would overwrite an audit artifact rather than add one.
+
+    The endpoint checks are the ones D90 left out, and each is a bug emission
+    could not report. ``coverage_owner`` documents itself "total by
+    construction: the guardrail stage refuses an unresolvable name before
+    emission runs" — which was only true of the *name*. A referenced entity
+    that is declared but unmapped makes ``_referenced_key``'s ``next(...)``
+    raise a bare ``StopIteration`` mid-emission, the unbatched-error shape
+    :func:`_resolve_side` already refuses for reconcile. And a **step-produced**
+    dependent entity is worse than a crash: the emitter skips those in the
+    entity loop, so the audit is built and attached to nothing — a check that
+    reports clean because it never runs.
+    """
+    declared = {rel.name: rel for rel in project.entity_model.relationships}
+    entities = _side_entities(project, draft)
+    mapped = frozenset(mapping.target for mapping in project.mappings)
+    errors: list[GuardrailError] = []
+    seen: set[str] = set()
+    for index, check in enumerate(project.entity_model.coverage):
+        where = f"entity_model: coverage[{index}]"
+        if check.name in seen:
+            msg = (
+                f"two coverage checks are named {check.name!r} — the name is the audit's "
+                "identity and its artifact path, so the second would overwrite the first"
+            )
+            errors.append(GuardrailError(msg, source_path=f"{where}.name"))
+        seen.add(check.name)
+        relationship = declared.get(check.relationship)
+        if relationship is None:
+            msg = (
+                f"coverage check {check.name!r} names no declared relationship "
+                f"{check.relationship!r}; declared: {sorted(declared)}"
+            )
+            errors.append(GuardrailError(msg, source_path=f"{where}.relationship"))
+            continue
+        if relationship.to not in entities:
+            msg = (
+                f"coverage check {check.name!r} counts rows referencing "
+                f"{relationship.to!r} through relationship {check.relationship!r}, but "
+                "no mapping targets that entity and no step writes it, so there is no relation "
+                "to count against; readable: "
+                f"{sorted(entities)}"
+            )
+            errors.append(GuardrailError(msg, source_path=f"{where}.relationship"))
+        if relationship.from_ not in mapped:
+            msg = (
+                f"coverage check {check.name!r} lowers to an audit on the dependent side "
+                f"{relationship.from_!r}, which no mapping targets — a step-produced or "
+                "unmapped entity has no entity model for the audit to hang off, so the check "
+                "would be emitted and never run (RFC 0016 D90). Fix: point the relationship at "
+                "a mapped dependent entity, or drop the check"
+            )
+            errors.append(GuardrailError(msg, source_path=f"{where}.relationship"))
+    return errors
+
+
 def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     """Every data-quality guardrail over the whole project, in one pass.
 
-    ``draft`` is accepted for symmetry with the stage's other checks and to
-    keep the seam honest — these refusals are all decidable from the spec, so
-    nothing here reads the lowered IR.
+    Every refusal is decidable *before emission*, which is the guarantee that
+    matters; two of them read the ``draft`` to get there. ``_check_reconcile``
+    and ``_check_coverage`` both need to know which entities have a relation,
+    and a **step-produced** entity has one without any mapping targeting it —
+    it is synthesized during lowering, so the spec alone cannot say. Reading
+    the draft for that is what lets those checks admit a step output instead of
+    refusing it wrongly.
+
+    This docstring used to claim "nothing here reads the lowered IR", which
+    stopped being true when step outputs became reconcile sides.
     """
-    del draft
     relationships = project.entity_model.relationships
     by_target = {mapping.target: mapping for mapping in project.mappings}
     errors: list[GuardrailError] = []
@@ -789,7 +901,8 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
         errors.extend(_check_retention(entity_name, entity, mapping, relationships))
     # Project-level, not per entity: a reconcile check relates two entities and
     # belongs to neither, and the reserved metric names are one flat namespace.
-    errors.extend(_check_reconcile(project))
+    errors.extend(_check_reconcile(project, draft))
+    errors.extend(_check_coverage(project, draft))
     errors.extend(_check_reserved_metric_names(project))
     errors.extend(_check_reserved_mart_name(project))
     return errors

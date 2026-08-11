@@ -43,6 +43,7 @@ import pytest
 from sqlglot import exp, parse_one
 from support.quality_rules import ON_MISSING_RULES, referential_rule, rule_of_kind
 
+from bloomery.dialects import get_dialect
 from bloomery.ir import OnFail, QualityRuleIR
 from bloomery.quality import (
     ALL_DISPOSITIONS,
@@ -108,6 +109,17 @@ _SPECIMENS: dict[str, _Specimen] = {
     "pattern": _Specimen("amount VARCHAR", (("bad", "abc"), ("ok", "ABC")), ("bad",)),
     "in_enum": _Specimen("amount VARCHAR", (("bad", "z"), ("ok", "a")), ("bad",)),
     "in_set": _Specimen("amount VARCHAR", (("bad", "z"), ("ok", "a")), ("bad",)),
+    # Both rows render as `cafe` + acute. The violating one spells it
+    # decomposed (U+0065 U+0301), the clean one precomposed (U+00E9) — a
+    # distinction no eye and no `=` disagree about, which is the point.
+    "normalize": _Specimen(
+        "amount VARCHAR", (("bad", "cafe\u0301"), ("ok", "caf\u00e9")), ("bad",)
+    ),
+    # A zero-width space between the two words, against the same string
+    # without one. They render identically.
+    "charset": _Specimen(
+        "amount VARCHAR", (("bad", "Acme\u200bCorp"), ("ok", "AcmeCorp")), ("bad",)
+    ),
     # A window predicate needs a population: two rows share a value inside one
     # slice, a third shares it across slices and so is nobody's duplicate (D5).
     "unique": _Specimen(
@@ -157,12 +169,23 @@ def stage(rule: QualityRuleIR) -> str:
     """
     if not windowed(rule):
         return "SELECT * FROM _rows"
-    projected = violation(rule).sql(dialect="duckdb")
+    projected = _PORT.render(violation(rule))
     return f"SELECT *, ({projected}) AS {window_alias(rule)} FROM _rows"
 
 
 def _identities(connection: duckdb.DuckDBPyConnection, sql: str) -> tuple[str, ...]:
     return tuple(sorted(str(row[0]) for row in connection.execute(sql).fetchall()))
+
+
+#: Rendering goes through the **port**, never through ``node.sql(dialect=…)``.
+#: A port whose ``render`` rewrites a node — DuckDB turns ``NORMALIZE(x, NFC)``
+#: into ``NFC_NORMALIZE(x)``, which is the only spelling it has (D86) — is
+#: bypassed entirely by the direct call, so the matrix would execute SQL no
+#: artifact contains. It caught the DuckDB case loudly only because DuckDB has
+#: no ``NORMALIZE`` at all; a rewrite whose *input* the direct render also
+#: accepts would have diverged in silence. The port is what emission uses; it
+#: is what this must use.
+_PORT = get_dialect("duckdb")
 
 
 @pytest.mark.parametrize(("kind", "on_fail"), list(product(_DISPOSABLE_RULES, ALL_DISPOSITIONS)))
@@ -186,7 +209,7 @@ def test_every_rule_disposition_pair_executes_where_that_disposition_puts_it(
     if on_fail is OnFail.FLAG:
         collection = flags_expression([(rule.name, verdict(rule))], arrays=True)
         rows = seeded.execute(
-            f"SELECT row_id, {collection.sql(dialect='duckdb')} FROM ({staged}) AS {_EXTRACT}"
+            f"SELECT row_id, {_PORT.render(collection)} FROM ({staged}) AS {_EXTRACT}"
         ).fetchall()
         fired = tuple(sorted(row_id for row_id, flags in rows if rule.name in flags))
         # Never NULL, empty for a clean row (D23) — the read side of the
@@ -194,8 +217,8 @@ def test_every_rule_disposition_pair_executes_where_that_disposition_puts_it(
         assert all(flags is not None for _row_id, flags in rows)
         assert all(flags == [] for row_id, flags in rows if row_id not in specimen.violating)
     elif on_fail is OnFail.QUARANTINE:
-        diverted = routing_predicate([rule], quarantined=True).sql(dialect="duckdb")
-        keeps = routing_predicate([rule], quarantined=False).sql(dialect="duckdb")
+        diverted = _PORT.render(routing_predicate([rule], quarantined=True))
+        keeps = _PORT.render(routing_predicate([rule], quarantined=False))
         fired = _identities(seeded, f"SELECT row_id FROM ({staged}) AS {_EXTRACT} WHERE {diverted}")
         kept = _identities(seeded, f"SELECT row_id FROM ({staged}) AS {_EXTRACT} WHERE {keeps}")
         # The split is a partition: every row on exactly one side (§6's
@@ -208,7 +231,7 @@ def test_every_rule_disposition_pair_executes_where_that_disposition_puts_it(
         ).fetchone()
         assert counted == (len(specimen.violating),)
     else:
-        body = verdict(rule).sql(dialect="duckdb")
+        body = _PORT.render(verdict(rule))
         fired = _identities(seeded, f"SELECT row_id FROM ({staged}) AS {_EXTRACT} WHERE {body}")
 
     assert fired == tuple(sorted(specimen.violating))
@@ -301,7 +324,7 @@ def test_referential_executes_where_its_on_missing_puts_it(
         collection = flags_expression([(rule.name, verdict(rule, _EXTRACT))], arrays=True)
         rows = dict(
             seeded.execute(
-                f"SELECT {_EXTRACT}.row_id, {collection.sql(dialect='duckdb')} FROM {source}"
+                f"SELECT {_EXTRACT}.row_id, {_PORT.render(collection)} FROM {source}"
             ).fetchall()
         )
         assert rows == {"orphan": [rule.name], "resolved": [], "null_fk": []}
@@ -371,6 +394,7 @@ def test_referential_lowers_once_per_on_missing(on_missing: str) -> None:
     """``referential`` contributes its own axis (RFC 0016 §6), one row per
     ``on_missing`` — each asserting its §5.4 lowering."""
     rule = ON_MISSING_RULES[on_missing]
+    # Shape, not execution — compact rendering, so the assertion stays one line.
     probe = violation(rule).sql(dialect="duckdb")
     # Every disposition shares the same LEFT JOIN probe (§5.4's table).
     assert probe == "_ref_item_of_order.order_id IS NULL AND (NOT order_id IS NULL)"
@@ -395,7 +419,7 @@ def test_ref_alias_is_derived_from_the_relationship_not_the_entity() -> None:
 def _evaluate(rule: QualityRuleIR, row: dict[str, object]) -> bool | None:
     """Evaluate a violation predicate against one row in DuckDB."""
     columns = ", ".join(f"? AS {name}" for name in row)
-    sql = f"SELECT ({violation(rule).sql(dialect='duckdb')}) FROM (SELECT {columns})"
+    sql = f"SELECT ({_PORT.render(violation(rule))}) FROM (SELECT {columns})"
     with duckdb.connect(":memory:") as connection:
         result = connection.execute(sql, list(row.values())).fetchone()
     assert result is not None
@@ -404,7 +428,29 @@ def _evaluate(rule: QualityRuleIR, row: dict[str, object]) -> bool | None:
 
 #: Rules whose violation predicate must stay ``UNKNOWN`` on a null operand
 #: (D19: ``not_null`` and ``coercible`` are the two that own nulls).
-_NULL_SILENT = ("range", "length", "pattern", "in_enum", "in_set", "unique", "expression")
+_NULL_SILENT = (
+    "range",
+    "length",
+    "pattern",
+    "in_enum",
+    "in_set",
+    "normalize",
+    "charset",
+    "unique",
+    "expression",
+)
+
+
+def test_the_null_silent_list_covers_every_rule_that_is_not_a_null_owner() -> None:
+    """D19 closes with "any rule added to the catalogue later must be reviewed
+    against this paragraph" — a hand-written list is exactly what silently
+    stops covering a new kind, so it is checked against the catalogue rather
+    than trusted.
+
+    ``not_null`` and ``coercible`` own nulls by definition; ``referential``
+    stays out because a null fk needs a joined probe and has its own test.
+    """
+    assert set(_NULL_SILENT) | {"not_null", "coercible", "referential"} == set(ALL_RULES)
 
 
 @pytest.mark.parametrize("kind", _NULL_SILENT)
@@ -427,6 +473,10 @@ def test_a_definite_violation_does_fire(kind: str) -> None:
         "in_enum": {"amount": "z", "order_date": "2024-01-01"},
         "in_set": {"amount": "z", "order_date": "2024-01-01"},
         "unique": {"amount": "a", "order_date": "2024-01-01"},
+        # `café` with a combining acute: NFC composes it, so it is not itself.
+        "normalize": {"amount": "cafe\u0301", "order_date": "2024-01-01"},
+        # A zero-width space, which `rule_of_kind` forbids.
+        "charset": {"amount": "Acme\u200bCorp", "order_date": "2024-01-01"},
         "expression": {"discount": 100, "unit_price": 10, "quantity": 2},
     }
     if kind == "unique":

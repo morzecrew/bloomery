@@ -289,3 +289,91 @@ def test_fingerprint_header_is_yaml_commented() -> None:
         )
         assert artifact.content.endswith("\n")
         assert not artifact.content.endswith("\n\n")
+
+
+# ....................... #
+# RFC 0008 §10 → D17: one view per **mart**
+
+
+TWO_MARTS_ONE_GRAIN_MODEL = """
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      amount: {type: "decimal(12,4)"}
+      order_date: {type: timestamp}
+"""
+
+TWO_MARTS_ONE_GRAIN_MAPPING = """
+mapping_version: 1
+target: order
+source: shop__orders
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  amount: {from: "$.amount", transform: [{to_decimal: [12, 4]}]}
+  order_date: {from: "$.created_at", transform: [{parse_ts: ISO8601}]}
+"""
+
+TWO_MARTS_ONE_GRAIN_MARTS = """
+marts_version: 1
+marts:
+  finance:
+    grain: order
+    base: order
+    flatten: [{date: order_date, role: booked}]
+  ops:
+    grain: order
+    base: order
+    flatten: [{date: order_date, role: shipped}]
+"""
+
+
+def test_two_marts_at_one_grain_are_two_views() -> None:
+    """RFC 0008 §10 asked whether views group per metric or per metric-*grain*.
+    Neither: **per mart**, and this is the case that tells the three apart —
+    two marts at one grain, which the corpus otherwise never exercises.
+
+    Per-grain would have to merge these into one view, and a Cube view over two
+    cubes needs a ``join_path`` between them. bloomery models no relationship
+    between marts — they are independently pre-joined (RFC 0010) — so a merged
+    view could only be emitted by inventing a join, which is what this project
+    refuses everywhere else. Per-metric fragments the dimension set for no
+    gain, since ``measure_owners`` already pins each metric to one mart.
+    """
+    from bloomery import Target, compile_project, load_project
+
+    project = load_project(
+        {
+            "entity_model": TWO_MARTS_ONE_GRAIN_MODEL,
+            "mapping": TWO_MARTS_ONE_GRAIN_MAPPING,
+            "marts": TWO_MARTS_ONE_GRAIN_MARTS,
+        }
+    )
+    artifacts = compile_project(project, target=Target.CUBE, dialect="duckdb")
+    views = sorted(a.path for a in artifacts if a.path.startswith("model/views/"))
+    assert views == ["model/views/finance_view.yml", "model/views/ops_view.yml"]
+
+
+def test_a_view_names_exactly_one_cube() -> None:
+    """The structural half of the same decision: one ``join_path``, no join.
+    A view naming two cubes is the shape bloomery has nothing to build the
+    join from."""
+    from bloomery import Target, compile_project, load_project
+
+    project = load_project(
+        {
+            "entity_model": TWO_MARTS_ONE_GRAIN_MODEL,
+            "mapping": TWO_MARTS_ONE_GRAIN_MAPPING,
+            "marts": TWO_MARTS_ONE_GRAIN_MARTS,
+        }
+    )
+    for artifact in compile_project(project, target=Target.CUBE, dialect="duckdb"):
+        if not artifact.path.startswith("model/views/"):
+            continue
+        (view,) = yaml.safe_load(artifact.content)["views"]
+        assert len(view["cubes"]) == 1
+        assert view["cubes"][0]["includes"] == "*"

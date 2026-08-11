@@ -18,7 +18,13 @@ from bloomery import Target, build_project_ir, compile_project
 from bloomery.dialects import get_dialect
 from bloomery.emit import ArtifactKind, EmitContext
 from bloomery.emit.sqlmesh import SQLMeshEmitter
-from bloomery.emit.lowering import REJECT_KEY, _schema_column, entity_select, mart_select
+from bloomery.emit.lowering import (
+    REJECT_KEY,
+    _schema_column,
+    entity_select,
+    ingestion_audit_predicate,
+    mart_select,
+)
 from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.ir import MartJoinIR
 from bloomery.marts import HAS_QUALITY_FLAGS
@@ -125,6 +131,14 @@ def test_the_reject_model_carries_the_rfc_schema() -> None:
     assert "when_matched (WHEN MATCHED THEN UPDATE SET " in content
     assert "target.first_seen = COALESCE(target.first_seen, source.first_seen)" in content
     assert "target.last_seen = source.last_seen" in content
+    # …and `last_evaluated_at` joins `first_seen` on the preserved side (D88):
+    # the model that feeds this merge projects it NULL, because a model query
+    # may not read a clock, so an arriving re-delivery would otherwise erase a
+    # replay history it observed nothing about.
+    assert (
+        "target.last_evaluated_at = COALESCE(target.last_evaluated_at, source.last_evaluated_at)"
+        in content
+    )
     assert "target.reject_id" not in content  # the merge key is never assigned
     select = parse_one(extract_select(content), dialect="duckdb")
     assert isinstance(select, exp.Select)
@@ -142,6 +156,7 @@ def test_the_reject_model_carries_the_rfc_schema() -> None:
         "first_seen",
         "last_seen",
         "resolved_at",
+        "last_evaluated_at",
     ]
 
 
@@ -447,47 +462,78 @@ def test_dbt_still_emits_a_flag_only_quality_entity() -> None:
     assert FLAGS_COLUMN in silver.content
 
 
-def test_postgres_refuses_the_coercion_failure_marker() -> None:
-    """Postgres has no ``TRY_CAST`` and SQLGlot would render one as a plain
-    ``CAST`` — a silent downgrade of quarantine into abort (RFC 0008 D3)."""
+def test_postgres_renders_the_coercion_failure_marker_as_a_guarded_cast() -> None:
+    """Postgres has no ``TRY_CAST`` keyword, and SQLGlot renders one as a
+    plain ``CAST`` — the silent downgrade of quarantine into abort that D30
+    refused the dialect for. It is now rewritten into a guard around
+    Postgres' *own* input parser (D84), so the accept/reject set is the
+    engine's rather than a regex approximation of it.
+    """
     project, catalog = load_fixture(FIXTURE)
-    with pytest.raises(UnsupportedByTarget) as excinfo:
-        compile_project(project, target=Target.SQLMESH, dialect="postgres", catalog=catalog)
-    # Specifically the coercible refusal, not the metadata audit's — an author
-    # who wrote rules must read about the rules they wrote.
-    assert "carries coercible quality rules" in str(excinfo.value)
-    assert "dialect 'postgres' has none" in str(excinfo.value)
+    artifacts = compile_project(
+        project, target=Target.SQLMESH, dialect="postgres", catalog=catalog
+    )
+    body = next(
+        a.content for a in artifacts if a.path == "models/silver/inventory_level.sql"
+    )
+    assert "PG_INPUT_IS_VALID" in body
+    assert "TRY_CAST" not in body  # the keyword postgres does not have
+    # …and the temporal narrowing that keeps a backfill reproducible.
+    assert "now|today|tomorrow|yesterday" in body
 
 
-def test_postgres_refuses_the_metadata_audit_on_a_dedupe_only_entity() -> None:
-    """The edge of D30, which the coercible-rule refusal above does not reach.
+def test_a_run_dependent_datetime_literal_is_a_coercion_failure_on_postgres() -> None:
+    """Postgres accepts ``now``/``today``/``tomorrow``/``yesterday`` as
+    datetime input and resolves them to the transaction timestamp, so the same
+    bronze cell would coerce to a different value on every run — a backfill
+    disagreeing with the run it replaces, which RFC 0003 exists to prevent.
 
-    ``dedupe:`` alone does not join the entity to the quality system (D24), so
-    a dedupe-only entity carries no ``coercible`` rule and sails past
-    ``_require_try_cast`` — yet it still gets the D21 metadata audit, whose
-    D25 castability assertion is a ``TRY_CAST``. Rendered on Postgres that
-    becomes a plain ``CAST`` that raises inside the audit query. The IR is
-    mutated rather than fixtured because no shipped fixture has this shape.
+    The guard excludes them, which makes such a cell a coercion failure the
+    ``coercible`` rule disposes of: a quarantined row rather than a silently
+    unstable one. Deliberately *stricter* than a plain ``CAST``, and the only
+    place the guard is.
+    """
+    dialect = get_dialect("postgres")
+    temporal = dialect.render(
+        exp.TryCast(this=exp.column("v"), to=exp.DataType.build("TIMESTAMP"))
+    )
+    assert "PG_INPUT_IS_VALID" in temporal
+    assert "now|today|tomorrow|yesterday" in temporal
+    # Anchored *and* whitespace-tolerant (D93). The narrowing was originally
+    # `LOWER(BTRIM(v)) IN (...)`, and bare BTRIM removes spaces only — so
+    # `now\t` kept its tab, missed the list, and coerced to the transaction
+    # timestamp on a model that looked guarded. Asserting the class rather than
+    # the operator is what makes that regression visible here.
+    assert "[[:space:]]" in temporal
+    assert temporal.count("^") == 1 and temporal.count("$") == 1
+    # A non-temporal cast carries no such list — there is nothing unstable to
+    # exclude, and an exclusion nobody needs is a rule that will confuse.
+    numeric = dialect.render(
+        exp.TryCast(this=exp.column("v"), to=exp.DataType.build("BIGINT"))
+    )
+    assert "PG_INPUT_IS_VALID" in numeric
+    assert "'now'" not in numeric
+
+
+def test_the_metadata_audit_on_a_dedupe_only_entity_renders_on_postgres() -> None:
+    """The edge D30 also blocked: ``dedupe:`` alone does not join the entity
+    to the quality system (D24), so a dedupe-only entity carries no
+    ``coercible`` rule — yet it still gets the D21 metadata audit, whose D25
+    castability assertion is a ``TRY_CAST``. That is now guarded like any
+    other. The IR is mutated rather than fixtured because no shipped fixture
+    has this shape.
     """
     project, catalog = load_fixture(FIXTURE)
     ir = build_project_ir(project, catalog)
     entity = ir.entities[0]
     assert entity.dedupe is not None
-    mutated = replace(
-        ir,
-        entities=(replace(entity, quality=(), quarantine=None),),
-        marts=(),
-        reconcile=(),
-    )
+    mutated = replace(entity, quality=(), quarantine=None)
     ctx = EmitContext(
-        fingerprint="blm1:test", naming=DefaultNaming(), dialect=get_dialect("postgres")
+        fingerprint="blm1:t", naming=DefaultNaming(), dialect=get_dialect("postgres")
     )
-    with pytest.raises(UnsupportedByTarget) as excinfo:
-        SQLMeshEmitter().emit(mutated, ctx)
-    assert "_ingested_at casts to timestamp" in str(excinfo.value)
-    # …and the same shape compiles on a dialect that has the cast.
-    duckdb_ctx = replace(ctx, dialect=get_dialect("duckdb"))
-    assert SQLMeshEmitter().emit(mutated, duckdb_ctx)
+    rendered = ctx.dialect.render(ingestion_audit_predicate(mutated, ctx))
+    assert "PG_INPUT_IS_VALID" in rendered
+    assert "TRY_CAST" not in rendered
 
 
 def test_trino_and_duckdb_both_express_the_marker() -> None:
@@ -502,21 +548,38 @@ def test_trino_and_duckdb_both_express_the_marker() -> None:
         assert "TRY_CAST" in entity_select(ir.entities[0], ctx).sql(dialect=dialect)
 
 
-def test_trino_refuses_the_reject_table_it_cannot_run() -> None:
-    """Trino keeps ``TRY_CAST`` and hosts everything else in RFC 0016, but
-    both constructions the reject table is built from are ones it rejects:
-    ``SHA256`` takes ``varbinary`` there, not text, and the positional
-    ``JSON_OBJECT('k', v)`` is not the spelling it parses. Verified against
-    ``trinodb/trino:483`` — the emitted model failed to plan, so it is refused
-    at emit instead of shipped as SQL the engine will not run."""
+def test_trino_now_emits_the_reject_table_it_used_to_be_refused() -> None:
+    """Trino was refused here because both constructions the reject table is
+    built from were DuckDB's spellings: ``SHA256`` over text, and the
+    positional ``JSON_OBJECT('k', v)``. Each dialect now spells both through
+    its own port (RFC 0016 D83), verified against ``trinodb/trino:483``.
+    """
     project, catalog = load_fixture(FIXTURE)
-    with pytest.raises(UnsupportedByTarget) as excinfo:
-        compile_project(project, target=Target.SQLMESH, dialect="trino", catalog=catalog)
-    message = str(excinfo.value)
-    assert "reject_id" in message
-    assert "JSON payloads" in message
-    # …and the dialect that carries both still compiles the same project.
-    assert compile_project(project, target=Target.SQLMESH, dialect="duckdb", catalog=catalog)
+    artifacts = compile_project(
+        project, target=Target.SQLMESH, dialect="trino", catalog=catalog
+    )
+    (reject,) = [a for a in artifacts if a.path.endswith("__reject.sql")]
+    assert "TO_HEX(" in reject.content and "TO_UTF8(" in reject.content
+    assert "JSON_OBJECT(" in reject.content
+
+
+def test_the_three_dialects_spell_the_reject_constructions_differently() -> None:
+    """Asserted on the port rather than through a compile, because Postgres
+    cannot reach emission while D30 stands — and a spelling that is only
+    exercised once D30 lifts is exactly the kind that rots unnoticed.
+
+    The property is that the three *differ*: one rendering passing everywhere
+    would mean the split never happened. Each was executed against its engine
+    (RFC 0016 D83) — DuckDB's returns hex directly, Postgres' ``sha256``
+    returns ``bytea``, and Trino's does not take text at all.
+    """
+    digests, objects = set(), set()
+    for name in ("duckdb", "postgres", "trino"):
+        dialect = get_dialect(name)
+        digests.add(dialect.render(dialect.text_sha256(exp.Literal.string("abc"))))
+        objects.add(dialect.render(dialect.json_object([("a", exp.Literal.number(1))])))
+    assert len(digests) == 3
+    assert len(objects) == 3
 
 
 def test_the_ir_still_compiles_for_every_dialect() -> None:

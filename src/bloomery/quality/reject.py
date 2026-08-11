@@ -25,6 +25,9 @@ would mint a new reject row per retry and violate replay idempotence.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import cast
+
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
@@ -60,6 +63,7 @@ REJECT_COLUMNS: tuple[str, ...] = (
     "first_seen",
     "last_seen",
     "resolved_at",
+    "last_evaluated_at",
 )
 
 
@@ -77,15 +81,25 @@ def canon_prefixed(column: Expression) -> tuple[Expression, ...]:
     return (exp.Literal.string("S"), length, exp.Literal.string(":"), column)
 
 
-def reject_id(source_relation: str, row_id: Expression) -> Expression:
-    """``SHA2(<canon bytes of (source_relation, _source_row_id)>, 256)``.
+def reject_id(
+    source_relation: str, row_id: Expression, digest: Callable[[Expression], Expression]
+) -> Expression:
+    """A SHA-256 hex digest over the canon bytes of ``(source_relation,
+    _source_row_id)``.
 
     The pair is serialized in the schema's own order — ``source_relation``
     first, then the row identity — so the value is stable, idempotent under
     replay, and recomputable from the reject row itself.
+
+    ``digest`` comes from the dialect port (RFC 0016 D83). The spellings are
+    genuinely different rather than cosmetically so — DuckDB's
+    ``SHA256(VARCHAR)`` already returns hex, Postgres' returns ``bytea``, and
+    Trino's does not accept text at all — so a single AST here produced a
+    value that was hex on one engine, bytes on another, and unplannable on the
+    third. Cross-dialect *agreement* is the property ``reject_id`` needs.
     """
     parts: tuple[Expression, ...] = (
         exp.Literal.string(canon_literal(source_relation)),
         *canon_prefixed(row_id),
     )
-    return exp.SHA2(this=exp.func("CONCAT", *parts), length=exp.Literal.number(256))
+    return digest(cast("Expression", exp.func("CONCAT", *parts)))

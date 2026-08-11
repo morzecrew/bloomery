@@ -27,7 +27,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from bloomery.errors import UnknownStep
+from bloomery.errors import StepError, UnknownStep
 from bloomery.steps.manifest import StepManifest
 
 if TYPE_CHECKING:
@@ -54,6 +54,34 @@ def _snapshot(source: Mapping[StepKey, object] | None) -> tuple[tuple[StepKey, o
     return tuple(sorted(source.items()))
 
 
+def _refuse_key_disagreement(steps: tuple[tuple[StepKey, StepManifest], ...]) -> None:
+    """A step's key must be the identity its manifest declares (RFC 0017 D55).
+
+    The registry is keyed by ``(ref, version)`` and the manifest carries the
+    same pair, so nothing stops the two disagreeing — and when they do, the
+    disagreement is silent rather than loud: ``lower_steps`` builds ``StepIR``
+    from the *manifest* identity while the wiring's canonical links and
+    ``on_fail: fail`` rules are keyed by the *wiring* identity, so those
+    simply stop matching and are dropped without a word.
+
+    Checked at construction because the registry is a frozen compile input:
+    this is the one moment it can be checked once for every later reader,
+    which is the same argument that makes collision an error in the transform
+    registry (RFC 0004 D6).
+    """
+    for (ref, version), manifest in steps:
+        if manifest.ref == ref and manifest.version == version:
+            continue
+        msg = (
+            f"step registry key {ref}@{version} does not match the identity its manifest "
+            f"declares ({manifest.ref}@{manifest.version}). Lowering reads the manifest's "
+            "identity and the wiring reads the key, so a mismatch silently drops that step's "
+            "canonical links and quality rules instead of failing (feature: steps). "
+            "Fix: key each manifest by its own ref and version"
+        )
+        raise StepError(msg)
+
+
 @dataclass(frozen=True, slots=True, init=False)
 class StepRegistry:
     """Every step available to a compilation, keyed by ``(ref, version)``.
@@ -78,6 +106,7 @@ class StepRegistry:
         object.__setattr__(self, "_steps", _snapshot(steps))
         object.__setattr__(self, "_macro_bodies", _snapshot(macro_bodies))
         object.__setattr__(self, "_sql_bodies", _snapshot(sql_bodies))
+        _refuse_key_disagreement(self._steps)
 
     @property
     def steps(self) -> tuple[tuple[StepKey, StepManifest], ...]:

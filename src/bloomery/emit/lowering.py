@@ -16,7 +16,7 @@ shipped dialect; the choice is documented at the node.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, cast
+from typing import TYPE_CHECKING, cast
 
 from sqlglot import exp, parse_one
 from sqlglot.expressions.core import Expression
@@ -25,15 +25,18 @@ from bloomery.dialects import DialectFeature
 from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.ir import (
     AuditIR,
+    CoverageIR,
     DateDimensionIR,
     EntityIR,
     Layer,
+    MartAssertIR,
     MartColumnIR,
     MartIR,
     OnFail,
     ProjectIR,
     QualityRuleIR,
     ReconcileIR,
+    RelationshipIR,
     SCDKind,
     SqlExpr,
     generic_type,
@@ -49,6 +52,7 @@ from bloomery.quality import (
     RECONCILE_SUFFIX,
     REJECT_COLUMNS,
     REJECT_SUFFIX,
+    REPAIRS_COLUMN,
     ROW_ID_COLUMN,
     SUPERSEDED_RULE,
     ReconcileSide,
@@ -70,6 +74,9 @@ from bloomery.quality import (
     quality_ok,
     ref_alias,
     reject_id,
+    repair_alias,
+    repair_body,
+    repairs,
     routing_predicate,
     sole_via_column,
     source_alias,
@@ -97,6 +104,11 @@ __all__ = [
     "fail_audits",
     "ROW_ID_COUNT_COLUMN",
     "ingestion_audit_predicate",
+    "coverage_audit_name",
+    "coverage_audit_select",
+    "coverage_owner",
+    "mart_assert_name",
+    "mart_assert_select",
     "mart_select",
     "quality_mart_select",
     "reconcile_audit_blocking",
@@ -299,13 +311,16 @@ def _payload_columns(entity: EntityIR) -> tuple[str, ...]:
     return tuple(sorted({payload_key(path) for path in paths} - redacted))
 
 
-def _json_object(pairs: list[tuple[str, Expression]]) -> Expression:
-    """``JSON_OBJECT('k', v, …)`` — the one construction SQLGlot renders
-    verbatim on every shipped dialect, keys in the caller's (sorted) order."""
-    arguments: list[Expression] = []
-    for key, value in pairs:
-        arguments.extend((exp.Literal.string(key), value))
-    return cast("Expression", exp.func("JSON_OBJECT", *arguments))
+def _json_object(pairs: list[tuple[str, Expression]], ctx: EmitContext) -> Expression:
+    """A JSON object from sorted key/value pairs, spelled by the dialect port.
+
+    Not one construction after all (RFC 0016 D83): the positional
+    ``JSON_OBJECT('k', v)`` this used to build is DuckDB's spelling, Postgres
+    has no positional ``json_object`` at all (it wants ``json_build_object``),
+    and Trino parses only the SQL-standard keyword form. The claim that it was
+    portable held because only DuckDB ever executed it.
+    """
+    return ctx.dialect.json_object(pairs)
 
 
 def _extract_select(
@@ -329,10 +344,36 @@ def _extract_select(
     def source(node: Expression) -> Expression:
         return _from_payload(node) if from_payload else node
 
-    projections: list[Expression] = [
-        cast("Expression", exp.alias_(source(column.expr.ast()), column.name))
-        for column in entity.columns
-    ]
+    repaired = {rule.column: rule for rule in entity.quality if repairs(rule)}
+    projections: list[Expression] = []
+    for column in entity.columns:
+        raw = source(column.expr.ast())
+        rule = repaired.get(column.name)
+        if rule is None:
+            projections.append(cast("Expression", exp.alias_(raw, column.name)))
+            continue
+        fired = _over(violation(rule), column.name, raw)
+        projections.append(
+            cast(
+                "Expression",
+                exp.alias_(
+                    exp.Case(
+                        ifs=[
+                            exp.If(
+                                this=fired,
+                                true=_over(repair_body(rule), column.name, raw),
+                            )
+                        ],
+                        default=raw.copy(),
+                    ),
+                    column.name,
+                ),
+            )
+        )
+        # The recipe *ran* — recorded beside the repaired value because after
+        # the rewrite the verdict alone cannot tell "never violated" from
+        # "violated and fixed" (RFC 0016 D87).
+        projections.append(cast("Expression", exp.alias_(fired.copy(), repair_alias(rule))))
     if _carries_metadata(entity):
         projections.extend(exp.column(name) for name in INGESTION_METADATA)
     # The coercion-failure marker compares the produced column against the raw
@@ -350,7 +391,7 @@ def _extract_select(
         )
     if include_raw:
         payload = _json_object(
-            [(column, exp.column(column)) for column in _payload_columns(entity)]
+            [(column, exp.column(column)) for column in _payload_columns(entity)], ctx
         )
         projections.append(cast("Expression", exp.alias_(payload, "_raw")))
     select = exp.Select().select(*projections).from_(exp.table_(relation, db=namespace))
@@ -360,6 +401,30 @@ def _extract_select(
     if entity.dedupe is not None:
         select = with_dedupe_qualify(select, entity.dedupe, entity.key)
     return _stage(select, entity)
+
+
+def _over(node: Expression, column: str, value: Expression) -> Expression:
+    """``node`` with every bare reference to ``column`` replaced by ``value``.
+
+    A repair lives at the *extract* level, where the column it repairs is being
+    defined in the same ``SELECT`` and so cannot be referred to by name. Both
+    halves of the construction — the verdict that decides whether the recipe
+    runs and the recipe itself — are therefore rewritten to read the column's
+    expression directly.
+
+    Only unqualified references are rewritten: a qualified one belongs to some
+    other level, and a repairable rule's predicate never has one (the kinds
+    whose predicates reach outside their own column — ``coercible`` through its
+    source aliases, ``unique`` through a window, the row rules through a join —
+    are exactly the kinds that cannot carry a repair at all).
+    """
+
+    def substitute(child: Expression) -> Expression:
+        if isinstance(child, exp.Column) and not child.table and child.name == column:
+            return value.copy()
+        return child
+
+    return node.transform(substitute)
 
 
 def _from_payload(node: Expression) -> Expression:
@@ -438,6 +503,28 @@ def _require_try_cast(entity: EntityIR, ctx: EmitContext) -> None:
     raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
 
 
+def _require_unicode_normalize(entity: EntityIR, ctx: EmitContext) -> None:
+    """Refuse a ``normalize`` rule the dialect cannot evaluate.
+
+    The rule's whole content is the comparison against a normal form; there is
+    no weaker reading of it. A dialect with no normalization would render
+    ``NORMALIZE(...)`` — SQLGlot emits it verbatim for any generator — and the
+    engine would fail at run time on a function it does not define, which is
+    the "renders beautifully, aborts the run" shape RFC 0008 D3 refuses.
+    """
+    if not any(rule.kind == "normalize" for rule in entity.quality):
+        return
+    if ctx.dialect.supports(DialectFeature.UNICODE_NORMALIZE):
+        return
+    msg = (
+        f"entity {entity.name!r} carries a normalize quality rule, which compares a value "
+        f"against its Unicode normal form, but dialect {ctx.dialect.name!r} has no "
+        "normalization function (RFC 0016 D86). Fix: compile this project for a dialect "
+        "with one, or drop the normalize rules"
+    )
+    raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
+
+
 def _require_try_cast_for_audit(entity: EntityIR, ctx: EmitContext) -> None:
     """Refuse the D21 audit on a dialect with no NULL-on-failure cast.
 
@@ -469,38 +556,40 @@ def _require_try_cast_for_audit(entity: EntityIR, ctx: EmitContext) -> None:
     raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
 
 
-#: The dialect features the ``<entity>__reject`` model is built from, with the
-#: construction each one names — see :class:`~bloomery.dialects.DialectFeature`.
-_REJECT_FEATURES: Final[tuple[tuple[DialectFeature, str], ...]] = (
-    (DialectFeature.TEXT_SHA256, "reject_id, a SHA-256 hex digest over the row's canon bytes"),
-    (DialectFeature.JSON_OBJECT_POSITIONAL, "the raw and key_values JSON payloads"),
-)
+def _repair_projections(entity: EntityIR, *, arrays: bool) -> list[Expression]:
+    """``_quality_repairs``, or nothing at all (RFC 0016 D87).
 
+    The distinct marker D17 made a condition of the disposition landing:
+    "repaired, now correct" and "currently flagged bad" are different facts, so
+    ``has_quality_flags`` keeps meaning *currently suspect* and a repaired row
+    is simply clean.
 
-def _require_reject_constructions(entity: EntityIR, ctx: EmitContext) -> None:
-    """Refuse a reject table the dialect cannot actually run.
+    A rule is recorded when its recipe **ran and worked** — it fired over the
+    value as delivered (``_rep_…``, projected one level down) and no longer
+    fires over the value that replaced it. A recipe that ran and failed leaves
+    the rule violated, so the rule's ``fallback`` disposes of the row through
+    the ordinary routing and this column stays silent about it: the row is not
+    repaired, and saying so twice in two columns is how they come to disagree.
 
-    The sibling of :func:`_require_try_cast`, and the same discipline (RFC
-    0008 D3: fail loud, never approximate) applied one layer out. ``TRY_CAST``
-    is about a marker meaning the wrong thing; these two are about SQL the
-    engine refuses outright — verified by executing the emitted model, not by
-    reading it, which is how both were found at all. Emitting a model that
-    cannot plan is worse than refusing to emit it: the refusal names the
-    dialect at compile time, where the author can act on it.
+    Absent entirely on an entity with no repair rule, unlike the two universal
+    columns — §12 budgeted the silver-schema churn once, and a third column
+    that is empty for every project not using the feature is not worth
+    re-opening every golden and fingerprint for.
     """
-    if entity.quarantine is None:
-        return
-    missing = [why for feature, why in _REJECT_FEATURES if not ctx.dialect.supports(feature)]
-    if not missing:
-        return
-    msg = (
-        f"entity {entity.name!r} declares a quarantine: block, so it emits a "
-        f"{entity.name}__reject model — but dialect {ctx.dialect.name!r} cannot express "
-        f"{'; '.join(missing)} (RFC 0016 §5.6). The emitted SQL would be rejected by the "
-        "engine rather than run, so it is refused here instead. Fix: compile this project "
-        "for a dialect that carries the reject table, or drop the quarantine: block"
-    )
-    raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
+    repaired = [rule for rule in entity.quality if repairs(rule)]
+    if not repaired:
+        return []
+    pairs = [
+        (
+            rule.name,
+            exp.And(
+                this=exp.column(repair_alias(rule), table=_EXTRACT_ALIAS),
+                expression=grouped(exp.Not(this=grouped(verdict(rule, _EXTRACT_ALIAS)))),
+            ),
+        )
+        for rule in repaired
+    ]
+    return [cast("Expression", exp.alias_(flags_expression(pairs, arrays=arrays), REPAIRS_COLUMN))]
 
 
 def _quality_pipeline(entity: EntityIR, ctx: EmitContext, extract: exp.Select) -> exp.Select:
@@ -536,6 +625,7 @@ def _quality_pipeline(entity: EntityIR, ctx: EmitContext, extract: exp.Select) -
                 ),
                 FLAGS_COLUMN,
             ),
+            *_repair_projections(entity, arrays=arrays),
         )
         .from_(extract.subquery(alias=_EXTRACT_ALIAS))
     )
@@ -552,6 +642,11 @@ def _quality_pipeline(entity: EntityIR, ctx: EmitContext, extract: exp.Select) -
             *(exp.column(name, table=_EVALUATED_ALIAS) for name in carried),
             exp.column(FLAGS_COLUMN, table=_EVALUATED_ALIAS),
             exp.alias_(quality_ok(table=_EVALUATED_ALIAS, arrays=arrays), OK_COLUMN),
+            *(
+                [exp.column(REPAIRS_COLUMN, table=_EVALUATED_ALIAS)]
+                if any(repairs(rule) for rule in entity.quality)
+                else []
+            ),
         )
         .from_(evaluated.subquery(alias=_EVALUATED_ALIAS))
     )
@@ -568,6 +663,7 @@ def entity_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     specialization is the general form evaluated at compile.
     """
     _require_try_cast(entity, ctx)
+    _require_unicode_normalize(entity, ctx)
     extract = _extract_select(entity, ctx)
     if not entity.quality:
         return extract.select(
@@ -601,7 +697,7 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     replay — is what eventually deletes the row.
     """
     _require_try_cast(entity, ctx)
-    _require_reject_constructions(entity, ctx)
+    _require_unicode_normalize(entity, ctx)
     arrays = _arrays(ctx)
     extract = _extract_select(entity, ctx, include_raw=True)
     recorded = _recorded_rules(entity)
@@ -609,7 +705,11 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     ingested = exp.column("_ingested_at", table=_EXTRACT_ALIAS)
     projections: list[Expression] = [
         cast(
-            "Expression", exp.alias_(reject_id(entity.source.relation, row_id.copy()), "reject_id")
+            "Expression",
+            exp.alias_(
+                reject_id(entity.source.relation, row_id.copy(), ctx.dialect.text_sha256),
+                "reject_id",
+            ),
         ),
         cast(
             "Expression",
@@ -634,7 +734,8 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
             "Expression",
             exp.alias_(
                 _json_object(
-                    [(name, exp.column(name, table=_EXTRACT_ALIAS)) for name in sorted(entity.key)]
+                    [(name, exp.column(name, table=_EXTRACT_ALIAS)) for name in sorted(entity.key)],
+                    ctx,
                 ),
                 "key_values",
             ),
@@ -648,6 +749,14 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
         cast(
             "Expression",
             exp.alias_(exp.cast(exp.null(), exp.DataType.build("TIMESTAMP")), "resolved_at"),
+        ),
+        # NULL for the same reason ``resolved_at`` is, and for one more: this
+        # column is *replay's* to write (D88), and a model query may not read a
+        # clock at all without breaking §6's idempotence and
+        # backfill-equivalence gates.
+        cast(
+            "Expression",
+            exp.alias_(exp.cast(exp.null(), exp.DataType.build("TIMESTAMP")), "last_evaluated_at"),
         ),
     ]
     select = exp.Select().select(*projections).from_(extract.subquery(alias=_EXTRACT_ALIAS))
@@ -664,9 +773,13 @@ _MERGE_TARGET = "target"
 _MERGE_SOURCE = "source"
 
 #: The reject columns whose value on a re-delivery is the **existing** one, not
-#: the arriving one (RFC 0016 §5.6). Only ``first_seen``: it records when the
-#: problem started, and every other column describes the latest observation.
-_PRESERVED_ON_MERGE = frozenset({"first_seen"})
+#: the arriving one (RFC 0016 §5.6). ``first_seen`` records when the problem
+#: started; ``last_evaluated_at`` records a *replay* run, and the reject model
+#: — which is the merge's source — projects it NULL because a model query may
+#: not read a clock (D88). Without it here, a re-delivery would erase the
+#: replay history of a row nobody replayed, which is the opposite of what a
+#: re-delivery observed. Every other column describes the latest delivery.
+_PRESERVED_ON_MERGE = frozenset({"first_seen", "last_evaluated_at"})
 
 #: The reject table's unique key — the column the merge matches on and the
 #: model's declared ``unique_key``, drawn from the schema tuple rather than
@@ -962,6 +1075,7 @@ def fail_audits(
     ``fail`` disposition at all (D6).
     """
     _require_try_cast(entity, ctx)
+    _require_unicode_normalize(entity, ctx)
     arrays = _arrays(ctx)
     columns = [column.name for column in entity.columns]
     if _carries_metadata(entity):
@@ -1185,6 +1299,18 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
     lake with its stated mitigation removed. The re-evaluation is recorded by
     ``failed_rules``, which is the clause §5.6 names first.
 
+    **``last_evaluated_at`` is the other clock — the engine's** (D88). D70
+    named it as the escape hatch for what that decision gave up, and this is
+    it: statements 2 and 3 both stamp it, so it reads "when replay last looked
+    at this row" for every row in the table rather than for the unresolved
+    ones only. It is safe to advance precisely because **retention never reads
+    it** — unresolved rows age from ``last_seen``, resolved ones from
+    ``resolved_at``, and neither is touched here. The two statements are
+    disjoint by ``resolved_at IS NULL``, so a row is stamped exactly once per
+    run; on the resolving branch it is a second ``CURRENT_TIMESTAMP`` beside
+    ``resolved_at`` rather than a copy of it, so the two may differ by however
+    long the statement takes on engines that do not pin a transaction clock.
+
     The resolution stamp reads the **executing engine's** clock
     (``CURRENT_TIMESTAMP``) — bloomery never reads a clock (RFC 0003), it emits
     the statements and the caller runs them. The reject row is kept as audit
@@ -1249,7 +1375,10 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
     )
     resolve = exp.Update(
         this=exp.table_(reject_rel, db=reject_namespace),
-        expressions=[exp.EQ(this=exp.column("resolved_at"), expression=exp.CurrentTimestamp())],
+        expressions=[
+            exp.EQ(this=exp.column("resolved_at"), expression=exp.CurrentTimestamp()),
+            exp.EQ(this=exp.column("last_evaluated_at"), expression=exp.CurrentTimestamp()),
+        ],
         where=exp.Where(
             this=conjunction(
                 [
@@ -1290,7 +1419,11 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
                             exp.EQ(
                                 this=exp.column("failed_rules"),
                                 expression=exp.column("failed_rules", table=_REPLAY_ALIAS),
-                            )
+                            ),
+                            exp.EQ(
+                                this=exp.column("last_evaluated_at"),
+                                expression=exp.CurrentTimestamp(),
+                            ),
                         ]
                     ),
                 )
@@ -1319,6 +1452,146 @@ _AGGREGATES: dict[str, type[exp.AggFunc]] = {
     "min": exp.Min,
     "sum": exp.Sum,
 }
+
+
+def coverage_audit_name(check: CoverageIR) -> str:
+    """``<check>_coverage`` — the audit's name and artifact path, suffixed the
+    way a reconcile check's relation is (RFC 0016 D90)."""
+    return f"{check.name}_coverage"
+
+
+def coverage_owner(check: CoverageIR, ir: ProjectIR) -> RelationshipIR:
+    """The relationship a coverage check reads. Total by construction: the
+    guardrail stage refuses an unresolvable name before emission runs."""
+    return next(rel for rel in ir.relationships if rel.name == check.relationship)
+
+
+def coverage_audit_select(check: CoverageIR, ir: ProjectIR, ctx: EmitContext) -> exp.Select:
+    """The audit body: rows of the **referenced** entity with too few
+    dependents (RFC 0016 D90).
+
+    ``LEFT JOIN`` from the referenced side and ``COUNT`` of a *from-side*
+    column, never ``COUNT(*)``: an unmatched left row still produces one output
+    row, so ``COUNT(*)`` would answer 1 for a referenced row with no dependents
+    at all and the check would pass on exactly the rows it exists to find.
+
+    Only the *referenced* side is named: the dependent side is ``@this_model``,
+    because the audit is attached to that entity's model and the macro is the
+    one reference SQLMesh rewrites inside an AUDIT body (D29). The referenced
+    side is a sibling and has to be declared in ``depends_on`` — the trap D40
+    closed for step audits. See D90 on why the audit hangs off the dependent
+    side and not the other.
+    """
+    relationship = coverage_owner(check, ir)
+    to_namespace, to_relation = ctx.naming.relation(relationship.to_entity, Layer.SILVER)
+    referenced = exp.table_(to_relation, db=to_namespace, alias=_COVERAGE_TO)
+    # The dependent side is ``@this_model``: the audit is attached to that
+    # entity's model, and the macro is the one reference SQLMesh *does* rewrite
+    # inside an AUDIT body (D29). Naming the relation instead would resolve to
+    # the virtual-layer view and put the model in its own ``depends_on``.
+    dependent = _this_model(_COVERAGE_FROM)
+    on = conjunction(
+        [
+            exp.EQ(
+                this=exp.column(from_column, table=_COVERAGE_FROM),
+                expression=exp.column(to_column, table=_COVERAGE_TO),
+            )
+            for from_column, to_column in relationship.via
+        ]
+    )
+    keys = [exp.column(name, table=_COVERAGE_TO) for name in _referenced_key(relationship, ir)]
+    matched = exp.Count(this=exp.column(relationship.via[0][0], table=_COVERAGE_FROM))
+    return (
+        exp.Select()
+        .select(*[key.copy() for key in keys], exp.alias_(matched.copy(), "matched"))
+        .from_(referenced)
+        .join(dependent, on=on, join_type="LEFT")
+        .group_by(*[key.copy() for key in keys])
+        .having(exp.LT(this=matched.copy(), expression=exp.Literal.number(check.minimum)))
+    )
+
+
+def _referenced_key(relationship: RelationshipIR, ir: ProjectIR) -> tuple[str, ...]:
+    """The referenced entity's declared key — what identifies a row the audit
+    reports, so a failure names the customer rather than a row number."""
+    entity = next(e for e in ir.entities if e.name == relationship.to_entity)
+    return entity.key
+
+
+#: Aliases for the two sides of a coverage audit. Fixed rather than derived
+#: from entity names, which could collide with each other on a self-referencing
+#: relationship.
+_COVERAGE_TO = "_referenced"
+_COVERAGE_FROM = "_dependent"
+
+
+def mart_assert_name(mart: MartIR, clause: MartAssertIR) -> str:
+    """``<mart>_<assertion>`` — the audit's name, and its artifact path.
+
+    Prefixed by the mart because audit names share one namespace across the
+    project (the same reason a rule name is prefixed by its column), and two
+    marts asserting ``revenue_present`` are two different checks.
+    """
+    return f"{mart.name}_{clause.name}"
+
+
+def mart_assert_select(mart: MartIR, clause: MartAssertIR) -> exp.Select:
+    """The audit body for one mart assertion (RFC 0016 D89).
+
+    ``SELECT <by…>, <agg>(<measure>) AS value FROM @this_model [GROUP BY <by…>]
+    HAVING <agg>(<measure>) < min OR <agg>(<measure>) > max`` — an audit passes
+    when it returns no rows, so this projects the offending **groups**, with
+    the value beside them: a failure a human has to open the warehouse to
+    understand is a failure report that gets ignored.
+
+    A bare ``HAVING`` with no ``GROUP BY`` is the whole-mart form and is legal
+    on all three shipped dialects (the implicit single group), so the empty
+    ``by`` needs no second shape.
+
+    **Three-valued logic applies here as everywhere else** (D19): the bound
+    comparisons are the same ``<``/``>`` a ``range`` rule uses, so an aggregate
+    that comes back NULL — which is what every aggregate but ``count`` does
+    over an empty group — leaves the predicate ``UNKNOWN`` and the assertion
+    silent. That is the honest answer for a group with no rows, and it is
+    *also* why an assertion cannot see a group that is missing altogether:
+    there is no row to aggregate and therefore no group at all.
+    """
+    alias = "_mart"
+    aggregate = _AGGREGATES[clause.agg](this=exp.column(clause.column, table=alias))
+    bound_type = _assert_bound_type(mart, clause)
+    params = dict(clause.params)
+    parts: list[Expression] = []
+    if "min" in params:
+        parts.append(
+            exp.LT(this=aggregate.copy(), expression=_bound_literal(params["min"], bound_type))
+        )
+    if "max" in params:
+        parts.append(
+            exp.GT(this=aggregate.copy(), expression=_bound_literal(params["max"], bound_type))
+        )
+    grouped_by = [exp.column(name, table=alias) for name in clause.by]
+    select = (
+        exp.Select()
+        .select(*[column.copy() for column in grouped_by], exp.alias_(aggregate.copy(), "value"))
+        .from_(_this_model(alias))
+    )
+    if grouped_by:
+        select = select.group_by(*[column.copy() for column in grouped_by])
+    return select.having(disjunction(parts))
+
+
+def _assert_bound_type(mart: MartIR, clause: MartAssertIR) -> LogicalType:
+    """The type an assertion's bounds are literals of.
+
+    ``count`` answers in rows however the column is typed; every other
+    aggregate answers in the column's own type, so a ``min``/``max`` over a
+    date compares against a date literal rather than against a string the
+    engine has to coerce — the same reason :func:`_bound_literal` is typed at
+    all.
+    """
+    if clause.agg == "count":
+        return IntType()
+    return next(column.type for column in mart.columns if column.name == clause.column)
 
 
 def reconcile_relation(check: ReconcileIR) -> str:

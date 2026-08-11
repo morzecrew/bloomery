@@ -5,11 +5,13 @@ proof itself — dbt and SQLMesh emit byte-identical SELECTs."""
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 from typing import cast
 
 import pytest
 import yaml
+from sqlglot import exp, parse_one
 
 from bloomery import Target
 from bloomery.dialects import get_dialect
@@ -32,7 +34,7 @@ from bloomery.ir import (
 )
 from bloomery.naming import DefaultNaming, PrefixNaming
 from bloomery.typing import DecimalType, IntType, LogicalType, StringType
-from support.compiling import compile_fixture, extract_select
+from support.compiling import compile_fixture, extract_select, resolve_dbt_references
 
 pytestmark = pytest.mark.unit
 
@@ -153,7 +155,7 @@ def test_scd2_lowers_to_a_check_strategy_snapshot() -> None:
         "{{ config(target_schema='silver', unique_key='item_id', "
         "strategy='check', check_cols='all') }}"
     ) in snapshot.content
-    assert "FROM bronze.src" in snapshot.content
+    assert "FROM {{ source('bronze', 'src') }}" in snapshot.content
 
 
 def test_scd2_snapshot_respects_the_naming_policy_schema() -> None:
@@ -188,19 +190,115 @@ def test_audits_lower_to_schema_tests() -> None:
     assert model["name"] == "item"
     # audits are sorted by (kind, column) on EntityIR — the order is theirs
     assert model["data_tests"] == [
-        {"dbt_utils.expression_is_true": {"expression": "qty <= 10"}},
-        {"dbt_utils.expression_is_true": {"expression": "amount >= 0"}},
+        {"bloomery_expression_is_true": {"arguments": {"expression": "qty <= 10"}}},
+        {"bloomery_expression_is_true": {"arguments": {"expression": "amount >= 0"}}},
         {
-            "dbt_utils.expression_is_true": {
-                "expression": "amount IS NOT DISTINCT FROM amount__direct"
+            "bloomery_expression_is_true": {
+                "arguments": {"expression": "amount IS NOT DISTINCT FROM amount__direct"}
             }
         },
-        {"dbt_utils.expression_is_true": {"expression": "REGEXP_MATCHES(sku, '^A-')"}},
+        {
+            "bloomery_expression_is_true": {
+                "arguments": {"expression": "REGEXP_MATCHES(sku, '^A-')"}
+            }
+        },
     ]
     assert model["columns"] == [
+        # `not_null` takes no arguments, so it stays a bare name on every
+        # version — the nesting D22 adopted is a change to *parameterized*
+        # tests only.
         {"name": "item_id", "data_tests": ["not_null"]},
-        {"name": "qty", "data_tests": [{"accepted_values": {"values": [1, 2]}}]},
+        {"name": "qty", "data_tests": [{"accepted_values": {"arguments": {"values": [1, 2]}}}]},
     ]
+
+
+def test_generic_test_arguments_are_nested_which_is_what_sets_the_floor() -> None:
+    """RFC 0008 D22 — the emitted form and the supported dbt range are one
+    decision, pinned together because neither is safe to change alone.
+
+    dbt 1.10 moved generic-test arguments under an ``arguments`` property and
+    deprecated the flat form. The two are **mutually exclusive**, not
+    stylistic, and the boundary is *not* a minor version — measured by
+    compiling this project's own ``schema.yml`` on eight real installs:
+
+    =================  =======  ========  ========  ========  =======  ======
+    form               1.9.10   1.10.5    1.10.7    1.10.8    1.11.12  1.12.0
+    =================  =======  ========  ========  ========  =======  ======
+    flat               ok       ok+warn   ok+warn   ok+warn   ok+warn  ok+warn
+    nested (this one)  error    error     error     ok        ok       ok
+    =================  =======  ========  ========  ========  =======  ======
+
+    Through 1.10.7 the nested form needs the
+    ``require_generic_test_arguments_property`` behaviour flag and without it
+    dbt passes ``arguments`` to the macro as a literal keyword — "macro ...
+    takes no keyword argument 'arguments'". 1.10.8 makes it the default.
+
+    So the floor is **1.10.8**, which is neither the minor version this was
+    first written against (``>=1.10``, wrong: it admits 1.10.0–1.10.7) nor a
+    round number. ``pyproject.toml`` carries that bound, and it and this form
+    move together or not at all.
+    """
+    entity = _entity(
+        audits=(
+            AuditIR(kind="enum", column="qty", params=(("value_0000", "1"),)),
+            AuditIR(kind="min", column="amount", params=(("value", "0"),)),
+        )
+    )
+    document = cast(
+        "dict[str, object]", yaml.safe_load(_emit(entity)["models/schema.yml"].content)
+    )
+    (model,) = cast("list[dict[str, object]]", document["models"])
+    declared = cast("list[object]", model["data_tests"]) + [
+        test
+        for column in cast("list[dict[str, object]]", model["columns"])
+        for test in cast("list[object]", column["data_tests"])
+    ]
+    parameterized = [test for test in declared if isinstance(test, dict)]
+    assert parameterized, "no parameterized test emitted — the pin would be vacuous"
+    for test in parameterized:
+        (body,) = cast("dict[str, object]", test).values()
+        # Exactly `arguments`, not `arguments` plus stragglers: a half-migrated
+        # entry parses on 1.10 and warns like the flat form it still partly is.
+        assert list(cast("dict[str, object]", body)) == ["arguments"]
+
+
+MACRO_PATH = "macros/bloomery_expression_is_true.sql"
+
+
+def test_the_expression_test_is_defined_by_the_project_that_declares_it() -> None:
+    """RFC 0008 D18. The emitted project used to name
+    ``dbt_utils.expression_is_true`` and ship no ``packages.yml``, so every
+    project with a ``min``/``max``/``regex``/``reconcile`` assert declared a
+    test dbt could not build — ``dbt compile`` stopped at "'dbt_utils' is
+    undefined". A compiler whose artifacts are a pure function of its specs
+    cannot emit a file whose meaning lives behind a network fetch."""
+    entity = _entity(audits=(AuditIR(kind="min", column="amount", params=(("value", "0"),)),))
+    macro = _emit(entity)[MACRO_PATH]
+    # The audit *body* for this target, exactly as `audits/<name>.sql` is on
+    # the SQLMesh side — same kinds, same predicate, same kind of artifact.
+    assert macro.kind is ArtifactKind.AUDIT
+    assert "{% test bloomery_expression_is_true(model, expression) %}" in macro.content
+    assert "WHERE NOT ({{ expression }})" in macro.content
+    # The macro body spells its own name (a literal, so no escaping layer sits
+    # between it and the file) while `schema.yml` spells it from the constant.
+    # Two spellings, so they are pinned to each other here rather than left to
+    # `dbt compile` to discover.
+    schema = _emit(entity)["models/schema.yml"].content
+    (name,) = re.findall(r"\{% test (\w+)\(", macro.content)
+    assert f"{name}:" in schema
+
+
+def test_the_macro_rides_exactly_with_the_test_that_needs_it() -> None:
+    """Both directions of the invariant, because each failure is silent in its
+    own way: a project declaring the test without the macro will not compile,
+    and one carrying the macro unused ships a file nothing references."""
+    needs = _entity(audits=(AuditIR(kind="regex", column="sku", params=(("pattern", "^A-"),)),))
+    assert MACRO_PATH in _emit(needs)
+    # `not_null` is native on both targets (D16), so it needs nothing of ours.
+    does_not = _entity(audits=(AuditIR(kind="not_null", column="item_id"),))
+    emitted = _emit(does_not)
+    assert MACRO_PATH not in emitted
+    assert "bloomery_expression_is_true" not in emitted["models/schema.yml"].content
 
 
 def test_scd2_audits_attach_under_snapshots() -> None:
@@ -252,6 +350,8 @@ def test_scaffold_and_sources_artifacts() -> None:
         "profile": "bloomery",
         "model-paths": ["models"],
         "snapshot-paths": ["snapshots"],
+        "macro-paths": ["macros"],
+        "models": {"bloomery": {"silver": {"+schema": "silver"}}},
     }
     sources = cast("dict[str, object]", yaml.safe_load(artifacts["models/sources.yml"].content))
     assert sources == {
@@ -275,8 +375,38 @@ def test_sources_respect_the_naming_policy() -> None:
 # The port-abstraction proof (RFC 0008 D5): same SELECT, different envelope.
 
 
+def _erase_namespaces(sql: str, dialect: str) -> str:
+    """The same SELECT with every table's namespace dropped.
+
+    D20's `ref()` names a *model*, and a model name carries no namespace — so
+    after resolving references the dbt side says `order_item` where SQLMesh
+    says `silver.order_item`. Erasing the namespace on **both** sides is what
+    lets the rest of the SELECT still be compared byte for byte; that the
+    namespaces themselves agree is a different claim, asserted by
+    `test_a_reference_resolves_to_the_relation_the_naming_policy_names`.
+    """
+    tree = parse_one(sql, dialect=dialect)
+    for table in tree.find_all(exp.Table):
+        table.set("db", None)
+        table.set("catalog", None)
+    # `identify=True` on both sides: re-parsing a resolved `ref('order')`
+    # yields a bare identifier where the SQLMesh side had a qualified one,
+    # and the two render their quoting differently for a reserved word.
+    return tree.sql(dialect=dialect, pretty=True, identify=True)
+
+
 @pytest.mark.parametrize("dialect", ["duckdb", "postgres", "trino"])
 def test_dbt_and_sqlmesh_emit_identical_selects(dialect: str) -> None:
+    """D5's proof, restated for D20 and no weaker for it.
+
+    It used to compare the two bodies byte for byte. It cannot now: a dbt model
+    states its inputs as `ref()`/`source()` so dbt can order the DAG and place
+    the relations, which is the whole of D20. What still holds — and is the
+    thing D5 is actually about — is that **no lowering is duplicated**: resolve
+    the references, drop the namespaces, and the two targets' SQL is identical
+    on every projection, join, cast and dialect quirk. The entire difference
+    between the targets is one documented substitution over table nodes.
+    """
     sqlmesh = {
         a.path: a
         for a in compile_fixture("ecom_basic", dialect=dialect)
@@ -285,11 +415,42 @@ def test_dbt_and_sqlmesh_emit_identical_selects(dialect: str) -> None:
     dbt = {
         a.path: a
         for a in compile_fixture("ecom_basic", target=Target.DBT, dialect=dialect)
-        if a.path.endswith(".sql")
+        if a.path.endswith(".sql") and not a.path.startswith("macros/")
     }
     assert set(sqlmesh) == set(dbt)  # every model path exists on both targets
     for path, sqlmesh_artifact in sqlmesh.items():
-        assert extract_select(sqlmesh_artifact.content) == _dbt_select(dbt[path].content), path
+        rendered = resolve_dbt_references(_dbt_select(dbt[path].content))
+        assert _erase_namespaces(extract_select(sqlmesh_artifact.content), dialect) == (
+            _erase_namespaces(rendered, dialect)
+        ), path
+
+
+def test_a_reference_resolves_to_the_relation_the_naming_policy_names() -> None:
+    """The half the comparison above erases, asserted directly — and the half
+    D22 thought adopting `ref()` had to give up. A `ref()` carries no
+    namespace, so what pins the relation is the `+schema` config, and what
+    makes `+schema` mean the naming policy's word rather than dbt's default
+    `<target>_<custom>` is the `generate_schema_name` override.
+    """
+    artifacts = {
+        a.path: a.content
+        for a in DbtEmitter().emit(
+            ProjectIR(entities=(_entity(),)), _ctx(PrefixNaming(prefix="acme"))
+        )
+    }
+    # The model is written where the policy says, and read by the name dbt
+    # knows it as — those are different strings, and both have to be right.
+    assert "models/acme_silver/item.sql" in artifacts
+    project = cast("dict[str, object]", yaml.safe_load(artifacts["dbt_project.yml"]))
+    models = cast("dict[str, dict[str, object]]", project["models"])
+    assert models["bloomery"] == {"acme_silver": {"+schema": "acme_silver"}}
+    # ...and the override that makes `+schema: acme_silver` mean `acme_silver`
+    # rather than dbt's default `<target.schema>_acme_silver`.
+    macro = artifacts["macros/generate_schema_name.sql"]
+    assert "{{ custom_schema_name | trim }}" in macro
+    assert "{{ target.schema }}_" not in macro
+    # The source keeps its namespace, because `source()` carries one.
+    assert "{{ source('acme_bronze', 'src') }}" in artifacts["models/acme_silver/item.sql"]
 
 
 def test_sqlmesh_and_dbt_render_the_same_scd2_select() -> None:
@@ -300,9 +461,12 @@ def test_sqlmesh_and_dbt_render_the_same_scd2_select() -> None:
     )
     snapshot = _emit(entity)["snapshots/item_snapshot.sql"]
     snapshot_select = snapshot.content.partition("\n\n")[2].rpartition("\n\n")[0].strip()
-    assert extract_select(sqlmesh_model.content) == snapshot_select
+    assert extract_select(sqlmesh_model.content) == resolve_dbt_references(snapshot_select)
 
 
 def test_empty_project_emits_only_the_scaffold() -> None:
     artifacts = DbtEmitter().emit(ProjectIR(), _ctx())
-    assert [a.path for a in artifacts] == ["dbt_project.yml"]
+    assert [a.path for a in artifacts] == [
+        "dbt_project.yml",
+        "macros/generate_schema_name.sql",
+    ]
