@@ -9,3 +9,9 @@ snapshot-paths:
 - snapshots
 macro-paths:
 - macros
+models:
+  bloomery:
+    gold:
+      +schema: gold
+    silver:
+      +schema: silver

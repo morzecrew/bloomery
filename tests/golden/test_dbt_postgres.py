@@ -21,6 +21,7 @@ GOLDEN = Path(__file__).resolve().parent
 EXPECTED_PATHS = {
     "ecom_basic": [
         "dbt_project.yml",
+        "macros/generate_schema_name.sql",
         "models/gold/dim_date.sql",
         "models/gold/mart_order_items.sql",
         "models/schema.yml",
@@ -30,6 +31,7 @@ EXPECTED_PATHS = {
     ],
     "scd2_customers": [
         "dbt_project.yml",
+        "macros/generate_schema_name.sql",
         "models/schema.yml",
         "models/sources.yml",
         "snapshots/customer_snapshot.sql",

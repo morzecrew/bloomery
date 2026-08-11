@@ -11,6 +11,7 @@ from typing import cast
 
 import pytest
 import yaml
+from sqlglot import exp, parse_one
 
 from bloomery import Target
 from bloomery.dialects import get_dialect
@@ -33,7 +34,7 @@ from bloomery.ir import (
 )
 from bloomery.naming import DefaultNaming, PrefixNaming
 from bloomery.typing import DecimalType, IntType, LogicalType, StringType
-from support.compiling import compile_fixture, extract_select
+from support.compiling import compile_fixture, extract_select, resolve_dbt_references
 
 pytestmark = pytest.mark.unit
 
@@ -154,7 +155,7 @@ def test_scd2_lowers_to_a_check_strategy_snapshot() -> None:
         "{{ config(target_schema='silver', unique_key='item_id', "
         "strategy='check', check_cols='all') }}"
     ) in snapshot.content
-    assert "FROM bronze.src" in snapshot.content
+    assert "FROM {{ source('bronze', 'src') }}" in snapshot.content
 
 
 def test_scd2_snapshot_respects_the_naming_policy_schema() -> None:
@@ -293,6 +294,7 @@ def test_scaffold_and_sources_artifacts() -> None:
         "model-paths": ["models"],
         "snapshot-paths": ["snapshots"],
         "macro-paths": ["macros"],
+        "models": {"bloomery": {"silver": {"+schema": "silver"}}},
     }
     sources = cast("dict[str, object]", yaml.safe_load(artifacts["models/sources.yml"].content))
     assert sources == {
@@ -316,8 +318,38 @@ def test_sources_respect_the_naming_policy() -> None:
 # The port-abstraction proof (RFC 0008 D5): same SELECT, different envelope.
 
 
+def _erase_namespaces(sql: str, dialect: str) -> str:
+    """The same SELECT with every table's namespace dropped.
+
+    D20's `ref()` names a *model*, and a model name carries no namespace — so
+    after resolving references the dbt side says `order_item` where SQLMesh
+    says `silver.order_item`. Erasing the namespace on **both** sides is what
+    lets the rest of the SELECT still be compared byte for byte; that the
+    namespaces themselves agree is a different claim, asserted by
+    `test_a_reference_resolves_to_the_relation_the_naming_policy_names`.
+    """
+    tree = parse_one(sql, dialect=dialect)
+    for table in tree.find_all(exp.Table):
+        table.set("db", None)
+        table.set("catalog", None)
+    # `identify=True` on both sides: re-parsing a resolved `ref('order')`
+    # yields a bare identifier where the SQLMesh side had a qualified one,
+    # and the two render their quoting differently for a reserved word.
+    return tree.sql(dialect=dialect, pretty=True, identify=True)
+
+
 @pytest.mark.parametrize("dialect", ["duckdb", "postgres", "trino"])
 def test_dbt_and_sqlmesh_emit_identical_selects(dialect: str) -> None:
+    """D5's proof, restated for D20 and no weaker for it.
+
+    It used to compare the two bodies byte for byte. It cannot now: a dbt model
+    states its inputs as `ref()`/`source()` so dbt can order the DAG and place
+    the relations, which is the whole of D20. What still holds — and is the
+    thing D5 is actually about — is that **no lowering is duplicated**: resolve
+    the references, drop the namespaces, and the two targets' SQL is identical
+    on every projection, join, cast and dialect quirk. The entire difference
+    between the targets is one documented substitution over table nodes.
+    """
     sqlmesh = {
         a.path: a
         for a in compile_fixture("ecom_basic", dialect=dialect)
@@ -326,11 +358,42 @@ def test_dbt_and_sqlmesh_emit_identical_selects(dialect: str) -> None:
     dbt = {
         a.path: a
         for a in compile_fixture("ecom_basic", target=Target.DBT, dialect=dialect)
-        if a.path.endswith(".sql")
+        if a.path.endswith(".sql") and not a.path.startswith("macros/")
     }
     assert set(sqlmesh) == set(dbt)  # every model path exists on both targets
     for path, sqlmesh_artifact in sqlmesh.items():
-        assert extract_select(sqlmesh_artifact.content) == _dbt_select(dbt[path].content), path
+        rendered = resolve_dbt_references(_dbt_select(dbt[path].content))
+        assert _erase_namespaces(extract_select(sqlmesh_artifact.content), dialect) == (
+            _erase_namespaces(rendered, dialect)
+        ), path
+
+
+def test_a_reference_resolves_to_the_relation_the_naming_policy_names() -> None:
+    """The half the comparison above erases, asserted directly — and the half
+    D22 thought adopting `ref()` had to give up. A `ref()` carries no
+    namespace, so what pins the relation is the `+schema` config, and what
+    makes `+schema` mean the naming policy's word rather than dbt's default
+    `<target>_<custom>` is the `generate_schema_name` override.
+    """
+    artifacts = {
+        a.path: a.content
+        for a in DbtEmitter().emit(
+            ProjectIR(entities=(_entity(),)), _ctx(PrefixNaming(prefix="acme"))
+        )
+    }
+    # The model is written where the policy says, and read by the name dbt
+    # knows it as — those are different strings, and both have to be right.
+    assert "models/acme_silver/item.sql" in artifacts
+    project = cast("dict[str, object]", yaml.safe_load(artifacts["dbt_project.yml"]))
+    models = cast("dict[str, dict[str, object]]", project["models"])
+    assert models["bloomery"] == {"acme_silver": {"+schema": "acme_silver"}}
+    # ...and the override that makes `+schema: acme_silver` mean `acme_silver`
+    # rather than dbt's default `<target.schema>_acme_silver`.
+    macro = artifacts["macros/generate_schema_name.sql"]
+    assert "{{ custom_schema_name | trim }}" in macro
+    assert "{{ target.schema }}_" not in macro
+    # The source keeps its namespace, because `source()` carries one.
+    assert "{{ source('acme_bronze', 'src') }}" in artifacts["models/acme_silver/item.sql"]
 
 
 def test_sqlmesh_and_dbt_render_the_same_scd2_select() -> None:
@@ -341,9 +404,12 @@ def test_sqlmesh_and_dbt_render_the_same_scd2_select() -> None:
     )
     snapshot = _emit(entity)["snapshots/item_snapshot.sql"]
     snapshot_select = snapshot.content.partition("\n\n")[2].rpartition("\n\n")[0].strip()
-    assert extract_select(sqlmesh_model.content) == snapshot_select
+    assert extract_select(sqlmesh_model.content) == resolve_dbt_references(snapshot_select)
 
 
 def test_empty_project_emits_only_the_scaffold() -> None:
     artifacts = DbtEmitter().emit(ProjectIR(), _ctx())
-    assert [a.path for a in artifacts] == ["dbt_project.yml"]
+    assert [a.path for a in artifacts] == [
+        "dbt_project.yml",
+        "macros/generate_schema_name.sql",
+    ]

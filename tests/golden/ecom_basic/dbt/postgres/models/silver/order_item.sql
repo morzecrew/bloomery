@@ -10,4 +10,4 @@ SELECT
   CAST(CAST(total AS DOUBLE PRECISION) / qty AS DECIMAL(12, 4)) AS unit_price,
   CAST(ARRAY[] AS TEXT[]) AS _quality_flags,
   TRUE AS _quality_ok
-FROM bronze.shopify__order_lines
+FROM {{ source('bronze', 'shopify__order_lines') }}

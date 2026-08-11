@@ -9,6 +9,6 @@ SELECT
   CAST(segment AS TEXT) AS segment,
   CAST(ARRAY[] AS TEXT[]) AS _quality_flags,
   TRUE AS _quality_ok
-FROM bronze.crm__customers
+FROM {{ source('bronze', 'crm__customers') }}
 
 {% endsnapshot %}

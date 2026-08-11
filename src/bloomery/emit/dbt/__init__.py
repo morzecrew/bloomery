@@ -3,13 +3,27 @@
 Its real job is proving the port abstraction (RFC 0008 D5, spec §9): it ships
 minimal but honest, and every SELECT is the **same** dialect-port-rendered
 AST the SQLMesh emitter renders (:mod:`bloomery.emit.lowering`) — only the
-envelope differs. Do not read it as production-grade dbt scaffolding.
+envelope and the way inputs are *named* differ. Do not read it as
+production-grade dbt scaffolding.
+
+That last qualifier is D20's. A dbt model states its inputs as ``ref()`` and
+``source()`` rather than as literal relations, because a project without those
+edges is one dbt cannot order — so the lowered AST is rendered through
+:func:`_render`, which rewrites table nodes and touches nothing else. D5's
+claim survives it exactly: resolve the references and the two targets' SQL is
+identical, which is the tighter statement of "no lowering is duplicated".
 
 Artifacts:
 
-- ``dbt_project.yml`` — the scaffold, so ``dbt parse`` has a project.
+- ``dbt_project.yml`` — the scaffold, plus one ``+schema`` per model
+  directory so each relation materializes where the naming policy put it.
+- ``macros/generate_schema_name.sql`` — the override making ``+schema`` mean
+  the namespace verbatim rather than dbt's default ``<target>_<custom>``
+  (RFC 0008 D20). Without it ``ref()`` really would cost the naming port its
+  ownership of namespaces, which is the objection RFC 0009 D22 raised.
 - ``models/sources.yml`` — every bronze relation the entities read, grouped
-  by bronze namespace under the naming policy.
+  by bronze namespace under the naming policy. Sources do not pass through
+  ``generate_schema_name``, so their namespace was always the policy's.
 - ``models/<silver_ns>/<entity>.sql`` per SCD type 1 entity, with a
   ``{{ config(...) }}`` header. Materialization maps honestly: ``full`` →
   ``table``; both incremental kinds → ``incremental`` with the entity key as
@@ -51,6 +65,8 @@ from __future__ import annotations
 
 import jinja2
 import yaml
+from sqlglot import exp
+from sqlglot.expressions.core import Expression
 
 from bloomery.emit.base import (
     ArtifactKind,
@@ -226,7 +242,9 @@ def _refuse_reconcile(ir: ProjectIR) -> None:
     raise UnsupportedByTarget(msg, source_path="entity_model: reconcile")
 
 
-def _step_artifacts(ir: ProjectIR, ctx: EmitContext) -> list[EmittedArtifact]:
+def _step_artifacts(
+    ir: ProjectIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+) -> list[EmittedArtifact]:
     """Tier 2 step outputs as dbt models (RFC 0017 D52).
 
     ``sql_macro`` contributes nothing here for the same reason it contributes
@@ -249,7 +267,7 @@ def _step_artifacts(ir: ProjectIR, ctx: EmitContext) -> list[EmittedArtifact]:
                 _model_artifact(
                     path=f"models/{namespace}/{relation}.sql",
                     config_line=_config_line(Materialization.FULL, output.key),
-                    select=ctx.dialect.render(step_body(step)),
+                    select=_render(step_body(step), references, ctx),
                     ctx=ctx,
                 )
             )
@@ -267,7 +285,9 @@ def _model_artifact(
     )
 
 
-def _snapshot_artifact(entity: EntityIR, ctx: EmitContext) -> EmittedArtifact:
+def _snapshot_artifact(
+    entity: EntityIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+) -> EmittedArtifact:
     if len(entity.key) != 1:
         msg = (
             f"entity {entity.name!r} is SCD type 2 with composite key "
@@ -286,7 +306,7 @@ def _snapshot_artifact(entity: EntityIR, ctx: EmitContext) -> EmittedArtifact:
         open_line=f"{{% snapshot {entity.name}_snapshot %}}",
         close_line="{% endsnapshot %}",
         config_line=config_line,
-        select=ctx.dialect.render(entity_select(entity, ctx)),
+        select=_render(entity_select(entity, ctx), references, ctx),
     )
     return EmittedArtifact.create(
         path=f"snapshots/{entity.name}_snapshot.sql",
@@ -295,17 +315,21 @@ def _snapshot_artifact(entity: EntityIR, ctx: EmitContext) -> EmittedArtifact:
     )
 
 
-def _dim_date_artifact(dim: DateDimensionIR, ctx: EmitContext) -> EmittedArtifact:
+def _dim_date_artifact(
+    dim: DateDimensionIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+) -> EmittedArtifact:
     namespace, _mart_relation = ctx.naming.relation(dim.name, Layer.GOLD)
     return _model_artifact(
         path=f"models/{namespace}/{dim.name}.sql",
         config_line="{{ config(materialized='table') }}",
-        select=ctx.dialect.render(dim_date_select(dim)),
+        select=_render(dim_date_select(dim), references, ctx),
         ctx=ctx,
     )
 
 
-def _mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact:
+def _mart_artifact(
+    mart: MartIR, ir: ProjectIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+) -> EmittedArtifact:
     namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
     if is_quality_mart(mart):
         # RFC 0016 §5.4 puts the quality mart in **SQLMesh's** set, and it is
@@ -326,7 +350,7 @@ def _mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArti
     return _model_artifact(
         path=f"models/{namespace}/{relation}.sql",
         config_line=_config_line(mart.materialization, base.key),
-        select=ctx.dialect.render(mart_select(mart, ctx)),
+        select=_render(mart_select(mart, ctx), references, ctx),
         ctx=ctx,
     )
 
@@ -431,6 +455,121 @@ def _sources_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None
     )
 
 
+def _reference_map(ir: ProjectIR, ctx: EmitContext) -> dict[tuple[str, str], str]:
+    """``(namespace, relation)`` → the dbt reference that resolves to it
+    (RFC 0008 D20).
+
+    Keyed on what the *lowered SQL* says, because that is what the rewrite has
+    to match: shared lowering builds every input as ``exp.table_(relation,
+    db=namespace)`` under the naming policy, identically for both targets, and
+    the dbt emitter's job is to say the same thing in dbt's vocabulary rather
+    than to lower differently.
+
+    A namespace-less table is never mapped. Nothing here can produce one — the
+    naming policy always answers with a namespace — and the exclusion is what
+    keeps a CTE reference (``FROM _quality_order``, which parses as a table
+    with no ``db``) from being mistaken for a model.
+    """
+    references: dict[tuple[str, str], str] = {}
+
+    def add(namespace: str, relation: str, reference: str) -> None:
+        if namespace:
+            references[(namespace, relation)] = reference
+
+    for entity in ir.entities:
+        namespace, relation = ctx.naming.relation(entity.source.relation, Layer.BRONZE)
+        add(namespace, relation, f"{{{{ source('{namespace}', '{relation}') }}}}")
+    for entity in ir.entities:
+        namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
+        # An SCD2 entity's rows live in the snapshot, which is the only thing
+        # dbt builds for it — so a downstream reference to the *entity* has to
+        # resolve there. Referencing `relation` would name a model this target
+        # never emits, and dbt would refuse the project.
+        model = f"{entity.name}_snapshot" if entity.scd is SCDKind.TYPE2 else relation
+        add(namespace, relation, f"{{{{ ref('{model}') }}}}")
+    for step in ir.steps:
+        if step.kind is not StepKind.SQL_MODEL:
+            continue
+        for output in step.outputs:
+            namespace, relation = step_output_relation(output, ctx)
+            add(namespace, relation, f"{{{{ ref('{relation}') }}}}")
+    for mart in ir.marts:
+        namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+        add(namespace, relation, f"{{{{ ref('{relation}') }}}}")
+    if ir.date_dimension is not None:
+        namespace, _relation = ctx.naming.relation(ir.date_dimension.name, Layer.GOLD)
+        add(namespace, ir.date_dimension.name, f"{{{{ ref('{ir.date_dimension.name}') }}}}")
+    return references
+
+
+def _render(node: Expression, references: dict[tuple[str, str], str], ctx: EmitContext) -> str:
+    """Render one lowered SELECT with its inputs stated as dbt references.
+
+    Every model body goes through here rather than through ``ctx.dialect.render``
+    directly: a body that reached a file with a literal relation name is exactly
+    the defect D20 closes, and a new artifact kind forgetting the rewrite is the
+    way it would come back.
+
+    A table the map does not know is **left alone** rather than guessed at. Only
+    two kinds reach that branch: a table function (``GENERATE_SERIES`` in the
+    date dimension, which parses as a table with no name at all) and a relation
+    a step body names that this project does not build. Inventing a ``ref()``
+    for the second would name a model dbt cannot find and refuse the whole
+    project — the literal name is the honest rendering of "bloomery did not
+    write this relation".
+    """
+    node = node.copy()
+    for table in node.find_all(exp.Table):
+        reference = references.get((table.db, table.name))
+        if reference is None:
+            continue
+        # `to_identifier(..., quoted=False)` is what lets the braces survive
+        # rendering — the same device `_this_model` uses for `@this_model`,
+        # which sqlglot would otherwise quote into a literal identifier.
+        replacement = exp.Table(this=exp.to_identifier(reference, quoted=False))
+        alias = table.args.get("alias")
+        if alias is not None:
+            replacement.set("alias", alias)
+        table.replace(replacement)
+    return ctx.dialect.render(node)
+
+
+_SCHEMA_MACRO = """\
+{% macro generate_schema_name(custom_schema_name, node) -%}
+{%- if custom_schema_name is none -%}
+{{ target.schema }}
+{%- else -%}
+{{ custom_schema_name | trim }}
+{%- endif -%}
+{%- endmacro %}
+"""
+
+
+def _schema_macro_artifact(ctx: EmitContext) -> EmittedArtifact:
+    """The override that keeps the naming policy owning namespaces (D20).
+
+    dbt's default ``generate_schema_name`` returns ``<target.schema>_<custom>``,
+    so a model configured ``+schema: silver`` against a target schema ``main``
+    materializes at ``main_silver`` — while ``sources.yml``, which does not go
+    through this macro at all, still says ``bronze``. Half the project would
+    honour the naming policy and half would not.
+
+    Returning the configured schema verbatim is what makes ``ref()`` resolve to
+    the relation :meth:`NamingPolicy.relation` names. Without it, adopting
+    ``ref()`` really would cost the naming port its ownership — which is the
+    objection RFC 0009 D22 raised against doing so, and this is its answer
+    rather than its acceptance.
+    """
+    return EmittedArtifact.create(
+        path="macros/generate_schema_name.sql",
+        content=(
+            "-- Generated by bloomery — do not edit.\n"
+            f"-- fingerprint: {ctx.fingerprint}\n{_SCHEMA_MACRO}"
+        ),
+        kind=ArtifactKind.CONFIG,
+    )
+
+
 def _expression_macro_artifact(ctx: EmitContext) -> EmittedArtifact:
     """The generic test the ``min``/``max``/``regex``/``reconcile`` audits
     name. :data:`ArtifactKind.AUDIT` rather than ``CONFIG``: it is the custom
@@ -448,7 +587,7 @@ def _expression_macro_artifact(ctx: EmitContext) -> EmittedArtifact:
     )
 
 
-def _project_artifact(ctx: EmitContext) -> EmittedArtifact:
+def _project_artifact(ctx: EmitContext, namespaces: tuple[str, ...]) -> EmittedArtifact:
     document: dict[str, object] = {
         "name": "bloomery",
         "version": "1.0.0",
@@ -460,6 +599,16 @@ def _project_artifact(ctx: EmitContext) -> EmittedArtifact:
         # layout rather than inheriting one that a later dbt could change.
         "macro-paths": ["macros"],
     }
+    if namespaces:
+        # One `+schema` per model directory, the directory *being* the
+        # namespace the naming policy chose (D20). With the
+        # `generate_schema_name` override this puts each model in exactly the
+        # relation `NamingPolicy.relation` names — which is what makes the
+        # `ref()` in a downstream model resolve to the same relation the
+        # SQLMesh target writes.
+        document["models"] = {
+            "bloomery": {namespace: {"+schema": namespace} for namespace in namespaces}
+        }
     return EmittedArtifact.create(
         path="dbt_project.yml",
         content=_header(ctx) + _yaml(document),
@@ -503,7 +652,8 @@ class DbtEmitter:
         refuse_mart_asserts(ir, "dbt")
         refuse_coverage(ir, "dbt")
         _refuse_reconcile(ir)
-        artifacts: list[EmittedArtifact] = [_project_artifact(ctx), *_step_artifacts(ir, ctx)]
+        references = _reference_map(ir, ctx)
+        artifacts: list[EmittedArtifact] = list(_step_artifacts(ir, ctx, references))
         for entity in ir.entities:
             # A step output is an entity in the DAG (RFC 0017 D36) but its rows
             # are the step's to write, and its lowered `expr` is the column
@@ -513,20 +663,20 @@ class DbtEmitter:
                 continue
             _refuse_quarantine(entity)
             if entity.scd is SCDKind.TYPE2:
-                artifacts.append(_snapshot_artifact(entity, ctx))
+                artifacts.append(_snapshot_artifact(entity, ctx, references))
                 continue
             namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
             artifacts.append(
                 _model_artifact(
                     path=f"models/{namespace}/{relation}.sql",
                     config_line=_config_line(entity.materialization, entity.key),
-                    select=ctx.dialect.render(entity_select(entity, ctx)),
+                    select=_render(entity_select(entity, ctx), references, ctx),
                     ctx=ctx,
                 )
             )
-        artifacts.extend(_mart_artifact(mart, ir, ctx) for mart in ir.marts)
+        artifacts.extend(_mart_artifact(mart, ir, ctx, references) for mart in ir.marts)
         if ir.date_dimension is not None:
-            artifacts.append(_dim_date_artifact(ir.date_dimension, ctx))
+            artifacts.append(_dim_date_artifact(ir.date_dimension, ctx, references))
         schema = _schema_artifact(ir, ctx)
         for optional in (schema, _sources_artifact(ir, ctx)):
             if optional is not None:
@@ -538,4 +688,21 @@ class DbtEmitter:
         # test without the macro nor carry the macro unused.
         if schema is not None and _EXPRESSION_TEST in schema.content:
             artifacts.append(_expression_macro_artifact(ctx))
+        # Read off the emitted model paths for the same reason the macro
+        # condition is read off the emitted schema: `models/<ns>/<rel>.sql` is
+        # the directory dbt will apply the config to, so taking the namespaces
+        # from anywhere else invites a `+schema` that governs no model — or a
+        # model directory that no `+schema` governs, which lands the relation
+        # somewhere the naming policy never named.
+        namespaces = tuple(
+            sorted(
+                {
+                    artifact.path.split("/")[1]
+                    for artifact in artifacts
+                    if artifact.path.startswith("models/") and artifact.path.count("/") > 1
+                }
+            )
+        )
+        artifacts.append(_project_artifact(ctx, namespaces))
+        artifacts.append(_schema_macro_artifact(ctx))
         return tuple(sorted(artifacts, key=lambda a: a.path))

@@ -20,16 +20,15 @@ not, and the overclaim cost a real defect: parse accepts a test named
 ``dbt_utils`` dependency surfaced (RFC 0008 D18), long after this tier was
 written to catch exactly that class of thing. Hence the compile pass below.
 
-**What it does not prove, and the finding that came out of trying.** A parse
-does not execute SQL, and ``dbt build`` on the same project **fails** — for a
-reason that is bloomery's rather than the test's, and that was unrecorded until
-this tier was built. Emitted dbt models reference their inputs by literal
-relation name (``FROM silver.order_item``) rather than through ``{{ ref(...) }}``
-or ``{{ source(...) }}``, so dbt has no dependency edges between them and
-materializes each into the profile's target schema while its ``FROM`` clause
-names ``silver``. See RFC 0009 D22 for the two candidate fixes; neither is
-built, and this module asserts parse rather than pretending build is out of
-scope for a reason of principle.
+**And the finding that came out of trying, now closed.** Building this tier
+found that ``dbt build`` could not pass: emitted models named their inputs by
+literal relation (``FROM silver.order_item``), so dbt had no dependency edges
+to order them by and materialized each into the profile's target schema while
+the ``FROM`` clause said ``silver``. RFC 0009 D22 recorded it with two
+candidate fixes and built neither, because how deep the dbt target goes is
+RFC 0008's decision. RFC 0008 D20 took **both** — they are not alternatives —
+and this module now builds every fixture as well as parsing and compiling it,
+with a control for the half a green build does not visibly prove.
 """
 
 from __future__ import annotations
@@ -38,7 +37,7 @@ import pathlib
 
 import pytest
 
-from support.compiling import compile_fixture
+from support.compiling import compile_fixture, resolve_dbt_references
 
 pytestmark = pytest.mark.e2e
 
@@ -63,11 +62,12 @@ bloomery:
   outputs:
     local:
       type: duckdb
-      path: ':memory:'
+      path: '{path}'
+      schema: main
 """
 
 
-def _write_project(root: pathlib.Path, fixture: str) -> None:
+def _write_project(root: pathlib.Path, fixture: str, *, database: str = ":memory:") -> None:
     for artifact in compile_fixture(fixture, target="dbt", dialect="duckdb"):
         path = root / artifact.path
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -75,7 +75,7 @@ def _write_project(root: pathlib.Path, fixture: str) -> None:
     # bloomery emits no profiles.yml, deliberately: a profile is a *deployment*
     # secret-bearing file (host, credentials), and RFC 0003 keeps the compiler
     # free of environment. The tier supplies one, as a caller would.
-    (root / "profiles.yml").write_text(PROFILES, encoding="utf-8")
+    (root / "profiles.yml").write_text(PROFILES.format(path=database), encoding="utf-8")
 
 
 def _run(root: pathlib.Path, command: str) -> object:
@@ -113,6 +113,125 @@ def test_dbt_resolves_every_test_the_project_declares(
     _write_project(tmp_path, fixture)
     result = _run(tmp_path, "compile")
     assert result.success, getattr(result, "exception", None)
+
+
+def _seed_sources(database: pathlib.Path, fixture: str) -> None:
+    """Create every bronze relation the project reads, **empty**.
+
+    Columns are read off the emitted models rather than hand-listed, so a
+    fixture whose mapping changes cannot leave this seeding behind. Each takes
+    the type of the nearest ``CAST`` enclosing it, which is the model's own
+    statement of what it expects to read: ``CAST(id AS TEXT)`` wants text, and
+    ``CAST(total / qty AS DECIMAL(12, 4))`` wants two numbers — declaring that
+    pair ``VARCHAR`` makes DuckDB refuse the division before the build has said
+    anything about references or ordering.
+
+    There are deliberately no rows. This tier's claim is about *structure* —
+    that dbt resolves every reference, orders the models, and materializes each
+    where the naming policy says — and every one of those fails on an empty
+    warehouse just as loudly as on a full one: a gold model whose input has not
+    been built yet errors whether or not the input would have had rows. What
+    zero rows cannot check is arithmetic, which is the execution and
+    equivalence tiers' job and is not restated here.
+    """
+    import duckdb
+    from sqlglot import exp, parse_one
+
+    def declared_type(column: exp.Column) -> str:
+        node = column.parent
+        while node is not None:
+            if isinstance(node, exp.Cast):
+                # A JSON payload is read with `->>` and cast to text; the column
+                # holding it is text, not the extracted value's type.
+                return "VARCHAR" if node.find(exp.JSONExtract, exp.JSONExtractScalar) else (
+                    node.to.sql(dialect="duckdb")
+                )
+            node = node.parent
+        return "VARCHAR"
+
+    columns: dict[tuple[str, str], dict[str, str]] = {}
+    for artifact in compile_fixture(fixture, target="dbt", dialect="duckdb"):
+        if not artifact.path.endswith(".sql") or artifact.path.startswith("macros/"):
+            continue
+        body = artifact.content.partition("\n\n")[2]
+        if body.rstrip("\n").endswith("{% endsnapshot %}"):
+            body = body.rpartition("\n\n")[0]
+        tree = parse_one(resolve_dbt_references(body.strip()), dialect="duckdb")
+        # Only a `source()` survives resolution with a namespace — a `ref()`
+        # resolves to a bare model name — so this selects exactly the bronze
+        # relations without needing to know which they are.
+        for table in tree.find_all(exp.Table):
+            if not table.db:
+                continue
+            declared = columns.setdefault((table.db, table.name), {})
+            for column in tree.find_all(exp.Column):
+                if column.name:
+                    declared.setdefault(column.name, declared_type(column))
+    connection = duckdb.connect(str(database))
+    try:
+        for (namespace, relation), declared in sorted(columns.items()):
+            connection.execute(f"CREATE SCHEMA IF NOT EXISTS {namespace}")
+            body = ", ".join(f'"{name}" {kind}' for name, kind in sorted(declared.items()))
+            connection.execute(f'CREATE TABLE {namespace}."{relation}" ({body})')
+    finally:
+        connection.close()
+
+
+@pytest.mark.parametrize("fixture", FIXTURES)
+def test_dbt_builds_the_emitted_project(fixture: str, tmp_path: pathlib.Path) -> None:
+    """RFC 0009 D22's finding, closed (RFC 0008 D20).
+
+    D22 recorded that ``dbt build`` **cannot** pass on a bloomery project and
+    named two candidate fixes, neither built: emitted models referenced their
+    inputs by literal relation name, so dbt had no dependency edges to order
+    them by and materialized each into the profile's target schema while the
+    ``FROM`` clause named ``silver``.
+
+    Both halves have to hold for a build, and this asserts both at once —
+    ordering, because a gold model that ran before its silver input would error
+    on a missing relation, and placement, because its ``ref()`` resolves
+    through the ``+schema`` config to the relation the naming policy names. A
+    build that passes is the only thing that can say so: parse never loaded the
+    DAG, and compile rendered the models without running them.
+    """
+    database = tmp_path / "warehouse.duckdb"
+    _write_project(tmp_path, fixture, database=str(database))
+    _seed_sources(database, fixture)
+    result = _run(tmp_path, "build")
+    assert result.success, getattr(result, "exception", None)
+
+
+def test_the_build_would_notice_a_model_that_lands_in_the_wrong_schema(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The tier's control, aimed at the half a passing build proves least
+    visibly. Drop the ``generate_schema_name`` override and dbt's default takes
+    over: ``+schema: silver`` becomes ``main_silver``, so every model still
+    *builds* — and the marts, whose ``ref()`` follows dbt's placement, still
+    find their inputs. What breaks is that bloomery's relations are no longer
+    where the naming policy said, which is exactly what D22 warned adopting
+    ``ref()`` would cost. Asserted on the warehouse rather than the build's
+    exit code, because the build does not care.
+    """
+    import duckdb
+
+    database = tmp_path / "warehouse.duckdb"
+    _write_project(tmp_path, "ecom_basic", database=str(database))
+    _seed_sources(database, "ecom_basic")
+    (tmp_path / "macros/generate_schema_name.sql").unlink()
+    assert _run(tmp_path, "build").success
+    connection = duckdb.connect(str(database))
+    try:
+        schemas = {
+            row[0]
+            for row in connection.execute(
+                "SELECT DISTINCT table_schema FROM information_schema.tables"
+            ).fetchall()
+        }
+    finally:
+        connection.close()
+    assert "main_silver" in schemas, "dbt's default did not take over — the control is inert"
+    assert "silver" not in schemas
 
 
 def test_a_tier_two_step_model_is_a_file_dbt_accepts(tmp_path: pathlib.Path) -> None:

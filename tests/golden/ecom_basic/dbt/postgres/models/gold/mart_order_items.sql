@@ -15,6 +15,6 @@ SELECT
   CAST(DATE_TRUNC('YEAR', order_item.order_date) AS DATE) AS ordered_year,
   order_item.quantity AS quantity,
   order_item.unit_price AS unit_price
-FROM silver.order_item AS order_item
-LEFT JOIN silver."order" AS order_
+FROM {{ ref('order_item') }} AS order_item
+LEFT JOIN {{ ref('order') }} AS order_
   ON order_item.order_id = order_.order_id

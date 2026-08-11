@@ -7,4 +7,4 @@ SELECT
   CAST(id AS TEXT) AS order_id,
   CAST(ARRAY[] AS TEXT[]) AS _quality_flags,
   TRUE AS _quality_ok
-FROM bronze.shopify__orders
+FROM {{ source('bronze', 'shopify__orders') }}

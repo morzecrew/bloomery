@@ -14,7 +14,13 @@ from sqlglot import exp, parse, parse_one
 from bloomery import Target, compile_project, load_project
 from bloomery.emit import ArtifactKind, EmittedArtifact
 from bloomery.errors import UnsupportedByTarget
-from support.compiling import compile_fixture, extract_select, fixture_sources, load_fixture
+from support.compiling import (
+    compile_fixture,
+    extract_select,
+    fixture_sources,
+    load_fixture,
+    resolve_dbt_references,
+)
 
 pytestmark = pytest.mark.property
 
@@ -69,6 +75,12 @@ def test_compile_twice_yields_identical_bytes(name: str, target: Target, dialect
     assert first == second  # paths, contents, and checksums — full byte identity
 
 
+def exp_keywords(content: str) -> set[str]:
+    """The SQL statement keywords appearing in a file, for asserting that one
+    contains no SQL at all."""
+    return {word for word in ("SELECT", "FROM", "WHERE", "JOIN") if word in content.upper()}
+
+
 def _sql_body(target: Target, content: str) -> str:
     if target is Target.SQLMESH:
         return extract_select(content)
@@ -77,7 +89,10 @@ def _sql_body(target: Target, content: str) -> str:
     body = content.partition("\n\n")[2]
     if body.rstrip("\n").endswith("{% endsnapshot %}"):
         body = body.rpartition("\n\n")[0]
-    return body.strip()
+    # Since D20 a dbt body states its inputs as `ref()`/`source()`, so it is a
+    # template rather than SQL. The property is about the SQL underneath, and
+    # dropping dbt from it would be a coverage loss rather than a substitution.
+    return resolve_dbt_references(body.strip())
 
 
 @settings(max_examples=30, deadline=None)
@@ -103,6 +118,13 @@ def test_emitted_sql_parses_under_the_target_dialect(
             statements = [node for node in parse(body, dialect=dialect) if node is not None]
             assert statements
             assert all(isinstance(node, (exp.Merge, exp.Update)) for node in statements)
+            continue
+        if artifact.path == "macros/generate_schema_name.sql":
+            # The one `.sql` bloomery emits that contains no SQL — it is a
+            # Jinja macro returning a schema *name* (RFC 0008 D20). Asserted
+            # rather than skipped, so "this file has no SQL to parse" stays a
+            # claim the suite checks instead of a hole the exemption opens.
+            assert not exp_keywords(artifact.content)
             continue
         if artifact.path.startswith("macros/"):
             # The dbt generic test (RFC 0008 D18) is a SELECT with two Jinja
