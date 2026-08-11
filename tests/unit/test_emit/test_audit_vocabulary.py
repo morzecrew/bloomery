@@ -13,13 +13,20 @@ same thing — ``accepted_range(min_v := N)`` is ``column < N`` and
 Availability was never the constraint.
 
 **The criterion is agreement between the two targets.** dbt-core has native
-``not_null`` and ``accepted_values`` tests; it has no range or regex test at all
-(``dbt_utils.expression_is_true`` is a *package*). So for the first two, both
-frameworks say the same thing in their own words and bloomery uses each one's.
-For the rest, only SQLMesh has a builtin — and taking it would leave
-``audit_predicate`` with dbt as its only consumer, so the two targets' meaning
-would be related by intent rather than by construction. One function builds
-both forms, which is what makes them provably the same check.
+``not_null`` and ``accepted_values`` tests; it has no range or regex test at
+all. So for the first two, both frameworks say the same thing in their own
+words and bloomery uses each one's. For the rest, only SQLMesh has a builtin —
+and taking it would leave ``audit_predicate`` with dbt as its only consumer, so
+the two targets' meaning would be related by intent rather than by
+construction. One function builds both forms, which is what makes them provably
+the same check.
+
+The dbt half of that "no range or regex test" carries a consequence D16 stated
+and did not follow: the only dbt-side vehicle was ``dbt_utils``, a *package*.
+Emitting a package's test made the project incomplete — see D18, and
+:func:`~bloomery.emit.dbt._expression_macro_artifact` for the macro bloomery
+now ships instead. It changes nothing here: the vehicle moved, the predicate
+and the split did not.
 
 This module pins the split so a future change to it is deliberate.
 """

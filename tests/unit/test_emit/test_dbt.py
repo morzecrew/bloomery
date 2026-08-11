@@ -5,6 +5,7 @@ proof itself — dbt and SQLMesh emit byte-identical SELECTs."""
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 from typing import cast
 
@@ -188,19 +189,58 @@ def test_audits_lower_to_schema_tests() -> None:
     assert model["name"] == "item"
     # audits are sorted by (kind, column) on EntityIR — the order is theirs
     assert model["data_tests"] == [
-        {"dbt_utils.expression_is_true": {"expression": "qty <= 10"}},
-        {"dbt_utils.expression_is_true": {"expression": "amount >= 0"}},
+        {"bloomery_expression_is_true": {"expression": "qty <= 10"}},
+        {"bloomery_expression_is_true": {"expression": "amount >= 0"}},
         {
-            "dbt_utils.expression_is_true": {
+            "bloomery_expression_is_true": {
                 "expression": "amount IS NOT DISTINCT FROM amount__direct"
             }
         },
-        {"dbt_utils.expression_is_true": {"expression": "REGEXP_MATCHES(sku, '^A-')"}},
+        {"bloomery_expression_is_true": {"expression": "REGEXP_MATCHES(sku, '^A-')"}},
     ]
     assert model["columns"] == [
         {"name": "item_id", "data_tests": ["not_null"]},
         {"name": "qty", "data_tests": [{"accepted_values": {"values": [1, 2]}}]},
     ]
+
+
+MACRO_PATH = "macros/bloomery_expression_is_true.sql"
+
+
+def test_the_expression_test_is_defined_by_the_project_that_declares_it() -> None:
+    """RFC 0008 D18. The emitted project used to name
+    ``dbt_utils.expression_is_true`` and ship no ``packages.yml``, so every
+    project with a ``min``/``max``/``regex``/``reconcile`` assert declared a
+    test dbt could not build — ``dbt compile`` stopped at "'dbt_utils' is
+    undefined". A compiler whose artifacts are a pure function of its specs
+    cannot emit a file whose meaning lives behind a network fetch."""
+    entity = _entity(audits=(AuditIR(kind="min", column="amount", params=(("value", "0"),)),))
+    macro = _emit(entity)[MACRO_PATH]
+    # The audit *body* for this target, exactly as `audits/<name>.sql` is on
+    # the SQLMesh side — same kinds, same predicate, same kind of artifact.
+    assert macro.kind is ArtifactKind.AUDIT
+    assert "{% test bloomery_expression_is_true(model, expression) %}" in macro.content
+    assert "WHERE NOT ({{ expression }})" in macro.content
+    # The macro body spells its own name (a literal, so no escaping layer sits
+    # between it and the file) while `schema.yml` spells it from the constant.
+    # Two spellings, so they are pinned to each other here rather than left to
+    # `dbt compile` to discover.
+    schema = _emit(entity)["models/schema.yml"].content
+    (name,) = re.findall(r"\{% test (\w+)\(", macro.content)
+    assert f"{name}:" in schema
+
+
+def test_the_macro_rides_exactly_with_the_test_that_needs_it() -> None:
+    """Both directions of the invariant, because each failure is silent in its
+    own way: a project declaring the test without the macro will not compile,
+    and one carrying the macro unused ships a file nothing references."""
+    needs = _entity(audits=(AuditIR(kind="regex", column="sku", params=(("pattern", "^A-"),)),))
+    assert MACRO_PATH in _emit(needs)
+    # `not_null` is native on both targets (D16), so it needs nothing of ours.
+    does_not = _entity(audits=(AuditIR(kind="not_null", column="item_id"),))
+    emitted = _emit(does_not)
+    assert MACRO_PATH not in emitted
+    assert "bloomery_expression_is_true" not in emitted["models/schema.yml"].content
 
 
 def test_scd2_audits_attach_under_snapshots() -> None:
@@ -252,6 +292,7 @@ def test_scaffold_and_sources_artifacts() -> None:
         "profile": "bloomery",
         "model-paths": ["models"],
         "snapshot-paths": ["snapshots"],
+        "macro-paths": ["macros"],
     }
     sources = cast("dict[str, object]", yaml.safe_load(artifacts["models/sources.yml"].content))
     assert sources == {

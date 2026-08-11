@@ -104,6 +104,20 @@ def test_emitted_sql_parses_under_the_target_dialect(
             assert statements
             assert all(isinstance(node, (exp.Merge, exp.Update)) for node in statements)
             continue
+        if artifact.path.startswith("macros/"):
+            # The dbt generic test (RFC 0008 D18) is a SELECT with two Jinja
+            # holes rather than a whole query. Filling them keeps it inside the
+            # property rather than exempt from it: this file *is* emitted SQL,
+            # and skipping it would leave the one artifact whose body no golden
+            # reads as SQL unchecked by anything.
+            select = (
+                artifact.content.partition("%}")[2]
+                .partition("{% endtest %}")[0]
+                .replace("{{ model }}", "silver.model")
+                .replace("{{ expression }}", "1 = 1")
+            )
+            assert isinstance(parse_one(select, dialect=dialect), exp.Select)
+            continue
         # Audit bodies select from SQLMesh's @this_model macro — substitute a
         # plain relation so the SELECT itself must still parse (RFC 0008 D4).
         # A ``fail``-rule audit is a **UNION** of its two populations — the

@@ -91,6 +91,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The emitted dbt project declared a test it never defined. `min`/`max`/`regex`/`reconcile` asserts lowered to `dbt_utils.expression_is_true` and no `packages.yml` was emitted, so `dbt compile` stopped at ``'dbt_utils' is undefined … install package dependencies with "dbt deps"`` for any project carrying one of those clauses. bloomery now emits `macros/bloomery_expression_is_true.sql` — the `dbt_utils` body minus the `column_name` branch it never used, so the semantics are unchanged — iff `schema.yml` declares the test. Defining it rather than pinning the package keeps the artifacts a pure function of the specs: a `packages.yml` would complete the project only after a network fetch (RFC 0008 D18). `dbt_project.yml` gains `macro-paths`.
+
+- The dbt e2e tier ran `dbt parse`, and its own documentation claimed parse validates "whether a declared test is a thing dbt recognizes". It does not — parse checks the shape of a `schema.yml` entry and never resolves the macro behind the name, accepting a test called `utter_nonsense_not_a_test` in silence. That is why the tier built to catch the defect above did not catch it. Every fixture now compiles as well as parses (RFC 0008 D19). `dbt build` still fails on the literal-relation references RFC 0009 D22 names — unchanged.
+
 - An `in_enum` rule on a chain with no `enum_map` step lowered to `NOT col IN ()` — invalid SQL on every dialect, and a rule that rejects every row. Refused at compile, naming `in_set` as the way to state members directly.
 
 - `in_enum` quarantined **every correctly-mapped row** when the transform chain applied any step after its `enum_map` (`{enum_map: [paid, paid]}` then `upper` compared `PAID` against a set spelling `paid`). The chain is now refused at compile naming the offending step; a further `enum_map` may still follow.

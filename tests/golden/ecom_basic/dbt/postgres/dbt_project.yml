@@ -7,3 +7,5 @@ model-paths:
 - models
 snapshot-paths:
 - snapshots
+macro-paths:
+- macros
