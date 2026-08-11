@@ -79,13 +79,15 @@ dev = [
 # Tier-5 engine matrix (RFC 0009 §5.2): opt-in, needs Docker. Kept out of `dev`
 # so the default sync stays light on machines without Docker.
 engines = [
-    "psycopg[binary]>=3.2",
+    "psycopg[binary]>=3.3.4",
     # Trino's client and container. RFC 0009 §5.2 sketches this cell as
     # "trino+iceberg+minio (compose)"; the memory connector is enough for what
     # bloomery actually asserts there — it emits SELECTs and models, never
     # storage-format DDL, so an object store and a table format would be three
     # more moving parts serving no assertion (D24).
     "trino>=0.330",
+    # `[postgres,trino]` supersedes main's `[postgres]`: the Trino tier needs
+    # the container class as well as the client.
     "testcontainers[postgres,trino]>=4.15.0",
 ]
 docs = [
