@@ -46,6 +46,7 @@ jobs:
 
     outputs:
       code: ${{ steps.scope.outputs.code }}
+      engine: ${{ steps.scope.outputs.engine }}
       force_full: ${{ steps.force.outputs.force_full }}
 
     steps:
@@ -77,6 +78,21 @@ jobs:
               - "pyproject.toml"
               - "uv.lock"
               - ".pre-commit-config.yaml"
+              - ".github/workflows/ci.yml"
+            # What only a real engine or a real target framework can check:
+            # the dialect ports (SQL that must parse and run *there*), the
+            # emitters (artifacts a framework must accept), and the two tiers
+            # written against them. A change outside these cannot move that
+            # lane's verdict, so scoping keeps a docs-only PR from pulling
+            # three containers to assert nothing.
+            engine:
+              - "src/bloomery/dialects/**"
+              - "src/bloomery/emit/**"
+              - "tests/engines/**"
+              - "tests/e2e/**"
+              - "tests/support/**"
+              - "pyproject.toml"
+              - "uv.lock"
               - ".github/workflows/ci.yml"
 
   quality:
@@ -330,15 +346,38 @@ jobs:
 
           echo "required-ci passed"
 
-  # Tiers 5–6 (engine matrix via testcontainers, target e2e): Docker-backed,
-  # so they run on the nightly schedule and on explicit force_full runs
-  # (workflow_dispatch, release), never per-commit. Not part of required-ci.
+  # Tiers 5–6 (engine matrix via testcontainers, target e2e). Runs on the
+  # nightly schedule, on explicit force_full runs (workflow_dispatch, release),
+  # and — since the PR that measured it — on same-repo pull requests that touch
+  # what it covers.
+  #
+  # It used to be force_full only, on the reasoning that Docker-backed means
+  # expensive. Measured on run 31534974983: **199s**, against a Python test
+  # matrix taking 203–325s in parallel. It finishes inside the existing
+  # critical path and adds no wall-clock at all, so the cost premise was wrong
+  # and the gap it left was real — the PR that measured this changed the
+  # Postgres TRY_CAST guard and the whole dbt reference model, and nothing
+  # would have exercised either until the following night.
+  #
+  # Two limits are deliberate. **Path-scoped**, so a docs-only or spec-layer PR
+  # does not pull three containers to assert nothing. **Fork PRs are excluded**,
+  # because secrets are unavailable to them: their pulls go out anonymous
+  # against the runner IP's shared Docker Hub budget, so a fork would get a lane
+  # that fails for reasons no test changed.
+  #
+  # Still **not part of required-ci**, and that is the same asymmetry: a rate
+  # limit or a container that will not start would block a merge for reasons no
+  # test changed. Advisory here, blocking nightly.
   engine-e2e:
     name: Engine matrix + target e2e (Docker)
     needs: [changes, quality]
     if: |
-      needs.changes.outputs.force_full == 'true' &&
-      needs.quality.result == 'success'
+      needs.quality.result == 'success' && (
+        needs.changes.outputs.force_full == 'true' || (
+          needs.changes.outputs.engine == 'true' &&
+          github.event.pull_request.head.repo.fork != true
+        )
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 45
     continue-on-error: false
