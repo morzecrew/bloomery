@@ -181,16 +181,27 @@ def test_the_bound_is_a_literal_of_the_aggregates_own_type() -> None:
     assert "< 1" in _audits()[NON_BLOCKING]
 
 
-@pytest.mark.parametrize("target", [Target.DBT, Target.CUBE])
-def test_a_target_that_cannot_emit_the_audit_refuses_the_project(target: Target) -> None:
-    """Neither dbt's schema tests nor Cube's schema has this shape today.
-    Compiling anyway would ship a project whose declared gate silently does not
-    exist — the failure D83 caught in the dialect ports, and the one RFC 0008
-    D3 refuses. The message names the assertions, so the author can see which
-    ones to drop."""
+def test_dbt_refuses_the_project_rather_than_dropping_the_assertion() -> None:
+    """dbt **builds** the mart, and its schema tests are per-column or
+    per-model predicates with no grouped form. Compiling anyway would ship a
+    project whose declared gate silently does not exist — the failure D83
+    caught in the dialect ports. The message names the assertions, so the
+    author can see which ones to drop."""
     project, catalog = load_fixture(FIXTURE)
     with pytest.raises(UnsupportedByTarget, match=f"lines.{BLOCKING.removeprefix('lines_')}"):
-        compile_project(project, target=target, dialect="duckdb", catalog=catalog)
+        compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
+
+
+def test_cube_is_not_asked_about_a_check_it_never_emits() -> None:
+    """Cube builds nothing (RFC 0017 D52). It writes no silver model, no reject
+    table and no audit for *anything*, so refusing this one check would single
+    it out among the many this emitter already leaves to whoever maintains the
+    tables — while a project full of quality rules compiles to cubes and views
+    without a murmur."""
+    project, catalog = load_fixture(FIXTURE)
+    artifacts = compile_project(project, target=Target.CUBE, dialect="duckdb", catalog=catalog)
+    assert artifacts
+    assert not [a for a in artifacts if a.kind is ArtifactKind.AUDIT]
 
 
 # ....................... #

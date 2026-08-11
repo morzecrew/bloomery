@@ -26,6 +26,10 @@ Artifacts:
   history table directly at ``<silver_ns>.<entity>_snapshot``.
 - ``models/<gold_ns>/<mart>.sql`` per mart and the ``dim_date`` calendar —
   the same gold SELECTs SQLMesh emits.
+- ``models/<namespace>/<relation>.sql`` per Tier 2 step output (RFC 0017 D52) —
+  the same SELECT SQLMesh emits, in a ``config(materialized='table')`` envelope.
+  Tier 1 needs nothing (spliced at lowering); Tier 3 is refused, because dbt's
+  Python models run only on adapters bloomery does not target.
 - ``models/schema.yml`` — audits lowered to schema tests (RFC 0006 →
   RFC 0008 §5.5): ``not_null`` and ``enum``/``accepted_values`` builtin;
   ``min``/``max``/``regex``/``reconcile`` as
@@ -55,7 +59,13 @@ from bloomery.emit.lowering import (
     entity_select,
     mart_select,
 )
-from bloomery.emit.steps import refuse_mart_asserts, refuse_steps
+from bloomery.emit.steps import (
+    refuse_mart_asserts,
+    refuse_python_models,
+    refuse_step_audits,
+    step_body,
+    step_output_relation,
+)
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import (
     AuditIR,
@@ -66,6 +76,7 @@ from bloomery.ir import (
     Materialization,
     ProjectIR,
     SCDKind,
+    StepKind,
 )
 from bloomery.quality import is_quality_mart
 from bloomery.typing import IntType
@@ -178,6 +189,36 @@ def _refuse_reconcile(ir: ProjectIR) -> None:
         "compile this project for the sqlmesh target, or drop the reconcile block"
     )
     raise UnsupportedByTarget(msg, source_path="entity_model: reconcile")
+
+
+def _step_artifacts(ir: ProjectIR, ctx: EmitContext) -> list[EmittedArtifact]:
+    """Tier 2 step outputs as dbt models (RFC 0017 D52).
+
+    ``sql_macro`` contributes nothing here for the same reason it contributes
+    nothing to SQLMesh — it was spliced into the consuming SELECT at lowering,
+    so it is already inside whichever model reads it, on every target. Tier 3
+    is refused before this runs.
+
+    Materialized ``table``, matching the ``FULL`` the SQLMesh wrapper declares:
+    a step writes its whole output, and an IR that means one thing on one
+    target and another on the next is the drift the shared lowering exists to
+    prevent.
+    """
+    artifacts: list[EmittedArtifact] = []
+    for step in ir.steps:
+        if step.kind is not StepKind.SQL_MODEL:
+            continue
+        for output in step.outputs:
+            namespace, relation = step_output_relation(output, ctx)
+            artifacts.append(
+                _model_artifact(
+                    path=f"models/{namespace}/{relation}.sql",
+                    config_line=_config_line(Materialization.FULL, output.key),
+                    select=ctx.dialect.render(step_body(step)),
+                    ctx=ctx,
+                )
+            )
+    return artifacts
 
 
 def _model_artifact(
@@ -401,11 +442,18 @@ class DbtEmitter:
         and the date dimension to gold models, audits to ``schema.yml``, plus
         the project scaffold and bronze sources; artifacts sorted by path,
         content ending in exactly one newline (RFC 0003 §5.5 rule 5)."""
-        refuse_steps(ir, "dbt")
+        refuse_python_models(ir, "dbt")
+        refuse_step_audits(ir, ctx, "dbt")
         refuse_mart_asserts(ir, "dbt")
         _refuse_reconcile(ir)
-        artifacts: list[EmittedArtifact] = [_project_artifact(ctx)]
+        artifacts: list[EmittedArtifact] = [_project_artifact(ctx), *_step_artifacts(ir, ctx)]
         for entity in ir.entities:
+            # A step output is an entity in the DAG (RFC 0017 D36) but its rows
+            # are the step's to write, and its lowered `expr` is the column
+            # referring to itself — emitting the ordinary entity model here
+            # would produce a model selecting from the relation it defines.
+            if entity.produced_by is not None:
+                continue
             _refuse_quarantine(entity)
             if entity.scd is SCDKind.TYPE2:
                 artifacts.append(_snapshot_artifact(entity, ctx))

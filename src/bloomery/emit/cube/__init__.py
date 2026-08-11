@@ -38,6 +38,14 @@ Deterministic choices pinned here (each golden/unit-tested):
 - Cube has no SCD/incremental concepts — those capabilities are absent and
   *irrelevant rather than errors*: Cube consumes tables SQLMesh maintains
   (RFC 0008 §5.4).
+- **Nothing about how a relation is built is Cube's to refuse** (RFC 0017 D52).
+  This emitter writes no silver model, no reject table, no replay statement and
+  no audit — a project full of quality rules compiles to cubes and views and
+  nothing else, and always has. Steps and mart assertions were briefly singled
+  out for a refusal on the grounds that "their output relations would simply be
+  missing", which is equally true of every silver entity here and was never a
+  reason to refuse one. The sentence above is the whole contract: Cube consumes
+  tables SQLMesh maintains, and it is deliberately silent about *how*.
 """
 
 from __future__ import annotations
@@ -52,7 +60,6 @@ from bloomery.emit.base import (
     TargetCapabilities,
 )
 from bloomery.emit.metricflow import measure_owners
-from bloomery.emit.steps import refuse_mart_asserts, refuse_steps
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import (
     Additivity,
@@ -261,8 +268,6 @@ class CubeEmitter:
         """Lower every mart to a cube and a view; artifacts sorted by path,
         content ending in exactly one newline (RFC 0003 §5.5 rule 5). A
         project without marts emits nothing — Cube has no silver surface."""
-        refuse_steps(ir, "Cube")
-        refuse_mart_asserts(ir, "Cube")
 
         owners = measure_owners(ir)
         artifacts: list[EmittedArtifact] = []

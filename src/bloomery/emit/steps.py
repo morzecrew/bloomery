@@ -25,6 +25,15 @@ the RFC, not built here.
 
 Every wrapper asserts **all** declared outputs, not just the one it returns:
 a step that lies about one output should be caught wherever the run starts.
+
+**Targets** (RFC 0017 D52). Tier 1 is target-neutral by construction — it was
+spliced at lowering, so it is already inside whichever model reads it. Tier 2
+is a SELECT and emits for SQLMesh *and* dbt, through :func:`step_body`, with
+each target wrapping it in its own envelope. Tier 3 is SQLMesh-only: dbt's
+Python models run on Snowflake, BigQuery and Databricks, none of which is a
+bloomery dialect. Cube is asked nothing here at all — it builds no relation for
+any part of the spec, so a refusal about *how* one is built would single steps
+out among everything else it already leaves alone.
 """
 
 from __future__ import annotations
@@ -53,45 +62,99 @@ if TYPE_CHECKING:
 __all__ = [
     "consistency_audits",
     "refuse_mart_asserts",
-    "refuse_steps",
+    "refuse_python_models",
+    "refuse_step_audits",
     "step_artifacts",
+    "step_body",
+    "step_output_relation",
 ]
 
 
-def refuse_steps(ir: ProjectIR, target: str) -> None:
-    """Refuse a project wiring steps on a target that cannot emit them.
+def refuse_python_models(ir: ProjectIR, target: str) -> None:
+    """Refuse a Tier 3 step on a target with nowhere to run it (RFC 0017 D52).
 
-    Shared by the two such targets rather than copied into each: the message,
-    the count and the two suggested fixes are the same statement, and a
-    wording change applied to one copy and not the other is how a refusal
-    starts disagreeing with itself.
+    dbt *does* have Python models, which is why this is narrower than D31's
+    blanket refusal — but only on Snowflake, BigQuery and Databricks, and
+    bloomery ships DuckDB, Postgres and Trino. So there is no adapter in this
+    project's reach that would execute the wrapper, and emitting one would
+    produce a file dbt refuses to parse rather than a model that runs.
 
-    RFC 0017 §5.8 emits steps for SQLMesh only. Dropping them here would
-    silently withhold relations downstream models were typechecked against —
-    fail loud, never approximate (RFC 0008 D3).
+    Tier 2 is a different question and gets a different answer: a ``sql_model``
+    is a SELECT, and a SELECT is what dbt is made of.
     """
-    if not ir.steps:
+    refused = sorted(
+        f"{step.ref}@{step.version}" for step in ir.steps if step.kind is StepKind.PYTHON_MODEL
+    )
+    if not refused:
         return
     msg = (
-        f"project wires {len(ir.steps)} step(s), which the {target} target "
-        "cannot emit (RFC 0017 §5.8 covers SQLMesh only). Their output "
-        "relations would simply be missing. Fix: compile steps for SQLMesh, "
-        "or drop the steps: document for this target"
+        f"project wires python_model step(s) {', '.join(refused)}, which the {target} "
+        "target cannot emit (RFC 0017 D52). dbt's Python models run on Snowflake, "
+        "BigQuery and Databricks only, and none of bloomery's dialects is one of them, "
+        "so the wrapper would have no adapter to execute it. Fix: compile these steps "
+        "for SQLMesh, or express them at a lower tier"
     )
     raise UnsupportedByTarget(msg)
+
+
+def refuse_step_audits(ir: ProjectIR, ctx: EmitContext, target: str) -> None:
+    """Refuse a step whose outputs carry audits on a target without them.
+
+    A step's audits are whole-query checks — a join between sibling outputs
+    (D40), or an ``on_fail: fail`` rule's blocking body (D39). dbt's schema
+    tests are per-column or per-model *predicates*; neither shape survives the
+    translation, and ``_entity_tests`` already refuses an audit kind with "no
+    honest dbt schema-test mapping" for exactly this reason (RFC 0008 D3).
+
+    Checked by *building* the audits rather than by inspecting the step,
+    because what decides it is whether any were generated — a single-output
+    ``sql_model`` with no ``fail`` rules generates none, and refusing it would
+    withhold the tier for a reason that does not apply to it.
+    """
+    named = sorted(
+        artifact.path.removeprefix("audits/").removesuffix(".sql")
+        for step in ir.steps
+        for _owner, artifact in (*consistency_audits(step, ctx), *quality_audits(step, ir, ctx))
+    )
+    if not named:
+        return
+    msg = (
+        f"step audit(s) {', '.join(named)} are whole-query checks (RFC 0017 D39/D40), "
+        f"which the {target} target cannot express: its schema tests are per-column or "
+        "per-model predicates, and approximating a cross-relation join with one would "
+        "change what the check means. Fix: compile for SQLMesh, or drop the references:/"
+        "on_fail: fail declarations these come from"
+    )
+    raise UnsupportedByTarget(msg)
+
+
+def step_body(step: StepIR) -> Expression:
+    """A Tier 2 body with its parameters substituted, for any target.
+
+    Public because the SELECT is target-neutral while the envelope around it is
+    not: SQLMesh wraps it in ``MODEL (...)`` and dbt in a ``config()`` call, and
+    the parameter substitution underneath must be the one thing both share
+    (RFC 0008 D4).
+    """
+    return _with_parameters(step)
+
+
+def step_output_relation(output: StepOutputIR, ctx: EmitContext) -> tuple[str, str]:
+    """``(namespace, relation)`` for one output, under the naming policy."""
+    return ctx.naming.relation(_relation_name(output), Layer.SILVER)
 
 
 def refuse_mart_asserts(ir: ProjectIR, target: str) -> None:
     """Refuse a mart assertion on a target that cannot emit it (RFC 0016 D89).
 
-    An assertion lowers to a SQLMesh ``AUDIT`` the mart model names, and
-    neither dbt's schema tests nor Cube's schema has that shape today. Dropping
-    it would leave a project compiling clean while the gate its author declared
-    silently does not exist — which is the failure mode D83 caught in the
-    dialect ports and the one RFC 0008 D3 exists to refuse.
+    An assertion lowers to an audit over a grouped aggregate, and dbt's schema
+    tests are per-column or per-model *predicates* — there is no grouped form to
+    approximate it with. dbt **builds** the mart, so a gate it silently does not
+    emit is a gate that does not exist (RFC 0008 D3).
 
-    Lives beside :func:`refuse_steps` because it is the same refusal for the
-    same reason, and two copies of one message drift.
+    Cube is not a caller: it builds nothing, emits no audit for anything, and
+    refusing it here would single out one check among the many this emitter
+    already leaves to whoever maintains the tables (RFC 0017 D52).
     """
     declared = [f"{mart.name}.{clause.name}" for mart in ir.marts for clause in mart.asserts]
     if not declared:
