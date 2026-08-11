@@ -1,5 +1,12 @@
 """The dbt emitter (RFC 0008 §5.5) — the compatibility target.
 
+**Compatible with dbt ``>=1.10,<2``** (RFC 0008 D22). Stated because "the
+compatibility target" had never said compatible with *what*: the floor is where
+generic-test ``arguments`` nesting arrived, which the emitted ``schema.yml``
+uses and which dbt 1.9 rejects outright, so the range and the emitted form are
+one decision.
+
+
 Its real job is proving the port abstraction (RFC 0008 D5, spec §9): it ships
 minimal but honest, and every SELECT is the **same** dialect-port-rendered
 AST the SQLMesh emitter renders (:mod:`bloomery.emit.lowering`) — only the
@@ -359,12 +366,24 @@ def _mart_artifact(
 # Audit lowering → schema.yml (RFC 0006 → RFC 0008 §5.5)
 
 
+def _test(name: str, **arguments: object) -> dict[str, object]:
+    """One parameterized generic test, arguments nested (RFC 0008 D22).
+
+    dbt < 1.10 took them at the top level and 1.10 moved them under
+    ``arguments``, deprecating the flat form — and the two spellings are
+    mutually exclusive, not merely stylistic: nesting is a *compilation error*
+    on 1.9, which is why adopting it is what sets the floor rather than
+    something the floor happens to allow.
+    """
+    return {name: {"arguments": arguments}}
+
+
 def _accepted_values(entity: EntityIR, audit: AuditIR) -> dict[str, object]:
     member_type = column_type(entity, audit.column)
     values: list[object] = [
         int(value) if isinstance(member_type, IntType) else value for _name, value in audit.params
     ]
-    return {"accepted_values": {"values": values}}
+    return _test("accepted_values", values=values)
 
 
 def _entity_tests(
@@ -382,7 +401,7 @@ def _entity_tests(
             column_tests.setdefault(audit.column, []).append(_accepted_values(entity, audit))
         elif audit.kind in _EXPRESSION_KINDS:
             expression = ctx.dialect.render(audit_predicate(entity, audit, violations=False))
-            model_tests.append({_EXPRESSION_TEST: {"expression": expression}})
+            model_tests.append(_test(_EXPRESSION_TEST, expression=expression))
         else:
             msg = (
                 f"entity {entity.name!r} audit kind {audit.kind!r} on column "

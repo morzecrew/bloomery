@@ -190,19 +190,72 @@ def test_audits_lower_to_schema_tests() -> None:
     assert model["name"] == "item"
     # audits are sorted by (kind, column) on EntityIR — the order is theirs
     assert model["data_tests"] == [
-        {"bloomery_expression_is_true": {"expression": "qty <= 10"}},
-        {"bloomery_expression_is_true": {"expression": "amount >= 0"}},
+        {"bloomery_expression_is_true": {"arguments": {"expression": "qty <= 10"}}},
+        {"bloomery_expression_is_true": {"arguments": {"expression": "amount >= 0"}}},
         {
             "bloomery_expression_is_true": {
-                "expression": "amount IS NOT DISTINCT FROM amount__direct"
+                "arguments": {"expression": "amount IS NOT DISTINCT FROM amount__direct"}
             }
         },
-        {"bloomery_expression_is_true": {"expression": "REGEXP_MATCHES(sku, '^A-')"}},
+        {
+            "bloomery_expression_is_true": {
+                "arguments": {"expression": "REGEXP_MATCHES(sku, '^A-')"}
+            }
+        },
     ]
     assert model["columns"] == [
+        # `not_null` takes no arguments, so it stays a bare name on every
+        # version — the nesting D22 adopted is a change to *parameterized*
+        # tests only.
         {"name": "item_id", "data_tests": ["not_null"]},
-        {"name": "qty", "data_tests": [{"accepted_values": {"values": [1, 2]}}]},
+        {"name": "qty", "data_tests": [{"accepted_values": {"arguments": {"values": [1, 2]}}}]},
     ]
+
+
+def test_generic_test_arguments_are_nested_which_is_what_sets_the_floor() -> None:
+    """RFC 0008 D22 — the emitted form and the supported dbt range are one
+    decision, pinned together because neither is safe to change alone.
+
+    dbt 1.10 moved generic-test arguments under an ``arguments`` property and
+    deprecated the flat form. The two are **mutually exclusive**, not
+    stylistic — measured by compiling this project's own ``schema.yml`` on four
+    real installs rather than inferred from a changelog:
+
+    ==========================  =========  ==========  ==========  =========
+    form                        1.9.10     1.10.22     1.11.12     1.12.0
+    ==========================  =========  ==========  ==========  =========
+    flat                        ok         ok + warns  ok + warns  ok + warns
+    nested (this one)           **error**  ok          ok          ok
+    ==========================  =========  ==========  ==========  =========
+
+    So the only version this costs is **1.9**; every release from 1.10 takes
+    the form dbt intends to keep, and nothing is owed later. The floor in
+    ``pyproject.toml`` is that one column — raising or lowering it without
+    moving this form, or the reverse, emits a project the declared range
+    cannot compile.
+    """
+    entity = _entity(
+        audits=(
+            AuditIR(kind="enum", column="qty", params=(("value_0000", "1"),)),
+            AuditIR(kind="min", column="amount", params=(("value", "0"),)),
+        )
+    )
+    document = cast(
+        "dict[str, object]", yaml.safe_load(_emit(entity)["models/schema.yml"].content)
+    )
+    (model,) = cast("list[dict[str, object]]", document["models"])
+    declared = cast("list[object]", model["data_tests"]) + [
+        test
+        for column in cast("list[dict[str, object]]", model["columns"])
+        for test in cast("list[object]", column["data_tests"])
+    ]
+    parameterized = [test for test in declared if isinstance(test, dict)]
+    assert parameterized, "no parameterized test emitted — the pin would be vacuous"
+    for test in parameterized:
+        (body,) = cast("dict[str, object]", test).values()
+        # Exactly `arguments`, not `arguments` plus stragglers: a half-migrated
+        # entry parses on 1.10 and warns like the flat form it still partly is.
+        assert list(cast("dict[str, object]", body)) == ["arguments"]
 
 
 MACRO_PATH = "macros/bloomery_expression_is_true.sql"

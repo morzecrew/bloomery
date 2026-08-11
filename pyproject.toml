@@ -47,8 +47,16 @@ dependencies = [
 [dependency-groups]
 dev = [
     "bandit>=1.8",
-    "dbt-core>=1.9",
-    "dbt-duckdb>=1.9",
+    # The range the emitted dbt project is claimed to work across (RFC 0008
+    # D22), not merely what the e2e tier happens to resolve. The floor is 1.10
+    # because that is where generic-test `arguments` nesting arrived, and the
+    # emitted `schema.yml` uses it — on 1.9 that spelling is a compilation
+    # error, so this bound and the emitted form move together or not at all.
+    # Upper-bounded for the same reason sqlmesh and metricflow are: a major
+    # that changed what a `schema.yml` may say would turn the tier red with no
+    # bloomery change.
+    "dbt-core>=1.10,<2",
+    "dbt-duckdb>=1.9,<2",
     "deptry>=0.23",
     "duckdb>=1.1",
     "hypothesis>=6.130",

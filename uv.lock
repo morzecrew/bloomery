@@ -194,8 +194,8 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "bandit", specifier = ">=1.8" },
-    { name = "dbt-core", specifier = ">=1.9" },
-    { name = "dbt-duckdb", specifier = ">=1.9" },
+    { name = "dbt-core", specifier = ">=1.10,<2" },
+    { name = "dbt-duckdb", specifier = ">=1.9,<2" },
     { name = "deptry", specifier = ">=0.23" },
     { name = "duckdb", specifier = ">=1.1" },
     { name = "hypothesis", specifier = ">=6.130" },

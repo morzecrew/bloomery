@@ -10,6 +10,7 @@ snapshots:
   - name: segment
     data_tests:
     - accepted_values:
-        values:
-        - business
-        - consumer
+        arguments:
+          values:
+          - business
+          - consumer
