@@ -376,6 +376,21 @@ def _refuse_unchainable(use: str, manifest: StepManifest, *, source_path: str) -
             "is bound to its own source path"
         )
         raise StepError(msg, source_path=source_path)
+    undefaulted = sorted(name for name, spec in manifest.parameters.items() if spec.default is None)
+    if undefaulted:
+        # A chain link has nowhere to put parameter values — the `{step: ref@v}`
+        # form is a bare reference, unlike the `step:`/`from:` field shape which
+        # carries a `parameters:` map. So a parameter with no default is never
+        # resolved, and `splice` leaves its `:name` alone: the emitted SQL
+        # carried a live `$factor` placeholder into the model (RFC 0017 D54).
+        msg = (
+            f"step {use!r} declares parameter(s) {', '.join(undefaulted)} with no default, so "
+            "it cannot be a link in a transform chain — a chain link is a bare reference with "
+            "nowhere to pass a value, and an unresolved parameter would reach the emitted SQL "
+            "as a placeholder. Fix: give the parameter a default in the manifest, or use the "
+            "step as a field's step:/from: pair, which carries a parameters: map"
+        )
+        raise StepError(msg, source_path=source_path)
 
 
 def _macro_parameters(
@@ -816,7 +831,7 @@ def build_project_ir(
 
     steps_ir = lower_steps(project, steps)
     draft = ProjectIR(
-        bloomery_ir_version=3,
+        bloomery_ir_version=4,
         # Mapped entities plus one per step output: §5.8 makes a step output an
         # entity so marts, metrics and downstream mappings can reference it
         # like any other. Sorted together, because the IR's ordering rule is

@@ -252,3 +252,36 @@ def test_a_higher_minimum_reports_the_under_covered(
     at_three = body.replace("< 1", "< 3")
     reported = {row[0] for row in warehouse.execute(at_three).fetchall()}
     assert reported == {"c1", "c2", "c3"}
+
+
+# ....................... #
+# The endpoints emission assumes (RFC 0016 D91)
+
+
+def test_a_referenced_entity_nothing_writes_is_refused() -> None:
+    """The crash D90 left open. ``coverage_owner`` called itself "total by
+    construction: the guardrail stage refuses an unresolvable name before
+    emission runs" — true of the relationship *name* and of nothing else. A
+    referenced entity that is declared but unmapped reached
+    ``_referenced_key``'s ``next(...)``, which raised a bare ``StopIteration``
+    mid-emission: an unbatched error after the guardrail stage reported clean,
+    the shape ``_resolve_side`` refuses for reconcile."""
+    project = load_project(
+        {"entity_model": ENTITY_MODEL.format(clauses=GOOD), "mapping_orders": MAPPINGS["mapping_orders"]}
+    )
+    with pytest.raises(GuardrailError, match="no mapping targets that entity"):
+        compile_project(project, target=Target.SQLMESH, dialect="duckdb")
+
+
+def test_the_refusal_is_a_guardrail_not_a_stop_iteration() -> None:
+    """The control on the control. A ``StopIteration`` would satisfy "raises"
+    just as well, and it is the *kind* of failure that was the defect."""
+    project = load_project(
+        {"entity_model": ENTITY_MODEL.format(clauses=GOOD), "mapping_orders": MAPPINGS["mapping_orders"]}
+    )
+    try:
+        compile_project(project, target=Target.SQLMESH, dialect="duckdb")
+    except GuardrailError as error:
+        assert "has_order" in str(error)  # batched, and it names the check
+    else:  # pragma: no cover - the call above must raise
+        pytest.fail("a coverage check on an unwritten entity compiled")

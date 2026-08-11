@@ -695,12 +695,16 @@ def _resolve_side(
             "(verified on PostgreSQL). Fix: name each by column once"
         )
         return None, [GuardrailError(msg, source_path=path)]
-    missing = sorted({parsed.column, *parsed.by} - entity.fields - set(entity.key))
+    # One set for both the test and the message: reporting only `fields` while
+    # accepting `fields | key` pointed a user who mistyped a key column at a
+    # list that could not contain it.
+    readable = entity.fields | set(entity.key)
+    missing = sorted({parsed.column, *parsed.by} - readable)
     if missing:
         msg = (
             f"reconcile check {check_name!r} {side} side reads {', '.join(missing)} on entity "
             f"{parsed.entity!r}, which declares no such field(s); known: "
-            f"{sorted(entity.fields)}"
+            f"{sorted(readable)}"
         )
         return None, [GuardrailError(msg, source_path=path)]
     if parsed.aggregated:
@@ -797,16 +801,29 @@ def _check_reserved_mart_name(project: Project) -> list[GuardrailError]:
     return [GuardrailError(msg, source_path=f"marts: marts.{QUALITY_MART}")]
 
 
-def _check_coverage(project: Project) -> list[GuardrailError]:
-    """Every ``coverage:`` check names a declared relationship, once
-    (RFC 0016 D90).
+def _check_coverage(project: Project, draft: ProjectIR) -> list[GuardrailError]:
+    """Every ``coverage:`` check names a declared relationship, once, whose
+    **both endpoints have a relation** (RFC 0016 D90, D91).
 
     Project-level for the same reason ``reconcile`` is: a check that relates
     two entities belongs to neither. The relationship has to exist before
     emission can find the two relations and the ``via`` pairs to join them on,
     and a repeated name would overwrite an audit artifact rather than add one.
+
+    The endpoint checks are the ones D90 left out, and each is a bug emission
+    could not report. ``coverage_owner`` documents itself "total by
+    construction: the guardrail stage refuses an unresolvable name before
+    emission runs" — which was only true of the *name*. A referenced entity
+    that is declared but unmapped makes ``_referenced_key``'s ``next(...)``
+    raise a bare ``StopIteration`` mid-emission, the unbatched-error shape
+    :func:`_resolve_side` already refuses for reconcile. And a **step-produced**
+    dependent entity is worse than a crash: the emitter skips those in the
+    entity loop, so the audit is built and attached to nothing — a check that
+    reports clean because it never runs.
     """
-    declared = {rel.name for rel in project.entity_model.relationships}
+    declared = {rel.name: rel for rel in project.entity_model.relationships}
+    entities = _side_entities(project, draft)
+    mapped = frozenset(mapping.target for mapping in project.mappings)
     errors: list[GuardrailError] = []
     seen: set[str] = set()
     for index, check in enumerate(project.entity_model.coverage):
@@ -818,10 +835,30 @@ def _check_coverage(project: Project) -> list[GuardrailError]:
             )
             errors.append(GuardrailError(msg, source_path=f"{where}.name"))
         seen.add(check.name)
-        if check.relationship not in declared:
+        relationship = declared.get(check.relationship)
+        if relationship is None:
             msg = (
                 f"coverage check {check.name!r} names no declared relationship "
                 f"{check.relationship!r}; declared: {sorted(declared)}"
+            )
+            errors.append(GuardrailError(msg, source_path=f"{where}.relationship"))
+            continue
+        if relationship.to not in entities:
+            msg = (
+                f"coverage check {check.name!r} counts rows referencing "
+                f"{relationship.to!r} through relationship {check.relationship!r}, but "
+                "no mapping targets that entity and no step writes it, so there is no relation "
+                "to count against; readable: "
+                f"{sorted(entities)}"
+            )
+            errors.append(GuardrailError(msg, source_path=f"{where}.relationship"))
+        if relationship.from_ not in mapped:
+            msg = (
+                f"coverage check {check.name!r} lowers to an audit on the dependent side "
+                f"{relationship.from_!r}, which no mapping targets — a step-produced or "
+                "unmapped entity has no entity model for the audit to hang off, so the check "
+                "would be emitted and never run (RFC 0016 D90). Fix: point the relationship at "
+                "a mapped dependent entity, or drop the check"
             )
             errors.append(GuardrailError(msg, source_path=f"{where}.relationship"))
     return errors
@@ -830,9 +867,16 @@ def _check_coverage(project: Project) -> list[GuardrailError]:
 def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     """Every data-quality guardrail over the whole project, in one pass.
 
-    ``draft`` is accepted for symmetry with the stage's other checks and to
-    keep the seam honest — these refusals are all decidable from the spec, so
-    nothing here reads the lowered IR.
+    Every refusal is decidable *before emission*, which is the guarantee that
+    matters; two of them read the ``draft`` to get there. ``_check_reconcile``
+    and ``_check_coverage`` both need to know which entities have a relation,
+    and a **step-produced** entity has one without any mapping targeting it —
+    it is synthesized during lowering, so the spec alone cannot say. Reading
+    the draft for that is what lets those checks admit a step output instead of
+    refusing it wrongly.
+
+    This docstring used to claim "nothing here reads the lowered IR", which
+    stopped being true when step outputs became reconcile sides.
     """
     relationships = project.entity_model.relationships
     by_target = {mapping.target: mapping for mapping in project.mappings}
@@ -858,7 +902,7 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     # Project-level, not per entity: a reconcile check relates two entities and
     # belongs to neither, and the reserved metric names are one flat namespace.
     errors.extend(_check_reconcile(project, draft))
-    errors.extend(_check_coverage(project))
+    errors.extend(_check_coverage(project, draft))
     errors.extend(_check_reserved_metric_names(project))
     errors.extend(_check_reserved_mart_name(project))
     return errors

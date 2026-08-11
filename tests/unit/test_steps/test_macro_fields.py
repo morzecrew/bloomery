@@ -339,3 +339,58 @@ def test_a_chain_step_is_either_a_transform_or_a_step_never_both() -> None:
                 ),
             }
         )
+
+
+def test_a_chain_link_whose_parameter_has_no_default_is_refused() -> None:
+    """RFC 0017 D54. The ``{step: ref@v}`` chain form is a bare reference — it
+    has nowhere to pass parameter values, unlike the ``step:``/``from:`` field
+    shape with its ``parameters:`` map. So a parameter with no default was
+    never resolved, ``splice`` left its ``:name`` alone, and the placeholder
+    reached the emitted SQL: ``CAST(nm AS TEXT) || $factor``, a live
+    prepared-statement marker in a model that compiled clean."""
+    with pytest.raises(StepError, match="no default.*cannot be a link in a transform chain"):
+        build(
+            CHAIN,
+            registry(
+                body="CONCAT(SPLIT_PART(:v, '@', 2), :suffix)",
+                accepts={"v": "string"},
+                parameters={"suffix": {"type": "string"}},
+            ),
+        )
+
+
+def test_a_chain_link_whose_parameter_has_a_default_still_composes() -> None:
+    """The control. Refusing every parameterized macro would pass the test
+    above and break the composition the chain form exists for."""
+    sql = domain_expr(
+        build(
+            CHAIN,
+            registry(
+                body="CONCAT(SPLIT_PART(:v, '@', 2), :suffix)",
+                accepts={"v": "string"},
+                parameters={"suffix": {"type": "string", "default": "x"}},
+            ),
+        )
+    )
+    assert "SPLIT_PART" in sql
+
+
+def test_a_non_numeric_value_for_a_numeric_parameter_is_refused() -> None:
+    """RFC 0017 D53 — the injection this closes, at the Tier 1 call site.
+
+    ``parameter_literal`` builds an *unquoted* literal for ``int``/``decimal``,
+    so text that is not a number lands in the SQL as syntax. A spec declaring
+    ``parameters: {factor: "1 OR 1=1"}`` emitted
+    ``CAST(amt * 1 OR 1 = 1 AS DECIMAL(12, 4))`` — a predicate spliced into a
+    projection, through the function whose docstring calls itself the injection
+    boundary. The string branch was always safe; a string literal is quoted."""
+    from bloomery.steps.splice import parameter_literal
+
+    for hostile in ("1 OR 1=1", "1; DROP TABLE x", "not-a-number"):
+        with pytest.raises(StepError, match="is not a number"):
+            parameter_literal(hostile, "int")
+    # The control: real numbers still render, and still unquoted.
+    assert parameter_literal("42", "int").sql() == "42"
+    assert parameter_literal("0.85", "decimal(4,3)").sql() == "0.85"
+    # ...and the string branch never needed this, because it quotes.
+    assert parameter_literal("1 OR 1=1", "string").sql() == "'1 OR 1=1'"

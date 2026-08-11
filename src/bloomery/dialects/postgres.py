@@ -148,6 +148,20 @@ class PostgresDialect(SQLGlotDialect):
 #: constants and stay accepted.
 _RUN_DEPENDENT: Final[tuple[str, ...]] = ("now", "today", "tomorrow", "yesterday")
 
+#: The deny-list as an anchored pattern, whitespace included (RFC 0016 D93).
+#:
+#: It was ``LOWER(BTRIM(value)) IN (...)``, and bare ``BTRIM`` removes *spaces
+#: only*. Verified on PostgreSQL 16: ``'now\t'``, ``'now\n'`` and ``'now\r'``
+#: each pass ``pg_input_is_valid``, survive the trim with their whitespace
+#: intact, miss the deny-list, and cast to the transaction timestamp — so the
+#: guard was comparing a string the engine would never see.
+#:
+#: ``[[:space:]]`` rather than an ``E' \t\n\r\f\v'`` trim argument because
+#: the emitted SQL is a reviewed artifact: an escape string puts literal
+#: control characters in every golden, which is the readability argument D86
+#: already made for spelling invisible characters as codepoints.
+_RUN_DEPENDENT_PATTERN: Final[str] = "^[[:space:]]*(" + "|".join(_RUN_DEPENDENT) + ")[[:space:]]*$"
+
 #: The types whose Postgres input parser accepts a run-dependent literal.
 _TEMPORAL: Final[frozenset[str]] = frozenset({"DATE", "TIMESTAMP", "TIMESTAMPTZ"})
 
@@ -188,9 +202,9 @@ def _guarded_try_cast(node: Expression) -> Expression:
     )
     if node.to.this.name.upper() in _TEMPORAL:
         stable = exp.Not(
-            this=exp.In(
-                this=exp.Lower(this=exp.func("BTRIM", value.copy())),
-                expressions=[exp.Literal.string(word) for word in _RUN_DEPENDENT],
+            this=exp.RegexpLike(
+                this=exp.Lower(this=value.copy()),
+                expression=exp.Literal.string(_RUN_DEPENDENT_PATTERN),
             )
         )
         valid = exp.And(this=valid, expression=stable)

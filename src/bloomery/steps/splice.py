@@ -20,9 +20,12 @@ generated wrapper.
 
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 
 from sqlglot import exp
+
+from bloomery.errors import StepError
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -60,19 +63,52 @@ def parameter_literal(value: str, declared: str) -> Expression:
         return exp.Boolean(this=value.strip().lower() in {"true", "1"})
     if base in {"int", "decimal"}:
         # The text, not a parsed float: RFC 0003 D5 keeps floats out of every
-        # emission path, and the value arrived validated at lowering.
+        # emission path. But *checked* here rather than trusted from the caller
+        # (RFC 0017 D53): a numeric literal renders unquoted, so text that is
+        # not a number reaches the SQL as syntax. `factor: "1 OR 1=1"` on a
+        # Tier 1 call site emitted `amt * 1 OR 1 = 1` — a predicate spliced
+        # into a projection, through the very function whose docstring calls
+        # itself the injection boundary. The string branch was always safe
+        # because a string literal is quoted; this one had nothing making it so.
+        _refuse_non_numeric(value, declared)
         return exp.Literal.number(value)
     return exp.Literal.string(value)
+
+
+def _refuse_non_numeric(value: str, declared: str) -> None:
+    """``value`` must be a number, because it is about to render as one.
+
+    The check lives *below* both tiers deliberately. Tier 2 validates its
+    parameters at the registry and Tier 1 did not, and the fix for that shape
+    of bug is not to add the missing call at the second call site — it is to
+    put the guarantee where the rendering happens, so a third caller cannot
+    reintroduce it.
+    """
+    try:
+        Decimal(value.strip())
+    except (InvalidOperation, ValueError) as exc:
+        msg = (
+            f"step parameter value {value!r} is declared {declared!r} but is not a number. "
+            "A numeric parameter renders as an unquoted SQL literal, so a non-numeric value "
+            "would reach the emitted SQL as syntax rather than as data "
+            "(feature: steps). Fix: give the parameter a numeric value, or declare it "
+            "'string' so it renders as a quoted literal"
+        )
+        raise StepError(msg) from exc
 
 
 def placeholders(body: Expression) -> frozenset[str]:
     """Every ``:name`` the body refers to.
 
-    The macro's *signature*, read off the body rather than declared beside it:
-    a manifest's ``inputs`` are relation-shaped (grain and required columns),
-    which a macro has none of — it consumes columns, in an expression. The
-    body is therefore the only honest statement of what it needs, and reading
-    it is what lets the call site be checked against it (D50).
+    What the body *refers to* — not the macro's signature, which the manifest
+    declares in ``accepts`` (D51). The distinction matters because the caller
+    of this function compares the two: ``_refuse_body_disagreement`` reads the
+    body's placeholders and checks them against the declaration, so a body that
+    quietly grew a ``:name`` its manifest never mentioned is a compile error
+    rather than a new implicit parameter.
+
+    This docstring used to say the signature was "read off the body rather than
+    declared beside it", which is the design D51 explicitly rejected.
     """
     return frozenset(
         node.this for node in body.find_all(exp.Placeholder) if isinstance(node.this, str)

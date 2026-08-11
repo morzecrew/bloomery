@@ -479,7 +479,7 @@ def test_postgres_renders_the_coercion_failure_marker_as_a_guarded_cast() -> Non
     assert "PG_INPUT_IS_VALID" in body
     assert "TRY_CAST" not in body  # the keyword postgres does not have
     # …and the temporal narrowing that keeps a backfill reproducible.
-    assert "'now'" in body and "'today'" in body
+    assert "now|today|tomorrow|yesterday" in body
 
 
 def test_a_run_dependent_datetime_literal_is_a_coercion_failure_on_postgres() -> None:
@@ -498,7 +498,14 @@ def test_a_run_dependent_datetime_literal_is_a_coercion_failure_on_postgres() ->
         exp.TryCast(this=exp.column("v"), to=exp.DataType.build("TIMESTAMP"))
     )
     assert "PG_INPUT_IS_VALID" in temporal
-    assert "'now'" in temporal and "'yesterday'" in temporal
+    assert "now|today|tomorrow|yesterday" in temporal
+    # Anchored *and* whitespace-tolerant (D93). The narrowing was originally
+    # `LOWER(BTRIM(v)) IN (...)`, and bare BTRIM removes spaces only — so
+    # `now\t` kept its tab, missed the list, and coerced to the transaction
+    # timestamp on a model that looked guarded. Asserting the class rather than
+    # the operator is what makes that regression visible here.
+    assert "[[:space:]]" in temporal
+    assert temporal.count("^") == 1 and temporal.count("$") == 1
     # A non-temporal cast carries no such list — there is nothing unstable to
     # exclude, and an exclusion nobody needs is a rule that will confuse.
     numeric = dialect.render(

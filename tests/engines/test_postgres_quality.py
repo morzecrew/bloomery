@@ -33,6 +33,12 @@ ROWS = [
     # resolves it to the transaction timestamp, so this cell would coerce to a
     # different value on every run (D84).
     ("w4", "now", "9", "s4", "L1", "2026-01-01T00:00:00", "r4"),
+    # The same specimen wearing whitespace (D93). `BTRIM` defaults to spaces
+    # alone, so this one survived the trim with its tab intact, missed the
+    # deny-list, and coerced — the guard was comparing a string the engine
+    # would never see. A tab rather than a space is the whole point.
+    ("w6", "now\t", "9", "s6", "L1", "2026-01-01T00:00:00", "r6"),
+    ("w7", "now\n", "9", "s7", "L1", "2026-01-01T00:00:00", "r7"),
     ("w5", "2026-01-03", "-5", "s5", "L1", "2026-01-01T00:00:00", "r5"),
 ]
 
@@ -110,6 +116,24 @@ def test_a_run_dependent_datetime_is_quarantined_not_silently_unstable(
         ).fetchall()
     )
     assert "stock_date_coercible" in rows["r4"]
+
+
+def test_a_run_dependent_datetime_wearing_whitespace_is_quarantined_too(
+    quality_db: psycopg.Connection,
+) -> None:
+    """D93. The narrowing above was defeated by a tab: PostgreSQL's datetime
+    scanner skips tabs, newlines and carriage returns around a special value,
+    while bare ``BTRIM`` removes only spaces — so ``'now\t'`` passed
+    ``pg_input_is_valid``, passed the deny-list, and cast to the transaction
+    timestamp. Verified on this engine: without the fix these two rows land in
+    silver carrying an unrestatable value."""
+    rows = dict(
+        quality_db.execute(
+            'SELECT _source_row_id, failed_rules FROM silver."inventory_level__reject"'
+        ).fetchall()
+    )
+    assert "stock_date_coercible" in rows["r6"]
+    assert "stock_date_coercible" in rows["r7"]
 
 
 def test_declared_rules_still_route_alongside_the_coercion_marker(

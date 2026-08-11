@@ -218,21 +218,25 @@ def test_generic_test_arguments_are_nested_which_is_what_sets_the_floor() -> Non
 
     dbt 1.10 moved generic-test arguments under an ``arguments`` property and
     deprecated the flat form. The two are **mutually exclusive**, not
-    stylistic — measured by compiling this project's own ``schema.yml`` on four
-    real installs rather than inferred from a changelog:
+    stylistic, and the boundary is *not* a minor version — measured by
+    compiling this project's own ``schema.yml`` on eight real installs:
 
-    ==========================  =========  ==========  ==========  =========
-    form                        1.9.10     1.10.22     1.11.12     1.12.0
-    ==========================  =========  ==========  ==========  =========
-    flat                        ok         ok + warns  ok + warns  ok + warns
-    nested (this one)           **error**  ok          ok          ok
-    ==========================  =========  ==========  ==========  =========
+    =================  =======  ========  ========  ========  =======  ======
+    form               1.9.10   1.10.5    1.10.7    1.10.8    1.11.12  1.12.0
+    =================  =======  ========  ========  ========  =======  ======
+    flat               ok       ok+warn   ok+warn   ok+warn   ok+warn  ok+warn
+    nested (this one)  error    error     error     ok        ok       ok
+    =================  =======  ========  ========  ========  =======  ======
 
-    So the only version this costs is **1.9**; every release from 1.10 takes
-    the form dbt intends to keep, and nothing is owed later. The floor in
-    ``pyproject.toml`` is that one column — raising or lowering it without
-    moving this form, or the reverse, emits a project the declared range
-    cannot compile.
+    Through 1.10.7 the nested form needs the
+    ``require_generic_test_arguments_property`` behaviour flag and without it
+    dbt passes ``arguments`` to the macro as a literal keyword — "macro ...
+    takes no keyword argument 'arguments'". 1.10.8 makes it the default.
+
+    So the floor is **1.10.8**, which is neither the minor version this was
+    first written against (``>=1.10``, wrong: it admits 1.10.0–1.10.7) nor a
+    round number. ``pyproject.toml`` carries that bound, and it and this form
+    move together or not at all.
     """
     entity = _entity(
         audits=(

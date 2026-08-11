@@ -91,6 +91,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Security: a Tier 1 step parameter could splice SQL into a projection.** `parameter_literal` builds an *unquoted* literal for `int`/`decimal` — the branch its own docstring called the injection boundary — and never checked the text was a number. A mapping spelling `parameters: {factor: "1 OR 1=1"}` emitted `CAST(amt * 1 OR 1 = 1 AS DECIMAL(12, 4))`. The check now lives below both SQL tiers, where the rendering happens, rather than at the call site Tier 1 was missing (RFC 0017 D53).
+
+- A `coverage:` check crashed emission with a bare `StopIteration` when its referenced entity was declared but unmapped, and emitted an audit attached to no model when the dependent side was step-produced — a check that reports clean because it never runs. Both are guardrail refusals now (RFC 0016 D91).
+
+- A chain link (`{step: ref@v}`) whose macro declared a parameter with no default left the placeholder unresolved, so `CAST(nm AS TEXT) || $factor` reached the emitted SQL of a model that compiled clean (RFC 0017 D54).
+
+- Postgres' run-dependent datetime deny-list (D84) was defeated by a tab. It read `LOWER(BTRIM(value)) IN ('now', …)`, and `BTRIM` trims **spaces only** while Postgres' datetime scanner skips tabs, newlines and carriage returns — so `'now\t'` passed the guard and cast to the transaction timestamp. Verified on PostgreSQL 16 (RFC 0016 D93).
+
+- `StepRegistry` accepted a key disagreeing with its manifest's identity, which silently dropped that step's canonical links and `on_fail: fail` rules; `Reconcile.on_fail` accepted `quarantine`/`repair`, neither of which means anything for an aggregate comparison; and the reconcile "known columns" message omitted the key columns the check accepts (RFC 0017 D55, RFC 0016 D92).
+
+- `bloomery_ir_version` is now **4** — `ProjectIR` gained `coverage` and `MartIR` gained `asserts`, and the bump was missed. Fingerprints moved anyway (the encoder covers field names and count), so nothing failed; what the bump buys is `plan()` refusing to diff a coverage-carrying IR against one without, rather than both calling themselves v3.
+
+- The declared dbt floor was `>=1.10`, which is wrong: nested generic-test `arguments` needs dbt's `require_generic_test_arguments_property` behaviour flag through 1.10.7 and only defaults on at **1.10.8**. Measured across eight installs; the floor is now `>=1.10.8,<2`.
+
 - The emitted `schema.yml` nests generic-test arguments under `arguments:`, and the supported dbt range is declared for the first time: **`>=1.10,<2`** (RFC 0008 D22). dbt 1.10 moved test arguments there and deprecated the flat form bloomery emitted; the two are mutually exclusive rather than stylistic, measured on four real installs — flat compiles on 1.9 through 1.12 (warning from 1.10), nested is a compilation error on 1.9 and clean on everything after. The only version this costs is 1.9. `not_null` is unaffected: it takes no arguments and stays a bare name.
 
   The larger gap it exposed: which dbt versions the *emitted artifact* works on had never been written down. `dbt-core>=1.9` was a dev dependency — the test environment, not the product — and unbounded, so CI tested against whatever resolved that day. It is now bounded like the sqlmesh and metricflow pins already were, stated in the emitter's docstring, and pinned by a test carrying the measured matrix, so the bound and the emitted form cannot move apart.

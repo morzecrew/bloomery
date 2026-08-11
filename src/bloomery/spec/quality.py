@@ -837,7 +837,13 @@ class Reconcile(SpecModel):
     left: str
     right: str
     tolerance: Decimal = Field(ge=0)
-    on_fail: OnFailName
+    #: Narrower than a rule's ``OnFailName`` (RFC 0016 D92). A reconcile
+    #: compares two *aggregates*, so there is no row to divert: ``quarantine``
+    #: has nothing to route and ``repair`` has no recipe surface to carry one.
+    #: Both used to parse — ``repair`` lowered to ``OnFail.REPAIR`` with no
+    #: recipe and no fallback, went non-blocking, and wrote "repair" into the
+    #: quality mart's disposition column as if it meant something.
+    on_fail: Literal["flag", "fail"]
 
     @model_validator(mode="before")
     @classmethod

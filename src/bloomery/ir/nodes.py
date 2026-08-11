@@ -781,9 +781,10 @@ class ProjectIR:
 
     Version 2 (RFC 0016 M12) adds the data-quality shape: ``reconcile`` here,
     ``quality``/``dedupe``/``quarantine`` on every :class:`EntityIR`. Version 3
-    (RFC 0017 M13) adds ``steps``. The bump is the point — every artifact's
-    fingerprint header moves, and ``plan()`` refuses to diff across versions
-    rather than misreading one as the other.
+    (RFC 0017 M13) adds ``steps``. Version 4 adds ``coverage`` here and
+    ``asserts`` on every :class:`MartIR` (RFC 0016 D89/D90). The bump is the
+    point — every artifact's fingerprint header moves, and ``plan()`` refuses
+    to diff across versions rather than misreading one as the other.
 
     Note that ``steps`` shifts every fingerprint even for a project with no
     steps at all: the canonical encoder writes each dataclass's field count
@@ -792,7 +793,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 3
+    bloomery_ir_version: int = 4
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

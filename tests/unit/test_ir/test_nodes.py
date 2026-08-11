@@ -67,11 +67,14 @@ def test_partition_spec_identity_transform() -> None:
 # Data quality (RFC 0016 §5.3–§5.6)
 
 
-def test_ir_version_is_three() -> None:
-    # RFC 0016 M12 and RFC 0017 M13 each change the IR shape; RFC 0003 D3
-    # makes the version part of the fingerprint, so each bump is deliberate
-    # and loud.
-    assert ProjectIR().bloomery_ir_version == 3
+def test_ir_version_is_four() -> None:
+    # RFC 0016 M12, RFC 0017 M13, and now `ProjectIR.coverage` + `MartIR.asserts`
+    # each change the IR shape; RFC 0003 D3 makes the version part of the
+    # fingerprint, so each bump is deliberate and loud. This wave nearly shipped
+    # without one: the fingerprints moved anyway (the encoder covers field names
+    # and count), so nothing failed — but `plan()` would have diffed a
+    # coverage-carrying IR against one without, both calling themselves v3.
+    assert ProjectIR().bloomery_ir_version == 4
 
 
 def test_on_fail_is_the_disposition_set() -> None:
