@@ -33,6 +33,8 @@ __all__ = [
     "JsonPath",
     "MaterializationName",
     "MemberName",
+    "RELATION_NAME_PATTERN",
+    "RelationName",
     "ParameterValue",
     "PartitionSpecString",
     "RatioSpec",
@@ -100,6 +102,21 @@ PartitionSpecString = Annotated[str, StringConstraints(pattern=PARTITION_SPEC_PA
 JsonPath = Annotated[str, StringConstraints(pattern=JSONPATH_PATTERN)]
 CurrencyCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")]
 MemberName = Annotated[str, AfterValidator(_reject_reserved)]
+
+#: A name that becomes a **relation** — an entity or a mart (RFC 0002 D14).
+#:
+#: Stricter than :data:`MemberName` because it travels further. A field name
+#: reaches SQL through SQLGlot, which quotes and escapes it; a relation name
+#: also reaches the SQLMesh ``MODEL (...)`` envelope, which is Jinja over
+#: pre-rendered strings and quotes nothing — so an entity named
+#: ``t"; DROP TABLE x --`` put those characters into the model definition
+#: verbatim. The pattern is the fix rather than escaping at the envelope: a
+#: relation name has no business carrying anything but identifier characters,
+#: and ``StepRef`` is pinned the same way for the same reason.
+RELATION_NAME_PATTERN = r"^[a-z][a-z0-9_]*$"
+RelationName = Annotated[
+    str, StringConstraints(pattern=RELATION_NAME_PATTERN), AfterValidator(_reject_reserved)
+]
 
 AdditivityName = Literal["additive", "semi_additive", "non_additive"]
 CardinalityName = Literal["many_to_one", "one_to_one", "one_to_many"]

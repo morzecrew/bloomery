@@ -856,7 +856,7 @@ def _check_expression_rules(
         where = _entity_path(entity_name, f"quality[{index}].expr")
         try:
             parsed = parse_one(rule.expr)
-        except Exception as exc:  # noqa: BLE001 — sqlglot raises its own hierarchy
+        except Exception as exc:
             msg = (
                 f"expression rule {rule.name!r} on entity {entity_name!r} is not parseable "
                 f"SQL: {exc!s:.120}"
@@ -885,9 +885,7 @@ def _check_expression_rules(
             )
             errors.append(GuardrailError(msg, source_path=where))
             continue
-        unknown = sorted(
-            {col.name for col in parsed.find_all(exp.Column) if col.name} - readable
-        )
+        unknown = sorted({col.name for col in parsed.find_all(exp.Column) if col.name} - readable)
         if unknown:
             msg = (
                 f"expression rule {rule.name!r} on entity {entity_name!r} reads "
