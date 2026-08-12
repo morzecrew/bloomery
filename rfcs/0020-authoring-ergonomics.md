@@ -268,8 +268,16 @@ computation anyway — `UnreachableAtGrain` already knows which marts it rejecte
 `UnknownMember` already computes its closest match — and the suggestion is exposing a
 value that is currently discarded.
 
-All five fields are omitted, never fabricated: `covering_marts` empty means genuinely
-none.
+**Absence has one representation per surface, and "omitted" is not it.** Every field is
+always present — it carries a default. In Python, a collection field is `()` and a scalar
+field is `None` when bloomery has nothing to suggest; in the `--format json` output the
+key is always emitted, as `[]` or `null`, because §5.2 promises the same structures the
+Python API returns and a key that vanishes is a different structure. One rule, all five
+fields, tested on the no-suggestion case.
+
+What is never done is fabrication: `covering_marts == ()` means genuinely no mart covers
+the request, not that the search was skipped. An empty suggestion is a fact, which is why
+it is emitted rather than dropped.
 
 ## 6. Tests
 
@@ -348,7 +356,7 @@ accepts and the parser refuses — which reads to a user as bloomery being arbit
 | 4 | **Six CLI commands, each a pure shell over one public function**, adding no logic of their own. Exit codes distinguish refusal (`1`) from usage error (`2`), because a refusal is a *correct* outcome and scripts must be able to tell. `--format json` returns the same structures the Python API does, so the CLI is not a second lossier surface. |
 | 5 | **`bloomery/cli/io.py` is the only module in the package permitted to touch the filesystem**, added to RFC 0019's purity allowlist as a named carve-out with a stated reason, and enforced one-directional by import-linter: the CLI may import the library, no library module may import the CLI. The shell reads paths; the library still only ever sees strings, so the no-I/O invariant is preserved *and made structurally obvious* rather than merely asserted. |
 | 6 | **No new runtime dependency.** `argparse` from the standard library, hand-rolled table rendering. A dependency on `rich`/`typer` would be a real cost for cosmetics in a library whose dependency discipline is one of its properties. |
-| 7 | **Five refusals gain optional structured suggestion fields** (§5.4), additive. The draft cited two existing precedents; only one is real. `UnsupportedFilter.reason` is an attribute; **`UnknownMember.did_you_mean` is not** — its docstring has promised the field since RFC 0011 while the closest match is computed and thrown into prose. So `UnknownMember` joins the list as a fifth entry rather than serving as the model for it, and the field is what finally makes its own docstring true. Each field exposes a value bloomery **already computes and currently discards**. Fields are omitted, never fabricated. |
+| 7 | **Five refusals gain optional structured suggestion fields** (§5.4), additive. The draft cited two existing precedents; only one is real. `UnsupportedFilter.reason` is an attribute; **`UnknownMember.did_you_mean` is not** — its docstring has promised the field since RFC 0011 while the closest match is computed and thrown into prose. So `UnknownMember` joins the list as a fifth entry rather than serving as the model for it, and the field is what finally makes its own docstring true. Each field exposes a value bloomery **already computes and currently discards**. Absence is `()` or `None` in Python and `[]` or `null` in the CLI JSON — always present, never fabricated, and never silently dropped from a structure §5.2 promises matches the API (§5.4). |
 | 8 | **Suggestions never become a second error contract**: they are optional, and nothing may be discoverable *only* through a suggestion. The primary contract stays `.reason` plus the message. |
 | 9 | **No execution, ever.** `explain` prints; `run` does not exist. This is what keeps the test suite infrastructure-free and the library a compiler. Config files, profiles, credentials, watch mode, daemons and scaffolding are refused for the same reason — each implies state or an opinion the library does not hold. |
 | 10 | **A property test measures schema/parser agreement** rather than assuming it: every fixture validates against its schema, and mutations the parser rejects are checked against the schema too, with divergences recorded as amendments. The schema is a pre-filter, never the authority — two validators over one grammar drift, and undetected drift reads to a user as arbitrariness. |
