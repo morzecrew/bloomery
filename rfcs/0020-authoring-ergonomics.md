@@ -4,7 +4,7 @@
 - **Scope:** Three additions that make the library holdable without writing Python:
   a **JSON Schema export** for the six spec kinds (`bloomery.schema`), a **thin CLI**
   (`bloomery compile|plan|resolve|explain|schema|fingerprint`) that is a pure argument
-  shell over the public API, and **machine-readable fix suggestions** on the four
+  shell over the public API, and **machine-readable fix suggestions** on the five
   highest-frequency refusals. The CLI is the only component in the package permitted to
   touch the filesystem; the library's no-I/O invariant is unchanged and newly enforced by
   the layering that separates them.
@@ -38,7 +38,7 @@ and **constrained generation** for machine-authored specs.
 `bloomery.cli` adds six commands, each a pure function over a directory plus flags. No
 execution, no state, no credentials, no config file.
 
-Four refusal types gain a `suggestion` field carrying a machine-readable next action,
+Five refusal types gain a `suggestion` field carrying a machine-readable next action,
 extending the one real precedent (`UnsupportedFilter.reason`) rather than the one the
 draft assumed.
 
@@ -160,7 +160,7 @@ which is what stops it drifting.
 
 ### 5.2 `bloomery.cli` — six commands
 
-```
+```text
 bloomery compile     <dir> --target sqlmesh --dialect duckdb [--catalog F] [--steps F] --out <dir>
 bloomery plan        <old-dir> <new-dir> [--format table|json]
 bloomery resolve     <dir> [--format table|json]
@@ -178,7 +178,7 @@ API returns, so the CLI is scriptable and is not a second, lossier surface.
 
 **`bloomery resolve` is the command that justifies the rest:**
 
-```
+```text
 $ bloomery resolve specs/
 
 Reachable (7)
@@ -196,7 +196,7 @@ requires a script.
 
 ### 5.3 The CLI is the only module that touches the filesystem
 
-```
+```text
 bloomery/
   cli/
     __init__.py     argument parsing, exit codes
@@ -206,10 +206,17 @@ bloomery/
   ...               pure
 ```
 
-RFC 0019's purity guard bans `os`, `pathlib` and friends across `src/`. `bloomery/cli/`
-is added to its allowlist — **as a named carve-out with a stated reason**, not as a hole.
-An import-linter contract enforces the direction: `bloomery/cli/` may import the library;
-no library module may import `bloomery/cli/`.
+RFC 0019's purity guard bans `os`, `pathlib` and friends across `src/`. The allowlist
+gains exactly one path — `bloomery/cli/io.py` — **as a named carve-out with a stated
+reason**, not as a hole. Allowlisting the `bloomery/cli/` package instead would let
+`render.py` or the argument parser open a file without the guard noticing, which is the
+tree above claiming one thing and the guard enforcing another. The rule is the tree: one
+file reads and writes, and the guard says so.
+
+An import-linter contract enforces the direction separately, at package granularity:
+`bloomery/cli/` may import the library; no library module may import `bloomery/cli/`. The
+two mechanisms answer different questions — *who may touch the disk* and *which way
+imports run* — and collapsing them into one allowlist is what loses the first.
 
 That layering is what keeps the invariant honest under a feature that appears to violate
 it. The shell reads paths; the library still only ever sees strings.
@@ -225,11 +232,31 @@ Following `UnsupportedFilter.reason`, the one structured precedent that exists:
 
 | Error | New field | Content |
 |---|---|---|
-| `UnreachableAtGrain` | `covering_marts: tuple[str, ...]` | Marts that *would* cover the request, if any, plus per-metric grain so the caller sees the conflict |
+| `UnreachableAtGrain` | `covering_marts: tuple[MartCoverage, ...]` | Marts that *would* cover the request, if any — each carrying the metric and the grain that mart offers it at, so the caller sees the conflict |
 | `GrainViolation` | `offending_measures: tuple[MeasureRef, ...]` | Which measure is at odds with the mart grain, and its own grain |
 | `UnsupportedFilter` | `nearest_supported: Op \| None` | The closest supported operator, where one exists (`regex` → `like`) |
 | `UnknownStep` | `available_versions: tuple[int, ...]` | Versions of that `ref` present in the registry |
 | `UnknownMember` | `did_you_mean: str \| None` | The closest match — **computed today and discarded into the message.** Its docstring has promised this field since RFC 0011; the field is what makes the docstring true. |
+
+`MartCoverage` is one frozen dataclass, and it is the reason the field is not
+`tuple[str, ...]`:
+
+```python
+@dataclass(frozen=True, slots=True)
+class MartCoverage:
+    mart: str
+    metric: str
+    grain: TimeGrain
+```
+
+A tuple of strings can name the marts but cannot say *which metric each covers at which
+grain*, which is the whole content of an `UnreachableAtGrain` conflict. Encoding the
+triple into `"orders_daily:revenue:day"` would put a parse step between bloomery and its
+caller and an undocumented format in the middle of an error contract — precisely the
+machine-readability this section exists to add. `MartCoverage` and `MeasureRef` are new
+public types, so RFC 0018's signature closure reaches them through the errors they hang
+on; the allowlist that exempts `bloomery.errors` from root export covers the errors, not
+these, so both are root-exported when this lands.
 
 All are **additive optional fields on existing errors**, so no message changes and nothing
 regresses. The rendered message may incorporate them; the structured field is the point.
@@ -241,7 +268,8 @@ computation anyway — `UnreachableAtGrain` already knows which marts it rejecte
 `UnknownMember` already computes its closest match — and the suggestion is exposing a
 value that is currently discarded.
 
-Both fields are omitted, never fabricated: `covering_marts` empty means genuinely none.
+All five fields are omitted, never fabricated: `covering_marts` empty means genuinely
+none.
 
 ## 6. Tests
 
@@ -324,6 +352,8 @@ accepts and the parser refuses — which reads to a user as bloomery being arbit
 | 8 | **Suggestions never become a second error contract**: they are optional, and nothing may be discoverable *only* through a suggestion. The primary contract stays `.reason` plus the message. |
 | 9 | **No execution, ever.** `explain` prints; `run` does not exist. This is what keeps the test suite infrastructure-free and the library a compiler. Config files, profiles, credentials, watch mode, daemons and scaffolding are refused for the same reason — each implies state or an opinion the library does not hold. |
 | 10 | **A property test measures schema/parser agreement** rather than assuming it: every fixture validates against its schema, and mutations the parser rejects are checked against the schema too, with divergences recorded as amendments. The schema is a pre-filter, never the authority — two validators over one grammar drift, and undetected drift reads to a user as arbitrariness. |
+| 11 | **Suggestion payloads are typed values, not encoded strings.** `covering_marts` carries `MartCoverage(mart, metric, grain)` rather than `tuple[str, ...]`: the field promises per-metric grain, and a tuple of strings can only deliver it through a format the caller has to parse and nobody has documented. That is the failure this section exists to remove, so shipping it inside the fix would be self-defeating. Cost: two new public types (`MartCoverage`, `MeasureRef`) that RFC 0018's closure then reaches and root-exports. |
+| 12 | **The purity carve-out is one file, not the CLI package.** Only `bloomery/cli/io.py` is allowlisted; `render.py` and the argument parser stay under the guard. A package-wide exemption would let any CLI module open a file while §5.3's tree still claimed one did — the guard and the document disagreeing, which is worse than no guard. The import direction is enforced separately, at package granularity, because it answers a different question. |
 
 ## 12. Phasing
 
