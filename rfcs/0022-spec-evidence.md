@@ -7,17 +7,14 @@
   mart summary. A re-presentation of `resolve()` plus batched compile errors under one
   call and one return type. Adds no analysis bloomery does not already perform, executes
   nothing, and reads no data.
-- **Related:** [RFC 0005](0005-resolution.md) (`Resolution`, reachability with specific
-  missing leaves — the substance this exposes),
-  [RFC 0002](0002-spec-layer-and-errors.md) (batched errors with source paths),
-  [RFC 0006](0006-guardrails.md) (the batched guardrail stage),
-  [RFC 0010](0010-marts-and-role-playing.md) (mart grain and flattening — the summary),
+- **Related:** RFC 0005 (`Resolution`, reachability with specific missing leaves — the
+  substance this exposes), RFC 0002 (batched errors with source paths), RFC 0006 (the
+  batched guardrail stage), RFC 0010 (mart grain and flattening — the summary),
   [RFC 0018](0018-public-surface-and-stability.md) (**blocking**: signature closure covers
   the new return type),
   [RFC 0020](0020-authoring-ergonomics.md) (`bloomery resolve` is re-pointed at this),
   [RFC 0021](0021-capability-boundaries.md) §5.5 (the boundary this respects).
-- **Adoption audit:** [`_adoption-audit-0018-0022.md`](_adoption-audit-0018-0022.md) —
-  every claim in §3 verified; no corrections were needed.
+- **Adoption audit:** every claim in §3 verified; no corrections were needed.
 
 ---
 

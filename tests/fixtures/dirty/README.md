@@ -2,7 +2,7 @@
 
 Seven CSV files, one per failure family, every row a deliberate specimen.
 
-RFC [0016](../../../rfcs/0016-data-quality.md) §6 calls this corpus "the single
+RFC 0016 §6 called this corpus "the single
 highest-value asset in this document," and Document 5 §8.1 puts the reason plainly:
 **cleansing bugs are silent by nature — the pipeline is green, the numbers are wrong.**
 A cleansing change that passes the whole corpus is safe to ship; one that changes a row's
