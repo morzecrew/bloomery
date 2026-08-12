@@ -97,7 +97,7 @@ from bloomery.emit.steps import (
     step_body,
     step_output_relation,
 )
-from bloomery.errors import UnsupportedByTarget
+from bloomery.errors import UnsupportedByTarget, guaranteed
 from bloomery.ir import (
     AuditIR,
     DateDimensionIR,
@@ -353,7 +353,11 @@ def _mart_artifact(
             "Fix: compile this project for the sqlmesh target"
         )
         raise UnsupportedByTarget(msg, source_path="entity_model: quality")
-    base = next(entity for entity in ir.entities if entity.name == mart.base)
+    base = guaranteed(
+        (entity for entity in ir.entities if entity.name == mart.base),
+        expected=f"the base entity {mart.base!r} of mart {mart.name!r}",
+        by="the mart-base guardrail (RFC 0010)",
+    )
     return _model_artifact(
         path=f"models/{namespace}/{relation}.sql",
         config_line=_config_line(mart.materialization, base.key),

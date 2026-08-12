@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
+from bloomery.errors import guaranteed
 from bloomery.quality.catalogue import INGESTION_METADATA
 
 if TYPE_CHECKING:
@@ -41,7 +42,11 @@ __all__ = [
 
 #: The final, tie-breaking sort key — the stable source-row identity, drawn
 #: from the ingestion-metadata contract so the two lists cannot drift.
-ROW_ID_COLUMN = next(name for name in INGESTION_METADATA if name == "_source_row_id")
+ROW_ID_COLUMN = guaranteed(
+    (name for name in INGESTION_METADATA if name == "_source_row_id"),
+    expected="'_source_row_id' among the ingestion-metadata columns",
+    by="INGESTION_METADATA itself (RFC 0016 D21)",
+)
 
 
 def dedupe_sort_columns(dedupe: DedupeIR) -> tuple[str, ...]:

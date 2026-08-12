@@ -51,7 +51,21 @@ from bloomery.errors import (
 
 pytestmark = pytest.mark.unit
 
-ALL_ERROR_CLASSES = [getattr(errors_mod, name) for name in errors_mod.__all__]
+_EXPORTS = {name: getattr(errors_mod, name) for name in errors_mod.__all__}
+
+#: The exports that are deliberately not error classes. Pinned rather than
+#: filtered silently: the three properties below are about the *hierarchy*, and
+#: a filter nobody checks is how a new class quietly stops being covered by
+#: them (RFC 0003 D9 added the first entry).
+NOT_A_CLASS = {"guaranteed"}
+
+ALL_ERROR_CLASSES = [value for name, value in _EXPORTS.items() if name not in NOT_A_CLASS]
+
+
+def test_every_non_class_export_is_a_declared_exemption() -> None:
+    """The filter above, kept honest. A helper added to ``__all__`` without a
+    thought would otherwise drop out of every property in this module."""
+    assert {name for name, value in _EXPORTS.items() if not isinstance(value, type)} == NOT_A_CLASS
 
 
 @pytest.mark.parametrize("cls", ALL_ERROR_CLASSES, ids=lambda cls: cls.__name__)

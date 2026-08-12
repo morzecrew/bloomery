@@ -15,7 +15,11 @@ time. The aggregation surface is :attr:`BloomeryError.collected` plus the
 
 from __future__ import annotations
 
-from typing import Self
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
 
 __all__ = [
     "BloomeryError",
@@ -27,6 +31,7 @@ __all__ = [
     "CircularDerivation",
     "MissingReference",
     "GuardrailError",
+    "InvariantViolated",
     "UnitMismatch",
     "TaxBasisMismatch",
     "CurrencyMismatch",
@@ -34,6 +39,7 @@ __all__ = [
     "AdditivityViolation",
     "AssertLoweringError",
     "GrainViolation",
+    "guaranteed",
     "FanoutRisk",
     "NonAdditiveWithoutComponents",
     "MartMissingTimeDimension",
@@ -108,6 +114,41 @@ class BloomeryError(Exception):
 
 # ....................... #
 # Parse stage — RFC 0002
+
+
+class InvariantViolated(BloomeryError):
+    """A guarantee an earlier stage was supposed to have established did not
+    hold (RFC 0003 D9).
+
+    Never an authored spec's fault. Every lookup that raises this is total
+    *because a guardrail already refused the case that would break it*, so
+    reaching here means the guardrail and the lookup have drifted apart — and
+    the message names which guardrail was relied on, because that is the thing
+    a reader needs and the traceback cannot supply.
+    """
+
+
+def guaranteed[T](candidates: Iterable[T], *, expected: str, by: str) -> T:
+    """The first candidate, or :class:`InvariantViolated` naming its guarantor.
+
+    ``next(x for x in xs if …)`` over a set an earlier stage validated is the
+    idiom this replaces. It is correct and it fails terribly: a bare
+    ``StopIteration`` carries no message, no source path and no hint about
+    which stage was supposed to prevent it — one escaped from a coverage check
+    on an unmapped entity and read as a crash rather than as a missing
+    refusal.
+
+    Writing the guarantor at each call site is the point. The invariant was
+    real and held everywhere but one, and what it never had was a place to be
+    stated where drift would be visible.
+    """
+    for candidate in candidates:
+        return candidate
+    msg = (
+        f"expected {expected}, which {by} is supposed to guarantee — reaching here means "
+        "that check and this lookup disagree. This is a bug in bloomery, not in the spec"
+    )
+    raise InvariantViolated(msg)
 
 
 class SpecParseError(BloomeryError):
