@@ -52,7 +52,7 @@ number in the filename in sync.
 
 The five waves continue the corpus sequence after M14 (RFC 0015).
 
-```
+```text
 M15  RFC 0018  public surface        — blocks M17, M19
 M16  RFC 0019  lowering split        — independent (soft: after M15)
 M17  RFC 0020  ergonomics            — needs M15

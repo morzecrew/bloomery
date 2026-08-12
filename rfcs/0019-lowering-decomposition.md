@@ -129,7 +129,7 @@ invites exactly the divergence the three-way equivalence tier exists to catch.
 
 Splitting by stage preserves it — one lowering, consumed by every target's assembly:
 
-```
+```text
 emit/
   lower/
     __init__.py      the stage pipeline; the only module emitters import
@@ -174,7 +174,7 @@ land green and stay green rather than requiring a pre-refactor cleanup.
 
 Same treatment where it decomposes cleanly:
 
-```
+```text
 plan/
   diff/
     __init__.py      the diff entry point
@@ -210,7 +210,7 @@ it entirely. A guard that CI does not run is a convention.
 **Its vocabulary is short.** It catches four spellings; it does not catch the imports that
 would make I/O possible in the first place.
 
-```
+```text
 banned imports:  os, pathlib, requests, httpx, boto3, sqlalchemy, duckdb, tempfile, socket
 banned calls:    datetime.now, datetime.today, time.time, time.monotonic,
                  random.*, uuid.uuid1, uuid.uuid4, os.environ

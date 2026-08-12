@@ -125,7 +125,7 @@ compiler could not see that the semantics moved.
 
 **What ships:** a fixture and a docs page, no code.
 
-```
+```text
 tests/fixtures/identity_resolution/
   catalog.yaml  entity_model.yaml  mapping_crm.yaml  mapping_billing.yaml
   steps.yaml  marts.yaml  metrics.yaml
