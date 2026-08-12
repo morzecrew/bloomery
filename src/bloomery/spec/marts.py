@@ -20,6 +20,7 @@ from bloomery.spec.common import (
     MaterializationName,
     MemberName,
     PartitionSpecString,
+    RelationName,
     SpecModel,
 )
 from bloomery.spec.quality import RangeBound, RuleName
@@ -148,4 +149,4 @@ class MartSet(SpecModel):
     (RFC 0010 D7)."""
 
     marts_version: int = Field(ge=1)
-    marts: dict[MemberName, Mart]
+    marts: dict[RelationName, Mart]

@@ -20,6 +20,7 @@ from bloomery.spec.common import (
     MaterializationName,
     MemberName,
     PartitionSpecString,
+    RelationName,
     SpecModel,
     TypeString,
 )
@@ -103,7 +104,7 @@ class EntityModel(SpecModel):
     """
 
     spec_version: int = PydanticField(ge=1)
-    entities: dict[str, Entity]
+    entities: dict[RelationName, Entity]
     relationships: tuple[Relationship, ...] = ()
     reconcile: tuple[Reconcile, ...] = ()
     #: Cross-entity coverage checks (RFC 0016 D90). Beside ``reconcile:`` for

@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING, cast
 from sqlglot import exp, parse_one
 from sqlglot.expressions.core import Expression
 
-from bloomery.errors import ResolutionError, StepDeterminismError, StepError
+from bloomery.errors import ResolutionError, StepDeterminismError, StepError, guaranteed
 from bloomery.guardrails import check_guardrails
 from bloomery.ir import (
     Additivity,
@@ -554,7 +554,11 @@ def _repair_bodies(
             _refuse_unrepairing(rule.repair.via, manifest, column, where=where)
             declared = _field_type(entity_name, column, entity.fields[column])
             arguments: dict[str, Expression] = {
-                next(iter(manifest.accepts)): exp.column(column),
+                guaranteed(
+                    iter(manifest.accepts),
+                    expected=f"the single column {rule.repair.via!r} accepts",
+                    by="_refuse_unrepairing, which requires exactly one (RFC 0016 D87)",
+                ): exp.column(column),
                 **_macro_parameters(manifest, dict(rule.repair.parameters)),
             }
             bodies[column] = canon(exp.cast(splice(body, arguments), generic_type(declared))).sql

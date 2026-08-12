@@ -20,6 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from bloomery.errors import guaranteed
 from bloomery.spec.mapping import RecipeFieldMapping, mapping_doc
 
 if TYPE_CHECKING:
@@ -96,7 +97,11 @@ def collect_derivations(project: Project, catalog: Catalog | None) -> tuple[Deri
             if canonical is None:
                 continue
             recipes = catalog.canonical_fields[canonical].recipes
-            recipe = next(r for r in recipes if r.id == field_mapping.recipe)
+            recipe = guaranteed(
+                (r for r in recipes if r.id == field_mapping.recipe),
+                expected=f"recipe {field_mapping.recipe!r} on canonical field {canonical!r}",
+                by="resolve_recipe, which refuses an unrecorded choice (RFC 0005 §5.2)",
+            )
             derivations.append(
                 Derivation(
                     source_path=f"{doc}: fields.{field_name}",

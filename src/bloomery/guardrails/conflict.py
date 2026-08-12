@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 from sqlglot import exp
 
+from bloomery.errors import guaranteed
 from bloomery.ir import AuditIR, ColumnIR, canon, extraction, generic_type
 
 if TYPE_CHECKING:
@@ -58,7 +59,11 @@ def path_conflict_amendments(
         if derivation.direct is None:
             continue
         entity = entities[derivation.entity]
-        derived = next(column for column in entity.columns if column.name == derivation.field)
+        derived = guaranteed(
+            (column for column in entity.columns if column.name == derivation.field),
+            expected=f"the derived column {derivation.field!r} on entity {entity.name!r}",
+            by="resolution, which builds the column it derives",
+        )
         shadows.setdefault(derivation.entity, []).append(_shadow(derived, derivation.direct))
         audits.setdefault(derivation.entity, []).append(
             AuditIR(

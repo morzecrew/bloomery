@@ -609,3 +609,66 @@ def test_unknown_reconcile_key_rejected() -> None:
     with pytest.raises(SpecParseError) as excinfo:
         entity_model(RECONCILE.replace("on_fail: flag", "on_fail: flag, sample: 1"))
     assert excinfo.value.source_path == "entity_model: reconcile[0].sample"
+
+
+# ....................... #
+# Catastrophic backtracking (RFC 0016 D96)
+
+
+@pytest.mark.parametrize(
+    "regex",
+    [
+        "^(?:a+)+$",  # the textbook shape
+        "^(?:a*)*$",
+        "^(?:a+)*$",  # either quantifier unbounded is enough
+        r"^(?:a{1,})+$",  # {n,} is unbounded too
+        "^(?:a+){2,}$",  # ...on the outside as well
+        "^(?:(?:a+)+)+$",  # nesting deeper does not evade it
+    ],
+)
+def test_nested_unbounded_repetition_is_refused(regex: str) -> None:
+    """The catastrophic-backtracking family, refused at the spec layer because
+    only one of the three targets is exposed and the exposure is invisible from
+    the spec: DuckDB (RE2) and Trino (RE2J) match in linear time, while
+    Postgres backtracks and hangs the model. A rule that passes review on
+    DuckDB and takes production down on Postgres is the same class of failure
+    the portable subset already exists to prevent — this applies the argument
+    to cost rather than to meaning."""
+    with pytest.raises(ValueError, match="nested unbounded repetition"):
+        PatternRule.model_validate({"rule": "pattern", "regex": regex, "on_fail": "flag"})
+
+
+@pytest.mark.parametrize(
+    "regex",
+    [
+        "^(?:ab)+$",  # a repeated group whose body does not repeat
+        "^(?:[0-9]{3}-)*[0-9]{4}$",  # bounded inner repetition
+        "^(?:a+){1,8}$",  # bounded outer repetition
+        "^a+$",  # a bare unbounded quantifier is fine
+        "^(?:ab)+cd$",
+    ],
+)
+def test_ordinary_repetition_still_passes(regex: str) -> None:
+    """The control. A check that refused every quantified group would satisfy
+    the test above and break most real patterns — bounding *either* side is
+    enough to make the shape linear, and both spellings stay available."""
+    assert PatternRule.model_validate(
+        {"rule": "pattern", "regex": regex, "on_fail": "flag"}
+    ).regex == regex
+
+
+def test_alternation_overlap_is_not_detected_and_that_is_recorded() -> None:
+    """The limit of this check, asserted so it stays a known gap rather than an
+    assumed absence.
+
+    ``^(?:a|a)*$`` backtracks catastrophically too, and it carries no nested
+    quantifier — the branches simply match the same string. Deciding that in
+    general is overlap analysis, and a cheap textual approximation would refuse
+    ``(?:foo|bar)+`` (linear, common, useful) while still missing
+    ``(?:a|ab)*``. Left open deliberately: a check that is wrong in both
+    directions is worse than a documented gap.
+    """
+    accepted = PatternRule.model_validate(
+        {"rule": "pattern", "regex": "^(?:a|a)*$", "on_fail": "flag"}
+    )
+    assert accepted.regex == "^(?:a|a)*$"

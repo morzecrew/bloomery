@@ -36,6 +36,7 @@ from bloomery.errors import (
     PlannerError,
     UnknownMember,
     UnreachableAtGrain,
+    guaranteed,
 )
 from bloomery.ir import Additivity, Layer
 from bloomery.marts import DATE_BUCKETS
@@ -147,7 +148,11 @@ def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) 
         )
         lines.append(f"  {_REMEDIATION}")
         raise UnreachableAtGrain("\n".join(lines))
-    return next(iter(entries.values()))[1]
+    return guaranteed(
+        iter(entries.values()),
+        expected="at least one covering mart",
+        by="MetricRequest.__post_init__, which refuses a request with no metrics",
+    )[1]
 
 
 def _resolve_dimension(

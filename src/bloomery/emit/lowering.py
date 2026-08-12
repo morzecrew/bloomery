@@ -22,7 +22,7 @@ from sqlglot import exp, parse_one
 from sqlglot.expressions.core import Expression
 
 from bloomery.dialects import DialectFeature
-from bloomery.errors import EmitError, UnsupportedByTarget
+from bloomery.errors import EmitError, UnsupportedByTarget, guaranteed
 from bloomery.ir import (
     AuditIR,
     CoverageIR,
@@ -1463,7 +1463,11 @@ def coverage_audit_name(check: CoverageIR) -> str:
 def coverage_owner(check: CoverageIR, ir: ProjectIR) -> RelationshipIR:
     """The relationship a coverage check reads. Total by construction: the
     guardrail stage refuses an unresolvable name before emission runs."""
-    return next(rel for rel in ir.relationships if rel.name == check.relationship)
+    return guaranteed(
+        (rel for rel in ir.relationships if rel.name == check.relationship),
+        expected=f"relationship {check.relationship!r} named by coverage check {check.name!r}",
+        by="_check_coverage (RFC 0016 D90)",
+    )
 
 
 def coverage_audit_select(check: CoverageIR, ir: ProjectIR, ctx: EmitContext) -> exp.Select:
@@ -1514,7 +1518,12 @@ def coverage_audit_select(check: CoverageIR, ir: ProjectIR, ctx: EmitContext) ->
 def _referenced_key(relationship: RelationshipIR, ir: ProjectIR) -> tuple[str, ...]:
     """The referenced entity's declared key — what identifies a row the audit
     reports, so a failure names the customer rather than a row number."""
-    entity = next(e for e in ir.entities if e.name == relationship.to_entity)
+    entity = guaranteed(
+        (e for e in ir.entities if e.name == relationship.to_entity),
+        expected=f"entity {relationship.to_entity!r} on the referenced side of "
+        f"relationship {relationship.name!r}",
+        by="_check_coverage (RFC 0016 D91)",
+    )
     return entity.key
 
 
@@ -1591,7 +1600,11 @@ def _assert_bound_type(mart: MartIR, clause: MartAssertIR) -> LogicalType:
     """
     if clause.agg == "count":
         return IntType()
-    return next(column.type for column in mart.columns if column.name == clause.column)
+    return guaranteed(
+        (column.type for column in mart.columns if column.name == clause.column),
+        expected=f"column {clause.column!r} on mart {mart.name!r}",
+        by="_check_asserts (RFC 0016 D89)",
+    )
 
 
 def reconcile_relation(check: ReconcileIR) -> str:
@@ -2098,11 +2111,15 @@ def _column_owner(mart: MartIR, column: MartColumnIR) -> str:
         or column.name == HAS_QUALITY_FLAGS
     ):
         return mart.base
-    return next(
-        join.prefix
-        for join in mart.joins
-        if join.entity == column.source_entity
-        and column.name == f"{join.prefix}{column.source_column}"
+    return guaranteed(
+        (
+            join.prefix
+            for join in mart.joins
+            if join.entity == column.source_entity
+            and column.name == f"{join.prefix}{column.source_column}"
+        ),
+        expected=f"the join that flattened column {column.name!r} onto mart {mart.name!r}",
+        by="the mart flattener, which names every column after the join it came from",
     )
 
 
@@ -2202,7 +2219,11 @@ def dim_date_select(dim: DateDimensionIR) -> Expression:
 
 def column_type(entity: EntityIR, name: str) -> LogicalType:
     """The declared logical type of one entity column."""
-    return next(column.type for column in entity.columns if column.name == name)
+    return guaranteed(
+        (column.type for column in entity.columns if column.name == name),
+        expected=f"column {name!r} on entity {entity.name!r}",
+        by="the stage that lowered the column being asked about",
+    )
 
 
 def _bound_literal(value: str, bound_type: LogicalType) -> Expression:

@@ -85,7 +85,7 @@ from bloomery.emit.lowering import (
     replay_statements,
 )
 from bloomery.emit.steps import step_artifacts
-from bloomery.errors import EmitError
+from bloomery.errors import EmitError, guaranteed
 from bloomery.ir import (
     AuditIR,
     DateDimensionIR,
@@ -313,7 +313,11 @@ def _mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArti
     if is_quality_mart(mart):
         return _quality_mart_artifact(mart, ir, ctx)
     namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
-    base = next(entity for entity in ir.entities if entity.name == mart.base)
+    base = guaranteed(
+        (entity for entity in ir.entities if entity.name == mart.base),
+        expected=f"the base entity {mart.base!r} of mart {mart.name!r}",
+        by="the mart-base guardrail (RFC 0010)",
+    )
     content = _ENVELOPE.render(
         fingerprint=ctx.fingerprint,
         name=f"{namespace}.{relation}",

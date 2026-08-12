@@ -291,6 +291,11 @@ def _scan_portable(pattern: str) -> None:
     branch_start = True  # at the start of a top-level alternative
     opened = False  # this alternative has its '^'
     closed = False  # ... and its '$', with nothing after it
+    # One flag per open group: does its body carry an unbounded quantifier?
+    # Popped when the group closes, so the quantifier applied *to* the group
+    # can be judged against what it would be repeating (RFC 0016 D96).
+    group_bodies: list[bool] = []  # does the open group's body match a varying length?
+    just_closed_varies: bool | None = None  # the group that just closed, if any
 
     while index < len(pattern):
         char = pattern[index]
@@ -322,7 +327,9 @@ def _scan_portable(pattern: str) -> None:
         elif char == "(":
             if pattern.startswith("(?:", index):
                 depth, index = depth + 1, index + 2
+                group_bodies.append(False)
                 quantifiable, quantifier, branch_start = False, None, False
+                just_closed_varies = None
             else:
                 for prefix, label in PORTABLE_REGEX_REJECTED:
                     if pattern.startswith(prefix, index):
@@ -337,6 +344,7 @@ def _scan_portable(pattern: str) -> None:
             if depth == 0:
                 _refuse("unbalanced ')'", ")", "no '(?:' opened it; write \\) for a literal")
             depth -= 1
+            just_closed_varies = group_bodies.pop() if group_bodies else False
             quantifiable, quantifier, branch_start = True, None, False
         elif char == "[":
             index = _scan_class(pattern, index) - 1
@@ -353,7 +361,15 @@ def _scan_portable(pattern: str) -> None:
                 _refuse(label, quantifier + char, "RE2 and ARE disagree about it or refuse it")
             if not quantifiable:
                 _refuse("quantifier with nothing to repeat", char, "no atom precedes it")
+            # `?` varies the length it matches but repeats a bounded number
+            # of times, so it makes a *body* ambiguous without making an outer
+            # repetition unbounded. The two roles are tracked apart.
+            if char in "*+" and just_closed_varies:
+                _refuse_nested_repetition(pattern)
+            for level in range(len(group_bodies)):
+                group_bodies[level] = True
             quantifier, quantifiable, branch_start = char, False, False
+            just_closed_varies = None
         elif char == "{":
             match = _REPETITION.match(pattern, index)
             if match is None:
@@ -365,7 +381,18 @@ def _scan_portable(pattern: str) -> None:
             low, high = match.group(1), match.group(3)
             if high is not None and int(high) < int(low):
                 _refuse("inverted repetition", match.group(0), "the minimum exceeds the maximum")
+            # `{n}` and `{n,n}` match exactly n — a fixed length, so a body
+            # containing only those can be split exactly one way. Anything
+            # else varies. Only an *unbounded* outer repetition can blow up.
+            unbounded = match.group(2) is not None and high is None
+            varies = match.group(2) is not None and high != low
+            if unbounded and just_closed_varies:
+                _refuse_nested_repetition(pattern)
+            if varies:
+                for level in range(len(group_bodies)):
+                    group_bodies[level] = True
             quantifier, quantifiable, branch_start = match.group(0), False, False
+            just_closed_varies = None
             index = match.end() - 1
         elif char == "}":
             _refuse("unescaped '}'", "}", "no repetition opened it; write \\} for a literal brace")
@@ -379,12 +406,45 @@ def _scan_portable(pattern: str) -> None:
             index += 1
         else:  # '.' and every ordinary literal
             quantifiable, quantifier, branch_start = True, None, False
+            just_closed_varies = None
         index += 1
 
     if depth:
         _refuse("unbalanced '('", "(?:", "no ')' closes it")
     if not (opened and closed):
         _refuse_unanchored(pattern)
+
+
+def _refuse_nested_repetition(pattern: str) -> NoReturn:
+    """An unbounded quantifier repeating a group that already repeats
+    (RFC 0016 D96).
+
+    ``^(?:a+)+$`` and friends are the standard catastrophic-backtracking
+    family: the two quantifiers can split the same input exponentially many
+    ways, so a non-matching subject makes the engine try all of them. Measured
+    on a backtracking matcher, ``^(?:a+)+$`` against 23 characters already
+    takes tens of milliseconds and doubles with each one added.
+
+    Refused at the spec layer rather than left to the engine, because only one
+    of the three targets is exposed and the exposure is invisible from the
+    spec: DuckDB (RE2) and Trino (RE2J) match in linear time and would shrug,
+    while **Postgres** backtracks and hangs the model. A rule that is fine on
+    two engines and a denial of service on the third is exactly the
+    "silently means something else on another dialect" failure the portable
+    subset already exists to prevent — this is the same argument applied to
+    cost rather than to meaning.
+
+    Capturing groups were already refused, so ``(?:…)`` is the only spelling
+    that reaches here.
+    """
+    _refuse(
+        "nested unbounded repetition",
+        pattern,
+        "an unbounded quantifier repeating a group that itself repeats without bound is the "
+        "catastrophic-backtracking shape: on Postgres it is a denial of service, while RE2 "
+        "engines shrug, so the rule would pass review on DuckDB and hang production. Fix: "
+        "bound one of the two ('(?:a+){1,8}'), or write the inner repetition alone ('a+')",
+    )
 
 
 def _refuse_unanchored(pattern: str) -> NoReturn:
