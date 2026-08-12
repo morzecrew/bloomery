@@ -25,8 +25,9 @@
 ## 1. Summary
 
 `bloomery.__all__` exports 29 symbols but not the types those symbols consume and return:
-`compile_project` returns `EmittedArtifact` and accepts `NamingPolicy`, `Catalog`,
-`Project` and `StepRegistry` — none of which a caller can name from the root namespace.
+`compile_project` returns `tuple[EmittedArtifact, ...]` and accepts `NamingPolicy`,
+`Catalog`, `Project` and `StepRegistry` — none of which a caller can name from the root
+namespace.
 This RFC adopts **signature closure** as the rule (anything appearing in a public
 signature is itself public), enforced by a test rather than by review.
 
@@ -73,7 +74,18 @@ Verified against `main` @ `3da72c5` (2026-08-12):
   its own subpackage's `__all__`, so the deep path is supported but unadvertised:
   `EmittedArtifact`, `ArtifactKind`, `NamingPolicy`, `DefaultNaming`, `Project`,
   `Catalog`, `StepRegistry`, `EMPTY_REGISTRY`, `Explanation`, `ProjectIR`, `Clause`,
-  `Scalar`. Twelve.
+  `Scalar`, `LogicalType`. Thirteen.
+- **Absent from every `__all__`:** `ColumnRole`
+  ([`planner/result.py:30`](../src/bloomery/planner/result.py)), the type of
+  `ColumnDescriptor.role` — a root-exported dataclass. It is not deep-importable in the
+  supported sense the bullet above describes, because no subpackage declares it. Closure
+  reaches it, so it is the fourteenth addition and the one with no fallback path today.
+- **`typing.get_type_hints` fails on 7 of the 29 exports** — `compile_project`,
+  `build_project_ir`, `plan`, `resolve`, `ColumnDescriptor`, `Resolution`, `RowPolicy` —
+  with `NameError`. Each module combines `from __future__ import annotations` with
+  `if TYPE_CHECKING:` imports, so the annotation is a string naming something that does
+  not exist at run time. Supplying the module globals does not help; the name was never
+  imported. This is the mechanism decision 1 proposes to enforce the rule with (§5.1).
 - `bloomery.planner.__all__` — 19 symbols, complete for its own surface.
 - `bloomery.steps.__all__` — 10 symbols; **`assert_step_contract` is not among them.**
 - [`emit/steps.py:246`](../src/bloomery/emit/steps.py) emits
@@ -114,7 +126,7 @@ Verified against `main` @ `3da72c5` (2026-08-12):
 parameter, a return, a generic argument, or an attribute of a returned dataclass — that
 type is exported from `bloomery` too.
 
-Applying it mechanically to the current surface yields **twelve** additions:
+Applying it mechanically to the current surface yields **fourteen** additions:
 
 | Symbol | Reached via |
 |---|---|
@@ -126,6 +138,31 @@ Applying it mechanically to the current surface yields **twelve** additions:
 | `ProjectIR` | `build_project_ir` return, `plan(old, new)` params |
 | `Explanation` | `QueryPlan.explanation` |
 | `Clause`, `Scalar` | `MetricRequest.filters`, `Predicate.values` |
+| `LogicalType` | `ColumnDescriptor.type` |
+| `ColumnRole` | `ColumnDescriptor.role` |
+
+**The rule has to terminate, and saying where is part of adopting it.** `ProjectIR` is
+on the list, and `ProjectIR` is the root of a deep tree: `EntityIR` → `ColumnIR` →
+`DecimalType`, `MartIR` → `MartColumnIR` → `DimensionRef`, and so on. Read as a fixpoint
+over dataclass fields, closure pulls **65** names into the root namespace — measured, not
+estimated — which is not a public API, it is the IR with a different import path.
+
+So the rule stops at **handle types**: a type a caller receives and passes back without
+destructuring. `ProjectIR` is one — `build_project_ir` returns it, `plan()` and
+`project_fingerprint()` consume it, and nothing in the documented workflow reads a field
+off it. Its internals stay under RFC 0003 and remain deep-importable. Closure descends
+through `QueryPlan`, `Explanation`, `ColumnDescriptor`, `Resolution` and `MetricRequest`,
+which callers genuinely read, and stops at `ProjectIR`, `Project` and `Catalog`, which
+they do not. A handle that later grows a documented field stops being a handle, and the
+count moves with it.
+
+**The enforcement mechanism has a prerequisite** (§3): `typing.get_type_hints` raises
+`NameError` on 7 of the 29 exports today, `compile_project` among them, because their
+annotations are PEP 563 strings naming `TYPE_CHECKING`-only imports. The closure test
+cannot walk what it cannot resolve, and resolving it is not a test-side fix — the names
+must exist at run time. Lifting the `TYPE_CHECKING` guard on **public** signatures is
+therefore the first task of the wave, ahead of the test itself. It costs a handful of
+import cycles' worth of care and nothing else; the guards on internal signatures stay.
 
 Errors are the deliberate exception. `errors.py` declares a large hierarchy and
 root-exporting all of it would swamp the namespace; the root keeps `BloomeryError` (the
@@ -217,7 +254,7 @@ a metric set.
 
 What is actually wrong is the opposite of an absence — the keys do not *do* anything:
 
-```
+```text
 spec_version: 99      accepted, silently treated as v1
 mapping_version: 42   accepted, silently treated as v1
 steps_version: 2      refused — "Input should be 1"
@@ -302,7 +339,7 @@ across 24k lines into a build failure.
 
 | # | Decision |
 | --- | --- |
-| 1 | **Signature closure** is the root-namespace rule: any type appearing in a public signature, return, generic argument, or returned-dataclass field is itself exported from `bloomery`. **Twelve** types are added under it (§5.1). Enforced by a unit test walking `get_type_hints`, not by review. |
+| 1 | **Signature closure** is the root-namespace rule: any type appearing in a public signature, return, generic argument, or returned-dataclass field is itself exported from `bloomery`. **Fourteen** types are added under it (§5.1), the walk stopping at handle types (decision 9). Enforced by a unit test walking `get_type_hints`, not by review — a walk that decision 10 has to make runnable first. |
 | 2 | **Errors are the one exemption**, carried as an explicit allowlist in the closure test: the root keeps `BloomeryError`; leaves stay in `bloomery.errors`, which is a declared `__all__` and a supported import path. An exemption in code is visible; an exemption in someone's head is not. |
 | 3 | **`assert_step_contract` is promoted to `bloomery.steps.__all__`** and the generated wrapper's import rewritten to the shallow path. The module path was de-facto public API — imported by bloomery's own artifacts shipped into consumer repositories — with no declaration and no test protecting it. `bloomery.steps.contract` keeps working; this adds a supported path rather than removing an unsupported one. A golden assertion pins the emitted import line. |
 | 4 | **`ColumnDescriptor` gains `sql_alias`, additively** (closes RFC 0009 D24). `name` keeps meaning the requested dimension; `sql_alias` carries what the SQL returns. Additive beats the cleaner rename because every consumer binds positionally today and the rename would break them all to satisfy a preference; the recorded defect — by-name binding finding nothing — is closed either way. `Explanation` continues to speak `name`. |
@@ -310,6 +347,8 @@ across 24k lines into a build failure.
 | 6 | **Deep imports outside a declared `__all__` carry no promise**, stated in the policy. This is what makes decision 3 a fix rather than a courtesy, and what keeps the subpackage layering meaningful. |
 | 7 | **The four permissive version keys are pinned to `Literal[1]`**, matching `steps_version`. The draft proposed *adding* keys on the belief that four kinds lacked them; every kind already has one, and the key is the document-kind **discriminator** — a document without it cannot be identified at all, so "missing means 1" would break loading rather than preserve it. The real defect is that `spec_version: 99` and `mapping_version: 42` are accepted and silently read as v1, so a spec written for a future bloomery is misread rather than refused. `spec_version` keeps its irregular name: renaming is a breaking change for consistency alone. |
 | 8 | This RFC **does not schedule a release**. The surface is worth being correct independently, and the work is cheapest while nothing is bound to it. |
+| 9 | **Closure stops at handle types**, named in §5.1: `ProjectIR`, `Project` and `Catalog` are received and passed back, never destructured, so the walk does not descend into them. Without this the rule is a fixpoint over the whole IR — measured at **65** additions — which would export RFC 0003's internals as public API under a naming rule. The cost is stated: a handle that grows a documented field stops being one, and the export list grows with it. |
+| 10 | **The `TYPE_CHECKING` guard is lifted on public signatures before the closure test lands.** `typing.get_type_hints` currently raises `NameError` on 7 of the 29 exports, including `compile_project`, because `from __future__ import annotations` plus a `TYPE_CHECKING`-only import leaves the annotation naming something absent at run time. Decision 1's enforcement is unimplementable until those names are importable at run time — a prerequisite the design did not see, found by running the proposed walk rather than by reading it. Guards on internal signatures are untouched. |
 
 ## 12. Phasing
 
@@ -318,7 +357,8 @@ RFC 0020's CLI is a shell over this surface and RFC 0022 adds root exports under
 decision 1, so both assume the closure test exists. Independent of RFC 0019 (which moves
 internal module paths only, none of them public under decision 6) and of RFC 0021.
 
-Within the wave: the closure test lands **first and red**, listing the twelve additions as
-its own failure output; then the additions; then decisions 3–5; then decision 7. Landing
-the test first is the point — it proves the rule catches the thing before the thing is
-fixed.
+Within the wave: the `TYPE_CHECKING` guards on public signatures are lifted first
+(decision 10) — without that the test cannot run at all; then the closure test lands
+**red**, listing the fourteen additions as its own failure output; then the additions;
+then decisions 3–5; then decision 7. Landing the test before the additions is the point —
+it proves the rule catches the thing before the thing is fixed.
