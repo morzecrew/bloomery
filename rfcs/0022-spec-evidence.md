@@ -107,11 +107,12 @@ Verified against `main` @ `3da72c5` (2026-08-12):
 ```python
 # bloomery/evidence.py  (new, public)
 
-@dataclass(frozen=True)
-class UnreachableMetric:
-    metric: str
-    missing: tuple[str, ...]        # the specific leaves — RFC 0005's substance
-    via: tuple[str, ...] = ()       # intermediate metrics, when blocked transitively
+# UnreachableMetric is NOT declared here — the IR already has it (see below);
+# it gains `via` and is re-exported:
+#
+#     name: str
+#     missing: tuple[str, ...]     # the specific leaves — RFC 0005's substance
+#     via: tuple[str, ...] = ()    # intermediate metrics, when blocked transitively
 
 @dataclass(frozen=True)
 class MartSummary:
@@ -132,7 +133,49 @@ class SpecEvidence:
     fingerprint: str | None                 # None when the IR did not build
 ```
 
-All tuples sorted lexicographically — determinism applies here as everywhere.
+All tuples sorted, and each by a **declared key** — determinism applies here as
+everywhere, and `sorted()` over `BloomeryError` or `MartSummary` values does not merely
+order badly, it raises `TypeError`: neither defines `__lt__`, and Python has no
+lexicographic fallback for dataclasses or exceptions. The keys are part of the contract,
+not an implementation detail:
+
+| Field | Sort key |
+|---|---|
+| `reachable`, `entities` | the string itself |
+| `unreachable` | `(name, missing, via)` |
+| `marts` | `(name, grain)` |
+| `refusals` | `(source_path or "", type(err).__name__, str(err))` |
+
+`source_path` is optional on `BloomeryError`, so the empty string stands in for `None`
+rather than the sort failing on a mixed tuple — a refusal with no source path sorts first
+and deterministically.
+
+**`UnreachableMetric` already exists**, in
+[`ir/nodes.py:552`](../src/bloomery/ir/nodes.py) — as `(name, missing)`, populated by
+`resolve()` and carried on `ProjectIR.unreachable`. Declaring a second dataclass of the
+same name in `bloomery/evidence.py` and root-exporting it would leave two types with one
+name, differing in a field, one of them reachable from `ProjectIR` and the other from
+`SpecEvidence`; a caller comparing them would get `False` and no explanation.
+
+So `evidence.py` does not define it. The **IR type is extended** with `via: tuple[str, ...]
+= ()`, defaulted so every existing construction keeps working, and re-exported. That is
+also what §5.2's "projection, not recomputation" already implies: `SpecEvidence.unreachable`
+*is* `ProjectIR.unreachable`, not a copy of it in a parallel shape.
+
+**That addition is not free, and the default does not make it free.** The canonical
+encoder ([`ir/fingerprint.py:54`](../src/bloomery/ir/fingerprint.py)) writes a
+dataclass as its class name, its **field count**, then each field name and value:
+
+```text
+CS17:UnreachableMetric2:S4:nameS1:xS7:missingT1:S1:y      # today
+CS17:UnreachableMetric3:S4:nameS1:xS7:missingT1:S1:yS3:viaT0:   # with via
+```
+
+So every spec with an unreachable metric gets a new `blm1:` fingerprint, and
+`bloomery_ir_version` goes 4 → 5 — the managed path RFC 0016 and RFC 0017 already took.
+The draft's `name` → `metric` rename costs **exactly the same** by the same encoding, so
+cost is not what decides between them: the rename is dropped because it buys a synonym,
+while `via` carries information nothing else does.
 
 `stage_reached` is what makes partiality honest:
 
@@ -152,7 +195,7 @@ before reading anything else**, and the docstring says so.
 `evaluate()` runs the pipeline and, at the first stage that refuses, **stops and reports
 what completed** — rather than propagating.
 
-```
+```text
 parse ──▶ resolve ──▶ typecheck ──▶ guardrails ──▶ marts ──▶ COMPLETE
   │          │            │             │            │
   └──────────┴────────────┴─────────────┴────────────┴──▶ SpecEvidence(stage_reached=…)
@@ -224,7 +267,7 @@ spec change, complementing `plan()`'s assessment of a spec *diff*.
 `SpecEvidence` is deliberately half of what a reviewer needs. The other half is
 data-dependent — coercion rates, null deltas, sample rows — and requires execution.
 
-```
+```text
 bloomery.evaluate()   →  static evidence      (specs only, no data)
 platform dry-run      →  data evidence        (sample rows through the emitted SQL)
              ↘
@@ -243,16 +286,16 @@ Per RFC 0009 tiers. Unit-tier throughout — no infrastructure.
 
 | Tier | Test |
 |---|---|
-| Unit | Every fixture: `evaluate()` returns `stage_reached=COMPLETE`, `refusals=()`, and `reachable`/`unreachable` **equal to** what `resolve()` returns — the composition is proven, not assumed. |
+| Unit | Every **valid** fixture: `evaluate()` returns `stage_reached=COMPLETE`, `refusals=()`, and `reachable`/`unreachable` **equal to** what `resolve()` returns — the composition is proven, not assumed. The deliberately invalid fixtures are covered by the three rows below, which assert the opposite outcome. |
 | Unit | `fanout_trap` returns `stage_reached=GUARDRAILS` with the `GrainViolation` in `refusals`, and does **not** raise. |
 | Unit | A spec with a parse error returns `stage_reached=PARSE`, `fingerprint=None`, and empty analysis tuples. |
 | Unit | A spec refused at `guardrails` still carries the `resolve`-stage reachability computed before the refusal — the partiality claim, tested on the case it exists for. |
-| Unit | `evaluate()` never raises `BloomeryError` for any fixture, including deliberately invalid ones. |
+| Unit | `evaluate()` never raises `BloomeryError` **other than `InvariantViolated`** for any fixture, including deliberately invalid ones. The exclusion is not a caveat on the promise, it is §5.3's boundary: `InvariantViolated` subclasses `BloomeryError` but reports a bloomery bug, not a spec refusal, so reporting it as one would hide it. |
 | Unit | A programming error (malformed `StepRegistry` type) **does** raise — the catch is narrow. |
 | Unit | `InvariantViolated` propagates rather than being reported as a refusal (§5.3). |
 | Unit | `MartSummary` fields match `ProjectIR` for every fixture with marts (projection, not recomputation). |
 | Property | `evaluate()` is deterministic across `PYTHONHASHSEED`; all tuples sorted. |
-| Unit | RFC 0018 signature closure holds — `SpecEvidence`, `UnreachableMetric`, `MartSummary`, `Stage` are root-exported. |
+| Unit | RFC 0018 signature closure holds — `SpecEvidence`, `UnreachableMetric`, `MartSummary`, `Stage` **and `MaterializationName`** are root-exported. The last is reached through `MartSummary.materialization` and is easy to miss precisely because it is a `Literal` alias rather than a class; RFC 0018's own inventory missed `LogicalType` the same way. |
 | Unit | RFC 0020's suggestion fields survive into `refusals` unchanged. |
 
 The fourth row is the one that would catch a regression to the old behaviour: it is easy to
@@ -320,6 +363,7 @@ prefix, which passes every other test here.
 | 8 | **`bloomery resolve` (RFC 0020) is re-pointed at `evaluate()`** when this lands, gaining refusal reporting, as an amendment to that RFC rather than a new command. A spec author mid-draft wants reachability *and* refusals in one output. |
 | 9 | **`SpecEvidence` carries facts, never judgement** — no score, no confidence, no approve/reject. The reviewer decides; bloomery reports. This mirrors RFC 0005's rule that the compiler validates a recorded recipe but never chooses one. |
 | 10 | **The composition is tested by equality**, not by inspection: for every fixture, `evaluate()`'s reachability equals `resolve()`'s. A third entry point that drifts from the second is the failure mode this RFC could plausibly introduce. |
+| 11 | **`UnreachableMetric` is extended, not redeclared, and the IR version moves with it.** The draft declared a new dataclass of that name in `evidence.py`; `ir/nodes.py:552` already has one, on `ProjectIR.unreachable` — the very tuple `SpecEvidence` projects. Two same-named public types differing by a field is a trap with no upside, so the IR type gains `via: tuple[str, ...] = ()` and is re-exported. The default does **not** make this free: the encoder writes each dataclass's field *count* and names, so any spec with an unreachable metric re-fingerprints and `bloomery_ir_version` goes 4 → 5. The draft's `name` → `metric` rename was measured at the identical cost; it is dropped for buying only a synonym, not for being expensive. |
 
 ## 12. Phasing
 
