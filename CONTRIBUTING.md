@@ -28,8 +28,12 @@ Design decisions in this repository live in `rfcs/` — the RFC corpus is a comm
 deliverable, indexed by [`rfcs/INDEX.md`](rfcs/INDEX.md). Before a large change (a new
 compile stage, a new emitter target, a change to the IR or the determinism contract),
 write an RFC first: it is far cheaper to review a design than to review an implementation
-of the wrong design. Small fixes and additions within an accepted RFC's scope do not need
-one.
+of the wrong design. Small fixes and additions within a live RFC's scope do not need one.
+
+The corpus holds only designs that have not yet landed. **When the work an RFC describes is
+complete — or the design is rejected — retire the RFC in the same change**: `git rm` the
+file and drop its row from the index. The code, tests and docs become the account of shipped
+behaviour, and `git log --diff-filter=D -- rfcs/` recovers any retired document's text.
 
 ## Development Setup
 

@@ -8,17 +8,16 @@
   policy distinguishing three surfaces with genuinely different promises — Python API,
   spec YAML schema, emitted artifacts. Does **not** schedule a release, add capability,
   or change any emitted SQL.
-- **Related:** [RFC 0002](0002-spec-layer-and-errors.md) (error hierarchy),
-  [RFC 0003](0003-ir-and-determinism.md) (`blm1:` fingerprint, `bloomery_ir_version`),
+- **Related:** RFC 0002 (error hierarchy), RFC 0003 (`blm1:` fingerprint,
+  `bloomery_ir_version`),
   [RFC 0008](0008-ports-and-emitters.md) (`EmittedArtifact`, `NamingPolicy`, `Feature`),
   [RFC 0009](0009-testing-strategy.md) D24 (the `QueryPlan.columns` finding),
-  [RFC 0011](0011-native-planner.md) (the planner contract),
-  [RFC 0015](0015-query-vocabulary.md) D9 (`KNOWN_UNSUPPORTED` export),
-  [RFC 0017](0017-step-registry.md) (the step contract module).
+  RFC 0011 (the planner contract), RFC 0015 D9 (`KNOWN_UNSUPPORTED` export),
+  RFC 0017 (the step contract module).
   Blocks [RFC 0020](0020-authoring-ergonomics.md) (the CLI is a shell over this surface)
   and [RFC 0022](0022-spec-evidence.md) (which adds root exports).
-- **Adoption audit:** [`_adoption-audit-0018-0022.md`](_adoption-audit-0018-0022.md) —
-  §3's figures and §5.5's premise were corrected against the tree before adoption.
+- **Adoption audit:** §3's figures and §5.5's premise were corrected against the tree
+  before adoption.
 
 ---
 

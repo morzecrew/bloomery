@@ -106,8 +106,9 @@ vocabulary with its JSON filter front door — 1200+ tests across the default ti
 end-to-end and cross-target equivalence tiers are still landing. **The API is not
 stable yet** — anything may change before 0.1.
 
-The design lives as RFCs in [`rfcs/`](rfcs/INDEX.md); code that contradicts an accepted
-RFC is the bug, not the RFC.
+Designs that have not yet landed live as RFCs in [`rfcs/`](rfcs/INDEX.md); code that
+contradicts a live RFC is the bug, not the RFC. An RFC is retired once it ships — the
+code, the tests and the documentation are the account of what bloomery already does.
 
 ## Documentation
 

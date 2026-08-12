@@ -5,9 +5,14 @@ compiled — as a pure function — into SQLMesh, dbt, and Cube artifacts.
 
 ## Design source of truth
 
-The RFC corpus under [`rfcs/`](rfcs/) is the design authority, indexed by
-[`rfcs/INDEX.md`](rfcs/INDEX.md). Before a large change, write or amend an RFC; code that
-contradicts an accepted RFC is the bug, not the RFC.
+The RFC corpus under [`rfcs/`](rfcs/) is the design authority for work **not yet landed**,
+indexed by [`rfcs/INDEX.md`](rfcs/INDEX.md). Before a large change, write or amend an RFC;
+code that contradicts a live RFC is the bug, not the RFC.
+
+A landed RFC is retired — deleted — in the change that completes it, so that the code, tests
+and docs stay the single account of shipped behaviour. Citations like `RFC 0016 D84`
+throughout the source therefore name documents no longer in the tree: they record where a
+decision came from, and `git log --diff-filter=D -- rfcs/` recovers the text.
 
 ## Gates
 

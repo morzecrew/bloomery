@@ -8,17 +8,16 @@
   highest-frequency refusals. The CLI is the only component in the package permitted to
   touch the filesystem; the library's no-I/O invariant is unchanged and newly enforced by
   the layering that separates them.
-- **Related:** [RFC 0002](0002-spec-layer-and-errors.md) (strict frozen Pydantic specs,
-  batched errors with source paths), [RFC 0005](0005-resolution.md) (`Resolution`,
-  reachability with specific missing leaves),
-  [RFC 0015](0015-query-vocabulary.md) (`KNOWN_UNSUPPORTED`, the closed refusal list —
-  the precedent for machine-readable reasons),
+- **Related:** RFC 0002 (strict frozen Pydantic specs, batched errors with source paths),
+  RFC 0005 (`Resolution`, reachability with specific missing leaves), RFC 0015
+  (`KNOWN_UNSUPPORTED`, the closed refusal list — the precedent for machine-readable
+  reasons),
   [RFC 0018](0018-public-surface-and-stability.md) (**blocking**: the CLI is a shell over
   that surface), [RFC 0019](0019-lowering-decomposition.md) (the purity guard the CLI must
   be carved out of), [RFC 0022](0022-spec-evidence.md) (`bloomery resolve` becomes a thin
   wrapper over `evaluate()` once it lands).
-- **Adoption audit:** [`_adoption-audit-0018-0022.md`](_adoption-audit-0018-0022.md) —
-  one of the two cited precedents for §5.4 turned out to be prose rather than a field.
+- **Adoption audit:** one of the two cited precedents for §5.4 turned out to be prose
+  rather than a field.
 
 ---
 

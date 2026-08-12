@@ -12,8 +12,8 @@
   questions #1 (files vs Python models), #3 (date dimension) and #5 (quarantine). New
   modules: `bloomery/emit/`, `bloomery/dialects/`, `bloomery/naming.py`. Does not cover how
   the IR is computed (RFCs 0004–0006) or diffed (RFC 0007).
-- **Related:** [`rfcs/_original-smelter-spec.md`](_original-smelter-spec.md) §4, §5.6, §9,
-  §12; RFC 0003 (IR, `SqlExpr`), RFC 0006 (additivity defense-in-depth at emit).
+- **Related:** `_original-smelter-spec.md` §4, §5.6, §9, §12; RFC 0003 (IR, `SqlExpr`),
+  RFC 0006 (additivity defense-in-depth at emit).
 
 ---
 

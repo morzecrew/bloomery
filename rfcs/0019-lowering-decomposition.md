@@ -8,15 +8,13 @@
   guards — a purity check and an import-layering check — that make the decomposition
   hold.
 - **Related:** [RFC 0008](0008-ports-and-emitters.md) (the three-port design this
-  preserves), [RFC 0007](0007-plan-and-change-classification.md) (`plan/diff.py`),
-  [RFC 0016](0016-data-quality.md) / [RFC 0017](0017-step-registry.md) (the two RFCs
-  whose lowering shares this file), [RFC 0009](0009-testing-strategy.md) (the golden
-  matrix that proves the refactor inert),
+  preserves), RFC 0007 (`plan/diff.py`), RFC 0016 / RFC 0017 (the two RFCs whose lowering
+  shares this file), [RFC 0009](0009-testing-strategy.md) (the golden matrix that proves
+  the refactor inert),
   [RFC 0018](0018-public-surface-and-stability.md) decision 6 (deep imports carry no
   promise — which is what makes moving these paths free).
-- **Adoption audit:** [`_adoption-audit-0018-0022.md`](_adoption-audit-0018-0022.md) —
-  §5.2 and §5.4 overstated what is missing; both corrected, and §10's third question is
-  answered.
+- **Adoption audit:** §5.2 and §5.4 overstated what is missing; both corrected, and §10's
+  third question is answered.
 
 ---
 

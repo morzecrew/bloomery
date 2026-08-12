@@ -8,17 +8,15 @@
   left unbuilt**, demand-driven. Incremental-strategy inference is **closed as "no."**
   The Cube emitter's thinness is **recorded as a known asymmetry** in the equivalence
   tier. Adds one fixture, one docs page, and one paragraph of policy; adds no capability.
-- **Related:** [RFC 0005](0005-resolution.md) (recipes — the compiler validates, never
-  chooses), [RFC 0008](0008-ports-and-emitters.md) (`DialectPort`, `Feature`),
-  [RFC 0009](0009-testing-strategy.md) D24 (the three-way equivalence tier),
-  [RFC 0010](0010-marts-and-role-playing.md) (marts as the gold shape),
-  [RFC 0017](0017-step-registry.md) (D36/D37 step outputs as entities, D49 `canonical:`
+- **Related:** RFC 0005 (recipes — the compiler validates, never chooses),
+  [RFC 0008](0008-ports-and-emitters.md) (`DialectPort`, `Feature`),
+  [RFC 0009](0009-testing-strategy.md) D24 (the three-way equivalence tier), RFC 0010
+  (marts as the gold shape), RFC 0017 (D36/D37 step outputs as entities, D49 `canonical:`
   links — the two mechanisms that make §5.1 work),
   [RFC 0020](0020-authoring-ergonomics.md) (the fixture doubles as a CLI example).
   Closes the original specification's §12 question 4 and RFC 0008 §10's materialization
   question.
-- **Adoption audit:** [`_adoption-audit-0018-0022.md`](_adoption-audit-0018-0022.md) —
-  every claim in §3 verified; no corrections were needed.
+- **Adoption audit:** every claim in §3 verified; no corrections were needed.
 
 ---
 
