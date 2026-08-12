@@ -41,6 +41,8 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
+from sqlglot import exp, parse_one
+
 from bloomery.errors import (
     DedupeDispositionConflict,
     DedupeTieBreakMissing,
@@ -66,7 +68,13 @@ from bloomery.quality import (
     unsupported_dialects,
 )
 from bloomery.spec.mapping import ALIAS_BOUND, RecipeFieldMapping, mapping_doc
-from bloomery.spec.quality import CoercibleRule, InEnumRule, PatternRule, ReferentialRule
+from bloomery.spec.quality import (
+    CoercibleRule,
+    ExpressionRule,
+    InEnumRule,
+    PatternRule,
+    ReferentialRule,
+)
 from bloomery.typing import StringType, parse_type
 
 if TYPE_CHECKING:
@@ -801,6 +809,95 @@ def _check_reserved_mart_name(project: Project) -> list[GuardrailError]:
     return [GuardrailError(msg, source_path=f"marts: marts.{QUALITY_MART}")]
 
 
+def _check_expression_rules(
+    entity_name: str, entity: Entity, draft: ProjectIR
+) -> list[GuardrailError]:
+    """An ``expression`` rule is a boolean predicate over the entity's **own**
+    columns — enforced, not merely documented (RFC 0016 D95).
+
+    ``ExpressionRule.expr`` is a bare string parsed and spliced into the silver
+    model, and nothing checked it. That made it the one authored-SQL surface in
+    the framework with no resolution step, while every neighbour has one:
+    ``dedupe`` columns (D47), ``reconcile`` sides against a closed grammar,
+    mart ``assert`` measures, recipe aliases exactly, ``coverage`` endpoints
+    (D91).
+
+    Three refusals, each closing something measured rather than imagined:
+
+    **A subquery.** It is the corruption vector as much as the access one. The
+    qualifier pass that binds a bare column to the extract descends into a
+    subquery too, so ``amt > (SELECT amt FROM other)`` was emitted as
+    ``_extract.amt > (SELECT _extract.amt FROM other)`` — correlated to the
+    outer row, reading nothing from ``other``. With ``amt`` 10 against 1 the
+    author's predicate is true and the rule fired anyway, flagging a good row;
+    under ``quarantine`` that diverts it out of silver. A row predicate needs
+    no subquery, and one that did could not be trusted to mean what it says.
+
+    **A column the entity does not have.** The typo D47 already refuses for
+    ``dedupe``, in its own words "a run-time binder failure on a model that
+    compiled clean".
+
+    **A qualified reference.** ``other.amt`` names a relation this predicate
+    cannot read, and the qualifier the extract binds is bloomery's own.
+    """
+    if not entity.quality:
+        return []
+    lowered = {ent.name: ent for ent in draft.entities}.get(entity_name)
+    readable = {
+        *entity.fields,
+        *entity.key,
+        *INGESTION_METADATA,
+        *(() if lowered is None else (column.name for column in lowered.columns)),
+    }
+    errors: list[GuardrailError] = []
+    for index, rule in enumerate(entity.quality):
+        if not isinstance(rule, ExpressionRule):
+            continue
+        where = _entity_path(entity_name, f"quality[{index}].expr")
+        try:
+            parsed = parse_one(rule.expr)
+        except Exception as exc:  # noqa: BLE001 — sqlglot raises its own hierarchy
+            msg = (
+                f"expression rule {rule.name!r} on entity {entity_name!r} is not parseable "
+                f"SQL: {exc!s:.120}"
+            )
+            errors.append(GuardrailError(msg, source_path=where))
+            continue
+        if next(parsed.find_all(exp.Select, exp.Subquery, exp.Exists), None) is not None:
+            msg = (
+                f"expression rule {rule.name!r} on entity {entity_name!r} contains a subquery. "
+                "A row rule is a predicate over the row, evaluated inside the model's own "
+                "SELECT, so a subquery reads a relation the rule cannot see — and the "
+                "qualifier that binds bare columns to the extract descends into it, "
+                "silently rewriting the inner reference to the outer row (RFC 0016 D95). "
+                "Fix: express the check over this entity's columns, or use reconcile: for a "
+                "comparison against another relation"
+            )
+            errors.append(GuardrailError(msg, source_path=where))
+            continue
+        qualified = sorted({col.sql() for col in parsed.find_all(exp.Column) if col.table})
+        if qualified:
+            msg = (
+                f"expression rule {rule.name!r} on entity {entity_name!r} qualifies "
+                f"{', '.join(qualified)}. A row rule reads only this entity's own columns and "
+                "the extract supplies the qualifier, so a written one either names a relation "
+                "the rule cannot read or shadows bloomery's. Fix: write the column unqualified"
+            )
+            errors.append(GuardrailError(msg, source_path=where))
+            continue
+        unknown = sorted(
+            {col.name for col in parsed.find_all(exp.Column) if col.name} - readable
+        )
+        if unknown:
+            msg = (
+                f"expression rule {rule.name!r} on entity {entity_name!r} reads "
+                f"{', '.join(unknown)}, which the entity does not declare — it would fail at "
+                f"run time on a model that compiled clean. Known columns: {sorted(readable)}"
+            )
+            errors.append(GuardrailError(msg, source_path=where))
+    return errors
+
+
 def _check_coverage(project: Project, draft: ProjectIR) -> list[GuardrailError]:
     """Every ``coverage:`` check names a declared relationship, once, whose
     **both endpoints have a relation** (RFC 0016 D90, D91).
@@ -895,6 +992,7 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
         errors.extend(_check_chain_derived_rules(entity_name, entity, mapping))
         errors.extend(_check_rule_names(entity_name, entity, mapping, relationships))
         errors.extend(_check_referential(entity_name, entity, relationships))
+        errors.extend(_check_expression_rules(entity_name, entity, draft))
         # This one reads the *lowered* rules rather than the opt-in flag:
         # ``lower_quality`` is empty for an entity that never joined the
         # quality system, so it is silently satisfied there.
