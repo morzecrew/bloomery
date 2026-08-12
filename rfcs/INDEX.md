@@ -1,22 +1,20 @@
 # RFCs
 
 Design proposals for **bloomery**, the entity-first spec compiler. This directory is
-committed — the RFC corpus is a project deliverable. Five preserved input documents:
-[`_original-smelter-spec.md`](_original-smelter-spec.md) (the original specification),
-[`_bloomery-changes.md`](_bloomery-changes.md) (scope expansion: query planning, wide
-marts, role-playing dimensions),
-[`_bloomery-metricflow-pivot.md`](_bloomery-metricflow-pivot.md) (the planner backend
-pivot: embedded MetricFlow replaces the hand-written planner lowering; milestones
-renumbered to M1–M11 with an M4.5 verification gate),
-[`_bloomery-query-vocabulary.md`](_bloomery-query-vocabulary.md) (Document 4: the
-filter/sort/pagination DSL and closed refusal list → RFC 0015), and
-[`_bloomery-quality-and-steps.md`](_bloomery-quality-and-steps.md) (Document 5:
-declarative data quality and the step registry → RFCs 0016–0017). Where RFCs diverge
-from any input document, the RFCs win.
+committed — the RFC corpus is a project deliverable.
+
+The corpus grew from five input documents — the original smelter specification, the
+scope expansion, the MetricFlow pivot, the query vocabulary, and the quality/steps
+document. They were **removed in `b0c0d3d` once every RFC that derived from them had
+shipped**, so the `_bloomery-*.md` and `_original-smelter-spec.md` references still
+appearing in RFCs 0010–0017 are historical citations rather than live links: they name
+where a decision came from, and the RFC itself is now the authority. Where an RFC ever
+diverged from its input document, the RFC won — which is why the inputs could be
+removed at all.
 
 ## Allocating a number
 
-The next free number is **0018**. Before creating an RFC, glance at the table
+The next free number is **0023**. Before creating an RFC, glance at the table
 below (or `ls` this directory) and take the next unused integer — numbers
 collide when minted in parallel. Update this table in the same change.
 
@@ -44,6 +42,59 @@ number in the filename in sync.
 | [0015](0015-query-vocabulary.md) | Query vocabulary: filters, sort, pagination | ✅ Complete | CNF filter model (`Clause = Predicate \| AnyOf`, one disjunction level) replacing the flat FilterExpr: drop `between`, split `contains` into `like`/`ilike`, string-carrier scalars with the non-finite fail-open guard, no sort-nulls control, limit-only paging; new public `planner/parse.py` normalizes Mongo-flavored JSON (De Morgan → complement → CNF → clause cap) before refusing; the closed `KNOWN_UNSUPPORTED` refusal list with drift-guard test is the deliverable. Amends shipped RFC 0003/0011/0013 surface (pre-0.1 migration). Shipped 2026-08-07 (M14); the Forze app adapter is a deliberate non-goal, not a remainder. |
 | [0016](0016-data-quality.md) | Data quality: declarative cleansing, dispositions, quarantine | ✅ Complete | Run-time row dispositions (flag/quarantine/fail/repair — deliberately no drop; `repair` was deferred at D17 and landed at D87, recording repaired rows in `_quality_repairs`) on a closed rule catalogue + mandatory-tie-break dedupe + referential `unknown_member` + reconcile; coercion failure becomes the `coercible` rule (retires `on_unmapped_enum`, supersedes RFC 0008 D7); one replayable `__reject` table per entity with required retention/redaction; `_quality_flags` on silver, `has_quality_flags` on marts, quality mart without a tenant column (invariant #3); `plan()` gains `replay_scope`; conservation law doubles as a runtime audit. Shipped 2026-08-08 (M12); `bloomery_ir_version` → 2. Amended: `coercible` is opt-in per entity (D24), the D21 audit also asserts `_ingested_at` casts to timestamp (D25, implemented D31), `referential` onto the entity itself refused (D27), conservation audit skipped for `referential`+`quarantine` (D29), Postgres cannot host quality-carrying entities, dedupe-only included — no `TRY_CAST` (D30, D31); two recorded corpus gaps (D26 unicode, D28 range). Amended 2026-08-10: the reject table's `reject_id` digest and JSON payloads are spelled by the dialect port, so **Trino hosts a reject table** (D75 closed) — and Postgres, which declared both constructions and had neither, no longer silently computes a `reject_id` in bytes; it stays blocked on D30's `TRY_CAST` alone (D83) — and D30 itself is now closed: `TRY_CAST` renders on Postgres as a guard around `pg_input_is_valid`, the engine's own parser, with run-dependent datetime literals (`now`, `today`, …) deliberately refused so a coerced value is always reproducible (D84); both recorded corpus gaps are closed — `range` by an adjacent pair one ulp apart that pins the bound's inclusive edge as well as its firing (D28 → D85), and the unicode family by two new catalogue rules, `normalize` (a value must already be in NFC) and `charset` (admissible characters declared as `U+` codepoints, allow or forbid). The confusables *table* D26 offered as an alternative was deliberately not built: versioned Unicode data would make a row's disposition depend on the compiler's Unicode revision (D26 → D86). **`repair` lands** with the recipe contract it was gated on: a recipe is a registered Tier 1 `sql_macro` (`ref@version`), which settles the inline-vs-referenced question in favour of referenced, and repaired rows are recorded in `_quality_repairs` — a column distinct from `_quality_flags`, so `has_quality_flags` keeps meaning "currently suspect" (D17 → D87). The reject schema gains `last_evaluated_at`, the escape hatch D70 named — replay's own clock, stamped on both branches and read by nothing, so retention's ageing is untouched (D70 → D88). Mart-level checks are settled as **assertions**, not quality rules: a mart row has no source identity, so no disposition applies to it — `assert:` on a mart declares an aggregate bound and lowers to an audit, and dbt/Cube refuse rather than dropping it (§10 → D89). Cross-entity rules are settled too, and not as reconcile: `coverage:` on a declared relationship asserts that every referenced row has at least `min` dependents, lowering to an audit on the **dependent** side — the side that already reads the referenced one, so the check adds no edge and the FK-plus-coverage pair cannot become a model cycle (§10 → D90). §10's questions are now all answered. Amended 2026-08-11 by review: a `coverage:` check's endpoints are checked, closing a bare `StopIteration` mid-emission and an audit attached to no model (D91); `Reconcile.on_fail` narrows to `flag \| fail` (D92); D84's run-dependent deny-list was defeated by a tab, because Postgres' `BTRIM` trims spaces where its datetime scanner skips all whitespace (D93); and D89's "and Cube" was stale on the day it was written — the code was right, the RFC is amended (D94). |
 | [0017](0017-step-registry.md) | The step registry: referenced implementations | ✅ Complete | Specs reference implementations, never contain them: four-tier ladder (transform → sql_macro → sql_model → python_model), `StepRegistry` as a pure compile input (no dynamic loading — the security property is the *absence* of a surface), manifests with typed contracts trusted at compile and enforced by a generated non-optional runtime assertion, determinism tiers with nondeterministic = compile error, `runtime_lock` in step identity so dependency bumps classify RESTATING and backfill the step's outputs. Shipped 2026-08-08 (M13); `bloomery_ir_version` → 3. Amended: step-output quality is `expression` only (D17), three implied refusals spelled (D18), bodies parsed at lowering and carried on the IR (D19), parameters carry their declared type (D20), `render_type` promoted so a repr could not silently disable the contract's type check (D21), §9's dependency-light claim measured false and only partly repairable without §8's escape hatch (D22), no `bloomery[steps]` extra because the contract needs no pandas (D23), steps diff by `ref` (D24). Amended 2026-08-11 by review: `parameter_literal` validates its numeric branch, which rendered *unquoted* and let a Tier 1 `parameters:` value splice a predicate into a projection (D53); a chain link whose macro declares an undefaulted parameter is refused rather than emitting a live `$name` placeholder (D54); and a registry key must match its manifest's identity, a mismatch having silently dropped that step's canonical links and quality rules (D55); and D53's guard was re-cut as a *syntax* check, since `Decimal` accepts `1_0`, `Infinity` and `1e400` — none of which is a SQL number — while `int` was validated as merely numeric, so `"1.5"` emitted `1.5` (D56). Four self-audits then amended it further: the generated wrapper is an escaping boundary and every literal crossing it goes through `repr()` — including the *output binding*, which the first fix missed (D25, D32); what is not built is **refused** rather than half-shipped — a wired `sql_macro`, quality rules on step outputs, and metrics or `reconcile` over a step output are all named compile errors (D26, D39, D41); step outputs are synthesized as entities so marts and downstream models can reference them, and the emitter skips those entities so nothing writes the relation twice (D36, D37); the cross-output consistency audit is built rather than demand-gated, from **declared** `references` rather than inferred key matches, with mutual references refused as a cycle (D40, D43, D44); and `step_resolution` joined the e2e tier, which is the structural fix for the blind spot behind three of those defects — nothing had ever loaded a step artifact through SQLMesh (D42, D45). and §10's `sql_model` parameter question turned out to be a hole rather than a choice — a Tier 2 body's `:name` placeholders were never substituted, so the value changed the fingerprint and never the SQL, now settled as sqlglot placeholders substituted as AST literals with body and parameters required to name the same resolved set (D47). Amended 2026-08-09: `on_fail: fail` quality rules on step outputs lower to a blocking audit, `flag`/`quarantine` still refused (D48); a wiring may declare `canonical:` links per output, which is what makes metrics and `reconcile` over a step output work (D49). Amended 2026-08-10: D31's blanket dbt/Cube refusal splits per target — **Cube stops refusing** (it builds no relation for any part of the spec, so refusing steps singled them out among everything else it already leaves alone), and **dbt emits Tier 2** as an ordinary model carrying the same SELECT SQLMesh emits, refusing Tier 3 because dbt's Python models run only on adapters bloomery does not target (D31 → D52). |
+| [0018](0018-public-surface-and-stability.md) | Public surface and stability policy | 📝 Draft | Signature closure as the root-namespace rule (any type in a public signature is public — **twelve** additions, enforced by a `get_type_hints` walk rather than review, with `bloomery.errors` the one allowlisted exemption); `assert_step_contract` promoted to `bloomery.steps.__all__` because generated artifacts already import it by module path into consumer repositories; `ColumnDescriptor` gains `sql_alias` additively, closing RFC 0009 D24 without breaking the positional binding every consumer uses today; three stability surfaces stated separately — SemVer over the Python API, per-kind document versioning over spec YAML, and emitted artifacts explicitly **not** stable (byte-reproducible for fixed inputs is determinism, not a cross-version promise). D7 was rewritten at adoption: every kind already carries a version key and that key is the document-kind **discriminator**, so the draft's "missing means 1" would have broken loading — the real defect is that four of five accept `spec_version: 99` and silently read it as v1, and they are pinned to `Literal[1]` instead. Schedules no release. |
+| [0019](0019-lowering-decomposition.md) | Lowering decomposition | 📝 Draft | `emit/lowering.py` (2,274 LOC — the one module where every target, every spec kind and both run-time subsystems are simultaneously in scope) split **by pipeline stage, never by target**, since a per-target lowering file would invert RFC 0008's port design; **three** new import-linter contracts each proven by a planted violation, contract 1 (no lowering→target import) being the one that catches the defect class RFC 0017 D25/D32 exhibits — the draft's fourth already exists as the enforced `layers` contract. The static purity hook is **promoted to a CI gate and widened**, not invented: a pre-commit pygrep already bans four spellings, but `just quality` runs only gitleaks, so `--no-verify` and CI both bypass it. `plan/diff.py` split on the same axis if it decomposes cleanly and left whole with the finding recorded if not. Size is not the trigger — convergence is. Proven inert by byte-identical goldens, where **a golden diff is a bug, never a regeneration**. |
+| [0020](0020-authoring-ergonomics.md) | Authoring ergonomics: schema export, CLI, fix suggestions | 📝 Draft | JSON Schema per spec kind (`bloomery.schema`), deterministic and golden-tested, with **every closed set emitted as an `enum`** — the property that turns a proposal loop's safety argument from a prompt instruction into a structural constraint; six CLI commands, each a pure shell over one public function, with refusal (`1`) distinguished from usage error (`2`) because a refusal is a correct outcome; `bloomery/cli/io.py` the only module permitted to touch the filesystem, a named carve-out in RFC 0019's purity allowlist enforced one-directional, so the no-I/O invariant is made structurally obvious rather than merely asserted; **five** refusals gain optional structured suggestion fields exposing values bloomery already computes and discards — `UnknownMember.did_you_mean` among them, since the audit found its docstring has promised that field since RFC 0011 while no such attribute exists. No new runtime dependency; no execution, ever. |
+| [0021](0021-capability-boundaries.md) | Capability boundaries: identity resolution, dialects, closed questions | 📝 Draft | Four carried-open questions answered in writing. **Identity resolution is a Tier 3 step, permanently** — a spec kind would give *weaker* guarantees than a step's declared runtime-enforced contract, and `runtime_lock` makes a similarity-library bump classify RESTATING where a declarative similarity function could not; shipped as a fixture running in the execution and e2e tiers, because "deferred" and "solved by an existing mechanism" are materially different statuses and only a passing fixture establishes the second. Dialects costed (~1 week each) and demand-driven on a named consumer. Incremental-strategy inference closed "no" under a durable principle: **bloomery derives defaults; it does not infer intent.** Cube's thinness recorded as an equivalence-tier triage order. States the reusable test for any future spec kind. |
+| [0022](0022-spec-evidence.md) | `SpecEvidence`: spec analysis as a first-class output | 📝 Draft | `evaluate(project) -> SpecEvidence` — everything knowable about a spec without touching data, as one call and one frozen value: reachable metrics, unreachable ones with their specific missing leaves, batched refusals with source paths, mart summaries. Refusals become a return value rather than an exception, and the pipeline **reports the prefix it completed** rather than discarding it — "seven metrics reachable, two blocked on `cogs`, one refusal at `mappings/crm.yaml`" is unavailable today at any price. `stage_reached` is mandatory to read, since an empty `unreachable` means "none" only at `COMPLETE`. Stages are never reordered to salvage more; the catch is `BloomeryError` **minus `InvariantViolated`**, which is a bloomery bug wearing a spec-refusal base class; data-dependent evidence stays out permanently. |
+
+## Wave sequence — RFCs 0018–0022
+
+The five waves continue the corpus sequence after M14 (RFC 0015).
+
+```text
+M15  RFC 0018  public surface        — blocks M17, M19
+M16  RFC 0019  lowering split        — independent (soft: after M15)
+M17  RFC 0020  ergonomics            — needs M15
+M18  RFC 0021  capability boundaries — fully independent, may run at any point
+M19  RFC 0022  spec evidence         — needs M15; soft: after M17
+```
+
+**Hard dependencies (2).** M17 and M19 need M15: RFC 0020's CLI is a shell over the public
+surface and RFC 0022 adds root exports; both assume the signature-closure test exists to
+police them. Without it, each would widen the API silently.
+
+**Soft orderings (3).** M16 after M15, because RFC 0018 decision 6 (deep imports carry no
+promise) is what makes the module moves free. M19 after M17, so `bloomery resolve` is
+re-pointed at `evaluate()` rather than written twice. M18 before or with M17, since
+RFC 0021's `identity_resolution` fixture is a richer CLI worked example than `minimal`.
+
+M18 is fully independent and mostly documentation; its policy half (decisions 4–8) can land
+as a single small change at any time, ahead of the fixture.
+
+## Provenance of RFCs 0018–0022
+
+These five derive from an evolution analysis of the shipped library rather than from one of
+the preserved input documents above. The same rule applies: **where the RFCs diverge from
+the analysis, the RFCs win** — and they do, in three places worth recording because the
+analysis was wrong and the RFCs are right.
+
+1. The analysis reported the public API as having "real holes." The subpackage `__all__`s
+   are in fact complete — `bloomery.planner` exports 19 symbols including
+   `KNOWN_UNSUPPORTED`, `bloomery.steps` exports 10 including `StepRegistry`. The actual
+   defect is narrower and better-framed: an **unstated layering policy** at the root, which
+   RFC 0018 fixes with signature closure rather than with bulk re-export.
+2. The analysis treated `emit/lowering.py`'s size as the problem. RFC 0019 rejects size as
+   a trigger — `guardrails/quality.py` at 1,062 LOC is explicitly *not* split — and names
+   convergence instead, with two structural symptoms as the durable test.
+3. The analysis framed the goal as "ship 0.1." RFC 0018 schedules no release: the surface
+   is worth being correct on its own terms, and the work is cheapest while nothing is bound
+   to it.
+
+A fourth divergence was found while adopting them, and it runs the other way — the drafts
+themselves carried claims the tree contradicted. Those are recorded in
+[`_adoption-audit-0018-0022.md`](_adoption-audit-0018-0022.md), which is where to look
+before trusting a "current state" figure in any of the five.
 
 ## Status legend
 
