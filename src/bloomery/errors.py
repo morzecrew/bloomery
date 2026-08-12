@@ -118,7 +118,7 @@ class BloomeryError(Exception):
 
 class InvariantViolated(BloomeryError):
     """A guarantee an earlier stage was supposed to have established did not
-    hold (RFC 0003 D9).
+    hold (RFC 0003 D11).
 
     Never an authored spec's fault. Every lookup that raises this is total
     *because a guardrail already refused the case that would break it*, so

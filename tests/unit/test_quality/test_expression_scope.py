@@ -28,6 +28,7 @@ MAPPING = (
     "mapping_version: 1\ntarget: t\nsource: raw__t\n"
     'key:\n  k: {from: "$.k", transform: [to_string]}\n'
     'fields:\n  amt: {from: "$.amt", transform: [{name: to_decimal, args: [12, 4]}]}\n'
+    '  live: {from: "$.live", transform: [to_bool]}\n'
     'unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]\n'
 )
 
@@ -39,7 +40,11 @@ entities:
   t:
     grain: one row per t
     key: [k]
-    fields: {{k: {{type: string, required: true}}, amt: {{type: 'decimal(12,4)'}}}}
+    fields:
+      k: {{type: string, required: true}}
+      amt: {{type: 'decimal(12,4)'}}
+      live: {{type: bool}}
+      ghost: {{type: int}}
     quarantine: {{retention: 90d}}
     quality:
       - {{rule: expression, name: r, expr: "{expr}", on_fail: flag}}
@@ -152,3 +157,47 @@ def test_a_legitimate_rule_still_reaches_the_emitted_sql() -> None:
     """End to end: the predicate an author writes survives to the model."""
     body = compile_silver("amt > 0")
     assert "_extract.amt > 0" in extract_select(body)
+
+
+# ....................... #
+# Round two of review, each reproduced before it was fixed
+
+
+def test_a_declared_field_no_mapping_lowers_is_refused() -> None:
+    """``ghost`` is declared on the entity and filled by no mapping, so it is
+    never projected — the scope check read *declared fields* and let it
+    through, which is the binder failure this module exists to prevent wearing
+    a different hat. The readable set is now the lowered columns."""
+    with pytest.raises(GuardrailError, match="reads ghost"):
+        compile_silver("ghost > 0")
+
+
+@pytest.mark.parametrize("expr", ["amt", "amt + 1"])
+def test_a_non_boolean_expression_is_refused(expr: str) -> None:
+    """``ExpressionRule`` is defined as a boolean row predicate and the
+    lowering emits ``NOT (...)`` around it, which a numeric operand either
+    refuses or coerces differently per dialect."""
+    with pytest.raises(GuardrailError, match="not a boolean predicate"):
+        compile_silver(expr)
+
+
+def test_a_boolean_column_on_its_own_is_still_a_predicate() -> None:
+    """The half a naive shape check would break: ``live`` is a ``bool`` field,
+    so naming it alone is a perfectly good rule. Decided from the model rather
+    than the AST, which is the only place the answer exists."""
+    assert "_quality_flags" in compile_silver("live")
+
+
+def test_a_second_statement_is_refused() -> None:
+    """``parse_one`` returns a ``Block`` for ``amt > 0; DELETE FROM x``, and
+    the lowering would wrap the whole block in ``NOT (...)`` — emitting
+    invalid SQL rather than refusing."""
+    with pytest.raises(GuardrailError, match="more than one statement"):
+        compile_silver("amt > 0; DELETE FROM x")
+
+
+def test_an_unquoted_column_matches_case_insensitively() -> None:
+    """An unquoted SQL identifier is case-insensitive on all three targets, so
+    a rule saying ``AMT`` names the same column as a field spelled ``amt``.
+    Refusing it would have been a new false refusal, not a fix."""
+    assert "_quality_flags" in compile_silver("AMT > 0")

@@ -39,9 +39,10 @@ would put names in ``errors.py`` the design authority does not have.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from sqlglot import exp, parse_one
+from sqlglot.expressions.core import Expression
 
 from bloomery.errors import (
     DedupeDispositionConflict,
@@ -75,10 +76,10 @@ from bloomery.spec.quality import (
     PatternRule,
     ReferentialRule,
 )
-from bloomery.typing import StringType, parse_type
+from bloomery.typing import BoolType, StringType, parse_type
 
 if TYPE_CHECKING:
-    from bloomery.ir import ProjectIR
+    from bloomery.ir import EntityIR, ProjectIR
     from bloomery.spec.entity import Entity, Relationship
     from bloomery.spec.mapping import Mapping
     from bloomery.spec.project import Project
@@ -809,6 +810,33 @@ def _check_reserved_mart_name(project: Project) -> list[GuardrailError]:
     return [GuardrailError(msg, source_path=f"marts: marts.{QUALITY_MART}")]
 
 
+#: Top-level shapes that are *definitely* not a boolean predicate. A denylist
+#: rather than the allowlist this codebase prefers, and deliberately: the space
+#: of SQL expressions is open, so an allowlist would refuse every
+#: boolean-returning function nobody thought to enumerate. These four are
+#: arithmetic — never boolean on any dialect — and a bare literal.
+_NOT_BOOLEAN = (exp.Add, exp.Sub, exp.Mul, exp.Div, exp.Mod, exp.Literal)
+
+
+def _is_boolean_shaped(node: Expression, entity: EntityIR) -> bool:
+    """Whether the top-level expression can be a boolean predicate.
+
+    Conservative in the *accepting* direction: anything unclassifiable passes,
+    because a function call may well return a boolean and guessing would refuse
+    working rules. Only shapes that cannot be boolean are rejected.
+
+    A bare column is the one case decided from the model rather than the AST:
+    ``is_active`` is a perfectly good row rule when the field is ``bool``, and
+    ``amt`` never is.
+    """
+    while isinstance(node, exp.Paren):
+        node = node.this
+    if isinstance(node, exp.Column):
+        declared = {column.name.casefold(): column.type for column in entity.columns}
+        return isinstance(declared.get(node.name.casefold()), BoolType)
+    return not isinstance(node, _NOT_BOOLEAN)
+
+
 def _check_expression_rules(
     entity_name: str, entity: Entity, draft: ProjectIR
 ) -> list[GuardrailError]:
@@ -843,23 +871,47 @@ def _check_expression_rules(
     if not entity.quality:
         return []
     lowered = {ent.name: ent for ent in draft.entities}.get(entity_name)
-    readable = {
-        *entity.fields,
-        *entity.key,
-        *INGESTION_METADATA,
-        *(() if lowered is None else (column.name for column in lowered.columns)),
-    }
+    if lowered is None:
+        return []  # nothing lowered this entity, so there is no model to check against
+    # The **lowered** columns, not the declared fields. A field the entity
+    # declares but no mapping fills is never projected, so a rule naming one
+    # compiled clean and then failed on the binder — the very failure this
+    # check exists to move forward. Casefolded because an unquoted SQL
+    # identifier is case-insensitive on all three targets, so a rule may say
+    # `AMT` where the field is `amt`.
+    readable = {column.name.casefold() for column in lowered.columns}
+    readable.update(name.casefold() for name in INGESTION_METADATA)
     errors: list[GuardrailError] = []
     for index, rule in enumerate(entity.quality):
         if not isinstance(rule, ExpressionRule):
             continue
         where = _entity_path(entity_name, f"quality[{index}].expr")
         try:
-            parsed = parse_one(rule.expr)
+            # ``parse_one`` is annotated with the ``Expr`` base; every node it
+            # can return is an ``Expression`` (cf. ir.nodes on the same cast).
+            parsed = cast("Expression", parse_one(rule.expr))
         except Exception as exc:
             msg = (
                 f"expression rule {rule.name!r} on entity {entity_name!r} is not parseable "
                 f"SQL: {exc!s:.120}"
+            )
+            errors.append(GuardrailError(msg, source_path=where))
+            continue
+        if isinstance(parsed, exp.Block):
+            msg = (
+                f"expression rule {rule.name!r} on entity {entity_name!r} is more than one "
+                "statement. A row rule is a single predicate spliced into the model's SELECT, "
+                "so the trailing statement is not executed — it is wrapped in NOT (...) and "
+                "emitted as invalid SQL rather than refused (RFC 0016 D95)"
+            )
+            errors.append(GuardrailError(msg, source_path=where))
+            continue
+        if not _is_boolean_shaped(parsed, lowered):
+            msg = (
+                f"expression rule {rule.name!r} on entity {entity_name!r} is not a boolean "
+                f"predicate ({type(parsed).__name__.lower()}). It is emitted as NOT (...), "
+                "which a non-boolean operand either refuses or coerces differently per "
+                "dialect. Fix: compare it — 'amt > 0' rather than 'amt'"
             )
             errors.append(GuardrailError(msg, source_path=where))
             continue
@@ -885,7 +937,13 @@ def _check_expression_rules(
             )
             errors.append(GuardrailError(msg, source_path=where))
             continue
-        unknown = sorted({col.name for col in parsed.find_all(exp.Column) if col.name} - readable)
+        unknown = sorted(
+            {
+                col.name
+                for col in parsed.find_all(exp.Column)
+                if col.name and col.name.casefold() not in readable
+            }
+        )
         if unknown:
             msg = (
                 f"expression rule {rule.name!r} on entity {entity_name!r} reads "

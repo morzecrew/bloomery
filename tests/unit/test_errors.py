@@ -56,7 +56,7 @@ _EXPORTS = {name: getattr(errors_mod, name) for name in errors_mod.__all__}
 #: The exports that are deliberately not error classes. Pinned rather than
 #: filtered silently: the three properties below are about the *hierarchy*, and
 #: a filter nobody checks is how a new class quietly stops being covered by
-#: them (RFC 0003 D9 added the first entry).
+#: them (RFC 0003 D11 added the first entry).
 NOT_A_CLASS = {"guaranteed"}
 
 ALL_ERROR_CLASSES = [value for name, value in _EXPORTS.items() if name not in NOT_A_CLASS]

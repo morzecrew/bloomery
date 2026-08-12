@@ -151,7 +151,7 @@ def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) 
     return guaranteed(
         iter(entries.values()),
         expected="at least one covering mart",
-        by="the emptiness check immediately above",
+        by="MetricRequest.__post_init__, which refuses a request with no metrics",
     )[1]
 
 

@@ -1,5 +1,5 @@
 """No lookup in the compiler may fail as a bare ``StopIteration``
-(RFC 0003 D9).
+(RFC 0003 D11).
 
 ``next(x for x in xs if …)`` over a set an earlier stage validated is correct
 and fails terribly: a bare ``StopIteration`` carries no message, no source

@@ -294,8 +294,8 @@ def _scan_portable(pattern: str) -> None:
     # One flag per open group: does its body carry an unbounded quantifier?
     # Popped when the group closes, so the quantifier applied *to* the group
     # can be judged against what it would be repeating (RFC 0016 D96).
-    group_bodies: list[bool] = []
-    just_closed_unbounded: bool | None = None  # the group that just closed, if any
+    group_bodies: list[bool] = []  # does the open group's body match a varying length?
+    just_closed_varies: bool | None = None  # the group that just closed, if any
 
     while index < len(pattern):
         char = pattern[index]
@@ -329,7 +329,7 @@ def _scan_portable(pattern: str) -> None:
                 depth, index = depth + 1, index + 2
                 group_bodies.append(False)
                 quantifiable, quantifier, branch_start = False, None, False
-                just_closed_unbounded = None
+                just_closed_varies = None
             else:
                 for prefix, label in PORTABLE_REGEX_REJECTED:
                     if pattern.startswith(prefix, index):
@@ -344,7 +344,7 @@ def _scan_portable(pattern: str) -> None:
             if depth == 0:
                 _refuse("unbalanced ')'", ")", "no '(?:' opened it; write \\) for a literal")
             depth -= 1
-            just_closed_unbounded = group_bodies.pop() if group_bodies else False
+            just_closed_varies = group_bodies.pop() if group_bodies else False
             quantifiable, quantifier, branch_start = True, None, False
         elif char == "[":
             index = _scan_class(pattern, index) - 1
@@ -361,13 +361,15 @@ def _scan_portable(pattern: str) -> None:
                 _refuse(label, quantifier + char, "RE2 and ARE disagree about it or refuse it")
             if not quantifiable:
                 _refuse("quantifier with nothing to repeat", char, "no atom precedes it")
-            if char in "*+":
-                if just_closed_unbounded:
-                    _refuse_nested_repetition(pattern)
-                for level in range(len(group_bodies)):
-                    group_bodies[level] = True
+            # `?` varies the length it matches but repeats a bounded number
+            # of times, so it makes a *body* ambiguous without making an outer
+            # repetition unbounded. The two roles are tracked apart.
+            if char in "*+" and just_closed_varies:
+                _refuse_nested_repetition(pattern)
+            for level in range(len(group_bodies)):
+                group_bodies[level] = True
             quantifier, quantifiable, branch_start = char, False, False
-            just_closed_unbounded = None
+            just_closed_varies = None
         elif char == "{":
             match = _REPETITION.match(pattern, index)
             if match is None:
@@ -379,14 +381,18 @@ def _scan_portable(pattern: str) -> None:
             low, high = match.group(1), match.group(3)
             if high is not None and int(high) < int(low):
                 _refuse("inverted repetition", match.group(0), "the minimum exceeds the maximum")
+            # `{n}` and `{n,n}` match exactly n — a fixed length, so a body
+            # containing only those can be split exactly one way. Anything
+            # else varies. Only an *unbounded* outer repetition can blow up.
             unbounded = match.group(2) is not None and high is None
-            if unbounded:
-                if just_closed_unbounded:
-                    _refuse_nested_repetition(pattern)
+            varies = match.group(2) is not None and high != low
+            if unbounded and just_closed_varies:
+                _refuse_nested_repetition(pattern)
+            if varies:
                 for level in range(len(group_bodies)):
                     group_bodies[level] = True
             quantifier, quantifiable, branch_start = match.group(0), False, False
-            just_closed_unbounded = None
+            just_closed_varies = None
             index = match.end() - 1
         elif char == "}":
             _refuse("unescaped '}'", "}", "no repetition opened it; write \\} for a literal brace")
@@ -400,7 +406,7 @@ def _scan_portable(pattern: str) -> None:
             index += 1
         else:  # '.' and every ordinary literal
             quantifiable, quantifier, branch_start = True, None, False
-            just_closed_unbounded = None
+            just_closed_varies = None
         index += 1
 
     if depth:
