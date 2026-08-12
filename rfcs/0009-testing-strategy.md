@@ -134,9 +134,9 @@ failing test names its module.
 ### 5.3 Fixture corpus
 
 The spec §7.7 set, extended by the planner fixtures of `_bloomery-changes.md` D7, as YAML
-documents under `tests/fixtures/<name>/`, loaded only through the public `load_project`/`load_catalog`
-API — fixtures double as the doc examples and, later, the LLM-proposal eval set, so they
-must exercise the surface callers use.
+documents under `tests/fixtures/<name>/`, loaded only through the public
+`load_project`/`load_catalog` API — fixtures double as the doc examples and, later, the
+LLM-proposal eval set, so they must exercise the surface callers use.
 
 | Fixture | Exercises |
 | --- | --- |
@@ -238,10 +238,11 @@ guard test per house convention: compile the same fixture in two subprocesses wi
 It runs in tier 1 (per-commit) despite spawning subprocesses — the cheapest proof of the
 package's most load-bearing property.
 
-The tenant-agnosticism check (`_bloomery-changes.md` D9) is the second named guard,
-alongside it: `grep -ri tenant src/bloomery/` must return only `naming.py` docstrings. It runs as a CI quality gate and as a unit-tier guard test
-(`tests/unit/test_tenant_guard.py`) so `just test` catches it locally — the package must
-remain something you could open-source with no multi-tenancy showing through.
+The tenant-agnosticism check (`_bloomery-changes.md` D9) is the second named guard, alongside
+it: `grep -ri tenant src/bloomery/` must return only `naming.py` docstrings. It runs as a CI
+quality gate and as a unit-tier guard test (`tests/unit/test_tenant_guard.py`) so `just test`
+catches it locally — the package must remain something you could open-source with no
+multi-tenancy showing through.
 
 The third named guard is the **version-drift canary**
 (`tests/unit/test_metricflow_api_surface.py`, pivot R10): it asserts the MetricFlow
@@ -399,10 +400,10 @@ move goldens and eval baselines, so they get the same review bar.
 
 ## 12. Phasing
 
-Tiers land with the pivot's milestone table (`_bloomery-metricflow-pivot.md` §8,
-superseding `_bloomery-changes.md` D10): M1 ships the layout, markers, `minimal` fixture, and the
-determinism and tenant guards; M2 the first goldens and execution tests; M3–M4 grow the
-corpus (`ecom_basic`, `fanout_trap`, `semi_additive_inventory`, `messy_types`) with
+Tiers land with the pivot's milestone table (`_bloomery-metricflow-pivot.md` §8, superseding
+`_bloomery-changes.md` D10): M1 ships the layout, markers, `minimal` fixture, and the
+determinism and tenant guards; M2 the first goldens and execution tests; M3–M4 grow the corpus
+(`ecom_basic`, `fanout_trap`, `semi_additive_inventory`, `messy_types`) with
 their guardrails; M4.5 answers verification tasks V1–V4 in writing before any pivot code
 merges; M5 adds `role_playing_dates` with marts and role-playing; M6 the MetricFlow
 emitter goldens — every fixture emits a `metricflow/manifest.json` that

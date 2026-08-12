@@ -14,8 +14,9 @@ the same way; what stops the design being re-proposed is the rejection recorded 
 the alternative was chosen, not an unread file sitting in this directory.
 
 Retire in the same change that flips the status. `git rm` the file, drop its row from the
-table below, and note nothing else here — the deletion commit is the record, and
-`git log --diff-filter=D -- rfcs/` finds every retired document with its full text.
+table below, and note nothing else here — the deletion commit is the record.
+`git log --diff-filter=D -- rfcs/` lists the commits that retired documents, and
+`git show <commit>^:rfcs/<file>` prints one back in full.
 
 Two consequences worth knowing:
 

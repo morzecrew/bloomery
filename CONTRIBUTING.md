@@ -33,7 +33,8 @@ of the wrong design. Small fixes and additions within a live RFC's scope do not 
 The corpus holds only designs that have not yet landed. **When the work an RFC describes is
 complete — or the design is rejected — retire the RFC in the same change**: `git rm` the
 file and drop its row from the index. The code, tests and docs become the account of shipped
-behaviour, and `git log --diff-filter=D -- rfcs/` recovers any retired document's text.
+behaviour. `git log --diff-filter=D -- rfcs/` finds the commit that retired a document;
+`git show <commit>^:rfcs/<file>` prints it back.
 
 ## Development Setup
 

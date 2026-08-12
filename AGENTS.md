@@ -12,7 +12,8 @@ code that contradicts a live RFC is the bug, not the RFC.
 A landed RFC is retired — deleted — in the change that completes it, so that the code, tests
 and docs stay the single account of shipped behaviour. Citations like `RFC 0016 D84`
 throughout the source therefore name documents no longer in the tree: they record where a
-decision came from, and `git log --diff-filter=D -- rfcs/` recovers the text.
+decision came from; `git log --diff-filter=D -- rfcs/` finds the commit that retired the
+document and `git show <commit>^:rfcs/<file>` prints it.
 
 ## Gates
 
