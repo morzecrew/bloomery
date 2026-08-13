@@ -30,13 +30,20 @@ shadows and lowered ``assert:`` audits.
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
+from enum import StrEnum
 from typing import TYPE_CHECKING, cast
 
 from sqlglot import exp, parse_one
 from sqlglot.expressions.core import Expression
 
-from bloomery.errors import ResolutionError, StepDeterminismError, StepError, guaranteed
+from bloomery.errors import (
+    InvariantViolated,
+    ResolutionError,
+    StepDeterminismError,
+    StepError,
+    guaranteed,
+)
 from bloomery.guardrails import check_guardrails
 from bloomery.ir import (
     Additivity,
@@ -77,7 +84,7 @@ from bloomery.quality import (
 from bloomery.resolve.metrics import effective_metrics
 from bloomery.resolve.recipes import resolve_recipe
 from bloomery.resolve.refs import mapping_doc
-from bloomery.resolve.resolution import resolve
+from bloomery.resolve.resolution import Resolution, resolve
 from bloomery.resolve.steps import lower_steps, step_entities
 from bloomery.spec.catalog import Catalog
 from bloomery.spec.mapping import ALIAS_BOUND, MacroFieldMapping, RecipeFieldMapping
@@ -95,14 +102,120 @@ from bloomery.typing import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from bloomery.spec.entity import Entity, Field
     from bloomery.spec.mapping import Mapping, TransformStep
     from bloomery.steps import StepManifest
     from bloomery.transforms import Registry
 
 __all__ = [
+    "Stage",
+    "StageProgress",
     "build_project_ir",
+    "pipeline",
 ]
+
+
+class Stage(StrEnum):
+    """A stage of spec analysis, in the order :func:`pipeline` runs them.
+
+    Public because :attr:`~bloomery.SpecEvidence.stage_reached` is the field a
+    caller has to read before any other (RFC 0022 D5): an empty ``unreachable``
+    means "nothing is unreachable" only at :attr:`COMPLETE`, and means "never
+    computed" at :attr:`RESOLVE`. Without the stage that tuple is ambiguous in
+    exactly the way that produces a wrong conclusion.
+
+    Treat it as an **open** enum: compare against :attr:`COMPLETE` and read
+    everything else as "analysis stopped early". Stages are an account of how
+    the pipeline is built, and one may be added or split without the meaning of
+    that comparison changing.
+
+    Every member is a stage that can genuinely refuse, and each is tested on a
+    spec that refuses there. RFC 0022's draft listed two that cannot be
+    reported: ``PARSE``, because :func:`~bloomery.load_project` has already run
+    by the time anything here holds a :class:`~bloomery.Project` — a document
+    that does not parse never reaches this pipeline — and ``MARTS``, because
+    the flattener is total and its violations are re-derived by the guardrail
+    stage (RFC 0010 D6), so it refuses nothing of its own. A stage that can
+    never be reported is a value a consumer would write a branch for and never
+    execute, which is worse than its absence. :attr:`LOWER` is the stage the
+    draft named ``MARTS``, renamed for what it does: mart flattening is one
+    part of lowering the spec into a draft IR, and step lowering — which does
+    refuse — is another.
+    """
+
+    #: Reachability and reference validation (RFC 0005).
+    RESOLVE = "resolve"
+    #: The batched transform-chain typecheck (RFC 0004).
+    TYPECHECK = "typecheck"
+    #: Spec to draft IR: steps, entities, metrics, relationships, marts.
+    LOWER = "lower"
+    #: The batched guardrail stage over the finished draft (RFC 0006).
+    GUARDRAILS = "guardrails"
+    #: Every stage ran. Only here does an empty result mean "nothing found".
+    COMPLETE = "complete"
+
+
+@dataclass(frozen=True, slots=True)
+class StageProgress:
+    """What analysis had produced *before* the stage it is yielded with ran.
+
+    Both fields widen to non-``None`` as the pipeline advances and never
+    narrow, so a consumer that stops early keeps the prefix rather than losing
+    it — which is the whole of RFC 0022 D3.
+    """
+
+    resolution: Resolution | None = None
+    ir: ProjectIR | None = None
+
+
+def pipeline(
+    project: Project,
+    catalog: Catalog | None = None,
+    *,
+    steps: StepRegistry = EMPTY_REGISTRY,
+) -> Iterator[tuple[Stage, StageProgress]]:
+    """The compile pipeline, one yield per stage, in order.
+
+    **Each yield hands back the stage that is about to run**, together with
+    everything the stages before it produced. So a consumer that catches a
+    refusal knows both which stage refused — the stage from the last yield,
+    because the exception surfaced while that stage was running — and what
+    survived it. A consumer that runs to exhaustion ends on
+    :attr:`Stage.COMPLETE`, whose progress carries the finished IR.
+
+    This exists so that :func:`build_project_ir` and
+    :func:`~bloomery.evaluate` cannot disagree about what the pipeline *is*.
+    Writing the sequence twice — once to compile and once to assess — is the
+    failure mode RFC 0022 §9 names as the one it could plausibly introduce, and
+    a shared generator is what makes it not a matter of discipline.
+    """
+    yield Stage.RESOLVE, StageProgress()
+    resolution = resolve(project, catalog)
+
+    yield Stage.TYPECHECK, StageProgress(resolution=resolution)
+    reg = registry()
+    _typecheck_project(project, reg, steps)
+
+    yield Stage.LOWER, StageProgress(resolution=resolution)
+    draft = _lower_draft(project, catalog, reg, steps, resolution)
+
+    yield Stage.GUARDRAILS, StageProgress(resolution=resolution, ir=draft)
+    # ── Guardrail seam (RFC 0006 §5.1) ─────────────────────────────────
+    # Stage four: pure over the draft — refuses with one batched
+    # GuardrailError (mart-level leaves included, RFC 0006 D10) before any
+    # artifact is emitted, and amends only via path-conflict shadows and
+    # lowered assert: audits (RFC 0006 D9).
+    checked = check_guardrails(draft, project=project, catalog=catalog)
+    # The quality mart (RFC 0016 §5.8) is bloomery-owned, like the dim_date
+    # calendar: synthesized from the finished IR rather than authored, so it
+    # attaches *after* the refusals — there is nothing about it for a
+    # guardrail to refuse. What the stage does check, from the spec alone, is
+    # that no authored metric claimed one of its reserved names.
+    finished = attach_quality_mart(checked)
+
+    yield Stage.COMPLETE, StageProgress(resolution=resolution, ir=finished)
 
 
 def _field_type(entity_name: str, field_name: str, field: Field) -> LogicalType:
@@ -828,11 +941,29 @@ def build_project_ir(
     project; marts flatten over the entity draft (RFC 0010 D6); the guardrail
     stage (RFC 0006) refuses last, over the finished draft — mart-level
     violations batched with the rest.
-    """
-    resolution = resolve(project, catalog)
-    reg = registry()
-    _typecheck_project(project, reg, steps)
 
+    Written as :func:`pipeline` run to exhaustion rather than as the sequence
+    itself, so that this and :func:`~bloomery.evaluate` read one definition of
+    what the pipeline is. Every refusal propagates, unchanged: this function is
+    all-or-nothing by design, and it is ``evaluate`` that keeps the prefix.
+    """
+    progress = StageProgress()
+    for _stage, reached in pipeline(project, catalog, steps=steps):
+        progress = reached
+    if progress.ir is None:  # pragma: no cover — COMPLETE always carries the IR
+        msg = "the pipeline reached COMPLETE without an IR"
+        raise InvariantViolated(msg)
+    return progress.ir
+
+
+def _lower_draft(
+    project: Project,
+    catalog: Catalog | None,
+    reg: Registry,
+    steps: StepRegistry,
+    resolution: Resolution,
+) -> ProjectIR:
+    """Spec plus resolution to the draft IR the guardrail stage judges."""
     steps_ir = lower_steps(project, steps)
     draft = ProjectIR(
         bloomery_ir_version=4,
@@ -862,17 +993,4 @@ def build_project_ir(
     )
     # Mart flattening (RFC 0010 D6): pure, total — violations are re-derived
     # and raised by the guardrail stage below; only clean marts attach here.
-    draft = replace(draft, marts=lower_marts(project.marts, draft).marts)
-
-    # ── Guardrail seam (RFC 0006 §5.1) ─────────────────────────────────
-    # Stage four: pure over the draft — refuses with one batched
-    # GuardrailError (mart-level leaves included, RFC 0006 D10) before any
-    # artifact is emitted, and amends only via path-conflict shadows and
-    # lowered assert: audits (RFC 0006 D9).
-    checked = check_guardrails(draft, project=project, catalog=catalog)
-    # The quality mart (RFC 0016 §5.8) is bloomery-owned, like the dim_date
-    # calendar: synthesized from the finished IR rather than authored, so it
-    # attaches *after* the refusals — there is nothing about it for a
-    # guardrail to refuse. What the stage does check, from the spec alone, is
-    # that no authored metric claimed one of its reserved names.
-    return attach_quality_mart(checked)
+    return replace(draft, marts=lower_marts(project.marts, draft).marts)

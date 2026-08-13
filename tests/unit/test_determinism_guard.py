@@ -26,7 +26,7 @@ import pathlib
 import sys
 
 from bloomery import Target, compile_project, load_catalog, load_project, project_fingerprint
-from bloomery import all_spec_schemas
+from bloomery import all_spec_schemas, evaluate
 from bloomery import build_project_ir as build_real_ir
 from bloomery.emit.metricflow import emit_manifest, manifest_json
 from bloomery.naming import DefaultNaming
@@ -87,6 +87,27 @@ for manifest_fixture in ("ecom_basic", "non_additive_aov"):
     mf_catalog = load_catalog((mf_dir / "catalog.yaml").read_text())
     mf_ir = build_real_ir(load_project(mf_sources), catalog=mf_catalog)
     print(manifest_json(emit_manifest(mf_ir, naming=DefaultNaming())))
+
+# Spec evidence (M19, RFC 0022): an assessment is an output like any other, and
+# every tuple on it is sorted for exactly this reason. Both a COMPLETE
+# evaluation and a refused one, because the refusal path has its own sort — the
+# batch is unwrapped and ordered by source path, which is a list built by
+# walking dicts.
+for evidence_fixture in ("ecom_basic", "fanout_trap"):
+    ev_dir = fixture_dir.parent / evidence_fixture
+    ev_sources = {
+        path.stem: path.read_text()
+        for path in sorted(ev_dir.glob("*.yaml"))
+        if path.stem != "catalog"
+    }
+    ev_catalog_path = ev_dir / "catalog.yaml"
+    ev_catalog = load_catalog(ev_catalog_path.read_text()) if ev_catalog_path.exists() else None
+    evidence = evaluate(load_project(ev_sources), catalog=ev_catalog)
+    print(evidence.stage_reached, evidence.fingerprint)
+    print(evidence.reachable, evidence.entities)
+    print([(u.name, u.missing) for u in evidence.unreachable])
+    print([(m.name, m.grain, m.measures, m.dimensions, m.materialization) for m in evidence.marts])
+    print([(r.source_path, type(r).__name__, str(r)) for r in evidence.refusals])
 """
 
 

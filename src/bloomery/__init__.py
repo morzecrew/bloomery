@@ -9,7 +9,9 @@ spec-diff planning (``plan`` with ``Plan`` / ``Change`` / ``ChangeClass`` /
 ``QueryPlan`` port types and ``RowPolicy`` — RFC 0011/0013), manifest
 hydration (``LruManifestHydrator``, ``HydrationKey`` — RFC 0014), the
 JSON Schema export (``spec_json_schema`` / ``all_spec_schemas`` with
-``SpecKind`` and ``JsonDict`` — RFC 0020), the
+``SpecKind`` and ``JsonDict`` — RFC 0020), spec assessment as one value
+(``evaluate`` with ``SpecEvidence`` / ``MartSummary`` / ``Stage`` — RFC 0022),
+the
 extension points (``register_transform``, ``register_emitter``), and the
 total error hierarchy rooted at ``BloomeryError`` (import leaves from
 :mod:`bloomery.errors`) — whose structured fix suggestions carry the two
@@ -33,7 +35,8 @@ stay behind their own declared ``__all__`` (D2).
 from bloomery.compile import Target, compile_project
 from bloomery.emit import ArtifactKind, EmittedArtifact, TargetEmitter, register_emitter
 from bloomery.errors import BloomeryError, MartCoverage, MeasureRef
-from bloomery.ir import ProjectIR, UnreachableMetric, project_fingerprint
+from bloomery.evidence import MartSummary, SpecEvidence, evaluate
+from bloomery.ir import Materialization, ProjectIR, UnreachableMetric, project_fingerprint
 from bloomery.naming import DefaultNaming, NamingPolicy
 from bloomery.plan import BackfillScope, Change, ChangeClass, Plan, ReplayScope, plan
 from bloomery.planner import (
@@ -60,6 +63,7 @@ from bloomery.resolve import (
     NodeKind,
     Provenance,
     Resolution,
+    Stage,
     build_project_ir,
     resolve,
 )
@@ -93,6 +97,8 @@ __all__ = [
     "LogicalType",
     "LruManifestHydrator",
     "MartCoverage",
+    "MartSummary",
+    "Materialization",
     "MeasureExplanation",
     "MeasureRef",
     "MetricFlowPlanner",
@@ -114,7 +120,9 @@ __all__ = [
     "Resolution",
     "RowPolicy",
     "Scalar",
+    "SpecEvidence",
     "SpecKind",
+    "Stage",
     "StepManifest",
     "StepRegistry",
     "Target",
@@ -125,6 +133,7 @@ __all__ = [
     "all_spec_schemas",
     "build_project_ir",
     "compile_project",
+    "evaluate",
     "load_catalog",
     "load_project",
     "plan",
