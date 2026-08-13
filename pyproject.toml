@@ -322,6 +322,25 @@ source_modules = ["bloomery.emit", "bloomery.dialects"]
 forbidden_modules = ["bloomery.spec"]
 allow_indirect_imports = true
 
+[[tool.importlinter.contracts]]
+# RFC 0019 D4, contract 1. The pipeline-wide `layers` contract above sees
+# `bloomery.emit` as one layer, so it cannot constrain direction *inside* it —
+# and the direction that matters most is this one. RFC 0008 splits the ports on
+# *assembly*: targets differ in how they write a model file and share how a
+# spec becomes SQL. Lowering reaching into a target inverts that, and is how a
+# change made for one target starts quietly constraining another (RFC 0017
+# D25/D32 is the defect shape).
+name = "Lowering is target-independent"
+type = "forbidden"
+source_modules = ["bloomery.emit.lowering"]
+forbidden_modules = [
+    "bloomery.emit.cube",
+    "bloomery.emit.dbt",
+    "bloomery.emit.metricflow",
+    "bloomery.emit.sqlmesh",
+]
+
+
 # ....................... #
 # Dead code
 
