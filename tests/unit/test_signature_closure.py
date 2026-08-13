@@ -195,7 +195,10 @@ def test_every_public_annotation_resolves() -> None:
         # instance's annotations against `__globals__`, which an instance does
         # not have, so `EMPTY_REGISTRY` would fail for its class's reasons and
         # report them against the wrong name. The class is walked on its own.
-        if not (inspect.isfunction(obj) or (isinstance(obj, type) and dataclasses.is_dataclass(obj))):
+        walkable = inspect.isfunction(obj) or (
+            isinstance(obj, type) and dataclasses.is_dataclass(obj)
+        )
+        if not walkable:
             continue
         try:
             typing.get_type_hints(obj)
@@ -248,13 +251,37 @@ def test_private_fields_are_out_of_scope() -> None:
     assert not any(member.startswith("_") for member in _raw_annotations(StepRegistry))
 
 
-@pytest.mark.parametrize("module_name", sorted(sys.modules) if False else ["bloomery"])
-def test_every_exported_name_resolves(module_name: str) -> None:
-    """No stale entry in any ``__all__`` — a name that does not resolve is a
-    promise the package cannot keep."""
-    for name in bloomery.__all__:
-        assert hasattr(bloomery, name), f"bloomery.__all__ names missing {name}"
-    for subpackage in ("errors", "planner", "steps", "typing", "spec"):
-        module = __import__(f"bloomery.{subpackage}", fromlist=["__all__"])
-        for name in getattr(module, "__all__", []):
-            assert hasattr(module, name), f"bloomery.{subpackage}.__all__ names missing {name}"
+SUBPACKAGES = [
+    "",
+    "dialects",
+    "emit",
+    "errors",
+    "ir",
+    "naming",
+    "plan",
+    "planner",
+    "resolve",
+    "runtime",
+    "spec",
+    "steps",
+    "transforms",
+    "typing",
+]
+
+
+@pytest.mark.parametrize("subpackage", SUBPACKAGES)
+def test_every_exported_name_resolves(subpackage: str) -> None:
+    """No stale entry in any ``__all__`` — a name a package promises and cannot
+    produce is a broken import for whoever believes the declaration."""
+    name = f"bloomery.{subpackage}" if subpackage else "bloomery"
+    module = __import__(name, fromlist=["__all__"])
+    declared = getattr(module, "__all__", None)
+    assert declared, f"{module.__name__} declares no __all__"
+    missing = [name for name in declared if not hasattr(module, name)]
+    assert not missing, f"{module.__name__}.__all__ names {missing}, which do not resolve"
+
+
+def test_the_root_export_list_is_sorted() -> None:
+    """Sorted so a diff to it is readable and two branches adding an export do
+    not conflict on the same line."""
+    assert bloomery.__all__ == sorted(bloomery.__all__)

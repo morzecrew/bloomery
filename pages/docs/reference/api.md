@@ -1,9 +1,13 @@
 # API
 
 The public API — everything importable from `bloomery`, kept in lockstep with the
-package's `__all__`. Supporting types named in signatures (`Project`, `Catalog`,
-`ProjectIR`, `EmittedArtifact`, naming policies) live in their subpackages and are
-stable to import from there.
+package's `__all__`.
+
+The list is **closed over its own signatures**: any type named in a public signature is
+exported from `bloomery` too, so `Project`, `Catalog`, `ProjectIR`, `EmittedArtifact` and
+the naming policies are importable from the root rather than only from their subpackages.
+The subpackage paths keep working. See [Stability](stability.md) for what each surface
+promises.
 
 ## Loading
 
