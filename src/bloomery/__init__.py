@@ -11,51 +11,103 @@ hydration (``LruManifestHydrator``, ``HydrationKey`` — RFC 0014), the
 extension points (``register_transform``, ``register_emitter``), and the
 total error hierarchy rooted at ``BloomeryError`` (import leaves from
 :mod:`bloomery.errors`).
+
+**Signature closure** (RFC 0018 D1) is the rule that decides this list: a type
+appearing in a public signature — parameter, return, generic argument, or field
+of a returned dataclass — is exported here too, so a caller can always name what
+the API hands them. ``tests/unit/test_signature_closure.py`` enforces it; the
+walk stops at ``Catalog``, ``Project`` and ``ProjectIR``, which are handles
+passed back rather than read (D9), and exempts ``bloomery.errors``, whose leaves
+stay behind their own declared ``__all__`` (D2).
 """
 
 from bloomery.compile import Target, compile_project
-from bloomery.emit import register_emitter
+from bloomery.emit import ArtifactKind, EmittedArtifact, TargetEmitter, register_emitter
 from bloomery.errors import BloomeryError
-from bloomery.ir import project_fingerprint
+from bloomery.ir import ProjectIR, UnreachableMetric, project_fingerprint
+from bloomery.naming import DefaultNaming, NamingPolicy
 from bloomery.plan import BackfillScope, Change, ChangeClass, Plan, ReplayScope, plan
 from bloomery.planner import (
     AnyOf,
+    Clause,
     ColumnDescriptor,
+    ColumnRole,
+    Explanation,
+    MeasureExplanation,
     MetricFlowPlanner,
     MetricRequest,
     Op,
+    OrderDirection,
     OrderSpec,
     Predicate,
     QueryPlan,
     RowPolicy,
+    Scalar,
     TimeGrain,
 )
-from bloomery.resolve import Resolution, build_project_ir, resolve
+from bloomery.resolve import (
+    FieldProvenance,
+    Node,
+    NodeKind,
+    Provenance,
+    Resolution,
+    build_project_ir,
+    resolve,
+)
 from bloomery.runtime import HydrationKey, LruManifestHydrator
-from bloomery.spec import load_catalog, load_project
-from bloomery.transforms import register_transform
+from bloomery.spec import Catalog, Project, load_catalog, load_project
+from bloomery.steps import EMPTY_REGISTRY, StepManifest, StepRegistry
+from bloomery.transforms import Builder, OutputType, TransformSpec, register_transform
+from bloomery.typing import ArgKind, LogicalType
 
 __all__ = [
     "AnyOf",
+    "ArgKind",
+    "ArtifactKind",
     "BackfillScope",
     "BloomeryError",
+    "Builder",
+    "Catalog",
     "Change",
     "ChangeClass",
+    "Clause",
     "ColumnDescriptor",
+    "ColumnRole",
+    "DefaultNaming",
+    "EMPTY_REGISTRY",
+    "EmittedArtifact",
+    "Explanation",
+    "FieldProvenance",
     "HydrationKey",
+    "LogicalType",
     "LruManifestHydrator",
+    "MeasureExplanation",
     "MetricFlowPlanner",
     "MetricRequest",
+    "NamingPolicy",
+    "Node",
+    "NodeKind",
     "Op",
+    "OrderDirection",
     "OrderSpec",
+    "OutputType",
     "Plan",
     "Predicate",
+    "Project",
+    "ProjectIR",
+    "Provenance",
     "QueryPlan",
     "ReplayScope",
     "Resolution",
     "RowPolicy",
+    "Scalar",
+    "StepManifest",
+    "StepRegistry",
     "Target",
+    "TargetEmitter",
     "TimeGrain",
+    "TransformSpec",
+    "UnreachableMetric",
     "build_project_ir",
     "compile_project",
     "load_catalog",
