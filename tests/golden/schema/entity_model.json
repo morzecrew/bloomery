@@ -513,6 +513,7 @@
           "additionalProperties": {
             "type": "string"
           },
+          "minProperties": 1,
           "title": "Via",
           "type": "object"
         }

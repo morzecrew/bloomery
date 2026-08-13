@@ -7,12 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- **A reconcile check over a NULL key reported two failures where the data agreed.** The model's aggregate side groups every NULL key into one group — SQL's `GROUP BY` treats NULLs as equal — while the FULL OUTER JOIN used an ordinary `=`, which does not, so one query read the same column by two rules. Executed, a NULL-keyed group whose sides matched came back as two rows, both keyed NULL, both `within_tolerance = FALSE`, both with a NULL `difference`. The join is null-safe now (`IS NOT DISTINCT FROM`, rendered identically by DuckDB, Postgres and Trino). A key present on one side only still fails — that is what the FULL join is for. **Reconcile model SQL changes**; the project fingerprint does not, since the IR is unchanged.
-
-- **`relationships: [{via: {}}]` parsed and then crashed at emit.** A relationship *is* its join, so an empty `via` describes nothing — but it reached three consumers and failed differently in each: an `IndexError` from the coverage audit, a `ValueError` from inside SQLGlot when a mart flattened it. It is a `SpecParseError` with a source path now, raised at parse where shape questions belong; `via` requires at least one column pair, the way `key` always has.
-
 ### Added
 
 - **A command line: `bloomery compile|plan|resolve|explain|schema|fingerprint`** (RFC 0020). Each command is a thin argument shell over one public function — read files, call the API, write stdout or a directory. `--format json` on `plan`/`resolve`/`explain` emits the same values the Python API returns, so it is not a second, lossier surface. Exit codes distinguish a **refusal** (`1`, a correct outcome a pipeline must not retry) from a **usage error** (`2`). No execution, no connection, no profile, no scaffolding. `bloomery/cli/io.py` is the only module in the package permitted to touch a filesystem, and nothing in the library may import the CLI. `--steps` is not offered: a `StepRegistry` is a caller-assembled compile input, so a project wiring steps compiles through Python.
@@ -120,6 +114,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Postgres' run-dependent datetime deny-list (D84) was defeated by a tab. It read `LOWER(BTRIM(value)) IN ('now', …)`, and `BTRIM` trims **spaces only** while Postgres' datetime scanner skips tabs, newlines and carriage returns — so `'now\t'` passed the guard and cast to the transaction timestamp. Verified on PostgreSQL 16 (RFC 0016 D93).
 
 - `StepRegistry` accepted a key disagreeing with its manifest's identity, which silently dropped that step's canonical links and `on_fail: fail` rules; `Reconcile.on_fail` accepted `quarantine`/`repair`, neither of which means anything for an aggregate comparison; and the reconcile "known columns" message omitted the key columns the check accepts (RFC 0017 D55, RFC 0016 D92).
+
+- **A reconcile check over a NULL key reported two failures where the data agreed.** The model's aggregate side groups every NULL key into one group — SQL's `GROUP BY` treats NULLs as equal — while the FULL OUTER JOIN used an ordinary `=`, which does not, so one query read the same column by two rules. Executed, a NULL-keyed group whose sides matched came back as two rows, both keyed NULL, both `within_tolerance = FALSE`, both with a NULL `difference`. The join is null-safe now (`IS NOT DISTINCT FROM`, rendered identically by DuckDB, Postgres and Trino). A key present on one side only still fails — that is what the FULL join is for. **Reconcile model SQL changes**; the project fingerprint does not, since the IR is unchanged.
+
+- **`relationships: [{via: {}}]` parsed and then crashed at emit.** A relationship *is* its join, so an empty `via` describes nothing — but it reached three consumers and failed differently in each: an `IndexError` from the coverage audit, a `ValueError` from inside SQLGlot when a mart flattened it. It is a `SpecParseError` with a source path now, raised at parse where shape questions belong; `via` requires at least one column pair, the way `key` always has.
 
 - `bloomery_ir_version` is now **4** — `ProjectIR` gained `coverage` and `MartIR` gained `asserts`, and the bump was missed. Fingerprints moved anyway (the encoder covers field names and count), so nothing failed; what the bump buys is `plan()` refusing to diff a coverage-carrying IR against one without, rather than both calling themselves v3.
 
