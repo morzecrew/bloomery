@@ -11,11 +11,17 @@ introduces, not a random bit flip. A mutation that no test catches is a hole in
 the corpus or in the suite, and the harness fails and names it; nothing here is
 allowed to be "expected to survive".
 
-Applied by monkeypatching the *importing* module, not only the defining one:
-:mod:`bloomery.emit.lower` binds ``violation``, ``disposition`` and
-``with_dedupe_qualify`` by ``from … import``, so patching the definition alone
-would silently do nothing — which would make every mutation "survive" for the
-most boring possible reason.
+Applied by monkeypatching the module that *binds* the name, not the one that
+re-exports it. :mod:`bloomery.emit.lower.silver` binds ``violation``,
+``disposition`` and ``with_dedupe_qualify`` by ``from … import``, so patching
+the definition — or the package ``__init__`` that re-exports it — silently does
+nothing, and every mutation "survives" for the most boring possible reason.
+
+That is not hypothetical: the RFC 0019 split briefly pointed this module at
+``bloomery.emit.lower``, the package rather than the stage, and the whole
+harness went quiet. The goldens could not see it, because a mutation is applied
+at run time and never reaches an artifact. Each target below therefore names
+its stage module explicitly.
 """
 
 from __future__ import annotations
@@ -24,7 +30,8 @@ from typing import TYPE_CHECKING
 
 from sqlglot import exp
 
-from bloomery.emit import lower as lowering
+from bloomery.emit.lower import marts as lower_marts
+from bloomery.emit.lower import silver as lower_silver
 from bloomery.ir import OnFail
 from bloomery.marts import HAS_QUALITY_FLAGS
 from bloomery.quality import predicates
@@ -49,12 +56,12 @@ def _invert_route() -> None:
     takes the survivors. Row conservation still holds — which is exactly why
     §6 insists a test read *both* sides.
     """
-    original = lowering._route_predicate
+    original = lower_silver._route_predicate
 
     def mutated(entity: EntityIR, table: str, *, quarantined: bool) -> Expression | None:
         return original(entity, table, quarantined=not quarantined)
 
-    lowering._route_predicate = mutated  # type: ignore[assignment]
+    lower_silver._route_predicate = mutated  # type: ignore[assignment]
 
 
 def _drop_dedupe() -> None:
@@ -68,7 +75,7 @@ def _drop_dedupe() -> None:
         del dedupe, key
         return select
 
-    lowering.with_dedupe_qualify = mutated  # type: ignore[assignment]
+    lower_silver.with_dedupe_qualify = mutated  # type: ignore[assignment]
 
 
 def _quarantine_becomes_flag() -> None:
@@ -82,7 +89,7 @@ def _quarantine_becomes_flag() -> None:
         del rule
         return OnFail.FLAG
 
-    lowering.disposition = mutated  # type: ignore[assignment]
+    lower_silver.disposition = mutated  # type: ignore[assignment]
 
 
 def _range_bounds_swapped() -> None:
@@ -142,7 +149,7 @@ def _quality_flags_polarity() -> None:
     confidently wrong, and wrong in the direction the caller was guarding
     against.
     """
-    original = lowering._mart_projection
+    original = lower_marts._mart_projection
 
     def mutated(mart: MartIR, column: MartColumnIR) -> Expression:
         projection = original(mart, column)
@@ -151,7 +158,7 @@ def _quality_flags_polarity() -> None:
         negated = projection.this
         return exp.alias_(negated.this, column.name)
 
-    lowering._mart_projection = mutated  # type: ignore[assignment]
+    lower_marts._mart_projection = mutated  # type: ignore[assignment]
 
 
 #: Every mutation, by the name the harness passes through the environment.
