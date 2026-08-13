@@ -104,7 +104,12 @@ with role-playing dates, the SQLMesh/Cube/dbt emitters over DuckDB/Trino/Postgre
 MetricFlow-backed planner with manifest hydration, spec-diff planning, and the CNF query
 vocabulary with its JSON filter front door — 1200+ tests across the default tiers. The
 end-to-end and cross-target equivalence tiers are still landing. **The API is not
-stable yet** — anything may change before 0.1.
+stable yet** — anything may change before 0.1. What each surface will promise from 0.1
+onward is written down now, in
+[Stability](https://morzecrew.github.io/bloomery/reference/stability/): SemVer over the
+Python API, per-kind versioning over spec YAML, and emitted artifacts explicitly **not**
+stable — byte-reproducible for fixed inputs, which is determinism rather than a
+cross-version promise.
 
 Designs that have not yet landed live as RFCs in [`rfcs/`](rfcs/INDEX.md); code that
 contradicts a live RFC is the bug, not the RFC. An RFC is retired once it ships — the
@@ -129,7 +134,8 @@ Full documentation is available at
   [spec schemas](https://morzecrew.github.io/bloomery/reference/spec-schemas/),
   [transforms](https://morzecrew.github.io/bloomery/reference/transforms/),
   [errors](https://morzecrew.github.io/bloomery/reference/errors/),
-  [API](https://morzecrew.github.io/bloomery/reference/api/).
+  [API](https://morzecrew.github.io/bloomery/reference/api/),
+  [stability](https://morzecrew.github.io/bloomery/reference/stability/).
 
 ## Contributing
 
