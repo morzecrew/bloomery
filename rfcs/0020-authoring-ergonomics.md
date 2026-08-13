@@ -12,7 +12,7 @@
   RFC 0005 (`Resolution`, reachability with specific missing leaves), RFC 0015
   (`KNOWN_UNSUPPORTED`, the closed refusal list — the precedent for machine-readable
   reasons),
-  [RFC 0018](0018-public-surface-and-stability.md) (**blocking**: the CLI is a shell over
+  RFC 0018 (**blocking**: the CLI is a shell over
   that surface), [RFC 0019](0019-lowering-decomposition.md) (the purity guard the CLI must
   be carved out of), [RFC 0022](0022-spec-evidence.md) (`bloomery resolve` becomes a thin
   wrapper over `evaluate()` once it lands).

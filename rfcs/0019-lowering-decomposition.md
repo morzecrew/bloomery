@@ -9,9 +9,9 @@
   hold.
 - **Related:** RFC 0008 (the three-port design this
   preserves), RFC 0007 (`plan/diff.py`), RFC 0016 / RFC 0017 (the two RFCs whose lowering
-  shares this file), [RFC 0009](0009-testing-strategy.md) (the golden matrix that proves
+  shares this file), RFC 0009 (the golden matrix that proves
   the refactor inert),
-  [RFC 0018](0018-public-surface-and-stability.md) decision 6 (deep imports carry no
+  RFC 0018 decision 6 (deep imports carry no
   promise — which is what makes moving these paths free).
 - **Adoption audit:** §5.2 and §5.4 overstated what is missing; both corrected, and §10's
   third question is answered.

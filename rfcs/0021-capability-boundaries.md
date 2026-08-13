@@ -10,7 +10,7 @@
   tier. Adds one fixture, one docs page, and one paragraph of policy; adds no capability.
 - **Related:** RFC 0005 (recipes — the compiler validates, never chooses),
   RFC 0008 (`DialectPort`, `Feature`),
-  [RFC 0009](0009-testing-strategy.md) D24 (the three-way equivalence tier), RFC 0010
+  RFC 0009 D24 (the three-way equivalence tier), RFC 0010
   (marts as the gold shape), RFC 0017 (D36/D37 step outputs as entities, D49 `canonical:`
   links — the two mechanisms that make §5.1 work),
   [RFC 0020](0020-authoring-ergonomics.md) (the fixture doubles as a CLI example).

@@ -22,10 +22,10 @@ Two consequences worth knowing:
 
 - **Prose citations outlive the file.** Source, tests and docs cite decisions as
   `RFC 0016 D84` rather than as links, so a retired RFC's number keeps naming where a
-  decision came from. Read those as historical: the code is the authority now. The
-  `_original-smelter-spec.md` and `_bloomery-*.md` citations still in RFC 0009 read the
-  same way — those five input documents were removed on the same reasoning, once every RFC
-  deriving from them had shipped.
+  decision came from. Read those as historical: the code is the authority now. The five
+  input documents the corpus grew from — `_original-smelter-spec.md` and the
+  `_bloomery-*.md` set — were removed on the same reasoning, once every RFC deriving from
+  them had shipped.
 - **Retire whole, never in part.** A 🚧 In progress RFC stays, however much of it has
   shipped. Deleting the shipped half would leave the remainder arguing from a premise no
   longer in the tree.
@@ -34,8 +34,8 @@ Two consequences worth knowing:
 
 The next free number is **0023**. Before creating an RFC, read the number above — do not
 compute it from `ls`, which no longer sees retired documents. **Numbers are never reused**:
-0001–0008 and 0010–0017 are retired and permanently spent. Update this section in the same
-change that mints a number.
+0001–0018 are retired and permanently spent. Update this section in the same change that
+mints a number.
 
 Filename: `NNNN-kebab-title.md`. Keep the `# RFC NNNN — Title` H1 and the number in the
 filename in sync.
@@ -44,8 +44,6 @@ filename in sync.
 
 | # | Title | Status | One-line routing description |
 |---|---|---|---|
-| [0009](0009-testing-strategy.md) | Testing strategy and fixture corpus | 🚧 In progress | How a pure compiler is proved correct: layered tiers from unit up to live engines, over one curated fixture corpus that doubles as the documentation examples. |
-| [0018](0018-public-surface-and-stability.md) | Public surface and stability policy | 📝 Draft | Which names are public and what each of the three surfaces — Python API, spec YAML, emitted artifacts — promises, decided by signature closure rather than by review. |
 | [0019](0019-lowering-decomposition.md) | Lowering decomposition | 📝 Draft | Splitting the one module where every target and every spec kind are simultaneously in scope, cut along pipeline stages rather than targets, with import contracts holding the split. |
 | [0020](0020-authoring-ergonomics.md) | Authoring ergonomics: schema export, CLI, fix suggestions | 📝 Draft | Making a spec writable outside an editor's guesswork: exported JSON Schema, a thin CLI over the public functions, and refusals that carry the fix they already computed. |
 | [0021](0021-capability-boundaries.md) | Capability boundaries: identity resolution, dialects, closed questions | 📝 Draft | Where bloomery stops: identity resolution as a step rather than a spec kind, dialects gated on named demand, and the reusable test for whether anything deserves a spec kind. |

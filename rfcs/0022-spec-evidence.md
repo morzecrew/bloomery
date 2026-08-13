@@ -10,7 +10,7 @@
 - **Related:** RFC 0005 (`Resolution`, reachability with specific missing leaves — the
   substance this exposes), RFC 0002 (batched errors with source paths), RFC 0006 (the
   batched guardrail stage), RFC 0010 (mart grain and flattening — the summary),
-  [RFC 0018](0018-public-surface-and-stability.md) (**blocking**: signature closure covers
+  RFC 0018 (**blocking**: signature closure covers
   the new return type),
   [RFC 0020](0020-authoring-ergonomics.md) (`bloomery resolve` is re-pointed at this),
   [RFC 0021](0021-capability-boundaries.md) §5.5 (the boundary this respects).
