@@ -44,7 +44,7 @@ def execute(context: typing.Any, **kwargs: typing.Any) -> typing.Any:
     from datetime import datetime as _blm_datetime  # noqa: F401
     from decimal import Decimal as _blm_Decimal  # noqa: F401, N812
 
-    from bloomery.steps.contract import assert_step_contract as _blm_assert
+    from bloomery.steps import assert_step_contract as _blm_assert
 
     from platform_steps.resolve_customers import resolve
 
