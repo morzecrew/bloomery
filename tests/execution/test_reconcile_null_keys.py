@@ -104,7 +104,10 @@ def run() -> Iterator[duckdb.DuckDBPyConnection]:
     connection.executemany("INSERT INTO bronze.src__lines VALUES (?, ?, ?)", LINES)
     connection.execute("CREATE TABLE bronze.src__orders (id VARCHAR, amount DECIMAL(12, 2))")
     connection.executemany("INSERT INTO bronze.src__orders VALUES (?, ?)", ORDERS)
-    materialize(connection, compile_project(load_project(SOURCES), target=Target.SQLMESH, dialect="duckdb"))
+    materialize(
+        connection,
+        compile_project(load_project(SOURCES), target=Target.SQLMESH, dialect="duckdb"),
+    )
     yield connection
     connection.close()
 
@@ -134,11 +137,14 @@ def test_a_null_key_compares_once_rather_than_failing_twice(
     assert null_rows == [(Decimal("7.00"), Decimal("7.00"), Decimal("0.00"), True)]
 
 
-def test_a_null_key_that_disagrees_still_fails(run: duckdb.DuckDBPyConnection) -> None:
+def test_a_null_key_that_disagrees_still_fails() -> None:
     """The other half, and the one a fix could quietly break: matching the NULL
-    group must not stop it being *checked*. Re-run against a right side moved
-    outside the tolerance, in a second warehouse so the module's own run stays
-    the clean one."""
+    group must not stop it being *checked*.
+
+    Builds its own warehouse rather than taking the module's — the seed differs
+    on purpose, and a test that mutated the shared run would leave every
+    assertion after it describing a run nobody declared.
+    """
     connection = warehouse()
     connection.execute(
         "CREATE TABLE bronze.src__lines (id VARCHAR, order_id VARCHAR, amount DECIMAL(12, 2))"

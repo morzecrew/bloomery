@@ -677,12 +677,17 @@ def test_the_reconcile_join_is_null_safe_in_every_dialect(dialect: str) -> None:
     project, catalog = load_fixture(FIXTURE)
     artifacts = compile_project(project, target=Target.SQLMESH, dialect=dialect, catalog=catalog)
     model = next(a for a in artifacts if a.path.endswith("__reconcile.sql"))
-    rendered = extract_select(model.content)
-    on_clause = rendered.split(") AS _right", 1)[1]
-    assert "IS NOT DISTINCT FROM" in on_clause
-    # The plain operator is gone from the join, not merely joined by the other:
-    # one key rendered each way would compare two rows by two rules.
-    assert " = " not in on_clause
+    join = parse_one(extract_select(model.content), dialect=dialect).find(exp.Join)
+    assert join is not None
+    comparisons = [
+        type(node).__name__
+        for node in join.args["on"].walk()
+        if isinstance(node, (exp.NullSafeEQ, exp.EQ))
+    ]
+    # Read off the parsed condition rather than the text: the fixture joins on
+    # two keys, and *every* one of them has to be null-safe. One rendered each
+    # way would compare two rows by two rules, which is the defect itself.
+    assert comparisons == ["NullSafeEQ", "NullSafeEQ"]
 
 
 def test_the_coverage_audit_join_stays_plain_equality() -> None:
