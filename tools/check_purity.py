@@ -127,11 +127,41 @@ def import_roots(node: ast.Import | ast.ImportFrom) -> list[str]:
     return [node.module.split(".", 1)[0]] if node.module else []
 
 
+def alias_map(tree: ast.Module) -> dict[str, str]:
+    """Local name → the dotted path it actually names.
+
+    Without this, `from datetime import datetime as dt` followed by `dt.now()`
+    reads as the dotted name `dt.now`, which matches no banned suffix and walks
+    straight through. Resolving the root against what was imported is what
+    closes that: `dt` resolves to `datetime.datetime`, so the call spells
+    `datetime.datetime.now` and is caught.
+    """
+    aliases: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for entry in node.names:
+                aliases[entry.asname or entry.name.split(".", 1)[0]] = entry.name
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            for entry in node.names:
+                aliases[entry.asname or entry.name] = f"{node.module}.{entry.name}"
+    return aliases
+
+
+def resolve(name: str, aliases: dict[str, str]) -> str:
+    """A dotted name with its root expanded through the import that bound it."""
+    root, _, rest = name.partition(".")
+    target = aliases.get(root)
+    if target is None:
+        return name
+    return f"{target}.{rest}" if rest else target
+
+
 def inspect_module(path: Path, package_root: Path) -> list[Finding]:
     relative = path.relative_to(package_root).as_posix()
     exempt = relative in ALLOWLIST
     findings: list[Finding] = []
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    aliases = alias_map(tree)
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Import | ast.ImportFrom) and not exempt:
@@ -146,9 +176,10 @@ def inspect_module(path: Path, package_root: Path) -> list[Finding]:
                         )
                     )
         elif isinstance(node, ast.Call):
-            name = dotted(node.func)
-            if not name:
+            spelled = dotted(node.func)
+            if not spelled:
                 continue
+            name = resolve(spelled, aliases)
             root = name.split(".", 1)[0]
             if root in BANNED_MODULES_BY_ATTRIBUTE or any(
                 name == banned or name.endswith(f".{banned}") for banned in BANNED_CALLS
@@ -157,15 +188,20 @@ def inspect_module(path: Path, package_root: Path) -> list[Finding]:
                     Finding(
                         path,
                         node.lineno,
-                        f"calls {name}() — no ambient clock or randomness under "
+                        f"calls {spelled}() — no ambient clock or randomness under "
                         f"src/bloomery (RFC 0003 §5.5)",
                     )
                 )
         elif isinstance(node, ast.Attribute):
-            name = dotted(node)
+            spelled = dotted(node)
+            name = resolve(spelled, aliases)
             if name in BANNED_ATTRIBUTES:
                 findings.append(
-                    Finding(path, node.lineno, f"reads {name} — the environment is an input, never read")
+                    Finding(
+                        path,
+                        node.lineno,
+                        f"reads {spelled} — the environment is an input, never read",
+                    )
                 )
 
     return findings

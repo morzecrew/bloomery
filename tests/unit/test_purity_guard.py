@@ -55,6 +55,13 @@ def findings_for(tmp_path: pathlib.Path, source: str) -> list[str]:
         # catches it. Found by auditing the guard rather than by using it.
         ("from random import choice\n", "imports 'random'"),
         ("import secrets\n", "imports 'secrets'"),
+        # Aliased imports: `dotted()` reports the alias, which matches no
+        # banned suffix, so the root has to be resolved through the import
+        # that bound it. Review found this one.
+        ("from datetime import datetime as dt\nx = dt.now()\n", "calls dt.now()"),
+        ("import time as t\nx = t.time()\n", "calls t.time()"),
+        ("import uuid as u\nx = u.uuid4()\n", "calls u.uuid4()"),
+        ("import os as o\nx = o.environ\n", "reads o.environ"),
         ("x = os.environ['HOME']\n", "reads os.environ"),
     ],
 )
