@@ -63,6 +63,11 @@ dev = [
     "duckdb>=1.1",
     "hypothesis>=6.130",
     "import-linter>=2.3",
+    # Test-only, and only for the schema-agreement property (RFC 0020 D10):
+    # something has to *be* the second validator for a drift measurement to
+    # mean anything. Not a runtime dependency — D6 forbids those, and bloomery
+    # never validates against its own export.
+    "jsonschema>=4.23",
     "mypy[faster-cache]>=2.3.0",
     "pre-commit>=4.1",
     "pytest>=8",
@@ -286,6 +291,10 @@ exclude_type_checking_imports = true
 # `emit`, above `resolve`) made unreachable. Nothing else moves: `emit` and
 # `compile` still sit above `dialects`, and the "emitters never import the
 # spec layer" contract below is unaffected.
+# M17 (RFC 0020 §5.1): `schema` sits beside `dialects` — it reads the spec
+# models it describes and the transform registry the whitelist enum comes from
+# (D2), and nothing else. A sibling rather than a top layer because `cli`
+# consumes it; the two siblings are mutually independent by construction.
 name = "Layered bloomery compile pipeline"
 type = "layers"
 layers = [
@@ -299,7 +308,7 @@ layers = [
     "(bloomery.quality)",
     "(bloomery.marts)",
     "(bloomery.ir)",
-    "(bloomery.dialects)",
+    "(bloomery.dialects) | (bloomery.schema)",
     "(bloomery.transforms)",
     "(bloomery.steps)",
     "(bloomery.typing)",

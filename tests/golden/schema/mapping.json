@@ -1,0 +1,1077 @@
+{
+  "$defs": {
+    "CharsetRule": {
+      "additionalProperties": false,
+      "description": "``{rule: charset, allow: [...]}`` or ``{rule: charset, forbid: [...]}``\n\u2014 exactly one, each a list of ``U+`` codepoints or inclusive ranges\n(RFC 0016 D86).\n\nThis is the half of D26 that a *confusables table* was supposed to answer,\nand the table is deliberately not what this is. A confusables table is\nversioned Unicode data: embedding it would make the disposition of a row\ndepend on which Unicode revision the compiler happened to ship, which is\nan ambient input by another name (RFC 0003). Declaring the admissible\ncharacters instead keeps the knowledge where D1 puts it \u2014 in the spec \u2014\nand it is *stronger* for the case that motivated it: an allow-list of the\nscript a column is actually written in catches a Cyrillic homoglyph, a\nfullwidth digit and an Arabic-Indic digit alike, none of which any\ndenylist enumerates completely.\n\n``forbid`` is the complementary shape, for the class that is genuinely\nsmall and closed: the invisible formatting characters (zero-width space,\nbidi controls, soft hyphen, BOM).\n\nNeither is expressible as a ``pattern``: the portable regex subset (D5)\nforbids exactly the codepoint-class constructs this would need, because\nsuch a class means one thing under RE2 and another under Postgres ARE.\nA literal *set* is not a regex at all, and lowers through ``TRANSLATE``.",
+      "properties": {
+        "allow": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^U\\+[0-9A-F]{4,6}(-U\\+[0-9A-F]{4,6})?$",
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Allow"
+        },
+        "forbid": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^U\\+[0-9A-F]{4,6}(-U\\+[0-9A-F]{4,6})?$",
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Forbid"
+        },
+        "on_fail": {
+          "enum": [
+            "flag",
+            "quarantine",
+            "fail",
+            "repair"
+          ],
+          "title": "On Fail",
+          "type": "string"
+        },
+        "repair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Repair"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rule": {
+          "const": "charset",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "on_fail",
+        "rule"
+      ],
+      "title": "CharsetRule",
+      "type": "object"
+    },
+    "CoercibleRule": {
+      "additionalProperties": false,
+      "description": "``{rule: coercible}`` \u2014 the implicit, always-present rule made explicit\nto override its ``quarantine`` default (RFC 0016 \u00a75.2, D3). Transform\nchains produce a value or a coercion-failure marker; this disposes of the\nmarker. It absorbs the retired ``Mapping.on_unmapped_enum``.",
+      "properties": {
+        "on_fail": {
+          "enum": [
+            "flag",
+            "quarantine",
+            "fail",
+            "repair"
+          ],
+          "title": "On Fail",
+          "type": "string"
+        },
+        "repair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Repair"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rule": {
+          "const": "coercible",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "on_fail",
+        "rule"
+      ],
+      "title": "CoercibleRule",
+      "type": "object"
+    },
+    "InEnumRule": {
+      "additionalProperties": false,
+      "description": "``{rule: in_enum}`` \u2014 the value survived its ``enum_map`` chain\nunmapped. Parameterless by construction: the admissible set *is* the\nchain's mapping, and restating it here would let the two drift.",
+      "properties": {
+        "on_fail": {
+          "enum": [
+            "flag",
+            "quarantine",
+            "fail",
+            "repair"
+          ],
+          "title": "On Fail",
+          "type": "string"
+        },
+        "repair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Repair"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rule": {
+          "const": "in_enum",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "on_fail",
+        "rule"
+      ],
+      "title": "InEnumRule",
+      "type": "object"
+    },
+    "InSetRule": {
+      "additionalProperties": false,
+      "description": "``{rule: in_set, values: [...]}`` \u2014 membership in a literal set\ndeclared inline; at least one value (an empty set fails every row).",
+      "properties": {
+        "on_fail": {
+          "enum": [
+            "flag",
+            "quarantine",
+            "fail",
+            "repair"
+          ],
+          "title": "On Fail",
+          "type": "string"
+        },
+        "repair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Repair"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rule": {
+          "const": "in_set",
+          "title": "Rule",
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "on_fail",
+        "rule",
+        "values"
+      ],
+      "title": "InSetRule",
+      "type": "object"
+    },
+    "KeyField": {
+      "additionalProperties": false,
+      "description": "Key-column lowering: a JSONPath-lite source path plus transform chain.",
+      "properties": {
+        "from": {
+          "pattern": "^\\$(?:\\.[A-Za-z_][A-Za-z0-9_]*)+$",
+          "title": "From",
+          "type": "string"
+        },
+        "transform": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/TransformStep"
+          },
+          "title": "Transform",
+          "type": "array"
+        }
+      },
+      "required": [
+        "from"
+      ],
+      "title": "KeyField",
+      "type": "object"
+    },
+    "LengthRule": {
+      "additionalProperties": false,
+      "description": "``{rule: length, min: \u2026, max: \u2026}`` \u2014 at least one bound, both\nnon-negative character counts.",
+      "properties": {
+        "max": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min"
+        },
+        "on_fail": {
+          "enum": [
+            "flag",
+            "quarantine",
+            "fail",
+            "repair"
+          ],
+          "title": "On Fail",
+          "type": "string"
+        },
+        "repair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Repair"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rule": {
+          "const": "length",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "on_fail",
+        "rule"
+      ],
+      "title": "LengthRule",
+      "type": "object"
+    },
+    "MacroFieldMapping": {
+      "additionalProperties": false,
+      "description": "A field computed by a Tier 1 ``sql_macro`` (RFC 0017 \u00a75.1, D50).\n\nThe third field shape, beside a direct ``from:`` and a catalog\n``recipe:``. ``step`` names the macro as ``ref@version``; ``from`` binds\neach ``:name`` its body refers to, exactly as a recipe binds the aliases\nits ``requires`` names. Both read the same way on purpose \u2014 a macro is a\nrecipe the platform owns and versions, rather than one the catalog\ndeclares.\n\n``parameters`` are supplied **here**, at the call site, not in the\n``steps:`` document. A macro writes no relation, so it has no output to\nbind there; and one wiring per ref (RFC 0017 D13) would make a macro\nusable in exactly one mapping, with one parameter set \u2014 which is the\npressure that produces ``fuzzy_score_strict`` and is the fork \u00a75.7 exists\nto refuse.\n\nThere is still no field here that can hold a body. The macro's SQL comes\nfrom the registry the caller assembled, never from the spec (\u00a75.3, D3).",
+      "properties": {
+        "from": {
+          "additionalProperties": {
+            "pattern": "^\\$(?:\\.[A-Za-z_][A-Za-z0-9_]*)+$",
+            "type": "string"
+          },
+          "title": "From",
+          "type": "object"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ]
+          },
+          "title": "Parameters",
+          "type": "object"
+        },
+        "quality": {
+          "default": [],
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "charset": "#/$defs/CharsetRule",
+                "coercible": "#/$defs/CoercibleRule",
+                "in_enum": "#/$defs/InEnumRule",
+                "in_set": "#/$defs/InSetRule",
+                "length": "#/$defs/LengthRule",
+                "normalize": "#/$defs/NormalizeRule",
+                "not_null": "#/$defs/NotNullRule",
+                "pattern": "#/$defs/PatternRule",
+                "range": "#/$defs/RangeRule",
+                "unique": "#/$defs/UniqueRule"
+              },
+              "propertyName": "rule"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/CoercibleRule"
+              },
+              {
+                "$ref": "#/$defs/NotNullRule"
+              },
+              {
+                "$ref": "#/$defs/RangeRule"
+              },
+              {
+                "$ref": "#/$defs/LengthRule"
+              },
+              {
+                "$ref": "#/$defs/PatternRule"
+              },
+              {
+                "$ref": "#/$defs/InEnumRule"
+              },
+              {
+                "$ref": "#/$defs/InSetRule"
+              },
+              {
+                "$ref": "#/$defs/NormalizeRule"
+              },
+              {
+                "$ref": "#/$defs/CharsetRule"
+              },
+              {
+                "$ref": "#/$defs/UniqueRule"
+              }
+            ]
+          },
+          "title": "Quality",
+          "type": "array"
+        },
+        "step": {
+          "pattern": "^[a-z][a-z0-9_]*@[1-9][0-9]*$",
+          "title": "Step",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step"
+      ],
+      "title": "MacroFieldMapping",
+      "type": "object"
+    },
+    "NormalizeRule": {
+      "additionalProperties": false,
+      "description": "``{rule: normalize, form: nfc}`` \u2014 the value must **already be** in the\nnamed Unicode normal form (RFC 0016 D86).\n\nA rule, not a transform, and deliberately so: normalizing silently would\nrewrite the value a source delivered, and RFC 0016 D1 holds that specs\ndescribe rather than repair. What this says is \"``caf\u00e9`` spelled with a\ncombining acute is not the same bytes as ``caf\u00e9`` spelled precomposed, and\nI want to know\" \u2014 which is what dedupe, ``unique`` and every join already\nbelieve, while a human reading the two rows sees one value.",
+      "properties": {
+        "form": {
+          "const": "nfc",
+          "title": "Form",
+          "type": "string"
+        },
+        "on_fail": {
+          "enum": [
+            "flag",
+            "quarantine",
+            "fail",
+            "repair"
+          ],
+          "title": "On Fail",
+          "type": "string"
+        },
+        "repair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Repair"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rule": {
+          "const": "normalize",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "form",
+        "on_fail",
+        "rule"
+      ],
+      "title": "NormalizeRule",
+      "type": "object"
+    },
+    "NotNullRule": {
+      "additionalProperties": false,
+      "description": "``{rule: not_null}`` \u2014 one of the two rules that own nulls (RFC 0016\nD19): every other rule's violation predicate stays silent on ``UNKNOWN``.",
+      "properties": {
+        "on_fail": {
+          "enum": [
+            "flag",
+            "quarantine",
+            "fail",
+            "repair"
+          ],
+          "title": "On Fail",
+          "type": "string"
+        },
+        "repair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Repair"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rule": {
+          "const": "not_null",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "on_fail",
+        "rule"
+      ],
+      "title": "NotNullRule",
+      "type": "object"
+    },
+    "PatternRule": {
+      "additionalProperties": false,
+      "description": "``{rule: pattern, regex: \u2026}`` \u2014 ``regex`` names the expression, keeping\none word for one concept alongside the shipped ``assert: {regex: \u2026}``\n(RFC 0006 D8). The portable subset is enforced here; per-dialect\nvalidation through sqlglot is the lowering phase's.",
+      "properties": {
+        "on_fail": {
+          "enum": [
+            "flag",
+            "quarantine",
+            "fail",
+            "repair"
+          ],
+          "title": "On Fail",
+          "type": "string"
+        },
+        "regex": {
+          "title": "Regex",
+          "type": "string"
+        },
+        "repair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Repair"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rule": {
+          "const": "pattern",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "on_fail",
+        "regex",
+        "rule"
+      ],
+      "title": "PatternRule",
+      "type": "object"
+    },
+    "RangeRule": {
+      "additionalProperties": false,
+      "description": "``{rule: range, min: \u2026, max: \u2026}`` \u2014 at least one bound; bounds are\n``int``/``Decimal``/``str``, never ``float`` (RFC 0003 D5), and the\n``str`` carrier is exact: an exact decimal or an ISO temporal, never\n``nan``/``inf`` and never an exponent (:func:`_exact_bound`). Two bounds\nmay carry different dispositions, so they are two rules (\u00a75.3's worked\nexample: ``min: 0`` quarantines, ``max: 1000000`` flags).",
+      "properties": {
+        "max": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min"
+        },
+        "on_fail": {
+          "enum": [
+            "flag",
+            "quarantine",
+            "fail",
+            "repair"
+          ],
+          "title": "On Fail",
+          "type": "string"
+        },
+        "repair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Repair"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rule": {
+          "const": "range",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "on_fail",
+        "rule"
+      ],
+      "title": "RangeRule",
+      "type": "object"
+    },
+    "RecipeFieldMapping": {
+      "additionalProperties": false,
+      "description": "Recipe field mapping: a recorded catalog recipe id (chosen upstream,\nreproduced here \u2014 RFC 0005 D2) plus the alias\u2192path bindings its\n``requires`` names.\n\n``direct`` records that the source *also* carries the field directly \u2014 the\npath-conflict state (RFC 0006 \u00a75.5, D7): the compiler then emits the\nderived column, a ``<name>__direct`` shadow, and a reconciliation audit.\nIt never picks one silently, and omitting the direct path to silence the\nshadow is a recorded upstream decision, not a compiler default.",
+      "properties": {
+        "direct": {
+          "anyOf": [
+            {
+              "pattern": "^\\$(?:\\.[A-Za-z_][A-Za-z0-9_]*)+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Direct"
+        },
+        "from": {
+          "additionalProperties": {
+            "pattern": "^\\$(?:\\.[A-Za-z_][A-Za-z0-9_]*)+$",
+            "type": "string"
+          },
+          "title": "From",
+          "type": "object"
+        },
+        "quality": {
+          "default": [],
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "charset": "#/$defs/CharsetRule",
+                "coercible": "#/$defs/CoercibleRule",
+                "in_enum": "#/$defs/InEnumRule",
+                "in_set": "#/$defs/InSetRule",
+                "length": "#/$defs/LengthRule",
+                "normalize": "#/$defs/NormalizeRule",
+                "not_null": "#/$defs/NotNullRule",
+                "pattern": "#/$defs/PatternRule",
+                "range": "#/$defs/RangeRule",
+                "unique": "#/$defs/UniqueRule"
+              },
+              "propertyName": "rule"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/CoercibleRule"
+              },
+              {
+                "$ref": "#/$defs/NotNullRule"
+              },
+              {
+                "$ref": "#/$defs/RangeRule"
+              },
+              {
+                "$ref": "#/$defs/LengthRule"
+              },
+              {
+                "$ref": "#/$defs/PatternRule"
+              },
+              {
+                "$ref": "#/$defs/InEnumRule"
+              },
+              {
+                "$ref": "#/$defs/InSetRule"
+              },
+              {
+                "$ref": "#/$defs/NormalizeRule"
+              },
+              {
+                "$ref": "#/$defs/CharsetRule"
+              },
+              {
+                "$ref": "#/$defs/UniqueRule"
+              }
+            ]
+          },
+          "title": "Quality",
+          "type": "array"
+        },
+        "recipe": {
+          "title": "Recipe",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "recipe"
+      ],
+      "title": "RecipeFieldMapping",
+      "type": "object"
+    },
+    "Repair": {
+      "additionalProperties": false,
+      "description": "The repair-recipe contract D17 gated the disposition on (RFC 0016 D87).\n\n``via`` names a registered Tier 1 ``sql_macro`` as ``ref@version``, which\nsettles \u00a710's open question \u2014 *inline vs catalog-referenced* \u2014 in favour of\nreferenced, and not by preference: D1 holds that specs reference\nimplementations and never contain them, and RFC 0017's registry is where a\nreferenced implementation already lives, with a version, a declared\nsignature, a ``runtime_lock`` and a trust-then-verify contract. An inline\nrecipe would have been a second, weaker copy of all of that, reachable only\nfrom here.\n\n``fallback`` is the disposition for a row the recipe did **not** fix, and\nit is required for the same reason ``on_fail`` is (D2): a repair that\nsilently kept a still-broken value would be the ``drop`` this RFC refuses,\nwearing a friendlier name. It cannot itself be ``repair`` \u2014 a second\nattempt at the same value with the same recipe returns the same answer.",
+      "properties": {
+        "fallback": {
+          "enum": [
+            "flag",
+            "quarantine",
+            "fail"
+          ],
+          "title": "Fallback",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ]
+          },
+          "title": "Parameters",
+          "type": "object"
+        },
+        "via": {
+          "pattern": "^[a-z][a-z0-9_]*@[1-9][0-9]*$",
+          "title": "Via",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fallback",
+        "via"
+      ],
+      "title": "Repair",
+      "type": "object"
+    },
+    "SimpleFieldMapping": {
+      "additionalProperties": false,
+      "description": "Direct field mapping: one source path plus a transform chain, and the\nfield's ``quality:`` rules (RFC 0016 \u00a75.3).",
+      "properties": {
+        "from": {
+          "pattern": "^\\$(?:\\.[A-Za-z_][A-Za-z0-9_]*)+$",
+          "title": "From",
+          "type": "string"
+        },
+        "quality": {
+          "default": [],
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "charset": "#/$defs/CharsetRule",
+                "coercible": "#/$defs/CoercibleRule",
+                "in_enum": "#/$defs/InEnumRule",
+                "in_set": "#/$defs/InSetRule",
+                "length": "#/$defs/LengthRule",
+                "normalize": "#/$defs/NormalizeRule",
+                "not_null": "#/$defs/NotNullRule",
+                "pattern": "#/$defs/PatternRule",
+                "range": "#/$defs/RangeRule",
+                "unique": "#/$defs/UniqueRule"
+              },
+              "propertyName": "rule"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/CoercibleRule"
+              },
+              {
+                "$ref": "#/$defs/NotNullRule"
+              },
+              {
+                "$ref": "#/$defs/RangeRule"
+              },
+              {
+                "$ref": "#/$defs/LengthRule"
+              },
+              {
+                "$ref": "#/$defs/PatternRule"
+              },
+              {
+                "$ref": "#/$defs/InEnumRule"
+              },
+              {
+                "$ref": "#/$defs/InSetRule"
+              },
+              {
+                "$ref": "#/$defs/NormalizeRule"
+              },
+              {
+                "$ref": "#/$defs/CharsetRule"
+              },
+              {
+                "$ref": "#/$defs/UniqueRule"
+              }
+            ]
+          },
+          "title": "Quality",
+          "type": "array"
+        },
+        "transform": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/TransformStep"
+          },
+          "title": "Transform",
+          "type": "array"
+        }
+      },
+      "required": [
+        "from"
+      ],
+      "title": "SimpleFieldMapping",
+      "type": "object"
+    },
+    "TransformStep": {
+      "anyOf": [
+        {
+          "enum": [
+            "abs",
+            "coalesce",
+            "concat",
+            "convert",
+            "divide",
+            "enum_map",
+            "json_path",
+            "lower",
+            "multiply",
+            "nullif",
+            "parse_date",
+            "parse_ts",
+            "regex_extract",
+            "round",
+            "split_part",
+            "strip_prefix",
+            "strip_suffix",
+            "to_bool",
+            "to_decimal",
+            "to_int",
+            "to_string",
+            "to_utc",
+            "trim",
+            "upper"
+          ],
+          "title": "Bare transform name",
+          "type": "string"
+        },
+        {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ]
+                },
+                "type": "array"
+              }
+            ]
+          },
+          "maxProperties": 1,
+          "minProperties": 1,
+          "propertyNames": {
+            "enum": [
+              "abs",
+              "coalesce",
+              "concat",
+              "convert",
+              "divide",
+              "enum_map",
+              "json_path",
+              "lower",
+              "multiply",
+              "nullif",
+              "parse_date",
+              "parse_ts",
+              "regex_extract",
+              "round",
+              "split_part",
+              "strip_prefix",
+              "strip_suffix",
+              "to_bool",
+              "to_decimal",
+              "to_int",
+              "to_string",
+              "to_utc",
+              "trim",
+              "upper"
+            ]
+          },
+          "title": "Single-key mapping of transform name to argument(s)",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "args": {
+              "default": [],
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "title": "Args",
+              "type": "array"
+            },
+            "name": {
+              "enum": [
+                "abs",
+                "coalesce",
+                "concat",
+                "convert",
+                "divide",
+                "enum_map",
+                "json_path",
+                "lower",
+                "multiply",
+                "nullif",
+                "parse_date",
+                "parse_ts",
+                "regex_extract",
+                "round",
+                "split_part",
+                "strip_prefix",
+                "strip_suffix",
+                "to_bool",
+                "to_decimal",
+                "to_int",
+                "to_string",
+                "to_utc",
+                "trim",
+                "upper"
+              ],
+              "title": "Name",
+              "type": "string"
+            },
+            "step": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z][a-z0-9_]*@[1-9][0-9]*$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Step"
+            }
+          },
+          "title": "TransformStep",
+          "type": "object"
+        }
+      ],
+      "description": "One step of a transform chain, normalized at parse (RFC 0002 \u00a75.5) from\neither a bare name (``to_int``) or a single-key mapping\n(``{parse_ts: \"ISO8601\"}``) into ``(name, args)``.\n\n``step`` is the Tier 1 link (RFC 0017 D51): ``{step: extract_domain@1}``\nsplices a ``sql_macro`` into the chain at that position. It is a separate\nfield rather than a reserved transform *name* because a whitelist entry\ncalled ``step`` would otherwise shadow it silently \u2014 and the whitelist is\nopen to additions by RFC amendment (RFC 0004), so \"no transform is called\nthat today\" is not a property anything guarantees."
+    },
+    "UniqueRule": {
+      "additionalProperties": false,
+      "description": "``{rule: unique}`` \u2014 evaluated **per partition slice** in both full and\nincremental runs (RFC 0016 D5); cross-partition duplicates are key-based\ndedupe's job in every mode, and sampling is rejected outright.",
+      "properties": {
+        "on_fail": {
+          "enum": [
+            "flag",
+            "quarantine",
+            "fail",
+            "repair"
+          ],
+          "title": "On Fail",
+          "type": "string"
+        },
+        "repair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Repair"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rule": {
+          "const": "unique",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "on_fail",
+        "rule"
+      ],
+      "title": "UniqueRule",
+      "type": "object"
+    }
+  },
+  "$id": "https://morzecrew.github.io/bloomery/schemas/v1/mapping.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One (source, target entity) mapping document (``mapping_version``).",
+  "properties": {
+    "fields": {
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/SimpleFieldMapping"
+          },
+          {
+            "$ref": "#/$defs/RecipeFieldMapping"
+          },
+          {
+            "$ref": "#/$defs/MacroFieldMapping"
+          }
+        ]
+      },
+      "title": "Fields",
+      "type": "object"
+    },
+    "key": {
+      "additionalProperties": {
+        "$ref": "#/$defs/KeyField"
+      },
+      "title": "Key",
+      "type": "object"
+    },
+    "mapping_version": {
+      "const": 1,
+      "title": "Mapping Version",
+      "type": "integer"
+    },
+    "source": {
+      "title": "Source",
+      "type": "string"
+    },
+    "target": {
+      "title": "Target",
+      "type": "string"
+    },
+    "unmapped": {
+      "default": [],
+      "items": {
+        "pattern": "^\\$(?:\\.[A-Za-z_][A-Za-z0-9_]*)+$",
+        "type": "string"
+      },
+      "title": "Unmapped",
+      "type": "array"
+    }
+  },
+  "required": [
+    "key",
+    "mapping_version",
+    "source",
+    "target"
+  ],
+  "title": "Mapping",
+  "type": "object"
+}

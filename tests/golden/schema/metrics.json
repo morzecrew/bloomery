@@ -1,0 +1,241 @@
+{
+  "$defs": {
+    "CumulativeSpec": {
+      "additionalProperties": false,
+      "description": "Reserved cumulative-metric form (RFC 0002 D10; lowered per RFC 0013):\nexactly one of ``window`` or ``grain_to_date``.",
+      "properties": {
+        "grain_to_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grain To Date"
+        },
+        "window": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Window"
+        }
+      },
+      "title": "CumulativeSpec",
+      "type": "object"
+    },
+    "Metric": {
+      "additionalProperties": false,
+      "description": "One authored metric: a template instantiation or an inline definition.\n\nShape-only at parse (RFC 0002 D4): whether ``template`` exists, leaves are\nreachable, or the additivity policy is complete is checked downstream\n(resolution RFC 0005; guardrails RFC 0006).",
+      "properties": {
+        "additivity": {
+          "anyOf": [
+            {
+              "enum": [
+                "additive",
+                "semi_additive",
+                "non_additive"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Additivity"
+        },
+        "agg": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agg"
+        },
+        "cumulative": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CumulativeSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "expr": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expr"
+        },
+        "grain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grain"
+        },
+        "ratio": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RatioSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "requires": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Requires",
+          "type": "array"
+        },
+        "requires_metrics": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Requires Metrics",
+          "type": "array"
+        },
+        "semi_additive": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SemiAdditivePolicy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "template": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Template"
+        }
+      },
+      "title": "Metric",
+      "type": "object"
+    },
+    "RatioSpec": {
+      "additionalProperties": false,
+      "description": "Additive decomposition of a non-additive metric (RFC 0002 D9, RFC 0011 D5).",
+      "properties": {
+        "denominator": {
+          "title": "Denominator",
+          "type": "string"
+        },
+        "numerator": {
+          "title": "Numerator",
+          "type": "string"
+        }
+      },
+      "required": [
+        "denominator",
+        "numerator"
+      ],
+      "title": "RatioSpec",
+      "type": "object"
+    },
+    "SemiAdditivePolicy": {
+      "additionalProperties": false,
+      "description": "Typed semi-additive policy (RFC 0002 \u00a75.5): the dimension the metric is\nnot additive over, and the rule applied along it.",
+      "properties": {
+        "over": {
+          "title": "Over",
+          "type": "string"
+        },
+        "rule": {
+          "enum": [
+            "last",
+            "first",
+            "avg",
+            "min",
+            "max"
+          ],
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "over",
+        "rule"
+      ],
+      "title": "SemiAdditivePolicy",
+      "type": "object"
+    }
+  },
+  "$id": "https://morzecrew.github.io/bloomery/schemas/v1/metrics.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The per-project metric document (``metrics_version``), at most one per\nproject (RFC 0002 \u00a75.5).",
+  "properties": {
+    "metrics": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Metric"
+      },
+      "title": "Metrics",
+      "type": "object"
+    },
+    "metrics_version": {
+      "const": 1,
+      "title": "Metrics Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "metrics",
+    "metrics_version"
+  ],
+  "title": "MetricSet",
+  "type": "object"
+}
