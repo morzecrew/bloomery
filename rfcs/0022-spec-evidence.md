@@ -12,7 +12,7 @@
   batched guardrail stage), RFC 0010 (mart grain and flattening — the summary),
   RFC 0018 (**blocking**: signature closure covers
   the new return type),
-  [RFC 0020](0020-authoring-ergonomics.md) (`bloomery resolve` is re-pointed at this),
+  RFC 0020 (landed as M17 and retired; `bloomery resolve` is re-pointed at this in M19),
   [RFC 0021](0021-capability-boundaries.md) §5.5 (the boundary this respects).
 - **Adoption audit:** every claim in §3 verified; no corrections were needed.
 
@@ -366,10 +366,13 @@ prefix, which passes every other test here.
 
 Design locked by this RFC; implementation lands as wave **M19**, after RFC 0018's M15
 (decision 1 adds root exports, which the signature-closure test must already exist to
-police) and preferably after RFC 0020's M17, so `bloomery resolve` is re-pointed rather
+police). RFC 0020's M17 has landed, so `bloomery resolve` exists and is re-pointed rather
 than written twice.
 
 Independent of RFC 0019 and RFC 0021.
 
 Within the wave: `SpecEvidence` and the stage-stopping pipeline first (decisions 1–5, 7),
-then the CLI re-point (decision 8) as an amendment appended to RFC 0020.
+then the CLI re-point (decision 8). That re-point can no longer be "an amendment appended
+to RFC 0020" as decision 8 words it — M17 landed and the document was retired with it, so
+the amendment lands as the change itself: `bloomery resolve` calls `evaluate()`, and
+`pages/docs/how-to/use-the-cli.md` says what it now reports.

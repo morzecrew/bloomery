@@ -1,0 +1,631 @@
+{
+  "$defs": {
+    "AssertClause": {
+      "additionalProperties": false,
+      "description": "Per-field range-sanity assertions (RFC 0006 D8 / \u00a75.6): validated for\nwell-typedness at the guardrail stage, lowered to target-native audits at\nemit. Shape-only here.",
+      "properties": {
+        "enum": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enum"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min"
+        },
+        "not_null": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Not Null"
+        },
+        "regex": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Regex"
+        }
+      },
+      "title": "AssertClause",
+      "type": "object"
+    },
+    "Coverage": {
+      "additionalProperties": false,
+      "description": "One cross-entity **coverage** check (RFC 0016 \u00a710 \u2192 D90) \u2014 \u00a710's \"every\ncustomer has \u22651 order\", made declarable.\n\n\u00a710 guessed \"probably reconcile-style\". It is not: a ``reconcile`` compares\ntwo *values* and alerts when they differ beyond a tolerance, while this\nasserts *existence* \u2014 there is no right-hand value on the referenced entity\nto compare against, and ``right: 1`` is not a shape the reconcile grammar\nadmits or should.\n\nIt is a property of a declared **relationship**, which is what makes it\nexpressible at all: ``referential`` already asks whether every *dependent*\nrow has a parent, and this asks the mirror question \u2014 whether every\n*referenced* row has at least ``min`` dependents. Both read the same two\nrelations through the same ``via`` pairs.\n\n**Why it is an audit and not a disposition-carrying rule.** A childless\ncustomer is a perfectly well-formed row; what is \"wrong\" is another table's\ncontents. Routing it would need the referenced entity's model to read the\ndependent one \u2014 and the dependent one already reads the referenced one\nthrough this very relationship, so the pair that most wants this check is\nexactly the pair whose models would form a cycle. The audit is attached to\nthe **dependent** side instead, which already depends on the referenced\nside, so the check adds no edge the relationship did not already imply.",
+      "properties": {
+        "min": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Min",
+          "type": "integer"
+        },
+        "name": {
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Name",
+          "type": "string"
+        },
+        "on_fail": {
+          "enum": [
+            "flag",
+            "fail"
+          ],
+          "title": "On Fail",
+          "type": "string"
+        },
+        "relationship": {
+          "title": "Relationship",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "on_fail",
+        "relationship"
+      ],
+      "title": "Coverage",
+      "type": "object"
+    },
+    "Dedupe": {
+      "additionalProperties": false,
+      "description": "``dedupe: {keep: latest_by, field: \u2026, tie_break: [...]}`` \u2014 partitions\nby the entity key and keeps one row per key (RFC 0016 \u00a75.4).\n\n``tie_break`` is optional *here* and mandatory *there*: its absence is the\ncompile error ``DedupeTieBreakMissing`` (\u00a75.3), a statement about the\nmodel rather than the document.",
+      "properties": {
+        "field": {
+          "title": "Field",
+          "type": "string"
+        },
+        "keep": {
+          "const": "latest_by",
+          "title": "Keep",
+          "type": "string"
+        },
+        "tie_break": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Tie Break",
+          "type": "array"
+        }
+      },
+      "required": [
+        "field",
+        "keep"
+      ],
+      "title": "Dedupe",
+      "type": "object"
+    },
+    "Entity": {
+      "additionalProperties": false,
+      "description": "One entity: grain, authored-order key, SCD kind, partitioning, optional\nexplicit materialization, named fields (generated names reserved,\nRFC 0002 D10 / RFC 0016 \u00a75.5), and the entity-level quality surface.\n\n``dedupe`` partitions by this entity's ``key``; ``quality`` holds the row\nrules (``expression``, ``referential``); ``quarantine`` governs the\n``<entity>__reject`` table (RFC 0016 \u00a75.3, \u00a75.6).",
+      "properties": {
+        "dedupe": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Dedupe"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fields": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Field"
+          },
+          "title": "Fields",
+          "type": "object"
+        },
+        "grain": {
+          "title": "Grain",
+          "type": "string"
+        },
+        "key": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Key",
+          "type": "array"
+        },
+        "materialization": {
+          "anyOf": [
+            {
+              "enum": [
+                "full",
+                "incremental_by_key",
+                "incremental_by_partition"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Materialization"
+        },
+        "partition_by": {
+          "default": [],
+          "items": {
+            "pattern": "^(?:(days|months|years|hours)\\(([A-Za-z_][A-Za-z0-9_]*)\\)|[A-Za-z_][A-Za-z0-9_]*)$",
+            "type": "string"
+          },
+          "title": "Partition By",
+          "type": "array"
+        },
+        "quality": {
+          "default": [],
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "expression": "#/$defs/ExpressionRule",
+                "referential": "#/$defs/ReferentialRule"
+              },
+              "propertyName": "rule"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ExpressionRule"
+              },
+              {
+                "$ref": "#/$defs/ReferentialRule"
+              }
+            ]
+          },
+          "title": "Quality",
+          "type": "array"
+        },
+        "quarantine": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Quarantine"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "scd": {
+          "default": "type1",
+          "enum": [
+            "type1",
+            "type2"
+          ],
+          "title": "Scd",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fields",
+        "grain",
+        "key"
+      ],
+      "title": "Entity",
+      "type": "object"
+    },
+    "ExpressionRule": {
+      "additionalProperties": false,
+      "description": "``{rule: expression, name: \u2026, expr: \u2026}`` \u2014 a boolean row predicate over\nthe entity's own columns. ``name`` is authored because it reaches\n``_quality_flags`` and the quality mart, where a generated name would be\nunreadable.",
+      "properties": {
+        "expr": {
+          "title": "Expr",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Name",
+          "type": "string"
+        },
+        "on_fail": {
+          "enum": [
+            "flag",
+            "quarantine",
+            "fail",
+            "repair"
+          ],
+          "title": "On Fail",
+          "type": "string"
+        },
+        "repair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Repair"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rule": {
+          "const": "expression",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expr",
+        "name",
+        "on_fail",
+        "rule"
+      ],
+      "title": "ExpressionRule",
+      "type": "object"
+    },
+    "Field": {
+      "additionalProperties": false,
+      "description": "One entity field: logical type (grammar-validated string at parse,\nRFC 0002 \u00a75.5), optional catalog link, explicit-rename annotation\n(RFC 0007 D3), and assert clauses.",
+      "properties": {
+        "assert": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AssertClause"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "canonical": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Canonical"
+        },
+        "renamed_from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Renamed From"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "type": {
+          "pattern": "^(?:string|int|bool|date|timestamp|variant|decimal\\((\\d{1,3}), ?(\\d{1,3})\\))$",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "Field",
+      "type": "object"
+    },
+    "Quarantine": {
+      "additionalProperties": false,
+      "description": "``quarantine: {retention: 90d, redact: [...]}`` \u2014 the per-entity reject\ntable's policy (RFC 0016 \u00a75.6).\n\n``retention:`` is required whenever the block exists because reject rows\nhold raw source payloads, and therefore PII: \"trivial now and a legal\nproblem in eighteen months\". ``redact:`` JSONPaths apply to ``raw`` and\n``key_values`` at write time.",
+      "properties": {
+        "redact": {
+          "default": [],
+          "items": {
+            "pattern": "^\\$(?:\\.[A-Za-z_][A-Za-z0-9_]*)+$",
+            "type": "string"
+          },
+          "title": "Redact",
+          "type": "array"
+        },
+        "retention": {
+          "pattern": "^[1-9][0-9]{0,4}[hdw]$",
+          "title": "Retention",
+          "type": "string"
+        }
+      },
+      "required": [
+        "retention"
+      ],
+      "title": "Quarantine",
+      "type": "object"
+    },
+    "Reconcile": {
+      "additionalProperties": false,
+      "description": "One ``reconcile:`` block \u2014 the check that catches a *correct formula\nover wrong data* (RFC 0016 \u00a75.3), emitting its own model plus a\nnon-blocking audit.\n\n``tolerance`` is a quoted decimal: YAML's ``0.01`` is a float, and floats\nnever enter the IR or an emission path (RFC 0003 D5).",
+      "properties": {
+        "left": {
+          "title": "Left",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Name",
+          "type": "string"
+        },
+        "on_fail": {
+          "enum": [
+            "flag",
+            "fail"
+          ],
+          "title": "On Fail",
+          "type": "string"
+        },
+        "right": {
+          "title": "Right",
+          "type": "string"
+        },
+        "tolerance": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Tolerance"
+        }
+      },
+      "required": [
+        "left",
+        "name",
+        "on_fail",
+        "right",
+        "tolerance"
+      ],
+      "title": "Reconcile",
+      "type": "object"
+    },
+    "ReferentialRule": {
+      "additionalProperties": false,
+      "description": "``{rule: referential, via: \u2026, on_missing: \u2026}`` \u2014 a declared\nrelationship probed at the row-rule stage against the referenced *silver*\nentity (RFC 0016 \u00a75.1).\n\nIt carries ``on_missing``, not ``on_fail``: ``unknown_member`` is a\ndisposition no other rule has (the row passes with its fk rewritten to the\nreserved ``'__unknown__'`` member, keeping aggregates correct), and\n``fail`` is deliberately unavailable (D6).",
+      "properties": {
+        "on_missing": {
+          "enum": [
+            "unknown_member",
+            "quarantine",
+            "flag"
+          ],
+          "title": "On Missing",
+          "type": "string"
+        },
+        "rule": {
+          "const": "referential",
+          "title": "Rule",
+          "type": "string"
+        },
+        "via": {
+          "title": "Via",
+          "type": "string"
+        }
+      },
+      "required": [
+        "on_missing",
+        "rule",
+        "via"
+      ],
+      "title": "ReferentialRule",
+      "type": "object"
+    },
+    "Relationship": {
+      "additionalProperties": false,
+      "description": "A declared relationship between two entities; ``via`` maps from-side\ncolumns to to-side columns.",
+      "properties": {
+        "cardinality": {
+          "enum": [
+            "many_to_one",
+            "one_to_one",
+            "one_to_many"
+          ],
+          "title": "Cardinality",
+          "type": "string"
+        },
+        "from": {
+          "title": "From",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "to": {
+          "title": "To",
+          "type": "string"
+        },
+        "via": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Via",
+          "type": "object"
+        }
+      },
+      "required": [
+        "cardinality",
+        "from",
+        "name",
+        "to",
+        "via"
+      ],
+      "title": "Relationship",
+      "type": "object"
+    },
+    "Repair": {
+      "additionalProperties": false,
+      "description": "The repair-recipe contract D17 gated the disposition on (RFC 0016 D87).\n\n``via`` names a registered Tier 1 ``sql_macro`` as ``ref@version``, which\nsettles \u00a710's open question \u2014 *inline vs catalog-referenced* \u2014 in favour of\nreferenced, and not by preference: D1 holds that specs reference\nimplementations and never contain them, and RFC 0017's registry is where a\nreferenced implementation already lives, with a version, a declared\nsignature, a ``runtime_lock`` and a trust-then-verify contract. An inline\nrecipe would have been a second, weaker copy of all of that, reachable only\nfrom here.\n\n``fallback`` is the disposition for a row the recipe did **not** fix, and\nit is required for the same reason ``on_fail`` is (D2): a repair that\nsilently kept a still-broken value would be the ``drop`` this RFC refuses,\nwearing a friendlier name. It cannot itself be ``repair`` \u2014 a second\nattempt at the same value with the same recipe returns the same answer.",
+      "properties": {
+        "fallback": {
+          "enum": [
+            "flag",
+            "quarantine",
+            "fail"
+          ],
+          "title": "Fallback",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ]
+          },
+          "title": "Parameters",
+          "type": "object"
+        },
+        "via": {
+          "pattern": "^[a-z][a-z0-9_]*@[1-9][0-9]*$",
+          "title": "Via",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fallback",
+        "via"
+      ],
+      "title": "Repair",
+      "type": "object"
+    }
+  },
+  "$id": "https://morzecrew.github.io/bloomery/schemas/v1/entity_model.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The per-project entity model document (``spec_version``), exactly one\nper project (RFC 0002 \u00a75.5).\n\n``reconcile:`` sits here, at the document root, exactly where RFC 0016\n\u00a75.3's YAML puts it \u2014 a sibling of ``entities:``, not a member of one.\nThat placement is the schema, not a convenience: a reconcile check relates\n*two* entities (``sum(order_item.line_total) by order_id`` against\n``order.total_amount``), so it belongs to no single entity, and this is the\none document a project is guaranteed to have exactly one of.",
+  "properties": {
+    "coverage": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Coverage"
+      },
+      "title": "Coverage",
+      "type": "array"
+    },
+    "entities": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "$ref": "#/$defs/Entity"
+        }
+      },
+      "title": "Entities",
+      "type": "object"
+    },
+    "reconcile": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Reconcile"
+      },
+      "title": "Reconcile",
+      "type": "array"
+    },
+    "relationships": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Relationship"
+      },
+      "title": "Relationships",
+      "type": "array"
+    },
+    "spec_version": {
+      "const": 1,
+      "title": "Spec Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "entities",
+    "spec_version"
+  ],
+  "title": "EntityModel",
+  "type": "object"
+}

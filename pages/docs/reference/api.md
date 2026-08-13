@@ -243,6 +243,29 @@ The cache key covering all three invalidation axes: `spec_fingerprint`,
 `bloomery_version`, `metricflow_version`. A spec edit or a version bump changes the
 key, so stale entries are a miss, never an error.
 
+## Schema export
+
+### `spec_json_schema(kind: SpecKind) -> JsonDict`
+
+The JSON Schema for one spec kind, generated from the Pydantic model so it cannot drift
+from the parser. Deterministic (sorted keys), addressable (`$schema` plus a
+version-carrying `$id`), and faithful to the *authored* shape rather than the parsed
+one. See [JSON Schema](json-schema.md).
+
+### `all_spec_schemas() -> Mapping[SpecKind, JsonDict]`
+
+Every kind's schema, in `SpecKind` order — six standalone documents, not a bundle.
+
+### `SpecKind`
+
+The six loadable kinds: `CATALOG`, `ENTITY_MODEL`, `MAPPING`, `MARTS`, `METRICS`,
+`STEPS`. A string enum, so `spec_json_schema("metrics")` also works.
+
+### `JsonDict`
+
+One JSON Schema document — `dict[str, object]`. A schema is produced to be serialized,
+not indexed.
+
 ## Extension points
 
 ### `register_transform(spec: TransformSpec) -> None`
@@ -269,6 +292,8 @@ a deep import:
 | Planner | `Clause`, `Scalar`, `Explanation`, `MeasureExplanation`, `ColumnRole`, `OrderDirection` |
 | Steps | `StepRegistry`, `StepManifest`, `EMPTY_REGISTRY` |
 | Transforms and types | `TransformSpec`, `ArgKind`, `Builder`, `OutputType`, `LogicalType` |
+| Schema export | `SpecKind`, `JsonDict` |
+| Fix suggestions | `MartCoverage`, `MeasureRef` |
 
 `Project`, `Catalog` and `ProjectIR` are **handles**: you receive one and pass it back.
 Their fields are internal and change freely — read `Resolution` or `QueryPlan` instead.
@@ -280,3 +305,17 @@ Their fields are internal and change freely — read `Resolution` or `QueryPlan`
 The base of every error the package raises — `str(exc)` is the human message,
 `exc.source_path` addresses the offending spec node, `exc.collected` holds individual
 failures on batched aggregates. The full tree lives in [Errors](errors.md).
+
+Five refusals also carry a structured fix suggestion — `UnknownMember.did_you_mean`,
+`UnreachableAtGrain.covering_marts`, `GrainViolation.offending_measures`,
+`UnknownStep.available_versions`, `UnsupportedFilter.nearest_supported` — each exposing a
+value bloomery already computed on its way to writing the message. The two payload types
+`MartCoverage` and `MeasureRef` are exported from the root. See
+[Errors](errors.md#fix-suggestions).
+
+## Command line
+
+`bloomery compile|plan|resolve|explain|schema|fingerprint` is a thin argument shell over
+exactly the functions above — no logic of its own, no execution, no state. It is the only
+part of the package that touches a filesystem, and nothing in the library imports it. See
+[Use the CLI](../how-to/use-the-cli.md).

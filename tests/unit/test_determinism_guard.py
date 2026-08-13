@@ -26,10 +26,18 @@ import pathlib
 import sys
 
 from bloomery import Target, compile_project, load_catalog, load_project, project_fingerprint
+from bloomery import all_spec_schemas
 from bloomery import build_project_ir as build_real_ir
 from bloomery.emit.metricflow import emit_manifest, manifest_json
 from bloomery.naming import DefaultNaming
 from support.ir_factory import build_project_ir
+
+# The JSON Schema export (RFC 0020 D3) is an output like any other and rides
+# this harness rather than growing a second subprocess pair. Pydantic walks
+# models through dicts and sets while generating; `$defs` order and any
+# constraint rendered from a set would be hash-seed-dependent without the
+# canonical sort the export applies.
+print(json.dumps({kind.value: schema for kind, schema in all_spec_schemas().items()}))
 
 fixture_dir = pathlib.Path(sys.argv[1])
 sources = {path.stem: path.read_text() for path in sorted(fixture_dir.glob("*.yaml"))}

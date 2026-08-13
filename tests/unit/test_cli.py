@@ -1,0 +1,700 @@
+"""The command line (RFC 0020 §5.2, D4–D6, D9).
+
+Three properties carry the section.
+
+**Every command works on a real fixture.** Six commands over the corpus, exit
+code and output checked — the CLI is a shell, so the way it breaks is a wiring
+mistake (a flag never read, a loader called with the wrong argument), and only
+running it finds those.
+
+**``--format json`` is not a second, lossier surface.** Each JSON command is
+compared against the Python call it wraps, converted the same way. A CLI that
+quietly drops a field is worse than one that has no JSON at all, because a
+script built on it looks like it works.
+
+**Exit codes distinguish a refusal from a usage error.** ``1`` means bloomery
+read the spec and said no — a correct outcome a pipeline must not retry. ``2``
+means the invocation was wrong. Collapsing them is the difference between a
+build that stops and a build that loops.
+
+``main`` is called as a function throughout, so the code is *read* rather than
+asserted through a subprocess.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from decimal import Decimal
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import pytest
+
+from bloomery import (
+    BackfillScope,
+    Change,
+    ChangeClass,
+    LruManifestHydrator,
+    MetricFlowPlanner,
+    MetricRequest,
+    Op,
+    Plan,
+    ReplayScope,
+    Resolution,
+    RowPolicy,
+    SpecKind,
+    Target,
+    all_spec_schemas,
+    build_project_ir,
+    compile_project,
+    plan,
+    project_fingerprint,
+    resolve,
+)
+from bloomery.cli import EXIT_OK, EXIT_REFUSED, EXIT_USAGE, build_parser, main
+from bloomery.cli.io import CliIoError, read_spec_directory, write_files
+from bloomery.cli.render import render_plan, render_resolution
+from bloomery.cli.serialize import as_json_value
+from bloomery.naming import DefaultNaming
+from support.compiling import load_fixture
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+pytestmark = pytest.mark.unit
+
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
+ECOM = str(FIXTURES / "ecom_basic")
+
+
+def run(
+    capsys: pytest.CaptureFixture[str], *argv: str
+) -> tuple[int, str, str]:
+    code = main(argv)
+    captured = capsys.readouterr()
+    return code, captured.out, captured.err
+
+
+def _json(capsys: pytest.CaptureFixture[str], *argv: str) -> object:
+    code, out, err = run(capsys, *argv)
+    assert code == EXIT_OK, err
+    return json.loads(out)
+
+
+# ....................... #
+# Every command, on a real fixture
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ("resolve", ECOM),
+        ("resolve", ECOM, "--format", "json"),
+        ("fingerprint", ECOM),
+        ("schema",),
+        ("schema", "--kind", "metrics"),
+        ("plan", str(FIXTURES / "evolution_v1"), str(FIXTURES / "evolution_v2")),
+        ("explain", ECOM, "--metrics", "gross_revenue", "--by", "ordered_month"),
+    ],
+    ids=lambda argv: "-".join(part for part in argv if not part.startswith("/")),
+)
+def test_a_command_succeeds_and_writes_something(
+    capsys: pytest.CaptureFixture[str], argv: Sequence[str]
+) -> None:
+    code, out, err = run(capsys, *argv)
+    assert code == EXIT_OK, err
+    assert out.strip()
+
+
+def test_compile_writes_the_artifacts_the_api_returns(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    project, catalog = load_fixture("ecom_basic")
+    expected = compile_project(project, target=Target.SQLMESH, dialect="duckdb", catalog=catalog)
+
+    code, out, err = run(capsys, "compile", ECOM, "--out", str(tmp_path))
+    assert code == EXIT_OK, err
+    assert len(out.splitlines()) == len(expected)
+    for artifact in expected:
+        assert (tmp_path / artifact.path).read_text() == artifact.content
+
+
+def test_compile_without_out_emits_the_artifacts_as_json(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, catalog = load_fixture("ecom_basic")
+    expected = compile_project(project, target=Target.SQLMESH, dialect="duckdb", catalog=catalog)
+    payload = _json(capsys, "compile", ECOM)
+    assert payload == [as_json_value(artifact) for artifact in expected]
+    # Content included: `--out` writes files, so `--format json` has to hand
+    # over the same bytes or it is a manifest of files nobody received.
+    assert all(entry["content"] for entry in payload)  # type: ignore[index, union-attr]
+
+
+def test_schema_out_writes_one_file_per_kind(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    code, _out, err = run(capsys, "schema", "--out", str(tmp_path))
+    assert code == EXIT_OK, err
+    written = {path.stem: json.loads(path.read_text()) for path in tmp_path.glob("*.json")}
+    assert written == {kind.value: schema for kind, schema in all_spec_schemas().items()}
+
+
+# ....................... #
+# D4 — the JSON is the same value the Python API returns
+
+
+def test_resolve_json_matches_the_python_call(capsys: pytest.CaptureFixture[str]) -> None:
+    project, catalog = load_fixture("ecom_basic")
+    assert _json(capsys, "resolve", ECOM, "--format", "json") == as_json_value(
+        resolve(project, catalog)
+    )
+
+
+def test_plan_json_matches_the_python_call(capsys: pytest.CaptureFixture[str]) -> None:
+    old_project, old_catalog = load_fixture("evolution_v1")
+    new_project, new_catalog = load_fixture("evolution_v2")
+    expected = plan(
+        build_project_ir(old_project, catalog=old_catalog),
+        build_project_ir(new_project, catalog=new_catalog),
+    )
+    payload = _json(
+        capsys,
+        "plan",
+        str(FIXTURES / "evolution_v1"),
+        str(FIXTURES / "evolution_v2"),
+        "--format",
+        "json",
+    )
+    assert payload == as_json_value(expected)
+
+
+def test_explain_json_matches_the_python_call(capsys: pytest.CaptureFixture[str]) -> None:
+    project, catalog = load_fixture("ecom_basic")
+    naming = DefaultNaming()
+    planner = MetricFlowPlanner(LruManifestHydrator(naming), naming=naming)
+    expected = planner.plan(
+        build_project_ir(project, catalog=catalog),
+        MetricRequest(metrics=("gross_revenue",), dimensions=("ordered_month",), limit=5),
+        dialect="duckdb",
+    )
+    payload = _json(
+        capsys,
+        "explain",
+        ECOM,
+        "--metrics",
+        "gross_revenue",
+        "--by",
+        "ordered_month",
+        "--limit",
+        "5",
+        "--format",
+        "json",
+    )
+    assert payload == as_json_value(expected)
+
+
+def test_resolve_json_carries_fields_the_table_does_not_print(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The concrete meaning of "not a lossier surface": ``provenance`` and
+    ``topo_order`` are on the returned value and off the table, and a script
+    should not have to drop to Python for them."""
+    payload = _json(capsys, "resolve", ECOM, "--format", "json")
+    assert isinstance(payload, dict)
+    assert payload["provenance"]
+    assert payload["topo_order"]
+
+
+def test_a_logical_type_serializes_as_the_string_a_spec_writes(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``StringType()`` has no fields, so a structural dump renders it ``{}``
+    and loses the type. The canonical spelling is what goes out — and it is
+    what ``parse_type`` reads back."""
+    payload = _json(
+        capsys, "explain", ECOM, "--metrics", "gross_revenue", "--format", "json"
+    )
+    assert isinstance(payload, dict)
+    types = {column["type"] for column in payload["columns"]}  # type: ignore[index, union-attr]
+    assert types
+    assert all(isinstance(rendered, str) and rendered for rendered in types)
+    assert "{}" not in types
+
+
+# ....................... #
+# Exit codes (D4): refusal is 1, usage is 2, and they are not the same
+
+
+def test_a_spec_refusal_exits_one_with_its_source_path(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    (tmp_path / "entity_model.yaml").write_text(
+        "spec_version: 1\nentities:\n  e:\n    grain: g\n    key: [k]\n"
+        "    fields:\n      k: {type: nonsense}\n"
+    )
+    code, _out, err = run(capsys, "resolve", str(tmp_path))
+    assert code == EXIT_REFUSED
+    # A single error carries its path as an attribute, not in the message
+    # (RFC 0002 D6 renders paths only in the batched aggregate), so the CLI
+    # prepends it — without that the reader gets a sentence with no file.
+    assert err.startswith("entity_model: entities.e.fields.k.type:")
+
+
+def test_a_planner_refusal_exits_one(capsys: pytest.CaptureFixture[str]) -> None:
+    code, _out, err = run(
+        capsys,
+        "explain",
+        str(FIXTURES / "multi_mart_refusal"),
+        "--metrics",
+        "shipping_cost,line_discount",
+    )
+    assert code == EXIT_REFUSED
+    assert "different grains" in err
+
+
+def test_a_missing_directory_exits_two(capsys: pytest.CaptureFixture[str]) -> None:
+    code, _out, err = run(capsys, "resolve", "/no/such/directory")
+    assert code == EXIT_USAGE
+    assert "not a directory" in err
+
+
+def test_a_directory_with_no_specs_exits_two(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    code, _out, err = run(capsys, "resolve", str(tmp_path))
+    assert code == EXIT_USAGE
+    assert "no .yaml/.yml files" in err
+
+
+@pytest.mark.parametrize(
+    ("flag", "value", "expected"),
+    [
+        ("--where", "{not json", "not valid JSON"),
+        ("--where", "[1, 2]", "takes a JSON object"),
+        ("--grain", "fortnight", "--grain 'fortnight' is not one of"),
+    ],
+)
+def test_a_malformed_flag_value_is_a_usage_error_not_a_traceback(
+    capsys: pytest.CaptureFixture[str], flag: str, value: str, expected: str
+) -> None:
+    """``json.loads`` and ``TimeGrain()`` raise ``ValueError``, which nothing in
+    ``main`` catches — so a mistyped quote would exit on a traceback and a
+    script branching on the code would see neither ``1`` nor ``2``."""
+    code, _out, err = run(capsys, "explain", ECOM, "--metrics", "gross_revenue", flag, value)
+    assert code == EXIT_USAGE
+    assert expected in err
+
+
+def test_a_bad_flag_is_reported_before_a_bad_spec(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """Both are wrong; the invocation is the one the reader has to fix first —
+    a refusal about a spec they cannot reach yet is not the next step. It is
+    also the cheap check, and loading is the slow one."""
+    (tmp_path / "entity_model.yaml").write_text("spec_version: 1\nentities: {}\nbogus: 1\n")
+    code, _out, err = run(
+        capsys, "explain", str(tmp_path), "--metrics", "m", "--grain", "fortnight"
+    )
+    assert code == EXIT_USAGE
+    assert "--grain" in err
+
+
+def test_a_refused_filter_construct_stays_a_refusal(capsys: pytest.CaptureFixture[str]) -> None:
+    """The other side of the line above. A *well-formed* document naming a
+    construct the vocabulary reviewed and declined (RFC 0015) is a refusal, not
+    a typo — so it exits `1` and carries the reason."""
+    code, _out, err = run(
+        capsys,
+        "explain",
+        ECOM,
+        "--metrics",
+        "gross_revenue",
+        "--where",
+        '{"ordered_month": {"$regex": "x"}}',
+    )
+    assert code == EXIT_REFUSED
+    assert "use like/ilike" in err
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ("explain", ECOM, "--metrics", "gross_revenue", "--limit", "notanint"),
+        ("compile", ECOM, "--nonsuch-flag"),
+        ("nonsuch-command",),
+    ],
+    ids=["bad-int", "unknown-flag", "unknown-command"],
+)
+def test_a_parser_level_usage_error_is_returned_not_raised(
+    capsys: pytest.CaptureFixture[str], argv: tuple[str, ...]
+) -> None:
+    """``main``'s docstring invites calling it as a function and reading the
+    code. ``argparse.parse_args`` writes its message and *raises* ``SystemExit``,
+    so these three escaped instead of coming back as ``2`` — the shell saw the
+    right code, a programmatic caller saw an exception."""
+    code, _out, _err = run(capsys, *argv)
+    assert code == EXIT_USAGE
+
+
+def test_help_returns_zero_rather_than_raising(capsys: pytest.CaptureFixture[str]) -> None:
+    """The other ``SystemExit`` argparse raises. Passing the code through
+    rather than flattening every parser exit to ``2`` is what keeps this ``0``."""
+    code, out, _err = run(capsys, "--help")
+    assert code == EXIT_OK
+    assert "compile" in out
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        (("compile", ECOM, "--target", "sqlmehs"), "unknown target"),
+        (("compile", ECOM, "--dialect", "ducdkb"), "unknown dialect"),
+        (
+            ("explain", ECOM, "--metrics", "gross_revenue", "--dialect", "ducdkb"),
+            "unknown dialect",
+        ),
+    ],
+    ids=["target", "compile-dialect", "explain-dialect"],
+)
+def test_a_mistyped_target_or_dialect_is_a_usage_error(
+    capsys: pytest.CaptureFixture[str], argv: tuple[str, ...], expected: str
+) -> None:
+    """Both resolve through the library and raised `EmitError`, so a typo came
+    back as `1` — "bloomery read your spec and said no" — for a spec it never
+    opened. `--grain` and `--policy` already get this treatment; these two were
+    the inconsistency."""
+    code, _out, err = run(capsys, *argv)
+    assert code == EXIT_USAGE
+    assert expected in err
+
+
+def test_a_known_target_is_not_caught_by_the_name_check(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The nearest non-trigger. A check that refused everything would pass every
+    assertion above."""
+    code, _out, err = run(capsys, "compile", ECOM, "--target", "cube", "--out", str(tmp_path))
+    assert code == EXIT_OK, err
+
+
+def test_the_two_failure_codes_are_distinct() -> None:
+    """Stated as a property, because the whole point of the split is that a
+    script can branch on it."""
+    assert EXIT_OK != EXIT_REFUSED != EXIT_USAGE
+    assert EXIT_REFUSED != EXIT_USAGE
+
+
+# ....................... #
+# --policy (RFC 0020 §10 question 2)
+
+
+def test_policy_reaches_the_plan(capsys: pytest.CaptureFixture[str]) -> None:
+    project, catalog = load_fixture("ecom_basic")
+    naming = DefaultNaming()
+    planner = MetricFlowPlanner(LruManifestHydrator(naming), naming=naming)
+    expected = planner.plan(
+        build_project_ir(project, catalog=catalog),
+        MetricRequest(metrics=("gross_revenue",)),
+        dialect="duckdb",
+        policy=RowPolicy(dimension="order_customer_id", op=Op.EQ, value="c1"),
+    )
+    payload = _json(
+        capsys,
+        "explain",
+        ECOM,
+        "--metrics",
+        "gross_revenue",
+        "--policy",
+        "order_customer_id eq c1",
+        "--format",
+        "json",
+    )
+    assert payload == as_json_value(expected)
+    assert isinstance(payload, dict)
+    assert payload["explanation"]["policy_applied"] is True  # type: ignore[index, call-overload]
+
+
+@pytest.mark.parametrize("spelling", ["bad", "a eq", "a nonsense_op b"])
+def test_a_malformed_policy_is_a_usage_error(
+    capsys: pytest.CaptureFixture[str], spelling: str
+) -> None:
+    code, _out, err = run(
+        capsys, "explain", ECOM, "--metrics", "gross_revenue", "--policy", spelling
+    )
+    assert code == EXIT_USAGE
+    assert "--policy" in err
+
+
+def test_a_multi_value_policy_splits_on_commas(capsys: pytest.CaptureFixture[str]) -> None:
+    payload = _json(
+        capsys,
+        "explain",
+        ECOM,
+        "--metrics",
+        "gross_revenue",
+        "--policy",
+        "order_customer_id in c1,c2",
+        "--format",
+        "json",
+    )
+    assert isinstance(payload, dict)
+    assert "c1" in str(payload["sql"]) and "c2" in str(payload["sql"])
+
+
+# ....................... #
+# The catalog convention (§5.2's `--catalog`)
+
+
+def test_a_catalog_yaml_in_the_directory_is_loaded_and_excluded() -> None:
+    sources, catalog = read_spec_directory(str(FIXTURES / "ecom_basic"))
+    assert catalog is not None
+    assert "catalog" not in sources
+    assert "catalog_version" in catalog
+
+
+def test_an_explicit_catalog_overrides_the_convention(tmp_path: Path) -> None:
+    """Pointing several projects at one shared catalog is the case that needs
+    the flag; the convention alone cannot express it."""
+    shared = tmp_path / "shared.yaml"
+    shared.write_text((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    sources, catalog = read_spec_directory(str(FIXTURES / "ecom_basic"), catalog=str(shared))
+    assert catalog == shared.read_text()
+    # The directory's own catalog.yaml is now an ordinary document, and
+    # load_project refuses it by name with a message that says so — a loud
+    # failure rather than two catalogs silently disagreeing.
+    assert "catalog" in sources
+
+
+def test_a_project_without_a_catalog_loads(capsys: pytest.CaptureFixture[str]) -> None:
+    sources, catalog = read_spec_directory(str(FIXTURES / "minimal"))
+    assert catalog is None
+    assert sources
+    code, _out, err = run(capsys, "fingerprint", str(FIXTURES / "minimal"))
+    assert code == EXIT_OK, err
+
+
+def test_a_missing_explicit_catalog_is_a_usage_error(capsys: pytest.CaptureFixture[str]) -> None:
+    code, _out, err = run(capsys, "resolve", ECOM, "--catalog", "/no/such/catalog.yaml")
+    assert code == EXIT_USAGE
+    assert "not a file" in err
+
+
+# ....................... #
+# The renderer and the serializer, on the branches the corpus does not reach
+
+
+def test_an_empty_plan_says_so_rather_than_printing_a_header() -> None:
+    """`plan(ir, ir)` is the empty plan (RFC 0007 D2). A table with a zero count
+    and no rows would read as "something happened and I lost it"."""
+    empty = Plan(changes=(), backfill_scope=BackfillScope(entities=(), restates_history=False), downstream_impact=())
+    assert render_plan(empty) == "No changes."
+
+
+def test_the_plan_table_carries_replay_and_downstream_sections() -> None:
+    """Two sections nothing in the fixture corpus produces together. Both are
+    conditional, so both are a branch that can silently stop rendering."""
+    rendered = render_plan(
+        Plan(
+            changes=(
+                Change(
+                    entity="order",
+                    subject="quality:total_positive",
+                    change_class=ChangeClass.RESTATING,
+                    detail="rule relaxed",
+                ),
+            ),
+            backfill_scope=BackfillScope(entities=("order",), restates_history=True),
+            downstream_impact=("gross_revenue",),
+            replay_scope=ReplayScope(entities=("order",)),
+        )
+    )
+    assert "1 breaking" not in rendered
+    assert "Quarantine replay scope" in rendered
+    assert "Downstream metrics" in rendered
+    assert "gross_revenue" in rendered
+    # Padded to the widest cell per column, and never with trailing whitespace:
+    # invisible in a terminal, very visible in a diff of captured output.
+    assert not any(line != line.rstrip() for line in rendered.splitlines())
+
+
+def test_an_empty_resolution_renders_both_headers() -> None:
+    """A project with nothing reachable is a legitimate state — a catalog-free
+    bring-up — and the zero counts are the answer, not an empty page."""
+    rendered = render_resolution(
+        Resolution(
+            reachable_metrics=(), unreachable_metrics=(), provenance=(), topo_order=()
+        )
+    )
+    assert rendered.splitlines() == ["Reachable (0)", "", "Unreachable (0)"]
+
+
+def test_a_decimal_serializes_as_a_string_never_a_float() -> None:
+    """The core invariant, at the one seam that could break it (RFC 0003 D5).
+
+    `json.dumps` would turn a float into a lossy decimal literal, and a caller
+    reading a tolerance or a measure back as `0.1 + 0.2` is the whole reason
+    floats are banned from the package.
+    """
+    assert as_json_value(Decimal("0.01")) == "0.01"
+    assert as_json_value((Decimal("1.10"),)) == ["1.10"]
+    assert json.dumps(as_json_value(Decimal("0.01"))) == '"0.01"'
+
+
+def test_a_mapping_serializes_with_string_keys() -> None:
+    """JSON objects are keyed by strings; a returned mapping keyed by an enum
+    would otherwise reach `json.dumps` and fail there instead of here."""
+    assert as_json_value({SpecKind.METRICS: (1, 2)}) == {"metrics": [1, 2]}
+
+
+# ....................... #
+# io.py's own edges
+
+
+def test_a_non_utf8_document_is_a_usage_error(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """`Path.read_text` raises `UnicodeDecodeError`, which `main` does not
+    catch — so a latin-1 spec printed a traceback."""
+    (tmp_path / "entity_model.yaml").write_bytes("spec_version: 1  # caf\xe9\n".encode("latin-1"))
+    code, _out, err = run(capsys, "resolve", str(tmp_path))
+    assert code == EXIT_USAGE
+    assert "not UTF-8 text" in err
+
+
+def test_an_unreadable_document_is_a_usage_error(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The other half: `is_file()` says it is a file, and the read still fails.
+    Skipped when the suite runs as root, for whom the mode bits do nothing."""
+    if os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
+        pytest.skip("root ignores the permission bits this test sets")
+    document = tmp_path / "entity_model.yaml"
+    document.write_text("spec_version: 1\nentities: {}\n")
+    document.chmod(0o000)
+    try:
+        code, _out, err = run(capsys, "resolve", str(tmp_path))
+    finally:
+        document.chmod(0o644)
+    assert code == EXIT_USAGE
+    assert "entity_model.yaml" in err
+
+
+def test_an_unwritable_output_directory_is_a_usage_error(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """`write_files` creates parents and writes; both can fail on a read-only
+    destination, and neither failure was named."""
+    if os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
+        pytest.skip("root ignores the permission bits this test sets")
+    out = tmp_path / "out"
+    out.mkdir(mode=0o500)
+    try:
+        code, _stdout, err = run(capsys, "compile", ECOM, "--out", str(out))
+    finally:
+        out.chmod(0o755)
+    assert code == EXIT_USAGE
+    assert str(out) in err
+
+
+def test_write_files_creates_nested_parents(tmp_path: Path) -> None:
+    written = write_files(str(tmp_path), {"models/gold/orders.sql": "SELECT 1\n"})
+    assert (tmp_path / "models" / "gold" / "orders.sql").read_text() == "SELECT 1\n"
+    assert written == [str(tmp_path / "models" / "gold" / "orders.sql")]
+
+
+def test_write_files_refuses_a_path_that_escapes_the_output_directory(tmp_path: Path) -> None:
+    """Artifact paths come from the emitters, so this cannot fire today —
+    which is exactly the condition under which the check gets left out and
+    then matters."""
+    with pytest.raises(CliIoError, match="escapes"):
+        write_files(str(tmp_path / "out"), {"../escaped.sql": "SELECT 1\n"})
+
+
+def test_an_unlistable_directory_is_a_usage_error(tmp_path: Path) -> None:
+    """`is_dir()` says the path is a directory, not that it can be listed."""
+    if os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
+        pytest.skip("root ignores the permission bits this test sets")
+    directory = tmp_path / "specs"
+    directory.mkdir()
+    (directory / "entity_model.yaml").write_text("spec_version: 1\n")
+    directory.chmod(0o000)
+    try:
+        with pytest.raises(CliIoError):
+            read_spec_directory(str(directory))
+    finally:
+        directory.chmod(0o755)
+
+
+def test_an_explicit_catalog_inside_the_directory_is_not_also_a_document(
+    tmp_path: Path,
+) -> None:
+    """`--catalog` pointing at a file in the scanned directory: it has to come
+    back as the catalog *and* leave the project, or `load_project` would refuse
+    the document it was just handed separately."""
+    (tmp_path / "entity_model.yaml").write_text("spec_version: 1\n")
+    (tmp_path / "shared.yaml").write_text("catalog_version: 1\n")
+    sources, catalog = read_spec_directory(str(tmp_path), catalog=str(tmp_path / "shared.yaml"))
+    assert catalog == "catalog_version: 1\n"
+    assert set(sources) == {"entity_model"}
+
+
+def test_reading_a_directory_as_a_file_is_a_usage_error(tmp_path: Path) -> None:
+    from bloomery.cli.io import read_text
+
+    with pytest.raises(CliIoError, match="not a file"):
+        read_text(str(tmp_path))
+
+
+# ....................... #
+# D9 — what is deliberately absent
+
+
+def test_there_is_no_execution_command() -> None:
+    """``explain`` prints SQL; ``run`` does not exist, and never will (D9).
+
+    This is what keeps the test suite infrastructure-free and bloomery a
+    compiler. Pinned because the pressure to add it is real and would arrive as
+    a small, reasonable-looking patch.
+    """
+    parser = build_parser()
+    actions = [
+        action for action in parser._subparsers._group_actions  # type: ignore[union-attr] # noqa: SLF001
+    ]
+    commands = set(actions[0].choices)  # type: ignore[arg-type]
+    assert commands == {"compile", "plan", "resolve", "explain", "schema", "fingerprint"}
+    for forbidden in ("run", "init", "new", "watch", "serve"):
+        assert forbidden not in commands
+
+
+def test_no_command_takes_a_connection_or_a_profile() -> None:
+    """The other half of D9: no credentials, no config file, no connection
+    settings anywhere on the surface."""
+    parser = build_parser()
+    text = parser.format_help()
+    subparsers = parser._subparsers._group_actions[0]  # type: ignore[union-attr] # noqa: SLF001
+    for sub in subparsers.choices.values():  # type: ignore[attr-defined]
+        text += sub.format_help()
+    for forbidden in ("--profile", "--connection", "--password", "--token", "--config"):
+        assert forbidden not in text
+
+
+def test_the_schema_kind_flag_offers_exactly_the_spec_kinds() -> None:
+    parser = build_parser()
+    subparsers = parser._subparsers._group_actions[0]  # type: ignore[union-attr] # noqa: SLF001
+    schema_parser = subparsers.choices["schema"]  # type: ignore[attr-defined]
+    kinds = next(
+        action.choices for action in schema_parser._actions if action.dest == "kind"  # noqa: SLF001
+    )
+    assert set(kinds) == {kind.value for kind in SpecKind}
+
+
+def test_fingerprint_prints_the_projects_own_fingerprint(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project, catalog = load_fixture("ecom_basic")
+    expected = project_fingerprint(build_project_ir(project, catalog=catalog))
+    code, out, err = run(capsys, "fingerprint", ECOM)
+    assert code == EXIT_OK, err
+    assert out.strip() == expected

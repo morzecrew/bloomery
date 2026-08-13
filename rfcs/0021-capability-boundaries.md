@@ -13,7 +13,7 @@
   RFC 0009 D24 (the three-way equivalence tier), RFC 0010
   (marts as the gold shape), RFC 0017 (D36/D37 step outputs as entities, D49 `canonical:`
   links — the two mechanisms that make §5.1 work),
-  [RFC 0020](0020-authoring-ergonomics.md) (the fixture doubles as a CLI example).
+  RFC 0020 (landed as M17 and retired; the fixture doubles as a CLI example).
   Closes the original specification's §12 question 4 and RFC 0008 §10's materialization
   question.
 - **Adoption audit:** every claim in §3 verified; no corrections were needed.

@@ -59,13 +59,33 @@ _EXPORTS = {name: getattr(errors_mod, name) for name in errors_mod.__all__}
 #: them (RFC 0003 D11 added the first entry).
 NOT_A_CLASS = {"guaranteed"}
 
-ALL_ERROR_CLASSES = [value for name, value in _EXPORTS.items() if name not in NOT_A_CLASS]
+#: Classes here that are not errors: the fix-suggestion payloads (RFC 0020
+#: §5.4, D11). They live in this module because the errors that carry them do
+#: and nothing under ``src/bloomery/`` may import upward — not because they are
+#: part of the hierarchy. Pinned by name for the same reason as
+#: :data:`NOT_A_CLASS`: the properties below are about the hierarchy, and a
+#: silent filter is how a real leaf stops being covered by them.
+NOT_AN_ERROR = {"MartCoverage", "MeasureRef"}
+
+EXEMPT = NOT_A_CLASS | NOT_AN_ERROR
+
+ALL_ERROR_CLASSES = [value for name, value in _EXPORTS.items() if name not in EXEMPT]
 
 
 def test_every_non_class_export_is_a_declared_exemption() -> None:
     """The filter above, kept honest. A helper added to ``__all__`` without a
     thought would otherwise drop out of every property in this module."""
     assert {name for name, value in _EXPORTS.items() if not isinstance(value, type)} == NOT_A_CLASS
+
+
+def test_every_exempt_export_is_genuinely_not_an_error() -> None:
+    """The second half of the same honesty check. An error class parked in
+    :data:`NOT_AN_ERROR` would skip every property below while still being
+    raised at users, which is the failure this module exists to prevent."""
+    for name in NOT_AN_ERROR:
+        value = _EXPORTS[name]
+        assert isinstance(value, type)
+        assert not issubclass(value, BaseException), f"{name} is an error — remove the exemption"
 
 
 @pytest.mark.parametrize("cls", ALL_ERROR_CLASSES, ids=lambda cls: cls.__name__)

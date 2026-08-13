@@ -150,7 +150,10 @@ class StepRegistry:
                 "pass one to compile_project(steps=…)"
             )
         msg = f"{detail} (RFC 0017 §5.3)"
-        raise UnknownStep(msg, source_path=source_path)
+        # ``available`` is the same list the message renders (RFC 0020 §5.4):
+        # the suggestion exposes a value already computed here, never a
+        # second search that could disagree with the sentence beside it.
+        raise UnknownStep(msg, source_path=source_path, available_versions=available)
 
     def macro_body(self, ref: str, version: int) -> str | None:
         return _lookup(self._macro_bodies, ref, version)

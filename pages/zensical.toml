@@ -41,9 +41,11 @@ nav = [
         "how-to/add-quality-rules.md",
         "how-to/plan-a-metric-request.md",
         "how-to/evolve-a-spec.md",
+        "how-to/use-the-cli.md",
     ] },
     { "Reference" = [
         "reference/spec-schemas.md",
+        "reference/json-schema.md",
         "reference/transforms.md",
         "reference/errors.md",
         "reference/api.md",

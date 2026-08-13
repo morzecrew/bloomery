@@ -33,9 +33,12 @@ def test_public_api_surface() -> None:
         "Explanation",
         "FieldProvenance",
         "HydrationKey",
+        "JsonDict",
         "LogicalType",
         "LruManifestHydrator",
+        "MartCoverage",
         "MeasureExplanation",
+        "MeasureRef",
         "MetricFlowPlanner",
         "MetricRequest",
         "NamingPolicy",
@@ -55,6 +58,7 @@ def test_public_api_surface() -> None:
         "Resolution",
         "RowPolicy",
         "Scalar",
+        "SpecKind",
         "StepManifest",
         "StepRegistry",
         "Target",
@@ -62,6 +66,7 @@ def test_public_api_surface() -> None:
         "TimeGrain",
         "TransformSpec",
         "UnreachableMetric",
+        "all_spec_schemas",
         "build_project_ir",
         "compile_project",
         "load_catalog",
@@ -71,6 +76,7 @@ def test_public_api_surface() -> None:
         "register_emitter",
         "register_transform",
         "resolve",
+        "spec_json_schema",
     ]
 
 

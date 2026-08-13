@@ -63,6 +63,11 @@ dev = [
     "duckdb>=1.1",
     "hypothesis>=6.130",
     "import-linter>=2.3",
+    # Test-only, and only for the schema-agreement property (RFC 0020 D10):
+    # something has to *be* the second validator for a drift measurement to
+    # mean anything. Not a runtime dependency — D6 forbids those, and bloomery
+    # never validates against its own export.
+    "jsonschema>=4.23",
     "mypy[faster-cache]>=2.3.0",
     "pre-commit>=4.1",
     "pytest>=8",
@@ -105,6 +110,15 @@ docs = [
 # another dep) would silently re-resolve mike — a docs-build change with no diff
 # in this file. Bump deliberately by updating the rev. (== the current uv.lock.)
 mike = { git = "https://github.com/squidfunk/mike", rev = "2d4ad799442f4592db8ad53b179bfb33db8c69ac" }
+
+# ....................... #
+
+[project.scripts]
+# RFC 0020 D5: a thin argument shell over the public API. It is packaged here
+# rather than shipped separately because it is the same surface — a caller who
+# has bloomery has the command line, and a version skew between the two would
+# be a version skew between the CLI and the library it wraps.
+bloomery = "bloomery.cli:main"
 
 # ....................... #
 
@@ -286,9 +300,20 @@ exclude_type_checking_imports = true
 # `emit`, above `resolve`) made unreachable. Nothing else moves: `emit` and
 # `compile` still sit above `dialects`, and the "emitters never import the
 # spec layer" contract below is unaffected.
+# M17 (RFC 0020 D5): `cli` is the new top layer — above everything, imported by
+# nothing. That is the second of the section's two mechanisms: the purity
+# allowlist answers *who may touch the disk* (one file, `cli/io.py`), and this
+# answers *which way imports run*. As a layer rather than a `forbidden`
+# contract because a layer is total: it covers every library package that
+# exists now and every one added later, with no list to keep in step.
+# `schema` sits beside `dialects` — it reads the spec
+# models it describes and the transform registry the whitelist enum comes from
+# (D2), and nothing else. A sibling rather than a top layer because `cli`
+# consumes it; the two siblings are mutually independent by construction.
 name = "Layered bloomery compile pipeline"
 type = "layers"
 layers = [
+    "(bloomery.cli)",
     "(bloomery.planner)",
     "(bloomery.compile) | (bloomery.runtime)",
     "(bloomery.emit)",
@@ -299,7 +324,7 @@ layers = [
     "(bloomery.quality)",
     "(bloomery.marts)",
     "(bloomery.ir)",
-    "(bloomery.dialects)",
+    "(bloomery.dialects) | (bloomery.schema)",
     "(bloomery.transforms)",
     "(bloomery.steps)",
     "(bloomery.typing)",

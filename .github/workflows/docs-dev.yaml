@@ -64,3 +64,9 @@ jobs:
 
       - name: Set root redirect while unreleased
         run: bash .github/scripts/set-docs-default-if-unset.sh
+
+      # After mike, so both pushes to gh-pages happen in order within the one
+      # job rather than racing. The schemas sit at the gh-pages root, outside
+      # mike's version directories — their URL carries the *document* version.
+      - name: Publish the spec JSON Schemas
+        run: bash .github/scripts/publish-spec-schemas.sh

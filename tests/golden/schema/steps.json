@@ -1,0 +1,222 @@
+{
+  "$defs": {
+    "ExpressionRule": {
+      "additionalProperties": false,
+      "description": "``{rule: expression, name: \u2026, expr: \u2026}`` \u2014 a boolean row predicate over\nthe entity's own columns. ``name`` is authored because it reaches\n``_quality_flags`` and the quality mart, where a generated name would be\nunreadable.",
+      "properties": {
+        "expr": {
+          "title": "Expr",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Name",
+          "type": "string"
+        },
+        "on_fail": {
+          "enum": [
+            "flag",
+            "quarantine",
+            "fail",
+            "repair"
+          ],
+          "title": "On Fail",
+          "type": "string"
+        },
+        "repair": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Repair"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rule": {
+          "const": "expression",
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expr",
+        "name",
+        "on_fail",
+        "rule"
+      ],
+      "title": "ExpressionRule",
+      "type": "object"
+    },
+    "Repair": {
+      "additionalProperties": false,
+      "description": "The repair-recipe contract D17 gated the disposition on (RFC 0016 D87).\n\n``via`` names a registered Tier 1 ``sql_macro`` as ``ref@version``, which\nsettles \u00a710's open question \u2014 *inline vs catalog-referenced* \u2014 in favour of\nreferenced, and not by preference: D1 holds that specs reference\nimplementations and never contain them, and RFC 0017's registry is where a\nreferenced implementation already lives, with a version, a declared\nsignature, a ``runtime_lock`` and a trust-then-verify contract. An inline\nrecipe would have been a second, weaker copy of all of that, reachable only\nfrom here.\n\n``fallback`` is the disposition for a row the recipe did **not** fix, and\nit is required for the same reason ``on_fail`` is (D2): a repair that\nsilently kept a still-broken value would be the ``drop`` this RFC refuses,\nwearing a friendlier name. It cannot itself be ``repair`` \u2014 a second\nattempt at the same value with the same recipe returns the same answer.",
+      "properties": {
+        "fallback": {
+          "enum": [
+            "flag",
+            "quarantine",
+            "fail"
+          ],
+          "title": "Fallback",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ]
+          },
+          "title": "Parameters",
+          "type": "object"
+        },
+        "via": {
+          "pattern": "^[a-z][a-z0-9_]*@[1-9][0-9]*$",
+          "title": "Via",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fallback",
+        "via"
+      ],
+      "title": "Repair",
+      "type": "object"
+    },
+    "StepWiring": {
+      "additionalProperties": false,
+      "description": "One wired step.\n\n``inputs``/``outputs`` bind the manifest's declared names to relations;\n``parameters`` sets tunables the manifest declares and bounds. ``seed`` is\nrequired for a ``seeded`` step and refused for the other two tiers \u2014 a\nseed on a ``pure`` step is either a lie about the step or a\nmisunderstanding of the tier, and both are worth a compile error rather\nthan a value nothing reads (\u00a75.5, D5).",
+      "properties": {
+        "applies_to": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Applies To",
+          "type": "object"
+        },
+        "canonical": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "title": "Canonical",
+          "type": "object"
+        },
+        "inputs": {
+          "additionalProperties": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$",
+            "type": "string"
+          },
+          "title": "Inputs",
+          "type": "object"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*$",
+            "type": "string"
+          },
+          "minProperties": 1,
+          "title": "Outputs",
+          "type": "object"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ]
+          },
+          "title": "Parameters",
+          "type": "object"
+        },
+        "quality": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ExpressionRule"
+          },
+          "title": "Quality",
+          "type": "array"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        },
+        "use": {
+          "pattern": "^[a-z][a-z0-9_]*@[1-9][0-9]*$",
+          "title": "Use",
+          "type": "string"
+        }
+      },
+      "required": [
+        "outputs",
+        "use"
+      ],
+      "title": "StepWiring",
+      "type": "object"
+    }
+  },
+  "$id": "https://morzecrew.github.io/bloomery/schemas/v1/steps.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The ``steps:`` document \u2014 the sixth spec kind (RFC 0002 \u00a75.2).\n\nIts own document rather than a block inside the entity model because a\nstep is not an entity: it is a referenced implementation that *produces*\nentities, and mixing the two would put platform-owned wiring inside the\nfile spec authors edit most.",
+  "properties": {
+    "steps": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/StepWiring"
+      },
+      "title": "Steps",
+      "type": "array"
+    },
+    "steps_version": {
+      "const": 1,
+      "title": "Steps Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "steps_version"
+  ],
+  "title": "StepSet",
+  "type": "object"
+}

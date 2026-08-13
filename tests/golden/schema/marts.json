@@ -1,0 +1,248 @@
+{
+  "$defs": {
+    "DateRoleStep": {
+      "additionalProperties": false,
+      "description": "Declare a role-playing time dimension: ``{date: order_date, role:\nordered}`` expands to ``ordered_day`` \u2026 ``ordered_year`` (RFC 0010 D4).\n``metric_time`` is reserved as a role name (RFC 0002 D10).",
+      "properties": {
+        "date": {
+          "title": "Date",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "date",
+        "role"
+      ],
+      "title": "DateRoleStep",
+      "type": "object"
+    },
+    "Mart": {
+      "additionalProperties": false,
+      "description": "One wide mart: base entity, authored-order flatten steps (order is\nmeaningful \u2014 chains flatten transitively, RFC 0010 \u00a75.1), measures,\npartitioning, aggregate assertions, and the tie-breaking ``cost_hint``\n(RFC 0010 D8).",
+      "properties": {
+        "assert": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/MartAssert"
+          },
+          "title": "Assert",
+          "type": "array"
+        },
+        "base": {
+          "title": "Base",
+          "type": "string"
+        },
+        "cost_hint": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Cost Hint",
+          "type": "integer"
+        },
+        "flatten": {
+          "default": [],
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/ViaStep"
+              },
+              {
+                "$ref": "#/$defs/DateRoleStep"
+              }
+            ]
+          },
+          "title": "Flatten",
+          "type": "array"
+        },
+        "grain": {
+          "title": "Grain",
+          "type": "string"
+        },
+        "materialization": {
+          "anyOf": [
+            {
+              "enum": [
+                "full",
+                "incremental_by_key",
+                "incremental_by_partition"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Materialization"
+        },
+        "measures": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Measures",
+          "type": "array"
+        },
+        "partition_by": {
+          "default": [],
+          "items": {
+            "pattern": "^(?:(days|months|years|hours)\\(([A-Za-z_][A-Za-z0-9_]*)\\)|[A-Za-z_][A-Za-z0-9_]*)$",
+            "type": "string"
+          },
+          "title": "Partition By",
+          "type": "array"
+        }
+      },
+      "required": [
+        "base",
+        "grain"
+      ],
+      "title": "Mart",
+      "type": "object"
+    },
+    "MartAssert": {
+      "additionalProperties": false,
+      "description": "One aggregate assertion over a mart (RFC 0016 D89) \u2014 \u00a710's \"no month has\nzero revenue\", made declarable.\n\n**Why this is an assertion and not a quality rule.** \u00a75.9 draws the line at\nwhat a verdict *does*: a quality rule disposes of a row. A mart row is\nderived \u2014 it has no ``_source_row_id``, no bronze payload, no reject table\nand no replay \u2014 so there is nothing to quarantine, nothing to repair, and\nnothing to bring back. What is left is D4's other half, \"alert me\", which\nis `assert:`. \u00a710 asked whether mart-level rules were reconcile-shaped or a\nnew surface; they are neither, and the disposition model is what separates\nthem from both.\n\n``by`` groups the aggregate; empty means one group over the whole mart.\nBounds carry the exact-decimal/ISO string form for the same reason\n``range`` does \u2014 a YAML float never reaches the IR (RFC 0003 D5).\n\n**What it cannot see, stated:** a group with no rows produces no row to\naggregate, so an assertion over a mart cannot notice a month that is\nentirely *missing* \u2014 only one whose total is out of bounds. Closing that\nneeds a join against the date spine, which is a different check with a\ndifferent dependency (RFC 0016 D89).",
+      "properties": {
+        "agg": {
+          "enum": [
+            "avg",
+            "count",
+            "max",
+            "min",
+            "sum"
+          ],
+          "title": "Agg",
+          "type": "string"
+        },
+        "by": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "By",
+          "type": "array"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        },
+        "measure": {
+          "title": "Measure",
+          "type": "string"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min"
+        },
+        "name": {
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Name",
+          "type": "string"
+        },
+        "on_fail": {
+          "enum": [
+            "flag",
+            "fail"
+          ],
+          "title": "On Fail",
+          "type": "string"
+        }
+      },
+      "required": [
+        "agg",
+        "measure",
+        "name",
+        "on_fail"
+      ],
+      "title": "MartAssert",
+      "type": "object"
+    },
+    "ViaStep": {
+      "additionalProperties": false,
+      "description": "Flatten one declared relationship into the mart, prefixing every\nflattened column with ``prefix`` (RFC 0010 D3 \u2014 prefixes mandatory,\nso an empty prefix is a parse error, not a silent no-op).",
+      "properties": {
+        "prefix": {
+          "minLength": 1,
+          "title": "Prefix",
+          "type": "string"
+        },
+        "via": {
+          "title": "Via",
+          "type": "string"
+        }
+      },
+      "required": [
+        "prefix",
+        "via"
+      ],
+      "title": "ViaStep",
+      "type": "object"
+    }
+  },
+  "$id": "https://morzecrew.github.io/bloomery/schemas/v1/marts.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The per-project marts document (``marts_version``), at most one per\nproject, optional \u2014 a project without marts compiles silver only\n(RFC 0010 D7).",
+  "properties": {
+    "marts": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "$ref": "#/$defs/Mart"
+        }
+      },
+      "title": "Marts",
+      "type": "object"
+    },
+    "marts_version": {
+      "const": 1,
+      "title": "Marts Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "marts",
+    "marts_version"
+  ],
+  "title": "MartSet",
+  "type": "object"
+}

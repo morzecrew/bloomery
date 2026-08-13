@@ -55,6 +55,18 @@ for artifact in artifacts:
     print(artifact.path)  # write artifact.content wherever your repo keeps models
 ```
 
+Or from a shell — the CLI is a thin argument shell over exactly these functions, and the
+only part of the package that touches a filesystem:
+
+```bash
+bloomery compile specs/ --target sqlmesh --dialect duckdb --out out/
+bloomery resolve specs/          # which metrics are computable, and what is missing
+bloomery schema --out schemas/   # JSON Schema per spec kind, for editors and validators
+```
+
+A refusal exits `1` and a bad invocation exits `2`, so a pipeline can tell "your spec is
+wrong" from "your command is wrong". Nothing is executed: `bloomery run` does not exist.
+
 Plan a metric request over the mart those specs declared — SQL out, nothing executed:
 
 ```python
