@@ -54,6 +54,10 @@ start reading it as fine. **Read the stage before the counts**: at any stage but
 `complete` they are a prefix, and `Unreachable (0)` there means "never computed" rather
 than "nothing unreachable".
 
+A project that wires a `steps:` document reports the unwired step here, because the CLI
+passes no registry — see [Steps are the one thing the CLI cannot wire](#compiling) below.
+`bloomery compile` on the same project refuses for the same reason.
+
 ## The six commands
 
 ```text
@@ -108,7 +112,9 @@ the name of an emitter you registered.
 caller and handed to `compile_project`; bloomery reads no step manifests from disk, by
 design — that absence is what stops an authored spec from becoming a code-loading
 surface. A flag would have to invent a manifest loader. A project using `steps:` compiles
-through Python, and `UnknownStep` names the versions the registry does hold.
+through Python, and `UnknownStep` names the versions the registry does hold. `resolve`
+reports that refusal too, rather than answering reachability as though the wiring were
+not there.
 
 ## Planning a change
 

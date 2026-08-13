@@ -186,6 +186,15 @@ def _resolve(arguments: argparse.Namespace) -> int:
     reachable at that point, and every refusal with its source path — and still
     exits ``1``, because the spec is still refused and a pipeline branching on
     the code must not start treating it as fine.
+
+    **One project shape changes answer**: a spec wiring a ``steps:`` document
+    now reports the unwired step instead of printing reachability. No registry
+    is passed — the CLI offers no ``--steps``, because a ``StepRegistry`` is a
+    caller-assembled compile input (RFC 0017 §5.3) — and ``resolve()`` never
+    looked at steps at all, so it answered as though the wiring were not there.
+    ``compile`` on the same project already refuses for the same reason; this
+    makes the two agree rather than having the cheaper command quietly answer a
+    question about a project the expensive one will not build.
     """
     project, catalog = _load(arguments.directory, arguments.catalog)
     evidence = evaluate(project, catalog=catalog)

@@ -10,8 +10,8 @@ spec-diff planning (``plan`` with ``Plan`` / ``Change`` / ``ChangeClass`` /
 hydration (``LruManifestHydrator``, ``HydrationKey`` — RFC 0014), the
 JSON Schema export (``spec_json_schema`` / ``all_spec_schemas`` with
 ``SpecKind`` and ``JsonDict`` — RFC 0020), spec assessment as one value
-(``evaluate`` with ``SpecEvidence`` / ``MartSummary`` / ``Stage`` — RFC 0022),
-the
+(``evaluate`` with ``SpecEvidence`` / ``MartSummary`` / ``Stage`` — RFC 0022;
+``Materialization`` comes with it, reached through ``MartSummary``), the
 extension points (``register_transform``, ``register_emitter``), and the
 total error hierarchy rooted at ``BloomeryError`` (import leaves from
 :mod:`bloomery.errors`) — whose structured fix suggestions carry the two

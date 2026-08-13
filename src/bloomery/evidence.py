@@ -33,7 +33,7 @@ see :class:`SpecEvidence`.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from bloomery.errors import BloomeryError, InvariantViolated
@@ -148,7 +148,7 @@ class SpecEvidence:
     #: building — which is every stage before :attr:`~bloomery.Stage.COMPLETE`,
     #: since a fingerprint over a draft would name a project that does not
     #: exist.
-    fingerprint: str | None = field(default=None)
+    fingerprint: str | None = None
 
 
 def _mart_summary(mart: MartIR) -> MartSummary:

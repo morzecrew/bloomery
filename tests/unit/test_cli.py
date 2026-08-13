@@ -261,6 +261,23 @@ def test_a_structured_fix_suggestion_reaches_json(
     assert violations[0]["offending_measures"] == [{"grain": "order", "measure": "shipping_cost"}]
 
 
+def test_a_step_wiring_project_reports_the_unwired_step(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The one project shape whose answer changed.
+
+    The CLI offers no `--steps` — a `StepRegistry` is a caller-assembled
+    compile input — and `resolve()` never looked at steps, so this printed
+    reachability as though the wiring were not there. `compile` on the same
+    project already refused; now the two agree.
+    """
+    code, out, _err = run(capsys, "resolve", str(FIXTURES / "step_resolution"))
+    assert code == EXIT_REFUSED
+    assert "Stage: lower" in out
+    assert "UnknownStep" in out
+    assert "steps: steps.resolve_customers@3" in out
+
+
 def test_resolve_json_carries_fields_the_table_does_not_print(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
