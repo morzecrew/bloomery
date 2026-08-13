@@ -15,10 +15,9 @@ output is locked by tests — change it deliberately.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
-if TYPE_CHECKING:
-    from bloomery.typing import LogicalType
+from bloomery.typing import LogicalType
 
 __all__ = [
     "ColumnDescriptor",

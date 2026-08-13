@@ -13,20 +13,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING
 
+from bloomery.ir import UnreachableMetric
 from bloomery.resolve.graph import Node, build_graph
 from bloomery.resolve.metrics import effective_metrics
 from bloomery.resolve.order import toposort
 from bloomery.resolve.reach import available_canonicals, compute_reachability
 from bloomery.resolve.recipes import validate_recipes
 from bloomery.resolve.refs import validate_references
+from bloomery.spec.catalog import Catalog
 from bloomery.spec.mapping import RecipeFieldMapping
-
-if TYPE_CHECKING:
-    from bloomery.ir import UnreachableMetric
-    from bloomery.spec.catalog import Catalog
-    from bloomery.spec.project import Project
+from bloomery.spec.project import Project
 
 __all__ = [
     "FieldProvenance",

@@ -23,12 +23,8 @@ request filters instead, or declare a gte-only/lte-only policy.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
-from bloomery.planner.request import Predicate
-
-if TYPE_CHECKING:
-    from bloomery.planner.request import Op, Scalar
+from bloomery.planner.request import Op, Predicate, Scalar
 
 __all__ = [
     "RowPolicy",
