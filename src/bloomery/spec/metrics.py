@@ -12,7 +12,9 @@ reserved spec surface (RFC 0002 D10), parse-validated only.
 
 from __future__ import annotations
 
-from pydantic import Field, model_validator
+from typing import Literal
+
+from pydantic import model_validator
 
 from bloomery.spec.common import (
     AdditivityName,
@@ -69,5 +71,11 @@ class MetricSet(SpecModel):
     """The per-project metric document (``metrics_version``), at most one per
     project (RFC 0002 §5.5)."""
 
-    metrics_version: int = Field(ge=1)
+    #: Pinned to the one version bloomery implements (RFC 0018 D7). It was
+    #: ``int`` with ``ge=1``, which accepted a document written for a future
+    #: bloomery and silently applied v1 semantics to it — the exact misreading
+    #: a version key exists to refuse. This key is also the document-kind
+    #: discriminator, so it stays required: a document without one cannot be
+    #: identified at all.
+    metrics_version: Literal[1]
     metrics: dict[MemberName, Metric]
