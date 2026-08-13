@@ -84,7 +84,14 @@ BANNED_ATTRIBUTES = frozenset({"os.environ", "os.getenv"})
 #: ``bloomery.errors`` today (RFC 0017), so it passes as written; the entry
 #: exists so that a future addition there is a decision someone makes rather
 #: than a rule someone slips past.
+#: ``cli/io.py`` is the command line's one door to a filesystem (RFC 0020 D5,
+#: D12). A command line has to reach a disk; what this entry buys is that
+#: exactly one file may, so the tree and the guard say the same thing. The
+#: exemption is deliberately *not* ``cli/`` — a package-wide carve-out would
+#: let the argument parser or the renderer open a file while the docstring in
+#: ``cli/io.py`` still claimed one module did.
 ALLOWLIST: dict[str, str] = {
+    "cli/io.py": "the CLI's single filesystem door (RFC 0020 D5/D12)",
     "steps/contract.py": "run-time contract assertion, not a compile stage (RFC 0017)",
 }
 

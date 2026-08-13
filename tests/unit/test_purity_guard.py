@@ -105,6 +105,45 @@ def test_the_allowlist_exempts_the_run_time_contract(tmp_path: pathlib.Path) -> 
     assert checker.inspect_module(ordinary, tmp_path)  # type: ignore[attr-defined]
 
 
+def test_the_filesystem_carve_out_is_one_file_not_the_cli_package(
+    tmp_path: pathlib.Path,
+) -> None:
+    """RFC 0020 D12. ``cli/io.py`` may open a file; nothing else under
+    ``cli/`` may.
+
+    A package-wide exemption would pass every test that only checks
+    ``cli/io.py`` is exempt, while letting the argument parser or the renderer
+    reach a disk — the tree claiming one door and the guard enforcing none.
+    So the second half is the assertion that matters.
+    """
+    checker = load_checker()
+    assert "cli/io.py" in checker.ALLOWLIST  # type: ignore[attr-defined]
+    assert not any(  # type: ignore[attr-defined]
+        entry.rstrip("/") == "cli" for entry in checker.ALLOWLIST
+    )
+
+    (tmp_path / "cli").mkdir()
+    door = tmp_path / "cli" / "io.py"
+    door.write_text("from pathlib import Path\n")
+    assert checker.inspect_module(door, tmp_path) == []  # type: ignore[attr-defined]
+
+    for sibling in ("__init__.py", "render.py", "serialize.py"):
+        neighbour = tmp_path / "cli" / sibling
+        neighbour.write_text("from pathlib import Path\n")
+        assert checker.inspect_module(neighbour, tmp_path), sibling  # type: ignore[attr-defined]
+
+
+def test_the_carve_out_does_not_exempt_a_clock(tmp_path: pathlib.Path) -> None:
+    """The allowlist covers *imports*, which is all a filesystem needs. A CLI
+    that read a clock would still make output depend on when it ran, and
+    nothing about reaching a disk justifies that."""
+    checker = load_checker()
+    (tmp_path / "cli").mkdir()
+    door = tmp_path / "cli" / "io.py"
+    door.write_text("from datetime import datetime\nstamp = datetime.now()\n")
+    assert checker.inspect_module(door, tmp_path)  # type: ignore[attr-defined]
+
+
 def test_the_pygrep_hook_it_replaces_is_gone() -> None:
     """Two guards over one invariant drift apart (RFC 0019 D6). The AST check is
     a superset of the hook's four spellings, so the hook is removed in the same
