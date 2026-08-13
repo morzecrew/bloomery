@@ -111,7 +111,35 @@ dataclass tree designed so the deterministic thing is the only easy thing to wri
 
 Unreachable metrics are IR members, not log lines: "you can't get margin because `cogs`
 is missing" is a product-facing answer, and it travels with the IR to whatever surface
-needs it.
+needs it. Each carries `via` as well as `missing` — the metrics between it and the
+missing leaf, when it is blocked through another metric rather than on its own.
+
+## The stages are addressable
+
+The sequence above is not only an explanation. `Stage` is a public enum and
+[`evaluate()`](../how-to/evaluate-a-spec.md) reports which stage analysis stopped at,
+along with everything the stages before it produced:
+
+```python
+evidence = evaluate(project, catalog=catalog)
+evidence.stage_reached   # Stage.GUARDRAILS
+evidence.reachable       # still known — resolve ran two stages earlier
+evidence.refusals        # the batch that stopped it, each with a source path
+```
+
+`compile_project()` is all-or-nothing and stays that way: it emits artifacts or it
+refuses. What `evaluate()` adds is that the *prefix* — the analysis that completed before
+the refusal — stops being thrown away at the exception boundary.
+
+Both are written as one generator over the stages, so the assessment and the compile can
+never disagree about what the pipeline is.
+
+Two stages in the diagram are not `Stage` members, for the same reason. **Parse** runs
+before anything holds a `Project`, so a document that does not parse never reaches the
+pipeline `evaluate()` drives — `load_project` refuses it first. **Mart flattening** is
+total and refuses nothing of its own: its violations are re-derived and raised by the
+guardrail stage, so it is folded into `LOWER` alongside step lowering, which does
+refuse.
 
 ## Lowering is shared; assembly is not
 

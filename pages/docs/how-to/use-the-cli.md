@@ -9,6 +9,9 @@ bloomery resolve specs/
 ```
 
 ```text
+Stage: complete
+Fingerprint: blm1:46f0d4f549273b5e43db9b6961ce4ef35919611d2987e1dc0f841c355840087c
+
 Reachable (3)
   average_order_value
   gross_revenue
@@ -16,11 +19,40 @@ Reachable (3)
 
 Unreachable (1)
   margin  missing: cogs
+
+Marts (1)
+  order_items  grain: order_item
 ```
 
 That is the command the rest exist alongside. "Did the spec I just wrote do what I
 meant" is the question bloomery is best placed to answer, and the specific missing leaf
 is the part a summary would throw away.
+
+**A spec that is refused still gets an answer.** `resolve` calls
+[`evaluate()`](evaluate-a-spec.md), which reports refusals rather than raising them, so a
+draft mid-edit prints how far analysis got, what was reachable at that point, and every
+refusal with its source path:
+
+```text
+Stage: guardrails
+  analysis stopped here — every count below is a prefix, not a total
+
+Reachable (2)
+  landed_revenue
+  shipping_cost
+
+Unreachable (0)
+
+Refusals (1)
+  marts: marts.order_items.measures.shipping_cost
+    GrainViolation: measure 'shipping_cost' has grain 'order' (one row per
+      order), not the mart's grain 'order_item' …
+```
+
+Exit code `1` — the spec is still refused, and a pipeline branching on the code must not
+start reading it as fine. **Read the stage before the counts**: at any stage but
+`complete` they are a prefix, and `Unreachable (0)` there means "never computed" rather
+than "nothing unreachable".
 
 ## The six commands
 
@@ -172,16 +204,21 @@ entity_model: entities.order.fields.total.type: String should match pattern '^(?
 
 `plan`, `resolve` and `explain` take `--format json`, and it emits the **same values the
 Python API returns** — not a summary of them. `bloomery resolve --format json` carries
-`provenance` and `topo_order` even though the table prints neither, because a script
-should not have to drop into Python for a field the function already returned.
+each mart's measures and dimensions and the full text of every refusal even though the
+table prints neither, because a script should not have to drop into Python for a field
+the function already returned.
 
 ```bash
-bloomery resolve specs/ --format json | jq '.unreachable_metrics[] | {name, missing}'
+bloomery resolve specs/ --format json | jq '.unreachable[] | {name, missing, via}'
+bloomery resolve specs/ --format json | jq '.refusals[] | {type, source_path}'
 ```
 
-Two conversions are worth knowing: a `Decimal` becomes a string (never a float — see
-[determinism](../concepts/determinism.md)), and a logical type becomes the string a spec
-writes it as, `decimal(12, 4)`.
+Three conversions are worth knowing. A `Decimal` becomes a string (never a float — see
+[determinism](../concepts/determinism.md)). A logical type becomes the string a spec
+writes it as, `decimal(12, 4)`. And a refusal — which is an exception, not a dataclass —
+becomes its `type`, its `message`, and every attribute it carries, so `source_path` and
+the [structured fix suggestions](../reference/errors.md) arrive as fields rather than as
+prose to re-parse.
 
 ## What the CLI will never grow
 
