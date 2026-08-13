@@ -1,0 +1,52 @@
+# GitGuardian / ggshield configuration.
+#
+# Scope note: this file is read by the **ggshield CLI** (and anything invoking it, such as a
+# pre-commit hook or a CI step). GitGuardian's GitHub App scans platform-side and takes its
+# exclusions from the dashboard, so the two have to be kept in step by hand — a path listed
+# here is not automatically excluded there.
+#
+# Second scope note, specific to this repository: bloomery's own secret gate is **gitleaks**
+# (`.pre-commit-config.yaml`, run by `just quality` as the "Secrets" step), not ggshield.
+# Nothing in this tree invokes ggshield today, so these exclusions bind only an ad-hoc
+# `ggshield secret scan` and the day the CLI is adopted. They are kept in step with the
+# sibling forze repository deliberately: the two projects share a house layout, and a
+# divergence here would be discovered as a surprise rather than as a decision.
+#
+# What is excluded below is limited to paths that cannot hold a production credential:
+# fixtures, generated artifacts, and lock files whose high-entropy hashes are the classic
+# false positive. `src/`, `.github/`, `examples/` and prose documentation stay scanned
+# deliberately — workflows are where a real secret does the most damage, and prose and
+# worked examples are where one is most likely to be pasted by accident and least likely
+# to be noticed.
+#
+# The cost of the `tests/**` entry, stated plainly: a real credential committed into a test
+# fixture will no longer be caught here. That is a known leak route, so the exclusion buys
+# quiet at the price of one detection path — worth revisiting if fixtures ever start holding
+# anything but synthetic values. CONTRIBUTING.md states the matching rule for authors ("use
+# synthetic fixtures in tests"), and the dirty-data corpus under `tests/fixtures/dirty/` is
+# what makes the exclusion earn its keep: those files hold deliberately adversarial strings —
+# homoglyphs, zero-width characters, astral codepoints — that read as credentials to any
+# entropy-based detector and are, by design, nothing of the sort.
+
+version: 2
+
+secret:
+  ignored_paths:
+    # Test fixtures and support code — synthetic values by construction. The dirty-data
+    # corpus in particular is built from high-entropy adversarial text.
+    - 'tests/**/*'
+
+    # Lock files: dependency hashes are high-entropy by design and are not secrets.
+    - 'uv.lock'
+    - '**/*.lock'
+
+    # Documentation build output — rendered from `pages/docs/`, which is itself scanned.
+    # (Diagrams are inline mermaid in the Markdown, so there is no generated-asset tree.)
+    - 'pages/site/**/*'
+    - 'pages/.cache/**/*'
+
+    # Build and tooling output, never authored by hand.
+    - '**/__pycache__/**/*'
+    - '**/*.py[cod]'
+    - '.venv/**/*'
+    - 'dist/**/*'
