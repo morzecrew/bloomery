@@ -120,6 +120,13 @@ class SpecEvidence:
 
     It carries facts and never judgement — no score, no confidence, no
     approve/reject. The reviewer decides; bloomery reports (RFC 0022 D9).
+
+    **It does not carry the compiled artifacts**, even at
+    :attr:`~bloomery.Stage.COMPLETE`, where it could and where that would let a
+    caller replace :func:`~bloomery.compile_project` outright. A type meaning
+    "assessment" should not sometimes also mean "output" — and compilation is
+    per *target* while an assessment is not, so the field would have to be
+    either target-parameterized or wrong.
     """
 
     #: How far analysis got. Read first; see the class docstring.
