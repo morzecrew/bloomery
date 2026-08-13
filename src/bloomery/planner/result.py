@@ -29,7 +29,7 @@ __all__ = [
 type ColumnRole = Literal["dimension", "measure"]
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, kw_only=True)
 class ColumnDescriptor:
     """One output column: what the caller asked for, and what the SQL returns.
 
@@ -45,6 +45,15 @@ class ColumnDescriptor:
     ``name`` silently found nothing, because no column in the SQL is called
     that. Bind by ``sql_alias``; render ``name``. :class:`Explanation`
     continues to speak ``name``, since an explanation is for a reader.
+
+    **Constructed by keyword only.** ``sql_alias`` was inserted second rather
+    than appended, which reads better and would silently misassign every field
+    of a four-argument positional call — `name`, then the type into
+    ``sql_alias``, the role into ``type``, the label into ``role``, with no
+    error. Keyword-only makes that call fail immediately instead. Appending the
+    field with a default was the alternative and is worse: the only available
+    default is ``name``, which is the defect D4 exists to remove, restored
+    silently for anyone who does not pass the argument.
     """
 
     name: str

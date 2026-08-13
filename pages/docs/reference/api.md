@@ -177,6 +177,9 @@ One output column, carrying both names it has:
 - `role` — `"dimension"` or `"measure"`.
 - `label` — optional description.
 
+Constructed by keyword only — `sql_alias` sits second rather than last, so a positional
+call would misassign every field after the first.
+
 **Bind result rows by `sql_alias`, display `name`.** For a measure the two agree; for a
 dimension they do not, because MetricFlow qualifies the column by entity and suffixes a
 date role with its grain. Positional binding — `columns[i]` against projection `i` — works
