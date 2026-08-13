@@ -141,8 +141,10 @@ Some invariants are enforced by `just quality` rather than by review, and a chan
 breaks one fails the gate with the rule named. Five import contracts run under
 `lint-imports`:
 
-- **Layered bloomery compile pipeline** — the package order from `planner` down to
-  `errors`. A lower layer never imports a higher one.
+- **Layered bloomery compile pipeline** — the package order from `cli` and `planner`
+  down to `errors`. A lower layer never imports a higher one. `bloomery.cli` is the top
+  layer, so the command line may read the library and no library module may read it
+  (RFC 0020 D5).
 - **Emitters never import the spec layer** — the emit side consumes IR. That is what
   having an IR is for.
 - **Lowering is target-independent** — nothing in `bloomery/emit/lower/` may import
@@ -162,6 +164,12 @@ imports that make I/O possible (`os`, `pathlib`, `requests`, …) and calls that
 clock or a random source. Compilation takes its inputs as arguments; a clock read in the
 package breaks byte-identical recompilation. `tests/` is out of scope — a test
 legitimately touches the filesystem.
+
+Two paths are allowlisted, each by **file** and each with its reason stated at the entry:
+`steps/contract.py` (run-time, inside a generated wrapper) and `cli/io.py` (the command
+line's single door to a disk — RFC 0020 D12). Allowlisting `cli/` as a package would let
+the argument parser or the renderer open a file while `io.py`'s own docstring still
+claimed one module could, so the exemption stays one filename.
 
 ## Commit Messages
 
@@ -293,6 +301,9 @@ Conventions:
   corpus doubles as the documentation example set, so it must exercise the surface
   callers use
 - Numeric assertions in execution tests use `Decimal`, never float
+- Schema goldens live in `tests/golden/schema/` and move when Pydantic renders a
+  constraint differently or a transform joins the registry — both intended, both reviewed
+  like any other golden diff
 
 ## Changelog
 

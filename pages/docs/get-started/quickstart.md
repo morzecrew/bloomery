@@ -191,6 +191,35 @@ revenue
   policy:   not applied
 ```
 
+## The same run, without Python
+
+Every step above is a command. The library is the primary surface and the CLI is a shell
+over it, so the two agree by construction rather than by maintenance:
+
+```bash
+bloomery compile examples/quickstart --target sqlmesh --dialect duckdb --out out/
+bloomery resolve examples/quickstart
+bloomery explain examples/quickstart --metrics revenue --by ordered_month \
+  --where '{"customer_id": {"$neq": "internal"}}'
+bloomery fingerprint examples/quickstart
+```
+
+The catalog is picked up from `catalog.yaml` in the directory and loaded separately, the
+way step 2 does it by hand. `bloomery resolve` is the one with no Python equivalent above
+because it answers a question the compile path never asks — which metrics the specs can
+serve, and which specific leaf is missing for the ones they cannot:
+
+```text
+Reachable (2)
+  order_count
+  revenue
+
+Unreachable (0)
+```
+
+A refusal exits `1` and a bad invocation exits `2`, so a pipeline can tell "your spec is
+wrong" from "your command is wrong". See [use the CLI](../how-to/use-the-cli.md).
+
 ## What you just did
 
 You exercised both halves of the library. The *compile* half — parse, resolve against

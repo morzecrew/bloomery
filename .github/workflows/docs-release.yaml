@@ -70,3 +70,10 @@ jobs:
           bash .github/scripts/deploy-docs-version.sh
           "$MINOR"
           "$MOVE_LATEST"
+
+      # After mike, so both pushes to gh-pages happen in order within the one
+      # job rather than racing. The schemas sit at the gh-pages root, outside
+      # mike's version directories — their URL carries the *document* version,
+      # which does not move when a bloomery release does.
+      - name: Publish the spec JSON Schemas
+        run: bash .github/scripts/publish-spec-schemas.sh

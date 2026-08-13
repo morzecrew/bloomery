@@ -154,6 +154,52 @@ value that is neither `"first"` nor `"last"`, a non-int `limit`) raises `Invalid
 and never carries a `.reason` from the closed list. Handle the two separately: a
 `.reason` is a product decision to surface, an `InvalidRequest` is a caller bug to fix.
 
+## Fix suggestions
+
+Five refusals carry a structured next action beside the prose, because a human reads a
+message and a program reads a *structure*. Each field exposes a value bloomery already
+computed on its way to writing the message:
+
+| Class | Field | Carries |
+|---|---|---|
+| `UnknownMember` | `did_you_mean: str \| None` | The closest known metric or dimension name |
+| `UnreachableAtGrain` | `covering_marts: tuple[MartCoverage, ...]` | One entry per required measure: the mart that *does* serve it, and the grain it serves it at |
+| `GrainViolation` | `offending_measures: tuple[MeasureRef, ...]` | The measure at odds with the mart grain, and its own grain |
+| `UnknownStep` | `available_versions: tuple[int, ...]` | The versions of that `ref` the registry holds, ascending |
+| `UnsupportedFilter` | `nearest_supported: str \| None` | The operator that would have worked (`$regex` → `"like"`) |
+
+`MartCoverage(mart, metric, grain)` and `MeasureRef(measure, grain)` are frozen public
+dataclasses, exported from the package root. They are typed values rather than encoded
+strings on purpose: a `tuple[str, ...]` could name the marts but not say which metric
+each covers at which grain, and that pairing is the whole content of the conflict.
+
+```python
+from bloomery.errors import UnreachableAtGrain
+
+try:
+    planner.plan(ir, request, dialect="duckdb")
+except UnreachableAtGrain as refusal:
+    for entry in refusal.covering_marts:
+        print(f"{entry.metric} lives on {entry.mart} at grain {entry.grain}")
+```
+
+**Absence has one representation, and "the attribute is missing" is not it.** Every field
+is always present: a collection field is `()` and a scalar is `None` when there is
+nothing to suggest, so no caller needs `getattr`. An empty suggestion is a *fact* rather
+than a search that was skipped, and the two emptinesses mean different repairs —
+`covering_marts == ()` means no mart lists the metric at all (define one), while a
+populated tuple means the metrics are split across grains (request them separately).
+
+Nothing is fabricated. `$empty` is refused *because* `eq ""` and `is_null true` are
+different questions, so `nearest_supported` is `None` there and the message names both;
+a set relation has no scalar counterpart at all. And nothing is discoverable *only*
+through a suggestion — the primary contract stays the message and, for
+`UnsupportedFilter`, the `.reason` code.
+
+`nearest_supported` is the `Op` *value* rather than the member, because `bloomery.errors`
+imports nothing. `Op` is a `StrEnum`, so `refusal.nearest_supported == Op.LIKE` holds and
+`Op(refusal.nearest_supported)` round-trips.
+
 ## `source_path`
 
 Every error carries an optional `source_path` — a dotted/bracketed address into the
