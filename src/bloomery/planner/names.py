@@ -193,7 +193,14 @@ def columns_from(
                 "the bridge (RFC 0013 D7)"
             )
             raise PlannerError(msg)
-        columns.append(ColumnDescriptor(name=name, type=_column_type(mart, name), role="dimension"))
+        columns.append(
+            ColumnDescriptor(
+                name=name,
+                sql_alias=spec.dunder_name,
+                type=_column_type(mart, name),
+                role="dimension",
+            )
+        )
     for metric_spec in query_spec.input_spec_order.metric_specs:
         metric = metrics_by_name.get(metric_spec.element_name)
         if metric is None:  # pragma: no cover — coverage validated the names
@@ -202,6 +209,7 @@ def columns_from(
         columns.append(
             ColumnDescriptor(
                 name=metric.name,
+                sql_alias=metric.name,
                 type=_measure_type(metric, mart),
                 role="measure",
                 label=metric.description,

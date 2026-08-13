@@ -31,11 +31,24 @@ type ColumnRole = Literal["dimension", "measure"]
 
 @dataclass(frozen=True, slots=True)
 class ColumnDescriptor:
-    """One output column, in bloomery names — callers never see MetricFlow's
-    dunder names (RFC 0013 D7). ``name`` is role-qualified for date-role
-    dimensions at the effective grain (``ordered_month``)."""
+    """One output column: what the caller asked for, and what the SQL returns.
+
+    ``name`` is the caller's vocabulary — role-qualified for date-role
+    dimensions at the effective grain (``ordered_month``), and never a
+    MetricFlow dunder (RFC 0013 D7). ``sql_alias`` is the alias the emitted
+    SQL actually projects, which for a dimension is entity-qualified and
+    grain-suffixed: ``store`` comes back as ``order__store`` and
+    ``ordered_month`` as ``order__ordered_day__month``. Measures agree on both.
+
+    The two exist because they differ (RFC 0009 D24, closed by RFC 0018 D4).
+    Binding a result set positionally works and always did; binding it by
+    ``name`` silently found nothing, because no column in the SQL is called
+    that. Bind by ``sql_alias``; render ``name``. :class:`Explanation`
+    continues to speak ``name``, since an explanation is for a reader.
+    """
 
     name: str
+    sql_alias: str
     type: LogicalType
     role: ColumnRole
     label: str | None = None

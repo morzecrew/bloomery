@@ -5,6 +5,7 @@ column envelope from a real ``query_spec``."""
 from __future__ import annotations
 
 import pytest
+from sqlglot import parse_one
 
 from bloomery import MetricRequest, OrderSpec
 from bloomery.errors import PlannerError
@@ -112,6 +113,55 @@ def test_unexpected_group_by_spec_is_a_planner_error() -> None:
     )
     with pytest.raises(PlannerError, match="never requests"):
         columns_from(bogus, mart=mart, metrics_by_name={})  # type: ignore[arg-type]
+
+
+def test_sql_alias_is_the_alias_the_rendered_sql_actually_projects() -> None:
+    """RFC 0018 D4, closing RFC 0009 D24.
+
+    ``QueryPlan.columns`` named the *requested* dimension while the SQL
+    projected MetricFlow's dunder — so a caller binding a result set by name
+    found nothing, and the envelope only worked positionally. This asserts the
+    two against each other on the case that exhibits the gap: a categorical
+    dimension (entity-qualified) and a date role at a non-day grain
+    (entity-qualified *and* grain-suffixed).
+
+    Parsed out of the SQL rather than hard-coded, so a MetricFlow upgrade that
+    changes the spelling fails here instead of silently downstream.
+    """
+    plan = make_planner().plan(
+        fixture_ir("non_additive_aov"),
+        MetricRequest(
+            metrics=("average_order_value", "order_count", "revenue"),
+            dimensions=("store", "ordered_month"),
+        ),
+        dialect="duckdb",
+    )
+    projected = [
+        projection.alias_or_name for projection in parse_one(plan.sql, read="duckdb").expressions
+    ]
+    assert [column.sql_alias for column in plan.columns] == projected
+    by_name = {column.name: column.sql_alias for column in plan.columns}
+    assert by_name["store"] == "order__store"
+    assert by_name["ordered_month"] == "order__ordered_day__month"
+    assert by_name["revenue"] == "revenue", "a measure agrees on both names"
+    assert all("__" not in column.name for column in plan.columns), (
+        "the dunder belongs to sql_alias alone; name stays the caller's word"
+    )
+
+
+def test_positional_binding_is_unchanged() -> None:
+    """The D24 status quo does not regress: `columns[i]` still lines up with
+    projection `i`. That is what every consumer does today, and why the fix is
+    an added field rather than a redefined one."""
+    plan = make_planner().plan(
+        fixture_ir("non_additive_aov"),
+        MetricRequest(metrics=("revenue",), dimensions=("store",)),
+        dialect="duckdb",
+    )
+    projected = parse_one(plan.sql, read="duckdb").expressions
+    assert len(plan.columns) == len(projected)
+    for column, projection in zip(plan.columns, projected, strict=True):
+        assert column.sql_alias == projection.alias_or_name
 
 
 def test_unknown_dimension_column_is_a_planner_error() -> None:
