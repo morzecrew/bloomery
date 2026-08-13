@@ -12,12 +12,21 @@ its fields, an enum becomes its value, a tuple becomes an array, a ``Decimal``
 becomes a string (never a float — RFC 0003 D5 rules those out of the package,
 and JSON's number type is a float in most readers).
 
-One value is not converted structurally. A :class:`~bloomery.LogicalType` is a
-frozen dataclass whose *identity is its class*: ``StringType()`` has no fields
-at all, so a field dump renders it ``{}`` and loses the type entirely. It is
-rendered with the type layer's own ``render_type``, which produces the exact
-string a spec writes and ``parse_type`` reads back — the canonical form, not a
-lossy summary.
+Two values are not converted structurally.
+
+A :class:`~bloomery.LogicalType` is a frozen dataclass whose *identity is its
+class*: ``StringType()`` has no fields at all, so a field dump renders it ``{}``
+and loses the type entirely. It is rendered with the type layer's own
+``render_type``, which produces the exact string a spec writes and
+``parse_type`` reads back — the canonical form, not a lossy summary.
+
+A :class:`~bloomery.BloomeryError` is not a dataclass at all, and since
+:class:`~bloomery.SpecEvidence` carries refusals as *values* (RFC 0022 D2) the
+converter has to know what one looks like or ``bloomery resolve --format json``
+fails on exactly the specs it exists to describe. It becomes its class name,
+its message, and every attribute the error carries — which is where
+``source_path`` lives, and where RFC 0020's structured fix suggestions do, so
+they reach a JSON consumer without this module naming a single one of them.
 """
 
 from __future__ import annotations
@@ -27,6 +36,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING, cast
 
+from bloomery.errors import BloomeryError
 from bloomery.typing import LogicalType, render_type
 
 if TYPE_CHECKING:
@@ -38,10 +48,30 @@ __all__ = [
 ]
 
 
+def _error_as_json(error: BloomeryError) -> dict[str, object]:
+    """A refusal as its class, its message, and everything it carries.
+
+    Read off ``vars()`` rather than from a per-class list: every attribute a
+    refusal has was assigned in an ``__init__``, so this covers ``source_path``,
+    ``collected`` and each of RFC 0020's structured suggestions without naming
+    one of them — and a suggestion added to a sixth error reaches JSON in the
+    same commit that adds it, rather than in the one that remembers to.
+
+    Keys are sorted for the same reason every other collection here is.
+    """
+    return {
+        "type": type(error).__name__,
+        "message": str(error),
+        **{name: as_json_value(attribute) for name, attribute in sorted(vars(error).items())},
+    }
+
+
 def as_json_value(value: object) -> object:
     """Any value the public API returns, as JSON-serializable data."""
     if isinstance(value, LogicalType):
         return render_type(value)
+    if isinstance(value, BloomeryError):
+        return _error_as_json(value)
     if isinstance(value, Enum):
         return as_json_value(value.value)
     if isinstance(value, Decimal):
