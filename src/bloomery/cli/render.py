@@ -24,7 +24,7 @@ from bloomery import Stage
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from bloomery import Plan, SpecEvidence
+    from bloomery import Plan, SpecEvidence, UnreachableMetric
     from bloomery.errors import BloomeryError
 
 __all__ = [
@@ -76,7 +76,7 @@ def render_evidence(evidence: SpecEvidence) -> str:
     lines.extend(
         _table(
             [
-                (metric.name, "missing: " + ", ".join(metric.missing))
+                (metric.name, "missing: " + ", ".join(metric.missing), _via(metric))
                 for metric in evidence.unreachable
             ]
         )
@@ -96,6 +96,16 @@ def render_evidence(evidence: SpecEvidence) -> str:
 #: put a terminal read inside a package whose output is supposed to be a pure
 #: function of its input.
 WRAP = 88
+
+
+def _via(metric: UnreachableMetric) -> str:
+    """``via: a, b`` — the blocked metrics between this one and its missing
+    leaves, or nothing at all when it is blocked on its own.
+
+    An empty third column rather than a second table: a reader scanning the
+    unreachable list wants one row per metric, and most rows have no chain.
+    """
+    return "via: " + ", ".join(metric.via) if metric.via else ""
 
 
 def _refusal(refusal: BloomeryError) -> list[str]:

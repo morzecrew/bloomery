@@ -101,7 +101,7 @@ class SpecEvidence:
     Field                                   Sort key
     ======================================  ==================================
     :attr:`reachable`, :attr:`entities`     the string itself
-    :attr:`unreachable`                     ``(name, missing)``
+    :attr:`unreachable`                     ``(name, missing, via)``
     :attr:`marts`                           ``(name, grain)``
     :attr:`refusals`                        ``(source_path or "", class, str)``
     ======================================  ==================================
@@ -223,8 +223,14 @@ def _from_ir(
     )
 
 
-def _unreachable_key(metric: UnreachableMetric) -> tuple[str, tuple[str, ...]]:
-    return (metric.name, metric.missing)
+def _unreachable_key(metric: UnreachableMetric) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
+    """Every field, so the key is total rather than merely usually-unique.
+
+    Names are unique within a project today, which makes the rest redundant —
+    and a sort key that relies on a uniqueness it does not state is one
+    refactor away from being unstable for a reason nobody looks for.
+    """
+    return (metric.name, metric.missing, metric.via)
 
 
 def _partial(stage: Stage, progress: StageProgress, raised: BloomeryError) -> SpecEvidence:

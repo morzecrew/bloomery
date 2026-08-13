@@ -966,7 +966,7 @@ def _lower_draft(
     """Spec plus resolution to the draft IR the guardrail stage judges."""
     steps_ir = lower_steps(project, steps)
     draft = ProjectIR(
-        bloomery_ir_version=4,
+        bloomery_ir_version=5,
         # Mapped entities plus one per step output: §5.8 makes a step output an
         # entity so marts, metrics and downstream mappings can reference it
         # like any other. Sorted together, because the IR's ordering rule is

@@ -28,6 +28,7 @@ from support.compiling import FIXTURES, fixture_sources, load_fixture
 from support.steps import registry_for
 
 from bloomery import (
+    Catalog,
     MartSummary,
     SpecEvidence,
     Stage,
@@ -144,6 +145,44 @@ def test_every_stage_is_reachable() -> None:
         _evaluate("minimal").stage_reached,
     }
     assert reached == set(Stage)
+
+
+# ....................... #
+# `via` — the chain a blocked metric is blocked through (RFC 0022 D11)
+
+
+#: `ecom_basic` plus a metric derived from its deliberately-unreachable one.
+#: The corpus has no transitively blocked metric of its own — every derivation
+#: in it resolves — so the case `via` exists for has to be built.
+BLOCKED_THROUGH_A_METRIC = {
+    **fixture_sources("ecom_basic"),
+    "metrics": fixture_sources("ecom_basic")["metrics"]
+    + """
+  margin_rate:
+    requires_metrics: [margin, order_count]
+    additivity: non_additive
+    ratio: {numerator: margin, denominator: order_count}
+""",
+}
+
+
+def test_a_transitively_blocked_metric_names_the_chain() -> None:
+    """`missing` stays leaves-only (RFC 0005 D3) — the fix is a mapping, never
+    a metric — and `via` carries the intermediate beside it, so a reader is not
+    left to re-walk a graph the compiler just walked."""
+    project, catalog = load_project(BLOCKED_THROUGH_A_METRIC), _ecom_catalog()
+    evidence = evaluate(project, catalog=catalog)
+    assert evidence.stage_reached is Stage.COMPLETE
+    blocked = {metric.name: metric for metric in evidence.unreachable}
+    assert blocked["margin_rate"].missing == ("cogs",)
+    assert blocked["margin_rate"].via == ("margin",)
+    # The metric blocked on its own leaf names no chain: there is nothing
+    # between it and the missing mapping.
+    assert blocked["margin"].via == ()
+
+
+def _ecom_catalog() -> Catalog:
+    return load_fixture("ecom_basic")[1] or pytest.fail("ecom_basic must carry a catalog")
 
 
 # ....................... #
