@@ -2588,9 +2588,9 @@ custom audit artifacts.</p>
 </tr>
 <tr>
 <td><code>via</code></td>
-<td>map from-column → to-column</td>
+<td>map from-column → to-column, ≥ 1</td>
 <td>yes</td>
-<td>Join columns</td>
+<td>Join columns — a relationship <em>is</em> its join, so an empty map is a <code>SpecParseError</code></td>
 </tr>
 <tr>
 <td><code>cardinality</code></td>
@@ -2765,6 +2765,20 @@ neither.</p>
 </code></pre></div>
 <p>Both sides must key on the same columns, since they join on their keys. Anything outside
 the grammar is a <code>GuardrailError</code> — a reconcile side is a declared shape, not SQL.</p>
+<p><strong>A NULL key is a group, not an absence.</strong> The comparison is null-safe throughout,
+because the aggregate side's <code>GROUP BY</code> already collects every NULL key into one group
+and everything below it has to read that column by the same rule. The emitted model is a
+<code>_keys</code> CTE — both sides' key columns, <code>UNION</code>ed — with each side attached by
+<code>LEFT JOIN ... IS NOT DISTINCT FROM</code>. A key present on <em>one side only</em> still fails, which
+is what the outer join is for, but a NULL group that agrees on both sides passes, as one
+row. Neither the entity key nor an aggregate's <code>by</code> columns are forced non-nullable, so
+this is reachable from an ordinary project; if a NULL key is itself a data-quality problem
+for you, say so with a <code>not_null</code> rule.</p>
+<p>The long spelling is not a stylistic choice. <code>FULL OUTER JOIN ... ON a IS NOT DISTINCT
+FROM b</code> says the same thing in one line and renders identically on all three dialects,
+and PostgreSQL then refuses to run it — its full join is planned as a merge or hash join,
+and a null-safe condition is neither. One shape is emitted everywhere rather than a check
+that compares NULL keys on two engines out of three.</p>
 <h2 id="mapping-mapping_version">Mapping (<code>mapping_version</code>)<a class="headerlink" href="#mapping-mapping_version" title="Permanent link">&para;</a></h2>
 <p>One document per (source, target entity) pair.</p>
 <table>
