@@ -619,6 +619,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-same-run-without-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The same run, without Python
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-you-just-did" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1114,6 +1125,33 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/use-the-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Use the CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1186,6 +1224,33 @@
     
   
   Spec schemas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/json-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  JSON Schema export
 
     
   </span>
@@ -1413,6 +1478,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Step 5: Plan a metric request
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-same-run-without-python" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The same run, without Python
       </span>
     </span>
   </a>
@@ -1724,6 +1800,27 @@ explained from the clause objects, never scraped back out of the SQL:</p>
   filters:  customer_id != &#39;internal&#39;; ordered_month &gt;= &#39;2024-01-01&#39; OR ordered_month = &#39;2023-12-01&#39;
   policy:   not applied
 </code></pre></div>
+<h2 id="the-same-run-without-python">The same run, without Python<a class="headerlink" href="#the-same-run-without-python" title="Permanent link">&para;</a></h2>
+<p>Every step above is a command. The library is the primary surface and the CLI is a shell
+over it, so the two agree by construction rather than by maintenance:</p>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>compile<span class="w"> </span>examples/quickstart<span class="w"> </span>--target<span class="w"> </span>sqlmesh<span class="w"> </span>--dialect<span class="w"> </span>duckdb<span class="w"> </span>--out<span class="w"> </span>out/
+bloomery<span class="w"> </span>resolve<span class="w"> </span>examples/quickstart
+bloomery<span class="w"> </span>explain<span class="w"> </span>examples/quickstart<span class="w"> </span>--metrics<span class="w"> </span>revenue<span class="w"> </span>--by<span class="w"> </span>ordered_month<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--where<span class="w"> </span><span class="s1">&#39;{&quot;customer_id&quot;: {&quot;$neq&quot;: &quot;internal&quot;}}&#39;</span>
+bloomery<span class="w"> </span>fingerprint<span class="w"> </span>examples/quickstart
+</code></pre></div>
+<p>The catalog is picked up from <code>catalog.yaml</code> in the directory and loaded separately, the
+way step 2 does it by hand. <code>bloomery resolve</code> is the one with no Python equivalent above
+because it answers a question the compile path never asks — which metrics the specs can
+serve, and which specific leaf is missing for the ones they cannot:</p>
+<div class="highlight"><pre><span></span><code>Reachable (2)
+  order_count
+  revenue
+
+Unreachable (0)
+</code></pre></div>
+<p>A refusal exits <code>1</code> and a bad invocation exits <code>2</code>, so a pipeline can tell "your spec is
+wrong" from "your command is wrong". See <a href="../../how-to/use-the-cli/">use the CLI</a>.</p>
 <h2 id="what-you-just-did">What you just did<a class="headerlink" href="#what-you-just-did" title="Permanent link">&para;</a></h2>
 <p>You exercised both halves of the library. The <em>compile</em> half — parse, resolve against
 the catalog, typecheck, guardrail-check, lower, emit — produced deterministic SQLMesh

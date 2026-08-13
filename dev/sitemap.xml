@@ -52,7 +52,13 @@
         <loc>https://morzecrew.github.io/bloomery/dev/how-to/evolve-a-spec/</loc>
       </url>
       <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/how-to/use-the-cli/</loc>
+      </url>
+      <url>
         <loc>https://morzecrew.github.io/bloomery/dev/reference/spec-schemas/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/reference/json-schema/</loc>
       </url>
       <url>
         <loc>https://morzecrew.github.io/bloomery/dev/reference/transforms/</loc>

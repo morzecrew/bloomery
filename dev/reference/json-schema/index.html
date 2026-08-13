@@ -12,13 +12,13 @@
         <meta name="author" content="Lev Litvinov">
       
       
-        <link rel="canonical" href="https://morzecrew.github.io/bloomery/dev/concepts/compile-pipeline/">
+        <link rel="canonical" href="https://morzecrew.github.io/bloomery/dev/reference/json-schema/">
       
       
-        <link rel="prev" href="../specs-and-catalog/">
+        <link rel="prev" href="../spec-schemas/">
       
       
-        <link rel="next" href="../determinism/">
+        <link rel="next" href="../transforms/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>The compile pipeline - Bloomery</title>
+        <title>JSON Schema export - Bloomery</title>
       
     
     
@@ -85,7 +85,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#the-compile-pipeline" class="md-skip">
+        <a href="#json-schema-export" class="md-skip">
           Skip to content
         </a>
       
@@ -123,7 +123,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              The compile pipeline
+              JSON Schema export
             
           </span>
         </div>
@@ -243,16 +243,14 @@
   
   
   
-    
-  
   
     
       
     
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../specs-and-catalog/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../concepts/specs-and-catalog/" class="md-tabs__link">
           
   
   Concepts
@@ -289,14 +287,16 @@
   
   
   
+    
+  
   
     
       
     
     
     
-      <li class="md-tabs__item">
-        <a href="../../reference/spec-schemas/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../spec-schemas/" class="md-tabs__link">
           
   
   Reference
@@ -520,31 +520,26 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
             
   
   
@@ -561,7 +556,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -578,7 +573,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../specs-and-catalog/" class="md-nav__link">
+      <a href="../../concepts/specs-and-catalog/" class="md-nav__link">
         
   
   
@@ -602,36 +597,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  The compile pipeline
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="././" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../concepts/compile-pipeline/" class="md-nav__link">
         
   
   
@@ -646,143 +615,6 @@
   
 
       </a>
-      
-        
-
-
-<nav class="md-nav md-nav--secondary" aria-label="On this page">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      On this page
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#the-six-stages" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        The six stages
-      </span>
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The six stages">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#1-parse" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        1. Parse
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#2-resolve" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        2. Resolve
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#3-typecheck" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        3. Typecheck
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#4-guardrails" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        4. Guardrails
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#5-plan" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        5. Plan
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#6-lower-and-emit" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        6. Lower and emit
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-ir-the-frozen-hand-off" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        The IR: the frozen hand-off
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#lowering-is-shared-assembly-is-not" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Lowering is shared; assembly is not
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#four-ports" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Four ports
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -795,7 +627,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../determinism/" class="md-nav__link">
+      <a href="../../concepts/determinism/" class="md-nav__link">
         
   
   
@@ -822,7 +654,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../guardrails/" class="md-nav__link">
+      <a href="../../concepts/guardrails/" class="md-nav__link">
         
   
   
@@ -849,7 +681,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../data-quality/" class="md-nav__link">
+      <a href="../../concepts/data-quality/" class="md-nav__link">
         
   
   
@@ -876,7 +708,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../wide-marts/" class="md-nav__link">
+      <a href="../../concepts/wide-marts/" class="md-nav__link">
         
   
   
@@ -903,7 +735,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../step-registry/" class="md-nav__link">
+      <a href="../../concepts/step-registry/" class="md-nav__link">
         
   
   
@@ -1180,26 +1012,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
             
   
   
@@ -1216,7 +1053,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1233,7 +1070,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/spec-schemas/" class="md-nav__link">
+      <a href="../spec-schemas/" class="md-nav__link">
         
   
   
@@ -1257,10 +1094,36 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../reference/json-schema/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  JSON Schema export
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1275,6 +1138,93 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-it-is-for" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What it is for
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#editor-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Editor setup
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#versioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Versioning
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-enum-guarantee" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The enum guarantee
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-the-schema-and-the-parser-disagree" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Where the schema and the parser disagree
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#determinism" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Determinism
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1287,7 +1237,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/transforms/" class="md-nav__link">
+      <a href="../transforms/" class="md-nav__link">
         
   
   
@@ -1314,7 +1264,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/errors/" class="md-nav__link">
+      <a href="../errors/" class="md-nav__link">
         
   
   
@@ -1341,7 +1291,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/api/" class="md-nav__link">
+      <a href="../api/" class="md-nav__link">
         
   
   
@@ -1368,7 +1318,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../reference/stability/" class="md-nav__link">
+      <a href="../stability/" class="md-nav__link">
         
   
   
@@ -1436,93 +1386,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-six-stages" class="md-nav__link">
+  <a href="#what-it-is-for" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The six stages
-      </span>
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="The six stages">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#1-parse" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        1. Parse
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#2-resolve" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        2. Resolve
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#3-typecheck" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        3. Typecheck
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#4-guardrails" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        4. Guardrails
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#5-plan" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        5. Plan
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#6-lower-and-emit" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        6. Lower and emit
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-ir-the-frozen-hand-off" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        The IR: the frozen hand-off
+        What it is for
       </span>
     </span>
   </a>
@@ -1530,10 +1397,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#lowering-is-shared-assembly-is-not" class="md-nav__link">
+  <a href="#editor-setup" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Lowering is shared; assembly is not
+        Editor setup
       </span>
     </span>
   </a>
@@ -1541,10 +1408,43 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#four-ports" class="md-nav__link">
+  <a href="#versioning" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Four ports
+        Versioning
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-enum-guarantee" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The enum guarantee
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-the-schema-and-the-parser-disagree" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Where the schema and the parser disagree
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#determinism" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Determinism
       </span>
     </span>
   </a>
@@ -1598,11 +1498,11 @@
     
     
       <li class="md-path__item">
-        <a href="../specs-and-catalog/" class="md-path__link">
+        <a href="../spec-schemas/" class="md-path__link">
           
   
   <span class="md-ellipsis">
-    Concepts
+    Reference
   </span>
 
         </a>
@@ -1622,192 +1522,135 @@
   
 
 
-<h1 id="the-compile-pipeline">The compile pipeline<a class="headerlink" href="#the-compile-pipeline" title="Permanent link">&para;</a></h1>
-<p>This page explains how specs become artifacts: six pure stages, each of which either
-produces trusted output for the next or refuses with a typed error, meeting at a frozen
-intermediate representation (IR) that every consumer reads. Emitters and the planner
-consume the IR, never the specs — which is why the thing that builds a table and the
-thing that queries it can never disagree about what the table means.</p>
-<pre class="mermaid"><code>flowchart LR
-    S["specs&lt;br/&gt;(YAML text)"] --&gt; P[parse] --&gt; R[resolve] --&gt; T[typecheck] --&gt; G[guardrails]
-    G --&gt; IR[("ProjectIR&lt;br/&gt;frozen, fingerprinted")]
-    IR --&gt; PL["plan()&lt;br/&gt;spec diff"]
-    IR --&gt; LE["lower / emit"]
-    IR --&gt; Q["planner&lt;br/&gt;MetricRequest → QueryPlan"]
-    LE --&gt; A["SQLMesh · dbt · Cube&lt;br/&gt;artifacts"]
-    LE --&gt; M["MetricFlow&lt;br/&gt;semantic manifest"]
-    Q -.-&gt;|delegates to| MF["embedded MetricFlow&lt;br/&gt;(render-only)"]</code></pre>
-<p>Every stage is a pure function: data structures in, data structures out, no I/O, no
-clock, no randomness. A stage never patches over bad input from the one before it —
-each either succeeds completely or raises a <code>BloomeryError</code> subclass carrying a source
-path into the offending spec node.</p>
-<h2 id="the-six-stages">The six stages<a class="headerlink" href="#the-six-stages" title="Permanent link">&para;</a></h2>
-<h3 id="1-parse">1. Parse<a class="headerlink" href="#1-parse" title="Permanent link">&para;</a></h3>
-<p>YAML text becomes strict, frozen Pydantic models — the five spec kinds plus the
-<code>Project</code> container. Parse validates <em>shape</em>, not references: unknown keys, missing
-required fields, bad type grammar, and duplicate YAML keys are all refused, because a
-typo'd key that is silently ignored is the worst failure mode in a config-driven
-system. Failures are batched per document and raised as one <code>SpecParseError</code> listing
-every path, so authors fix a spec in one round trip.</p>
-<h3 id="2-resolve">2. Resolve<a class="headerlink" href="#2-resolve" title="Permanent link">&para;</a></h3>
-<p>The parsed specs become one dependency graph: source columns feed entity fields, entity
-fields feed canonical fields through <code>canonical:</code> links, canonical fields feed metrics,
-and metrics feed metrics. Resolve refuses dangling references (a mapping targeting a
-nonexistent entity, a <code>canonical:</code> link to a field the catalog does not define) and
-invalid recorded recipes — the compiler validates the recipe the mapping recorded but
-never chooses one itself. All failures are <code>ResolutionError</code>s, batched; a cycle
-anywhere in the graph raises <code>CircularDerivation</code> naming the full cycle path. Resolve
-also produces two things no later stage recomputes: the reachable/unreachable metric
-report (with the specific missing leaves) and the deterministic topological emission
-order, with ties broken lexicographically.</p>
-<h3 id="3-typecheck">3. Typecheck<a class="headerlink" href="#3-typecheck" title="Permanent link">&para;</a></h3>
-<p>Every transform chain is walked against a closed, versioned transform whitelist:
-<code>str → parse_ts → timestamp → to_utc → timestamp</code> passes; a chain whose terminal type
-is not assignable to the declared field type does not. Decimal precision is tracked —
-widening is implicit, narrowing must be explicit. An unknown transform name raises
-<code>UnknownTransformError</code> naming the closest match; a bad chain raises <code>TypeCheckError</code>.</p>
-<h3 id="4-guardrails">4. Guardrails<a class="headerlink" href="#4-guardrails" title="Permanent link">&para;</a></h3>
-<p>The stage that refuses arithmetic which parses, typechecks, and produces a wrong
-number: unit and tax-basis coherence, currency mixing, grain fan-out (including
-mart-level <code>GrainViolation</code> at the declaration site), and additivity policy. It also
-refuses data-quality declarations that cannot mean anything — dedupe without a
-tie-break, a quarantine disposition without retention, a redaction that destroys a
-mapped path. Violations across the whole project are collected and raised as a single
-<code>GuardrailError</code> aggregate. These are always errors, never warnings — the
-<a href="../guardrails/">guardrails</a> page walks each one with its failing spec and exact message.</p>
-<h3 id="5-plan">5. Plan<a class="headerlink" href="#5-plan" title="Permanent link">&para;</a></h3>
-<p><code>plan(old_ir, new_ir)</code> is a pure structural diff of two IRs. Every change is classified
-— <code>ADDITIVE</code>, <code>WIDENING</code>, <code>RENAME</code>, <code>RESTATING</code>, <code>BREAKING</code> — with backfill scope and
-downstream impact computed from the dependency edges the IR already carries. The stage
-refuses expand/contract violations: dropping or narrowing a field that a live metric
-still references raises <code>ContractViolation</code> (a <code>PlanError</code>); deprecation must come
-first.</p>
-<h3 id="6-lower-and-emit">6. Lower and emit<a class="headerlink" href="#6-lower-and-emit" title="Permanent link">&para;</a></h3>
-<p>The IR becomes target artifacts. Each <code>SELECT</code> is constructed as a SQLGlot AST and
-rendered per dialect — SQL is never built by string concatenation or Jinja; Jinja
-renders only the envelope (a SQLMesh <code>MODEL (...)</code> block, a dbt config header). A
-feature the target cannot express raises <code>UnsupportedByTarget</code> (an <code>EmitError</code>) naming
-the entity and feature — nothing silently degrades. Every artifact carries a header
-comment stamped with the project fingerprint, so drift between applied artifacts and
-specs is detectable downstream.</p>
-<p>Lowering is also where declared data quality becomes SQL. An entity carrying rules gains
-a dedupe <code>QUALIFY</code>, a single-pass <code>_quality_flags</code> construction, a two-way split into
-the entity and its <code>&lt;entity&gt;__reject</code> table, blocking audits for <code>fail</code> rules and for
-the conservation law, and a replay <code>MERGE</code> artifact bloomery emits and never runs — see
-<a href="../data-quality/">Data quality</a>.</p>
-<h2 id="the-ir-the-frozen-hand-off">The IR: the frozen hand-off<a class="headerlink" href="#the-ir-the-frozen-hand-off" title="Permanent link">&para;</a></h2>
-<p>Everything between guardrails and emission is a single value: <code>ProjectIR</code>, a frozen
-dataclass tree designed so the deterministic thing is the only easy thing to write.</p>
+<h1 id="json-schema-export">JSON Schema export<a class="headerlink" href="#json-schema-export" title="Permanent link">&para;</a></h1>
+<p>The six spec kinds are strict Pydantic models, so a JSON Schema for each is one call
+away. <code>bloomery.schema</code> exposes it:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecKind</span><span class="p">,</span> <span class="n">all_spec_schemas</span><span class="p">,</span> <span class="n">spec_json_schema</span>
+
+<span class="n">schema</span> <span class="o">=</span> <span class="n">spec_json_schema</span><span class="p">(</span><span class="n">SpecKind</span><span class="o">.</span><span class="n">ENTITY_MODEL</span><span class="p">)</span>
+<span class="n">every</span> <span class="o">=</span> <span class="n">all_spec_schemas</span><span class="p">()</span>          <span class="c1"># {SpecKind: schema}, in SpecKind order</span>
+</code></pre></div>
+<p>or from the command line:</p>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>schema<span class="w"> </span>--out<span class="w"> </span>schemas/
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>schemas/catalog.json
+schemas/entity_model.json
+schemas/mapping.json
+schemas/marts.json
+schemas/metrics.json
+schemas/steps.json
+</code></pre></div>
+<p>The documents are generated from the models, so they cannot drift from the parser except
+in the two places JSON Schema cannot express — both measured, both listed below.</p>
+<h2 id="what-it-is-for">What it is for<a class="headerlink" href="#what-it-is-for" title="Permanent link">&para;</a></h2>
+<p>Four consumers, one artifact:</p>
 <ul>
-<li><strong>All collections are tuples</strong>, explicitly sorted on stable identifiers — never sets,
-  never insertion-order dicts. The only unsorted fields are those whose authored order
-  is meaningful (keys, transform chains, mart flatten steps).</li>
-<li><strong>SQL is stored as <code>SqlExpr</code></strong> — canonical, dialect-neutral SQLGlot text. The string
-  is the value; dialect-specific rendering happens at emit time from a fresh parse,
-  which makes the IR trivially hashable and its equality independent of SQLGlot object
-  identity.</li>
-<li><strong><code>project_fingerprint(ir)</code></strong> is a <code>blm1:</code>-prefixed SHA-256 over a canonical byte
-  encoding of the whole tree. It is the cache key for compilation results, the header
-  stamp in every artifact, and the spec component of the planner's hydration cache
-  key — the <a href="../determinism/">determinism</a> page covers what it does and does not
-  promise.</li>
+<li><strong>Editor completion.</strong> Point <code>yaml.schemas</code> at a document and you get inline
+  validation and completion while authoring.</li>
+<li><strong>Form validation</strong> in a control plane, without transcribing the models into
+  TypeScript and keeping the copy in step.</li>
+<li><strong>Reference documentation</strong> generated from the same docstrings the schema carries as
+  <code>description</code>, which is what stops it going stale.</li>
+<li><strong>Constrained generation</strong> for machine-authored specs. This is the one that changes
+  something structural: a generator constrained by the schema <em>cannot</em> emit a transform
+  bloomery does not have, so the refusal that would have caught it never has to fire.</li>
 </ul>
-<p>Unreachable metrics are IR members, not log lines: "you can't get margin because <code>cogs</code>
-is missing" is a product-facing answer, and it travels with the IR to whatever surface
-needs it.</p>
-<h2 id="lowering-is-shared-assembly-is-not">Lowering is shared; assembly is not<a class="headerlink" href="#lowering-is-shared-assembly-is-not" title="Permanent link">&para;</a></h2>
-<p>The ports vary over targets, but the SQL a spec becomes does not. Both split fall on
-either side of one line: <strong>targets differ in assembly and share lowering.</strong> SQLMesh and
-dbt emit the same silver <code>SELECT</code> for the same entity under the same dialect; what
-differs is the file they write it into and the metadata around it.</p>
-<p>That is why lowering lives in one place, <code>bloomery.emit.lower</code>, decomposed by pipeline
-stage rather than by target:</p>
+<h2 id="editor-setup">Editor setup<a class="headerlink" href="#editor-setup" title="Permanent link">&para;</a></h2>
+<p>VS Code, with the YAML extension:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;yaml.schemas&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/entity_model.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/entity_model.yaml&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/mapping.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/mapping*.yaml&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/metrics.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/metrics.yaml&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/marts.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/marts.yaml&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/steps.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/steps.yaml&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/catalog.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/catalog.yaml&quot;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Six mappings rather than one bundled document, because an editor maps a <em>file glob</em> to a
+schema and a bundle cannot discriminate within itself. Each schema's <code>$id</code> is the URL
+above, so <code>$ref</code>-by-URL works the same way.</p>
+<h2 id="versioning">Versioning<a class="headerlink" href="#versioning" title="Permanent link">&para;</a></h2>
+<p>Every schema carries a <code>$id</code> containing the document version:</p>
+<div class="highlight"><pre><span></span><code>https://morzecrew.github.io/bloomery/schemas/v1/entity_model.json
+</code></pre></div>
+<p>That version is read off the model's own pinned <code>&lt;kind&gt;_version: Literal[1]</code>, not written
+down a second time — so the version a consumer pins to and the version the parser accepts
+are the same fact. See <a href="../stability/">stability</a> for what a version bump means.</p>
+<h2 id="the-enum-guarantee">The enum guarantee<a class="headerlink" href="#the-enum-guarantee" title="Permanent link">&para;</a></h2>
+<p>Every closed set in a spec appears as an enumeration, never a free string: <code>scd</code>,
+<code>cardinality</code>, <code>materialization</code>, <code>on_fail</code>, the quality <code>rule</code> discriminator,
+<code>additivity</code>, a mart measure's <code>agg</code>, catalog <code>unit</code> and <code>tax_basis</code>, and the document
+version key itself.</p>
+<p>The transform whitelist is included, in all three authored spellings:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">to_string</span><span class="p p-Indicator">]</span><span class="w">                    </span><span class="c1"># bare name</span>
+<span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">parse_ts</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ISO8601&quot;</span><span class="p p-Indicator">}]</span><span class="w">        </span><span class="c1"># single-key mapping</span>
+<span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">to_string</span><span class="p p-Indicator">,</span><span class="nt"> args</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]}]</span><span class="w">  </span><span class="c1"># normalized form</span>
+</code></pre></div>
+<p>The whitelist is read from the <strong>live</strong> registry, so a process that called
+<code>register_transform</code> exports a schema describing the transforms it actually accepts.</p>
+<p>Two entries in that list are worth being precise about:</p>
+<ul>
+<li><strong>Logical types are a pattern, not an enum.</strong> <code>decimal(p, s)</code> is parameterized, so the
+  closed set is a grammar rather than a list, and the schema carries the same regex the
+  parser does. Regex-constrained decoders consume it the same way.</li>
+<li><strong>Filter operators appear nowhere.</strong> Filters are request-time, not authored — no spec
+  document carries one.</li>
+</ul>
+<h2 id="where-the-schema-and-the-parser-disagree">Where the schema and the parser disagree<a class="headerlink" href="#where-the-schema-and-the-parser-disagree" title="Permanent link">&para;</a></h2>
+<p>The schema is a <strong>pre-filter</strong>; the parser is the authority. Every fixture in the corpus
+validates against its schema, and the mutation classes JSON Schema can express — an
+unknown key, a wrong scalar type, an out-of-enum value — are refused by both. The
+remaining gaps are measured rather than assumed:</p>
 <table>
 <thead>
 <tr>
-<th>Stage</th>
-<th>What it lowers</th>
+<th>Divergence</th>
+<th>Which is stricter</th>
+<th>Why</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>predicates</code></td>
-<td>literal spellings and audit predicates — the base, importing no sibling</td>
+<td>An invented transform name</td>
+<td>Schema</td>
+<td>Transform existence is a <em>typecheck</em>-stage refusal, so the parser accepts the document and a later stage refuses it. The schema refuses it at the door, which is the export earning its keep.</td>
 </tr>
 <tr>
-<td><code>silver</code></td>
-<td>the entity <code>SELECT</code>: extract, rules, routing, dedupe, reject, replay</td>
+<td><code>reconcile.tolerance: 0.01</code></td>
+<td>Parser</td>
+<td>The parser refuses a YAML float (a binary approximation would reach emission); JSON Schema has one numeric type and cannot tell <code>0.01</code> from <code>1</code>. <code>tolerance: 0</code> is an int and parses, so the schema cannot simply forbid numbers.</td>
 </tr>
 <tr>
-<td><code>reconcile</code></td>
-<td>reconcile models, coverage checks, mart asserts</td>
+<td><code>agg</code> on a metric</td>
+<td>Neither</td>
+<td>A mart measure's <code>agg</code> is a closed set; an authored metric's is a free string in the model, so the schema mirrors that. An out-of-vocabulary value parses and is inert.</td>
 </tr>
 <tr>
-<td><code>quality_mart</code></td>
-<td>rule evaluations as an ordinary gold model</td>
+<td><code>{round: [true]}</code> as a transform argument</td>
+<td>Schema</td>
+<td><code>args</code> is <code>str | int</code>, and Pydantic's lax mode coerces a bool into it — <code>true</code> parses and arrives as the integer <code>1</code>. JSON Schema types a boolean as itself. An integral float is <em>not</em> a divergence: JSON Schema's <code>integer</code> accepts <code>1.0</code> exactly as Pydantic does.</td>
 </tr>
 <tr>
-<td><code>marts</code></td>
-<td>mart flattening, the date dimension, measure ownership</td>
+<td><code>{name: to_string, step: null}</code></td>
+<td>Schema</td>
+<td>The one-of encoding asks whether the <code>step</code> <em>key</em> is present; the model asks whether it has a value. Nothing documents that spelling.</td>
 </tr>
 </tbody>
 </table>
-<p>The order is a dependency order: stages compose downward and never sideways or upward.
-A lowering module that imported a target would invert the split above — it is the shape
-in which a change made for one target starts quietly constraining another — so two
-import contracts forbid it: lowering imports no target, and no target imports another.
-Both are checked on every run of the quality gate, and each is exercised by a test that
-plants the violation it forbids.</p>
-<h2 id="four-ports">Four ports<a class="headerlink" href="#four-ports" title="Permanent link">&para;</a></h2>
-<p>Everything variable around the pure core is a port — a <code>typing.Protocol</code> an adapter
-satisfies without importing a base class.</p>
-<table>
-<thead>
-<tr>
-<th>Port</th>
-<th>Varies over</th>
-<th>Knows nothing about</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>TargetEmitter</code></td>
-<td>SQLMesh, dbt, Cube, MetricFlow manifest</td>
-<td>SQL dialects</td>
-</tr>
-<tr>
-<td><code>DialectPort</code></td>
-<td>DuckDB, Postgres, Trino rendering and physical types</td>
-<td>targets</td>
-</tr>
-<tr>
-<td><code>NamingPolicy</code></td>
-<td>logical name → physical <code>(namespace, relation)</code></td>
-<td>everything else — the only tenant-shaped seam in the package</td>
-</tr>
-<tr>
-<td><code>Planner</code></td>
-<td>the query-planning backend</td>
-<td>the caller's identity, connections, execution</td>
-</tr>
-</tbody>
-</table>
-<p>Target and dialect vary independently — SQLMesh-on-Trino and dbt-on-Trino share every
-line of dialect logic — so collapsing them would produce an N×M explosion of
-near-duplicate templates. This split is the most load-bearing design decision in the
-package.</p>
-<p>The planner is the fourth port, deliberately not a <code>TargetEmitter</code>: emitters run once
-per spec version, the planner answers at request time, thousands of times per second —
-different lifecycle, different envelope. Its contract is a pair of frozen types,
-<code>MetricRequest</code> in and <code>QueryPlan</code> out, and that contract is the stability boundary:
-behind it sits <code>MetricFlowPlanner</code>, which delegates SQL generation to an embedded,
-render-only MetricFlow (pinned tightly; it drives internal surfaces with no stability
-guarantee, so upgrades are deliberate, canary-tested events). Callers bind to
-<code>MetricRequest</code>/<code>QueryPlan</code> and never see a MetricFlow type — errors are translated
-into bloomery's taxonomy at the adapter, which is what makes the backend swappable. The
-<a href="../wide-marts/">wide-marts</a> page explains what the planner refuses and why.</p>
-<p>Determinism is what holds all six stages together — the same specs must produce the
-same bytes forever — and it gets its own page: <a href="../determinism/">Determinism</a>.</p>
+<p>Only <code>tolerance</code> is a case where a document passes the schema and fails the parser — the
+direction that costs a round-trip — and it is one key. Everything else here is the schema
+being the stricter of the two, which for a pre-filter is the safe direction: a constrained
+generator simply never writes those spellings.</p>
+<h2 id="determinism">Determinism<a class="headerlink" href="#determinism" title="Permanent link">&para;</a></h2>
+<p>Keys are sorted at every depth and <code>required</code> lists are sorted, so the same registry
+produces byte-identical schemas across processes and hash seeds — checked by the same
+subprocess guard that covers compiled artifacts. The six documents are checked into
+<code>tests/golden/schema/</code>, so a schema change arrives as a reviewable diff rather than as a
+field that quietly stopped being required.</p>
+<p>Two things move those goldens without a bloomery edit, and both are meant to: a Pydantic
+upgrade that renders a constraint differently, and a transform added to the registry.</p>
 
 
 
@@ -1845,7 +1688,7 @@ same bytes forever — and it gets its own page: <a href="../determinism/">Deter
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../specs-and-catalog/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Specs and the catalog">
+          <a href="../spec-schemas/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Spec schemas">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
@@ -1855,20 +1698,20 @@ same bytes forever — and it gets its own page: <a href="../determinism/">Deter
                 Previous
               </span>
               <div class="md-ellipsis">
-                Specs and the catalog
+                Spec schemas
               </div>
             </div>
           </a>
         
         
           
-          <a href="../determinism/" class="md-footer__link md-footer__link--next" aria-label="Next: Determinism">
+          <a href="../transforms/" class="md-footer__link md-footer__link--next" aria-label="Next: Transforms">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Determinism
+                Transforms
               </div>
             </div>
             <div class="md-footer__button md-icon">

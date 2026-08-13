@@ -974,6 +974,33 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/use-the-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Use the CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1051,6 +1078,33 @@
     
   
   Spec schemas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../json-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  JSON Schema export
 
     
   </span>
@@ -1193,6 +1247,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         The closed refusal list
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fix-suggestions" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Fix suggestions
       </span>
     </span>
   </a>
@@ -1369,6 +1434,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         The closed refusal list
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fix-suggestions" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Fix suggestions
       </span>
     </span>
   </a>
@@ -1841,6 +1917,72 @@ field map of the wrong shape, an unknown <code>$op</code>, an operand of the wro
 value that is neither <code>"first"</code> nor <code>"last"</code>, a non-int <code>limit</code>) raises <code>InvalidRequest</code>
 and never carries a <code>.reason</code> from the closed list. Handle the two separately: a
 <code>.reason</code> is a product decision to surface, an <code>InvalidRequest</code> is a caller bug to fix.</p>
+<h2 id="fix-suggestions">Fix suggestions<a class="headerlink" href="#fix-suggestions" title="Permanent link">&para;</a></h2>
+<p>Five refusals carry a structured next action beside the prose, because a human reads a
+message and a program reads a <em>structure</em>. Each field exposes a value bloomery already
+computed on its way to writing the message:</p>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>Field</th>
+<th>Carries</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>UnknownMember</code></td>
+<td><code>did_you_mean: str \| None</code></td>
+<td>The closest known metric or dimension name</td>
+</tr>
+<tr>
+<td><code>UnreachableAtGrain</code></td>
+<td><code>covering_marts: tuple[MartCoverage, ...]</code></td>
+<td>One entry per required measure: the mart that <em>does</em> serve it, and the grain it serves it at</td>
+</tr>
+<tr>
+<td><code>GrainViolation</code></td>
+<td><code>offending_measures: tuple[MeasureRef, ...]</code></td>
+<td>The measure at odds with the mart grain, and its own grain</td>
+</tr>
+<tr>
+<td><code>UnknownStep</code></td>
+<td><code>available_versions: tuple[int, ...]</code></td>
+<td>The versions of that <code>ref</code> the registry holds, ascending</td>
+</tr>
+<tr>
+<td><code>UnsupportedFilter</code></td>
+<td><code>nearest_supported: str \| None</code></td>
+<td>The operator that would have worked (<code>$regex</code> → <code>"like"</code>)</td>
+</tr>
+</tbody>
+</table>
+<p><code>MartCoverage(mart, metric, grain)</code> and <code>MeasureRef(measure, grain)</code> are frozen public
+dataclasses, exported from the package root. They are typed values rather than encoded
+strings on purpose: a <code>tuple[str, ...]</code> could name the marts but not say which metric
+each covers at which grain, and that pairing is the whole content of the conflict.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnreachableAtGrain</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">planner</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span><span class="n">ir</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s2">&quot;duckdb&quot;</span><span class="p">)</span>
+<span class="k">except</span> <span class="n">UnreachableAtGrain</span> <span class="k">as</span> <span class="n">refusal</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">refusal</span><span class="o">.</span><span class="n">covering_marts</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">entry</span><span class="o">.</span><span class="n">metric</span><span class="si">}</span><span class="s2"> lives on </span><span class="si">{</span><span class="n">entry</span><span class="o">.</span><span class="n">mart</span><span class="si">}</span><span class="s2"> at grain </span><span class="si">{</span><span class="n">entry</span><span class="o">.</span><span class="n">grain</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+<p><strong>Absence has one representation, and "the attribute is missing" is not it.</strong> Every field
+is always present: a collection field is <code>()</code> and a scalar is <code>None</code> when there is
+nothing to suggest, so no caller needs <code>getattr</code>. An empty suggestion is a <em>fact</em> rather
+than a search that was skipped, and the two emptinesses mean different repairs —
+<code>covering_marts == ()</code> means no mart lists the metric at all (define one), while a
+populated tuple means the metrics are split across grains (request them separately).</p>
+<p>Nothing is fabricated. <code>$empty</code> is refused <em>because</em> <code>eq ""</code> and <code>is_null true</code> are
+different questions, so <code>nearest_supported</code> is <code>None</code> there and the message names both;
+a set relation has no scalar counterpart at all. And nothing is discoverable <em>only</em>
+through a suggestion — the primary contract stays the message and, for
+<code>UnsupportedFilter</code>, the <code>.reason</code> code.</p>
+<p><code>nearest_supported</code> is the <code>Op</code> <em>value</em> rather than the member, because <code>bloomery.errors</code>
+imports nothing. <code>Op</code> is a <code>StrEnum</code>, so <code>refusal.nearest_supported == Op.LIKE</code> holds and
+<code>Op(refusal.nearest_supported)</code> round-trips.</p>
 <h2 id="source_path"><code>source_path</code><a class="headerlink" href="#source_path" title="Permanent link">&para;</a></h2>
 <p>Every error carries an optional <code>source_path</code> — a dotted/bracketed address into the
 authored document, prefixed with the document's name (the key you passed to

@@ -974,6 +974,33 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/use-the-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Use the CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1051,6 +1078,33 @@
     
   
   Spec schemas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../json-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  JSON Schema export
 
     
   </span>
@@ -1587,6 +1641,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#schema-export" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Schema export
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Schema export">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#spec_json_schemakind-speckind-jsondict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>spec_json_schema(kind: SpecKind) -&gt; JsonDict</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#all_spec_schemas-mappingspeckind-jsondict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>all_spec_schemas() -&gt; Mapping[SpecKind, JsonDict]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#speckind" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>SpecKind</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jsondict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>JsonDict</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#extension-points" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1661,6 +1776,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Command line
+      </span>
+    </span>
+  </a>
   
 </li>
       
@@ -2152,6 +2278,67 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#schema-export" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Schema export
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Schema export">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#spec_json_schemakind-speckind-jsondict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>spec_json_schema(kind: SpecKind) -&gt; JsonDict</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#all_spec_schemas-mappingspeckind-jsondict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>all_spec_schemas() -&gt; Mapping[SpecKind, JsonDict]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#speckind" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>SpecKind</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jsondict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>JsonDict</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#extension-points" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2226,6 +2413,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Command line
+      </span>
+    </span>
+  </a>
   
 </li>
       
@@ -2476,6 +2674,20 @@ manifests keyed by <code>HydrationKey</code>. On a miss it consults the caller-i
 <p>The cache key covering all three invalidation axes: <code>spec_fingerprint</code>,
 <code>bloomery_version</code>, <code>metricflow_version</code>. A spec edit or a version bump changes the
 key, so stale entries are a miss, never an error.</p>
+<h2 id="schema-export">Schema export<a class="headerlink" href="#schema-export" title="Permanent link">&para;</a></h2>
+<h3 id="spec_json_schemakind-speckind-jsondict"><code>spec_json_schema(kind: SpecKind) -&gt; JsonDict</code><a class="headerlink" href="#spec_json_schemakind-speckind-jsondict" title="Permanent link">&para;</a></h3>
+<p>The JSON Schema for one spec kind, generated from the Pydantic model so it cannot drift
+from the parser. Deterministic (sorted keys), addressable (<code>$schema</code> plus a
+version-carrying <code>$id</code>), and faithful to the <em>authored</em> shape rather than the parsed
+one. See <a href="../json-schema/">JSON Schema</a>.</p>
+<h3 id="all_spec_schemas-mappingspeckind-jsondict"><code>all_spec_schemas() -&gt; Mapping[SpecKind, JsonDict]</code><a class="headerlink" href="#all_spec_schemas-mappingspeckind-jsondict" title="Permanent link">&para;</a></h3>
+<p>Every kind's schema, in <code>SpecKind</code> order — six standalone documents, not a bundle.</p>
+<h3 id="speckind"><code>SpecKind</code><a class="headerlink" href="#speckind" title="Permanent link">&para;</a></h3>
+<p>The six loadable kinds: <code>CATALOG</code>, <code>ENTITY_MODEL</code>, <code>MAPPING</code>, <code>MARTS</code>, <code>METRICS</code>,
+<code>STEPS</code>. A string enum, so <code>spec_json_schema("metrics")</code> also works.</p>
+<h3 id="jsondict"><code>JsonDict</code><a class="headerlink" href="#jsondict" title="Permanent link">&para;</a></h3>
+<p>One JSON Schema document — <code>dict[str, object]</code>. A schema is produced to be serialized,
+not indexed.</p>
 <h2 id="extension-points">Extension points<a class="headerlink" href="#extension-points" title="Permanent link">&para;</a></h2>
 <h3 id="register_transformspec-transformspec-none"><code>register_transform(spec: TransformSpec) -&gt; None</code><a class="headerlink" href="#register_transformspec-transformspec-none" title="Permanent link">&para;</a></h3>
 <p>Register an extension transform into the process-global overlay consulted after the
@@ -2519,6 +2731,14 @@ a deep import:</p>
 <td>Transforms and types</td>
 <td><code>TransformSpec</code>, <code>ArgKind</code>, <code>Builder</code>, <code>OutputType</code>, <code>LogicalType</code></td>
 </tr>
+<tr>
+<td>Schema export</td>
+<td><code>SpecKind</code>, <code>JsonDict</code></td>
+</tr>
+<tr>
+<td>Fix suggestions</td>
+<td><code>MartCoverage</code>, <code>MeasureRef</code></td>
+</tr>
 </tbody>
 </table>
 <p><code>Project</code>, <code>Catalog</code> and <code>ProjectIR</code> are <strong>handles</strong>: you receive one and pass it back.
@@ -2528,6 +2748,17 @@ Their fields are internal and change freely — read <code>Resolution</code> or 
 <p>The base of every error the package raises — <code>str(exc)</code> is the human message,
 <code>exc.source_path</code> addresses the offending spec node, <code>exc.collected</code> holds individual
 failures on batched aggregates. The full tree lives in <a href="../errors/">Errors</a>.</p>
+<p>Five refusals also carry a structured fix suggestion — <code>UnknownMember.did_you_mean</code>,
+<code>UnreachableAtGrain.covering_marts</code>, <code>GrainViolation.offending_measures</code>,
+<code>UnknownStep.available_versions</code>, <code>UnsupportedFilter.nearest_supported</code> — each exposing a
+value bloomery already computed on its way to writing the message. The two payload types
+<code>MartCoverage</code> and <code>MeasureRef</code> are exported from the root. See
+<a href="../errors/#fix-suggestions">Errors</a>.</p>
+<h2 id="command-line">Command line<a class="headerlink" href="#command-line" title="Permanent link">&para;</a></h2>
+<p><code>bloomery compile|plan|resolve|explain|schema|fingerprint</code> is a thin argument shell over
+exactly the functions above — no logic of its own, no execution, no state. It is the only
+part of the package that touches a filesystem, and nothing in the library imports it. See
+<a href="../../how-to/use-the-cli/">Use the CLI</a>.</p>
 
 
 
