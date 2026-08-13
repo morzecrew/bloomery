@@ -42,7 +42,9 @@ BANNED_IMPORTS = frozenset(
         "httpx",
         "os",
         "pathlib",
+        "random",
         "requests",
+        "secrets",
         "socket",
         "sqlalchemy",
         "tempfile",
@@ -66,8 +68,10 @@ BANNED_CALLS = frozenset(
     }
 )
 
-#: Whole modules whose every attribute is nondeterministic.
-BANNED_MODULES_BY_ATTRIBUTE = frozenset({"random"})
+#: Whole modules whose every attribute is nondeterministic. Also banned as
+#: imports above — the attribute rule alone misses ``from random import
+#: choice``, where the call is spelled ``choice(...)`` and names no module.
+BANNED_MODULES_BY_ATTRIBUTE = frozenset({"random", "secrets"})
 
 #: Ambient state read as an attribute rather than called.
 BANNED_ATTRIBUTES = frozenset({"os.environ", "os.getenv"})

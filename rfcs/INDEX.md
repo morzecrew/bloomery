@@ -34,7 +34,7 @@ Two consequences worth knowing:
 
 The next free number is **0023**. Before creating an RFC, read the number above — do not
 compute it from `ls`, which no longer sees retired documents. **Numbers are never reused**:
-0001–0018 are retired and permanently spent. Update this section in the same change that
+0001–0019 are retired and permanently spent. Update this section in the same change that
 mints a number.
 
 Filename: `NNNN-kebab-title.md`. Keep the `# RFC NNNN — Title` H1 and the number in the
@@ -44,7 +44,6 @@ filename in sync.
 
 | # | Title | Status | One-line routing description |
 |---|---|---|---|
-| [0019](0019-lowering-decomposition.md) | Lowering decomposition | 📝 Draft | Splitting the one module where every target and every spec kind are simultaneously in scope, cut along pipeline stages rather than targets, with import contracts holding the split. |
 | [0020](0020-authoring-ergonomics.md) | Authoring ergonomics: schema export, CLI, fix suggestions | 📝 Draft | Making a spec writable outside an editor's guesswork: exported JSON Schema, a thin CLI over the public functions, and refusals that carry the fix they already computed. |
 | [0021](0021-capability-boundaries.md) | Capability boundaries: identity resolution, dialects, closed questions | 📝 Draft | Where bloomery stops: identity resolution as a step rather than a spec kind, dialects gated on named demand, and the reusable test for whether anything deserves a spec kind. |
 | [0022](0022-spec-evidence.md) | `SpecEvidence`: spec analysis as a first-class output | 📝 Draft | Everything knowable about a spec without touching data, returned as one value — including the partial result when the pipeline refuses partway through. |

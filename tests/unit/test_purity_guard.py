@@ -50,6 +50,11 @@ def findings_for(tmp_path: pathlib.Path, source: str) -> list[str]:
         ("x = time.time()\n", "calls time.time()"),
         ("x = uuid.uuid4()\n", "calls uuid.uuid4()"),
         ("x = random.random()\n", "calls random.random()"),
+        # The attribute rule alone misses this: the call is spelled
+        # `choice(...)` and names no module, so the import ban is what
+        # catches it. Found by auditing the guard rather than by using it.
+        ("from random import choice\n", "imports 'random'"),
+        ("import secrets\n", "imports 'secrets'"),
         ("x = os.environ['HOME']\n", "reads os.environ"),
     ],
 )

@@ -13,7 +13,7 @@
   (`KNOWN_UNSUPPORTED`, the closed refusal list — the precedent for machine-readable
   reasons),
   RFC 0018 (**blocking**: the CLI is a shell over
-  that surface), [RFC 0019](0019-lowering-decomposition.md) (the purity guard the CLI must
+  that surface), RFC 0019 (the purity guard the CLI must
   be carved out of), [RFC 0022](0022-spec-evidence.md) (`bloomery resolve` becomes a thin
   wrapper over `evaluate()` once it lands).
 - **Adoption audit:** one of the two cited precedents for §5.4 turned out to be prose
