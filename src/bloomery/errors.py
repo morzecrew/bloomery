@@ -11,10 +11,26 @@ RFC 0006 D2) collect their individual failures and raise one aggregate error
 listing every path: authors fix a spec in one round-trip, not one error at a
 time. The aggregation surface is :attr:`BloomeryError.collected` plus the
 :meth:`BloomeryError.from_collected` constructor.
+
+**Fix suggestions** (RFC 0020 §5.4, D7). Five refusals carry a structured next
+action beside the prose, because a human reads a message and a proposal loop
+reads a *structure*. Each field exposes a value bloomery already computed and
+used to discard into the message —
+:attr:`UnknownMember.did_you_mean`, :attr:`UnreachableAtGrain.covering_marts`,
+:attr:`GrainViolation.offending_measures`,
+:attr:`UnknownStep.available_versions`,
+:attr:`UnsupportedFilter.nearest_supported`. Every one is always present and
+carries a default (``()`` or ``None``): absence has one representation per
+surface, and "the attribute is missing" is not it. An empty suggestion is a
+*fact* — genuinely nothing covers the request — never a search that was
+skipped, and nothing is discoverable only through a suggestion (D8): the
+primary contract stays the message and, for :class:`UnsupportedFilter`, the
+``reason`` code.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
@@ -23,6 +39,8 @@ if TYPE_CHECKING:
 
 __all__ = [
     "BloomeryError",
+    "MartCoverage",
+    "MeasureRef",
     "SpecParseError",
     "UnknownTransformError",
     "TypeCheckError",
@@ -75,6 +93,54 @@ __all__ = [
     "UnsupportedFieldCompare",
     "UnsupportedQuantifier",
 ]
+
+
+# ....................... #
+# Suggestion payloads — RFC 0020 §5.4, D11.
+#
+# Typed values rather than encoded strings. A ``tuple[str, ...]`` could name
+# the marts but not say which metric each covers at which grain, which is the
+# entire content of the conflict; encoding the triple into
+# ``"orders_daily:revenue:day"`` would put a parse step and an undocumented
+# format between bloomery and its caller — exactly the machine-readability
+# these fields exist to add, so shipping it inside the fix would be
+# self-defeating.
+#
+# They live here, in the bottom layer, because that is where the errors that
+# carry them live: nothing under ``src/bloomery/`` may import upward. RFC 0020
+# §5.4's table typed both grains as ``TimeGrain``, which cannot be right for
+# either — ``TimeGrain`` is the planner's *time bucket* vocabulary
+# (``day``/``month``/…), while a mart's and a metric's grain is an **entity**
+# name (``order_item``). The field is the entity grain, spelled as the IR
+# spells it.
+
+
+@dataclass(frozen=True, slots=True)
+class MartCoverage:
+    """One mart's offer of one metric, at the entity grain it serves it at.
+
+    Carried by :attr:`UnreachableAtGrain.covering_marts`. ``mart`` is the
+    logical mart name — the spec-level identity a caller acts on, the same one
+    :attr:`bloomery.QueryPlan.mart` reports — not the rendered gold relation
+    the message quotes.
+    """
+
+    mart: str
+    metric: str
+    grain: str
+
+
+@dataclass(frozen=True, slots=True)
+class MeasureRef:
+    """A mart measure and its own entity grain.
+
+    Carried by :attr:`GrainViolation.offending_measures`: the measure whose
+    grain is at odds with the mart's, so a caller can act on the pair without
+    parsing the sentence that describes it.
+    """
+
+    measure: str
+    grain: str
 
 
 class BloomeryError(Exception):
@@ -236,7 +302,24 @@ class AssertLoweringError(GuardrailError):
 
 class GrainViolation(GuardrailError):
     """Guardrail stage, mart-level (RFC 0010 D2): a mart measure whose grain
-    does not strictly equal the mart grain."""
+    does not strictly equal the mart grain.
+
+    ``offending_measures`` names the measure and its own grain (RFC 0020
+    §5.4). It is empty for the sibling violation this class also carries — a
+    mart whose *declared* grain differs from its base entity — where no
+    measure is at fault and the mart header is.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        source_path: str | None = None,
+        collected: tuple[BloomeryError, ...] = (),
+        offending_measures: tuple[MeasureRef, ...] = (),
+    ) -> None:
+        super().__init__(message, source_path=source_path, collected=collected)
+        self.offending_measures = offending_measures
 
 
 class FanoutRisk(GuardrailError):
@@ -310,7 +393,23 @@ class UnknownStep(StepError):
     """Compile stage (RFC 0017 §5.3, D3): a spec references a ``ref@version``
     the :class:`~bloomery.steps.StepRegistry` does not hold. The message names
     the versions that *are* available — there is no dynamic loading path to
-    fall back on, by design, so the registry is the whole world."""
+    fall back on, by design, so the registry is the whole world.
+
+    ``available_versions`` is that same list as data, ascending (RFC 0020
+    §5.4). Empty means the registry holds no version of this ``ref`` at all,
+    which is a different repair from pinning a different one.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        source_path: str | None = None,
+        collected: tuple[BloomeryError, ...] = (),
+        available_versions: tuple[int, ...] = (),
+    ) -> None:
+        super().__init__(message, source_path=source_path, collected=collected)
+        self.available_versions = available_versions
 
 
 class StepDeterminismError(StepError):
@@ -374,12 +473,47 @@ class PlannerError(BloomeryError):
 
 class UnknownMember(PlannerError):
     """Planner stage (RFC 0011 D3): a request names a metric or dimension that
-    does not exist; the message carries a ``did_you_mean`` closest match."""
+    does not exist.
+
+    ``did_you_mean`` is the closest known name, or ``None`` when nothing is
+    close enough (the message then lists what *is* known). The docstring has
+    promised this field since RFC 0011 while the match was computed and
+    rendered into prose; RFC 0020 §5.4 makes the sentence true.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        source_path: str | None = None,
+        collected: tuple[BloomeryError, ...] = (),
+        did_you_mean: str | None = None,
+    ) -> None:
+        super().__init__(message, source_path=source_path, collected=collected)
+        self.did_you_mean = did_you_mean
 
 
 class UnreachableAtGrain(PlannerError):
     """Planner stage (RFC 0011 D3): no single mart can answer the request at
-    the requested grain — refuse, never join at plan time."""
+    the requested grain — refuse, never join at plan time.
+
+    ``covering_marts`` is the conflict as data (RFC 0020 §5.4): one
+    :class:`MartCoverage` per required measure, naming the mart that *does*
+    serve it and the grain it serves it at. Empty means genuinely no mart
+    lists the metric as a measure — a different repair (define a mart) from a
+    split across grains (request them separately).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        source_path: str | None = None,
+        collected: tuple[BloomeryError, ...] = (),
+        covering_marts: tuple[MartCoverage, ...] = (),
+    ) -> None:
+        super().__init__(message, source_path=source_path, collected=collected)
+        self.covering_marts = covering_marts
 
 
 class AmbiguousDimension(PlannerError):
@@ -411,6 +545,17 @@ class UnsupportedFilter(PlannerError):
     on), the inherited ``source_path``, and — where the refusal happened
     after normalization — ``normalized``, the post-normalization form, so the
     error is actionable rather than merely correct.
+
+    ``nearest_supported`` (RFC 0020 §5.4) names the operator that would have
+    worked, where one exists: ``$regex`` refuses with ``"like"``. It is the
+    :class:`~bloomery.Op` *value*, not the member, because this module is the
+    bottom layer and the planner's vocabulary sits at the top —
+    :class:`~bloomery.Op` is a ``StrEnum``, so ``Op(err.nearest_supported)``
+    round-trips and ``err.nearest_supported == Op.LIKE`` holds. ``None`` is
+    the common case and is a fact rather than a gap: a set relation has no
+    scalar counterpart at all, and ``$empty`` refuses *because* ``eq ""`` and
+    ``is_null true`` are different questions — naming one of them here would
+    fabricate the choice the refusal exists to make the author state.
     """
 
     reason: str = "unsupported_filter"
@@ -420,10 +565,13 @@ class UnsupportedFilter(PlannerError):
         message: str,
         *,
         source_path: str | None = None,
+        collected: tuple[BloomeryError, ...] = (),
         normalized: str | None = None,
+        nearest_supported: str | None = None,
     ) -> None:
-        super().__init__(message, source_path=source_path)
+        super().__init__(message, source_path=source_path, collected=collected)
         self.normalized = normalized
+        self.nearest_supported = nearest_supported
 
 
 class UnsupportedSetRelation(UnsupportedFilter):

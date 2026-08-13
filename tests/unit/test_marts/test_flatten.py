@@ -7,7 +7,13 @@ from __future__ import annotations
 import pytest
 
 from bloomery import build_project_ir, load_project
-from bloomery.errors import FanoutRisk, GrainViolation, GuardrailError, MartMissingTimeDimension
+from bloomery.errors import (
+    FanoutRisk,
+    GrainViolation,
+    GuardrailError,
+    MartMissingTimeDimension,
+    MeasureRef,
+)
 from bloomery.ir import (
     DimensionRef,
     MartJoinIR,
@@ -379,6 +385,9 @@ def test_mart_grain_must_equal_the_base_grain() -> None:
     assert violation.source_path == "marts: marts.items.grain"
     assert "exactly its base grain" in str(violation)
     assert "one row per line on an order" in str(violation)
+    # The mart header is wrong, not any measure — so the suggestion is empty,
+    # and empty is a fact rather than a search that was skipped (RFC 0020 D7).
+    assert violation.offending_measures == ()
 
 
 def test_via_step_must_name_a_declared_relationship() -> None:
@@ -622,6 +631,9 @@ marts:
     assert violation.source_path == "marts: marts.items.measures.order_count"
     assert "grain 'order' (one row per order)" in str(violation)
     assert "must strictly equal mart grain" in str(violation)
+    # The same pair the sentence states, as data (RFC 0020 §5.4): which
+    # measure is at odds with the mart grain, and the grain it is at.
+    assert violation.offending_measures == (MeasureRef(measure="order_count", grain="order"),)
     assert "duplicated once per 'order_item' row" in str(violation)
 
 

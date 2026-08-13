@@ -33,6 +33,7 @@ from bloomery.emit.lower import measure_owners
 from bloomery.errors import (
     AmbiguousDimension,
     InvalidRequest,
+    MartCoverage,
     PlannerError,
     UnknownMember,
     UnreachableAtGrain,
@@ -77,9 +78,20 @@ class Coverage:
     policy_dimension: ResolvedDimension | None
 
 
-def _did_you_mean(name: str, known: list[str]) -> str:
+def _closest(name: str, known: list[str]) -> str | None:
+    """The one known name close enough to be worth suggesting, or ``None``.
+
+    Split out from :func:`_did_you_mean` so the message and
+    :attr:`~bloomery.errors.UnknownMember.did_you_mean` report the *same*
+    match rather than each computing its own (RFC 0020 §5.4).
+    """
     matches = difflib.get_close_matches(name, known, n=1)
-    return f"; did you mean {matches[0]!r}?" if matches else f"; known: {known}"
+    return matches[0] if matches else None
+
+
+def _did_you_mean(name: str, known: list[str]) -> str:
+    closest = _closest(name, known)
+    return f"; did you mean {closest!r}?" if closest else f"; known: {known}"
 
 
 def _gold_relation(mart: MartIR, naming: NamingPolicy) -> str:
@@ -100,7 +112,10 @@ def _required_measures(ir: ProjectIR, name: str) -> tuple[MetricIR, tuple[str, .
             )
             raise UnknownMember(msg)
         known = sorted(m.name for m in ir.metrics)
-        raise UnknownMember(f"unknown metric {name!r}{_did_you_mean(name, known)}")
+        raise UnknownMember(
+            f"unknown metric {name!r}{_did_you_mean(name, known)}",
+            did_you_mean=_closest(name, known),
+        )
     if metric.additivity is Additivity.NON_ADDITIVE:
         if metric.ratio is None:  # pragma: no cover — guardrails refuse this at compile
             msg = (
@@ -147,7 +162,18 @@ def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) 
             for measure, (grain, owner) in listed
         )
         lines.append(f"  {_REMEDIATION}")
-        raise UnreachableAtGrain("\n".join(lines))
+        # The same table the message renders, as data (RFC 0020 §5.4): one
+        # entry per required measure, naming the mart that *does* serve it and
+        # the grain it does so at. ``mart`` is the logical name rather than the
+        # gold relation the sentence quotes — that is the identity a caller
+        # acts on, and the one ``QueryPlan.mart`` already reports.
+        raise UnreachableAtGrain(
+            "\n".join(lines),
+            covering_marts=tuple(
+                MartCoverage(mart=owner.name, metric=measure, grain=grain)
+                for measure, (grain, owner) in listed
+            ),
+        )
     return guaranteed(
         iter(entries.values()),
         expected="at least one covering mart",
@@ -173,7 +199,7 @@ def _resolve_dimension(
                 return _resolve_dimension(mart, f"{roles[0]}_{name}", apply_grain=apply_grain)
         known = sorted(refs)
         msg = f"unknown dimension {name!r} on mart {mart.name!r}{_did_you_mean(name, known)}"
-        raise UnknownMember(msg)
+        raise UnknownMember(msg, did_you_mean=_closest(name, known))
     if ref.role is None:
         return ResolvedDimension(name=name)
     grain = TimeGrain(ref.dimension)

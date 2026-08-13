@@ -156,6 +156,18 @@ _REFUSAL_REASONS: Final[dict[str, str]] = {
     "$empty": "ambiguous across types — write eq '' or is_null true explicitly",
 }
 
+#: The supported operator each refusal is nearest to, where one exists
+#: (RFC 0020 §5.4 — :attr:`~bloomery.errors.UnsupportedFilter.nearest_supported`).
+#:
+#: One entry, and the shortness is the finding rather than an omission. A set
+#: relation and a hierarchy operator have no scalar counterpart at all — the
+#: repair is to remodel the mart, not to pick a different operator. ``$empty``
+#: is refused *because* ``eq ""`` and ``is_null true`` are different questions,
+#: so naming one of them would fabricate the choice the refusal exists to make
+#: the author state; the message names both, which is the honest answer. Only
+#: ``$regex`` has a single operator that does the job.
+_NEAREST_SUPPORTED: Final[dict[str, Op]] = {"$regex": Op.LIKE}
+
 
 # ....................... #
 # The internal boolean tree (never escapes this module)
@@ -219,7 +231,12 @@ def _leaf(field: str, spelling: str, operand: object) -> _Node:
     if spelling in _REFUSED_OPERATORS:
         error_type = _REFUSED_OPERATORS[spelling]
         msg = f"{where}: {_REFUSAL_REASONS[spelling]}"
-        raise error_type(msg, source_path=field)
+        nearest = _NEAREST_SUPPORTED.get(spelling)
+        raise error_type(
+            msg,
+            source_path=field,
+            nearest_supported=nearest.value if nearest is not None else None,
+        )
     op = _OPERATORS.get(spelling)
     if op is None:
         known = sorted(_OPERATORS)

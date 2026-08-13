@@ -10,7 +10,9 @@ spec-diff planning (``plan`` with ``Plan`` / ``Change`` / ``ChangeClass`` /
 hydration (``LruManifestHydrator``, ``HydrationKey`` — RFC 0014), the
 extension points (``register_transform``, ``register_emitter``), and the
 total error hierarchy rooted at ``BloomeryError`` (import leaves from
-:mod:`bloomery.errors`).
+:mod:`bloomery.errors`) — whose structured fix suggestions carry the two
+payload types ``MartCoverage`` and ``MeasureRef`` (RFC 0020 D11), exported
+here because D2's allowlist exempts the *errors*, not the values they hang.
 
 **Signature closure** (RFC 0018 D1) is the rule that decides this list: a type
 appearing in a public signature — parameter, return, generic argument, or field
@@ -23,7 +25,7 @@ stay behind their own declared ``__all__`` (D2).
 
 from bloomery.compile import Target, compile_project
 from bloomery.emit import ArtifactKind, EmittedArtifact, TargetEmitter, register_emitter
-from bloomery.errors import BloomeryError
+from bloomery.errors import BloomeryError, MartCoverage, MeasureRef
 from bloomery.ir import ProjectIR, UnreachableMetric, project_fingerprint
 from bloomery.naming import DefaultNaming, NamingPolicy
 from bloomery.plan import BackfillScope, Change, ChangeClass, Plan, ReplayScope, plan
@@ -81,7 +83,9 @@ __all__ = [
     "HydrationKey",
     "LogicalType",
     "LruManifestHydrator",
+    "MartCoverage",
     "MeasureExplanation",
+    "MeasureRef",
     "MetricFlowPlanner",
     "MetricRequest",
     "NamingPolicy",

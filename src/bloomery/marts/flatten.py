@@ -34,6 +34,7 @@ from bloomery.errors import (
     GrainViolation,
     GuardrailError,
     MartMissingTimeDimension,
+    MeasureRef,
 )
 from bloomery.ir import (
     OK_COLUMN,
@@ -331,7 +332,13 @@ def _check_measures(
                 "overstates. Fix: remove it from this mart's measures, or serve it "
                 f"from a mart at grain {metric.grain!r}"
             )
-            violations.append(GrainViolation(msg, source_path=measure_path))
+            violations.append(
+                GrainViolation(
+                    msg,
+                    source_path=measure_path,
+                    offending_measures=(MeasureRef(measure=measure, grain=metric.grain),),
+                )
+            )
     return violations
 
 
