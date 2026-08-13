@@ -18,6 +18,8 @@
         <link rel="prev" href="../errors/">
       
       
+        <link rel="next" href="../stability/">
+      
       
         
       
@@ -1624,6 +1626,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#supporting-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Supporting types
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#errors" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1655,6 +1668,33 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Stability
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -2151,6 +2191,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#supporting-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Supporting types
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#errors" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2251,9 +2302,12 @@
 
 <h1 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h1>
 <p>The public API — everything importable from <code>bloomery</code>, kept in lockstep with the
-package's <code>__all__</code>. Supporting types named in signatures (<code>Project</code>, <code>Catalog</code>,
-<code>ProjectIR</code>, <code>EmittedArtifact</code>, naming policies) live in their subpackages and are
-stable to import from there.</p>
+package's <code>__all__</code>.</p>
+<p>The list is <strong>closed over its own signatures</strong>: any type named in a public signature is
+exported from <code>bloomery</code> too, so <code>Project</code>, <code>Catalog</code>, <code>ProjectIR</code>, <code>EmittedArtifact</code> and
+the naming policies are importable from the root rather than only from their subpackages.
+The subpackage paths keep working. See <a href="../stability/">Stability</a> for what each surface
+promises.</p>
 <h2 id="loading">Loading<a class="headerlink" href="#loading" title="Permanent link">&para;</a></h2>
 <h3 id="load_catalogtext-str-catalog"><code>load_catalog(text: str) -&gt; Catalog</code><a class="headerlink" href="#load_catalogtext-str-catalog" title="Permanent link">&para;</a></h3>
 <p>Parse a catalog document from YAML text. Pure — strings in, model out; all I/O belongs
@@ -2363,8 +2417,20 @@ the request filters instead. Deciding whose policy applies is upstream work.</p>
 <p>The planner's product: <code>sql</code>, <code>columns</code> (tuple of <code>ColumnDescriptor</code>), <code>mart</code>,
 <code>warnings</code>, <code>explanation</code> (with <code>.render()</code>), and <code>fingerprint</code> (<code>sha256(sql)</code>).</p>
 <h3 id="columndescriptor"><code>ColumnDescriptor</code><a class="headerlink" href="#columndescriptor" title="Permanent link">&para;</a></h3>
-<p>One output column in bloomery names: <code>name</code>, logical <code>type</code>, <code>role</code>
-(<code>"dimension"</code> or <code>"measure"</code>), optional <code>label</code>.</p>
+<p>One output column, carrying both names it has:</p>
+<ul>
+<li><code>name</code> — what you asked for, in bloomery's vocabulary (<code>ordered_month</code>).</li>
+<li><code>sql_alias</code> — what the emitted SQL actually projects (<code>order__ordered_day__month</code>).</li>
+<li><code>type</code> — the logical type.</li>
+<li><code>role</code> — <code>"dimension"</code> or <code>"measure"</code>.</li>
+<li><code>label</code> — optional description.</li>
+</ul>
+<p>Constructed by keyword only — <code>sql_alias</code> sits second rather than last, so a positional
+call would misassign every field after the first.</p>
+<p><strong>Bind result rows by <code>sql_alias</code>, display <code>name</code>.</strong> For a measure the two agree; for a
+dimension they do not, because MetricFlow qualifies the column by entity and suffixes a
+date role with its grain. Positional binding — <code>columns[i]</code> against projection <code>i</code> — works
+and always did.</p>
 <h3 id="bloomeryplannerparse_filter_jsonpayload-clause_cap64-tupleclause"><code>bloomery.planner.parse_filter_json(payload, *, clause_cap=64) -&gt; tuple[Clause, ...]</code><a class="headerlink" href="#bloomeryplannerparse_filter_jsonpayload-clause_cap64-tupleclause" title="Permanent link">&para;</a></h3>
 <p>The public JSON front door for the Mongo-flavoured filter grammar (<code>$and</code>/<code>$or</code>/
 <code>$not</code>, field maps <code>{field: scalar | {op: value} | [array]}</code>, spellings <code>$eq $neq $gt
@@ -2418,6 +2484,45 @@ built-in whitelist. Name collisions raise <code>TransformRegistrationError</code
 <h3 id="register_emitteremitter-targetemitter-none"><code>register_emitter(emitter: TargetEmitter) -&gt; None</code><a class="headerlink" href="#register_emitteremitter-targetemitter-none" title="Permanent link">&para;</a></h3>
 <p>Register an extension target emitter; the emitter's <code>name</code> becomes a valid <code>target=</code>
 string for <code>compile_project</code>. Collisions raise <code>EmitError</code>.</p>
+<h2 id="supporting-types">Supporting types<a class="headerlink" href="#supporting-types" title="Permanent link">&para;</a></h2>
+<p>Signature closure puts every type named above in the root namespace, so none of them needs
+a deep import:</p>
+<table>
+<thead>
+<tr>
+<th>Group</th>
+<th>Names</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Specs and IR</td>
+<td><code>Project</code>, <code>Catalog</code>, <code>ProjectIR</code>, <code>UnreachableMetric</code></td>
+</tr>
+<tr>
+<td>Compilation</td>
+<td><code>EmittedArtifact</code>, <code>ArtifactKind</code>, <code>TargetEmitter</code>, <code>NamingPolicy</code>, <code>DefaultNaming</code></td>
+</tr>
+<tr>
+<td>Analysis</td>
+<td><code>Resolution</code>, <code>FieldProvenance</code>, <code>Provenance</code>, <code>Node</code>, <code>NodeKind</code></td>
+</tr>
+<tr>
+<td>Planner</td>
+<td><code>Clause</code>, <code>Scalar</code>, <code>Explanation</code>, <code>MeasureExplanation</code>, <code>ColumnRole</code>, <code>OrderDirection</code></td>
+</tr>
+<tr>
+<td>Steps</td>
+<td><code>StepRegistry</code>, <code>StepManifest</code>, <code>EMPTY_REGISTRY</code></td>
+</tr>
+<tr>
+<td>Transforms and types</td>
+<td><code>TransformSpec</code>, <code>ArgKind</code>, <code>Builder</code>, <code>OutputType</code>, <code>LogicalType</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>Project</code>, <code>Catalog</code> and <code>ProjectIR</code> are <strong>handles</strong>: you receive one and pass it back.
+Their fields are internal and change freely — read <code>Resolution</code> or <code>QueryPlan</code> instead.</p>
 <h2 id="errors">Errors<a class="headerlink" href="#errors" title="Permanent link">&para;</a></h2>
 <h3 id="bloomeryerror"><code>BloomeryError</code><a class="headerlink" href="#bloomeryerror" title="Permanent link">&para;</a></h3>
 <p>The base of every error the package raises — <code>str(exc)</code> is the human message,
@@ -2475,6 +2580,22 @@ failures on batched aggregates. The full tree lives in <a href="../errors/">Erro
             </div>
           </a>
         
+        
+          
+          <a href="../stability/" class="md-footer__link md-footer__link--next" aria-label="Next: Stability">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Stability
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
         
       </nav>
     

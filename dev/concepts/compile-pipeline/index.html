@@ -758,6 +758,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#lowering-is-shared-assembly-is-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Lowering is shared; assembly is not
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#four-ports" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1296,6 +1307,33 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/stability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Stability
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1431,6 +1469,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         The IR: the frozen hand-off
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lowering-is-shared-assembly-is-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Lowering is shared; assembly is not
       </span>
     </span>
   </a>
@@ -1612,6 +1661,49 @@ dataclass tree designed so the deterministic thing is the only easy thing to wri
 <p>Unreachable metrics are IR members, not log lines: "you can't get margin because <code>cogs</code>
 is missing" is a product-facing answer, and it travels with the IR to whatever surface
 needs it.</p>
+<h2 id="lowering-is-shared-assembly-is-not">Lowering is shared; assembly is not<a class="headerlink" href="#lowering-is-shared-assembly-is-not" title="Permanent link">&para;</a></h2>
+<p>The ports vary over targets, but the SQL a spec becomes does not. Both split fall on
+either side of one line: <strong>targets differ in assembly and share lowering.</strong> SQLMesh and
+dbt emit the same silver <code>SELECT</code> for the same entity under the same dialect; what
+differs is the file they write it into and the metadata around it.</p>
+<p>That is why lowering lives in one place, <code>bloomery.emit.lower</code>, decomposed by pipeline
+stage rather than by target:</p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>What it lowers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>predicates</code></td>
+<td>literal spellings and audit predicates — the base, importing no sibling</td>
+</tr>
+<tr>
+<td><code>silver</code></td>
+<td>the entity <code>SELECT</code>: extract, rules, routing, dedupe, reject, replay</td>
+</tr>
+<tr>
+<td><code>reconcile</code></td>
+<td>reconcile models, coverage checks, mart asserts</td>
+</tr>
+<tr>
+<td><code>quality_mart</code></td>
+<td>rule evaluations as an ordinary gold model</td>
+</tr>
+<tr>
+<td><code>marts</code></td>
+<td>mart flattening, the date dimension, measure ownership</td>
+</tr>
+</tbody>
+</table>
+<p>The order is a dependency order: stages compose downward and never sideways or upward.
+A lowering module that imported a target would invert the split above — it is the shape
+in which a change made for one target starts quietly constraining another — so two
+import contracts forbid it: lowering imports no target, and no target imports another.
+Both are checked on every run of the quality gate, and each is exercised by a test that
+plants the violation it forbids.</p>
 <h2 id="four-ports">Four ports<a class="headerlink" href="#four-ports" title="Permanent link">&para;</a></h2>
 <p>Everything variable around the pure core is a port — a <code>typing.Protocol</code> an adapter
 satisfies without importing a base class.</p>

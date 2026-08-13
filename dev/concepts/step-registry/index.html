@@ -1357,6 +1357,33 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/stability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Stability
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1905,6 +1932,14 @@ claim that is not is a comment.</p>
 <p>Each declared output becomes its own model, and every wrapper asserts <em>all</em>
 declared outputs — so a step that lies about one of them is caught wherever
 the run happens to start.</p>
+<p>The assertion is bloomery's own, imported by the generated wrapper:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery.steps</span><span class="w"> </span><span class="kn">import</span> <span class="n">assert_step_contract</span> <span class="k">as</span> <span class="n">_blm_assert</span>
+</code></pre></div>
+<p>That path is <strong>public API</strong>, and unusually so: the importer is code bloomery wrote into
+<em>your</em> repository, so renaming the module would break every wrapper generated before the
+rename, at run time, with nothing at compile time to warn you. It is declared in
+<code>bloomery.steps.__all__</code> and covered by the stability policy like any other export. The
+older <code>bloomery.steps.contract</code> path keeps working.</p>
 <h2 id="determinism-is-not-negotiable">Determinism is not negotiable<a class="headerlink" href="#determinism-is-not-negotiable" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
