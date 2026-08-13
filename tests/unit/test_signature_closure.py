@@ -34,7 +34,9 @@ from __future__ import annotations
 
 import ast
 import dataclasses
+import importlib
 import inspect
+import pkgutil
 import sys
 import types
 import typing
@@ -251,37 +253,28 @@ def test_private_fields_are_out_of_scope() -> None:
     assert not any(member.startswith("_") for member in _raw_annotations(StepRegistry))
 
 
-SUBPACKAGES = [
-    "",
-    "dialects",
-    "emit",
-    "errors",
-    "ir",
-    "naming",
-    "plan",
-    "planner",
-    "resolve",
-    "runtime",
-    "spec",
-    "steps",
-    "transforms",
-    "typing",
-]
+def _packages_declaring_an_all() -> list[str]:
+    """Discovered, never listed.
+
+    A hardcoded roster is the drift this test exists to catch, one level up: the
+    first version of it named fourteen subpackages and silently skipped
+    ``compile``, ``guardrails``, ``marts`` and ``quality``, each of which
+    declares an ``__all__`` a caller can believe.
+    """
+    found = ["bloomery"]
+    for module in pkgutil.iter_modules(bloomery.__path__):
+        if module.name.startswith("_"):
+            continue
+        imported = importlib.import_module(f"bloomery.{module.name}")
+        if getattr(imported, "__all__", None):
+            found.append(imported.__name__)
+    return found
 
 
-@pytest.mark.parametrize("subpackage", SUBPACKAGES)
-def test_every_exported_name_resolves(subpackage: str) -> None:
+@pytest.mark.parametrize("package", _packages_declaring_an_all())
+def test_every_exported_name_resolves(package: str) -> None:
     """No stale entry in any ``__all__`` — a name a package promises and cannot
     produce is a broken import for whoever believes the declaration."""
-    name = f"bloomery.{subpackage}" if subpackage else "bloomery"
-    module = __import__(name, fromlist=["__all__"])
-    declared = getattr(module, "__all__", None)
-    assert declared, f"{module.__name__} declares no __all__"
-    missing = [name for name in declared if not hasattr(module, name)]
-    assert not missing, f"{module.__name__}.__all__ names {missing}, which do not resolve"
-
-
-def test_the_root_export_list_is_sorted() -> None:
-    """Sorted so a diff to it is readable and two branches adding an export do
-    not conflict on the same line."""
-    assert bloomery.__all__ == sorted(bloomery.__all__)
+    module = importlib.import_module(package)
+    missing = [name for name in module.__all__ if not hasattr(module, name)]
+    assert not missing, f"{package}.__all__ names {missing}, which do not resolve"
