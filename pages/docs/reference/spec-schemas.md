@@ -147,7 +147,7 @@ custom audit artifacts.
 |---|---|---|---|
 | `name` | string | yes | Referenced by mart `via:` flatten steps |
 | `from` / `to` | string | yes | The two entities |
-| `via` | map from-column → to-column | yes | Join columns |
+| `via` | map from-column → to-column, ≥ 1 | yes | Join columns — a relationship *is* its join, so an empty map is a `SpecParseError` |
 | `cardinality` | `many_to_one` \| `one_to_one` \| `one_to_many` | yes | Checked by the fan-out guardrail |
 
 ### Entity quality rules
@@ -215,6 +215,22 @@ right: "order.total_amount"                       # <entity>.<column>, keyed by 
 
 Both sides must key on the same columns, since they join on their keys. Anything outside
 the grammar is a `GuardrailError` — a reconcile side is a declared shape, not SQL.
+
+**A NULL key is a group, not an absence.** The comparison is null-safe throughout,
+because the aggregate side's `GROUP BY` already collects every NULL key into one group
+and everything below it has to read that column by the same rule. The emitted model is a
+`_keys` CTE — both sides' key columns, `UNION`ed — with each side attached by
+`LEFT JOIN ... IS NOT DISTINCT FROM`. A key present on *one side only* still fails, which
+is what the outer join is for, but a NULL group that agrees on both sides passes, as one
+row. Neither the entity key nor an aggregate's `by` columns are forced non-nullable, so
+this is reachable from an ordinary project; if a NULL key is itself a data-quality problem
+for you, say so with a `not_null` rule.
+
+The long spelling is not a stylistic choice. `FULL OUTER JOIN ... ON a IS NOT DISTINCT
+FROM b` says the same thing in one line and renders identically on all three dialects,
+and PostgreSQL then refuses to run it — its full join is planned as a merge or hash join,
+and a null-safe condition is neither. One shape is emitted everywhere rather than a check
+that compares NULL keys on two engines out of three.
 
 ## Mapping (`mapping_version`)
 

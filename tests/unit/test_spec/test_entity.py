@@ -182,3 +182,34 @@ def test_bad_cardinality() -> None:
             "  - {name: r, from: e, to: e, via: {k: k}, cardinality: many_to_many}\n"
         )
     assert excinfo.value.source_path == "entity_model: relationships[0].cardinality"
+
+
+def test_a_relationship_needs_at_least_one_via_pair() -> None:
+    """A relationship *is* its join, so ``via: {}`` describes nothing.
+
+    Left open, an empty mapping parsed cleanly and crashed at emit — three
+    different exceptions in three places, none of them naming the document.
+    Shape is what parse is for (RFC 0002 D4), and ``Entity.key`` has required
+    at least one entry on the same argument since it was written.
+    """
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(
+            "spec_version: 1\nentities:\n  e:\n    grain: g\n    key: [k]\n"
+            "    fields:\n      k: {type: string}\n"
+            "relationships:\n"
+            "  - {name: r, from: e, to: e, via: {}, cardinality: many_to_one}\n"
+        )
+    assert excinfo.value.source_path == "entity_model: relationships[0].via"
+    assert "at least 1" in str(excinfo.value)
+
+
+def test_one_via_pair_is_enough() -> None:
+    """The nearest non-trigger: a single-column join is the common case and
+    must not be caught by the bound."""
+    model = parse(
+        "spec_version: 1\nentities:\n  e:\n    grain: g\n    key: [k]\n"
+        "    fields:\n      k: {type: string}\n"
+        "relationships:\n"
+        "  - {name: r, from: e, to: e, via: {k: k}, cardinality: many_to_one}\n"
+    )
+    assert model.relationships[0].via == {"k": "k"}

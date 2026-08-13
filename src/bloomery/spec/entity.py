@@ -87,7 +87,16 @@ class Relationship(SpecModel):
     name: str
     from_: str = PydanticField(alias="from")
     to: str
-    via: dict[str, str]
+    #: At least one column pair, the same way ``Entity.key`` requires at least
+    #: one column. A relationship *is* its join, so ``via: {}`` describes
+    #: nothing — and every consumer reads it as a non-empty list. Left open, an
+    #: empty mapping parsed cleanly and then crashed at emit, differently in
+    #: each place that reads it: ``IndexError`` from the coverage audit's
+    #: ``conjunction([])``, and ``ValueError: not enough values to unpack``
+    #: from inside SQLGlot when a mart flattened it. Three unhelpful
+    #: exceptions with no source path, for one shape question parse can settle
+    #: (RFC 0002 D4 — shape is exactly what parse is for).
+    via: dict[str, str] = PydanticField(min_length=1)
     cardinality: CardinalityName
 
 
