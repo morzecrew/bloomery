@@ -79,18 +79,18 @@ class Coverage:
 
 
 def _closest(name: str, known: list[str]) -> str | None:
-    """The one known name close enough to be worth suggesting, or ``None``.
-
-    Split out from :func:`_did_you_mean` so the message and
-    :attr:`~bloomery.errors.UnknownMember.did_you_mean` report the *same*
-    match rather than each computing its own (RFC 0020 §5.4).
-    """
+    """The one known name close enough to be worth suggesting, or ``None``."""
     matches = difflib.get_close_matches(name, known, n=1)
     return matches[0] if matches else None
 
 
-def _did_you_mean(name: str, known: list[str]) -> str:
-    closest = _closest(name, known)
+def _did_you_mean(closest: str | None, known: list[str]) -> str:
+    """The message suffix for a match :func:`_closest` already found.
+
+    Takes the match rather than searching for it, so the sentence and
+    :attr:`~bloomery.errors.UnknownMember.did_you_mean` are one computation
+    read twice (RFC 0020 §5.4) rather than two searches that happen to agree.
+    """
     return f"; did you mean {closest!r}?" if closest else f"; known: {known}"
 
 
@@ -112,9 +112,9 @@ def _required_measures(ir: ProjectIR, name: str) -> tuple[MetricIR, tuple[str, .
             )
             raise UnknownMember(msg)
         known = sorted(m.name for m in ir.metrics)
+        closest = _closest(name, known)
         raise UnknownMember(
-            f"unknown metric {name!r}{_did_you_mean(name, known)}",
-            did_you_mean=_closest(name, known),
+            f"unknown metric {name!r}{_did_you_mean(closest, known)}", did_you_mean=closest
         )
     if metric.additivity is Additivity.NON_ADDITIVE:
         if metric.ratio is None:  # pragma: no cover — guardrails refuse this at compile
@@ -198,8 +198,9 @@ def _resolve_dimension(
             if len(roles) == 1:
                 return _resolve_dimension(mart, f"{roles[0]}_{name}", apply_grain=apply_grain)
         known = sorted(refs)
-        msg = f"unknown dimension {name!r} on mart {mart.name!r}{_did_you_mean(name, known)}"
-        raise UnknownMember(msg, did_you_mean=_closest(name, known))
+        closest = _closest(name, known)
+        msg = f"unknown dimension {name!r} on mart {mart.name!r}{_did_you_mean(closest, known)}"
+        raise UnknownMember(msg, did_you_mean=closest)
     if ref.role is None:
         return ResolvedDimension(name=name)
     grain = TimeGrain(ref.dimension)

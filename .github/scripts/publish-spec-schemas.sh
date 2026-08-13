@@ -20,29 +20,38 @@ repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
 staging="$(mktemp -d)"
-trap 'rm -rf "$staging"' EXIT
+worktree="$(mktemp -d)"
+cleanup() {
+	cd "$repo_root"
+	git worktree remove --force "$worktree" 2>/dev/null || true
+	rm -rf "$staging" "$worktree"
+}
+trap cleanup EXIT
 
 uv run bloomery schema --out "$staging"
 
-worktree="$(mktemp -d)"
-trap 'rm -rf "$staging" "$worktree"' EXIT
-
-git fetch origin gh-pages --depth=1
-git worktree add --force "$worktree" origin/gh-pages
+# Full fetch, not `--depth=1`: the checkout is already unshallow, and making
+# one ref shallow is how a later push gets refused for a reason nothing in the
+# log explains. `mktemp -d` already created the directory, so `--force` is what
+# lets the worktree land in it.
+git fetch origin gh-pages:refs/remotes/origin/gh-pages
+git worktree add --force --detach "$worktree" origin/gh-pages
 cd "$worktree"
-git switch -C gh-pages-schemas
 
+# Replace the directory rather than copy over it. `cp` alone leaves a schema
+# for a kind the export no longer produces sitting there forever, still serving
+# a `$id` that claims to be current — and it would never show up as a diff,
+# because nothing writes that path again.
+rm -rf schemas/v1
 mkdir -p schemas/v1
 cp "$staging"/*.json schemas/v1/
 
-if git diff --quiet -- schemas/v1; then
+git add --all schemas/v1
+if git diff --cached --quiet -- schemas/v1; then
 	echo "spec schemas unchanged; nothing to publish"
-else
-	git add schemas/v1
-	git commit -m "📝 docs(schema): publish the spec JSON Schemas"
-	git push origin HEAD:gh-pages
-	echo "published $(ls schemas/v1 | wc -l) schema(s)"
+	exit 0
 fi
 
-cd "$repo_root"
-git worktree remove --force "$worktree"
+git commit -m "📝 docs(schema): publish the spec JSON Schemas"
+git push origin HEAD:gh-pages
+echo "published $(find schemas/v1 -name '*.json' | wc -l) schema(s)"

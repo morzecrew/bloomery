@@ -194,16 +194,25 @@ def _canonical(value: object) -> object:
     sorted for the same reason — it is a set written as a list.
     """
     if isinstance(value, dict):
-        entries = cast("dict[str, object]", value)
-        canonical: dict[str, object] = {key: _canonical(entries[key]) for key in sorted(entries)}
-        required = canonical.get("required")
-        if isinstance(required, list):
-            items = cast("list[object]", required)
-            canonical["required"] = sorted(str(item) for item in items)
-        return canonical
+        return _canonical_mapping(cast("dict[str, object]", value))
     if isinstance(value, list):
         return [_canonical(item) for item in cast("list[object]", value)]
     return value
+
+
+def _canonical_mapping(entries: dict[str, object]) -> dict[str, object]:
+    """:func:`_canonical` where the caller already knows it holds a mapping.
+
+    Typed separately so :func:`spec_json_schema` returns a schema rather than
+    an ``object`` it has to re-narrow — and so a narrowing that fails cannot
+    quietly degrade a whole document to ``{}``.
+    """
+    canonical: dict[str, object] = {key: _canonical(entries[key]) for key in sorted(entries)}
+    required = canonical.get("required")
+    if isinstance(required, list):
+        items = cast("list[object]", required)
+        canonical["required"] = sorted(str(item) for item in items)
+    return canonical
 
 
 def spec_json_schema(kind: SpecKind) -> JsonDict:
@@ -224,7 +233,7 @@ def spec_json_schema(kind: SpecKind) -> JsonDict:
         schema["$defs"] = defs
     schema["$schema"] = JSON_SCHEMA_DIALECT
     schema["$id"] = f"{_BASE_URI}/v{_document_version(kind)}/{kind.value}.json"
-    return _as_dict(_canonical(schema))
+    return _canonical_mapping(schema)
 
 
 def all_spec_schemas() -> AbcMapping[SpecKind, JsonDict]:

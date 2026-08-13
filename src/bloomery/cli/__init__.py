@@ -36,7 +36,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from bloomery import (
     BloomeryError,
@@ -63,6 +63,7 @@ from bloomery.naming import DefaultNaming
 from bloomery.planner import parse_filter_json
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping as AbcMapping
     from collections.abc import Sequence
 
     from bloomery import Catalog, Project, ProjectIR
@@ -89,16 +90,21 @@ class _Usage(Exception):
 # Loading — the same three lines every command starts with.
 
 
-def _load(arguments: argparse.Namespace) -> tuple[Project, Catalog | None]:
-    sources, catalog_text = io.read_spec_directory(
-        arguments.directory, catalog=getattr(arguments, "catalog", None)
-    )
+def _load(directory: str, catalog_path: str | None) -> tuple[Project, Catalog | None]:
+    """The two values every command starts from.
+
+    Takes the two strings rather than the parsed namespace: ``plan`` loads two
+    directories against one catalog and would otherwise have to fake a
+    namespace, and a command whose parser forgot ``--catalog`` fails at the
+    call site instead of silently loading without one.
+    """
+    sources, catalog_text = io.read_spec_directory(directory, catalog=catalog_path)
     catalog = load_catalog(catalog_text) if catalog_text is not None else None
     return load_project(sources), catalog
 
 
-def _load_ir(arguments: argparse.Namespace) -> ProjectIR:
-    project, catalog = _load(arguments)
+def _load_ir(directory: str, catalog_path: str | None) -> ProjectIR:
+    project, catalog = _load(directory, catalog_path)
     return build_project_ir(project, catalog=catalog)
 
 
@@ -117,7 +123,7 @@ def _emit(payload: object, *, as_json: bool) -> None:
 
 
 def _compile(arguments: argparse.Namespace) -> int:
-    project, catalog = _load(arguments)
+    project, catalog = _load(arguments.directory, arguments.catalog)
     artifacts = compile_project(
         project, target=arguments.target, dialect=arguments.dialect, catalog=catalog
     )
@@ -133,8 +139,8 @@ def _compile(arguments: argparse.Namespace) -> int:
 
 
 def _plan(arguments: argparse.Namespace) -> int:
-    old = _load_ir(argparse.Namespace(directory=arguments.old, catalog=arguments.catalog))
-    new = _load_ir(argparse.Namespace(directory=arguments.new, catalog=arguments.catalog))
+    old = _load_ir(arguments.old, arguments.catalog)
+    new = _load_ir(arguments.new, arguments.catalog)
     result = plan(old, new)
     if arguments.format == "json":
         _emit(serialize.as_json_value(result), as_json=True)
@@ -144,7 +150,7 @@ def _plan(arguments: argparse.Namespace) -> int:
 
 
 def _resolve(arguments: argparse.Namespace) -> int:
-    project, catalog = _load(arguments)
+    project, catalog = _load(arguments.directory, arguments.catalog)
     resolution = resolve(project, catalog)
     if arguments.format == "json":
         _emit(serialize.as_json_value(resolution), as_json=True)
@@ -184,14 +190,49 @@ def _parse_policy(spelling: str | None) -> RowPolicy | None:
     return RowPolicy(dimension=dimension, op=op, value=value)
 
 
+def _parse_where(payload: str | None) -> AbcMapping[str, object] | None:
+    """``--where`` as a filter document, or a usage error naming the problem.
+
+    ``json.loads`` raises ``JSONDecodeError``, which nothing above catches — so
+    without this a mistyped quote exits on a traceback rather than on the ``2``
+    a script branches on. A well-formed JSON value that is not an object is the
+    same kind of mistake and gets the same code.
+
+    The refusals *inside* the document are a different thing and stay
+    refusals: ``$regex`` is a reviewed decision (RFC 0015), not a typo.
+    """
+    if payload is None:
+        return None
+    try:
+        document: object = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        msg = f"--where is not valid JSON: {exc}"
+        raise _Usage(msg) from exc
+    if not isinstance(document, dict):
+        msg = f"--where takes a JSON object, got {type(document).__name__}"
+        raise _Usage(msg)
+    return cast("AbcMapping[str, object]", document)
+
+
+def _parse_grain(spelling: str | None) -> TimeGrain | None:
+    if spelling is None:
+        return None
+    try:
+        return TimeGrain(spelling)
+    except ValueError as exc:
+        known = ", ".join(member.value for member in TimeGrain)
+        msg = f"--grain {spelling!r} is not one of: {known}"
+        raise _Usage(msg) from exc
+
+
 def _explain(arguments: argparse.Namespace) -> int:
-    ir = _load_ir(arguments)
-    filters = parse_filter_json(json.loads(arguments.where)) if arguments.where else ()
+    ir = _load_ir(arguments.directory, arguments.catalog)
+    where = _parse_where(arguments.where)
     request = MetricRequest(
         metrics=tuple(arguments.metrics.split(",")),
         dimensions=tuple(arguments.by.split(",")) if arguments.by else (),
-        filters=filters,
-        time_grain=TimeGrain(arguments.grain) if arguments.grain else None,
+        filters=parse_filter_json(where) if where is not None else (),
+        time_grain=_parse_grain(arguments.grain),
         limit=arguments.limit,
     )
     naming = DefaultNaming()
@@ -234,7 +275,7 @@ def _schema(arguments: argparse.Namespace) -> int:
 
 
 def _fingerprint(arguments: argparse.Namespace) -> int:
-    _emit(project_fingerprint(_load_ir(arguments)), as_json=False)
+    _emit(project_fingerprint(_load_ir(arguments.directory, arguments.catalog)), as_json=False)
     return EXIT_OK
 
 

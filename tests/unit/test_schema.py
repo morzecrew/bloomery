@@ -186,6 +186,10 @@ def test_the_transform_whitelist_is_an_enumeration_in_every_authored_spelling() 
     assert bare["enum"] == expected
     assert single_key["propertyNames"]["enum"] == expected
     assert normalized["properties"]["name"]["enum"] == expected
+    # The enum is *injected into* the generated property, not written over it:
+    # a lookup that silently missed would leave `{"enum": [...]}` with no type,
+    # which is valid JSON Schema and would pass the assertion above.
+    assert normalized["properties"]["name"]["type"] == "string"
     # The empty-string default is gone with it: the model validator refuses a
     # document that spells the "this is a step: link instead" sentinel out.
     assert "default" not in normalized["properties"]["name"]

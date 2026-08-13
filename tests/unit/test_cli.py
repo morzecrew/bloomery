@@ -259,6 +259,42 @@ def test_a_directory_with_no_specs_exits_two(
     assert "no .yaml/.yml files" in err
 
 
+@pytest.mark.parametrize(
+    ("flag", "value", "expected"),
+    [
+        ("--where", "{not json", "not valid JSON"),
+        ("--where", "[1, 2]", "takes a JSON object"),
+        ("--grain", "fortnight", "--grain 'fortnight' is not one of"),
+    ],
+)
+def test_a_malformed_flag_value_is_a_usage_error_not_a_traceback(
+    capsys: pytest.CaptureFixture[str], flag: str, value: str, expected: str
+) -> None:
+    """``json.loads`` and ``TimeGrain()`` raise ``ValueError``, which nothing in
+    ``main`` catches — so a mistyped quote would exit on a traceback and a
+    script branching on the code would see neither ``1`` nor ``2``."""
+    code, _out, err = run(capsys, "explain", ECOM, "--metrics", "gross_revenue", flag, value)
+    assert code == EXIT_USAGE
+    assert expected in err
+
+
+def test_a_refused_filter_construct_stays_a_refusal(capsys: pytest.CaptureFixture[str]) -> None:
+    """The other side of the line above. A *well-formed* document naming a
+    construct the vocabulary reviewed and declined (RFC 0015) is a refusal, not
+    a typo — so it exits `1` and carries the reason."""
+    code, _out, err = run(
+        capsys,
+        "explain",
+        ECOM,
+        "--metrics",
+        "gross_revenue",
+        "--where",
+        '{"ordered_month": {"$regex": "x"}}',
+    )
+    assert code == EXIT_REFUSED
+    assert "use like/ilike" in err
+
+
 def test_the_two_failure_codes_are_distinct() -> None:
     """Stated as a property, because the whole point of the split is that a
     script can branch on it."""
@@ -327,12 +363,11 @@ def test_a_multi_value_policy_splits_on_commas(capsys: pytest.CaptureFixture[str
 # The catalog convention (§5.2's `--catalog`)
 
 
-def test_a_catalog_yaml_in_the_directory_is_loaded_and_excluded(tmp_path: Path) -> None:
+def test_a_catalog_yaml_in_the_directory_is_loaded_and_excluded() -> None:
     sources, catalog = read_spec_directory(str(FIXTURES / "ecom_basic"))
     assert catalog is not None
     assert "catalog" not in sources
     assert "catalog_version" in catalog
-    del tmp_path
 
 
 def test_an_explicit_catalog_overrides_the_convention(tmp_path: Path) -> None:

@@ -141,6 +141,12 @@ contain and how to point an editor at them.
 | `1` | A **refusal**. Bloomery read the spec and said no, with a reason and a source path. |
 | `2` | A **usage error**: a path that is not there, a flag that is not a flag. |
 
+The line between them is *who* said no. Anything bloomery itself refuses is `1`, and that
+includes an unknown `--target` or `--dialect` — the set of targets is open (you can
+register one), so the library is the only thing that can decide, and its answer names the
+targets it does have. `2` is for the parts the CLI owns: a path, a flag, a `--where`
+document that is not JSON.
+
 The split matters for scripting. A refusal is a *correct* outcome — the compiler did its
 job — so a pipeline that retries on it will retry forever. Branch on the code:
 
