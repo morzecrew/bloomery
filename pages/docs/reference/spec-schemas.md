@@ -147,7 +147,7 @@ custom audit artifacts.
 |---|---|---|---|
 | `name` | string | yes | Referenced by mart `via:` flatten steps |
 | `from` / `to` | string | yes | The two entities |
-| `via` | map from-column → to-column | yes | Join columns |
+| `via` | map from-column → to-column, ≥ 1 | yes | Join columns — a relationship *is* its join, so an empty map is a `SpecParseError` |
 | `cardinality` | `many_to_one` \| `one_to_one` \| `one_to_many` | yes | Checked by the fan-out guardrail |
 
 ### Entity quality rules

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`relationships: [{via: {}}]` parsed and then crashed at emit.** A relationship *is* its join, so an empty `via` describes nothing — but it reached three consumers and failed differently in each: an `IndexError` from the coverage audit, a `ValueError` from inside SQLGlot when a mart flattened it. It is a `SpecParseError` with a source path now, raised at parse where shape questions belong; `via` requires at least one column pair, the way `key` always has.
+
 ### Added
 
 - **A command line: `bloomery compile|plan|resolve|explain|schema|fingerprint`** (RFC 0020). Each command is a thin argument shell over one public function — read files, call the API, write stdout or a directory. `--format json` on `plan`/`resolve`/`explain` emits the same values the Python API returns, so it is not a second, lossier surface. Exit codes distinguish a **refusal** (`1`, a correct outcome a pipeline must not retry) from a **usage error** (`2`). No execution, no connection, no profile, no scaffolding. `bloomery/cli/io.py` is the only module in the package permitted to touch a filesystem, and nothing in the library may import the CLI. `--steps` is not offered: a `StepRegistry` is a caller-assembled compile input, so a project wiring steps compiles through Python.
