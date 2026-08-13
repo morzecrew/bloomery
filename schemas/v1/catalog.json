@@ -1,0 +1,403 @@
+{
+  "$defs": {
+    "CanonicalField": {
+      "additionalProperties": false,
+      "description": "A canonical domain field: its home entity, logical type, monetary\nmetadata (drives the guardrails, RFC 0006 \u00a75.2), and recipes. The optional\n``description`` is carried through the IR into semantic-layer emissions\n(RFC 0013 R1) \u2014 it grounds the Query Agent.",
+      "properties": {
+        "currency": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{3}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Currency"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "entity": {
+          "title": "Entity",
+          "type": "string"
+        },
+        "recipes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Recipe"
+          },
+          "title": "Recipes",
+          "type": "array"
+        },
+        "tax_basis": {
+          "anyOf": [
+            {
+              "enum": [
+                "net",
+                "gross",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tax Basis"
+        },
+        "type": {
+          "pattern": "^(?:string|int|bool|date|timestamp|variant|decimal\\((\\d{1,3}), ?(\\d{1,3})\\))$",
+          "title": "Type",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "enum": [
+                "currency",
+                "count"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "required": [
+        "entity",
+        "type"
+      ],
+      "title": "CanonicalField",
+      "type": "object"
+    },
+    "CanonicalRelationship": {
+      "additionalProperties": false,
+      "description": "A canonical relationship between two catalog entities.",
+      "properties": {
+        "cardinality": {
+          "enum": [
+            "many_to_one",
+            "one_to_one",
+            "one_to_many"
+          ],
+          "title": "Cardinality",
+          "type": "string"
+        },
+        "from": {
+          "title": "From",
+          "type": "string"
+        },
+        "to": {
+          "title": "To",
+          "type": "string"
+        },
+        "via": {
+          "title": "Via",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cardinality",
+        "from",
+        "to",
+        "via"
+      ],
+      "title": "CanonicalRelationship",
+      "type": "object"
+    },
+    "DateDimension": {
+      "additionalProperties": false,
+      "description": "The vertical-owned date dimension (RFC 0008 D13, RFC 0013 R1 rule 4):\none catalog definition drives both the emitted gold ``dim_date`` model and\nthe MetricFlow time-spine declaration (M6). Bounds are calendar years \u2014\nthe emitted table depends on the spec only, never on a clock.",
+      "properties": {
+        "end_year": {
+          "maximum": 9999,
+          "minimum": 1,
+          "title": "End Year",
+          "type": "integer"
+        },
+        "grain": {
+          "const": "day",
+          "default": "day",
+          "title": "Grain",
+          "type": "string"
+        },
+        "name": {
+          "default": "dim_date",
+          "title": "Name",
+          "type": "string"
+        },
+        "start_year": {
+          "maximum": 9999,
+          "minimum": 1,
+          "title": "Start Year",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "end_year",
+        "start_year"
+      ],
+      "title": "DateDimension",
+      "type": "object"
+    },
+    "MetricTemplate": {
+      "additionalProperties": false,
+      "description": "A catalog-level metric template a project metric may instantiate via\n``template:`` (RFC 0002 \u00a75.5). ``description`` merges like every other\ntemplate value: the metric's own wins, the template's is the fallback.",
+      "properties": {
+        "additivity": {
+          "enum": [
+            "additive",
+            "semi_additive",
+            "non_additive"
+          ],
+          "title": "Additivity",
+          "type": "string"
+        },
+        "agg": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agg"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "expr": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expr"
+        },
+        "grain": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grain"
+        },
+        "ratio": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RatioSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "requires": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Requires",
+          "type": "array"
+        },
+        "requires_metrics": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Requires Metrics",
+          "type": "array"
+        },
+        "semi_additive": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SemiAdditivePolicy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "additivity"
+      ],
+      "title": "MetricTemplate",
+      "type": "object"
+    },
+    "RatioSpec": {
+      "additionalProperties": false,
+      "description": "Additive decomposition of a non-additive metric (RFC 0002 D9, RFC 0011 D5).",
+      "properties": {
+        "denominator": {
+          "title": "Denominator",
+          "type": "string"
+        },
+        "numerator": {
+          "title": "Numerator",
+          "type": "string"
+        }
+      },
+      "required": [
+        "denominator",
+        "numerator"
+      ],
+      "title": "RatioSpec",
+      "type": "object"
+    },
+    "Recipe": {
+      "additionalProperties": false,
+      "description": "One alternative derivation path to a canonical field, ordered by\nreliability in the catalog; the compiler validates recorded choices but\nnever chooses (RFC 0005 D2).",
+      "properties": {
+        "expr": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expr"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "requires": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Requires",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "requires"
+      ],
+      "title": "Recipe",
+      "type": "object"
+    },
+    "SemiAdditivePolicy": {
+      "additionalProperties": false,
+      "description": "Typed semi-additive policy (RFC 0002 \u00a75.5): the dimension the metric is\nnot additive over, and the rule applied along it.",
+      "properties": {
+        "over": {
+          "title": "Over",
+          "type": "string"
+        },
+        "rule": {
+          "enum": [
+            "last",
+            "first",
+            "avg",
+            "min",
+            "max"
+          ],
+          "title": "Rule",
+          "type": "string"
+        }
+      },
+      "required": [
+        "over",
+        "rule"
+      ],
+      "title": "SemiAdditivePolicy",
+      "type": "object"
+    }
+  },
+  "$id": "https://morzecrew.github.io/bloomery/schemas/v1/catalog.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The vertical-level domain catalog (original spec \u00a73.2), loaded via\n:func:`bloomery.load_catalog`.",
+  "properties": {
+    "canonical_fields": {
+      "additionalProperties": {
+        "$ref": "#/$defs/CanonicalField"
+      },
+      "title": "Canonical Fields",
+      "type": "object"
+    },
+    "canonical_relationships": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CanonicalRelationship"
+      },
+      "title": "Canonical Relationships",
+      "type": "array"
+    },
+    "catalog_version": {
+      "const": 1,
+      "title": "Catalog Version",
+      "type": "integer"
+    },
+    "date_dimension": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DateDimension"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "metric_templates": {
+      "additionalProperties": {
+        "$ref": "#/$defs/MetricTemplate"
+      },
+      "title": "Metric Templates",
+      "type": "object"
+    },
+    "vertical": {
+      "title": "Vertical",
+      "type": "string"
+    }
+  },
+  "required": [
+    "catalog_version",
+    "vertical"
+  ],
+  "title": "Catalog",
+  "type": "object"
+}
