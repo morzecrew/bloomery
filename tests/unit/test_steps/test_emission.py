@@ -107,6 +107,47 @@ def test_the_contract_call_is_unconditional() -> None:
     assert len(calls) == 1
 
 
+def test_the_wrapper_imports_the_contract_by_its_declared_path() -> None:
+    """RFC 0018 D3: the shallow, declared path — not the module path.
+
+    `assert_step_contract` is imported *by generated artifacts living in
+    consumer repositories*, which made `bloomery.steps.contract` de-facto
+    public API with nothing declaring it and no test protecting it: renaming
+    the module would break every previously-generated wrapper at run time,
+    with no compile-time warning anywhere. Promoting the name to
+    `bloomery.steps.__all__` and emitting that path is what turns a rename
+    into a visible diff. Checked structurally, since a grep would pass on the
+    string appearing in a comment.
+
+    The deep path keeps working — this adds a supported route rather than
+    removing an unsupported one — and costs nothing: both spellings execute
+    `bloomery/__init__.py`, measured at ~1015 modules either way, so the
+    laziness RFC 0017 D22 records is unaffected.
+    """
+    for source in wrappers().values():
+        imports = [
+            node
+            for node in ast.walk(ast.parse(source))
+            if isinstance(node, ast.ImportFrom)
+            and any(alias.name == "assert_step_contract" for alias in node.names)
+        ]
+        assert [node.module for node in imports] == ["bloomery.steps"]
+        assert [alias.asname for node in imports for alias in node.names] == ["_blm_assert"]
+
+
+def test_the_contract_is_declared_public_by_the_package_that_ships_it() -> None:
+    """The other half of D3: emitting the shallow path would be a lie if the
+    name were not declared there."""
+    import bloomery.steps
+
+    assert "assert_step_contract" in bloomery.steps.__all__
+    assert callable(bloomery.steps.assert_step_contract)
+    assert "assert_step_contract" in dir(bloomery.steps), (
+        "the lazy loader hides names from dir() unless __dir__ lists them, and "
+        "editors and tab-completion read dir()"
+    )
+
+
 def test_the_embedded_manifest_uses_spec_type_spellings() -> None:
     """The contract looks declared types up in a table, so a repr like
     ``StringType()`` would match nothing and turn a mandatory check into a

@@ -5,8 +5,9 @@ column envelope from a real ``query_spec``."""
 from __future__ import annotations
 
 import pytest
+from sqlglot import parse_one
 
-from bloomery import MetricRequest, OrderSpec
+from bloomery import ColumnDescriptor, MetricRequest, OrderSpec
 from bloomery.errors import PlannerError
 from bloomery.planner import TimeGrain
 from bloomery.planner.names import (
@@ -112,6 +113,80 @@ def test_unexpected_group_by_spec_is_a_planner_error() -> None:
     )
     with pytest.raises(PlannerError, match="never requests"):
         columns_from(bogus, mart=mart, metrics_by_name={})  # type: ignore[arg-type]
+
+
+def test_sql_alias_is_the_alias_the_rendered_sql_actually_projects() -> None:
+    """RFC 0018 D4, closing RFC 0009 D24.
+
+    ``QueryPlan.columns`` named the *requested* dimension while the SQL
+    projected MetricFlow's dunder — so a caller binding a result set by name
+    found nothing, and the envelope only worked positionally. This asserts the
+    two against each other on the case that exhibits the gap: a categorical
+    dimension (entity-qualified) and a date role at a non-day grain
+    (entity-qualified *and* grain-suffixed).
+
+    Parsed out of the SQL rather than hard-coded, so a MetricFlow upgrade that
+    changes the spelling fails here instead of silently downstream.
+    """
+    plan = make_planner().plan(
+        fixture_ir("non_additive_aov"),
+        MetricRequest(
+            metrics=("average_order_value", "order_count", "revenue"),
+            dimensions=("store", "ordered_month"),
+        ),
+        dialect="duckdb",
+    )
+    projected = [
+        projection.alias_or_name for projection in parse_one(plan.sql, read="duckdb").expressions
+    ]
+    assert [column.sql_alias for column in plan.columns] == projected
+    by_name = {column.name: column.sql_alias for column in plan.columns}
+    assert by_name["store"] == "order__store"
+    assert by_name["ordered_month"] == "order__ordered_day__month"
+    assert by_name["revenue"] == "revenue", "a measure agrees on both names"
+    assert all("__" not in column.name for column in plan.columns), (
+        "the dunder belongs to sql_alias alone; name stays the caller's word"
+    )
+
+
+def test_a_column_descriptor_cannot_be_built_positionally() -> None:
+    """`sql_alias` was inserted second, not appended.
+
+    That reads better and is a breaking constructor change with a silent
+    failure mode: a caller writing the pre-M15 four-argument form
+    `ColumnDescriptor("revenue", DecimalType(12, 4), "measure", "Revenue")`
+    used to get every field after the first misassigned — the type into
+    `sql_alias`, the role into `type`, the label into `role` — with no error
+    raised and a frozen dataclass validating nothing.
+
+    Keyword-only turns that into an immediate `TypeError`. Appending the field
+    with a default was the alternative and is worse: the only plausible default
+    is `name`, which is exactly the defect this field exists to remove, and it
+    would be restored for anyone who omits the argument.
+    """
+    with pytest.raises(TypeError):
+        ColumnDescriptor("revenue", "revenue", DecimalType(12, 4), "measure")  # type: ignore[misc]
+
+    built = ColumnDescriptor(
+        name="revenue", sql_alias="revenue", type=DecimalType(12, 4), role="measure"
+    )
+    assert built.type == DecimalType(12, 4)
+    assert built.role == "measure"
+
+
+def test_positional_binding_is_unchanged() -> None:
+    """The D24 status quo does not regress: `columns[i]` still lines up with
+    projection `i`. That is what every consumer does today, and why the fix is
+    an added field rather than a redefined one."""
+    plan = make_planner().plan(
+        fixture_ir("non_additive_aov"),
+        MetricRequest(metrics=("revenue",), dimensions=("store",)),
+        dialect="duckdb",
+    )
+    projected = parse_one(plan.sql, read="duckdb").expressions
+    assert len(plan.columns) == len(projected)
+    for column, projection in zip(plan.columns, projected, strict=True):
+        assert column.sql_alias == projection.alias_or_name
 
 
 def test_unknown_dimension_column_is_a_planner_error() -> None:

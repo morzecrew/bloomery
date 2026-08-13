@@ -29,6 +29,7 @@ not an exception to that rule.
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover — import-time typing only
+    from bloomery.steps.contract import assert_step_contract
     from bloomery.steps.manifest import (
         DeterminismName,
         LineageName,
@@ -54,6 +55,7 @@ _LAZY: dict[str, str] = {
     "StepProduces": "manifest",
     "EMPTY_REGISTRY": "registry",
     "StepRegistry": "registry",
+    "assert_step_contract": "contract",
 }
 
 
@@ -103,4 +105,5 @@ __all__ = [
     "StepParameter",
     "StepProduces",
     "StepRegistry",
+    "assert_step_contract",
 ]

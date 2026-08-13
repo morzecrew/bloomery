@@ -248,6 +248,18 @@ Each declared output becomes its own model, and every wrapper asserts *all*
 declared outputs — so a step that lies about one of them is caught wherever
 the run happens to start.
 
+The assertion is bloomery's own, imported by the generated wrapper:
+
+```python
+from bloomery.steps import assert_step_contract as _blm_assert
+```
+
+That path is **public API**, and unusually so: the importer is code bloomery wrote into
+*your* repository, so renaming the module would break every wrapper generated before the
+rename, at run time, with nothing at compile time to warn you. It is declared in
+`bloomery.steps.__all__` and covered by the stability policy like any other export. The
+older `bloomery.steps.contract` path keeps working.
+
 ## Determinism is not negotiable
 
 | Tier | Meaning | What bloomery does |

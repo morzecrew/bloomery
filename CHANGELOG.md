@@ -9,9 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Signature closure: every type in a public signature is now importable from `bloomery`** (RFC 0018). The root namespace grows from 29 names to 56, and a test walks the whole surface and fails the build if an export ever names a type the root does not carry. Previously `compile_project` returned `tuple[EmittedArtifact, ...]` and accepted a `NamingPolicy`, `Catalog` and `Project` — none of which a caller could name without a deep import the package never advertised. The walk reads annotation *strings* rather than resolved objects, because `get_type_hints` turns `ColumnDescriptor.type` into seven member classes and never mentions `LogicalType`, which is the name you actually write. It stops at three handle types — `Catalog`, `Project`, `ProjectIR` — that you receive and pass back; descending into `ProjectIR` would pull 65 IR internals into the public namespace. `bloomery.errors` stays exempt by an allowlist in the test, so the exemption is visible rather than assumed.
+
+- `ColumnDescriptor.sql_alias` — the alias the emitted SQL actually projects, alongside `name`, the dimension you asked for. They differ for every dimension: `store` comes back as `order__store` and `ordered_month` as `order__ordered_day__month`. **Bind result rows by `sql_alias`, display `name`.** Additive, so positional binding — what every consumer does today — is unchanged.
+
+- `pages/docs/reference/stability.md` — the three surfaces and what each promises, including the one that reads backwards: emitted artifacts are **not** stable across bloomery versions. Byte-reproducibility for fixed inputs is determinism, not a cross-version guarantee, so a diff in emitted SQL after an upgrade is expected and should be reviewed rather than treated as a regression.
+
 - Steps: referenced implementations (RFC 0017). A project may now wire platform-owned steps through a new `steps_version: 1` document — `use: ref@version`, input/output bindings, parameters within the manifest's declared bounds, and `expression` quality rules on outputs. Manifests reach the compiler as a frozen `StepRegistry` passed to `compile_project(..., steps=…)`; bloomery reads no step files and has no dynamic loading path, so a spec cannot name code to load. Three tiers emit: `sql_macro` splices into the consuming SELECT, `sql_model` emits an ordinary model, and `python_model` emits one generated SQLMesh Python-model wrapper *per declared output*, each carrying a non-optional `assert_step_contract` call.
 
-- `bloomery.steps.contract.assert_step_contract` — the run-time step contract, the only bloomery module intended for import outside compilation. It imports nothing but `bloomery.errors`: every check is expressed against the dataframe protocol the step already returned, so it needs no pandas of its own.
+- `bloomery.steps.assert_step_contract` — the run-time step contract, and the only bloomery name intended for import outside compilation. It imports nothing but `bloomery.errors`: every check is expressed against the dataframe protocol the step already returned, so it needs no pandas of its own.
 
 - A step emits a blocking consistency audit per reference its manifest **declares** between sibling outputs (`references: {column: sibling}`), attached to the model holding the reference, and that model declares the sibling in `depends_on` so SQLMesh resolves it to the plan's snapshot rather than a virtual-layer view. Mutual references are refused: each one orders the two models. This is the check for the one risk one-wrapper-per-output creates — a step misdeclared as `pure` producing siblings that disagree *within a single run*, which no run-to-run gate and no contract assertion can see.
 
@@ -37,11 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A **Cube container tier** and the **three-way equivalence tier** (RFC 0009 D24), completing every tier RFC 0009 §5.2 names. Cube now loads the emitted schema in a real container, answers a query, and is compared against the MetricFlow-backed planner over one Postgres — with hand-written reference SQL as the third leg on every request that declares one. The equivalence corpus is smaller than §5.8's sketch of ~40 requests; the classes it covers are what buy the coverage.
 
-- Known limitation, now written down (RFC 0009 D24): `QueryPlan.columns` carries the *requested* dimension name (`ordered_month`) while the SQL MetricFlow generates aliases it differently (`order_item__ordered_day__month`). Binding a result frame positionally works — which is what every consumer does — but binding by name finds nothing.
-
 - A **Trino engine tier** and a **`dbt parse` e2e tier** (RFC 0009 D21/D22). Three decisions previously verified against Trino by hand are now permanent tests, including the one D75 said was impossible — the reject table materializes there, and its `reject_id` is checked against the digest computed in Python, so the engines are held to agreeing with each other rather than each with itself. `dbt parse` runs over every dbt-compilable fixture plus a Tier 2 step project, with a deliberately malformed model as its own control.
-
-- Known limitation, now written down (RFC 0009 D22): `dbt build` on an emitted project does not work. bloomery's dbt models name their inputs by literal relation (`FROM silver.order_item`) rather than through `{{ ref(...) }}`/`{{ source(...) }}`, so dbt has no dependency edges to order them by and materializes each into the profile's target schema while the `FROM` clause names another. `dbt parse` — the tier RFC 0009 specifies — passes.
 
 - The dbt target now emits `sql_model` steps as ordinary dbt models (RFC 0017 D52), carrying the same SELECT the SQLMesh target emits. `sql_macro` steps already worked everywhere — they are spliced into the consuming model before any emitter sees them. `python_model` steps are still refused on dbt, now for a concrete reason: dbt's Python models run on Snowflake, BigQuery and Databricks only, and none of bloomery's dialects is one of them.
 
@@ -60,6 +62,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A confusables *table* was considered and deliberately not built. It is versioned Unicode data, so embedding it would make a row's disposition depend on which Unicode revision bloomery happened to ship — and `charset`'s allow-list reading covers the homoglyph case more completely than any denylist, since it enumerates what a column may contain rather than guessing what it may not.
 
 ### Changed
+
+- **`assert_step_contract` is public API and generated wrappers now import it as one**: `from bloomery.steps import assert_step_contract`. The name joins `bloomery.steps.__all__`. It was already imported by artifacts bloomery writes into consumer repositories, by module path, with nothing declaring the path public and no test protecting it — so renaming `steps/contract.py` would have broken every previously generated wrapper at run time. `bloomery.steps.contract` keeps working, and the change costs nothing: both spellings load the same ~1015 modules.
+
+- **Spec documents now refuse a version bloomery does not implement.** `spec_version`, `mapping_version`, `metrics_version`, `marts_version` and `catalog_version` were `int` with `ge=1`, so `spec_version: 99` loaded and was silently read as v1 — a spec written for a future bloomery misread rather than refused. All five are pinned to `Literal[1]`, matching `steps_version`, which was already right. No existing spec breaks: every document writes `1`. The key stays required, because it is also how bloomery tells one kind of document from another.
 
 - `bloomery_ir_version` is now `3` — `ProjectIR` gained a `steps` tuple, so every artifact's `fingerprint:` header changes and `plan()` refuses to diff a v2 IR against a v3 one. The bump moves fingerprints even for projects with no steps: the canonical encoder covers each node's field *names and count*, not merely its values, so an IR shape change is loud by construction.
 
@@ -90,6 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Mapping.on_unmapped_enum` (breaking, pre-0.1): a spec still carrying the key is now refused as an unknown key. Unmapped enum values become a data-quality concern — they fail the `in_enum` rule and take that rule's disposition, superseding RFC 0008 D7's never-implemented emitter convention.
 
 ### Fixed
+
+- **`QueryPlan.columns` could not be bound by name** (RFC 0009 D24). Each column carries `sql_alias` beside `name`, and the test parses the aliases out of the rendered SQL so a MetricFlow upgrade that changes the spelling fails there rather than silently downstream.
 
 - **Security: a Tier 1 step parameter could splice SQL into a projection.** `parameter_literal` builds an *unquoted* literal for `int`/`decimal` — the branch its own docstring called the injection boundary — and never checked the text was a number. A mapping spelling `parameters: {factor: "1 OR 1=1"}` emitted `CAST(amt * 1 OR 1 = 1 AS DECIMAL(12, 4))`. The check now lives below both SQL tiers, where the rendering happens, rather than at the call site Tier 1 was missing (RFC 0017 D53) — and it matches SQL numeric-literal *syntax* rather than parsing with `Decimal`, which accepts `1_0`, `Infinity` and `1e400`; `int` is held to integer syntax, so `"1.5"` no longer emits `1.5` (D56).
 

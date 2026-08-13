@@ -1,9 +1,13 @@
 # API
 
 The public API — everything importable from `bloomery`, kept in lockstep with the
-package's `__all__`. Supporting types named in signatures (`Project`, `Catalog`,
-`ProjectIR`, `EmittedArtifact`, naming policies) live in their subpackages and are
-stable to import from there.
+package's `__all__`.
+
+The list is **closed over its own signatures**: any type named in a public signature is
+exported from `bloomery` too, so `Project`, `Catalog`, `ProjectIR`, `EmittedArtifact` and
+the naming policies are importable from the root rather than only from their subpackages.
+The subpackage paths keep working. See [Stability](stability.md) for what each surface
+promises.
 
 ## Loading
 
@@ -165,8 +169,21 @@ The planner's product: `sql`, `columns` (tuple of `ColumnDescriptor`), `mart`,
 
 ### `ColumnDescriptor`
 
-One output column in bloomery names: `name`, logical `type`, `role`
-(`"dimension"` or `"measure"`), optional `label`.
+One output column, carrying both names it has:
+
+- `name` — what you asked for, in bloomery's vocabulary (`ordered_month`).
+- `sql_alias` — what the emitted SQL actually projects (`order__ordered_day__month`).
+- `type` — the logical type.
+- `role` — `"dimension"` or `"measure"`.
+- `label` — optional description.
+
+Constructed by keyword only — `sql_alias` sits second rather than last, so a positional
+call would misassign every field after the first.
+
+**Bind result rows by `sql_alias`, display `name`.** For a measure the two agree; for a
+dimension they do not, because MetricFlow qualifies the column by entity and suffixes a
+date role with its grain. Positional binding — `columns[i]` against projection `i` — works
+and always did.
 
 ### `bloomery.planner.parse_filter_json(payload, *, clause_cap=64) -> tuple[Clause, ...]`
 
@@ -238,6 +255,23 @@ built-in whitelist. Name collisions raise `TransformRegistrationError`. See
 
 Register an extension target emitter; the emitter's `name` becomes a valid `target=`
 string for `compile_project`. Collisions raise `EmitError`.
+
+## Supporting types
+
+Signature closure puts every type named above in the root namespace, so none of them needs
+a deep import:
+
+| Group | Names |
+| --- | --- |
+| Specs and IR | `Project`, `Catalog`, `ProjectIR`, `UnreachableMetric` |
+| Compilation | `EmittedArtifact`, `ArtifactKind`, `TargetEmitter`, `NamingPolicy`, `DefaultNaming` |
+| Analysis | `Resolution`, `FieldProvenance`, `Provenance`, `Node`, `NodeKind` |
+| Planner | `Clause`, `Scalar`, `Explanation`, `MeasureExplanation`, `ColumnRole`, `OrderDirection` |
+| Steps | `StepRegistry`, `StepManifest`, `EMPTY_REGISTRY` |
+| Transforms and types | `TransformSpec`, `ArgKind`, `Builder`, `OutputType`, `LogicalType` |
+
+`Project`, `Catalog` and `ProjectIR` are **handles**: you receive one and pass it back.
+Their fields are internal and change freely — read `Resolution` or `QueryPlan` instead.
 
 ## Errors
 

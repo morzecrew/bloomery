@@ -148,5 +148,11 @@ class MartSet(SpecModel):
     project, optional — a project without marts compiles silver only
     (RFC 0010 D7)."""
 
-    marts_version: int = Field(ge=1)
+    #: Pinned to the one version bloomery implements (RFC 0018 D7). It was
+    #: ``int`` with ``ge=1``, which accepted a document written for a future
+    #: bloomery and silently applied v1 semantics to it — the exact misreading
+    #: a version key exists to refuse. This key is also the document-kind
+    #: discriminator, so it stays required: a document without one cannot be
+    #: identified at all.
+    marts_version: Literal[1]
     marts: dict[RelationName, Mart]

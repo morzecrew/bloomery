@@ -15,10 +15,9 @@ output is locked by tests — change it deliberately.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
-if TYPE_CHECKING:
-    from bloomery.typing import LogicalType
+from bloomery.typing import LogicalType
 
 __all__ = [
     "ColumnDescriptor",
@@ -30,13 +29,35 @@ __all__ = [
 type ColumnRole = Literal["dimension", "measure"]
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, kw_only=True)
 class ColumnDescriptor:
-    """One output column, in bloomery names — callers never see MetricFlow's
-    dunder names (RFC 0013 D7). ``name`` is role-qualified for date-role
-    dimensions at the effective grain (``ordered_month``)."""
+    """One output column: what the caller asked for, and what the SQL returns.
+
+    ``name`` is the caller's vocabulary — role-qualified for date-role
+    dimensions at the effective grain (``ordered_month``), and never a
+    MetricFlow dunder (RFC 0013 D7). ``sql_alias`` is the alias the emitted
+    SQL actually projects, which for a dimension is entity-qualified and
+    grain-suffixed: ``store`` comes back as ``order__store`` and
+    ``ordered_month`` as ``order__ordered_day__month``. Measures agree on both.
+
+    The two exist because they differ (RFC 0009 D24, closed by RFC 0018 D4).
+    Binding a result set positionally works and always did; binding it by
+    ``name`` silently found nothing, because no column in the SQL is called
+    that. Bind by ``sql_alias``; render ``name``. :class:`Explanation`
+    continues to speak ``name``, since an explanation is for a reader.
+
+    **Constructed by keyword only.** ``sql_alias`` was inserted second rather
+    than appended, which reads better and would silently misassign every field
+    of a four-argument positional call — `name`, then the type into
+    ``sql_alias``, the role into ``type``, the label into ``role``, with no
+    error. Keyword-only makes that call fail immediately instead. Appending the
+    field with a default was the alternative and is worse: the only available
+    default is ``name``, which is the defect D4 exists to remove, restored
+    silently for anyone who does not pass the argument.
+    """
 
     name: str
+    sql_alias: str
     type: LogicalType
     role: ColumnRole
     label: str | None = None

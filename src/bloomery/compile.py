@@ -7,19 +7,14 @@ selected dialect port under the naming policy (RFC 0008)."""
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import TYPE_CHECKING
 
 from bloomery.dialects import get_dialect
 from bloomery.emit import EmitContext, EmittedArtifact, get_emitter
 from bloomery.ir import project_fingerprint
-from bloomery.naming import DefaultNaming
+from bloomery.naming import DefaultNaming, NamingPolicy
 from bloomery.resolve import build_project_ir
-from bloomery.steps import EMPTY_REGISTRY
-
-if TYPE_CHECKING:
-    from bloomery.naming import NamingPolicy
-    from bloomery.spec import Catalog, Project
-    from bloomery.steps import StepRegistry
+from bloomery.spec import Catalog, Project
+from bloomery.steps import EMPTY_REGISTRY, StepRegistry
 
 __all__ = [
     "Target",

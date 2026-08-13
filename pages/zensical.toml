@@ -47,6 +47,7 @@ nav = [
         "reference/transforms.md",
         "reference/errors.md",
         "reference/api.md",
+        "reference/stability.md",
     ] },
 ]
 

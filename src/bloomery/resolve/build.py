@@ -79,8 +79,10 @@ from bloomery.resolve.recipes import resolve_recipe
 from bloomery.resolve.refs import mapping_doc
 from bloomery.resolve.resolution import resolve
 from bloomery.resolve.steps import lower_steps, step_entities
+from bloomery.spec.catalog import Catalog
 from bloomery.spec.mapping import ALIAS_BOUND, MacroFieldMapping, RecipeFieldMapping
-from bloomery.steps import EMPTY_REGISTRY
+from bloomery.spec.project import Project
+from bloomery.steps import EMPTY_REGISTRY, StepRegistry
 from bloomery.steps.splice import parameter_literal, placeholders, splice
 from bloomery.transforms import registry
 from bloomery.typing import (
@@ -93,11 +95,9 @@ from bloomery.typing import (
 )
 
 if TYPE_CHECKING:
-    from bloomery.spec.catalog import Catalog
     from bloomery.spec.entity import Entity, Field
     from bloomery.spec.mapping import Mapping, TransformStep
-    from bloomery.spec.project import Project
-    from bloomery.steps import StepManifest, StepRegistry
+    from bloomery.steps import StepManifest
     from bloomery.transforms import Registry
 
 __all__ = [

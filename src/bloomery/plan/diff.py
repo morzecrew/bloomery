@@ -85,7 +85,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 from bloomery.errors import ContractViolation, PlanError, RenameTargetMissing
-from bloomery.ir import OnFail
+from bloomery.ir import OnFail, ProjectIR
 from bloomery.plan.model import BackfillScope, Change, ChangeClass, Plan, ReplayScope
 from bloomery.quality import disposition, payload_key
 from bloomery.spec.quality import EXACT_DECIMAL
@@ -103,7 +103,6 @@ if TYPE_CHECKING:
         EntityIR,
         MartIR,
         MetricIR,
-        ProjectIR,
         QualityRuleIR,
         QuarantineIR,
         ReconcileIR,

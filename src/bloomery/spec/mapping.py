@@ -11,7 +11,7 @@ parse (RFC 0002 D4).
 from __future__ import annotations
 
 from collections.abc import Mapping as AbcMapping
-from typing import Annotated, Self, cast
+from typing import Annotated, Literal, Self, cast
 
 from pydantic import Discriminator, Field, Tag, model_validator
 
@@ -178,7 +178,13 @@ ALIAS_BOUND = (RecipeFieldMapping, MacroFieldMapping)
 class Mapping(SpecModel):
     """One (source, target entity) mapping document (``mapping_version``)."""
 
-    mapping_version: int = Field(ge=1)
+    #: Pinned to the one version bloomery implements (RFC 0018 D7). It was
+    #: ``int`` with ``ge=1``, which accepted a document written for a future
+    #: bloomery and silently applied v1 semantics to it — the exact misreading
+    #: a version key exists to refuse. This key is also the document-kind
+    #: discriminator, so it stays required: a document without one cannot be
+    #: identified at all.
+    mapping_version: Literal[1]
     source: str
     target: str
     key: dict[str, KeyField]

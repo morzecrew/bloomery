@@ -103,7 +103,13 @@ class EntityModel(SpecModel):
     one document a project is guaranteed to have exactly one of.
     """
 
-    spec_version: int = PydanticField(ge=1)
+    #: Pinned to the one version bloomery implements (RFC 0018 D7). It was
+    #: ``int`` with ``ge=1``, which accepted a document written for a future
+    #: bloomery and silently applied v1 semantics to it — the exact misreading
+    #: a version key exists to refuse. This key is also the document-kind
+    #: discriminator, so it stays required: a document without one cannot be
+    #: identified at all.
+    spec_version: Literal[1]
     entities: dict[RelationName, Entity]
     relationships: tuple[Relationship, ...] = ()
     reconcile: tuple[Reconcile, ...] = ()
