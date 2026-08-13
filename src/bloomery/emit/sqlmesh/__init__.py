@@ -2,7 +2,7 @@
 
 One ``MODEL (...)`` block plus ``SELECT`` per entity at
 ``models/<namespace>/<relation>.sql``. The SELECT is built as a SQLGlot AST
-by the shared lowering (:mod:`bloomery.emit.lowering` — the same AST dbt
+by the shared lowering (:mod:`bloomery.emit.lower` — the same AST dbt
 renders) and rendered through the dialect port; Jinja renders only the
 envelope, from a template that interpolates *pre-rendered strings*, never SQL
 fragments (RFC 0008 D4). Every artifact carries a header comment with the
@@ -55,7 +55,7 @@ from bloomery.emit.base import (
     Feature,
     TargetCapabilities,
 )
-from bloomery.emit.lowering import (
+from bloomery.emit.lower import (
     REJECT_KEY,
     ROW_ID_COUNT_COLUMN,
     audit_predicate,

@@ -44,7 +44,7 @@ import jinja2
 from sqlglot import exp
 
 from bloomery.emit.base import ArtifactKind, EmittedArtifact
-from bloomery.emit.lowering import THIS_MODEL
+from bloomery.emit.lower import THIS_MODEL
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import Layer, OnFail, StepKind
 from bloomery.quality import is_not_null, verdict

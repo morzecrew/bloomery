@@ -25,7 +25,7 @@ from bloomery import MetricRequest, Target, build_project_ir, compile_project, l
 from bloomery.dialects import get_dialect
 from bloomery.emit import ArtifactKind, EmitContext
 from bloomery.emit.dbt import DbtEmitter
-from bloomery.emit.lowering import quality_mart_select
+from bloomery.emit.lower import quality_mart_select
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import DedupeIR, OnFail, ProjectIR, SCDKind
 from bloomery.naming import DefaultNaming, PrefixNaming

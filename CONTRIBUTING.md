@@ -108,7 +108,8 @@ Compilation is a pure function: same specs in, byte-identical artifacts out. Con
 (RFC 0003):
 
 - no `datetime.now()`, `time.time()`, `uuid4()`, `random`, `os.environ`, filesystem, or
-  network access anywhere under `src/bloomery/` — a pre-commit pygrep hook bans the lot
+  network access anywhere under `src/bloomery/` — `tools/check_purity.py` bans the lot as
+  a step of `just quality`, so CI enforces it rather than only a local commit hook
 - never iterate a `set` where order can reach output; IR collections are sorted tuples
 - no floats in the IR or emission paths — `Decimal` or int only
 
@@ -133,6 +134,34 @@ Consistency:
 - Update documentation when behavior changes; keep docs aligned with code.
 - Add or update pages under `pages/docs/` and adjust `pages/zensical.toml` navigation as needed.
 - Follow markdownlint rules (see `.markdownlint.yaml`) for style consistency.
+
+## Structural contracts
+
+Some invariants are enforced by `just quality` rather than by review, and a change that
+breaks one fails the gate with the rule named. Five import contracts run under
+`lint-imports`:
+
+- **Layered bloomery compile pipeline** — the package order from `planner` down to
+  `errors`. A lower layer never imports a higher one.
+- **Emitters never import the spec layer** — the emit side consumes IR. That is what
+  having an IR is for.
+- **Lowering is target-independent** — nothing in `bloomery/emit/lower/` may import
+  `emit/sqlmesh`, `emit/dbt`, `emit/cube` or `emit/metricflow`.
+- **Targets never import each other** — each assembles from the shared lowering and
+  nothing else on the emit side.
+- **Lowering stages compose downward** — `predicates` → `silver`/`marts` → `reconcile`
+  → `quality_mart`. A stage may read a lower one and never a higher or lateral one.
+
+**Adding a lowering stage** means adding a module under `bloomery/emit/lower/`, placing
+it in that layer list, and re-exporting its public names from
+`bloomery/emit/lower/__init__.py` — the surface emitters import. If a new stage needs
+something from a stage above it, the layering is wrong rather than the contract.
+
+`just quality` also runs `tools/check_purity.py`, which walks `src/bloomery/` and refuses
+imports that make I/O possible (`os`, `pathlib`, `requests`, …) and calls that read a
+clock or a random source. Compilation takes its inputs as arguments; a clock read in the
+package breaks byte-identical recompilation. `tests/` is out of scope — a test
+legitimately touches the filesystem.
 
 ## Commit Messages
 

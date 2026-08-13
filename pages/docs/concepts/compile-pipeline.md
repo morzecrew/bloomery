@@ -113,6 +113,31 @@ Unreachable metrics are IR members, not log lines: "you can't get margin because
 is missing" is a product-facing answer, and it travels with the IR to whatever surface
 needs it.
 
+## Lowering is shared; assembly is not
+
+The ports vary over targets, but the SQL a spec becomes does not. Both split fall on
+either side of one line: **targets differ in assembly and share lowering.** SQLMesh and
+dbt emit the same silver `SELECT` for the same entity under the same dialect; what
+differs is the file they write it into and the metadata around it.
+
+That is why lowering lives in one place, `bloomery.emit.lower`, decomposed by pipeline
+stage rather than by target:
+
+| Stage | What it lowers |
+| --- | --- |
+| `predicates` | literal spellings and audit predicates — the base, importing no sibling |
+| `silver` | the entity `SELECT`: extract, rules, routing, dedupe, reject, replay |
+| `reconcile` | reconcile models, coverage checks, mart asserts |
+| `quality_mart` | rule evaluations as an ordinary gold model |
+| `marts` | mart flattening, the date dimension, measure ownership |
+
+The order is a dependency order: stages compose downward and never sideways or upward.
+A lowering module that imported a target would invert the split above — it is the shape
+in which a change made for one target starts quietly constraining another — so two
+import contracts forbid it: lowering imports no target, and no target imports another.
+Both are checked on every run of the quality gate, and each is exercised by a test that
+plants the violation it forbids.
+
 ## Four ports
 
 Everything variable around the pure core is a port — a `typing.Protocol` an adapter

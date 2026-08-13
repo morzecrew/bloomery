@@ -1,5 +1,22 @@
 """The spec differ: ``plan(old, new) -> Plan`` (RFC 0007).
 
+**This module is deliberately not split** (RFC 0019 D7). The lowering half of
+that wave decomposed into a clean five-stage DAG; this one was measured on the
+same axis and does not. Its candidate stages —
+``entities``/``marts``/``quality``/``steps``/``classify``/``scope`` — leave 28
+symbols crossing 12 edges, and the two largest, the structural walk and the
+entity/field diff, reference each other *both ways*: six symbols out and five
+back. That is a cycle, not a layering, so no contract could hold the split and
+the indirection needed to break it does not exist today. Two of the remaining
+candidates come to fewer than 100 lines each.
+
+The ``classify``/``scope`` isolation §5.3 wanted most is the part that survives
+as a finding rather than a change: the ChangeClass decision table really is
+interleaved with the walking that feeds it, and untangling it is a behaviour-
+bearing change, not a move. Size is not the trigger — convergence is (D2), and
+this file sees one spec kind's worth of IR at a time rather than every target
+at once. Revisit if either symptom in RFC 0019 §2 appears.
+
 A pure structural diff of two frozen :class:`~bloomery.ir.ProjectIR`s — no
 external lineage, no I/O (D2). Subjects match by name; ``renamed_from``
 bridges column identity across a rename (D3). Classification follows the
@@ -878,7 +895,7 @@ def _raw_payload_columns(entity: EntityIR) -> frozenset[str]:
     """The bronze **columns** the reject table's ``raw`` carries, redaction
     aside — mapped and acknowledged-``unmapped:`` paths alike, keyed by
     top-level column exactly as ``_payload_columns`` keys them
-    (:mod:`bloomery.emit.lowering`, §5.6).
+    (:mod:`bloomery.emit.lower`, §5.6).
 
     Keying by column rather than by path is what makes the comparison honest in
     both directions: ``$.a.b`` → ``$.a.c`` emits the identical model, and a path

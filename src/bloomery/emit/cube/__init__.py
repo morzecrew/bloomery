@@ -63,7 +63,7 @@ from bloomery.emit.base import (
     Feature,
     TargetCapabilities,
 )
-from bloomery.emit.metricflow import measure_owners
+from bloomery.emit.lower import measure_owners
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import (
     Additivity,

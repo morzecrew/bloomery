@@ -20,7 +20,7 @@ from decimal import Decimal
 
 import duckdb
 import pytest
-from bloomery.emit.lowering import _candidate_wins
+from bloomery.emit.lower.silver import _candidate_wins
 from bloomery.ir import DedupeIR
 from support.compiling import compile_fixture
 from support.plan_ir import entity as plan_entity

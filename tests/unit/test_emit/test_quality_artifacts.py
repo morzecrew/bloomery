@@ -18,13 +18,8 @@ from bloomery import Target, build_project_ir, compile_project
 from bloomery.dialects import get_dialect
 from bloomery.emit import ArtifactKind, EmitContext
 from bloomery.emit.sqlmesh import SQLMeshEmitter
-from bloomery.emit.lowering import (
-    REJECT_KEY,
-    _schema_column,
-    entity_select,
-    ingestion_audit_predicate,
-    mart_select,
-)
+from bloomery.emit.lower import REJECT_KEY, entity_select, ingestion_audit_predicate, mart_select
+from bloomery.emit.lower.silver import _schema_column
 from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.ir import MartJoinIR
 from bloomery.marts import HAS_QUALITY_FLAGS

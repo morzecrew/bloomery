@@ -99,7 +99,7 @@ def disjunction(parts: Sequence[Expression]) -> Expression:
 
 def is_null(node: Expression) -> Expression:
     """``<node> IS NULL``. Public because the replay comparison in
-    :mod:`bloomery.emit.lowering` must express the same NULL discipline this
+    :mod:`bloomery.emit.lower` must express the same NULL discipline this
     module owns, and two spellings of it is how they drift apart."""
     return exp.Is(this=node, expression=exp.null())
 
