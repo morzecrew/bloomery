@@ -323,6 +323,21 @@ forbidden_modules = ["bloomery.spec"]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
+# RFC 0019 D4, contract 3. Each target assembles from the shared lowering and
+# from nothing else on the emit side. A target reading another target is how
+# two of them come to agree by copy rather than by construction, which is
+# exactly the divergence the three-way equivalence tier exists to catch — and
+# it would catch it much later than this does.
+name = "Targets never import each other"
+type = "independence"
+modules = [
+    "bloomery.emit.cube",
+    "bloomery.emit.dbt",
+    "bloomery.emit.metricflow",
+    "bloomery.emit.sqlmesh",
+]
+
+[[tool.importlinter.contracts]]
 # RFC 0019 D4, contract 1. The pipeline-wide `layers` contract above sees
 # `bloomery.emit` as one layer, so it cannot constrain direction *inside* it —
 # and the direction that matters most is this one. RFC 0008 splits the ports on
@@ -332,7 +347,7 @@ allow_indirect_imports = true
 # D25/D32 is the defect shape).
 name = "Lowering is target-independent"
 type = "forbidden"
-source_modules = ["bloomery.emit.lowering"]
+source_modules = ["bloomery.emit.lower"]
 forbidden_modules = [
     "bloomery.emit.cube",
     "bloomery.emit.dbt",
@@ -421,4 +436,22 @@ ignore = [
     "RUF002", # see RUF001
     "RUF003", # see RUF001
     "RUF022", # __all__ is deliberately grouped by category (mirrors export tables), not sorted
+]
+
+[[tool.importlinter.contracts]]
+# RFC 0019 D4, contract 2 — as layers rather than independence, which is what
+# the code turned out to support. The stages form a DAG: `quality_mart` reads
+# the extract helpers and the reconcile grammar, `reconcile` reads a literal
+# speller and the `@this_model` alias. Forbidding that outright would push four
+# genuinely-shared functions into a `_shared` module that is a monolith by
+# another name. What must not happen is a stage reaching *sideways or upward*,
+# which is how a split decays back into one file spread over five, and that is
+# exactly what a layers contract forbids.
+name = "Lowering stages compose downward"
+type = "layers"
+layers = [
+    "(bloomery.emit.lower.quality_mart)",
+    "(bloomery.emit.lower.reconcile)",
+    "(bloomery.emit.lower.silver) | (bloomery.emit.lower.marts)",
+    "(bloomery.emit.lower.predicates)",
 ]

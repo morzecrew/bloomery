@@ -7,7 +7,7 @@ predicate bloomery builds.
 
 It is not "whatever SQLMesh happens to have". The pinned sqlmesh (0.236) ships
 ``accepted_range`` and ``match_regex_pattern_list``, and reading their queries
-beside :func:`~bloomery.emit.lowering.audit_predicate` they mean *exactly* the
+beside :func:`~bloomery.emit.lower.audit_predicate` they mean *exactly* the
 same thing — ``accepted_range(min_v := N)`` is ``column < N`` and
 ``match_regex_pattern_list(patterns := [p])`` is ``NOT REGEXP_LIKE(column, p)``.
 Availability was never the constraint.

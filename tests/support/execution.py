@@ -20,7 +20,7 @@ from sqlglot import expressions as exp
 from support.compiling import expand_engine_macros, extract_select
 
 from bloomery.emit import ArtifactKind, EmittedArtifact
-from bloomery.emit.lowering import THIS_MODEL
+from bloomery.emit.lower import THIS_MODEL
 
 __all__ = [
     "DEFAULT_SCHEMAS",

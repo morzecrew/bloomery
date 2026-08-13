@@ -12,7 +12,7 @@ the corpus or in the suite, and the harness fails and names it; nothing here is
 allowed to be "expected to survive".
 
 Applied by monkeypatching the *importing* module, not only the defining one:
-:mod:`bloomery.emit.lowering` binds ``violation``, ``disposition`` and
+:mod:`bloomery.emit.lower` binds ``violation``, ``disposition`` and
 ``with_dedupe_qualify`` by ``from … import``, so patching the definition alone
 would silently do nothing — which would make every mutation "survive" for the
 most boring possible reason.
@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 
 from sqlglot import exp
 
-from bloomery.emit import lowering
+from bloomery.emit import lower as lowering
 from bloomery.ir import OnFail
 from bloomery.marts import HAS_QUALITY_FLAGS
 from bloomery.quality import predicates

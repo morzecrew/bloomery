@@ -99,6 +99,7 @@ from metricflow_semantic_interfaces.type_enums.metric_type import MetricType
 from metricflow_semantic_interfaces.type_enums.time_granularity import TimeGranularity
 
 from bloomery.emit.base import Feature, TargetCapabilities
+from bloomery.emit.lower import measure_owners
 from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.ir import Additivity, Layer, SemiAdditiveRule
 
@@ -207,25 +208,6 @@ def _non_additive_dimension(
         window_choice=window_choice,
         window_groupings=[],
     )
-
-
-def measure_owners(ir: ProjectIR) -> dict[str, MartIR]:
-    """Metric name → the single mart its measure is emitted on: cheapest
-    ``cost_hint``, ties lexicographic by mart name (RFC 0010 D8).
-
-    Public on purpose: the planner's coverage precheck (RFC 0013 R3) imports
-    this exact function, so the emitter's measure placement and the planner's
-    mart selection cannot disagree."""
-    owners: dict[str, MartIR] = {}
-    for mart in ir.marts:
-        for name in mart.measures:
-            current = owners.get(name)
-            if current is None or (mart.cost_hint, mart.name) < (
-                current.cost_hint,
-                current.name,
-            ):
-                owners[name] = mart
-    return owners
 
 
 def _day_columns(mart: MartIR) -> dict[str, str]:

@@ -9,7 +9,7 @@ one decision.
 
 Its real job is proving the port abstraction (RFC 0008 D5, spec §9): it ships
 minimal but honest, and every SELECT is the **same** dialect-port-rendered
-AST the SQLMesh emitter renders (:mod:`bloomery.emit.lowering`) — only the
+AST the SQLMesh emitter renders (:mod:`bloomery.emit.lower`) — only the
 envelope and the way inputs are *named* differ. Do not read it as
 production-grade dbt scaffolding.
 
@@ -82,7 +82,7 @@ from bloomery.emit.base import (
     Feature,
     TargetCapabilities,
 )
-from bloomery.emit.lowering import (
+from bloomery.emit.lower import (
     audit_predicate,
     column_type,
     dim_date_select,

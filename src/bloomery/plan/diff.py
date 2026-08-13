@@ -878,7 +878,7 @@ def _raw_payload_columns(entity: EntityIR) -> frozenset[str]:
     """The bronze **columns** the reject table's ``raw`` carries, redaction
     aside — mapped and acknowledged-``unmapped:`` paths alike, keyed by
     top-level column exactly as ``_payload_columns`` keys them
-    (:mod:`bloomery.emit.lowering`, §5.6).
+    (:mod:`bloomery.emit.lower`, §5.6).
 
     Keying by column rather than by path is what makes the comparison honest in
     both directions: ``$.a.b`` → ``$.a.c`` emits the identical model, and a path

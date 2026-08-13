@@ -29,7 +29,7 @@ import difflib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from bloomery.emit.metricflow import measure_owners
+from bloomery.emit.lower import measure_owners
 from bloomery.errors import (
     AmbiguousDimension,
     InvalidRequest,
