@@ -909,6 +909,11 @@
         },
         {
           "additionalProperties": false,
+          "not": {
+            "required": [
+              "step"
+            ]
+          },
           "properties": {
             "args": {
               "default": [],
@@ -969,7 +974,83 @@
               "title": "Step"
             }
           },
-          "title": "TransformStep",
+          "required": [
+            "name"
+          ],
+          "title": "Normalized transform step",
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "not": {
+            "required": [
+              "name"
+            ]
+          },
+          "properties": {
+            "args": {
+              "default": [],
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "title": "Args",
+              "type": "array"
+            },
+            "name": {
+              "enum": [
+                "abs",
+                "coalesce",
+                "concat",
+                "convert",
+                "divide",
+                "enum_map",
+                "json_path",
+                "lower",
+                "multiply",
+                "nullif",
+                "parse_date",
+                "parse_ts",
+                "regex_extract",
+                "round",
+                "split_part",
+                "strip_prefix",
+                "strip_suffix",
+                "to_bool",
+                "to_decimal",
+                "to_int",
+                "to_string",
+                "to_utc",
+                "trim",
+                "upper"
+              ],
+              "title": "Name",
+              "type": "string"
+            },
+            "step": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z][a-z0-9_]*@[1-9][0-9]*$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "title": "Step"
+            }
+          },
+          "required": [
+            "step"
+          ],
+          "title": "Step reference",
           "type": "object"
         }
       ],

@@ -141,11 +141,14 @@ contain and how to point an editor at them.
 | `1` | A **refusal**. Bloomery read the spec and said no, with a reason and a source path. |
 | `2` | A **usage error**: a path that is not there, a flag that is not a flag. |
 
-The line between them is *who* said no. Anything bloomery itself refuses is `1`, and that
-includes an unknown `--target` or `--dialect` — the set of targets is open (you can
-register one), so the library is the only thing that can decide, and its answer names the
-targets it does have. `2` is for the parts the CLI owns: a path, a flag, a `--where`
-document that is not JSON.
+The line between them is *whose mistake it was*. `1` means bloomery read your spec and
+said no. `2` means the invocation was wrong before any spec was opened — a path, a flag,
+a `--where` document that is not JSON, a mistyped `--target`, `--dialect`, `--grain` or
+`--policy`, a file that is not UTF-8 or cannot be read.
+
+`main` **returns** these codes rather than raising, so a Python caller can read them:
+`from bloomery.cli import main; code = main(["resolve", "specs/"])`. That holds for
+argparse's own refusals too.
 
 The split matters for scripting. A refusal is a *correct* outcome — the compiler did its
 job — so a pipeline that retries on it will retry forever. Branch on the code:

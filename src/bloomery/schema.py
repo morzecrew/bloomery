@@ -137,6 +137,15 @@ def _transform_step_schema(generated: JsonDict) -> JsonDict:
     only honest scope: two processes with the same registry agree byte for
     byte, and one that registered an extra transform genuinely parses a
     different language.
+
+    **The normalized form splits in two**, because ``TransformStep``'s fields
+    all carry defaults and Pydantic writes nothing required. One branch let
+    ``{}`` and ``{name: …, step: …}`` through, and the model validator refuses
+    both — a chain step is a transform name *or* a step reference, never
+    neither and never both. Review caught it, and so did nothing else: the
+    agreement property mutates fixtures, and neither shape is a mutation of a
+    real one. Requiring exactly one of the two keys per branch is that
+    validator, said in JSON Schema.
     """
     names = sorted(registry())
     argument: JsonDict = {"anyOf": [{"type": "string"}, {"type": "integer"}]}
@@ -167,8 +176,37 @@ def _transform_step_schema(generated: JsonDict) -> JsonDict:
                     "anyOf": [*_as_list(argument["anyOf"]), {"type": "array", "items": argument}]
                 },
             },
-            normalized,
+            _one_kind_of_link(normalized, "Normalized transform step", "name", "step"),
+            _one_kind_of_link(normalized, "Step reference", "step", "name"),
         ],
+    }
+
+
+def _one_kind_of_link(normalized: JsonDict, title: str, present: str, absent: str) -> JsonDict:
+    """The normalized object with exactly one of ``name``/``step`` required.
+
+    ``not: {required: [absent]}`` rather than dropping the property: dropping
+    it would collide with ``additionalProperties: false``, and stating it as a
+    refusal is also what the model says — the two keys are alternatives, not
+    an ordering.
+
+    The object is written out twice rather than shared through a ``$ref`` and
+    an ``allOf``: ``additionalProperties: false`` does not see through
+    ``allOf``, so the shared form would start accepting unknown keys — the one
+    property §5.1 checks at every level. Duplication in a generated document
+    costs nothing a reader pays.
+
+    ``required`` is merged with whatever the model already declared rather than
+    replacing it. Nothing is required on ``TransformStep`` today, so the merge
+    is a no-op — and if a field ever becomes required, overwriting would have
+    quietly dropped it from one of the two branches.
+    """
+    existing = [str(item) for item in _as_list(normalized.get("required"))]
+    return {
+        **normalized,
+        "title": title,
+        "required": sorted({*existing, present}),
+        "not": {"required": [absent]},
     }
 
 

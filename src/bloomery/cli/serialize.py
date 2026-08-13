@@ -33,8 +33,8 @@ if TYPE_CHECKING:
     from bloomery import EmittedArtifact
 
 __all__ = [
-    "as_json_value",
     "artifacts_as_json",
+    "as_json_value",
 ]
 
 

@@ -113,9 +113,13 @@ remaining gaps are measured rather than assumed:
 | An invented transform name | Schema | Transform existence is a *typecheck*-stage refusal, so the parser accepts the document and a later stage refuses it. The schema refuses it at the door, which is the export earning its keep. |
 | `reconcile.tolerance: 0.01` | Parser | The parser refuses a YAML float (a binary approximation would reach emission); JSON Schema has one numeric type and cannot tell `0.01` from `1`. `tolerance: 0` is an int and parses, so the schema cannot simply forbid numbers. |
 | `agg` on a metric | Neither | A mart measure's `agg` is a closed set; an authored metric's is a free string in the model, so the schema mirrors that. An out-of-vocabulary value parses and is inert. |
+| `{round: [true]}` as a transform argument | Schema | `args` is `str | int`, and Pydantic's lax mode coerces a bool into it — `true` parses and arrives as the integer `1`. JSON Schema types a boolean as itself. An integral float is *not* a divergence: JSON Schema's `integer` accepts `1.0` exactly as Pydantic does. |
+| `{name: to_string, step: null}` | Schema | The one-of encoding asks whether the `step` *key* is present; the model asks whether it has a value. Nothing documents that spelling. |
 
-Only the second is a case where a document passes the schema and fails the parser — the
-direction that costs a round-trip — and it is one key.
+Only `tolerance` is a case where a document passes the schema and fails the parser — the
+direction that costs a round-trip — and it is one key. Everything else here is the schema
+being the stricter of the two, which for a pre-filter is the safe direction: a constrained
+generator simply never writes those spellings.
 
 ## Determinism
 

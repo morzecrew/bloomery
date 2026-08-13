@@ -182,7 +182,7 @@ def test_the_transform_whitelist_is_an_enumeration_in_every_authored_spelling() 
     assert isinstance(step, dict)
     branches = step["TransformStep"]["anyOf"]  # pyright: ignore[reportUnknownVariableType, reportIndexIssue]
     assert isinstance(branches, list)
-    bare, single_key, normalized = branches
+    bare, single_key, normalized, link = branches
     assert bare["enum"] == expected
     assert single_key["propertyNames"]["enum"] == expected
     assert normalized["properties"]["name"]["enum"] == expected
@@ -193,6 +193,12 @@ def test_the_transform_whitelist_is_an_enumeration_in_every_authored_spelling() 
     # The empty-string default is gone with it: the model validator refuses a
     # document that spells the "this is a step: link instead" sentinel out.
     assert "default" not in normalized["properties"]["name"]
+    # The normalized form is two branches, one per alternative, because every
+    # field carries a default and Pydantic writes nothing required — so a
+    # single branch admitted `{}` and `{name, step}`, which the model validator
+    # refuses (RFC 0017 D51: a chain step is a name or a step, never both).
+    assert normalized["required"] == ["name"] and normalized["not"] == {"required": ["step"]}
+    assert link["required"] == ["step"] and link["not"] == {"required": ["name"]}
 
 
 def test_the_logical_type_grammar_is_a_pattern_rather_than_an_enum() -> None:

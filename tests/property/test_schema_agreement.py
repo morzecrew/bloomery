@@ -36,6 +36,7 @@ from hypothesis import strategies as st
 from jsonschema import Draft202012Validator
 
 from bloomery import SpecKind, all_spec_schemas, load_catalog, load_project
+from bloomery.spec import Mapping
 from bloomery.errors import SpecParseError
 
 if TYPE_CHECKING:
@@ -338,6 +339,104 @@ def test_agg_is_closed_on_a_mart_and_free_on_a_metric() -> None:
     }
     assert not _validates(SpecKind.MARTS, mart_document)
     assert not _parses(SpecKind.MARTS, mart_document)
+
+
+@pytest.mark.parametrize(
+    "chain",
+    [
+        pytest.param([{}], id="neither-name-nor-step"),
+        pytest.param([{"name": "to_string", "step": "extract_domain@1"}], id="both"),
+    ],
+)
+def test_a_transform_step_that_is_neither_or_both_is_refused_by_both(
+    chain: list[dict[str, Any]],
+) -> None:
+    """The shape the mutation strategies structurally cannot reach.
+
+    ``TransformStep``'s fields all carry defaults, so Pydantic writes nothing
+    required and the generated object accepted an empty step and a step
+    claiming to be a transform *and* a step reference — both of which the model
+    validator refuses (RFC 0017 D51). Neither is a mutation of a real fixture:
+    the strategies above replace and add, and this is an *absence*. Review
+    found it; this is what would find it again.
+    """
+    document = {
+        "mapping_version": 1,
+        "source": "s",
+        "target": "e",
+        "key": {"k": {"from": "$.id", "transform": chain}},
+    }
+    assert not _parses(SpecKind.MAPPING, document), chain
+    assert not _validates(SpecKind.MAPPING, document), chain
+
+
+def test_the_schema_refuses_a_boolean_transform_argument_the_parser_coerces() -> None:
+    """One measured divergence, of the ``tolerance`` shape and from the other
+    direction (RFC 0020 D10).
+
+    ``TransformStep.args`` is ``str | int``, and Pydantic's lax mode coerces a
+    bool into it: ``{round: [true]}`` parses and arrives as the **integer 1**,
+    while JSON Schema types a boolean as itself and refuses it.
+
+    An integral float is *not* a divergence, which is worth pinning because it
+    looks like one: JSON Schema's ``integer`` accepts ``1.0`` (a number with
+    zero fractional part), exactly as Pydantic does, and both refuse ``1.5``.
+
+    Stricter-schema is the safe direction here — a constrained generator simply
+    never writes ``true`` where an argument belongs. Narrowing ``args`` to
+    reject it is a change to the *spec language*, an RFC 0002/0004 question,
+    not one this wave settles by tightening an export.
+    """
+    for spelling in (True, False):
+        document = {
+            "mapping_version": 1,
+            "source": "s",
+            "target": "e",
+            "key": {"k": {"from": "$.id", "transform": [{"round": [spelling]}]}},
+        }
+        assert _parses(SpecKind.MAPPING, document), spelling
+        assert not _validates(SpecKind.MAPPING, document), spelling
+
+    for agreed in (1, 1.0):
+        document = {
+            "mapping_version": 1,
+            "source": "s",
+            "target": "e",
+            "key": {"k": {"from": "$.id", "transform": [{"round": [agreed]}]}},
+        }
+        assert _parses(SpecKind.MAPPING, document), agreed
+        assert _validates(SpecKind.MAPPING, document), agreed
+
+    parsed = Mapping.model_validate(
+        {
+            "mapping_version": 1,
+            "source": "s",
+            "target": "e",
+            "key": {"k": {"from": "$.id", "transform": [{"round": [True]}]}},
+        }
+    )
+    # The sharper half, which the schema cannot express and the parser does not
+    # announce: `true` does not stay a bool, it becomes 1.
+    assert parsed.key["k"].transform[0].args == (1,)
+
+
+def test_the_schema_is_stricter_about_an_explicitly_null_step() -> None:
+    """The over-strictness the one-of encoding introduces, measured not hidden.
+
+    JSON Schema's ``required`` asks whether a *key* is present; the model asks
+    whether ``step`` has a value. So ``{name: to_string, step: null}`` parses
+    and the schema refuses it. Nothing documents that spelling and no fixture
+    writes it, so the encoding stays the readable one — but the gap is a fact
+    rather than an assumption.
+    """
+    document = {
+        "mapping_version": 1,
+        "source": "s",
+        "target": "e",
+        "key": {"k": {"from": "$.id", "transform": [{"name": "to_string", "step": None}]}},
+    }
+    assert _parses(SpecKind.MAPPING, document)
+    assert not _validates(SpecKind.MAPPING, document)
 
 
 def test_an_invented_transform_is_refused_by_the_schema() -> None:

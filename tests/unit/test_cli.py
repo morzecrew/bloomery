@@ -24,16 +24,24 @@ asserted through a subprocess.
 from __future__ import annotations
 
 import json
+import os
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 
 from bloomery import (
+    BackfillScope,
+    Change,
+    ChangeClass,
     LruManifestHydrator,
     MetricFlowPlanner,
     MetricRequest,
     Op,
+    Plan,
+    ReplayScope,
+    Resolution,
     RowPolicy,
     SpecKind,
     Target,
@@ -46,6 +54,7 @@ from bloomery import (
 )
 from bloomery.cli import EXIT_OK, EXIT_REFUSED, EXIT_USAGE, build_parser, main
 from bloomery.cli.io import CliIoError, read_spec_directory, write_files
+from bloomery.cli.render import render_plan, render_resolution
 from bloomery.cli.serialize import as_json_value
 from bloomery.naming import DefaultNaming
 from support.compiling import load_fixture
@@ -309,6 +318,67 @@ def test_a_refused_filter_construct_stays_a_refusal(capsys: pytest.CaptureFixtur
     assert "use like/ilike" in err
 
 
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ("explain", ECOM, "--metrics", "gross_revenue", "--limit", "notanint"),
+        ("compile", ECOM, "--nonsuch-flag"),
+        ("nonsuch-command",),
+    ],
+    ids=["bad-int", "unknown-flag", "unknown-command"],
+)
+def test_a_parser_level_usage_error_is_returned_not_raised(
+    capsys: pytest.CaptureFixture[str], argv: tuple[str, ...]
+) -> None:
+    """``main``'s docstring invites calling it as a function and reading the
+    code. ``argparse.parse_args`` writes its message and *raises* ``SystemExit``,
+    so these three escaped instead of coming back as ``2`` — the shell saw the
+    right code, a programmatic caller saw an exception."""
+    code, _out, _err = run(capsys, *argv)
+    assert code == EXIT_USAGE
+
+
+def test_help_returns_zero_rather_than_raising(capsys: pytest.CaptureFixture[str]) -> None:
+    """The other ``SystemExit`` argparse raises. Passing the code through
+    rather than flattening every parser exit to ``2`` is what keeps this ``0``."""
+    code, out, _err = run(capsys, "--help")
+    assert code == EXIT_OK
+    assert "compile" in out
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected"),
+    [
+        (("compile", ECOM, "--target", "sqlmehs"), "unknown target"),
+        (("compile", ECOM, "--dialect", "ducdkb"), "unknown dialect"),
+        (
+            ("explain", ECOM, "--metrics", "gross_revenue", "--dialect", "ducdkb"),
+            "unknown dialect",
+        ),
+    ],
+    ids=["target", "compile-dialect", "explain-dialect"],
+)
+def test_a_mistyped_target_or_dialect_is_a_usage_error(
+    capsys: pytest.CaptureFixture[str], argv: tuple[str, ...], expected: str
+) -> None:
+    """Both resolve through the library and raised `EmitError`, so a typo came
+    back as `1` — "bloomery read your spec and said no" — for a spec it never
+    opened. `--grain` and `--policy` already get this treatment; these two were
+    the inconsistency."""
+    code, _out, err = run(capsys, *argv)
+    assert code == EXIT_USAGE
+    assert expected in err
+
+
+def test_a_known_target_is_not_caught_by_the_name_check(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The nearest non-trigger. A check that refused everything would pass every
+    assertion above."""
+    code, _out, err = run(capsys, "compile", ECOM, "--target", "cube", "--out", str(tmp_path))
+    assert code == EXIT_OK, err
+
+
 def test_the_two_failure_codes_are_distinct() -> None:
     """Stated as a property, because the whole point of the split is that a
     script can branch on it."""
@@ -412,7 +482,120 @@ def test_a_missing_explicit_catalog_is_a_usage_error(capsys: pytest.CaptureFixtu
 
 
 # ....................... #
+# The renderer and the serializer, on the branches the corpus does not reach
+
+
+def test_an_empty_plan_says_so_rather_than_printing_a_header() -> None:
+    """`plan(ir, ir)` is the empty plan (RFC 0007 D2). A table with a zero count
+    and no rows would read as "something happened and I lost it"."""
+    empty = Plan(changes=(), backfill_scope=BackfillScope(entities=(), restates_history=False), downstream_impact=())
+    assert render_plan(empty) == "No changes."
+
+
+def test_the_plan_table_carries_replay_and_downstream_sections() -> None:
+    """Two sections nothing in the fixture corpus produces together. Both are
+    conditional, so both are a branch that can silently stop rendering."""
+    rendered = render_plan(
+        Plan(
+            changes=(
+                Change(
+                    entity="order",
+                    subject="quality:total_positive",
+                    change_class=ChangeClass.RESTATING,
+                    detail="rule relaxed",
+                ),
+            ),
+            backfill_scope=BackfillScope(entities=("order",), restates_history=True),
+            downstream_impact=("gross_revenue",),
+            replay_scope=ReplayScope(entities=("order",)),
+        )
+    )
+    assert "1 breaking" not in rendered
+    assert "Quarantine replay scope" in rendered
+    assert "Downstream metrics" in rendered
+    assert "gross_revenue" in rendered
+    # Padded to the widest cell per column, and never with trailing whitespace:
+    # invisible in a terminal, very visible in a diff of captured output.
+    assert not any(line != line.rstrip() for line in rendered.splitlines())
+
+
+def test_an_empty_resolution_renders_both_headers() -> None:
+    """A project with nothing reachable is a legitimate state — a catalog-free
+    bring-up — and the zero counts are the answer, not an empty page."""
+    rendered = render_resolution(
+        Resolution(
+            reachable_metrics=(), unreachable_metrics=(), provenance=(), topo_order=()
+        )
+    )
+    assert rendered.splitlines() == ["Reachable (0)", "", "Unreachable (0)"]
+
+
+def test_a_decimal_serializes_as_a_string_never_a_float() -> None:
+    """The core invariant, at the one seam that could break it (RFC 0003 D5).
+
+    `json.dumps` would turn a float into a lossy decimal literal, and a caller
+    reading a tolerance or a measure back as `0.1 + 0.2` is the whole reason
+    floats are banned from the package.
+    """
+    assert as_json_value(Decimal("0.01")) == "0.01"
+    assert as_json_value((Decimal("1.10"),)) == ["1.10"]
+    assert json.dumps(as_json_value(Decimal("0.01"))) == '"0.01"'
+
+
+def test_a_mapping_serializes_with_string_keys() -> None:
+    """JSON objects are keyed by strings; a returned mapping keyed by an enum
+    would otherwise reach `json.dumps` and fail there instead of here."""
+    assert as_json_value({SpecKind.METRICS: (1, 2)}) == {"metrics": [1, 2]}
+
+
+# ....................... #
 # io.py's own edges
+
+
+def test_a_non_utf8_document_is_a_usage_error(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """`Path.read_text` raises `UnicodeDecodeError`, which `main` does not
+    catch — so a latin-1 spec printed a traceback."""
+    (tmp_path / "entity_model.yaml").write_bytes("spec_version: 1  # caf\xe9\n".encode("latin-1"))
+    code, _out, err = run(capsys, "resolve", str(tmp_path))
+    assert code == EXIT_USAGE
+    assert "not UTF-8 text" in err
+
+
+def test_an_unreadable_document_is_a_usage_error(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The other half: `is_file()` says it is a file, and the read still fails.
+    Skipped when the suite runs as root, for whom the mode bits do nothing."""
+    if os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
+        pytest.skip("root ignores the permission bits this test sets")
+    document = tmp_path / "entity_model.yaml"
+    document.write_text("spec_version: 1\nentities: {}\n")
+    document.chmod(0o000)
+    try:
+        code, _out, err = run(capsys, "resolve", str(tmp_path))
+    finally:
+        document.chmod(0o644)
+    assert code == EXIT_USAGE
+    assert "entity_model.yaml" in err
+
+
+def test_an_unwritable_output_directory_is_a_usage_error(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """`write_files` creates parents and writes; both can fail on a read-only
+    destination, and neither failure was named."""
+    if os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
+        pytest.skip("root ignores the permission bits this test sets")
+    out = tmp_path / "out"
+    out.mkdir(mode=0o500)
+    try:
+        code, _stdout, err = run(capsys, "compile", ECOM, "--out", str(out))
+    finally:
+        out.chmod(0o755)
+    assert code == EXIT_USAGE
+    assert str(out) in err
 
 
 def test_write_files_creates_nested_parents(tmp_path: Path) -> None:
@@ -427,6 +610,34 @@ def test_write_files_refuses_a_path_that_escapes_the_output_directory(tmp_path: 
     then matters."""
     with pytest.raises(CliIoError, match="escapes"):
         write_files(str(tmp_path / "out"), {"../escaped.sql": "SELECT 1\n"})
+
+
+def test_an_unlistable_directory_is_a_usage_error(tmp_path: Path) -> None:
+    """`is_dir()` says the path is a directory, not that it can be listed."""
+    if os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
+        pytest.skip("root ignores the permission bits this test sets")
+    directory = tmp_path / "specs"
+    directory.mkdir()
+    (directory / "entity_model.yaml").write_text("spec_version: 1\n")
+    directory.chmod(0o000)
+    try:
+        with pytest.raises(CliIoError):
+            read_spec_directory(str(directory))
+    finally:
+        directory.chmod(0o755)
+
+
+def test_an_explicit_catalog_inside_the_directory_is_not_also_a_document(
+    tmp_path: Path,
+) -> None:
+    """`--catalog` pointing at a file in the scanned directory: it has to come
+    back as the catalog *and* leave the project, or `load_project` would refuse
+    the document it was just handed separately."""
+    (tmp_path / "entity_model.yaml").write_text("spec_version: 1\n")
+    (tmp_path / "shared.yaml").write_text("catalog_version: 1\n")
+    sources, catalog = read_spec_directory(str(tmp_path), catalog=str(tmp_path / "shared.yaml"))
+    assert catalog == "catalog_version: 1\n"
+    assert set(sources) == {"entity_model"}
 
 
 def test_reading_a_directory_as_a_file_is_a_usage_error(tmp_path: Path) -> None:

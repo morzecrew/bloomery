@@ -12,7 +12,7 @@
   batched guardrail stage), RFC 0010 (mart grain and flattening — the summary),
   RFC 0018 (**blocking**: signature closure covers
   the new return type),
-  RFC 0020 (landed as M17 and retired; `bloomery resolve` is re-pointed at this),
+  RFC 0020 (landed as M17 and retired; `bloomery resolve` is re-pointed at this in M19),
   [RFC 0021](0021-capability-boundaries.md) §5.5 (the boundary this respects).
 - **Adoption audit:** every claim in §3 verified; no corrections were needed.
 

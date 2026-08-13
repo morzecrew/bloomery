@@ -56,13 +56,33 @@ class CliIoError(Exception):
     """
 
 
+def _read(target: Path) -> str:
+    """One file's text, with every filesystem failure named as a usage error.
+
+    ``is_file()`` answers one question and the read can still fail three other
+    ways: the file is unreadable, it was removed between the check and the
+    read, or it is not UTF-8. Each raised ``OSError`` or ``UnicodeDecodeError``
+    straight past ``main``, which catches neither — so a permission problem
+    printed a traceback and a script could not tell a bad path from a crash,
+    which is the split :class:`CliIoError` exists to keep.
+    """
+    try:
+        return target.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        msg = f"{target}: not UTF-8 text"
+        raise CliIoError(msg) from exc
+    except OSError as exc:
+        msg = f"{target}: {exc.strerror or exc}"
+        raise CliIoError(msg) from exc
+
+
 def read_text(path: str) -> str:
     """One file's text, or :class:`CliIoError` naming it."""
     target = Path(path)
     if not target.is_file():
         msg = f"{path}: not a file"
         raise CliIoError(msg)
-    return target.read_text(encoding="utf-8")
+    return _read(target)
 
 
 def read_spec_directory(
@@ -84,9 +104,17 @@ def read_spec_directory(
     if not directory.is_dir():
         msg = f"{path}: not a directory"
         raise CliIoError(msg)
-    files = sorted(
-        entry for entry in directory.iterdir() if entry.is_file() and entry.suffix in SPEC_SUFFIXES
-    )
+    try:
+        files = sorted(
+            entry
+            for entry in directory.iterdir()
+            if entry.is_file() and entry.suffix in SPEC_SUFFIXES
+        )
+    except OSError as exc:
+        # `is_dir()` above says the path is a directory, not that it can be
+        # listed — an unreadable one raises here, past everything `main` catches.
+        msg = f"{path}: {exc.strerror or exc}"
+        raise CliIoError(msg) from exc
     if not files:
         joined = "/".join(SPEC_SUFFIXES)
         msg = f"{path}: no {joined} files"
@@ -101,12 +129,12 @@ def read_spec_directory(
         if explicit is None and entry.stem in CATALOG_STEMS:
             conventional = entry
             continue
-        sources[entry.stem] = entry.read_text(encoding="utf-8")
+        sources[entry.stem] = _read(entry)
 
     if catalog is not None:
         return sources, read_text(catalog)
     if conventional is not None:
-        return sources, conventional.read_text(encoding="utf-8")
+        return sources, _read(conventional)
     return sources, None
 
 
@@ -127,7 +155,13 @@ def write_files(directory: str, files: dict[str, str]) -> list[str]:
             # the condition under which a path-traversal check gets left out.
             msg = f"{relative}: escapes the output directory"
             raise CliIoError(msg)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(content, encoding="utf-8")
+        try:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(content, encoding="utf-8")
+        except OSError as exc:
+            # The write half of the same argument: a read-only `--out`, a full
+            # disk, a name the filesystem refuses.
+            msg = f"{destination}: {exc.strerror or exc}"
+            raise CliIoError(msg) from exc
         written.append(str(destination))
     return written

@@ -59,6 +59,9 @@ from bloomery import (
     spec_json_schema,
 )
 from bloomery.cli import io, render, serialize
+from bloomery.dialects import get_dialect
+from bloomery.emit import get_emitter
+from bloomery.errors import EmitError
 from bloomery.naming import DefaultNaming
 from bloomery.planner import parse_filter_json
 
@@ -122,7 +125,30 @@ def _emit(payload: object, *, as_json: bool) -> None:
 # Commands
 
 
+def _check_names(*, target: str | None = None, dialect: str | None = None) -> None:
+    """Refuse a mistyped ``--target``/``--dialect`` as a usage error.
+
+    Both resolve through the library, which raises :class:`EmitError` — so
+    without this a typo came back as ``1``, the code that means "bloomery read
+    your spec and said no", for a spec it never opened. A mistyped flag *value*
+    is the invocation being wrong, which is what ``2`` is for, and it is the
+    treatment ``--grain`` and ``--policy`` already get here.
+
+    The registries are asked rather than a list written down: the target set is
+    open (:func:`~bloomery.register_emitter`), so the library is the only thing
+    that knows it, and its message already names what it does have.
+    """
+    try:
+        if target is not None:
+            get_emitter(target)
+        if dialect is not None:
+            get_dialect(dialect)
+    except EmitError as exc:
+        raise _Usage(str(exc)) from exc
+
+
 def _compile(arguments: argparse.Namespace) -> int:
+    _check_names(target=arguments.target, dialect=arguments.dialect)
     project, catalog = _load(arguments.directory, arguments.catalog)
     artifacts = compile_project(
         project, target=arguments.target, dialect=arguments.dialect, catalog=catalog
@@ -234,6 +260,7 @@ def _explain(arguments: argparse.Namespace) -> int:
     # loading is the slow part, and when the spec is *also* broken the reader
     # needs the invocation fixed first — a refusal about a spec they cannot
     # reach yet is not the next thing they should do.
+    _check_names(dialect=arguments.dialect)
     where = _parse_where(arguments.where)
     policy = _parse_policy(arguments.policy)
     request = MetricRequest(
@@ -381,9 +408,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     Returns the exit code rather than calling ``sys.exit``, so a test can
     invoke it as a function and read the code — which is the only way the
     refusal-vs-usage split gets tested rather than asserted.
+
+    That promise covers argparse's own refusals too. ``parse_args`` writes its
+    message and *raises* ``SystemExit``, so an unparseable flag value —
+    ``--limit notanint`` — escaped this function instead of coming back as a
+    number. The shell saw the right code either way; a caller using ``main`` as
+    a function, which the paragraph above invites, did not.
     """
     parser = build_parser()
-    arguments = parser.parse_args(argv)
+    try:
+        arguments = parser.parse_args(argv)
+    except SystemExit as request:
+        # argparse exits 2 for a usage error and 0 for `--help`; both are
+        # already the code this function means to return, so pass them through
+        # rather than flattening them to one.
+        return request.code if isinstance(request.code, int) else EXIT_USAGE
     try:
         exit_code: int = arguments.run(arguments)
     except BloomeryError as error:
