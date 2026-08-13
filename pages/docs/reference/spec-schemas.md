@@ -216,6 +216,14 @@ right: "order.total_amount"                       # <entity>.<column>, keyed by 
 Both sides must key on the same columns, since they join on their keys. Anything outside
 the grammar is a `GuardrailError` — a reconcile side is a declared shape, not SQL.
 
+**A NULL key is a group, not an absence.** The join is null-safe (`IS NOT DISTINCT
+FROM`), because the aggregate side's `GROUP BY` already collects every NULL key into one
+group and the join has to read that column by the same rule. A key present on *one side
+only* still fails — that is what the FULL join is for — but a NULL group that agrees on
+both sides passes, as one row. Neither the entity key nor an aggregate's `by` columns are
+forced non-nullable, so this is reachable from an ordinary project; if a NULL key is
+itself a data-quality problem for you, say so with a `not_null` rule.
+
 ## Mapping (`mapping_version`)
 
 One document per (source, target entity) pair.

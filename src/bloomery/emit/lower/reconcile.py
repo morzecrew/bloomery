@@ -282,6 +282,20 @@ def reconcile_select(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> exp
     NULL and ``within_tolerance`` is FALSE — the ``COALESCE`` collapses the
     three-valued comparison at this one seam, the same way the routing
     predicate does (§5.4), because a verdict column has to be a verdict.
+
+    The join is **null-safe**, and that is not a nicety. ``GROUP BY`` and ``=``
+    disagree about NULL: the aggregate side groups every NULL key into one
+    group, and an ordinary ``=`` then refuses to match the group it just
+    built. The two halves of one query would be reading the same column by two
+    different rules. Executed, a NULL-keyed group that *agrees* came back as
+    two rows — one per side, both keyed NULL, both ``within_tolerance =
+    FALSE``, both with a NULL ``difference`` — so a check whose data was
+    correct reported two failures and named neither. That is a wrong number,
+    not a conservative one.
+
+    A key field may be nullable: ``Field.required`` defaults to ``False`` and
+    nothing forces a key's to be true, so this is reachable from both grammar
+    shapes rather than only from an aggregate ``by``.
     """
     left, left_keys = _reconcile_side(check.left, ir, ctx, value=_LEFT_VALUE)
     right, right_keys = _reconcile_side(check.right, ir, ctx, value=_RIGHT_VALUE)
@@ -335,7 +349,10 @@ def reconcile_select(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> exp
             right.subquery(alias=_RIGHT_ALIAS),
             on=conjunction(
                 [
-                    exp.EQ(
+                    # ``IS NOT DISTINCT FROM`` in every dialect bloomery ports
+                    # to — DuckDB, Postgres and Trino render ``NullSafeEQ``
+                    # identically, so no capability gate is needed.
+                    exp.NullSafeEQ(
                         this=exp.column(key, table=_LEFT_ALIAS),
                         expression=exp.column(key, table=_RIGHT_ALIAS),
                     )

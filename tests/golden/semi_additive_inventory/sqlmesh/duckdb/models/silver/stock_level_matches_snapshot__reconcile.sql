@@ -31,4 +31,5 @@ FULL OUTER JOIN (
     stock_level AS right_value
   FROM silver.inventory_level
 ) AS _right
-  ON _left.stock_date = _right.stock_date AND _left.warehouse_id = _right.warehouse_id
+  ON _left.stock_date IS NOT DISTINCT FROM _right.stock_date
+  AND _left.warehouse_id IS NOT DISTINCT FROM _right.warehouse_id

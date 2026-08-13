@@ -664,6 +664,43 @@ def test_a_reconcile_checks_audit_blocks_exactly_when_it_says_fail(
     assert ("blocking false" in audit) is not blocking
 
 
+@pytest.mark.parametrize("dialect", ["duckdb", "postgres", "trino"])
+def test_the_reconcile_join_is_null_safe_in_every_dialect(dialect: str) -> None:
+    """``GROUP BY`` and ``=`` disagree about NULL, and a reconcile model holds
+    both — so the join has to read the key by the rule the aggregate above it
+    already used. What that costs in behaviour is the execution tier's
+    (``tests/execution/test_reconcile_null_keys.py``); what is asserted here is
+    that the operator reaches every shipped dialect, since ``IS NOT DISTINCT
+    FROM`` is the one spelling all three render identically and a port that
+    stopped would emit a silently different comparison.
+    """
+    project, catalog = load_fixture(FIXTURE)
+    artifacts = compile_project(project, target=Target.SQLMESH, dialect=dialect, catalog=catalog)
+    model = next(a for a in artifacts if a.path.endswith("__reconcile.sql"))
+    rendered = extract_select(model.content)
+    on_clause = rendered.split(") AS _right", 1)[1]
+    assert "IS NOT DISTINCT FROM" in on_clause
+    # The plain operator is gone from the join, not merely joined by the other:
+    # one key rendered each way would compare two rows by two rules.
+    assert " = " not in on_clause
+
+
+def test_the_coverage_audit_join_stays_plain_equality() -> None:
+    """The join deliberately *not* changed, pinned so the reconcile fix does
+    not spread by sympathy.
+
+    A coverage audit counts dependents per referenced row. A dependent whose
+    foreign key is NULL references nothing, so it must not match — and
+    matching it null-safely would attach every unparented row to a referenced
+    row whose key was also NULL. NULL means "no reference" here, where in a
+    reconcile it means "the group with no key".
+    """
+    project, catalog = load_fixture("coverage_check")
+    artifacts = compile_project(project, target=Target.SQLMESH, dialect="duckdb", catalog=catalog)
+    audit = next(a for a in artifacts if a.path.endswith("_coverage.sql"))
+    assert "IS NOT DISTINCT FROM" not in audit.content
+
+
 def test_a_schema_constant_that_lost_its_column_says_so() -> None:
     """``REJECT_KEY`` singles out one column of a schema tuple declared
     elsewhere, so it is only correct while that column is still in the tuple.

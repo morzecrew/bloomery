@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A reconcile check over a NULL key reported two failures where the data agreed.** The model's aggregate side groups every NULL key into one group — SQL's `GROUP BY` treats NULLs as equal — while the FULL OUTER JOIN used an ordinary `=`, which does not, so one query read the same column by two rules. Executed, a NULL-keyed group whose sides matched came back as two rows, both keyed NULL, both `within_tolerance = FALSE`, both with a NULL `difference`. The join is null-safe now (`IS NOT DISTINCT FROM`, rendered identically by DuckDB, Postgres and Trino). A key present on one side only still fails — that is what the FULL join is for. **Reconcile model SQL changes**; the project fingerprint does not, since the IR is unchanged.
+
 - **`relationships: [{via: {}}]` parsed and then crashed at emit.** A relationship *is* its join, so an empty `via` describes nothing — but it reached three consumers and failed differently in each: an `IndexError` from the coverage audit, a `ValueError` from inside SQLGlot when a mart flattened it. It is a `SpecParseError` with a source path now, raised at parse where shape questions belong; `via` requires at least one column pair, the way `key` always has.
 
 ### Added
