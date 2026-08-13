@@ -7,14 +7,7 @@ MODEL (
   audits (stock_level_matches_snapshot_reconcile)
 );
 
-SELECT
-  COALESCE(_left.warehouse_id, _right.warehouse_id) AS warehouse_id,
-  COALESCE(_left.stock_date, _right.stock_date) AS stock_date,
-  _left.left_value,
-  _right.right_value,
-  ABS(_left.left_value - _right.right_value) AS difference,
-  COALESCE(ABS(_left.left_value - _right.right_value) <= 0.01, FALSE) AS within_tolerance
-FROM (
+WITH _left AS (
   SELECT
     warehouse_id,
     stock_date,
@@ -23,13 +16,34 @@ FROM (
   GROUP BY
     warehouse_id,
     stock_date
-) AS _left
-FULL OUTER JOIN (
+), _right AS (
   SELECT
     warehouse_id,
     stock_date,
     stock_level AS right_value
   FROM silver.inventory_level
-) AS _right
-  ON _left.stock_date IS NOT DISTINCT FROM _right.stock_date
-  AND _left.warehouse_id IS NOT DISTINCT FROM _right.warehouse_id
+), _keys AS (
+  SELECT
+    _left.stock_date,
+    _left.warehouse_id
+  FROM _left
+  UNION
+  SELECT
+    _right.stock_date,
+    _right.warehouse_id
+  FROM _right
+)
+SELECT
+  _keys.warehouse_id,
+  _keys.stock_date,
+  _left.left_value,
+  _right.right_value,
+  ABS(_left.left_value - _right.right_value) AS difference,
+  COALESCE(ABS(_left.left_value - _right.right_value) <= 0.01, FALSE) AS within_tolerance
+FROM _keys
+LEFT JOIN _left
+  ON _keys.stock_date IS NOT DISTINCT FROM _left.stock_date
+  AND _keys.warehouse_id IS NOT DISTINCT FROM _left.warehouse_id
+LEFT JOIN _right
+  ON _keys.stock_date IS NOT DISTINCT FROM _right.stock_date
+  AND _keys.warehouse_id IS NOT DISTINCT FROM _right.warehouse_id

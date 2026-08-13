@@ -677,17 +677,41 @@ def test_the_reconcile_join_is_null_safe_in_every_dialect(dialect: str) -> None:
     project, catalog = load_fixture(FIXTURE)
     artifacts = compile_project(project, target=Target.SQLMESH, dialect=dialect, catalog=catalog)
     model = next(a for a in artifacts if a.path.endswith("__reconcile.sql"))
-    join = parse_one(extract_select(model.content), dialect=dialect).find(exp.Join)
-    assert join is not None
+    joins = list(parse_one(extract_select(model.content), dialect=dialect).find_all(exp.Join))
+    # Read off the parsed condition rather than the text: the fixture joins on
+    # two keys and each side is attached by its own join, so *four* comparisons
+    # have to be null-safe. One rendered each way would compare two rows by two
+    # rules, which is the defect itself — and checking only the first join
+    # would leave the second side free to regress unseen.
+    assert len(joins) == 2
     comparisons = [
         type(node).__name__
+        for join in joins
         for node in join.args["on"].walk()
         if isinstance(node, (exp.NullSafeEQ, exp.EQ))
     ]
-    # Read off the parsed condition rather than the text: the fixture joins on
-    # two keys, and *every* one of them has to be null-safe. One rendered each
-    # way would compare two rows by two rules, which is the defect itself.
-    assert comparisons == ["NullSafeEQ", "NullSafeEQ"]
+    assert comparisons == ["NullSafeEQ"] * 4
+
+
+@pytest.mark.parametrize("dialect", ["duckdb", "postgres", "trino"])
+def test_the_reconcile_model_asks_for_no_full_join(dialect: str) -> None:
+    """The shape constraint behind the ``_keys`` CTE, pinned where it is cheap.
+
+    PostgreSQL plans a ``FULL JOIN`` as a merge or hash join only, and a
+    null-safe condition is neither merge- nor hash-joinable there — so
+    ``FULL OUTER JOIN ... ON a IS NOT DISTINCT FROM b`` renders on all three
+    dialects and then refuses to run on one of them, with ``FULL JOIN is only
+    supported with merge-joinable or hash-joinable join conditions``. The
+    restriction is on ``FULL`` alone; the same condition under ``LEFT`` is
+    accepted, which is why the union of the keys carries the outer-ness
+    instead. That engine refusal costs a container to see, so what is checked
+    here is the emitted shape that avoids it.
+    """
+    project, catalog = load_fixture(FIXTURE)
+    artifacts = compile_project(project, target=Target.SQLMESH, dialect=dialect, catalog=catalog)
+    model = next(a for a in artifacts if a.path.endswith("__reconcile.sql"))
+    select = parse_one(extract_select(model.content), dialect=dialect)
+    assert {join.side for join in select.find_all(exp.Join)} == {"LEFT"}
 
 
 def test_the_coverage_audit_join_stays_plain_equality() -> None:

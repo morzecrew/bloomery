@@ -49,6 +49,8 @@ if TYPE_CHECKING:
 
 _LEFT_ALIAS = "_left"
 _RIGHT_ALIAS = "_right"
+#: The compared keys themselves, as a relation. See :func:`reconcile_select`.
+_KEYS_ALIAS = "_keys"
 _LEFT_VALUE = "left_value"
 _RIGHT_VALUE = "right_value"
 
@@ -276,26 +278,50 @@ def reconcile_select(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> exp
     """The ``<check>__reconcile`` model: both sides, their difference, and the
     tolerance verdict, one row per compared key.
 
-    A **FULL** join, deliberately: a key present on one side only is the
-    loudest disagreement there is, and an inner join would hide exactly that
-    by returning fewer rows instead of a failing one. Its ``difference`` is
-    NULL and ``within_tolerance`` is FALSE — the ``COALESCE`` collapses the
-    three-valued comparison at this one seam, the same way the routing
-    predicate does (§5.4), because a verdict column has to be a verdict.
+    The shape is **the set of compared keys, outer-joined to each side**: a
+    ``_keys`` CTE unions the two sides' key columns, and the sides hang off it
+    by ``LEFT JOIN``. That is a full outer join written the long way, and it
+    keeps what a ``FULL JOIN`` was there for — a key present on one side only
+    is the loudest disagreement there is, and an inner join would hide exactly
+    that by returning fewer rows instead of a failing one. Such a row's
+    ``difference`` is NULL and its ``within_tolerance`` is FALSE: the
+    ``COALESCE`` collapses the three-valued comparison at this one seam, the
+    same way the routing predicate does (§5.4), because a verdict column has
+    to be a verdict.
 
-    The join is **null-safe**, and that is not a nicety. ``GROUP BY`` and ``=``
-    disagree about NULL: the aggregate side groups every NULL key into one
-    group, and an ordinary ``=`` then refuses to match the group it just
-    built. The two halves of one query would be reading the same column by two
-    different rules. Executed, a NULL-keyed group that *agrees* came back as
-    two rows — one per side, both keyed NULL, both ``within_tolerance =
-    FALSE``, both with a NULL ``difference`` — so a check whose data was
-    correct reported two failures and named neither. That is a wrong number,
-    not a conservative one.
+    Both the union and the joins are **null-safe**, and that is not a nicety.
+    ``GROUP BY`` and ``=`` disagree about NULL: the aggregate side groups every
+    NULL key into one group, and an ordinary ``=`` then refuses to match the
+    group it just built. The two halves of one query would be reading the same
+    column by two different rules. Executed, a NULL-keyed group that *agrees*
+    came back as two rows — one per side, both keyed NULL, both
+    ``within_tolerance = FALSE``, both with a NULL ``difference`` — so a check
+    whose data was correct reported two failures and named neither. That is a
+    wrong number, not a conservative one. ``UNION`` (distinct) settles the key
+    set by the same rule ``GROUP BY`` used, and ``IS NOT DISTINCT FROM`` reads
+    it back the same way.
 
     A key field may be nullable: ``Field.required`` defaults to ``False`` and
     nothing forces a key's to be true, so this is reachable from both grammar
     shapes rather than only from an aggregate ``by``.
+
+    **Why not one ``FULL JOIN ... ON a IS NOT DISTINCT FROM b``**, which says
+    all of this in a single line and renders identically on all three
+    dialects: PostgreSQL refuses to *execute* it. Its full join is planned as a
+    merge or hash join only, and neither ``IS NOT DISTINCT FROM`` nor the
+    ``a = b OR (a IS NULL AND b IS NULL)`` spelling of it is merge- or
+    hash-joinable there — both come back as ``FULL JOIN is only supported with
+    merge-joinable or hash-joinable join conditions`` (verified on
+    ``postgres:16-alpine``). The restriction is on ``FULL`` alone, so the same
+    condition under a ``LEFT`` join is accepted, which is what this shape
+    buys. DuckDB and Trino take either form; one shape is emitted for all
+    three, because a reconcile check that compares NULL keys on two engines
+    and not the third is worse than one that is verbose everywhere.
+
+    The keys are projected from ``_keys`` rather than as
+    ``COALESCE(_left.k, _right.k)``: the union already decided what the
+    compared key *is*, and reading it from there is both shorter and the only
+    spelling that cannot disagree with the join.
     """
     left, left_keys = _reconcile_side(check.left, ir, ctx, value=_LEFT_VALUE)
     right, right_keys = _reconcile_side(check.right, ir, ctx, value=_RIGHT_VALUE)
@@ -321,17 +347,7 @@ def reconcile_select(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> exp
         expressions=[exp.false()],
     )
     projections: list[Expression] = [
-        cast(
-            "Expression",
-            exp.alias_(
-                exp.Coalesce(
-                    this=exp.column(key, table=_LEFT_ALIAS),
-                    expressions=[exp.column(key, table=_RIGHT_ALIAS)],
-                ),
-                key,
-            ),
-        )
-        for key in left_keys
+        cast("Expression", exp.column(key, table=_KEYS_ALIAS)) for key in left_keys
     ]
     projections.extend(
         (
@@ -343,24 +359,46 @@ def reconcile_select(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> exp
     )
     return (
         exp.Select()
+        .with_(_LEFT_ALIAS, as_=left)
+        .with_(_RIGHT_ALIAS, as_=right)
+        .with_(_KEYS_ALIAS, as_=_key_universe(joined))
         .select(*projections)
-        .from_(left.subquery(alias=_LEFT_ALIAS))
-        .join(
-            right.subquery(alias=_RIGHT_ALIAS),
-            on=conjunction(
-                [
-                    # ``IS NOT DISTINCT FROM`` in every dialect bloomery ports
-                    # to — DuckDB, Postgres and Trino render ``NullSafeEQ``
-                    # identically, so no capability gate is needed.
-                    exp.NullSafeEQ(
-                        this=exp.column(key, table=_LEFT_ALIAS),
-                        expression=exp.column(key, table=_RIGHT_ALIAS),
-                    )
-                    for key in joined
-                ]
-            ),
-            join_type="FULL OUTER",
-        )
+        .from_(exp.table_(_KEYS_ALIAS))
+        .join(exp.table_(_LEFT_ALIAS), on=_keys_match(_LEFT_ALIAS, joined), join_type="LEFT")
+        .join(exp.table_(_RIGHT_ALIAS), on=_keys_match(_RIGHT_ALIAS, joined), join_type="LEFT")
+    )
+
+
+def _key_universe(keys: list[str]) -> exp.Union:
+    """Every key either side compares by, once.
+
+    ``UNION`` rather than ``UNION ALL``: the deduplication *is* the point, and
+    it is the same rule the aggregate side's ``GROUP BY`` already applied — two
+    NULL keys are one key. Both branches project ``keys`` in the same sorted
+    order, because a set operation matches columns by position and the two
+    sides may declare theirs in different authored orders.
+    """
+    return exp.Union(
+        this=exp.Select()
+        .select(*(exp.column(key, table=_LEFT_ALIAS) for key in keys))
+        .from_(exp.table_(_LEFT_ALIAS)),
+        expression=exp.Select()
+        .select(*(exp.column(key, table=_RIGHT_ALIAS) for key in keys))
+        .from_(exp.table_(_RIGHT_ALIAS)),
+        distinct=True,
+    )
+
+
+def _keys_match(side: str, keys: list[str]) -> Expression:
+    """``_keys.k IS NOT DISTINCT FROM <side>.k`` for every compared key."""
+    return conjunction(
+        [
+            exp.NullSafeEQ(
+                this=exp.column(key, table=_KEYS_ALIAS),
+                expression=exp.column(key, table=side),
+            )
+            for key in keys
+        ]
     )
 
 

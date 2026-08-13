@@ -266,10 +266,16 @@ def test_the_reconcile_model_compares_both_sides_within_tolerance() -> None:
         "difference",
         "within_tolerance",
     )
-    # A FULL join: a key present on one side only is the loudest disagreement
-    # there is, and an inner join would return fewer rows instead of a failing
-    # one.
-    assert "FULL OUTER JOIN" in body
+    # Outer-ness, which a key present on one side only depends on: an inner
+    # join would return fewer rows instead of a failing one, and that key is
+    # the loudest disagreement there is. It is spelled as the *union* of both
+    # sides' keys with each side hanging off it by a LEFT join, rather than as
+    # one FULL join, because postgres refuses to plan a null-safe FULL join
+    # (see `test_the_reconcile_model_asks_for_no_full_join`).
+    keys = next(cte for cte in select.ctes if cte.alias == "_keys").this
+    assert isinstance(keys, exp.Union)
+    assert keys.args["distinct"] is True
+    assert [join.side for join in select.find_all(exp.Join)] == ["LEFT", "LEFT"]
     # The tolerance reaches SQL as a numeric literal — floats never enter an
     # emission path (RFC 0003 D5).
     assert "<= 0.01" in body
