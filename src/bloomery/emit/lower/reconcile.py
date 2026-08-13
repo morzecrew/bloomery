@@ -12,8 +12,6 @@ from typing import TYPE_CHECKING, cast
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
-from bloomery.emit.lower.predicates import _bound_literal
-from bloomery.emit.lower.silver import _this_model
 from bloomery.errors import EmitError, guaranteed
 from bloomery.ir import (
     CoverageIR,
@@ -36,8 +34,11 @@ from bloomery.quality import (
 )
 from bloomery.typing import IntType, LogicalType
 
+from .predicates import _bound_literal  # pyright: ignore[reportPrivateUsage]
+from .silver import _this_model  # pyright: ignore[reportPrivateUsage]
+
 if TYPE_CHECKING:
-    from bloomery.emit.base import EmitContext
+    from ..base import EmitContext
 
 # ....................... #
 # Reconcile (RFC 0016 §5.3/§5.4): one model plus a non-blocking audit per

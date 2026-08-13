@@ -12,12 +12,6 @@ from typing import TYPE_CHECKING, cast
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
-from bloomery.emit.lower.reconcile import (
-    _resolved_side,
-    reconcile_audit_predicate,
-    reconcile_relation,
-)
-from bloomery.emit.lower.silver import _EXTRACT_ALIAS, _arrays, _extract_select, reject_relation
 from bloomery.ir import (
     EntityIR,
     Layer,
@@ -37,8 +31,20 @@ from bloomery.quality import (
     flag_member,
 )
 
+from .reconcile import (
+    _resolved_side,  # pyright: ignore[reportPrivateUsage]
+    reconcile_audit_predicate,
+    reconcile_relation,
+)
+from .silver import (
+    _EXTRACT_ALIAS,  # pyright: ignore[reportPrivateUsage]
+    _arrays,  # pyright: ignore[reportPrivateUsage]
+    _extract_select,  # pyright: ignore[reportPrivateUsage]
+    reject_relation,
+)
+
 if TYPE_CHECKING:
-    from bloomery.emit.base import EmitContext
+    from ..base import EmitContext
 
 # ....................... #
 # The quality mart (RFC 0016 §5.8): every rule evaluation as one row of an
