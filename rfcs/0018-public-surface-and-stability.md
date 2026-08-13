@@ -10,7 +10,7 @@
   or change any emitted SQL.
 - **Related:** RFC 0002 (error hierarchy), RFC 0003 (`blm1:` fingerprint,
   `bloomery_ir_version`),
-  [RFC 0008](0008-ports-and-emitters.md) (`EmittedArtifact`, `NamingPolicy`, `Feature`),
+  RFC 0008 (`EmittedArtifact`, `NamingPolicy`, `Feature`),
   [RFC 0009](0009-testing-strategy.md) D24 (the `QueryPlan.columns` finding),
   RFC 0011 (the planner contract), RFC 0015 D9 (`KNOWN_UNSUPPORTED` export),
   RFC 0017 (the step contract module).
