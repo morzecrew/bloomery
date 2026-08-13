@@ -14,8 +14,8 @@ time. The aggregation surface is :attr:`BloomeryError.collected` plus the
 
 **Fix suggestions** (RFC 0020 §5.4, D7). Five refusals carry a structured next
 action beside the prose, because a human reads a message and a proposal loop
-reads a *structure*. Each field exposes a value bloomery already computed and
-used to discard into the message —
+reads a *structure*. Each field exposes a value bloomery already computed on
+its way to writing the message, and until now threw away there —
 :attr:`UnknownMember.did_you_mean`, :attr:`UnreachableAtGrain.covering_marts`,
 :attr:`GrainViolation.offending_measures`,
 :attr:`UnknownStep.available_versions`,

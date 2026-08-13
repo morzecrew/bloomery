@@ -278,6 +278,20 @@ def test_a_malformed_flag_value_is_a_usage_error_not_a_traceback(
     assert expected in err
 
 
+def test_a_bad_flag_is_reported_before_a_bad_spec(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """Both are wrong; the invocation is the one the reader has to fix first —
+    a refusal about a spec they cannot reach yet is not the next step. It is
+    also the cheap check, and loading is the slow one."""
+    (tmp_path / "entity_model.yaml").write_text("spec_version: 1\nentities: {}\nbogus: 1\n")
+    code, _out, err = run(
+        capsys, "explain", str(tmp_path), "--metrics", "m", "--grain", "fortnight"
+    )
+    assert code == EXIT_USAGE
+    assert "--grain" in err
+
+
 def test_a_refused_filter_construct_stays_a_refusal(capsys: pytest.CaptureFixture[str]) -> None:
     """The other side of the line above. A *well-formed* document naming a
     construct the vocabulary reviewed and declined (RFC 0015) is a refusal, not

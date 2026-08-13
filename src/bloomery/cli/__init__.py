@@ -215,6 +215,9 @@ def _parse_where(payload: str | None) -> AbcMapping[str, object] | None:
 
 
 def _parse_grain(spelling: str | None) -> TimeGrain | None:
+    """``--grain`` as a :class:`~bloomery.TimeGrain`, or a usage error listing
+    the six. Not ``choices=`` on the parser, so the message can name the flag
+    the same way the other value checks here do."""
     if spelling is None:
         return None
     try:
@@ -226,8 +229,13 @@ def _parse_grain(spelling: str | None) -> TimeGrain | None:
 
 
 def _explain(arguments: argparse.Namespace) -> int:
-    ir = _load_ir(arguments.directory, arguments.catalog)
+    # Every flag is checked before the project is loaded. Both orders are
+    # correct and one is kinder: a mistyped `--grain` is free to detect, while
+    # loading is the slow part, and when the spec is *also* broken the reader
+    # needs the invocation fixed first — a refusal about a spec they cannot
+    # reach yet is not the next thing they should do.
     where = _parse_where(arguments.where)
+    policy = _parse_policy(arguments.policy)
     request = MetricRequest(
         metrics=tuple(arguments.metrics.split(",")),
         dimensions=tuple(arguments.by.split(",")) if arguments.by else (),
@@ -235,11 +243,10 @@ def _explain(arguments: argparse.Namespace) -> int:
         time_grain=_parse_grain(arguments.grain),
         limit=arguments.limit,
     )
+    ir = _load_ir(arguments.directory, arguments.catalog)
     naming = DefaultNaming()
     planner = MetricFlowPlanner(LruManifestHydrator(naming), naming=naming)
-    query = planner.plan(
-        ir, request, dialect=arguments.dialect, policy=_parse_policy(arguments.policy)
-    )
+    query = planner.plan(ir, request, dialect=arguments.dialect, policy=policy)
     if arguments.format == "json":
         _emit(serialize.as_json_value(query), as_json=True)
     else:
