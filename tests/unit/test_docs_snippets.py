@@ -24,6 +24,7 @@ import re
 from pathlib import Path
 
 import pytest
+from support.compiling import compile_fixture
 
 pytestmark = pytest.mark.unit
 
@@ -89,8 +90,6 @@ def test_the_pages_artifact_listing_is_what_the_compiler_emits() -> None:
     have concluded a step project emits no ordinary silver models. A retyped
     list drifts the same way a retyped snippet does.
     """
-    from support.compiling import compile_fixture
-
     page = (DOCS / "how-to" / "resolve-identities.md").read_text()
     block = re.search(r"## What comes out\n\n```\n(?P<body>.*?)```", page, re.DOTALL)
     assert block is not None, "the page must still have a 'What comes out' block"
