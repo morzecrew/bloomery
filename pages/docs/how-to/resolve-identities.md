@@ -128,6 +128,12 @@ appears with a NULL `canonical_id` and `method = 'none'` — "we could not resol
 fact the warehouse should carry, and dropping the row would make it look like the source
 never had it.
 
+So **the crosswalk's id must not be declared `required`**. The contract assertion checks
+every `required` column null-free on every run, so a manifest asking for both a total
+crosswalk and a required id aborts the step on the first row it could not match — and the
+stricter the tenant's `threshold`, the sooner. The `references:` audit is already written
+for the nullable reading: it skips a NULL child rather than failing it.
+
 Then a metric over the resolved entity is an ordinary metric:
 
 ```yaml title="metrics.yaml"

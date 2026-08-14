@@ -109,7 +109,17 @@ RESOLVE_CUSTOMERS_V4 = StepManifest.model_validate(
                 "produces": {
                     "source_system": {"type": "string", "required": True},
                     "source_id": {"type": "string", "required": True},
-                    "canonical_id": {"type": "string", "required": True},
+                    # Nullable, unlike v3's — because a crosswalk that is a
+                    # *total* map from source rows has to be able to say "not
+                    # resolved". v3 declared it required and the resolver
+                    # emitted NULL below the threshold, so `assert_step_contract`
+                    # aborted the step on the first row it could not match: the
+                    # stricter the tenant's wiring, the sooner its run died.
+                    #
+                    # The emitted `references:` audit already reads it this way
+                    # — it skips NULL children rather than failing them (RFC
+                    # 0017 D43) — so `required` was the half that disagreed.
+                    "canonical_id": {"type": "string"},
                     "method": {"type": "string"},
                 },
             },

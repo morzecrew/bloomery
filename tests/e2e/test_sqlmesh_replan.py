@@ -215,34 +215,53 @@ def _verify_step_resolution(connection: duckdb.DuckDBPyConnection) -> None:
 
 def _seed_identity_resolution(connection: duckdb.DuckDBPyConnection) -> None:
     """Two sources with no shared identifier — the situation the step exists
-    for. `crm/C-1001` and `billing/AC-77` are one person by email."""
+    for. `crm/C-1001` and `billing/AC-77` are one person by email.
+
+    Grace is here with **no email at all**, and at the wiring's `0.9` she
+    resolves to nobody: her two rows reach the crosswalk with a NULL
+    `canonical_id`. That is the shape a plan has to survive, because the
+    wrapper's contract assertion runs before the relation is written — with
+    the column declared `required` the step aborted here, and the fixture
+    could not be planned at the threshold it wires.
+    """
     connection.execute("CREATE SCHEMA IF NOT EXISTS bronze")
     connection.execute(
         "CREATE TABLE bronze.crm__customers AS SELECT * FROM (VALUES "
         "('crm', 'C-1001', 'Ada@Example.com ', 'Ada Lovelace'), "
+        "('crm', 'C-1002', NULL, 'Grace Hopper'), "
         "('crm', 'C-1003', 'mary@example.com', 'Mary Jackson')) "
         "AS t(system, id, email, full_name)"
     )
     connection.execute(
         "CREATE TABLE bronze.billing__accounts AS SELECT * FROM (VALUES "
-        "('billing', 'AC-77', 'ada@example.com', 'A. Lovelace')) "
+        "('billing', 'AC-77', 'ada@example.com', 'A. Lovelace'), "
+        "('billing', 'AC-91', NULL, 'hopper, grace')) "
         "AS t(origin, account_ref, billing_email, account_name)"
     )
 
 
 def _verify_identity_resolution(connection: duckdb.DuckDBPyConnection) -> None:
-    """Two people out of three source rows, the crosswalk total over them, and
+    """Two people out of five source rows, the crosswalk total over them, and
     a mart over the step-produced entity that SQLMesh actually built.
 
     The mart is the assertion that matters here: it reads `silver.customer`,
     which no bloomery SQL writes, so a plan that applies is a plan where the
     wrapper ran first and the gold model resolved its dependency on a relation
     a Python model produced.
+
+    Grace's two rows are the second assertion, and they are why the plan is
+    worth running at all: the crosswalk carries them unresolved, so the
+    contract assertion inside the Python model has met a NULL in the column it
+    checks — the case that used to abort the step.
     """
     customers = connection.execute("SELECT COUNT(*) FROM silver.customer").fetchone()
     assert customers == (2,)
     xref = connection.execute("SELECT COUNT(*) FROM silver.customer_xref").fetchone()
-    assert xref == (3,)
+    assert xref == (5,)
+    unresolved = connection.execute(
+        "SELECT COUNT(*) FROM silver.customer_xref WHERE canonical_id IS NULL"
+    ).fetchone()
+    assert unresolved == (2,)
     matched = connection.execute(
         "SELECT COUNT(DISTINCT canonical_id) FROM silver.customer_xref "
         "WHERE source_id IN ('C-1001', 'AC-77')"

@@ -23,7 +23,7 @@ from decimal import Decimal
 
 import duckdb
 import pytest
-from support.compiling import compile_fixture
+from support.compiling import compile_fixture, load_fixture
 from support.execution import audit_body, materialize, warehouse
 from support.identity import resolve
 
@@ -31,9 +31,30 @@ pytestmark = pytest.mark.execution
 
 FIXTURE = "identity_resolution"
 
+
+def _wired_threshold() -> Decimal:
+    """The threshold the *wiring* sets, read from the spec rather than retyped.
+
+    The generated wrapper passes `parameters:` through to the step untouched,
+    so a stand-in using a different number is standing in for a run that never
+    happens. This one was retyped and drifted: the fixture wired `0.9` while
+    this module ran `0.85`, so the unresolved rows the wiring asks for never
+    appeared here — and the contract violation they used to cause was
+    invisible at every tier.
+    """
+    project, _catalog = load_fixture(FIXTURE)
+    threshold = project.steps.steps[0].parameters["threshold"]
+    assert isinstance(threshold, Decimal)
+    return threshold
+
 #: Two sources, three people, no shared identifier. `ada@example.com` appears
 #: in both under different ids; Grace appears in both with no email and her
 #: name written two ways; `mary@example.com` is in the CRM only.
+#:
+#: At the wiring's `0.9` Grace is the row that does **not** resolve — a name
+#: match scores `0.85` — so the crosswalk carries two unresolved rows and the
+#: warehouse sees the three-valued shape the audits are written for, rather
+#: than a run where everything happens to match.
 CRM_ROWS = [
     ("crm", "C-1001", "Ada@Example.com ", "Ada Lovelace"),
     ("crm", "C-1002", "", "Grace Hopper"),
@@ -75,7 +96,7 @@ def run() -> Iterator[duckdb.DuckDBPyConnection]:
     outputs = resolve(
         crm=_silver(connection, "silver.customer_crm"),
         billing=_silver(connection, "silver.customer_billing"),
-        threshold=Decimal("0.85"),
+        threshold=_wired_threshold(),
     )
     for output, relation in (("customer", "silver.customer"), ("customer_xref", "silver.customer_xref")):
         frame = outputs[output]
@@ -117,9 +138,12 @@ def test_the_mart_over_a_step_produced_entity_runs(run: duckdb.DuckDBPyConnectio
     rows = run.execute(
         "SELECT canonical_id, resolved_day FROM gold.mart_customers ORDER BY canonical_id"
     ).fetchall()
-    # Three people out of five source rows: Ada and Grace each matched across
-    # the two systems, Mary is CRM-only.
-    assert len(rows) == 3
+    # Two customers out of five source rows at the wiring's `0.9`: Ada matched
+    # across the two systems by email, Mary is CRM-only. Grace's two rows score
+    # `0.85` on the name and resolve to nobody, so she is in the crosswalk and
+    # not in the mart — a mart counts resolved customers, and a threshold that
+    # refuses a match has to mean one fewer of them.
+    assert len(rows) == 2
     assert all(row[1] is not None for row in rows)
 
 
@@ -151,7 +175,17 @@ def test_the_sibling_consistency_audit_passes_on_a_real_run(
     An audit passes when it returns no rows. This one runs against frames the
     resolver genuinely produced, so it is checking the two siblings against
     each other rather than against hand-written specimens.
+
+    The audit is **three-valued** — it skips a NULL child rather than failing
+    it — and at the wiring's threshold there are NULL children to skip, so the
+    `IS NULL` branch is exercised rather than merely emitted. Pinned here,
+    because a run where everything resolved would pass this audit whether that
+    branch worked or not.
     """
+    (unresolved,) = run.execute(
+        "SELECT COUNT(*) FROM silver.customer_xref WHERE canonical_id IS NULL"
+    ).fetchone() or (0,)
+    assert unresolved == 2, "the audit's NULL branch needs NULLs to be worth running"
     assert run.execute(_audit("silver.customer_xref", "consistency")).fetchall() == []
 
 
