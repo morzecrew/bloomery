@@ -272,8 +272,20 @@ def _flatten_quality(base: EntityIR, path: str, state: _Flatten) -> list[Guardra
     one: the dimension would then be present-but-meaningless on marts whose
     base never evaluates anything, and a request filtering on it would read as
     "no flagged rows" instead of "nothing to flag".
+
+    **A step-produced base gets none either, and for the same reason.** Its
+    rows are written by the step's generated wrapper, which projects exactly
+    the manifest's declared columns — so there is no ``_quality_flags`` to
+    reduce and no ``_quality_ok`` to negate. It can still carry rules: an
+    ``expression`` rule with ``on_fail: fail`` lowers to a blocking audit over
+    the relation, which stops the run rather than marking a row (RFC 0017
+    §5.8), so nothing survives to be flagged in the first place. Flattening the
+    dimension anyway emitted ``NOT customer._quality_ok`` against a relation
+    with no such column: a mart that compiled clean, passed every golden, and
+    failed on its first run with a binder error naming a generated column the
+    author never wrote.
     """
-    if not base.quality:
+    if not base.quality or base.produced_by is not None:
         return []
     existing = state.columns.get(HAS_QUALITY_FLAGS)
     if existing is not None:

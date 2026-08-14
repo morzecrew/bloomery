@@ -46,6 +46,10 @@ just coverage                      # tiers 1–4 with the coverage floors enforc
 - `fixtures/` holds YAML spec projects only (no Python); `golden/` holds checked-in
   artifacts. Golden diffs are reviewed like source code — an unexplained golden diff
   fails review.
+- `support/` also holds the two things a *step* needs that are not specs: the manifests
+  (`support/steps.py`) and the demonstration resolver body (`support/identity.py`). Both
+  are platform-repo territory rather than authored spec, which is why they are not under
+  `fixtures/` — and a step body is Python, which `fixtures/` does not hold.
 - Shared helpers (Hypothesis strategies, seeding, artifact extraction) live in `support/`.
   `support/execution.py` owns the warehouse and the dependency-ordered model sweep —
   every tier-4 module uses it rather than rolling its own; `support/dirty.py` owns the

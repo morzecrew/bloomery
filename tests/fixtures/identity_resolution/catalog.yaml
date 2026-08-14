@@ -1,0 +1,28 @@
+# The vertical's vocabulary. `customer_ref` is a canonical field like any
+# other — the fact that a *step* supplies it rather than a mapping is the
+# whole point of RFC 0017 D49, and nothing in this document knows about it.
+catalog_version: 1
+vertical: crm
+
+# One canonical field, and only because a *metric* needs it. `resolved_at` is
+# not here: the mart flattens it as an ordinary entity field, and declaring a
+# canonical link nothing reads would teach a reader that date columns need one.
+canonical_fields:
+  customer_ref:
+    entity: customer
+    type: string
+    recipes:
+      - {id: direct, requires: [customer_ref]}
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2020
+  end_year: 2030
+
+metric_templates:
+  customer_count:
+    requires: [customer_ref]
+    grain: customer
+    additivity: additive
+    agg: count
+    expr: "customer_ref"

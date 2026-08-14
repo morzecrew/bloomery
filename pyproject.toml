@@ -69,6 +69,14 @@ dev = [
     # never validates against its own export.
     "jsonschema>=4.23",
     "mypy[faster-cache]>=2.3.0",
+    # Test-only, and declared rather than inherited. A step body returns
+    # dataframes and `assert_step_contract` checks them through the frame
+    # protocol without importing pandas itself (RFC 0017 D12) — but the
+    # demonstration step in `tests/support/identity.py` *is* a step body, so it
+    # needs the real thing. It arrives transitively through sqlmesh today,
+    # which is exactly the kind of accident that breaks the suite far from its
+    # cause the first time an upstream drops it.
+    "pandas>=2.2",
     "pre-commit>=4.1",
     "pytest>=8",
     "pytest-cov>=6",

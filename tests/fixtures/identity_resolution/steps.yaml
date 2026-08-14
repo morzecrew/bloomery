@@ -1,0 +1,27 @@
+# The whole of identity resolution, as a wiring. There is no field here that
+# could carry a matching rule, a threshold formula or a blocking key — the
+# step declares those and the platform owns them. What the spec owns is which
+# step, which version, what it reads, what it writes, and what has to be true
+# of the result.
+steps_version: 1
+steps:
+  - use: resolve_customers@4
+    inputs: {crm: silver.customer_crm, billing: silver.customer_billing}
+    outputs:
+      customer: silver.customer
+      customer_xref: silver.customer_xref
+    # Within the manifest's declared bounds (0..1). A second tenant wanting
+    # stricter matching changes this number; it does not get a forked step.
+    parameters: {threshold: 0.9}
+    # RFC 0017 D49. Without this link the produced columns are never
+    # *available*, so every metric over the resolved entity is unreachable —
+    # and with it, nothing about metric resolution changes at all. It is never
+    # inferred from the matching name.
+    canonical:
+      customer: {canonical_id: customer_ref}
+    # The escape hatch is only safe because declared rules apply at its
+    # boundary (RFC 0017 §1). `confidence` is a column of the output, compared
+    # against a literal — exactly what an expression rule is allowed to read.
+    quality:
+      - {name: confidence_is_high, rule: expression, expr: "confidence >= 0.8", on_fail: fail}
+    applies_to: {confidence_is_high: customer}

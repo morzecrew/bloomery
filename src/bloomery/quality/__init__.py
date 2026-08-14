@@ -79,6 +79,7 @@ from bloomery.quality.mart import (
     QUALITY_RUN_ROLE,
     RunContext,
     attach_quality_mart,
+    counted_entities,
     is_quality_mart,
     quality_mart_ir,
 )
@@ -172,6 +173,7 @@ __all__ = [
     "QUALITY_RUN_ROLE",
     "RunContext",
     "attach_quality_mart",
+    "counted_entities",
     "is_quality_mart",
     "quality_mart_ir",
     # pattern portability

@@ -59,6 +59,7 @@ from dataclasses import dataclass, replace
 from bloomery.ir import (
     Additivity,
     DimensionRef,
+    EntityIR,
     MartColumnIR,
     MartDimensionIR,
     MartIR,
@@ -79,6 +80,7 @@ __all__ = [
     "QUALITY_RUN_ROLE",
     "RunContext",
     "attach_quality_mart",
+    "counted_entities",
     "is_quality_mart",
     "quality_mart_ir",
 ]
@@ -281,14 +283,42 @@ def quality_metrics() -> tuple[MetricIR, ...]:
     return tuple(sorted(metrics, key=lambda metric: metric.name))
 
 
+def counted_entities(ir: ProjectIR) -> tuple[EntityIR, ...]:
+    """The entities the quality mart can count rows for.
+
+    Rule-carrying, and **not step-produced**. A step's rows are written by its
+    generated wrapper, which projects exactly the manifest's declared columns —
+    so the relation has no ``_quality_flags`` array to reduce and no
+    ``<entity>__reject`` table to count. Its one permitted rule kind is an
+    ``expression`` with ``on_fail: fail``, which lowers to a blocking audit
+    that stops the run rather than marking a row (RFC 0017 §5.8): there is
+    nothing evaluated-but-surviving for the mart to report.
+
+    Counting it anyway emitted ``_quality_flags AS _flags`` against a relation
+    with no such column — a gold model that compiled clean, passed every
+    golden, and failed on its first run.
+
+    One definition, because :func:`carries_quality` and the emitter's branch
+    loop have to agree exactly: if the first says yes and the second finds
+    nothing to count, the mart is emitted with no branches at all.
+    """
+    return tuple(entity for entity in ir.entities if entity.quality and entity.produced_by is None)
+
+
 def carries_quality(ir: ProjectIR) -> bool:
-    """Whether anything in the project evaluates a rule at run time.
+    """Whether the mart would have anything to report.
+
+    Not *whether any rule runs*: a step output's one permitted rule lowers to
+    a blocking audit, so it is evaluated on every execution and still leaves
+    the mart nothing to count — the run stops instead of a row being marked
+    (see :func:`counted_entities`). A project whose only rule sits on a step
+    output therefore answers ``False`` here and is still checked at run time.
 
     The mart exists only where there is something to report: a project that
     never heard of data quality gets no extra gold model, no extra metrics,
     and no golden churn.
     """
-    return any(entity.quality for entity in ir.entities) or bool(ir.reconcile)
+    return bool(counted_entities(ir)) or bool(ir.reconcile)
 
 
 def attach_quality_mart(ir: ProjectIR) -> ProjectIR:

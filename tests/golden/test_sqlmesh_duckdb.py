@@ -27,6 +27,21 @@ EXPECTED_PATHS = {
         "models/silver/customer_raw.sql",
         "models/silver/customer_xref.py",
     ],
+    # RFC 0021 §5.1: identity resolution end to end on shipped mechanisms.
+    # What the goldens show that `step_resolution` cannot: two *inputs* bound
+    # from two sources with no shared key, an `expression` rule with
+    # `on_fail: fail` attached to a step output, and a mart over the
+    # step-produced entity — the D49 `canonical:` link's whole reason to exist.
+    "identity_resolution": [
+        "audits/step_customer_confidence_is_high.sql",
+        "audits/step_customer_xref_canonical_id_references_customer.sql",
+        "models/gold/dim_date.sql",
+        "models/gold/mart_customers.sql",
+        "models/silver/customer.py",
+        "models/silver/customer_billing.sql",
+        "models/silver/customer_crm.sql",
+        "models/silver/customer_xref.py",
+    ],
     "minimal": ["models/silver/event.sql"],
     "ecom_basic": [
         "models/gold/dim_date.sql",

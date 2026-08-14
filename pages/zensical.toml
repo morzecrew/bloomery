@@ -42,6 +42,7 @@ nav = [
         "how-to/plan-a-metric-request.md",
         "how-to/evolve-a-spec.md",
         "how-to/evaluate-a-spec.md",
+        "how-to/resolve-identities.md",
         "how-to/use-the-cli.md",
     ] },
     { "Reference" = [

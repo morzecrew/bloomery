@@ -302,6 +302,24 @@ A requirement that genuinely cannot generalize is a useful signal rather than
 a problem: it is bespoke consulting, not product, and knowing that explicitly
 beats discovering it later in a directory of near-identical step files.
 
+## Before adding a spec kind, ask this
+
+The registry exists so the answer can be "make it a step". The test:
+
+> **Can bloomery typecheck it, guardrail it, and diff it meaningfully?** If not, it is a
+> step.
+
+A concept bloomery cannot verify is a concept where a spec kind gives *weaker* guarantees
+than a step, because a step at least carries a declared, runtime-enforced output contract.
+Identity resolution is the worked case — blocking keys, similarity functions and
+thresholds are none of them typecheckable, and `runtime_lock` makes upgrading the matching
+library a restating change that backfills the outputs, which a declarative similarity
+function could never do. See [Resolve identities across systems](../how-to/resolve-identities.md).
+
+This is what keeps the library smaller than the problem it solves. A spec kind is a
+permanent surface: it has to parse, typecheck, guardrail, diff, emit on three targets and
+survive every future version. A step is a manifest.
+
 ## Migrating existing code
 
 **Wrap, don't refactor.** Write a manifest for the script you already have,
