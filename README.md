@@ -60,12 +60,25 @@ only part of the package that touches a filesystem:
 
 ```bash
 bloomery compile specs/ --target sqlmesh --dialect duckdb --out out/
-bloomery resolve specs/          # which metrics are computable, and what is missing
+bloomery resolve specs/          # what is computable, what is missing, what was refused
 bloomery schema --out schemas/   # JSON Schema per spec kind, for editors and validators
 ```
 
 A refusal exits `1` and a bad invocation exits `2`, so a pipeline can tell "your spec is
 wrong" from "your command is wrong". Nothing is executed: `bloomery run` does not exist.
+
+Assess a spec before it compiles — refusals come back as a **value**, alongside whatever
+analysis completed before them, so a draft mid-edit still reports what it would give you:
+
+```python
+from bloomery import Stage, evaluate
+
+evidence = evaluate(project, catalog=catalog)
+evidence.stage_reached   # read this first: at any stage but COMPLETE the rest is a prefix
+evidence.reachable       # ('gross_revenue', 'order_count', …)
+evidence.unreachable     # margin, blocked on 'cogs' — the specific leaf, not a summary
+evidence.refusals        # each with its own source path into the spec that caused it
+```
 
 Plan a metric request over the mart those specs declared — SQL out, nothing executed:
 

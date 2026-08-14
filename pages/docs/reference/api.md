@@ -61,6 +61,40 @@ The `blm1:`-prefixed SHA-256 content hash of a project IR — the value stamped 
 every emitted artifact's header. Stable within a bloomery version, deliberately not
 across versions.
 
+### `evaluate(project, *, catalog=None, steps=EMPTY_REGISTRY) -> SpecEvidence`
+
+Everything knowable about a spec without touching data, as one frozen value: what is
+reachable, what is not and which leaf is missing, what was refused and where, and the
+shape of every mart. **Never raises for a spec-level refusal** — refusals are the
+return value, and whatever analysis completed before them comes back alongside.
+
+`InvariantViolated` and every programming error still propagate. See
+[Assess a spec](../how-to/evaluate-a-spec.md).
+
+### `SpecEvidence`
+
+`stage_reached`, `reachable`, `unreachable`, `refusals`, `marts`, `entities`,
+`fingerprint`. **Read `stage_reached` first**: every tuple is empty both when there was
+nothing to find and when the stage that finds it never ran, and those mean opposite
+things. `fingerprint` is `None` unless `stage_reached is Stage.COMPLETE`.
+
+### `Stage`
+
+`RESOLVE`, `TYPECHECK`, `LOWER`, `GUARDRAILS`, `COMPLETE` — the stage analysis stopped
+at. Treat it as an **open** enum: compare against `COMPLETE` and read everything else
+as "analysis stopped early", so a stage added later does not break the comparison.
+
+### `MartSummary`
+
+`name`, `grain`, `measures`, `dimensions` (role-qualified), `materialization` — a mart's
+shape, projected from the IR rather than recomputed.
+
+### `UnreachableMetric`
+
+`name`, `missing`, `via`. `missing` names the specific *leaves* — the canonical fields
+nothing maps — because the fix is always a mapping. `via` names the metrics between this
+one and those leaves, when it is blocked through another metric rather than on its own.
+
 ## Spec-diff planning
 
 ### `plan(old: ProjectIR | None, new: ProjectIR) -> Plan`

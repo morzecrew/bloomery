@@ -46,16 +46,17 @@ from bloomery import (
     Op,
     RowPolicy,
     SpecKind,
+    Stage,
     Target,
     TimeGrain,
     all_spec_schemas,
     build_project_ir,
     compile_project,
+    evaluate,
     load_catalog,
     load_project,
     plan,
     project_fingerprint,
-    resolve,
     spec_json_schema,
 )
 from bloomery.cli import io, render, serialize
@@ -176,13 +177,32 @@ def _plan(arguments: argparse.Namespace) -> int:
 
 
 def _resolve(arguments: argparse.Namespace) -> int:
+    """``bloomery resolve`` — reachability *and* refusals (RFC 0022 D8).
+
+    Re-pointed from :func:`~bloomery.resolve` to :func:`~bloomery.evaluate`,
+    which is a strict gain for the one caller who matters here: a spec author
+    mid-draft. Before, a spec that refused anywhere printed nothing and exited
+    ``1`` with a message; now it prints how far analysis got, what was
+    reachable at that point, and every refusal with its source path — and still
+    exits ``1``, because the spec is still refused and a pipeline branching on
+    the code must not start treating it as fine.
+
+    **One project shape changes answer**: a spec wiring a ``steps:`` document
+    now reports the unwired step instead of printing reachability. No registry
+    is passed — the CLI offers no ``--steps``, because a ``StepRegistry`` is a
+    caller-assembled compile input (RFC 0017 §5.3) — and ``resolve()`` never
+    looked at steps at all, so it answered as though the wiring were not there.
+    ``compile`` on the same project already refuses for the same reason; this
+    makes the two agree rather than having the cheaper command quietly answer a
+    question about a project the expensive one will not build.
+    """
     project, catalog = _load(arguments.directory, arguments.catalog)
-    resolution = resolve(project, catalog)
+    evidence = evaluate(project, catalog=catalog)
     if arguments.format == "json":
-        _emit(serialize.as_json_value(resolution), as_json=True)
+        _emit(serialize.as_json_value(evidence), as_json=True)
     else:
-        _emit(render.render_resolution(resolution), as_json=False)
-    return EXIT_OK
+        _emit(render.render_evidence(evidence), as_json=False)
+    return EXIT_OK if evidence.stage_reached is Stage.COMPLETE else EXIT_REFUSED
 
 
 def _parse_policy(spelling: str | None) -> RowPolicy | None:

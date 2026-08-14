@@ -3,7 +3,7 @@ validation, reachability with specific missing leaves, cycle detection, the
 deterministic topological emission order — and the IR builder that lowers a
 resolved, typechecked project into :class:`~bloomery.ir.ProjectIR`."""
 
-from bloomery.resolve.build import build_project_ir
+from bloomery.resolve.build import Stage, StageProgress, build_project_ir, pipeline
 from bloomery.resolve.graph import Edge, Graph, Node, NodeKind, step_node
 from bloomery.resolve.resolution import FieldProvenance, Provenance, Resolution, resolve
 
@@ -16,6 +16,9 @@ __all__ = [
     "step_node",
     "Provenance",
     "Resolution",
+    "Stage",
+    "StageProgress",
     "build_project_ir",
+    "pipeline",
     "resolve",
 ]

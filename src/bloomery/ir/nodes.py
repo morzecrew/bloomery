@@ -551,10 +551,24 @@ class MetricIR:
 @dataclass(frozen=True, slots=True)
 class UnreachableMetric:
     """An unreachable metric with its specific missing leaves, sorted —
-    product-facing IR output, not a log line (RFC 0003 D6)."""
+    product-facing IR output, not a log line (RFC 0003 D6).
+
+    ``missing`` names *leaves* and never intermediate metrics (RFC 0005 D3),
+    because the fix is always a mapping. ``via`` names the intermediates
+    anyway, separately: a metric blocked through another — ``margin`` blocked
+    because ``gross_profit`` is — reports the leaf, and without the chain the
+    reader has to rediscover a walk the compiler already did. Empty when the
+    metric's own requirements are what is missing.
+    """
 
     name: str
     missing: tuple[str, ...]
+    #: The blocked metrics between this one and ``missing``, sorted. Defaulted
+    #: so every existing construction keeps working — but the default does not
+    #: make the field free: the canonical encoder writes each dataclass's field
+    #: *count* and names, so adding it re-fingerprints every project with an
+    #: unreachable metric and moves ``bloomery_ir_version`` 4 → 5.
+    via: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -782,9 +796,10 @@ class ProjectIR:
     Version 2 (RFC 0016 M12) adds the data-quality shape: ``reconcile`` here,
     ``quality``/``dedupe``/``quarantine`` on every :class:`EntityIR`. Version 3
     (RFC 0017 M13) adds ``steps``. Version 4 adds ``coverage`` here and
-    ``asserts`` on every :class:`MartIR` (RFC 0016 D89/D90). The bump is the
-    point — every artifact's fingerprint header moves, and ``plan()`` refuses
-    to diff across versions rather than misreading one as the other.
+    ``asserts`` on every :class:`MartIR` (RFC 0016 D89/D90). Version 5
+    (RFC 0022 M19) adds ``via`` to every :class:`UnreachableMetric`. The bump is
+    the point — every artifact's fingerprint header moves, and ``plan()``
+    refuses to diff across versions rather than misreading one as the other.
 
     Note that ``steps`` shifts every fingerprint even for a project with no
     steps at all: the canonical encoder writes each dataclass's field count
@@ -793,7 +808,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 4
+    bloomery_ir_version: int = 5
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

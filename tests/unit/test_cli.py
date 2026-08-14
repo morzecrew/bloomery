@@ -41,21 +41,23 @@ from bloomery import (
     Op,
     Plan,
     ReplayScope,
-    Resolution,
     RowPolicy,
+    SpecEvidence,
     SpecKind,
+    Stage,
     Target,
     all_spec_schemas,
     build_project_ir,
     compile_project,
+    evaluate,
     plan,
     project_fingerprint,
-    resolve,
 )
 from bloomery.cli import EXIT_OK, EXIT_REFUSED, EXIT_USAGE, build_parser, main
 from bloomery.cli.io import CliIoError, read_spec_directory, write_files
-from bloomery.cli.render import render_plan, render_resolution
+from bloomery.cli.render import render_evidence, render_plan
 from bloomery.cli.serialize import as_json_value
+from bloomery.errors import BloomeryError
 from bloomery.naming import DefaultNaming
 from support.compiling import load_fixture
 
@@ -148,7 +150,7 @@ def test_schema_out_writes_one_file_per_kind(
 def test_resolve_json_matches_the_python_call(capsys: pytest.CaptureFixture[str]) -> None:
     project, catalog = load_fixture("ecom_basic")
     assert _json(capsys, "resolve", ECOM, "--format", "json") == as_json_value(
-        resolve(project, catalog)
+        evaluate(project, catalog=catalog)
     )
 
 
@@ -195,16 +197,100 @@ def test_explain_json_matches_the_python_call(capsys: pytest.CaptureFixture[str]
     assert payload == as_json_value(expected)
 
 
+FANOUT = str(FIXTURES / "fanout_trap")
+
+
+# ....................... #
+# RFC 0022 D8 — `resolve` reports reachability *and* refusals
+
+
+def test_a_refused_spec_still_reports_what_was_reachable(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The whole of the re-point, as output.
+
+    Before this, a spec that refused anywhere printed nothing at all — the
+    refusal propagated and `main` printed one message. A spec mid-draft is
+    exactly when an author wants both halves, and the reachability was computed
+    two stages before the refusal either way.
+    """
+    code, out, _err = run(capsys, "resolve", FANOUT)
+    assert code == EXIT_REFUSED
+    assert out.startswith("Stage: guardrails")
+    assert "landed_revenue" in out  # reachable, computed before the refusal
+    assert "marts: marts.order_items.measures.shipping_cost" in out  # and the refusal
+
+
+def test_a_refused_spec_exits_one_rather_than_zero(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Reporting a refusal instead of raising it must not turn it into success:
+    a pipeline branches on the code, and the spec is still refused."""
+    assert run(capsys, "resolve", FANOUT)[0] == EXIT_REFUSED
+    assert run(capsys, "resolve", ECOM)[0] == EXIT_OK
+
+
+def test_a_refused_spec_serializes_its_refusals_with_source_paths(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`--format json` on the specs the command exists for.
+
+    A refusal is not a dataclass, so the structural converter has to know what
+    one looks like or this fails on exactly those specs. Each arrives with its
+    own `source_path` rather than as one aggregate message to re-parse.
+    """
+    code, out, err = run(capsys, "resolve", FANOUT, "--format", "json")
+    assert code == EXIT_REFUSED, err
+    payload = json.loads(out)
+    assert payload["stage_reached"] == "guardrails"
+    assert payload["fingerprint"] is None
+    refusals = payload["refusals"]
+    assert len(refusals) > 1
+    assert all(refusal["source_path"] and refusal["type"] for refusal in refusals)
+
+
+def test_a_structured_fix_suggestion_reaches_json(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """RFC 0020's suggestions are values on the error. The converter reads them
+    off `vars()` rather than from a per-class list, so one added to a sixth
+    error arrives in the same commit that adds it."""
+    code, out, _err = run(capsys, "resolve", FANOUT, "--format", "json")
+    assert code == EXIT_REFUSED
+    violations = [r for r in json.loads(out)["refusals"] if r["type"] == "GrainViolation"]
+    assert violations
+    assert violations[0]["offending_measures"] == [{"grain": "order", "measure": "shipping_cost"}]
+
+
+def test_a_step_wiring_project_reports_the_unwired_step(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The one project shape whose answer changed.
+
+    The CLI offers no `--steps` — a `StepRegistry` is a caller-assembled
+    compile input — and `resolve()` never looked at steps, so this printed
+    reachability as though the wiring were not there. `compile` on the same
+    project already refused; now the two agree.
+    """
+    code, out, _err = run(capsys, "resolve", str(FIXTURES / "step_resolution"))
+    assert code == EXIT_REFUSED
+    assert "Stage: lower" in out
+    assert "UnknownStep" in out
+    assert "steps: steps.resolve_customers@3" in out
+
+
 def test_resolve_json_carries_fields_the_table_does_not_print(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """The concrete meaning of "not a lossier surface": ``provenance`` and
-    ``topo_order`` are on the returned value and off the table, and a script
-    should not have to drop to Python for them."""
+    """The concrete meaning of "not a lossier surface": the entity list and the
+    marts\' measures and dimensions are on the returned value and off the
+    table, and a script should not have to drop to Python for them."""
     payload = _json(capsys, "resolve", ECOM, "--format", "json")
     assert isinstance(payload, dict)
-    assert payload["provenance"]
-    assert payload["topo_order"]
+    assert payload["entities"]
+    marts = payload["marts"]
+    assert isinstance(marts, list)
+    assert all(mart["measures"] and mart["dimensions"] for mart in marts)
 
 
 def test_a_logical_type_serializes_as_the_string_a_spec_writes(
@@ -519,15 +605,47 @@ def test_the_plan_table_carries_replay_and_downstream_sections() -> None:
     assert not any(line != line.rstrip() for line in rendered.splitlines())
 
 
-def test_an_empty_resolution_renders_both_headers() -> None:
+def test_an_empty_evaluation_renders_the_stage_and_both_headers() -> None:
     """A project with nothing reachable is a legitimate state — a catalog-free
-    bring-up — and the zero counts are the answer, not an empty page."""
-    rendered = render_resolution(
-        Resolution(
-            reachable_metrics=(), unreachable_metrics=(), provenance=(), topo_order=()
-        )
-    )
-    assert rendered.splitlines() == ["Reachable (0)", "", "Unreachable (0)"]
+    bring-up — and the zero counts are the answer, not an empty page.
+
+    The stage leads, which is the point: at ``COMPLETE`` these zeros mean
+    "nothing unreachable", and at any other stage they mean "never computed"
+    (RFC 0022 D5). The same three lines without the first would be ambiguous.
+    """
+    rendered = render_evidence(SpecEvidence(stage_reached=Stage.COMPLETE))
+    assert rendered.splitlines() == [
+        "Stage: complete",
+        "",
+        "Reachable (0)",
+        "",
+        "Unreachable (0)",
+    ]
+
+
+def test_an_errors_own_attribute_cannot_redefine_the_type_discriminator() -> None:
+    """`type` names the error class and `message` is `str(exc)` — that is the
+    contract a consumer branches on.
+
+    Attributes are read off `vars()`, so an error carrying its own `type` used
+    to overwrite the class name and every `payload["type"] == "GrainViolation"`
+    silently stopped matching. No error in this package assigns one, but the
+    hierarchy is public and extensible, and nothing downstream can detect a
+    corrupted discriminator. The reserved keys are written last now, so they
+    win; the shadowed attribute is what is lost, which is the smaller harm.
+    """
+
+    class VendorError(BloomeryError):
+        def __init__(self, message: str) -> None:
+            super().__init__(message, source_path="specs/x.yaml")
+            self.type = "vendor-code-42"
+            self.message = "not the message"
+
+    payload = as_json_value(VendorError("boom"))
+    assert isinstance(payload, dict)
+    assert payload["type"] == "VendorError"
+    assert payload["message"] == "boom"
+    assert payload["source_path"] == "specs/x.yaml"
 
 
 def test_a_decimal_serializes_as_a_string_never_a_float() -> None:

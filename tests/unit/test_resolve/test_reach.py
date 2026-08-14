@@ -56,7 +56,12 @@ def test_missing_names_the_specific_leaves_sorted() -> None:
 
 def test_missing_propagates_leaves_through_requires_metrics() -> None:
     """RFC 0005 §5.3: if AOV requires net_revenue which requires discount, the
-    reason is `discount` — the leaf, not the intermediate metric."""
+    reason is `discount` — the leaf, not the intermediate metric.
+
+    ``via`` carries the intermediate *beside* it rather than in place of it
+    (RFC 0022 D11): the fix is still the mapping, and the chain is what the
+    reader would otherwise have to re-walk to see why fixing it helps AOV.
+    """
     metrics = (
         _metric("aov", requires_metrics=("net_revenue", "order_count")),
         _metric("net_revenue", requires=("unit_price", "discount")),
@@ -65,9 +70,44 @@ def test_missing_propagates_leaves_through_requires_metrics() -> None:
     reachable, unreachable = compute_reachability(metrics, frozenset({"unit_price"}))
     assert reachable == ("order_count",)
     assert unreachable == (
-        UnreachableMetric(name="aov", missing=("discount",)),
+        UnreachableMetric(name="aov", missing=("discount",), via=("net_revenue",)),
         UnreachableMetric(name="net_revenue", missing=("discount",)),
     )
+
+
+def test_via_names_only_the_blocked_requirements() -> None:
+    """``order_count`` is required by AOV and is perfectly reachable, so naming
+    it would send the reader to a metric that is fine. Only a requirement that
+    is itself blocked is on the path to something missing."""
+    metrics = (
+        _metric("aov", requires_metrics=("net_revenue", "order_count")),
+        _metric("net_revenue", requires=("discount",)),
+        _metric("order_count"),
+    )
+    _reachable, unreachable = compute_reachability(metrics, frozenset())
+    aov = next(metric for metric in unreachable if metric.name == "aov")
+    assert aov.via == ("net_revenue",)
+
+
+def test_via_is_the_whole_chain_not_just_the_first_link() -> None:
+    """Two hops. A reader fixing ``discount`` wants to know that ``gross`` and
+    ``net_revenue`` both unblock with it — otherwise the chain has to be walked
+    by hand, which is the walk the compiler just did."""
+    metrics = (
+        _metric("aov", requires_metrics=("net_revenue",)),
+        _metric("net_revenue", requires_metrics=("gross",)),
+        _metric("gross", requires=("discount",)),
+    )
+    _reachable, unreachable = compute_reachability(metrics, frozenset())
+    aov = next(metric for metric in unreachable if metric.name == "aov")
+    assert aov.missing == ("discount",)
+    assert aov.via == ("gross", "net_revenue")
+
+
+def test_via_is_empty_when_the_metric_is_blocked_on_its_own_leaves() -> None:
+    metrics = (_metric("margin", requires=("cogs",)),)
+    _reachable, unreachable = compute_reachability(metrics, frozenset())
+    assert unreachable == (UnreachableMetric(name="margin", missing=("cogs",), via=()),)
 
 
 def test_leafless_metric_is_trivially_reachable() -> None:

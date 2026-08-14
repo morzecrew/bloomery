@@ -41,6 +41,7 @@ nav = [
         "how-to/add-quality-rules.md",
         "how-to/plan-a-metric-request.md",
         "how-to/evolve-a-spec.md",
+        "how-to/evaluate-a-spec.md",
         "how-to/use-the-cli.md",
     ] },
     { "Reference" = [

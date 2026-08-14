@@ -8,7 +8,9 @@ from decimal import Decimal
 
 import pytest
 from sqlglot import exp
+from support.compiling import load_fixture
 
+from bloomery import build_project_ir
 from bloomery.ir import (
     DedupeIR,
     DimensionRef,
@@ -67,14 +69,34 @@ def test_partition_spec_identity_transform() -> None:
 # Data quality (RFC 0016 §5.3–§5.6)
 
 
-def test_ir_version_is_four() -> None:
-    # RFC 0016 M12, RFC 0017 M13, and now `ProjectIR.coverage` + `MartIR.asserts`
-    # each change the IR shape; RFC 0003 D3 makes the version part of the
-    # fingerprint, so each bump is deliberate and loud. This wave nearly shipped
-    # without one: the fingerprints moved anyway (the encoder covers field names
-    # and count), so nothing failed — but `plan()` would have diffed a
-    # coverage-carrying IR against one without, both calling themselves v3.
-    assert ProjectIR().bloomery_ir_version == 4
+def test_ir_version_is_five() -> None:
+    # RFC 0016 M12, RFC 0017 M13, `ProjectIR.coverage` + `MartIR.asserts`, and
+    # now `UnreachableMetric.via` each change the IR shape; RFC 0003 D3 makes
+    # the version part of the fingerprint, so each bump is deliberate and loud.
+    # The M12/M13 wave nearly shipped without one: the fingerprints moved anyway
+    # (the encoder covers field names and count), so nothing failed — but
+    # `plan()` would have diffed a coverage-carrying IR against one without,
+    # both calling themselves v3.
+    assert ProjectIR().bloomery_ir_version == 5
+
+
+def test_the_compiler_emits_the_declared_ir_version() -> None:
+    """The version is declared once, on the dataclass, and `build_project_ir`
+    inherits it.
+
+    It used to be written twice — the default here and a literal at the
+    builder's `ProjectIR(...)` call — and the two could disagree in either
+    direction. Bump only the default and the compiler keeps stamping the old
+    number; bump only the call site and every artifact claims a version no
+    hand-built IR carries, which surfaces as a golden fingerprint diff and is
+    exactly the diff a `just snapshot-update` walks straight past. This is the
+    assertion that a single declaration makes cheap.
+    """
+    project, catalog = load_fixture("minimal")
+    assert (
+        build_project_ir(project, catalog=catalog).bloomery_ir_version
+        == ProjectIR().bloomery_ir_version
+    )
 
 
 def test_on_fail_is_the_disposition_set() -> None:

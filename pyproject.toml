@@ -310,6 +310,13 @@ exclude_type_checking_imports = true
 # models it describes and the transform registry the whitelist enum comes from
 # (D2), and nothing else. A sibling rather than a top layer because `cli`
 # consumes it; the two siblings are mutually independent by construction.
+# M19 (RFC 0022): `evidence` sits directly above `resolve` and below `plan` —
+# as low as it can go, which is the placement that states what it is. It reads
+# the pipeline it runs (`resolve`), the IR it projects (`ir`), the spec types
+# in its signature, `steps` and `errors`. Below `plan` and `emit` because an
+# assessment must not be able to reach an emitter: `evaluate()` is the natural-
+# looking home for "and also compile it to see", and the layer refuses that
+# before a reviewer has to.
 name = "Layered bloomery compile pipeline"
 type = "layers"
 layers = [
@@ -319,6 +326,7 @@ layers = [
     "(bloomery.emit)",
     "(bloomery.naming)",
     "(bloomery.plan)",
+    "(bloomery.evidence)",
     "(bloomery.resolve)",
     "(bloomery.guardrails)",
     "(bloomery.quality)",
