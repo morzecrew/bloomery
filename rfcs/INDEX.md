@@ -32,7 +32,7 @@ Two consequences worth knowing:
 
 ## Allocating a number
 
-The next free number is **0023**. Before creating an RFC, read the number above — do not
+The next free number is **0026**. Before creating an RFC, read the number above — do not
 compute it from `ls`, which no longer sees retired documents. **Numbers are never reused**:
 0001–0022 are retired and permanently spent. Update this section in the same change that
 mints a number.
@@ -42,14 +42,15 @@ filename in sync.
 
 ## Index
 
-*Empty.* Every RFC 0001–0022 has landed or been rejected, and each was retired in the
-change that finished it — so the code, the tests and the user-facing docs are the whole
-account of what bloomery does. That is the steady state this directory is designed to
-return to, not a gap: a live row means a design argued and not yet settled, and there is
-none open.
+Every RFC 0001–0022 landed or was rejected and was retired in the change that finished it;
+the three below are the first live rows since. A live row means a design argued and not yet
+settled — not work in flight.
 
 | # | Title | Status | One-line routing description |
 |---|---|---|---|
+| [0023](0023-temporal-joins-scd2-flattening-and-currency-conversion.md) | Temporal joins: SCD2 flattening and currency conversion | 📝 Draft | Two constructs that compile clean and cannot be correct — flattening a historical dimension, and `convert` — both needing a join against a validity interval. Refuse now, design the as-of join later. |
+| [0024](0024-deterministic-union-merge.md) | Deterministic union merge | 📝 Draft | Letting several mappings build one entity when they share a key space but no overlapping keys, so the entity model integrates sources instead of renaming one. Overlap stays a step. |
+| [0025](0025-v0-1-0-release-readiness.md) | v0.1.0 release readiness | 📝 Draft | What must hold before the stability promises stop describing an intention and start binding: the ratchets RFC 0001 deferred to this moment, a navigable retired corpus, and the release act. |
 
 ## Status legend
 
