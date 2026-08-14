@@ -117,6 +117,20 @@ Exactly one per project.
 | `dedupe` | Dedupe | no | Keep one row per key — see [Dedupe](#dedupe) |
 | `quarantine` | Quarantine | no | Reject-table policy — see [Quarantine](#quarantine) |
 
+**`materialization` is derived, never inferred, and that distinction is the rule.** An
+entity with a partition key gets `incremental_by_partition` without anyone writing it —
+that is a *default*: visible in the compiled output, and overridable by saying otherwise.
+What bloomery will not do is *infer* the strategy from grain and partition key in the
+ambiguous cases, because an inference is a guess the author cannot see, and a wrong guess
+here produces a wrong backfill scope that surfaces as missing rows.
+
+> **bloomery derives defaults; it does not infer intent.**
+
+The same line runs through recipes: the compiler validates the recipe a mapping recorded
+and never chooses one itself. If a specific inference is later shown to be both safe *and*
+visible in the emitted artifact, it can be argued as a change — a default carries no such
+burden, which is why one is cheap and the other is not.
+
 ### Field
 
 | Field | Type | Required | Meaning |

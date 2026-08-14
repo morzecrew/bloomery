@@ -34,7 +34,7 @@ Two consequences worth knowing:
 
 The next free number is **0023**. Before creating an RFC, read the number above — do not
 compute it from `ls`, which no longer sees retired documents. **Numbers are never reused**:
-0001–0020 and 0022 are retired and permanently spent. Update this section in the same change that
+0001–0022 are retired and permanently spent. Update this section in the same change that
 mints a number.
 
 Filename: `NNNN-kebab-title.md`. Keep the `# RFC NNNN — Title` H1 and the number in the
@@ -42,9 +42,14 @@ filename in sync.
 
 ## Index
 
+*Empty.* Every RFC 0001–0022 has landed or been rejected, and each was retired in the
+change that finished it — so the code, the tests and the user-facing docs are the whole
+account of what bloomery does. That is the steady state this directory is designed to
+return to, not a gap: a live row means a design argued and not yet settled, and there is
+none open.
+
 | # | Title | Status | One-line routing description |
 |---|---|---|---|
-| [0021](0021-capability-boundaries.md) | Capability boundaries: identity resolution, dialects, closed questions | 📝 Draft | Where bloomery stops: identity resolution as a step rather than a spec kind, dialects gated on named demand, and the reusable test for whether anything deserves a spec kind. |
 
 ## Status legend
 
