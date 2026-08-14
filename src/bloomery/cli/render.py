@@ -63,6 +63,15 @@ def render_evidence(evidence: SpecEvidence) -> str:
     A refused spec still prints its reachability. That is the whole of the
     re-point: before this, `resolve` either printed reachability *or* raised,
     and a spec mid-draft is exactly when an author wants both.
+
+    :attr:`~bloomery.SpecEvidence.entities` is deliberately **not** printed, and
+    is stated here so a later reader does not read the omission as an oversight.
+    The command answers "which metrics are computable, and what is missing for
+    the rest"; an entity list is neither reachability nor a refusal, and the
+    relations a project declares are what ``bloomery compile`` prints paths for.
+    It is on the value and in ``--format json``, which is where the CLI's
+    not-a-lossier-surface promise lives (RFC 0020 D4) — the table has always
+    been a summary, as ``render_plan`` is of a ``Plan``.
     """
     lines = [f"Stage: {evidence.stage_reached.value}"]
     if evidence.stage_reached is not Stage.COMPLETE:
@@ -105,7 +114,7 @@ def _via(metric: UnreachableMetric) -> str:
     An empty third column rather than a second table: a reader scanning the
     unreachable list wants one row per metric, and most rows have no chain.
     """
-    return "via: " + ", ".join(metric.via) if metric.via else ""
+    return ("via: " + ", ".join(metric.via)) if metric.via else ""
 
 
 def _refusal(refusal: BloomeryError) -> list[str]:

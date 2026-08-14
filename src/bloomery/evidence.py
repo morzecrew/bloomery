@@ -214,10 +214,11 @@ def _from_ir(
     identity for something that may never be built. Only the caller that
     reached :attr:`~bloomery.Stage.COMPLETE` has one to pass.
     """
+    reachable, unreachable = _reachability(resolution)
     return SpecEvidence(
         stage_reached=stage,
-        reachable=tuple(sorted(resolution.reachable_metrics)),
-        unreachable=tuple(sorted(resolution.unreachable_metrics, key=_unreachable_key)),
+        reachable=reachable,
+        unreachable=unreachable,
         refusals=refusals,
         marts=tuple(
             sorted(
@@ -227,6 +228,22 @@ def _from_ir(
         ),
         entities=tuple(sorted(entity.name for entity in ir.entities)),
         fingerprint=fingerprint,
+    )
+
+
+def _reachability(
+    resolution: Resolution,
+) -> tuple[tuple[str, ...], tuple[UnreachableMetric, ...]]:
+    """``(reachable, unreachable)``, sorted — the one definition of both.
+
+    Both paths that build a :class:`SpecEvidence` from a resolution project it
+    the same way, and this is where "the same way" is written down. The sort
+    key gained a field in the change that added ``via``, and a projection
+    written twice is one where the second copy is updated a release later.
+    """
+    return (
+        tuple(sorted(resolution.reachable_metrics)),
+        tuple(sorted(resolution.unreachable_metrics, key=_unreachable_key)),
     )
 
 
@@ -255,10 +272,11 @@ def _partial(stage: Stage, progress: StageProgress, raised: BloomeryError) -> Sp
         return SpecEvidence(stage_reached=stage, refusals=refusals)
     if progress.ir is not None:
         return _from_ir(stage, progress.ir, resolution, refusals)
+    reachable, unreachable = _reachability(resolution)
     return SpecEvidence(
         stage_reached=stage,
-        reachable=tuple(sorted(resolution.reachable_metrics)),
-        unreachable=tuple(sorted(resolution.unreachable_metrics, key=_unreachable_key)),
+        reachable=reachable,
+        unreachable=unreachable,
         refusals=refusals,
     )
 

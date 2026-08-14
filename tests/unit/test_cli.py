@@ -57,6 +57,7 @@ from bloomery.cli import EXIT_OK, EXIT_REFUSED, EXIT_USAGE, build_parser, main
 from bloomery.cli.io import CliIoError, read_spec_directory, write_files
 from bloomery.cli.render import render_evidence, render_plan
 from bloomery.cli.serialize import as_json_value
+from bloomery.errors import BloomeryError
 from bloomery.naming import DefaultNaming
 from support.compiling import load_fixture
 
@@ -620,6 +621,31 @@ def test_an_empty_evaluation_renders_the_stage_and_both_headers() -> None:
         "",
         "Unreachable (0)",
     ]
+
+
+def test_an_errors_own_attribute_cannot_redefine_the_type_discriminator() -> None:
+    """`type` names the error class and `message` is `str(exc)` — that is the
+    contract a consumer branches on.
+
+    Attributes are read off `vars()`, so an error carrying its own `type` used
+    to overwrite the class name and every `payload["type"] == "GrainViolation"`
+    silently stopped matching. No error in this package assigns one, but the
+    hierarchy is public and extensible, and nothing downstream can detect a
+    corrupted discriminator. The reserved keys are written last now, so they
+    win; the shadowed attribute is what is lost, which is the smaller harm.
+    """
+
+    class VendorError(BloomeryError):
+        def __init__(self, message: str) -> None:
+            super().__init__(message, source_path="specs/x.yaml")
+            self.type = "vendor-code-42"
+            self.message = "not the message"
+
+    payload = as_json_value(VendorError("boom"))
+    assert isinstance(payload, dict)
+    assert payload["type"] == "VendorError"
+    assert payload["message"] == "boom"
+    assert payload["source_path"] == "specs/x.yaml"
 
 
 def test_a_decimal_serializes_as_a_string_never_a_float() -> None:

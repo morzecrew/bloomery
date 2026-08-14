@@ -51,18 +51,28 @@ __all__ = [
 def _error_as_json(error: BloomeryError) -> dict[str, object]:
     """A refusal as its class, its message, and everything it carries.
 
-    Read off ``vars()`` rather than from a per-class list: every attribute a
-    refusal has was assigned in an ``__init__``, so this covers ``source_path``,
-    ``collected`` and each of RFC 0020's structured suggestions without naming
-    one of them — and a suggestion added to a sixth error reaches JSON in the
-    same commit that adds it, rather than in the one that remembers to.
+    Attributes are read off ``vars()`` rather than from a per-class list: every
+    attribute a refusal has was assigned in an ``__init__``, so this covers
+    ``source_path``, ``collected`` and each of RFC 0020's structured
+    suggestions without naming one of them — and a suggestion added to a sixth
+    error reaches JSON in the same commit that adds it, rather than in the one
+    that remembers to.
 
-    Keys are sorted for the same reason every other collection here is.
+    **The reserved keys are written last, so they win.** They used to lead, and
+    a ``**`` expansion after them overwrites rather than yields: an error
+    carrying its own ``type`` attribute — which no error in this package does,
+    but the hierarchy is public and extensible — replaced the class name with
+    its own value, and every consumer branching on ``payload["type"] ==
+    "GrainViolation"`` silently stopped matching. Losing an attribute to a name
+    collision is a small harm; corrupting the discriminator is not, because
+    nothing downstream can detect it.
+
+    Attributes are sorted for the same reason every other collection here is.
     """
     return {
+        **{name: as_json_value(attribute) for name, attribute in sorted(vars(error).items())},
         "type": type(error).__name__,
         "message": str(error),
-        **{name: as_json_value(attribute) for name, attribute in sorted(vars(error).items())},
     }
 
 

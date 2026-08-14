@@ -963,10 +963,19 @@ def _lower_draft(
     steps: StepRegistry,
     resolution: Resolution,
 ) -> ProjectIR:
-    """Spec plus resolution to the draft IR the guardrail stage judges."""
+    """Spec plus resolution to the draft IR the guardrail stage judges.
+
+    ``bloomery_ir_version`` is left to :class:`~bloomery.ProjectIR`'s default
+    rather than repeated here. It was written in both places, and the two could
+    disagree in either direction with nothing to say so: bump only the default
+    and the compiler keeps emitting the old number, bump only this call site and
+    every artifact claims a version no hand-built IR carries — which shows up as
+    a golden fingerprint diff, exactly the diff a ``just snapshot-update`` walks
+    straight past. The dataclass is the one declaration now, and
+    ``test_the_compiler_emits_the_declared_ir_version`` pins that it is.
+    """
     steps_ir = lower_steps(project, steps)
     draft = ProjectIR(
-        bloomery_ir_version=5,
         # Mapped entities plus one per step output: §5.8 makes a step output an
         # entity so marts, metrics and downstream mappings can reference it
         # like any other. Sorted together, because the IR's ordering rule is
