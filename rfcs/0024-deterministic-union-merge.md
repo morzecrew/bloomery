@@ -10,8 +10,8 @@
   as a step by RFC 0021 and unchanged here. Touches `resolve/build.py` (the refusal it
   replaces), `emit/lower/silver.py` (the union), `guardrails/`, `plan/diff.py`. Adds one
   system column and one generated audit; no public signature changes.
-- **Related:** [`src/bloomery/resolve/build.py:845-851`](../src/bloomery/resolve/build.py)
-  (the refusal), [`tests/unit/test_resolve/test_build.py:255`](../tests/unit/test_resolve/test_build.py)
+- **Related:** [`src/bloomery/resolve/build.py#L845-L851`](../src/bloomery/resolve/build.py#L845-L851)
+  (the refusal), [`tests/unit/test_resolve/test_build.py#L255`](../tests/unit/test_resolve/test_build.py#L255)
   (the test that pins it), [`src/bloomery/emit/lower/silver.py`](../src/bloomery/emit/lower/silver.py)
   (silver lowering, the fixed pipeline order, the system columns), RFC 0009 D4 (which named
   the `multi_source` fixture and never built it), RFC 0016 (dispositions, blocking audits,
@@ -52,7 +52,7 @@ the platform's step registry, a Python model, a contract assertion, a wrapper pe
 and SQLMesh only, since dbt refuses `python_model` steps (RFC 0017 D52). All of that to
 express `UNION ALL`, with no matching involved.
 
-**The refusal already promises this.** [`resolve/build.py:849`](../src/bloomery/resolve/build.py)
+**The refusal already promises this.** [`resolve/build.py#L849`](../src/bloomery/resolve/build.py#L849)
 raises with the words *"deterministic union merge lands with the multi_source milestone
 (RFC 0009 D4)"*. RFC 0009 D4 defined the corpus as "exactly spec §7.7", `multi_source`
 included — *"two sources → one entity via deterministic union merge"* — and RFC 0009 was
@@ -95,7 +95,7 @@ Verified against `main` @ `828fd5b` (2026-08-14).
   `_quality_flags`, `_quality_ok`), so adding one more is an established shape rather than
   a new concept.
 - `unmapped:` already exists as an *explicit acknowledgement* that a source column is
-  deliberately not mapped ([`guardrails/quality.py:238`](../src/bloomery/guardrails/quality.py)).
+  deliberately not mapped ([`guardrails/quality.py#L238`](../src/bloomery/guardrails/quality.py#L238)).
   The same instinct — silence is not consent — drives §5.2's treatment of absent fields.
 
 ## 4. Goals / Non-goals
@@ -160,6 +160,18 @@ Batched with the other resolution errors, so an author sees every disagreement a
 2. **Required-field coverage.** Every mapping must produce every field declared
    `required: true`. A required field NULL for one source's rows is a broken contract, and
    NULL-filling it silently is the failure mode this check exists to prevent.
+
+   **This is coverage, not non-nullity, and the difference is load-bearing.** `required:
+   true` is a schema declaration; the runtime null check is a separate mechanism —
+   `assert: {not_null: true}`, which lowers to an audit
+   ([`guardrails/asserts.py#L132-L133`](../src/bloomery/guardrails/asserts.py#L132-L133)).
+   So this check proves every mapping *declares* the field, and proves nothing about what
+   its source path returns per row. A mapping whose `$.customer.id` is absent in half the
+   payloads passes it and writes NULLs into a required column. That asymmetry exists today
+   for single-mapping entities and is not created here — but a merge makes it materially
+   worse, because one bad source silently poisons a column the other sources fill
+   correctly, and the entity looks internally inconsistent rather than externally broken.
+   Whether the union stage emits a generated `IS NULL` audit over required columns is D11.
 3. **Optional fields may be absent, but not silently.** A field a mapping does not produce
    is `NULL` for that mapping's rows. This is legitimate — one system has no loyalty tier —
    and it is also exactly what a typo in a field name looks like. It therefore requires the
@@ -181,11 +193,25 @@ UNION ALL
 SELECT ..., 'woo__orders'     AS _source FROM bronze.woo__orders
 ```
 
+**Two mappings may not name the same `source:` for one target.** Lexicographic ordering
+needs a total order, and two branches reading one relation tie — which would leave branch
+order undefined, `_source` ambiguous between them, and the collision audit unable to name
+which branch it means. `(target, source)` is therefore unique, refused at compile time
+alongside the checks above. A project genuinely reading one relation twice (two disjoint
+row sets from one table) expresses that as one mapping with a filter, which is a shape
+`quality:` already covers; if a real consumer needs the two-mapping form, the fix is a
+declared per-mapping identity, not a tie-break the author cannot see.
+
 Two things about determinism, which are different and both required:
 
 - **Artifact determinism** — the emitted SQL text must be byte-identical across processes.
-  The lexicographic source order provides it. This is the invariant RFC 0003 protects and
-  the one that matters here.
+  The lexicographic source order provides branch order; **column order is already
+  canonical** and not newly relied upon here — projections are emitted sorted today, as any
+  existing golden shows (`silver/order_item.sql` projects `line_no, order_date, order_id,
+  quantity, unit_price` against a declaration order of `order_id, line_no, unit_price,
+  quantity, order_date`). Reordering fields in a mapping therefore cannot move bytes, and
+  the union inherits that. This is the invariant RFC 0003 protects and the one that matters
+  here.
 - **Row order** is *not* claimed. `UNION ALL` is a bag; no downstream model may depend on
   which source's rows come first. Where an order is needed — `dedupe`'s
   `keep: latest_by` — it comes from the declared ordering columns, as it does today.
@@ -203,14 +229,28 @@ contain.
 ### 5.4 What is refused at run time
 
 The compiler has no data, so it cannot know the key sets are disjoint. A generated audit
-does:
+does — reading the **union output, before dedupe**:
 
 ```sql
-SELECT order_id, COUNT(DISTINCT _source) AS sources
-FROM silver.order
-GROUP BY order_id
+SELECT order_id, line_no, COUNT(DISTINCT _source) AS sources
+FROM <the union stage>          -- NOT silver.order, which is post-dedupe
+GROUP BY order_id, line_no
 HAVING COUNT(DISTINCT _source) > 1
 ```
+
+Two things this shape pins, both of which an earlier draft got wrong:
+
+**It groups by every declared key column, generated from the entity's `key:`.** The
+single-column form above is one instance, not the spec — a composite key grouped by its
+first column alone merges distinct keys and blocks valid data, which is a false refusal on
+a blocking audit and therefore the worst possible failure of this check.
+
+**It reads the union stage, not `silver.order`.** `silver.order` is post-dedupe, and dedupe
+is precisely the operation that collapses rows sharing an entity key — so an audit reading
+it would see one surviving row where two sources collided and report nothing. The check has
+to run on the relation *before* the stage that hides what it looks for. The collision test
+in §6 is written for exactly that case: two sources colliding on a key that `dedupe:` would
+have collapsed.
 
 Blocking, `on_fail: fail`, and **not configurable to a weaker disposition**. A key in two
 sources means one of two things, and both are refusals: either the sources genuinely
@@ -235,13 +275,27 @@ No new change class:
 
 | Change | Class | Why |
 | --- | --- | --- |
-| A mapping added to an entity | `ADDITIVE` | New rows, no column change |
-| A mapping removed | `RESTATING` | Same columns, fewer rows — the relation must be rebuilt |
-| A mapping's key expression changed | `BREAKING` | Redefines what a row *is* — the existing rule at [`plan/diff.py:218`](../src/bloomery/plan/diff.py) |
+| A mapping added to an entity that already had one | `ADDITIVE` ×2 | New rows, **and** the `_source` column appears. A field added is already `ADDITIVE` ([`plan/diff.py#L358-L364`](../src/bloomery/plan/diff.py#L358-L364)) |
+| A mapping added to an already-merged entity | `ADDITIVE` | New rows only; `_source` is already present |
+| A mapping removed, two or more remaining | `RESTATING` | Same columns, fewer rows — the relation must be rebuilt |
+| A mapping removed, leaving one | `RESTATING` + column dropped | `_source` goes with the merge; dropping a column a metric references is the existing `ContractViolation` |
+| A mapping's key expression changed | `BREAKING` | Redefines what a row *is* — the existing rule at [`plan/diff.py#L218`](../src/bloomery/plan/diff.py#L218) |
 
-The first two are the rows worth checking during implementation: `ADDITIVE` is right only
-because a new source adds rows without touching the schema, and `RESTATING` is right only
-because the column set survives.
+**`_source` exists only on merged entities**, which is what makes the first row two changes
+rather than one. An earlier draft claimed a mapping addition causes "no column change";
+that was wrong, and it matters more than the class does — the class is `ADDITIVE` either
+way, so the error would have survived into implementation as a comment nobody re-derived.
+
+The alternative — emitting `_source` on *every* mapped entity so the column set never
+depends on mapping count — is rejected: it churns every golden in the corpus for a column
+that is a constant in the single-source case, and puts a bloomery-invented column in every
+relation forever to spare one classified change. The transition showing up in `plan()` is
+the better outcome anyway: it is exactly the kind of schema move an operator should see
+before it lands, and a silent uniform column is how it would have been hidden.
+
+The two removal rows are the ones worth verifying during implementation. The second is the
+sharp one: dropping back to a single mapping removes `_source`, and if anything downstream
+reads it the existing contract check must fire.
 
 ### Alternatives considered
 
@@ -274,9 +328,14 @@ relation is an expensive way to be silent.
   `identity_resolution` fixture runs.
 - **A collision variant** seeded so the audit fires, asserted as a *blocking* failure
   rather than a flag. This is the case that must be verified red — a union whose collision
-  audit silently passes is worse than no union.
-- Compile-time refusals: partial key, missing required field, unacknowledged absent field.
-  Each with the source path of the offending mapping, not the entity.
+  audit silently passes is worse than no union. The seed must be a collision **`dedupe:`
+  would have collapsed**, which is the only version of this test that distinguishes D13's
+  audit placement from an audit reading `silver.<entity>`.
+- **A composite-key fixture.** The single-column example in §5.4 passes with a partial-key
+  audit; only a composite key catches a generated `GROUP BY` that dropped a component.
+- Compile-time refusals: partial key, missing required field, unacknowledged absent field,
+  and two mappings naming one source (D12). Each with the source path of the offending
+  mapping, not the entity.
 - **Determinism**: the two mappings declared in both orders in the project must produce
   byte-identical artifacts. This is the assertion that pins D3, and it belongs in the
   existing cross-`PYTHONHASHSEED` harness.
@@ -359,8 +418,11 @@ relation is an expensive way to be silent.
 | 6 | `LOCKED` | The union is the **first** silver stage: union → dedupe → rules. A rule evaluated per source would judge rows the merged relation does not contain, which is the same argument that fixed dedupe-before-rules in RFC 0016. |
 | 7 | `ASSUMED` | A `_source` system column carries provenance. It is load-bearing rather than diagnostic: the collision audit reports which sources collided, and without it the report is unactionable on a multi-source entity. |
 | 8 | `OPEN` | Whether an optional field a mapping does not produce needs explicit acknowledgement, and in what spelling. Silence is indistinguishable from a typo, which argues for acknowledgement; `unmapped:` is the nearest existing mechanism but is source-column-shaped. Whoever builds it decides and logs it. |
-| 9 | `ASSUMED` | Change classification needs no new class: source added `ADDITIVE`, removed `RESTATING`, key expression changed `BREAKING`. Verify the first two during implementation — they are right only because the column set survives. |
+| 9 | `ASSUMED` | Change classification needs no new class — but adding a mapping to a single-source entity is **two** `ADDITIVE` changes, rows and the `_source` column, not one. `_source` exists only on merged entities (D7), so the column set does depend on mapping count; emitting it everywhere to avoid that would churn every golden in the corpus for a constant. Verify the removal rows during implementation: dropping to one mapping removes `_source`, and anything reading it must trip the existing contract check. |
 | 10 | `OPEN` | `scd: type2` combined with multi-source. The collision audit would misfire across versions, and fixing it needs validity columns nothing models (RFC 0023 §5.3). Refusing the combination is the expected answer; whoever builds this decides and logs it. |
+| 11 | `OPEN` | Whether the union stage emits a generated `IS NULL` audit over `required: true` columns. D4's coverage check proves each mapping *declares* the field and proves nothing about what its source path returns per row — `required:` is a schema declaration, and the runtime null check is the separate `assert: {not_null: true}` mechanism. The asymmetry predates this RFC; a merge makes it worse, because one bad source poisons a column the others fill correctly. Whoever builds this decides, and the decision is either the audit or an explicit statement that `required:` means coverage only. |
+| 12 | `LOCKED` | `(target, source)` is **unique**: two mappings for one entity may not read the same source relation. Lexicographic ordering needs a total order and two branches on one relation tie, which would leave branch order undefined, `_source` ambiguous, and the collision audit unable to name a branch. Consequence: reading one relation twice is expressed as one mapping with a filter, not two mappings. |
+| 13 | `LOCKED` | The collision audit reads the **union output, before dedupe**, and groups by **every** declared key column. Reading `silver.order` would let dedupe collapse the colliding rows before the audit counts them — the audit would be checking the one relation guaranteed not to contain what it looks for. Grouping by a partial key would merge distinct composite keys and block valid data, which on a blocking audit is the worst failure available. |
 
 ## 12. Phasing
 

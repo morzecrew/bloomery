@@ -12,7 +12,7 @@
   `transforms/_builtins.py`, `emit/lower/marts.py`; Phase 2 would additionally touch
   `spec/`, `ir/` and the catalog. No public signature changes in Phase 1.
 - **Related:** [`src/bloomery/emit/lower/marts.py`](../src/bloomery/emit/lower/marts.py)
-  (the join construction), [`src/bloomery/spec/entity.py`](../src/bloomery/spec/entity.py)
+  (the join construction), [`src/bloomery/spec/entity.py#L74`](../src/bloomery/spec/entity.py#L74)
   (`scd`), [`src/bloomery/guardrails/grain.py`](../src/bloomery/guardrails/grain.py)
   (`FanoutRisk`, the guardrail this one sits beside),
   [`src/bloomery/transforms/_builtins.py`](../src/bloomery/transforms/_builtins.py)
@@ -82,18 +82,21 @@ Verified against `main` @ `828fd5b` (2026-08-14). Every claim below was reproduc
 ### SCD2
 
 - `scd: type1 | type2` is declared per entity at
-  [`spec/entity.py:74`](../src/bloomery/spec/entity.py), reaching the IR as `SCDKind`
-  ([`ir/nodes.py:114,477`](../src/bloomery/ir/nodes.py)).
+  [`spec/entity.py#L74`](../src/bloomery/spec/entity.py#L74), reaching the IR as `SCDKind`
+  ([`ir/nodes.py#L114`](../src/bloomery/ir/nodes.py#L114),
+  [`#L477`](../src/bloomery/ir/nodes.py#L477)).
 - Both emitters honour it: SQLMesh writes
   `SCD_TYPE_2_BY_COLUMN (unique_key (…), columns *)`
-  ([`emit/sqlmesh/__init__.py:283-286`](../src/bloomery/emit/sqlmesh/__init__.py)), dbt a
-  check-strategy snapshot ([`emit/dbt/__init__.py:437,511,688`](../src/bloomery/emit/dbt/__init__.py)).
+  ([`emit/sqlmesh/__init__.py#L283-L286`](../src/bloomery/emit/sqlmesh/__init__.py#L283-L286)), dbt a
+  check-strategy snapshot ([`emit/dbt/__init__.py#L437`](../src/bloomery/emit/dbt/__init__.py#L437),
+  [`#L511`](../src/bloomery/emit/dbt/__init__.py#L511),
+  [`#L688`](../src/bloomery/emit/dbt/__init__.py#L688)).
   So the relation genuinely holds one row per version per key.
 - **`scd` is read in exactly one place outside the emitters and the plan diff:**
-  [`emit/lower/quality_mart.py:157`](../src/bloomery/emit/lower/quality_mart.py). Nothing
+  [`emit/lower/quality_mart.py#L157`](../src/bloomery/emit/lower/quality_mart.py#L157). Nothing
   in `marts/`, nothing in `guardrails/`.
 - The join is built from the relationship's columns and nothing else,
-  [`emit/lower/marts.py:91-104`](../src/bloomery/emit/lower/marts.py).
+  [`emit/lower/marts.py#L91-L104`](../src/bloomery/emit/lower/marts.py#L91-L104).
 - **Reproduction.** Taking `ecom_basic` and adding one line — `scd: type2` on the flattened
   `order` entity — compiles clean and emits:
 
@@ -117,10 +120,10 @@ Verified against `main` @ `828fd5b` (2026-08-14). Every claim below was reproduc
 
 - `convert` is a registered transform returning
   `exp.Anonymous(this="CONVERT_CURRENCY", …)`
-  ([`transforms/_builtins.py:381-387`](../src/bloomery/transforms/_builtins.py)).
+  ([`transforms/_builtins.py#L381-L387`](../src/bloomery/transforms/_builtins.py#L381-L387)).
 - `grep -rn CONVERT_CURRENCY src/ tests/` returns **four** occurrences: the definition, the
   guardrail marker at
-  [`guardrails/arithmetic.py:46`](../src/bloomery/guardrails/arithmetic.py), and two unit
+  [`guardrails/arithmetic.py#L46`](../src/bloomery/guardrails/arithmetic.py#L46), and two unit
   tests asserting that string renders. No dialect port mentions it.
 - The marker is load-bearing in the wrong direction: it is what lets mixed-currency
   arithmetic past `CurrencyMismatch`. So the currency guardrail's escape hatch is a token
@@ -218,11 +221,19 @@ Both consumers need one construct: join a fact row to the version of a dimension
 current at a given instant.
 
 ```sql
+FROM silver.order_item AS order_item
+LEFT JOIN silver."order" AS order_
+  ON  order_item.order_id = order_.order_id
 LEFT JOIN silver.customer AS customer_
-  ON  order_item.order_date >= customer_.valid_from
-  AND order_item.order_date <  COALESCE(customer_.valid_to, TIMESTAMP '9999-12-31')
-  AND order_.customer_id     =  customer_.customer_id
+  ON  order_.customer_id      =  customer_.customer_id
+  AND order_item.order_date  >=  customer_.valid_from
+  AND order_item.order_date  <   COALESCE(customer_.valid_to, TIMESTAMP '9999-12-31')
 ```
+
+The full chain is shown because the shape matters: the fact is `order_item`, the anchor
+date is on the fact, and the foreign key is on `order_` — a dimension reached through
+*another* flattened join. A two-hop flatten is the common case, not the exception, and it is
+what makes "which date is the anchor" a question rather than an obvious answer.
 
 Three things must be modeled that are not modeled today:
 
@@ -256,7 +267,19 @@ fx_rates:
   to: to_ccy
   rate: rate
   valid_from: valid_from
+  valid_to: valid_to      # required — see below
 ```
+
+**The interval needs both ends, declared.** An earlier draft of this section named only
+`valid_from`, which does not define an interval: a fact row then matches every rate at or
+before its anchor, and the join multiplies rather than converting — the same fan-out this
+RFC's other half refuses. The alternative is deriving the upper bound with
+`LEAD(valid_from) OVER (PARTITION BY from_ccy, to_ccy ORDER BY valid_from)`, which is
+attractive because it cannot disagree with itself, and rejected for two reasons: it makes
+every conversion a window function over the whole rate table, and it silently extends the
+newest rate to infinity, so a stale feed converts at last week's rate instead of failing.
+A declared `valid_to` lets the miss be a miss, which D9's `unknown_member` disposition
+then handles.
 
 This forces a grammar change `convert` cannot avoid: `convert(x, 'USD')` carries no date,
 and a rate without a date is under-determined. Whatever the final spelling, the transform
@@ -371,6 +394,7 @@ Phase 2 tests are not specified here; the design is not scheduled.
 | 8 | `OPEN` | The as-of anchor's spelling and location. §5.3 proposes `as_of:` on the `flatten` entry; a mart-level default and a relationship-level declaration are both defensible. Whoever builds Phase 2 decides and logs it. It must be **declared** either way — inference is closed by RFC 0021. |
 | 9 | `ASSUMED` | A fact row whose anchor matches no version takes the existing `unknown_member` disposition (RFC 0016) rather than a new one. |
 | 10 | `OPEN` | Whether `convert` is refused (D4) or removed from the transform whitelist outright. Removal is cleaner and changes the exported JSON Schema's transform enum — a spec-surface change this RFC declines to make on a construct that may return. |
+| 11 | `LOCKED` | The FX rate relation declares **both** interval ends (`valid_from` and `valid_to`), never `valid_from` alone. One end is not an interval: a fact row would match every rate at or before its anchor and the conversion would fan out. Deriving the upper bound with `LEAD(valid_from)` is rejected — it makes every conversion a window function over the whole rate table, and it extends the newest rate to infinity, so a stale feed converts at last week's rate instead of failing. Consequence: a gap in the rate table is a *miss*, taking D9's `unknown_member` disposition, rather than silently resolving to a neighbour. |
 
 ## 12. Phasing
 

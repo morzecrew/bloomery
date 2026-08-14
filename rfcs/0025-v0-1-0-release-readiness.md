@@ -66,7 +66,7 @@ policy exists to prevent for designs.
 **The corpus has a hole the policy did not anticipate.** Retiring RFCs was the right call
 and INDEX.md argues it well. What it did not anticipate is scale: 2,142 citations is not a
 handful of historical pointers, it is the primary way the codebase explains itself. Reading
-`RFC 0016 D84` at [`dialects/postgres.py:68`](../src/bloomery/dialects/postgres.py) requires
+`RFC 0016 D84` at [`dialects/postgres.py#L68`](../src/bloomery/dialects/postgres.py#L68) requires
 knowing the policy, having full history, running `git log --diff-filter=D -- rfcs/`, and
 matching a number to a filename the reader does not know. In a shallow clone — what
 `actions/checkout` does by default, and what five of the six checkouts in
@@ -91,9 +91,9 @@ Verified against `main` @ `828fd5b` (2026-08-14).
 
 - A **per-package coverage floor already exists** — `just coverage` runs
   `coverage report --include="src/bloomery/guardrails/*" --fail-under=100`
-  ([`justfile:76`](../justfile)). RFC 0009 D9's "an untested guardrail branch is an unshipped
+  ([`justfile#L76`](../justfile#L76)). RFC 0009 D9's "an untested guardrail branch is an unshipped
   guardrail" is enforced today. So this ratchet is a *generalization*, not a build.
-- Global `fail_under = 80` ([`pyproject.toml:214`](../pyproject.toml)), mirrored in
+- Global `fail_under = 80` ([`pyproject.toml#L214`](../pyproject.toml#L214)), mirrored in
   [`codecov.yml`](../codecov.yml), which is `informational: true` by RFC 0001 D4 so it never
   becomes a second branch-protection authority.
 - A **perf tier exists**: the `perf` marker and `tests/bench/test_hydration.py`, excluded
@@ -113,14 +113,18 @@ Verified against `main` @ `828fd5b` (2026-08-14).
 - No perf gate.
 - No coverage floor on any package but `guardrails/`.
 - `CHANGELOG.md` has one section, `## [Unreleased]`; no version has been cut.
-- `rfcs/` holds only `INDEX.md`. Next free number is 0023 (0026 after this batch).
+- `rfcs/` held only `INDEX.md` at that commit, the corpus having been empty since RFC
+  0021 retired. This RFC is one of the three drafts that ends that, so the tree under
+  review already differs here — the next free number is 0026, not 0023.
 
 ## 4. Goals / Non-goals
 
 **Goals**
 
 - Land RFC 0001 §8's three ratchets, generalizing the one that already exists.
-- Make an `RFC NNNN` citation resolvable from a shallow clone.
+- Make an `RFC NNNN` citation resolve to **a title and a retrieval command** without
+  history — not to the document's content, which needs the git object and therefore a full
+  clone. §5.4 states the limit; the goal is worded to match it rather than to overreach.
 - State the release act: what is cut, what is tagged, what the promise becomes.
 
 **Non-goals**
@@ -141,10 +145,20 @@ The floor therefore checks **claims that are mechanically checkable against the 
 
 1. **Every error class named in `pages/docs/reference/errors.md` exists** and is importable
    from `bloomery.errors`. Cheap, total, and catches a renamed or deleted refusal.
-2. **Every documented refusal fires.** The strongest and the one that would have caught
-   F4 — a table of (documented refusal → a fixture or inline spec that triggers it), asserted
-   in the test suite. A refusal a test cannot provoke is either removed from the code or
-   removed from the docs; both are correct outcomes and the gate does not care which.
+2. **Every documented refusal fires.** The strongest, and the one that would have caught
+   the Postgres warning — a table of (documented refusal → a fixture or inline spec that
+   triggers it), asserted in the test suite. A refusal a test cannot provoke is either
+   removed from the code or removed from the docs; both are correct outcomes and the gate
+   does not care which.
+
+   **A curated table only checks the rows someone added, which is the same failure it
+   exists to catch.** A stale claim omitted from the table passes the gate silently — so
+   the table needs a *completeness* check of its own, and prose cannot be parsed for
+   claims in general. The tractable half: every block in the docs that asserts a refusal
+   must name an error class, every named error class must appear in the table, and every
+   `!!! warning` block must do one or the other. That converts "curated" into "curated,
+   with omissions visible", which is weaker than complete and much stronger than a list.
+   The exact trigger set is D11.
 3. **Every repo-relative path cited in docs resolves.** Mechanical, and it is the check that
    decays fastest without a gate.
 
@@ -180,6 +194,24 @@ enough that a percentage-drift check on a millisecond-scale measurement produces
 and a flaky gate is one people learn to re-run. An absolute ceiling with 3–5× headroom over
 the measured 10.5 ms catches an order-of-magnitude regression, which is the only kind worth
 blocking a merge on, and never fires on a noisy runner.
+
+**A budget is not yet a benchmark.** "50 ms cold, 10 ms warm" names two numbers and no
+procedure, and `LruManifestHydrator.get` has three materially different paths — an L1 hit,
+an L2 fetch, and a full rebuild. Before the gate exists, five things must be pinned, and
+they are the gate: which fixture is hydrated, what state transition counts as *cold* (an
+empty L1 with a warm L2 is a different measurement from both empty), whether `prewarm` runs,
+how many repetitions and which statistic (median, not mean — one GC pause should not fail a
+release), and the ceiling itself. §5.3's ratio is the *method* for choosing the ceiling, not
+the ceiling. This is D12, and it is `OPEN` because the numbers must come from measurement
+rather than from this document.
+
+**And the lane must be able to block the release.** `just test` excludes `perf`, so a gate
+living only on a scheduled lane can run after the tag or skip a release candidate entirely
+— which would satisfy D1 on paper and enforce nothing. The perf assertion therefore runs in
+two places: the scheduled lane, where it is informational and catches drift between
+releases, and a **release-candidate job on the tag workflow**, where it blocks. That is the
+only one of the three ratchets needing this treatment; the docs floor and the coverage
+floors already run on every PR.
 
 ### 5.4 `rfcs/RETIRED.md`
 
@@ -225,7 +257,8 @@ describes a release that already shipped.
 - The docs floor is itself tests (§5.1) — an error-class walk, a documented-refusal table,
   a path-resolution check. They live in the unit tier and run in `just test`.
 - The coverage floors are asserted by `just coverage`, which CI already runs.
-- The perf gate is a `perf`-marked assertion on a scheduled lane, not on every PR.
+- The perf gate is a `perf`-marked assertion, informational on the scheduled lane and
+  **blocking on the release-candidate job** (§5.3). It does not run on every PR.
 - `RETIRED.md` gets a consistency check in `rfc_index.py check`: every number in
   `RETIRED.md` must be absent from `rfcs/`, and every number below the next-free claim must
   appear in exactly one of the two. That makes the table's completeness mechanical rather
@@ -301,6 +334,9 @@ describes a release that already shipped.
 | 7 | `ASSUMED` | `RETIRED.md` is hand-appended in the retiring change and checked by `rfc_index.py check`, not generated. A generated file that regenerates differently on a shallow clone is worse than a committed one. |
 | 8 | `LOCKED` | The changelog section is cut **before** the tag. `hatch-vcs` derives the version from the tag, so a section cut afterwards describes a release that already shipped. |
 | 9 | `ASSUMED` | Codecov stays `informational: true` (RFC 0001 D4). The floors are enforced by `just coverage`, which is the same authority locally and in CI; a second branch-protection authority is a worse outcome than an unenforced percentage. |
+| 11 | `OPEN` | The completeness trigger for the documented-refusal table (§5.1). A curated table cannot catch a claim nobody added, which is the failure it exists to prevent; prose cannot be parsed for claims in general. The tractable rule — every refusal-asserting block names an error class, every named class is in the table — is proposed, not settled. |
+| 12 | `OPEN` | The hydration benchmark's definition: fixture, what state counts as cold, whether `prewarm` runs, repetitions, statistic, and the ceiling. RFC 0014's budgets are targets, not a procedure, and `LruManifestHydrator.get` has three materially different paths. The numbers must come from measurement; D4 fixes only the *method* for choosing them. |
+| 13 | `LOCKED` | The perf gate runs in **two** places: informational on the scheduled lane, blocking on a release-candidate job in the tag workflow. A gate only on a schedule can run after the tag, which would satisfy D1 on paper and enforce nothing. The other two ratchets need no equivalent — they already run on every PR. |
 | 10 | `OPEN` | Which stability promises bind at 0.1 versus 1.0. §5.5 changes the page; it does not freeze the API. The split must be stated before the tag — after it, the first answer given becomes the promise. |
 
 ## 12. Phasing
