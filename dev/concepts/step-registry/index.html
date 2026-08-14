@@ -954,6 +954,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#before-adding-a-spec-kind-ask-this" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Before adding a spec kind, ask this
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#migrating-existing-code" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1207,6 +1218,33 @@
     
   
   Assess a spec before it compiles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/resolve-identities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Resolve identities across systems
 
     
   </span>
@@ -1668,6 +1706,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#before-adding-a-spec-kind-ask-this" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Before adding a spec kind, ask this
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#migrating-existing-code" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2073,6 +2122,21 @@ generalized into a parameterized form — never <code>resolve_customers_acme</co
 <p>A requirement that genuinely cannot generalize is a useful signal rather than
 a problem: it is bespoke consulting, not product, and knowing that explicitly
 beats discovering it later in a directory of near-identical step files.</p>
+<h2 id="before-adding-a-spec-kind-ask-this">Before adding a spec kind, ask this<a class="headerlink" href="#before-adding-a-spec-kind-ask-this" title="Permanent link">&para;</a></h2>
+<p>The registry exists so the answer can be "make it a step". The test:</p>
+<blockquote>
+<p><strong>Can bloomery typecheck it, guardrail it, and diff it meaningfully?</strong> If not, it is a
+step.</p>
+</blockquote>
+<p>A concept bloomery cannot verify is a concept where a spec kind gives <em>weaker</em> guarantees
+than a step, because a step at least carries a declared, runtime-enforced output contract.
+Identity resolution is the worked case — blocking keys, similarity functions and
+thresholds are none of them typecheckable, and <code>runtime_lock</code> makes upgrading the matching
+library a restating change that backfills the outputs, which a declarative similarity
+function could never do. See <a href="../../how-to/resolve-identities/">Resolve identities across systems</a>.</p>
+<p>This is what keeps the library smaller than the problem it solves. A spec kind is a
+permanent surface: it has to parse, typecheck, guardrail, diff, emit on three targets and
+survive every future version. A step is a manifest.</p>
 <h2 id="migrating-existing-code">Migrating existing code<a class="headerlink" href="#migrating-existing-code" title="Permanent link">&para;</a></h2>
 <p><strong>Wrap, don't refactor.</strong> Write a manifest for the script you already have,
 register it as <code>@1</code>, declare <code>lineage: coarse</code>, and claim <code>pure</code> only after

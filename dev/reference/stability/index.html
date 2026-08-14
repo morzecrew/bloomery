@@ -1006,6 +1006,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/resolve-identities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Resolve identities across systems
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/use-the-cli/" class="md-nav__link">
         
   
@@ -1339,6 +1366,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#supported-dialects" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Supported dialects
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#before-01" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1449,6 +1487,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Emitted artifacts
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supported-dialects" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Supported dialects
       </span>
     </span>
   </a>
@@ -1632,6 +1681,53 @@ artifacts in your own repository, expect to regenerate them on upgrade.</p>
 <p><code>bloomery_ir_version</code> covers the intermediate representation, which is internal. It is
 named here only to be clear that it is not one of the three promises above — though a bump
 does move every fingerprint, which is deliberate: an IR shape change should be loud.</p>
+<h2 id="supported-dialects">Supported dialects<a class="headerlink" href="#supported-dialects" title="Permanent link">&para;</a></h2>
+<p>Three ship: <strong>DuckDB</strong>, <strong>PostgreSQL</strong> and <strong>Trino</strong>. Each is a <code>DialectPort</code> with a
+declared <code>Feature</code> set, a column in the golden matrix, and a cell in the engine tier that
+runs the emitted SQL against the real database.</p>
+<p>Four more are costed and deliberately unbuilt. MetricFlow already ships a renderer for
+each, so the work is a port, a golden column and an engine cell:</p>
+<table>
+<thead>
+<tr>
+<th>Dialect</th>
+<th>Estimate</th>
+<th>Likely trigger</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Snowflake</td>
+<td>~1 week</td>
+<td>Enterprise ask; the most likely first</td>
+</tr>
+<tr>
+<td>BigQuery</td>
+<td>~1 week+</td>
+<td>GCP ask. Costlier: <code>STRUCT</code>/<code>ARRAY</code> semantics and the partition model differ most from the shipped three, and it is the one most likely to need a new <code>Feature</code> rather than only an implementation</td>
+</tr>
+<tr>
+<td>Databricks</td>
+<td>~1 week</td>
+<td>Existing-lakehouse ask</td>
+</tr>
+<tr>
+<td>Redshift</td>
+<td>~1 week</td>
+<td>Least likely</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The policy is demand-driven on a named consumer, never speculative.</strong> The point of
+costing them without building them is that "we don't support Snowflake" becomes "Snowflake
+is about a week" — a different answer, and one that requires writing no code to give.</p>
+<p>A new dialect <strong>declares its <code>Feature</code> set honestly or is refused</strong>, never silently
+approximating. The Postgres <code>TRY_CAST</code> is the standard: implemented as a guard around the
+engine's own parser rather than as an approximation of one, because a dialect that
+approximates a feature produces plausible wrong rows instead of an error. A new port also
+inherits its own cost questions — whether its regex engine backtracks decides whether a
+<code>pattern</code> rule is a denial-of-service surface there, and that belongs in the port's own
+assessment rather than being assumed from the three that ship.</p>
 <h2 id="before-01">Before 0.1<a class="headerlink" href="#before-01" title="Permanent link">&para;</a></h2>
 <p>bloomery is pre-0.1 and <strong>the API is not stable yet</strong>. Anything described here may change
 before the first release. The promises above describe how bloomery will behave from 0.1

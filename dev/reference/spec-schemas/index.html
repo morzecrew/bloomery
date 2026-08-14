@@ -1008,6 +1008,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/resolve-identities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Resolve identities across systems
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/use-the-cli/" class="md-nav__link">
         
   
@@ -2512,6 +2539,19 @@ declaration — bounds are calendar years, never a clock.</p>
 </tr>
 </tbody>
 </table>
+<p><strong><code>materialization</code> is derived, never inferred, and that distinction is the rule.</strong> An
+entity with a partition key gets <code>incremental_by_partition</code> without anyone writing it —
+that is a <em>default</em>: visible in the compiled output, and overridable by saying otherwise.
+What bloomery will not do is <em>infer</em> the strategy from grain and partition key in the
+ambiguous cases, because an inference is a guess the author cannot see, and a wrong guess
+here produces a wrong backfill scope that surfaces as missing rows.</p>
+<blockquote>
+<p><strong>bloomery derives defaults; it does not infer intent.</strong></p>
+</blockquote>
+<p>The same line runs through recipes: the compiler validates the recipe a mapping recorded
+and never chooses one itself. If a specific inference is later shown to be both safe <em>and</em>
+visible in the emitted artifact, it can be argued as a change — a default carries no such
+burden, which is why one is cheap and the other is not.</p>
 <h3 id="field">Field<a class="headerlink" href="#field" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
