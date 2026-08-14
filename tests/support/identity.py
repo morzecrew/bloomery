@@ -55,6 +55,27 @@ RESOLVED_AT = pd.Timestamp("2026-01-01T00:00:00")
 _PUNCTUATION = re.compile(r"[^a-z0-9]+")
 
 
+def _text(value: object) -> str:
+    """A cell as stripped text, with every spelling of *missing* collapsed.
+
+    pandas has four, and which one arrives depends on the column's dtype
+    rather than on the data: ``None`` in an object column, ``NaN`` once the
+    column is float or once a CSV read has seen an empty field, ``pd.NA``
+    under the nullable string dtype, ``NaT`` for a datetime. **Only the first
+    is falsy** — ``str(nan)`` is ``"nan"`` and ``str(pd.NA)`` is ``"<NA>"``,
+    both truthy, and both a perfectly good matching *key*.
+
+    That is what this exists to prevent, and it was not hypothetical: an email
+    guarded only by ``or ""`` turned every row with no email into the key
+    ``email:nan``, merging all of them into one customer and reporting it as
+    an ``exact`` match. Missing is not a value to match on, in any of its
+    spellings — so both keys read their cell through here.
+    """
+    if value is None or bool(pd.isna(value)):
+        return ""
+    return str(value).strip()
+
+
 def normalize_name(value: object) -> str:
     """A name reduced to what two spellings of one person share.
 
@@ -64,9 +85,7 @@ def normalize_name(value: object) -> str:
     orderings match, which is the single most common shape of the same person
     written twice.
     """
-    if value is None or (isinstance(value, float) and pd.isna(value)):
-        return ""
-    folded = unicodedata.normalize("NFKD", str(value)).casefold()
+    folded = unicodedata.normalize("NFKD", _text(value)).casefold()
     stripped = "".join(char for char in folded if not unicodedata.combining(char))
     return " ".join(sorted(token for token in _PUNCTUATION.split(stripped) if token))
 
@@ -108,7 +127,7 @@ def resolve(
 
     for source in (crm, billing):
         for row in _rows(source):
-            email = str(row.get("email") or "").strip()
+            email = _text(row.get("email"))
             name_key = normalize_name(row.get("name"))
             # Email first: it is the stronger signal, and preferring it keeps
             # the outcome independent of which source is read first.

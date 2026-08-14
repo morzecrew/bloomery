@@ -152,17 +152,38 @@ def test_empty_sources_produce_empty_outputs_that_still_satisfy_the_contract() -
     assert_step_contract(outputs, RESOLVE_CUSTOMERS_V4.model_dump(by_alias=True, mode="json"))
 
 
-def test_a_missing_name_arrives_as_nan_not_none() -> None:
-    """What a real frame actually hands the matcher.
+@pytest.mark.parametrize("missing", [None, float("nan"), pd.NA, pd.NaT])
+def test_every_spelling_of_missing_reduces_to_nothing(missing: object) -> None:
+    """What a real frame actually hands the matcher, and it is dtype-dependent.
 
-    `None` in an object column round-trips through pandas as `NaN`, so a
-    normalizer guarding only against `None` would call `str(nan)` and match
-    every nameless row to every other under the key `"nan"` — one customer for
-    everyone who left the field blank.
+    A cell with no value arrives as `None` in an object column, `NaN` once the
+    column is float or once a CSV read has seen an empty field, `pd.NA` under
+    the nullable string dtype, `NaT` for a datetime. Only `None` is falsy:
+    `str(nan)` is `"nan"` and `str(pd.NA)` is `"<NA>"`, so a guard written
+    against `None` alone lets three of the four through as ordinary text.
     """
-    frame = pd.DataFrame([{"name": None}])
-    assert normalize_name(frame["name"].iloc[0]) == ""
-    assert normalize_name(float("nan")) == ""
+    assert normalize_name(missing) == ""
+
+
+def test_rows_with_no_email_are_not_all_the_same_person() -> None:
+    """The missing-value guard at the level where its absence hurts.
+
+    Asserted through `resolve` rather than through the helper, because the
+    helper being right is not the claim — two different people staying two
+    customers is. Guarded only by `or ""`, the email key became the literal
+    `email:nan` for every row with no email, and the resolver merged all of
+    them into one customer and called it an **exact** match: the highest
+    confidence it can report, on the rows it knows least about.
+    """
+    unemailed = pd.DataFrame(
+        [
+            {"source_system": "crm", "source_id": "C-1", "email": float("nan"), "name": "Grace Hopper"},
+            {"source_system": "crm", "source_id": "C-2", "email": float("nan"), "name": "Alan Turing"},
+        ]
+    )
+    xref = resolve(unemailed, unemailed.iloc[0:0], threshold=Decimal("0.85"))["customer_xref"]
+    assert xref["canonical_id"].nunique() == 2
+    assert set(xref["method"]) == {"fuzzy"}
 
 
 def test_the_demonstrations_output_satisfies_the_manifest_it_is_wired_to() -> None:
@@ -175,6 +196,22 @@ def test_the_demonstrations_output_satisfies_the_manifest_it_is_wired_to() -> No
     """
     manifest = RESOLVE_CUSTOMERS_V4.model_dump(by_alias=True, mode="json")
     assert_step_contract(_resolved("0.85"), manifest)
+
+
+def test_the_contract_holds_when_a_row_resolves_to_nobody() -> None:
+    """The same check at the threshold the fixture actually wires — `0.9`.
+
+    The test above runs at `0.85`, where every row resolves, so it never puts
+    a NULL `canonical_id` in front of the contract. At the wiring's own
+    threshold two rows resolve to nobody, and the manifest first declared that
+    column `required`: the generated wrapper's assertion aborted the step
+    before it wrote a relation, so the fixture *as configured* could not run.
+    Two passing tests, each true, and nothing crossing them.
+    """
+    manifest = RESOLVE_CUSTOMERS_V4.model_dump(by_alias=True, mode="json")
+    outputs = _resolved("0.9")
+    assert outputs["customer_xref"]["canonical_id"].isna().any(), "the case must still arise"
+    assert_step_contract(outputs, manifest)
 
 
 def test_the_contract_would_catch_this_resolver_drifting() -> None:
