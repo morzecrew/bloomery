@@ -78,9 +78,7 @@ steps:
       customer_xref: silver.customer_xref
     parameters: {threshold: 0.9}
     canonical:
-      customer:
-        canonical_id: customer_ref
-        resolved_at: resolved_at
+      customer: {canonical_id: customer_ref}
     quality:
       - {name: confidence_is_high, rule: expression, expr: "confidence >= 0.8", on_fail: fail}
     applies_to: {confidence_is_high: customer}
@@ -105,9 +103,12 @@ Four things are doing work:
 ```
 audits/step_customer_confidence_is_high.sql
 audits/step_customer_xref_canonical_id_references_customer.sql
-models/silver/customer.py          ← generated wrapper, one per declared output
+models/silver/customer_crm.sql       ← the two mapped sources, ordinary silver models
+models/silver/customer_billing.sql
+models/silver/customer.py            ← generated wrapper, one per declared output
 models/silver/customer_xref.py
-models/gold/mart_customers.sql     ← an ordinary mart over the resolved entity
+models/gold/mart_customers.sql       ← an ordinary mart over the resolved entity
+models/gold/dim_date.sql
 ```
 
 The second audit is the one worth understanding. The manifest declares

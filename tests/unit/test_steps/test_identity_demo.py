@@ -116,9 +116,53 @@ def test_a_name_is_normalized_to_what_two_spellings_share() -> None:
 
 
 def test_a_canonical_id_is_a_function_of_its_key() -> None:
+    """Stable for one key, distinct for different ones — and *distinct* is the
+    half worth being careful about.
+
+    The obvious version of this test compares two keys of different lengths,
+    which a `len()`-based id would pass: a sabotage replacing the digest with
+    `str(len(seed))` survived the whole module. Two keys of the *same* length
+    is what makes the assertion about the hash rather than about the arguments
+    — and a collision here merges two different people into one customer,
+    which is the failure identity resolution exists to avoid.
+    """
     assert canonical_id("email:ada@example.com") == canonical_id("email:ada@example.com")
-    assert canonical_id("email:ada@example.com") != canonical_id("email:grace@example.com")
     assert canonical_id("email:ada@example.com").startswith("cust_")
+
+    same_length = ("email:ada@example.com", "email:zoe@example.com")
+    assert len(same_length[0]) == len(same_length[1])
+    assert canonical_id(same_length[0]) != canonical_id(same_length[1])
+
+
+def test_empty_sources_produce_empty_outputs_that_still_satisfy_the_contract() -> None:
+    """The boundary a resolver meets on its first run, before any data lands.
+
+    Both frames come back empty *with their declared columns*, so the contract
+    holds and the generated wrapper writes a well-shaped relation rather than
+    failing the first plan. A resolver returning a bare `DataFrame()` here
+    would pass its own tests and break the model that reads it.
+    """
+    columns = ["source_system", "source_id", "email", "name"]
+    empty = pd.DataFrame(columns=columns)
+    outputs = resolve(empty, empty, threshold=Decimal("0.85"))
+
+    assert list(outputs["customer"].columns) == ["canonical_id", "confidence", "resolved_at"]
+    assert outputs["customer"].empty
+    assert outputs["customer_xref"].empty
+    assert_step_contract(outputs, RESOLVE_CUSTOMERS_V4.model_dump(by_alias=True, mode="json"))
+
+
+def test_a_missing_name_arrives_as_nan_not_none() -> None:
+    """What a real frame actually hands the matcher.
+
+    `None` in an object column round-trips through pandas as `NaN`, so a
+    normalizer guarding only against `None` would call `str(nan)` and match
+    every nameless row to every other under the key `"nan"` — one customer for
+    everyone who left the field blank.
+    """
+    frame = pd.DataFrame([{"name": None}])
+    assert normalize_name(frame["name"].iloc[0]) == ""
+    assert normalize_name(float("nan")) == ""
 
 
 def test_the_demonstrations_output_satisfies_the_manifest_it_is_wired_to() -> None:
@@ -148,5 +192,14 @@ def test_the_resolution_timestamp_is_a_constant_not_a_clock() -> None:
     """A step reading the wall clock produces a different `resolved_at` on
     every backfill of the same window — the failure `runtime_lock` and the
     determinism tier exist to catch (RFC 0017 D5), and a fixture claiming
-    `determinism: pure` must not commit it."""
+    `determinism: pure` must not commit it.
+
+    **The expected value is written here, not read from the module.** Comparing
+    the output against `RESOLVED_AT` alone is a tautology: the module binds the
+    constant once at import, so rows equal it whatever it holds — a sabotage
+    setting it to `pd.Timestamp.now()` passed this module untouched. The
+    purity guard does not cover `tests/`, so this assertion is the only thing
+    standing between the demonstration and a clock.
+    """
+    assert RESOLVED_AT == pd.Timestamp("2026-01-01T00:00:00")
     assert (_resolved()["customer"]["resolved_at"] == RESOLVED_AT).all()

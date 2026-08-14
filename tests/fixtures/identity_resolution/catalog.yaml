@@ -4,18 +4,15 @@
 catalog_version: 1
 vertical: crm
 
+# One canonical field, and only because a *metric* needs it. `resolved_at` is
+# not here: the mart flattens it as an ordinary entity field, and declaring a
+# canonical link nothing reads would teach a reader that date columns need one.
 canonical_fields:
   customer_ref:
     entity: customer
     type: string
     recipes:
       - {id: direct, requires: [customer_ref]}
-  resolved_at:
-    entity: customer
-    type: timestamp
-    recipes:
-      - {id: direct, requires: [resolved_at]}
-
 date_dimension:
   name: dim_date
   grain: day

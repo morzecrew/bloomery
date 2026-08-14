@@ -18,9 +18,7 @@ steps:
     # and with it, nothing about metric resolution changes at all. It is never
     # inferred from the matching name.
     canonical:
-      customer:
-        canonical_id: customer_ref
-        resolved_at: resolved_at
+      customer: {canonical_id: customer_ref}
     # The escape hatch is only safe because declared rules apply at its
     # boundary (RFC 0017 §1). `confidence` is a column of the output, compared
     # against a literal — exactly what an expression rule is allowed to read.
