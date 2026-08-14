@@ -306,7 +306,13 @@ def counted_entities(ir: ProjectIR) -> tuple[EntityIR, ...]:
 
 
 def carries_quality(ir: ProjectIR) -> bool:
-    """Whether anything in the project evaluates a rule at run time.
+    """Whether the mart would have anything to report.
+
+    Not *whether any rule runs*: a step output's one permitted rule lowers to
+    a blocking audit, so it is evaluated on every execution and still leaves
+    the mart nothing to count — the run stops instead of a row being marked
+    (see :func:`counted_entities`). A project whose only rule sits on a step
+    output therefore answers ``False`` here and is still checked at run time.
 
     The mart exists only where there is something to report: a project that
     never heard of data quality gets no extra gold model, no extra metrics,
