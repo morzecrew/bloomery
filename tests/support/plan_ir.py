@@ -88,6 +88,7 @@ def entity(
     quality: tuple[QualityRuleIR, ...] = (),
     dedupe: DedupeIR | None = None,
     quarantine: QuarantineIR | None = None,
+    produced_by: str | None = None,
 ) -> EntityIR:
     resolved = columns if columns is not None else (column("id", required=True),)
     return EntityIR(
@@ -108,6 +109,7 @@ def entity(
         quality=tuple(sorted(quality, key=quality_sort_key)),
         dedupe=dedupe,
         quarantine=quarantine,
+        produced_by=produced_by,
     )
 
 

@@ -1,0 +1,11 @@
+# The second source: same shape, different column names, no shared identifier
+# with the first — which is the situation identity resolution exists for.
+mapping_version: 1
+source: billing__accounts
+target: customer_billing
+key:
+  source_system: {from: "$.origin", transform: [to_string]}
+  source_id: {from: "$.account_ref", transform: [to_string]}
+fields:
+  email: {from: "$.billing_email", transform: [to_string, lower, trim]}
+  name: {from: "$.account_name", transform: [to_string, trim]}

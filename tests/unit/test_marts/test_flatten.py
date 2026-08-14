@@ -26,6 +26,7 @@ from bloomery.marts import DATE_BUCKETS, HAS_QUALITY_FLAGS, lower_marts
 from bloomery.spec import MartSet
 from bloomery.typing import BoolType, DateType
 from support.compiling import load_fixture
+from support.steps import registry_for
 from support.plan_ir import column as plan_column
 from support.plan_ir import entity as plan_entity
 from support.plan_ir import project as plan_project
@@ -709,6 +710,33 @@ def test_a_quality_free_base_gets_no_quality_dimension() -> None:
     )
     (mart,) = lowering.marts
     assert HAS_QUALITY_FLAGS not in {column.name for column in mart.columns}
+
+
+def test_a_step_produced_base_gets_no_quality_dimension() -> None:
+    """The same rule as the test above, on the base that made it a bug.
+
+    A step's rows are written by its generated wrapper, which projects exactly
+    the manifest's declared columns — so there is no `_quality_flags` to reduce
+    and no `_quality_ok` to negate. The entity still *carries* a rule: an
+    `expression` with `on_fail: fail` lowers to a blocking audit over the
+    relation, which stops the run rather than marking a row, so nothing
+    survives to be flagged.
+
+    Before this, the flattener saw `base.quality` and projected
+    `NOT customer._quality_ok` anyway. The mart compiled, matched its golden,
+    and failed on its first execution with a binder error naming a generated
+    column the author never wrote — which is what
+    `tests/execution/test_identity_resolution.py` now runs.
+    """
+    ir = build_project_ir(
+        *load_fixture("identity_resolution"), steps=registry_for("identity_resolution")
+    )
+    customer = next(entity for entity in ir.entities if entity.name == "customer")
+    assert customer.produced_by is not None
+    assert customer.quality, "the fixture must carry a rule for this to prove anything"
+
+    customers = next(mart for mart in ir.marts if mart.name == "customers")
+    assert HAS_QUALITY_FLAGS not in {column.name for column in customers.columns}
 
 
 def test_a_base_column_colliding_with_the_quality_dimension_is_refused() -> None:

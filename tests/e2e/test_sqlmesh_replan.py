@@ -28,7 +28,7 @@ itself and would have stayed green.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from decimal import Decimal
 import sys
@@ -38,6 +38,7 @@ import duckdb
 import pytest
 from sqlmesh import Context
 
+import support.identity as support_identity
 from support.compiling import compile_fixture
 
 from bloomery.quality import ENTITY_GRAIN_ROW
@@ -212,6 +213,47 @@ def _verify_step_resolution(connection: duckdb.DuckDBPyConnection) -> None:
     assert xref == [("c-1", "c-1"), ("c-2", "c-2")]
 
 
+def _seed_identity_resolution(connection: duckdb.DuckDBPyConnection) -> None:
+    """Two sources with no shared identifier — the situation the step exists
+    for. `crm/C-1001` and `billing/AC-77` are one person by email."""
+    connection.execute("CREATE SCHEMA IF NOT EXISTS bronze")
+    connection.execute(
+        "CREATE TABLE bronze.crm__customers AS SELECT * FROM (VALUES "
+        "('crm', 'C-1001', 'Ada@Example.com ', 'Ada Lovelace'), "
+        "('crm', 'C-1003', 'mary@example.com', 'Mary Jackson')) "
+        "AS t(system, id, email, full_name)"
+    )
+    connection.execute(
+        "CREATE TABLE bronze.billing__accounts AS SELECT * FROM (VALUES "
+        "('billing', 'AC-77', 'ada@example.com', 'A. Lovelace')) "
+        "AS t(origin, account_ref, billing_email, account_name)"
+    )
+
+
+def _verify_identity_resolution(connection: duckdb.DuckDBPyConnection) -> None:
+    """Two people out of three source rows, the crosswalk total over them, and
+    a mart over the step-produced entity that SQLMesh actually built.
+
+    The mart is the assertion that matters here: it reads `silver.customer`,
+    which no bloomery SQL writes, so a plan that applies is a plan where the
+    wrapper ran first and the gold model resolved its dependency on a relation
+    a Python model produced.
+    """
+    customers = connection.execute("SELECT COUNT(*) FROM silver.customer").fetchone()
+    assert customers == (2,)
+    xref = connection.execute("SELECT COUNT(*) FROM silver.customer_xref").fetchone()
+    assert xref == (3,)
+    matched = connection.execute(
+        "SELECT COUNT(DISTINCT canonical_id) FROM silver.customer_xref "
+        "WHERE source_id IN ('C-1001', 'AC-77')"
+    ).fetchone()
+    assert matched == (1,)
+    mart = connection.execute(
+        "SELECT COUNT(*), COUNT(resolved_day) FROM gold.mart_customers"
+    ).fetchone()
+    assert mart == (2, 2)
+
+
 def _seed_coverage_check(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute("CREATE TABLE bronze.crm__customers (id VARCHAR, name VARCHAR)")
     conn.executemany(
@@ -292,6 +334,25 @@ FIXTURES: dict[str, tuple[Seeder, Verifier, frozenset[str]]] = {
         _verify_coverage_check,
         frozenset({"silver.customer", "silver.order"}),
     ),
+    # RFC 0021 §5.1: identity resolution, which `step_resolution` cannot show
+    # — two *inputs*, an `on_fail: fail` rule on a step output, and a mart over
+    # the resolved entity. That mart is why this cell exists rather than being
+    # covered by the execution tier: it reads a relation a Python model writes,
+    # so only a real plan proves SQLMesh orders the two.
+    "identity_resolution": (
+        _seed_identity_resolution,
+        _verify_identity_resolution,
+        frozenset(
+            {
+                "silver.customer_crm",
+                "silver.customer_billing",
+                "silver.customer",
+                "silver.customer_xref",
+                "gold.dim_date",
+                "gold.mart_customers",
+            }
+        ),
+    ),
 }
 
 
@@ -314,6 +375,18 @@ def _write_platform_steps(root: Path, fixture: str) -> None:
     itself, so both outputs agree and the consistency audit has something
     correct to pass on.
     """
+    if fixture == "identity_resolution":
+        # The demonstration resolver itself, copied in — not a stand-in. It
+        # imports nothing but the standard library and pandas precisely so it
+        # can be dropped into a generated package and run there, which is what
+        # the platform's own registry does with its real one.
+        package = root / "platform_steps"
+        package.mkdir(exist_ok=True)
+        (package / "__init__.py").write_text("")
+        (package / "resolve_customers.py").write_text(
+            Path(support_identity.__file__).read_text()
+        )
+        return
     if fixture != "step_resolution":
         return
     package = root / "platform_steps"
@@ -335,8 +408,43 @@ def _write_platform_steps(root: Path, fixture: str) -> None:
     )
 
 
+#: The package name every generated wrapper imports (RFC 0017 D13). One name
+#: across all fixtures, because it is the *platform's* package — which is why
+#: it has to be evicted between them rather than renamed per fixture.
+PLATFORM_PACKAGE = "platform_steps"
+
+
+@pytest.fixture
+def _importable() -> Iterator[Callable[[Path], None]]:
+    """Make a project root importable for one test, then undo it.
+
+    Both halves matter. Leaving the path on `sys.path` lets a later cell import
+    an earlier cell's package; leaving the module in `sys.modules` makes it
+    certain, because the name is already bound and the path is never consulted.
+    """
+    added: list[str] = []
+
+    def insert(root: Path) -> None:
+        added.append(str(root))
+        sys.path.insert(0, str(root))
+
+    yield insert
+    for entry in added:
+        if entry in sys.path:
+            sys.path.remove(entry)
+    stale = [
+        name
+        for name in sys.modules
+        if name == PLATFORM_PACKAGE or name.startswith(f"{PLATFORM_PACKAGE}.")
+    ]
+    for name in stale:
+        del sys.modules[name]
+
+
 @pytest.mark.parametrize("fixture", sorted(FIXTURES))
-def test_replan_is_a_no_op(fixture: str, tmp_path: Path) -> None:
+def test_replan_is_a_no_op(
+    fixture: str, tmp_path: Path, _importable: Callable[[Path], None]
+) -> None:
     seed, verify, expected_models = FIXTURES[fixture]
 
     warehouse = tmp_path / "warehouse.db"
@@ -351,7 +459,14 @@ def test_replan_is_a_no_op(fixture: str, tmp_path: Path) -> None:
     # A generated step wrapper imports its platform package at *run* time
     # (RFC 0017 D13), so the project root has to be importable — in a real
     # deployment the step runtime installs it.
-    sys.path.insert(0, str(tmp_path))
+    #
+    # Undone afterwards, and the package evicted with it: two step fixtures
+    # ship a `platform_steps.resolve_customers` apiece, and whichever ran first
+    # stayed in `sys.modules` for the second — which then called *its*
+    # entrypoint with the other's keyword arguments. One step fixture hid this
+    # completely; the second one turned it into a failure that depends on
+    # alphabetical order.
+    _importable(tmp_path)
 
     # Context raises on malformed MODEL blocks — loading alone is a check.
     context = Context(paths=str(tmp_path))

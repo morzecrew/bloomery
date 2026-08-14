@@ -1,0 +1,33 @@
+# RFC 0021 §5.1: identity resolution, end to end, on mechanisms that already
+# shipped. Nothing here is new — the point of the fixture is that nothing
+# needs to be.
+#
+# **Two entities, not one.** Both describe customers and share no key: CRM
+# issues `C-1001`, billing issues `AC-77`, and only a human or a fuzzy matcher
+# can see they are the same person. They stay separate relations because
+# bloomery refuses two mappings into one entity — a deterministic union merge
+# is its own milestone (RFC 0009 D4) — and because a step reads *inputs*,
+# plural, which is the shape identity resolution actually has. Merging them
+# first would beg the question the step exists to answer.
+#
+# `source_system` is carried on both even though each relation has exactly one
+# value for it: the xref is keyed by `(source_system, source_id)`, and an id
+# that is only unique within its origin needs the origin beside it.
+spec_version: 1
+entities:
+  customer_crm:
+    grain: one row per customer in the CRM
+    key: [source_system, source_id]
+    fields:
+      source_system: {type: string, required: true}
+      source_id: {type: string, required: true}
+      email: {type: string}
+      name: {type: string}
+  customer_billing:
+    grain: one row per billing account
+    key: [source_system, source_id]
+    fields:
+      source_system: {type: string, required: true}
+      source_id: {type: string, required: true}
+      email: {type: string}
+      name: {type: string}

@@ -1,0 +1,6 @@
+metrics_version: 1
+metrics:
+  # Reachable only through the step wiring's `canonical:` link — the D49 path,
+  # on the case it was built for.
+  customer_count:
+    template: customer_count

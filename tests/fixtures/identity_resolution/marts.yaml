@@ -1,0 +1,11 @@
+# A mart over a step-produced entity, referenced exactly as any silver entity
+# is (RFC 0017 D36/D37). The emitter leaves `silver.customer`'s model to the
+# step's generated wrapper and reads the relation like any other.
+marts_version: 1
+marts:
+  customers:
+    base: customer
+    grain: customer
+    measures: [customer_count]
+    flatten:
+      - {date: resolved_at, role: resolved}

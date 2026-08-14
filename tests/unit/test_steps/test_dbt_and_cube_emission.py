@@ -17,7 +17,10 @@ to be two different claims:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
+from support.compiling import compile_fixture
 
 from bloomery import Target, compile_project, load_project
 from bloomery.emit import ArtifactKind, EmittedArtifact
@@ -25,6 +28,10 @@ from bloomery.errors import UnsupportedByTarget
 from bloomery.steps import StepManifest, StepRegistry
 
 pytestmark = pytest.mark.unit
+
+#: The golden tree, so the absent `dbt/` directory can be asserted rather than
+#: noticed.
+GOLDEN = Path(__file__).resolve().parents[2] / "golden"
 
 ENTITY_MODEL = "spec_version: 1\nentities: {}\n"
 
@@ -141,6 +148,23 @@ def test_dbt_refuses_a_python_model_naming_the_adapter_reason() -> None:
     bloomery's three dialects is one of them."""
     with pytest.raises(UnsupportedByTarget, match="resolved@2"):
         compile_steps(Target.DBT, PYTHON_MANIFEST, steps=PYTHON_STEPS, body=None)
+
+
+def test_the_identity_fixture_has_no_dbt_golden_because_dbt_refuses_it() -> None:
+    """Why `tests/golden/identity_resolution/` holds `sqlmesh/` and `cube/` and
+    no `dbt/` — stated as a test so the absence reads as a decision.
+
+    RFC 0021 §6 asked for SQLMesh *and* dbt goldens for this fixture. dbt
+    cannot emit a `python_model` step at all (RFC 0017 D52): its Python models
+    run on Snowflake, BigQuery and Databricks, and none of bloomery's three
+    dialects is one of them. An identity resolver is Tier 3 by construction —
+    fuzzy matching is the thing SQL cannot express — so this fixture is exactly
+    the shape dbt refuses.
+    """
+    with pytest.raises(UnsupportedByTarget) as caught:
+        compile_fixture("identity_resolution", target=Target.DBT, dialect="postgres")
+    assert "python_model" in str(caught.value)
+    assert not (GOLDEN / "identity_resolution" / "dbt").exists()
 
 
 def test_dbt_refuses_a_step_whose_output_carries_an_audit() -> None:

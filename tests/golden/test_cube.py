@@ -22,6 +22,14 @@ EXPECTED_PATHS = {
         "model/cubes/order_items.yml",
         "model/views/order_items_view.yml",
     ],
+    # Cube is asked nothing about steps (RFC 0017 D52) — it builds no relation
+    # — and yet it serves a mart whose base entity a step produced. That is the
+    # asymmetry worth a golden: the step is invisible here, which is exactly
+    # what D36/D37 promise a downstream consumer.
+    "identity_resolution": [
+        "model/cubes/customers.yml",
+        "model/views/customers_view.yml",
+    ],
     "non_additive_aov": [
         "model/cubes/orders.yml",
         "model/views/orders_view.yml",

@@ -21,6 +21,7 @@ from bloomery.quality import (
     QUALITY_RUN_ROLE,
     RunContext,
     attach_quality_mart,
+    counted_entities,
     is_quality_mart,
     quality_mart_ir,
 )
@@ -98,6 +99,43 @@ def test_a_reconcile_only_project_still_gains_the_mart() -> None:
     attached = attach_quality_mart(ir)
     assert QUALITY_MART in {mart.name for mart in attached.marts}
     assert set(QUALITY_METRICS) <= {metric.name for metric in attached.metrics}
+
+
+def test_a_step_only_quality_rule_gains_no_mart() -> None:
+    """The mart counts rows off `_quality_flags` and the reject table, and a
+    step-produced relation has neither: its wrapper writes exactly the
+    manifest's declared columns.
+
+    Its one permitted rule kind — `expression` with `on_fail: fail` — lowers to
+    a blocking audit that stops the run rather than marking a row, so there is
+    nothing evaluated-but-surviving to report. Counting it anyway emitted
+    `_quality_flags AS _flags` against a relation with no such column: a gold
+    model that compiled clean and failed on its first run.
+
+    `carries_quality` and the emitter's branch loop read one predicate for this
+    reason — if the first said yes and the second found nothing, the mart would
+    be emitted with no branches to union at all.
+    """
+    from support.plan_ir import entity, project, quality_rule
+
+    ir = project(entities=(entity(quality=(quality_rule(),), produced_by="resolve@1"),))
+    assert counted_entities(ir) == ()
+    assert attach_quality_mart(ir) is ir
+
+
+def test_a_step_output_beside_a_mapped_entity_is_the_only_one_counted() -> None:
+    """The mart still exists for the mapped entity — the step output is
+    excluded from the count, not allowed to suppress everything else."""
+    from support.plan_ir import entity, project, quality_rule
+
+    ir = project(
+        entities=(
+            entity(name="mapped", quality=(quality_rule(),)),
+            entity(name="produced", quality=(quality_rule(),), produced_by="resolve@1"),
+        )
+    )
+    assert [each.name for each in counted_entities(ir)] == ["mapped"]
+    assert QUALITY_MART in {mart.name for mart in attach_quality_mart(ir).marts}
 
 
 def test_attaching_twice_over_distinct_irs_is_a_pure_function() -> None:

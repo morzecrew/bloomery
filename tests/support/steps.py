@@ -13,6 +13,7 @@ from bloomery.steps import EMPTY_REGISTRY, StepManifest, StepRegistry
 
 __all__ = [
     "RESOLVE_CUSTOMERS",
+    "RESOLVE_CUSTOMERS_V4",
     "registry_for",
 ]
 
@@ -61,8 +62,64 @@ RESOLVE_CUSTOMERS = StepManifest.model_validate(
     }
 )
 
+#: The same step, one version on: it also stamps *when* it resolved.
+#:
+#: A separate version rather than an edit to v3, because a manifest is
+#: identity (RFC 0017): changing what a version produces is how a step's
+#: consumers silently disagree about its contract. It also lets the corpus
+#: carry two versions of one ref, which is the situation `use: ref@version`
+#: exists for.
+#:
+#: `resolved_at` is what makes a mart over the resolved entity legal: RFC 0010
+#: D9 requires a measure-carrying mart to declare a time dimension, and a
+#: resolved customer has no date of its own — resolution is an event, and this
+#: is when it happened.
+RESOLVE_CUSTOMERS_V4 = StepManifest.model_validate(
+    {
+        **RESOLVE_CUSTOMERS.model_dump(by_alias=True, mode="json"),
+        "version": 4,
+        "runtime_lock": "sha256:b73c",
+        # Two inputs, because identity resolution reads two systems. v3's
+        # single `raw` input assumed the sources had already been unioned,
+        # which is the question the step exists to answer.
+        "inputs": {
+            "crm": {
+                "grain": "customer_source_row",
+                "requires": ["source_system", "source_id", "email", "name"],
+            },
+            "billing": {
+                "grain": "customer_source_row",
+                "requires": ["source_system", "source_id", "email", "name"],
+            },
+        },
+        "outputs": {
+            "customer": {
+                "grain": "customer",
+                "key": ["canonical_id"],
+                "produces": {
+                    "canonical_id": {"type": "string", "required": True},
+                    "confidence": {"type": "decimal(4,3)"},
+                    "resolved_at": {"type": "timestamp", "required": True},
+                },
+            },
+            "customer_xref": {
+                "grain": "xref",
+                "key": ["source_system", "source_id"],
+                "references": {"canonical_id": "customer"},
+                "produces": {
+                    "source_system": {"type": "string", "required": True},
+                    "source_id": {"type": "string", "required": True},
+                    "canonical_id": {"type": "string", "required": True},
+                    "method": {"type": "string"},
+                },
+            },
+        },
+    }
+)
+
 _BY_FIXTURE: dict[str, StepRegistry] = {
     "step_resolution": StepRegistry({("resolve_customers", 3): RESOLVE_CUSTOMERS}),
+    "identity_resolution": StepRegistry({("resolve_customers", 4): RESOLVE_CUSTOMERS_V4}),
 }
 
 

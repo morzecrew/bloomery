@@ -27,6 +27,7 @@ from bloomery.quality import (
     QUALITY_MEASURE_COLUMNS,
     QUALITY_RUN_ROLE,
     RunContext,
+    counted_entities,
     disposition,
     flag_member,
 )
@@ -324,7 +325,9 @@ def quality_mart_select(ir: ProjectIR, ctx: EmitContext, run: RunContext) -> exp
     """
     arrays = _arrays(ctx)
     branches: list[exp.Select] = []
-    entities = [entity for entity in ir.entities if entity.quality]
+    # `counted_entities`, not a second filter: this loop and `carries_quality`
+    # must agree exactly, or the mart is emitted with no branches to union.
+    entities = counted_entities(ir)
     for entity in entities:  # sorted on ProjectIR; rules sorted on EntityIR
         branches.append(_entity_branch(entity, ctx))
         branches.extend(_rule_branch(entity, rule, arrays=arrays) for rule in entity.quality)
