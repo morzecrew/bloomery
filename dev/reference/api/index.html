@@ -981,6 +981,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/evaluate-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Assess a spec before it compiles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/use-the-cli/" class="md-nav__link">
         
   
@@ -1353,6 +1380,61 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         <code>project_fingerprint(ir: ProjectIR) -&gt; str</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluateproject-catalognone-stepsempty_registry-specevidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>evaluate(project, *, catalog=None, steps=EMPTY_REGISTRY) -&gt; SpecEvidence</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#specevidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>SpecEvidence</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Stage</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#martsummary" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>MartSummary</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unreachablemetric" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>UnreachableMetric</code>
       </span>
     </span>
   </a>
@@ -1996,6 +2078,61 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#evaluateproject-catalognone-stepsempty_registry-specevidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>evaluate(project, *, catalog=None, steps=EMPTY_REGISTRY) -&gt; SpecEvidence</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#specevidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>SpecEvidence</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Stage</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#martsummary" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>MartSummary</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unreachablemetric" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>UnreachableMetric</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2541,6 +2678,29 @@ builds an IR is a spec that compiles.</p>
 <p>The <code>blm1:</code>-prefixed SHA-256 content hash of a project IR — the value stamped into
 every emitted artifact's header. Stable within a bloomery version, deliberately not
 across versions.</p>
+<h3 id="evaluateproject-catalognone-stepsempty_registry-specevidence"><code>evaluate(project, *, catalog=None, steps=EMPTY_REGISTRY) -&gt; SpecEvidence</code><a class="headerlink" href="#evaluateproject-catalognone-stepsempty_registry-specevidence" title="Permanent link">&para;</a></h3>
+<p>Everything knowable about a spec without touching data, as one frozen value: what is
+reachable, what is not and which leaf is missing, what was refused and where, and the
+shape of every mart. <strong>Never raises for a spec-level refusal</strong> — refusals are the
+return value, and whatever analysis completed before them comes back alongside.</p>
+<p><code>InvariantViolated</code> and every programming error still propagate. See
+<a href="../../how-to/evaluate-a-spec/">Assess a spec</a>.</p>
+<h3 id="specevidence"><code>SpecEvidence</code><a class="headerlink" href="#specevidence" title="Permanent link">&para;</a></h3>
+<p><code>stage_reached</code>, <code>reachable</code>, <code>unreachable</code>, <code>refusals</code>, <code>marts</code>, <code>entities</code>,
+<code>fingerprint</code>. <strong>Read <code>stage_reached</code> first</strong>: every tuple is empty both when there was
+nothing to find and when the stage that finds it never ran, and those mean opposite
+things. <code>fingerprint</code> is <code>None</code> unless <code>stage_reached is Stage.COMPLETE</code>.</p>
+<h3 id="stage"><code>Stage</code><a class="headerlink" href="#stage" title="Permanent link">&para;</a></h3>
+<p><code>RESOLVE</code>, <code>TYPECHECK</code>, <code>LOWER</code>, <code>GUARDRAILS</code>, <code>COMPLETE</code> — the stage analysis stopped
+at. Treat it as an <strong>open</strong> enum: compare against <code>COMPLETE</code> and read everything else
+as "analysis stopped early", so a stage added later does not break the comparison.</p>
+<h3 id="martsummary"><code>MartSummary</code><a class="headerlink" href="#martsummary" title="Permanent link">&para;</a></h3>
+<p><code>name</code>, <code>grain</code>, <code>measures</code>, <code>dimensions</code> (role-qualified), <code>materialization</code> — a mart's
+shape, projected from the IR rather than recomputed.</p>
+<h3 id="unreachablemetric"><code>UnreachableMetric</code><a class="headerlink" href="#unreachablemetric" title="Permanent link">&para;</a></h3>
+<p><code>name</code>, <code>missing</code>, <code>via</code>. <code>missing</code> names the specific <em>leaves</em> — the canonical fields
+nothing maps — because the fix is always a mapping. <code>via</code> names the metrics between this
+one and those leaves, when it is blocked through another metric rather than on its own.</p>
 <h2 id="spec-diff-planning">Spec-diff planning<a class="headerlink" href="#spec-diff-planning" title="Permanent link">&para;</a></h2>
 <h3 id="planold-projectir-none-new-projectir-plan"><code>plan(old: ProjectIR | None, new: ProjectIR) -&gt; Plan</code><a class="headerlink" href="#planold-projectir-none-new-projectir-plan" title="Permanent link">&para;</a></h3>
 <p>Diff two compiled IRs into a classified migration plan. <code>plan(None, new)</code> is the

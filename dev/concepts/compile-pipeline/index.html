@@ -758,6 +758,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-stages-are-addressable" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The stages are addressable
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#lowering-is-shared-assembly-is-not" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1130,6 +1141,33 @@
     
   
   Evolve a spec safely
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/evaluate-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Assess a spec before it compiles
 
     
   </span>
@@ -1530,6 +1568,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-stages-are-addressable" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The stages are addressable
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#lowering-is-shared-assembly-is-not" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1714,7 +1763,28 @@ dataclass tree designed so the deterministic thing is the only easy thing to wri
 </ul>
 <p>Unreachable metrics are IR members, not log lines: "you can't get margin because <code>cogs</code>
 is missing" is a product-facing answer, and it travels with the IR to whatever surface
-needs it.</p>
+needs it. Each carries <code>via</code> as well as <code>missing</code> — the metrics between it and the
+missing leaf, when it is blocked through another metric rather than on its own.</p>
+<h2 id="the-stages-are-addressable">The stages are addressable<a class="headerlink" href="#the-stages-are-addressable" title="Permanent link">&para;</a></h2>
+<p>The sequence above is not only an explanation. <code>Stage</code> is a public enum and
+<a href="../../how-to/evaluate-a-spec/"><code>evaluate()</code></a> reports which stage analysis stopped at,
+along with everything the stages before it produced:</p>
+<div class="highlight"><pre><span></span><code><span class="n">evidence</span> <span class="o">=</span> <span class="n">evaluate</span><span class="p">(</span><span class="n">project</span><span class="p">,</span> <span class="n">catalog</span><span class="o">=</span><span class="n">catalog</span><span class="p">)</span>
+<span class="n">evidence</span><span class="o">.</span><span class="n">stage_reached</span>   <span class="c1"># Stage.GUARDRAILS</span>
+<span class="n">evidence</span><span class="o">.</span><span class="n">reachable</span>       <span class="c1"># still known — resolve ran two stages earlier</span>
+<span class="n">evidence</span><span class="o">.</span><span class="n">refusals</span>        <span class="c1"># the batch that stopped it, each with a source path</span>
+</code></pre></div>
+<p><code>compile_project()</code> is all-or-nothing and stays that way: it emits artifacts or it
+refuses. What <code>evaluate()</code> adds is that the <em>prefix</em> — the analysis that completed before
+the refusal — stops being thrown away at the exception boundary.</p>
+<p>Both are written as one generator over the stages, so the assessment and the compile can
+never disagree about what the pipeline is.</p>
+<p>Two stages in the diagram are not <code>Stage</code> members, for the same reason. <strong>Parse</strong> runs
+before anything holds a <code>Project</code>, so a document that does not parse never reaches the
+pipeline <code>evaluate()</code> drives — <code>load_project</code> refuses it first. <strong>Mart flattening</strong> is
+total and refuses nothing of its own: its violations are re-derived and raised by the
+guardrail stage, so it is folded into <code>LOWER</code> alongside step lowering, which does
+refuse.</p>
 <h2 id="lowering-is-shared-assembly-is-not">Lowering is shared; assembly is not<a class="headerlink" href="#lowering-is-shared-assembly-is-not" title="Permanent link">&para;</a></h2>
 <p>The ports vary over targets, but the SQL a spec becomes does not. Both split fall on
 either side of one line: <strong>targets differ in assembly and share lowering.</strong> SQLMesh and

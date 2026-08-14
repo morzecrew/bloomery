@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://morzecrew.github.io/bloomery/dev/how-to/use-the-cli/">
       
       
-        <link rel="prev" href="../evolve-a-spec/">
+        <link rel="prev" href="../evaluate-a-spec/">
       
       
         <link rel="next" href="../../reference/spec-schemas/">
@@ -983,6 +983,33 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaluate-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Assess a spec before it compiles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -1594,17 +1621,48 @@ without writing a Python script. <code>bloomery</code> is that: six commands, ea
 shell over one public function.</p>
 <div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>resolve<span class="w"> </span>specs/
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>Reachable (3)
+<div class="highlight"><pre><span></span><code>Stage: complete
+Fingerprint: blm1:46f0d4f549273b5e43db9b6961ce4ef35919611d2987e1dc0f841c355840087c
+
+Reachable (3)
   average_order_value
   gross_revenue
   order_count
 
 Unreachable (1)
   margin  missing: cogs
+
+Marts (1)
+  order_items  grain: order_item
 </code></pre></div>
 <p>That is the command the rest exist alongside. "Did the spec I just wrote do what I
 meant" is the question bloomery is best placed to answer, and the specific missing leaf
 is the part a summary would throw away.</p>
+<p><strong>A spec that is refused still gets an answer.</strong> <code>resolve</code> calls
+<a href="../evaluate-a-spec/"><code>evaluate()</code></a>, which reports refusals rather than raising them, so a
+draft mid-edit prints how far analysis got, what was reachable at that point, and every
+refusal with its source path:</p>
+<div class="highlight"><pre><span></span><code>Stage: guardrails
+  analysis stopped here — every count below is a prefix, not a total
+
+Reachable (2)
+  landed_revenue
+  shipping_cost
+
+Unreachable (0)
+
+Refusals (1)
+  marts: marts.order_items.measures.shipping_cost
+    GrainViolation: measure &#39;shipping_cost&#39; has grain &#39;order&#39; (one row per
+      order), not the mart&#39;s grain &#39;order_item&#39; …
+</code></pre></div>
+<p>Exit code <code>1</code> — the spec is still refused, and a pipeline branching on the code must not
+start reading it as fine. <strong>Read the stage before the counts</strong>: at any stage but
+<code>complete</code> they are a prefix, and <code>Unreachable (0)</code> there means "never computed" rather
+than "nothing unreachable".</p>
+<p>A project that wires a <code>steps:</code> document reports the unwired step here, because the CLI
+passes no registry — see <a href="#compiling">Steps are the one thing the CLI cannot wire</a> below.
+<code>bloomery compile</code> on the same project refuses for the same reason.</p>
 <h2 id="the-six-commands">The six commands<a class="headerlink" href="#the-six-commands" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>bloomery compile     &lt;dir&gt; [--target sqlmesh] [--dialect duckdb] [--catalog F] [--out DIR]
 bloomery plan        &lt;old-dir&gt; &lt;new-dir&gt; [--catalog F] [--format table|json]
@@ -1646,7 +1704,9 @@ the name of an emitter you registered.</p>
 caller and handed to <code>compile_project</code>; bloomery reads no step manifests from disk, by
 design — that absence is what stops an authored spec from becoming a code-loading
 surface. A flag would have to invent a manifest loader. A project using <code>steps:</code> compiles
-through Python, and <code>UnknownStep</code> names the versions the registry does hold.</p>
+through Python, and <code>UnknownStep</code> names the versions the registry does hold. <code>resolve</code>
+reports that refusal too, rather than answering reachability as though the wiring were
+not there.</p>
 <h2 id="planning-a-change">Planning a change<a class="headerlink" href="#planning-a-change" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>plan<span class="w"> </span>deployed/<span class="w"> </span>proposed/
 </code></pre></div>
@@ -1729,13 +1789,18 @@ job — so a pipeline that retries on it will retry forever. Branch on the code:
 <h2 id="scripting-with-format-json">Scripting with <code>--format json</code><a class="headerlink" href="#scripting-with-format-json" title="Permanent link">&para;</a></h2>
 <p><code>plan</code>, <code>resolve</code> and <code>explain</code> take <code>--format json</code>, and it emits the <strong>same values the
 Python API returns</strong> — not a summary of them. <code>bloomery resolve --format json</code> carries
-<code>provenance</code> and <code>topo_order</code> even though the table prints neither, because a script
-should not have to drop into Python for a field the function already returned.</p>
-<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>resolve<span class="w"> </span>specs/<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.unreachable_metrics[] | {name, missing}&#39;</span>
+each mart's measures and dimensions and the full text of every refusal even though the
+table prints neither, because a script should not have to drop into Python for a field
+the function already returned.</p>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>resolve<span class="w"> </span>specs/<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.unreachable[] | {name, missing, via}&#39;</span>
+bloomery<span class="w"> </span>resolve<span class="w"> </span>specs/<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.refusals[] | {type, source_path}&#39;</span>
 </code></pre></div>
-<p>Two conversions are worth knowing: a <code>Decimal</code> becomes a string (never a float — see
-<a href="../../concepts/determinism/">determinism</a>), and a logical type becomes the string a spec
-writes it as, <code>decimal(12, 4)</code>.</p>
+<p>Three conversions are worth knowing. A <code>Decimal</code> becomes a string (never a float — see
+<a href="../../concepts/determinism/">determinism</a>). A logical type becomes the string a spec
+writes it as, <code>decimal(12, 4)</code>. And a refusal — which is an exception, not a dataclass —
+becomes its <code>type</code>, its <code>message</code>, and every attribute it carries, so <code>source_path</code> and
+the <a href="../../reference/errors/">structured fix suggestions</a> arrive as fields rather than as
+prose to re-parse.</p>
 <h2 id="what-the-cli-will-never-grow">What the CLI will never grow<a class="headerlink" href="#what-the-cli-will-never-grow" title="Permanent link">&para;</a></h2>
 <p>No <code>run</code> and no engine connection. No config file, profile, or credentials. No
 <code>bloomery init</code> or <code>bloomery new entity</code> — templates encode opinions about project layout
@@ -1779,7 +1844,7 @@ as a small, reasonable-looking patch.</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../evolve-a-spec/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Evolve a spec safely">
+          <a href="../evaluate-a-spec/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Assess a spec before it compiles">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
@@ -1789,7 +1854,7 @@ as a small, reasonable-looking patch.</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                Evolve a spec safely
+                Assess a spec before it compiles
               </div>
             </div>
           </a>
