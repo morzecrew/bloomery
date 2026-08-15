@@ -232,6 +232,25 @@ def test_the_shipped_table_covers_every_package_under_src() -> None:
     assert present - declared == set(), f"packages with no declared floor: {sorted(present - declared)}"
 
 
+def test_the_modules_outside_any_package_have_a_floor() -> None:
+    """The other half of the table's completeness, and the half a
+    directory-shaped rule cannot express.
+
+    `test_the_shipped_table_covers_every_package_under_src` walks
+    `src/bloomery/` for *directories*, so six modules sitting beside them —
+    `errors.py`, the root of the entire refusal hierarchy, among them — were
+    outside every glob and had no floor at all. Nothing failed, because a
+    package with no floor is exactly as green as one that holds.
+    """
+    assert "src/bloomery/*.py" in CHECKER.floors(ROOT)
+    top_level = {
+        path.name
+        for path in (ROOT / "src" / "bloomery").iterdir()
+        if path.suffix == ".py" and path.name != "_version.py"
+    }
+    assert top_level, "no top-level modules found — the glob above now measures nothing"
+
+
 def test_the_guardrails_floor_is_still_a_hundred() -> None:
     """RFC 0009 D9 through RFC 0025 D3: the one floor that is exact rather
     than one notch below, and explicitly not up for renegotiation."""

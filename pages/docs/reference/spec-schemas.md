@@ -1,15 +1,20 @@
 # Spec schemas
 
-Field-by-field reference for the five spec kinds. Parsing is strict: unknown keys,
+Field-by-field reference for the six spec kinds. Parsing is strict: unknown keys,
 duplicate YAML keys, and grammar violations are hard `SpecParseError`s, batched per
 document with a source path per failure. Parse validates shape and grammar only —
 whether references exist is checked at resolution.
 
 Each project document self-identifies by its version key: `spec_version` (EntityModel),
-`mapping_version` (Mapping), `metrics_version` (MetricSet), `marts_version` (MartSet).
-A project holds exactly one EntityModel, any number of Mappings, and at most one
-MetricSet and one MartSet. The Catalog (`catalog_version`) is not part of a project —
-load it with `load_catalog` and pass it separately.
+`mapping_version` (Mapping), `metrics_version` (MetricSet), `marts_version` (MartSet),
+`steps_version` (StepSet). A project holds exactly one EntityModel, any number of
+Mappings, and at most one MetricSet, MartSet and StepSet. The Catalog
+(`catalog_version`) is not part of a project — load it with `load_catalog` and pass it
+separately.
+
+A version key is required, and it is also how bloomery tells one kind of document from
+another. Each is pinned to `1`: a document declaring a version bloomery does not
+implement is **refused**, never read as one it does.
 
 ## Shared grammars
 
@@ -473,3 +478,58 @@ flatten:
 | via | `prefix` | string, non-empty | yes | Prefix on every flattened column — mandatory, collisions are errors |
 | date | `date` | field name | yes | A date/timestamp column of the base entity |
 | date | `role` | member name | yes | Expands to `<role>_day` … `<role>_year` bucket columns (`metric_time` reserved) |
+
+## StepSet (`steps_version`)
+
+At most one per project, and optional — most projects wire no steps. A step is a
+*referenced implementation*: the document names platform-owned code by `ref@version` and
+binds it into the pipeline. It cannot carry a body and cannot name a file to load, which
+is what keeps an authored spec from becoming an arbitrary-code-execution surface — the
+property comes from the absence of a field, not from validating one.
+
+The manifest describing what a step *is* — its tier, its declared inputs, outputs and
+parameter bounds — is not a spec document. It reaches the compiler as a `StepRegistry`
+passed to `compile_project(..., steps=…)`, so bloomery reads no step files at all. See
+[Steps: referenced implementations](../concepts/step-registry.md) for the manifest side
+and the three tiers.
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `steps_version` | `1` | yes | Document version key |
+| `steps` | list of StepWiring | no (`[]`) | One wiring per step |
+
+### StepWiring
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `use` | `ref@version` | yes | `^[a-z][a-z0-9_]*@[1-9][0-9]*$`. One wiring per `ref` — a version bump is that step changing, not a second step |
+| `outputs` | map name → relation | yes, ≥ 1 | Binds each declared output to a relation it writes |
+| `inputs` | map name → relation | no (`{}`) | Binds each declared input to a relation it reads |
+| `parameters` | map name → string / int / bool / decimal | no (`{}`) | Tunables the manifest declares, within the bounds it declares |
+| `seed` | int | no | Required for a `seeded` step, refused for the other two tiers |
+| `quality` | list of expression rules | no (`[]`) | `expression` rules only; see [Entity quality rules](#entity-quality-rules) for the shape |
+| `applies_to` | map rule name → output | no (`{}`) | Which output each rule applies to. Required for every declared rule — a step has several outputs, so "on this step" cannot be lowered |
+| `canonical` | map output → {column: canonical field} | no (`{}`) | Which canonical field a produced column *is*. Never inferred from a matching name; without it, metrics over a step output are unreachable |
+
+A bound relation is an optionally-namespaced identifier and nothing else
+(`^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$`) — these strings reach generated
+source, so the grammar is the second of two locks.
+
+```yaml
+steps_version: 1
+steps:
+  - use: resolve_customers@2
+    inputs: {shopify: bronze.shopify_customers, stripe: bronze.stripe_customers}
+    outputs: {customer: silver.customer, links: silver.customer_link}
+    parameters: {threshold: 0.92}
+    canonical:
+      customer: {customer_id: customer_id}
+    quality:
+      - {name: confidence_is_sane, rule: expression, expr: "confidence BETWEEN 0 AND 1", on_fail: fail}
+    applies_to: {confidence_is_sane: links}
+```
+
+**Shape versus resolution.** Parse checks that `canonical` and `applies_to` name outputs
+this wiring binds and that every declared rule says which output it applies to. Whether
+the manifest actually declares that output, that column or that parameter is a resolution
+question — the spec layer has never seen a manifest.

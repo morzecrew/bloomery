@@ -9,25 +9,31 @@ does not need.
 - Nothing else: no database, no orchestrator, no cloud credentials. bloomery is a pure
   library — it emits artifacts and plans; executing them is another tool's job.
 
-## Install from source
-
-bloomery is pre-0.1 and **not yet published to PyPI** — install it from the Git
-repository.
+## Install
 
 With [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv add git+https://github.com/morzecrew/bloomery
+uv add bloomery
 ```
 
 With pip:
 
 ```bash
-pip install git+https://github.com/morzecrew/bloomery
+pip install bloomery
 ```
 
-To pin a specific commit, append `@<sha>` to the URL. The API is not stable before 0.1,
-so pinning is the sensible default.
+**Pin the minor.** Below 1.0 a breaking API change may ship in a minor release — never
+silently, always with a changelog entry naming the migration, but it may ship. So
+`bloomery>=0.1,<0.2` is the constraint that holds the API still; see
+[Stability](../reference/stability.md) for exactly what each surface promises.
+
+To track unreleased work instead, install from the repository — append `@<sha>` to pin a
+commit:
+
+```bash
+uv add git+https://github.com/morzecrew/bloomery
+```
 
 ## For contributors
 
@@ -54,9 +60,10 @@ none of those need to be installed alongside bloomery, only wherever the artifac
 ## Verify
 
 ```bash
+bloomery --version
 python -c "import bloomery; print(sorted(bloomery.__all__))"
 ```
 
-You should see the public API surface, `load_project` through `compile_project` to
-`MetricFlowPlanner`. Continue to the [Quickstart](quickstart.md) to compile your first
-project.
+The first prints the release you installed — quote it in a bug report. The second prints
+the public API surface, `load_project` through `compile_project` to `MetricFlowPlanner`.
+Continue to the [Quickstart](quickstart.md) to compile your first project.

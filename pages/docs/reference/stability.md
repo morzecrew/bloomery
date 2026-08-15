@@ -5,14 +5,16 @@ promise, and the third is the one that gets misread.
 
 | Surface | Promise |
 | --- | --- |
-| **Python API** — `bloomery.__all__` and each subpackage's `__all__` | SemVer. A breaking change requires a major version. |
+| **Python API** — `bloomery.__all__` and each subpackage's `__all__` | SemVer. A breaking change is never silent, and below 1.0 it requires a minor — see [what binds at 0.1](#what-binds-at-01-and-what-waits-for-10). |
 | **Spec YAML** | Per-kind document versioning. Additive within a version; a breaking change mints a new version. |
 | **Emitted artifacts** | **Not stable.** Byte-reproducible for fixed inputs; not comparable across bloomery versions. |
 
 ## The Python API
 
 `bloomery.__all__` is the contract. What is in it follows SemVer: a name will not be
-removed, and a signature will not narrow, without a major version.
+removed, and a signature will not narrow, without a version bump that says so — a minor
+while bloomery is below 1.0, a major from 1.0 onward. Either way it is in the changelog
+with the migration; the section at the foot of this page is the exact split.
 
 The list is **closed over its own signatures**. If a type appears in the signature of
 anything exported — as a parameter, a return, a generic argument, a field of a returned
@@ -128,9 +130,39 @@ inherits its own cost questions — whether its regex engine backtracks decides 
 `pattern` rule is a denial-of-service surface there, and that belongs in the port's own
 assessment rather than being assumed from the three that ship.
 
-## Before 0.1
+## What binds at 0.1, and what waits for 1.0
 
-bloomery is pre-0.1 and **the API is not stable yet**. Anything described here may change
-before the first release. The promises above describe how bloomery will behave from 0.1
-onward, and are written down now because the surface is cheapest to get right while
-nothing depends on it.
+The promises above are in force from **0.1.0**. They are not all in force to the same
+degree, and the difference is what SemVer itself says about versions below 1.0.
+
+| Promise | At 0.1 | At 1.0 |
+| --- | --- | --- |
+| **Spec YAML** — a document that loads keeps loading; a breaking grammar change mints a new `<kind>_version` | **Fully binding** | Unchanged |
+| **Python API** — nothing in an `__all__` moves without a version bump and a changelog entry naming the migration | **Binding: never silent** | **Binding: never breaking outside a major** |
+| **Emitted artifacts** — not stable across versions | Binding as stated (it is a *non*-promise, and it does not soften) | Unchanged |
+
+The middle row is the whole split, so it is worth stating without the table:
+
+- **Below 1.0, a breaking change to the Python API may ship in a minor release** — 0.1 to
+  0.2 — which is exactly what SemVer reserves the `0.` series for. What binds now is that
+  it may never be *quiet*: every breaking change appears in `CHANGELOG.md` with the name
+  that moved and what to write instead, and a minor bump is the floor for one. A patch
+  release never breaks anything.
+- **From 1.0, breaking requires a major version.** That is the promise spec YAML already
+  makes in the row above, extended to the Python surface once the surface has been used
+  enough to be worth freezing.
+
+Pinning follows from that: pin the minor (`bloomery>=0.1,<0.2`) if you want the API to
+hold still, and read the changelog on every minor bump.
+
+**The spec YAML promise does not wait**, and it is deliberately the strong one. A spec is
+authored by people and lives in a repository far longer than the library version that
+compiled it, so `spec_version: 1` documents keep loading — a breaking grammar change gets
+a new version number rather than a new bloomery release. Those two clocks are independent
+by design.
+
+### The installed version
+
+`bloomery.__version__` and `bloomery --version` report the release you have. Both come
+from the build rather than from a constant in the source, so they cannot disagree with
+the wheel. Quote one of them in a bug report.

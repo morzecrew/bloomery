@@ -7,266 +7,148 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- **The three RFC 0001 §8 ratchets** (RFC 0025 §5.1–§5.3), whose stated trigger — the 0.1 release — has arrived.
-
-  **A docs floor that checks claims, not links.** Every link on the data-quality page resolved while its warning block said Postgres could not host a quality-carrying entity, a statement RFC 0016 D84 had made false; an external reviewer read it and concluded Postgres was "closer to a demo dialect than a peer". Four checks now: the documented error-class set must equal the exported one *in both directions*; every documented class must be produced by some real code path during a whole-suite run; every admonition block's claim must still hold, including claims of **acceptance**; and every repo-relative path cited in prose must resolve. `just build-docs` gained `--strict` — it previously reported "1 issue found" and exited 0 — and a CI job now runs it, which nothing did.
-
-  **Per-package coverage floors**, declared in `[tool.bloomery.coverage-floors]` and enforced by `tools/check_coverage_floors.py` from both `just coverage` and CI. Each number is measured then dropped one notch. A glob matching no files is a finding, not a pass: renaming a package would otherwise retire its floor silently.
-
-  **The perf gate wired to something that can stop a release.** `tests/bench/test_hydration.py` already asserted RFC 0014's budgets; no workflow ran the `perf` marker, so the assertions had never executed outside a terminal. It is now informational on the nightly lane and **blocking on a release-candidate job** in the tag workflow.
-
-- Two public names, both additive (RFC 0023 P1). `bloomery.errors.HistoricalFanout` — the new guardrail leaf, importable because callers catch specific classes. `bloomery.transforms.CONVERT_MARKER` — the token the `convert` transform builds and the emit check refuses on, shared rather than spelled twice: a refusal looking for a name nothing produces passes every project, including the ones it exists to stop.
-
-- **`rfcs/RETIRED.md`** — every retired RFC, its title, and the commit that deleted it (RFC 0025 §5.4). Designs are retired by deletion, and source, tests and docs carry 2,142 citations of the form `RFC NNNN` naming files that are deliberately not in the tree; following one previously meant knowing the policy, holding the full history, and matching a number to a filename you had never seen. It stays three columns and **never a summary** — a fourth column describing what an RFC decided would be the drifting second account of behaviour that retirement exists to prevent. `just quality` gains an eleventh check refusing any number that is neither live nor retired, or whose commit did not delete it; in a shallow clone the structural half still runs and the commit half says it was skipped.
-
-- **`tests/fixtures/identity_resolution/`** — identity resolution end to end on mechanisms that already shipped (RFC 0021). Two sources with no shared key, a two-output `python_model` step, a `references:` declaration between the siblings, `canonical:` links so a metric over the resolved entity resolves, a mart over it, and an `expression` rule with `on_fail: fail` on `confidence`. It runs in the golden, execution and e2e tiers, and the demonstration resolver runs standalone with no bloomery in the loop — including its real frames fed to `assert_step_contract`. **"Deferred" and "solved by an existing mechanism" are materially different statuses**, and only a passing fixture establishes the second.
-
-- `pages/docs/how-to/resolve-identities.md` — the pattern, and why identity resolution is a step rather than a spec kind, permanently: bloomery can neither typecheck nor guardrail blocking keys, similarity functions and thresholds, so a spec kind would give *weaker* guarantees than a step's declared, runtime-enforced contract. `runtime_lock` inverts the intuition — upgrading the matching library classifies as restating and backfills the outputs, which a declarative similarity function could never do.
-
-- A **supported-dialects** section in the stability reference: the three that ship, and the four that are costed at roughly a week each and left unbuilt until a named consumer asks. A new port declares its `Feature` set honestly or is refused, never silently approximating.
-
-- `tests/equivalence/README.md` — the triage order for a three-way divergence (Cube first, reference SQL second, planner third). It orders investigation, not conclusions; `known_divergences.yaml` stays empty, because an entry is a finding to fix rather than a tolerance to accumulate.
-
-- Two closed questions written down where they will be read rather than carried as backlog: **before adding a spec kind, ask whether it can be a referenced implementation instead** (step-registry concepts), and **bloomery derives defaults; it does not infer intent** (at the `materialization` field, where incremental-strategy inference is now closed as "no").
-
-- **Spec assessment as one value: `evaluate(project) -> SpecEvidence`** (RFC 0022). Everything knowable about a spec without touching data — reachable metrics, unreachable ones with the specific missing leaf, batched refusals with their source paths, mart shapes, entities, fingerprint — returned instead of assembled by the caller from three calls and two exception handlers. It adds no analysis: every number is one bloomery already computed on its way to emitting or refusing, and discarded at the exception boundary. **Refusals are the return value**, not an exception, and the analysis that completed *before* the refusal comes back with them: a project refused by the guardrail stage still reports the reachability computed two stages earlier. `InvariantViolated` and every programming error still propagate — the catch is `BloomeryError` and nothing wider. New public types `SpecEvidence`, `MartSummary`, `Stage` and `Materialization`; `evaluate` executes nothing, connects to nothing, and reads no data, permanently.
-
-- `bloomery.resolve.pipeline` — the compile pipeline as one generator, yielding the stage about to run and everything the stages before it produced. `build_project_ir` is it run to exhaustion; `evaluate` is it consumed until something refuses. Written once so a third entry point into the pipeline cannot drift from the second.
-
-- `UnreachableMetric.via` — the metrics between a blocked metric and its missing leaves. `missing` stays leaves-only, because the fix is always a mapping and never a metric, but a metric blocked *through* another one now names the chain: map `cogs`, and both `margin` and `margin_rate` unblock. Only blocked requirements appear; a required metric that is reachable is not on the path to anything missing.
-
-- **A command line: `bloomery compile|plan|resolve|explain|schema|fingerprint`** (RFC 0020). Each command is a thin argument shell over one public function — read files, call the API, write stdout or a directory. `--format json` on `plan`/`resolve`/`explain` emits the same values the Python API returns, so it is not a second, lossier surface. Exit codes distinguish a **refusal** (`1`, a correct outcome a pipeline must not retry) from a **usage error** (`2`). No execution, no connection, no profile, no scaffolding. `bloomery/cli/io.py` is the only module in the package permitted to touch a filesystem, and nothing in the library may import the CLI. `--steps` is not offered: a `StepRegistry` is a caller-assembled compile input, so a project wiring steps compiles through Python.
-
-- **JSON Schema per spec kind: `spec_json_schema(kind)` and `all_spec_schemas()`**, with `SpecKind` and `JsonDict` (RFC 0020). Generated from the Pydantic models, so they cannot drift from the parser; deterministic, golden-tested, and carrying a `$id` whose version is read off the model's own pinned `<kind>_version`. Every closed set is an enumeration — including the transform whitelist, in all three authored spellings — which is what lets a constrained generator write specs it cannot get wrong. `bloomery schema --out DIR` writes the six documents; they are also published at `https://morzecrew.github.io/bloomery/schemas/v1/<kind>.json` for `yaml.schemas` and `$ref` by URL.
-
-- **Structured fix suggestions on five refusals** (RFC 0020): `UnknownMember.did_you_mean`, `UnreachableAtGrain.covering_marts`, `GrainViolation.offending_measures`, `UnknownStep.available_versions`, `UnsupportedFilter.nearest_supported`. Each exposes a value bloomery already computed on its way to writing the message. New public types `MartCoverage(mart, metric, grain)` and `MeasureRef(measure, grain)`. Every field is always present — `()` or `None` when there is genuinely nothing to suggest, never absent and never fabricated.
-
-- **Signature closure: every type in a public signature is now importable from `bloomery`** (RFC 0018). The root namespace grows from 29 names to 56, and a test walks the whole surface and fails the build if an export ever names a type the root does not carry. Previously `compile_project` returned `tuple[EmittedArtifact, ...]` and accepted a `NamingPolicy`, `Catalog` and `Project` — none of which a caller could name without a deep import the package never advertised. The walk reads annotation *strings* rather than resolved objects, because `get_type_hints` turns `ColumnDescriptor.type` into seven member classes and never mentions `LogicalType`, which is the name you actually write. It stops at three handle types — `Catalog`, `Project`, `ProjectIR` — that you receive and pass back; descending into `ProjectIR` would pull 65 IR internals into the public namespace. `bloomery.errors` stays exempt by an allowlist in the test, so the exemption is visible rather than assumed.
-
-- `ColumnDescriptor.sql_alias` — the alias the emitted SQL actually projects, alongside `name`, the dimension you asked for. They differ for every dimension: `store` comes back as `order__store` and `ordered_month` as `order__ordered_day__month`. **Bind result rows by `sql_alias`, display `name`.** Additive, so positional binding — what every consumer does today — is unchanged.
-
-- `pages/docs/reference/stability.md` — the three surfaces and what each promises, including the one that reads backwards: emitted artifacts are **not** stable across bloomery versions. Byte-reproducibility for fixed inputs is determinism, not a cross-version guarantee, so a diff in emitted SQL after an upgrade is expected and should be reviewed rather than treated as a regression.
-
-- Steps: referenced implementations (RFC 0017). A project may now wire platform-owned steps through a new `steps_version: 1` document — `use: ref@version`, input/output bindings, parameters within the manifest's declared bounds, and `expression` quality rules on outputs. Manifests reach the compiler as a frozen `StepRegistry` passed to `compile_project(..., steps=…)`; bloomery reads no step files and has no dynamic loading path, so a spec cannot name code to load. Three tiers emit: `sql_macro` splices into the consuming SELECT, `sql_model` emits an ordinary model, and `python_model` emits one generated SQLMesh Python-model wrapper *per declared output*, each carrying a non-optional `assert_step_contract` call.
-
-- `bloomery.steps.assert_step_contract` — the run-time step contract, and the only bloomery name intended for import outside compilation. It imports nothing but `bloomery.errors`: every check is expressed against the dataframe protocol the step already returned, so it needs no pandas of its own.
-
-- A step emits a blocking consistency audit per reference its manifest **declares** between sibling outputs (`references: {column: sibling}`), attached to the model holding the reference, and that model declares the sibling in `depends_on` so SQLMesh resolves it to the plan's snapshot rather than a virtual-layer view. Mutual references are refused: each one orders the two models. This is the check for the one risk one-wrapper-per-output creates — a step misdeclared as `pure` producing siblings that disagree *within a single run*, which no run-to-run gate and no contract assertion can see.
-
-- Step outputs are entities: a mart or downstream model may reference `silver.customer` written by a step exactly as it would any silver entity, and `plan()` diffs those entities like any other. `EntityIR` gains `produced_by`, naming the step that writes the relation, so the emitter leaves its model to the step's generated wrapper.
-
-- A step wiring may declare `canonical: {<output>: {<column>: <canonical_field>}}`, which is what lets **metrics** and **`reconcile`** read a step output — a metric resolves against canonical fields, and only mapped entity fields could previously draw that link. The link lives on the wiring rather than in the manifest, because canonical names are the authored spec's vocabulary and a manifest naming them could not be reused by a project spelling them differently. It is never inferred from a matching column name.
-
-- Tier 1 is wired: a mapping may splice a `sql_macro` into a field, either as a field shape (`step: ref@version` with `from:` binding each accepted column to a source path) or as a `{step: ref@version}` link in a transform chain, so whitelist transforms and a macro compose on one field. A macro is referenced inline rather than wired in `steps:` — it writes no relation, and one wiring per ref would make it usable in exactly one mapping. The splice happens at lowering, so the model stays one query and column-level lineage sees through it.
-
-- A `sql_macro` manifest declares its signature with `accepts: {column: type}`, never inferred from the body's placeholders. The body is checked against the declaration at the registry, call sites are checked against it (so the error names what the macro expects), and a chain is typechecked *around* the link — the transforms before it against what it accepts, those after it from what it produces. A polymorphic macro must pick a concrete type, the same constraint a Tier 0 transform carries through its input domain.
-
-- Steps not wired in the `steps:` document are refused rather than silently dropped: a `sql_macro` (which belongs at its call site) and a `sql_model` with no registry body. (Per-target coverage is stated further down: dbt emits Tier 2 and refuses Tier 3; Cube is asked nothing.)
-
-- An `expression` quality rule on a step output with `on_fail: fail` lowers to a blocking audit over the relation, attached to that output's own model so SQLMesh runs it. `flag` and `quarantine` stay compile errors: both work by rewriting the silver `SELECT` — the `_quality_flags` projection and the routing `WHERE` — and a step-produced relation has none, because its wrapper writes the rows.
-
-- A `sql_model` body takes its parameters as sqlglot `:name` placeholders, substituted as AST literal nodes so a spec value is data wherever it lands and cannot carry SQL into the body. The declared type picks the literal: `int`/`decimal` render as numbers, `bool` as a boolean, and `string`/`date`/`timestamp` as string literals the engine compares in the column's own type. Body and parameters must name the same *resolved* set — a placeholder nothing declares, a placeholder whose parameter has neither default nor wiring, and a resolved parameter the body never mentions are each a compile error. A `variant` parameter cannot be substituted, because the three supported engines do not spell a semi-structured literal alike.
-
-- `bloomery.typing.render_type` — the spec-layer spelling of a logical type, now public because `plan()`, the step manifest embedded in a generated wrapper, and anything reporting a type to a human must all use one spelling.
-
-- Two rules join the closed quality catalogue (RFC 0016 D86). `{rule: normalize, form: nfc}` fires when a value is not already in Unicode NFC — the case where `café` spelled with a combining acute and `café` spelled precomposed are one value to a reader and two to every join, `unique` and dedupe. `{rule: charset, allow: [...]}` / `{rule: charset, forbid: [...]}` declares the admissible characters as `U+` codepoints and inclusive ranges (exactly one side), which is how a column says it holds no zero-width space, no bidi override, and no Cyrillic letter drawn like a Latin one. Codepoints rather than the characters themselves: every character these rules exist to catch is invisible, and a literal one in a YAML file is unreadable in review.
-
-- Cross-entity `coverage:` checks (RFC 0016 D90) — "every customer has at least one order", declarable. A check names a declared relationship and a minimum, and lowers to an audit asserting that every row of the referenced entity has at least that many rows referencing it. `on_fail` is `fail` (blocking) or `flag` (non-blocking): the audit is attached to the *dependent* entity's model, so it cannot route a row of the referenced one, and pretending otherwise would be silent degradation. The dbt target refuses a project carrying one; Cube is not asked.
-
-- A **Cube container tier** and the **three-way equivalence tier** (RFC 0009 D24), completing every tier RFC 0009 §5.2 names. Cube now loads the emitted schema in a real container, answers a query, and is compared against the MetricFlow-backed planner over one Postgres — with hand-written reference SQL as the third leg on every request that declares one. The equivalence corpus is smaller than §5.8's sketch of ~40 requests; the classes it covers are what buy the coverage.
-
-- A **Trino engine tier** and a **`dbt parse` e2e tier** (RFC 0009 D21/D22). Three decisions previously verified against Trino by hand are now permanent tests, including the one D75 said was impossible — the reject table materializes there, and its `reject_id` is checked against the digest computed in Python, so the engines are held to agreeing with each other rather than each with itself. `dbt parse` runs over every dbt-compilable fixture plus a Tier 2 step project, with a deliberately malformed model as its own control.
-
-- The dbt target now emits `sql_model` steps as ordinary dbt models (RFC 0017 D52), carrying the same SELECT the SQLMesh target emits. `sql_macro` steps already worked everywhere — they are spliced into the consuming model before any emitter sees them. `python_model` steps are still refused on dbt, now for a concrete reason: dbt's Python models run on Snowflake, BigQuery and Databricks only, and none of bloomery's dialects is one of them.
-
-- The Cube target no longer refuses a project that wires steps. Cube builds nothing — it emits cubes and views over marts and no silver model, reject table, replay statement or audit for anything — so refusing steps singled them out among every other build-side declaration it already leaves to whoever maintains the tables.
-
-- Marts may declare aggregate `assert:` clauses (RFC 0016 D89) — `{measure, agg, by, min/max, on_fail}`, lowering to a SQLMesh audit the mart model names. This is "no month has zero revenue", declarable. They are **assertions and not quality rules**: a mart row is derived, with no source identity, no reject table and no replay, so no disposition applies to it — `on_fail` accepts `fail` (blocking) and `flag` (non-blocking) only. An assertion sees the groups that exist; a period with no rows at all is invisible to it unless the aggregate is `count`.
-
-- The dbt target refuses a project whose marts carry assertions, rather than dropping them: its schema tests are per-column or per-model predicates with no grouped form, and a project that compiles clean while its declared gate does not exist is worse than one that refuses. Cube is not asked — it emits no audit for anything.
-
-- Reject tables gain a `last_evaluated_at` column (RFC 0016 D88): when replay last read the row. It answers the question `last_seen` deliberately cannot — `last_seen` is the data's clock, and advancing it would keep an unresolved row alive forever under retention. This one is read by nothing, which is what makes it free to move; retention still ages unresolved rows from `last_seen` and resolved ones from `resolved_at`. A re-delivery preserves it rather than overwriting it, so a row cannot forget it was replayed because the source delivered it again.
-
-- `on_fail: repair` (RFC 0016 D87). A rule may now name a **recipe** that rewrites the value it fired on, instead of only deciding where the row goes: `repair: {via: strip_invisible@1, fallback: quarantine}`. The recipe is a registered Tier 1 `sql_macro` — versioned, signature-declared, `runtime_lock`-pinned — because specs reference implementations and never contain them; `fallback` is required and disposes of any row the recipe did not actually fix, so a still-broken value can never land in silver marked as fixed.
-
-- Repaired rows are recorded in a new `_quality_repairs` column, deliberately separate from `_quality_flags`: "repaired, now correct" and "currently suspect" are different facts, and `has_quality_flags` keeps meaning the second one. The column appears only on entities that carry a repair rule. `repair` is refused where there is no repairable value in hand — on `coercible` (which fires because the projection is already NULL), on `unique`, on a row rule, on a column the dedupe order reads, and twice on one column.
-
-- A confusables *table* was considered and deliberately not built. It is versioned Unicode data, so embedding it would make a row's disposition depend on which Unicode revision bloomery happened to ship — and `charset`'s allow-list reading covers the homoglyph case more completely than any denylist, since it enumerates what a column may contain rather than guessing what it may not.
-
-### Changed
-
-- **`bloomery_ir_version` 4 → 5** (RFC 0022 M19): `UnreachableMetric` gains `via`. The default does not make the field free — the canonical encoder writes each dataclass's field *count* and names — so every project with an unreachable metric re-fingerprints, and `plan()` refuses to diff a v5 IR against a v4 one rather than misreading one as the other. Emitted SQL is unchanged; the only line that moves in any artifact is its fingerprint header.
-
-- **`bloomery resolve` reports refusals alongside reachability** (RFC 0022 D8). It called `resolve()`, so a spec that refused anywhere printed nothing at all — the refusal propagated and one message went to stderr. It now calls `evaluate()` and prints how far analysis got, what was reachable at that point, the marts, and every refusal with its source path. Still exits `1`: the spec is still refused. The stage prints *first*, because at any stage but `complete` the counts below it are a prefix and `Unreachable (0)` means "never computed" rather than "nothing unreachable". `--format json` emits the whole `SpecEvidence`, refusals included — a refusal is an exception rather than a dataclass, and the structural converter previously raised `TypeError` on exactly the specs the command exists to describe. **One project shape changes answer**: a spec wiring a `steps:` document now reports the unwired step rather than printing reachability, because the CLI passes no registry (it offers no `--steps` — a `StepRegistry` is a caller-assembled compile input) and `resolve()` never looked at steps at all. `bloomery compile` on the same project already refused; the two agree now.
-
-
-- **`assert_step_contract` is public API and generated wrappers now import it as one**: `from bloomery.steps import assert_step_contract`. The name joins `bloomery.steps.__all__`. It was already imported by artifacts bloomery writes into consumer repositories, by module path, with nothing declaring the path public and no test protecting it — so renaming `steps/contract.py` would have broken every previously generated wrapper at run time. `bloomery.steps.contract` keeps working, and the change costs nothing: both spellings load the same ~1015 modules.
-
-- **Spec documents now refuse a version bloomery does not implement.** `spec_version`, `mapping_version`, `metrics_version`, `marts_version` and `catalog_version` were `int` with `ge=1`, so `spec_version: 99` loaded and was silently read as v1 — a spec written for a future bloomery misread rather than refused. All five are pinned to `Literal[1]`, matching `steps_version`, which was already right. No existing spec breaks: every document writes `1`. The key stays required, because it is also how bloomery tells one kind of document from another.
-
-- `bloomery_ir_version` is now `3` — `ProjectIR` gained a `steps` tuple, so every artifact's `fingerprint:` header changes and `plan()` refuses to diff a v2 IR against a v3 one. The bump moves fingerprints even for projects with no steps: the canonical encoder covers each node's field *names and count*, not merely its values, so an IR shape change is loud by construction.
-
-- `plan()` diffs steps by `ref`: a `runtime_lock` bump, a version upgrade, a changed parameter, a new seed or rewired inputs each classify `RESTATING` and put the step's output relations in `backfill_scope`. Keyed by `ref@version` an upgrade would have read as one step removed and another added, losing the backfill exactly where it matters most. Removing a step is `BREAKING` and names the relations nothing produces afterwards.
-
-- Planner filter vocabulary is now CNF (breaking, pre-0.1): `FilterExpr` becomes `Predicate`, filters accept one level of OR via `AnyOf` groups, `between` and `contains` are removed (compose `gte`+`lte`; write `like`/`ilike` patterns with your own wildcards), `is_null` takes exactly one bool, and `RowPolicy.as_filter()` is renamed `as_clause()`.
-
-- Float filter values are now accepted and normalized to exact decimals at the request boundary instead of being refused; non-finite values (`NaN`/`Infinity`, in float or string form) are rejected with a typed `InvalidLiteral`.
-
-- `bloomery_ir_version` is now `2` — the IR gained the data-quality shape, so every artifact's `fingerprint:` header changes and `plan()` refuses to diff a v1 IR against a v2 one. The bump itself rewrites only that header; the emitted SQL moves for the separate reason below.
-
-- Every silver model now projects `_quality_flags` and `_quality_ok`. An entity with no quality rules carries the empty collection and `TRUE`, so the change is two projections rather than a behaviour change — but it moves every silver golden, every dbt model, and every fingerprint. A mart whose base entity carries rules flattens the pair into a `has_quality_flags` dimension, so "revenue excluding flagged rows" is an ordinary `MetricRequest` filter.
-
-- An entity that declares any `quality:`/`quarantine:` surface lowers its transform chains `TRY_CAST`-shaped: a failed coercion produces a marker the implicit `coercible` rule disposes of, instead of aborting the run. Entities with no quality surface keep the shipped produce-or-raise lowering, and the implicit `coercible` rule does not exist for them — joining the quality system is per entity and explicit (`dedupe:` alone does not opt in).
-
-- Changing a quality rule, a disposition (in either direction, `referential`'s `on_missing` included, where `unknown_member` and `flag` are distinct changes although both keep the row), or a `dedupe` block classifies as `RESTATING`. `replay_scope` is reported rather than only a backfill where quarantined rows can actually come back — the rule removed, its disposition now `flag`, or its parameters relaxed (a widened bound, a widened `in_enum`/`in_set` membership, including an `enum_map` widened only by a new spelling for an existing target). A tightening — a narrowed bound, or `quarantine → fail` — backfills and does not replay: those rows sit in the reject table and still fail the rule.
-
-- Reserved field/dimension/role names now cover the generated data-quality and ingestion-metadata columns (`_quality_flags`, `_quality_ok`, `_load_id`, `_ingested_at`, `_source_row_id`, `has_quality_flags`) alongside `metric_time`; the refusal message names the RFC that owns each. The quality mart's five metric names are reserved in the same way.
-
-- Postgres hosts quality-carrying entities. `TRY_CAST` renders there as a guard around `pg_input_is_valid` — Postgres' own input parser, not a regex approximation of it — so it accepts exactly what `CAST` accepts and yields NULL exactly where `CAST` would raise. Verified by executing the pipeline on postgres 16, not by reading the SQL. One deliberate narrowing: `now`, `today`, `tomorrow` and `yesterday` are refused for date and timestamp columns, because Postgres resolves them to the transaction timestamp and a cell spelling `now` would otherwise coerce to a different value on every run. Such a cell is a coercion failure the `coercible` rule quarantines, rather than a row no backfill can reproduce.
-
-- Note that cast *semantics* still differ between engines — DuckDB coerces `'1.5'` to an int and Postgres does not — so the same spec can quarantine different rows on different engines. That is inherent to running on different engines and is not changed here.
-
-- The reject table's two constructions — the `reject_id` SHA-256 digest and the `raw`/`key_values` JSON payloads — are now spelled by the dialect port rather than emitted as one AST, so **Trino hosts a reject table**. Both were verified by executing the emitted model against `trinodb/trino:483`, and its `reject_id` is byte-identical to the digest the other engines produce. Postgres declared support for both and had neither: its `sha256` returns `bytea`, so `reject_id` would have been bytes rather than hex — silently disagreeing across engines — and it has no positional `json_object` at all. Postgres now has correct spellings too — unreachable when this landed, and reachable since it gained a NULL-on-failure cast in the entry above.
-
-### Removed
-
-- `Mapping.on_unmapped_enum` (breaking, pre-0.1): a spec still carrying the key is now refused as an unknown key. Unmapped enum values become a data-quality concern — they fail the `in_enum` rule and take that rule's disposition, superseding RFC 0008 D7's never-implemented emitter convention.
-
-### Fixed
-
-- **The `guardrails/` 100% coverage floor was failing, and nothing ran it** (RFC 0025 §5.2). Four lines in `guardrails/quality.py` were uncovered — including a whole RFC 0016 D90 refusal branch (a coverage check whose *dependent* side is unmapped) that would have shipped an audit that never runs, and a `Paren` unwrap that let `(live)` pass the boolean-shape check by falling through rather than on purpose. A third was a defensive branch no input can reach; it is now `guaranteed(...)`, which states the invariant rather than swallowing it. The floor landed with M4 and was green then; it is green again, and now runs in CI rather than only in a local recipe.
-
-- **Two docs pages said Postgres could not host a quality-carrying entity** (RFC 0016 D84). It has been able to since D84 gave `TRY_CAST` a Postgres spelling — a guard around the engine's own input parser. Re-measured: `dirty_corpus` compiles to 70 artifacts on Postgres and 70 on DuckDB, with the guarded cast in exactly the same 66 paths. The refusals stay in the code and the reference, reframed as capability guards no shipped dialect can reach.
-
-- **Four exported error classes were absent from the errors reference**, which opens on "the total `BloomeryError` hierarchy": `InvariantViolated`, `StepError`, `StepDeterminismError` and `StepContractViolation`. The last is raised by the wrapper bloomery generates *into the consumer's warehouse* — the one error a reader meets outside a compile, and the one they could not look up.
-
-- **`required-ci` failed any PR that touched only `rfcs/`.** The `corpus` path filter gave `quality` a second trigger without telling the gate, which checked every job against a single `code` flag and demanded `quality` be skipped. Never hit, because every RFC PR so far also touched `ci.yml`. Each job is now checked against its own trigger.
-
-- **A mart over an `scd: type2` entity returned a multiplied number and every guardrail passed** (RFC 0023 D1/D2, breaking, pre-0.1). Flattening a historical dimension emitted `LEFT JOIN silver.x ON base.k = x.k` with no validity predicate, against a relation physically holding one row per version per key — so each base row was multiplied by that key's version count. `FanoutRisk` stayed green because it reads the *declared* cardinality, which is a claim about the domain and is usually correct. New refusal `HistoricalFanout`, on both sides: the `flatten:` step, and a `base:` whose grain claims one row per entity while the relation holds one per version, making every measure count revisions. `scd: type2` as a silver target is untouched — only the mart-level combination is refused, and the message names the shipped answer (a `type1` current-view entity). Filtering to the current version automatically was rejected: it silently converts a historical dimension into a current-view one, and the row counts would look right.
-
-- **The `convert` transform compiled to a call no engine defines** (RFC 0023 D4/D5, breaking, pre-0.1). It lowered to `CONVERT_CURRENCY(col, 'USD')`, which no dialect implements and no `DialectPort` mentions, so a project using it compiled clean and failed on its first run — a refusal at run time, in the one place the architecture promises there will not be a failure. It now raises `UnsupportedByTarget` at emit on every SQL cell. The transform stays registered with an unchanged decimal → decimal typecheck, so the exported JSON Schema's transform enum does not move. Currency conversion is a join against a *dated* rate table and bloomery models no rate relation; the signature is incomplete besides — a rate without a date is under-determined — so shipping it would have pinned a grammar that cannot express the feature. **Consequence:** `CurrencyMismatch` is now unconditional. The `CONVERT_CURRENCY` marker was what let mixed-currency arithmetic past it, so the escape hatch bought a compile-time "yes" whose only outcome was that run-time failure; both went together.
-
-- **`QueryPlan.columns` could not be bound by name** (RFC 0009 D24). Each column carries `sql_alias` beside `name`, and the test parses the aliases out of the rendered SQL so a MetricFlow upgrade that changes the spelling fails there rather than silently downstream.
-
-- **Security: a Tier 1 step parameter could splice SQL into a projection.** `parameter_literal` builds an *unquoted* literal for `int`/`decimal` — the branch its own docstring called the injection boundary — and never checked the text was a number. A mapping spelling `parameters: {factor: "1 OR 1=1"}` emitted `CAST(amt * 1 OR 1 = 1 AS DECIMAL(12, 4))`. The check now lives below both SQL tiers, where the rendering happens, rather than at the call site Tier 1 was missing (RFC 0017 D53) — and it matches SQL numeric-literal *syntax* rather than parsing with `Decimal`, which accepts `1_0`, `Infinity` and `1e400`; `int` is held to integer syntax, so `"1.5"` no longer emits `1.5` (D56).
-
-- A `coverage:` check crashed emission with a bare `StopIteration` when its referenced entity was declared but unmapped, and emitted an audit attached to no model when the dependent side was step-produced — a check that reports clean because it never runs. Both are guardrail refusals now (RFC 0016 D91).
-
-- A chain link (`{step: ref@v}`) whose macro declared a parameter with no default left the placeholder unresolved, so `CAST(nm AS TEXT) || $factor` reached the emitted SQL of a model that compiled clean (RFC 0017 D54).
-
-- Postgres' run-dependent datetime deny-list (D84) was defeated by a tab. It read `LOWER(BTRIM(value)) IN ('now', …)`, and `BTRIM` trims **spaces only** while Postgres' datetime scanner skips tabs, newlines and carriage returns — so `'now\t'` passed the guard and cast to the transaction timestamp. Verified on PostgreSQL 16 (RFC 0016 D93).
-
-- `StepRegistry` accepted a key disagreeing with its manifest's identity, which silently dropped that step's canonical links and `on_fail: fail` rules; `Reconcile.on_fail` accepted `quarantine`/`repair`, neither of which means anything for an aggregate comparison; and the reconcile "known columns" message omitted the key columns the check accepts (RFC 0017 D55, RFC 0016 D92).
-
-- **A mart over a step-produced entity projected a column no step writes.** The flattener adds `has_quality_flags` whenever the base carries rules, and a step output can carry one — an `expression` with `on_fail: fail`. But its rows come from the generated wrapper, which projects exactly the manifest's declared columns, so the mart emitted `NOT customer._quality_ok` against a relation with no such column: compile-clean, golden-clean, and a binder error on the first run. **`gold.mart_data_quality` had the same defect** — it unions one branch per rule-carrying entity, each reading `_quality_flags`. Neither fires for a step-produced relation now; a step's only permitted rule lowers to a *blocking* audit, so there is nothing evaluated-but-surviving to count. `carries_quality` and the emitter's branch loop read one predicate, because a mart declared and then emitted with no branches is the other half of the same bug.
-
-- **A reconcile check over a NULL key reported two failures where the data agreed.** The model's aggregate side groups every NULL key into one group — SQL's `GROUP BY` treats NULLs as equal — while the FULL OUTER JOIN used an ordinary `=`, which does not, so one query read the same column by two rules. Executed, a NULL-keyed group whose sides matched came back as two rows, both keyed NULL, both `within_tolerance = FALSE`, both with a NULL `difference`. The comparison is null-safe throughout now: a `_keys` CTE `UNION`s both sides' key columns — the same rule `GROUP BY` used — and each side attaches to it by a `LEFT JOIN ... IS NOT DISTINCT FROM`. A key present on one side only still fails, which is what the outer join was there for. The single `FULL OUTER JOIN ... IS NOT DISTINCT FROM` this started as renders on all three dialects and is *refused* by PostgreSQL (`FULL JOIN is only supported with merge-joinable or hash-joinable join conditions`), so one shape is emitted for all three rather than a null-safe check on two engines out of three. **Reconcile model SQL changes**; the project fingerprint does not, since the IR is unchanged.
-
-- **`relationships: [{via: {}}]` parsed and then crashed at emit.** A relationship *is* its join, so an empty `via` describes nothing — but it reached three consumers and failed differently in each: an `IndexError` from the coverage audit, a `ValueError` from inside SQLGlot when a mart flattened it. It is a `SpecParseError` with a source path now, raised at parse where shape questions belong; `via` requires at least one column pair, the way `key` always has.
-
-- `bloomery_ir_version` is now **4** — `ProjectIR` gained `coverage` and `MartIR` gained `asserts`, and the bump was missed. Fingerprints moved anyway (the encoder covers field names and count), so nothing failed; what the bump buys is `plan()` refusing to diff a coverage-carrying IR against one without, rather than both calling themselves v3.
-
-- The declared dbt floor was `>=1.10`, which is wrong: nested generic-test `arguments` needs dbt's `require_generic_test_arguments_property` behaviour flag through 1.10.7 and only defaults on at **1.10.8**. Measured across eight installs; the floor is now `>=1.10.8,<2`.
-
-- The emitted `schema.yml` nests generic-test arguments under `arguments:`, and the supported dbt range is declared for the first time: **`>=1.10,<2`** (RFC 0008 D22). dbt 1.10 moved test arguments there and deprecated the flat form bloomery emitted; the two are mutually exclusive rather than stylistic, measured on four real installs — flat compiles on 1.9 through 1.12 (warning from 1.10), nested is a compilation error on 1.9 and clean on everything after. The only version this costs is 1.9. `not_null` is unaffected: it takes no arguments and stays a bare name.
-
-  The larger gap it exposed: which dbt versions the *emitted artifact* works on had never been written down. `dbt-core>=1.9` was a dev dependency — the test environment, not the product — and unbounded, so CI tested against whatever resolved that day. It is now bounded like the sqlmesh and metricflow pins already were, stated in the emitter's docstring, and pinned by a test carrying the measured matrix, so the bound and the emitted form cannot move apart.
-
-- The emitted dbt project declared a test it never defined. `min`/`max`/`regex`/`reconcile` asserts lowered to `dbt_utils.expression_is_true` and no `packages.yml` was emitted, so `dbt compile` stopped at ``'dbt_utils' is undefined … install package dependencies with "dbt deps"`` for any project carrying one of those clauses. bloomery now emits `macros/bloomery_expression_is_true.sql` — the `dbt_utils` body minus the `column_name` branch it never used, so the semantics are unchanged — iff `schema.yml` declares the test. Defining it rather than pinning the package keeps the artifacts a pure function of the specs: a `packages.yml` would complete the project only after a network fetch (RFC 0008 D18). `dbt_project.yml` gains `macro-paths`.
-
-- The dbt e2e tier ran `dbt parse`, and its own documentation claimed parse validates "whether a declared test is a thing dbt recognizes". It does not — parse checks the shape of a `schema.yml` entry and never resolves the macro behind the name, accepting a test called `utter_nonsense_not_a_test` in silence. That is why the tier built to catch the defect above did not catch it. Every fixture now compiles as well as parses (RFC 0008 D19).
-
-- `dbt build` could not pass on an emitted project, and now does. Models named their inputs by literal relation (`FROM silver.order_item`), so dbt had no dependency edges to order them by *and* materialized each into the profile's target schema while the `FROM` clause said `silver`. RFC 0009 D22 recorded the two candidate fixes as alternatives; they are not — `+schema` config alone leaves ordering absent, and `ref()` alone resolves names through dbt's schema config so the naming policy stops owning the namespace. Both ship (RFC 0008 D20): `ref()` for every relation bloomery emits and `source()` for bronze, a `+schema` per model directory, and a `generate_schema_name` override returning the namespace verbatim instead of dbt's default `<target>_<custom>`. An SCD type 2 entity resolves to its snapshot, the only thing this target builds for it. The e2e tier builds every fixture, with a control on the half a green build does not visibly prove — delete the override and everything still builds, just in the wrong schemas.
-
-  Two consequences worth knowing. A dbt model body is now a *template* rather than SQL, so anything reading it as SQL must resolve the references first. And RFC 0008 D5's port-abstraction proof no longer compares the two targets' SELECTs byte for byte, because the `FROM` clauses differ by construction; it compares them with references resolved and namespaces dropped, which still pins that no lowering is duplicated.
-
-- An `in_enum` rule on a chain with no `enum_map` step lowered to `NOT col IN ()` — invalid SQL on every dialect, and a rule that rejects every row. Refused at compile, naming `in_set` as the way to state members directly.
-
-- `in_enum` quarantined **every correctly-mapped row** when the transform chain applied any step after its `enum_map` (`{enum_map: [paid, paid]}` then `upper` compared `PAID` against a set spelling `paid`). The chain is now refused at compile naming the offending step; a further `enum_map` may still follow.
-
-- The implicit `coercible` rule fired on values a transform nulls *deliberately*, quarantining rows for obeying their own mapping — `{nullif: 'N/A'}` says the sentinel means missing, and the marker cannot tell that from a failed cast. Transforms now declare `nullifies` (`nullif`, `json_path`, `split_part`, `regex_extract`); the implicit rule is skipped on such a chain and an authored `coercible` there is refused.
-
-- The quarantine-replay `MERGE` compared row constructors, which order NULL as the largest value — the inverse of the `DESC NULLS LAST` the pipeline ranks by. With a nullable `dedupe.field`/`tie_break`, a candidate that ranked first was not merged (and its reject row was stamped `(superseded)` anyway), and a candidate with a NULL sort value evicted a non-null incumbent. The comparison is now the per-column NULL-aware form the dedupe order actually means.
-
-- A recipe's `direct:` path never reached the reject table's `raw` payload, so every replayed row rebuilt its `<field>__direct` shadow from an absent key — NULL for all of them, fed to the reconcile audit that exists to compare it. The path is now a recorded source field, and redacting it is refused.
-
-- A `reconcile` side naming a declared-but-unmapped entity passed the guardrail stage and failed later as an unbatched `EmitError`; a side repeating a `by` column emitted two columns of one name and an ambiguous join; two `referential` rules through one relationship emitted two joins under one alias. All three are now batched compile-time refusals.
-
-- An authored mart named `data_quality` was silently replaced by the synthesized quality mart (SQLMesh emitted that mart twice at one path; Cube wrote two different files to one). The name is now reserved unconditionally, like the five quality metric names.
-
-- A `range` rule with ISO date/timestamp bounds (RFC 0016 D57) had every bound change reported as undecidable, because the replay decision parsed bounds as `Decimal` only — so a pure temporal *tightening* scheduled a replay that can free nothing, and under `quarantine → fail` fed the replay runner rows that trip the new blocking audit. Bounds now parse in their own carrier and compare when like-typed; an aware/naive pair stays undecidable rather than guessed.
-
-- `plan()` reported no `replay_scope` for a rule change that *swaps* rather than widens — `in_set ["a"] → ["b"]`, or `range 0..10 → 5..20`. Neither is a relaxation by the superset/interval reading, but both admit values the old rule rejected, so rows quarantined on `b` (or at 15) had become admissible and stayed in the reject table with nothing naming them. Replay now asks whether the new parameters admit anything the old ones rejected.
-
-- `plan()` classified removing a `quarantine:` block as ADDITIVE "policy only", although it stops the `<entity>__reject` model being emitted and discards every unresolved row in it — now BREAKING, with the replay scope beside it. Separately, narrowing an `in_set` that contains the literal `"false"` reported as a *relaxation*, because the rule's `numeric_*` type markers carry `"true"`/`"false"` as values and were flattened in with the membership literals.
-
-- An `in_set` rule declared with integer members (`values: [1, 2]`) emitted string literals — `tier NOT IN ('1', '2')`. DuckDB and Postgres coerce that and answer correctly; Trino refuses the comparison, so the same spec ran on one engine and failed on another. Members now carry their declared type. A set written entirely with strings is unaffected, down to the artifact bytes.
-
-- The generated conservation audit carried a second condition, `surviving_rows > bronze_rows`, that could never be true: the survivor set is the bronze relation with the dedupe `QUALIFY` over it, so the comparison was a count against a filter of itself. It is removed; `bronze_rows` remains a reported column so the deduped count is visible when the audit does fire. Only the audit's `WHERE` changes, and only for entities with a reject table.
-
-- The emitted quarantine-replay `MERGE` assigned to *qualified* target columns (`_target.col = …`), which DuckDB, Postgres and Trino all reject — the artifact could not run on any shipped dialect. The `SET` target is now the bare column standard SQL requires.
-
-- The replay `MERGE` for an entity that declares `quarantine:` without `dedupe:` rendered an empty row comparison (`WHEN MATCHED AND () > ()`), i.e. invalid SQL. Without a dedupe block the total order degenerates to its final sort key, the stable `_source_row_id`, and the comparison stays total.
-
-- Docs site root no longer 404s before the first release: the dev docs deploy
-  now sets the gh-pages root redirect while no released version exists.
+## [0.1.0] - 2026-08-15
+
+First release. Everything bloomery does is new here, so this section is one `Added` —
+`Changed`, `Deprecated`, `Removed`, `Fixed` and `Security` describe movement away from a
+version somebody could have installed, and there is not one yet. They begin at 0.2.0.
+
+From this tag the [stability promises](https://morzecrew.github.io/bloomery/reference/stability/)
+bind: SemVer over the Python API, per-kind versioning over spec YAML, and emitted
+artifacts explicitly **not** stable across bloomery versions.
 
 ### Added
 
-- Declarative data quality (RFC 0016): cleansing becomes spec surface. Mapping fields take a `quality:` list from a closed catalogue (`coercible`, `not_null`, `range`, `length`, `pattern`, `in_enum`, `in_set`, `unique`); entities take row rules (`expression`, `referential`), a `dedupe:` block, and a `quarantine:` policy; the entity model takes a document-level `reconcile:` list. Every rule carries an explicit `on_fail` — `flag`, `quarantine`, or `fail`, with deliberately no `drop` and no `repair` in v1 — and the pipeline order is fixed: extract → transform → dedupe → field rules → row rules → route.
+**The compiler**
 
-- `pattern` rules speak a **portable regex subset** defined as an allowlist: literals, `.`, character classes, `\d`/`\w`/`\s` and their negations, the anchors `^`/`$`, the quantifiers `* + ? {n} {n,} {n,m}`, alternation, and non-capturing groups `(?:…)`. Everything else is refused at parse with the construct named — capturing groups, backreferences, atomic groups, possessive and lazy quantifiers, lookaround, named groups, inline flags, POSIX classes, `\A`/`\Z`/`\b`, and anything unrecognized. Patterns must be anchored by the author (`^[0-9]{5}$`, not `[0-9]{5}`, which would accept `abc12345xyz`), one pair per top-level alternative.
+- `compile_project(project, *, target, dialect, naming=None, catalog=None, steps=EMPTY_REGISTRY)`
+  — declarative specs to target artifacts as one pure function. No filesystem, no
+  network, no clock, no randomness: the same specs produce byte-identical artifacts
+  across machines, processes and `PYTHONHASHSEED` values.
+- **Six spec document kinds**, each strict YAML that self-identifies by its version key:
+  Catalog (`catalog_version`), EntityModel (`spec_version`), Mapping (`mapping_version`),
+  MetricSet (`metrics_version`), MartSet (`marts_version`) and StepSet (`steps_version`).
+  Unknown keys, duplicate YAML keys and grammar violations are refused, batched per
+  document with a source path each. A version bloomery does not implement is refused
+  rather than read as one it does.
+- Deterministic intermediate representation with a `blm1:` content fingerprint
+  (`build_project_ir`, `project_fingerprint`), stamped into every artifact header.
+  `bloomery_ir_version` is **5**; it covers each node's field names and count, so an IR
+  shape change moves every fingerprint by construction.
+- A closed whitelist of 24 typed mapping transforms with a compile-time typecheck of
+  every chain, decimal precision and scale tracked through arithmetic, and
+  `register_transform` for vetted extensions.
+- Resolution (`resolve`): cross-spec reference validation, recorded-recipe validation,
+  cycle detection, and metric reachability naming the specific missing leaf.
+  `UnreachableMetric.via` names the chain when a metric is blocked *through* another one.
 
-- `range` bounds are exact: an int, a decimal, or a string carrying one exactly — an exact decimal literal or an ISO date/timestamp. `"nan"`, `"inf"` and `"1e10"` are refused at parse; the first two compare open on some engines and closed on others, and the third renders as a float literal.
+**Guardrails**
 
-- Rules evaluate under a strict three-valued discipline: a rule fires only when its violation predicate is definitively TRUE, so a NULL-involved comparison never fires and a NULL foreign key is not an orphan. `not_null` and `coercible` are the only rules that own nulls.
+- Fail-closed unit, tax-basis, currency, grain and additivity checks; mart fan-out and
+  grain protection; `assert:` clauses lowered to target-native audits. Every violation is
+  a typed error with a source path, and stages batch so a spec is fixed in one round trip.
+- Two constructs that used to compile clean and could not be right are refused:
+  `HistoricalFanout` for a mart flattening an `scd: type2` dimension with no validity
+  predicate (each base row multiplied by that key's version count, with every declared
+  cardinality still honest), and `UnsupportedByTarget` for the `convert` transform, which
+  lowered to a `CONVERT_CURRENCY` call no engine defines. `convert` stays registered and
+  typechecked; currency conversion needs a dated rate relation bloomery does not model.
 
-- One replayable `<entity>__reject` table per entity, with a `reject_id` recomputable from the row itself, plus a replay artifact that re-runs the current mapping against the quarantined payload under the pipeline's own dedupe order — applied to the candidates against each other as well as against the incumbent, so two rejects resolving to one key produce one entity row — and re-stamps `failed_rules` on the rows that still fail. A candidate that passes every rule and merely loses its entity key is marked with the reserved `(superseded)` entry rather than left with an empty reason. A re-delivery lands on the same reject row and keeps its original `first_seen` while `last_seen` advances; `last_seen` is the latest delivery's `_ingested_at` and only that, since retention measures unresolved rows from it and a replay run advancing it would keep them forever. bloomery emits the artifact and never executes it. `retention:` is required whenever anything can quarantine, and `redact:` strips JSONPaths at write time.
+**Data quality**
 
-- SQLMesh emits the full set: the dedupe `QUALIFY` (rendered natively on DuckDB, as a `ROW_NUMBER` subquery elsewhere), the two-way entity/reject split, the reject model, a blocking audit on the bronze ingestion-metadata contract, a blocking audit per `on_fail: fail` rule — read over the rows the pipeline evaluated **and** the rows already in the entity, so a row that quarantines *and* trips a blocking rule still stops the run, and so does one that reached the entity by replay after its bronze source aged out — and the replay merge. dbt raises `UnsupportedByTarget` for the reject/replay artifacts and for `reconcile` — the honest port-proof scope. Cube consumes the quality mart like any other mart.
+- Cleansing as spec surface: a closed rule catalogue (`coercible`, `not_null`, `range`,
+  `length`, `pattern`, `in_enum`, `in_set`, `unique`, `normalize`, `charset`), entity row
+  rules (`expression`, `referential`), `dedupe:`, `quarantine:`, document-level
+  `reconcile:`, and cross-entity `coverage:` checks. Every rule carries an explicit
+  `on_fail` — `flag`, `quarantine`, `fail` or `repair` — and rules evaluate under a
+  strict three-valued discipline, so a NULL-involved comparison never fires.
+- `pattern` speaks a portable regex allowlist, refused at parse with the construct named;
+  `range` bounds are exact (int, decimal, or a string carrying an exact decimal or ISO
+  date/timestamp); `charset` declares admissible characters as `U+` codepoints.
+- One replayable `<entity>__reject` table per entity with a `reject_id` recomputable from
+  the row, a replay artifact that re-runs the current mapping under the pipeline's own
+  dedupe order, `retention:` and `redact:`. bloomery emits the artifact and never runs it.
+- `gold.mart_data_quality` — an ordinary mart with one row per rule evaluation plus an
+  accounting row per entity, so quarantine rate is a plain `MetricRequest`. Five reserved
+  metrics come with it.
+- Every silver model projects `_quality_flags` and `_quality_ok`; a mart over a
+  rule-carrying base flattens them into a `has_quality_flags` dimension.
 
-- `reconcile.on_fail` decides whether the check's audit blocks: `fail` stops the run — the pipeline-stopping gate RFC 0016 §5.3 nominates reconcile for — while `flag` reports and carries on so a disagreement never withholds the comparison table.
+**Steps: referenced implementations**
 
-- A blocking `<entity>_conservation` audit per entity with a reject table: every bronze row lands in exactly one of the entity, an unresolved reject, or the deduped count, checked on every production run rather than only in the test suite. Skipped for the one shape an audit body cannot express — a routing predicate that reads a sibling entity (`referential` with `on_missing: quarantine`).
+- A project may wire platform-owned steps through a `steps_version: 1` document —
+  `use: ref@version`, input/output bindings, parameters within the manifest's declared
+  bounds, `expression` quality rules on outputs, and `canonical:` links so metrics and
+  `reconcile` can read a step output. Manifests reach the compiler as a frozen
+  `StepRegistry` passed to `compile_project(..., steps=…)`: bloomery reads no step files
+  and has no dynamic loading path, so a spec can never name code to load.
+- Three tiers emit — `sql_macro` splices into the consuming SELECT, `sql_model` emits an
+  ordinary model, and `python_model` emits one generated wrapper per declared output,
+  each carrying a non-optional `assert_step_contract` call. Step outputs are entities:
+  a mart may reference one exactly as it would any silver entity, and `plan()` diffs them.
+- `bloomery.steps.assert_step_contract` — the run-time contract, and the only bloomery
+  name intended for import outside compilation. It imports nothing but `bloomery.errors`.
 
-- `gold.mart_data_quality`, an ordinary mart carrying one row per rule evaluation plus one accounting row per entity (`rule = '(entity)'`), so every count is additive and quarantine rate is a plain `MetricRequest` groupable by entity or run month. `rows_failed` is the per-rule count; `rows_evaluated`, `rows_quarantined` and `rows_deduped` describe the entity's population and ride on its accounting row. Five reserved metrics come with it: `quality_rows_evaluated`, `quality_rows_failed`, `quality_rows_quarantined`, `quality_rows_deduped`, and the `quality_quarantine_rate` ratio. `run_id` is emitted declared-but-NULL — the pinned SQLMesh exposes no run-identifier macro — with a comment naming what the caller supplies.
+**The gold layer and the emitters**
 
-- `Plan.replay_scope` (`ReplayScope`) alongside `backfill_scope`: the entities whose reject tables a spec change invalidates.
+- Wide marts: relationship flattening with mandatory prefixes, role-playing date
+  dimensions (`ordered_month`, `shipped_month`, …), a generated `dim_date` owned by the
+  catalog, and aggregate `assert:` clauses lowering to target-native audits.
+- Emit targets for **SQLMesh** (models, audits, native SCD2, reject/replay, quality
+  audits), **dbt** (models through `ref()`/`source()`, sources, snapshots, schema tests,
+  a self-contained expression-test macro) and **Cube** (cubes and views with additivity
+  metadata, ratios as calculated measures), rendering over **DuckDB**, **Trino** and
+  **PostgreSQL**. `register_emitter` adds extension targets. Where a target cannot express
+  a declaration it raises `UnsupportedByTarget` rather than dropping it silently.
 
-- Compile-time data-quality guardrails, batched into the same aggregate as everything else: `DedupeTieBreakMissing`, `DedupeDispositionConflict`, `QuarantineRetentionMissing`, `IngestionMetadataMissing` and `RedactionConflict`, plus bare refusals for a `pattern` regex the shipped dialect ports cannot express, `unknown_member` on a non-string or composite foreign key, a `referential` rule whose `via` names no relationship or names one declared from another entity (pointing back at its own entity included), a `dedupe` clause ordering by a column the entity does not declare, a malformed `reconcile` side, an entity-level rule name that a rule generated from the mapping already owns, and a project metric colliding with a reserved quality-mart name.
+**Request-time planning**
 
-- `DialectFeature.ARRAY` and `DialectFeature.TRY_CAST`. Dialects without arrays lower `_quality_flags` to a lexicographic comma-delimited string; Postgres has no NULL-on-failure cast, so compiling a `coercible`-carrying entity for it refuses loudly instead of silently degrading quarantine into an aborted run (RFC 0016 D30). The refusal reaches one entity shape that carries no rules at all: the ingestion-metadata audit asserts `_ingested_at` casts to timestamp, which is itself a `TRY_CAST`, so an entity declaring only `dedupe:` is `UnsupportedByTarget` on Postgres on the audit's own account (D31).
+- `MetricFlowPlanner`: a structured `MetricRequest` becomes SQL over a wide mart plus
+  typed columns, warnings, a deterministic explanation and a fingerprint — refusing
+  unknown members, cross-grain requests and ambiguous dimensions instead of guessing.
+  MetricFlow is embedded and render-only, never connected to a database. Bind result rows
+  by `ColumnDescriptor.sql_alias`; display `name`.
+- Filters are typed CNF clauses (`Predicate` / `AnyOf` — implicit AND, one level of OR),
+  with `RowPolicy` for row-level scoping and `parse_filter_json` / `parse_sort_json` /
+  `parse_page_json` as the Mongo-flavoured JSON front door. Unsupported constructs raise
+  `UnsupportedFilter` with a stable reason code from the closed, drift-guarded set
+  exported as `bloomery.planner.KNOWN_UNSUPPORTED`.
+- `LruManifestHydrator` / `HydrationKey`: in-process manifest hydration keyed by spec
+  fingerprint and library versions, with an optional caller-owned byte store.
 
-- Documentation: a "Data quality" concept page and an "Add quality rules" how-to guide, plus the full rule/dedupe/quarantine/reconcile schemas and the new refusals in the spec-schema, error, and API references.
+**Assessing and evolving a spec**
 
-- Initial project scaffold: packaging, quality gate, CI, docs infrastructure (RFC 0001).
+- `evaluate(project) -> SpecEvidence` — everything knowable about a spec without touching
+  data, as one value: reachable metrics, unreachable ones with the missing leaf, batched
+  refusals with source paths, mart shapes, entities, fingerprint. **Refusals are the
+  return value**, and analysis that completed before the refusal comes back with them.
+  `InvariantViolated` and every programming error still propagate.
+- `plan()` — every change between two compiled versions classified as additive, widening,
+  rename, restating or breaking, with backfill scope, replay scope for the reject tables a
+  change invalidates, downstream metric impact and an enforced expand/contract workflow.
+- Structured fix suggestions on five refusals: `UnknownMember.did_you_mean`,
+  `UnreachableAtGrain.covering_marts`, `GrainViolation.offending_measures`,
+  `UnknownStep.available_versions`, `UnsupportedFilter.nearest_supported`. Always present
+  — `()` or `None` when there is nothing to suggest, never absent and never fabricated.
 
-- Spec layer: strict YAML loaders (`load_project`, `load_catalog`) for the five spec kinds — Catalog, EntityModel, Mapping, MetricSet, MartSet — with unknown keys, duplicate keys, and grammar violations refused, and all parse failures batched with source paths.
+**Surfaces**
 
-- Total error hierarchy rooted at `BloomeryError`: every failure is typed, carries a source path into the offending spec, and batching stages report every problem in one round-trip.
+- A total error hierarchy rooted at `BloomeryError`: every failure is typed, carries a
+  source path into the offending spec node, and is documented in the errors reference.
+- **A command line** — `bloomery compile|plan|resolve|explain|schema|fingerprint`, plus
+  `bloomery --version`. Each command is a thin argument shell over one public function;
+  `--format json` emits the same values the Python API returns. A refusal exits `1` and a
+  usage error `2`, so a pipeline can tell "your spec is wrong" from "your command is
+  wrong". Nothing is executed: `bloomery run` does not exist.
+- **JSON Schema per spec kind** — `spec_json_schema(kind)`, `all_spec_schemas()`, and
+  `bloomery schema --out DIR`. Generated from the Pydantic models so they cannot drift
+  from the parser, with every closed set enumerated. Also published at
+  `https://morzecrew.github.io/bloomery/schemas/v1/<kind>.json`.
+- `bloomery.__all__` is **closed over its own signatures**: every type named in a public
+  signature is importable from the root, enforced by a test that walks the whole surface.
+  `bloomery.__version__` reports the installed release.
+- Documentation: get-started, concepts, how-to guides for every target and the planner,
+  full spec/transform/error/API/stability references, and a runnable `examples/quickstart/`.
 
-- Deterministic intermediate representation with a `blm1:` content fingerprint (`build_project_ir`, `project_fingerprint`): same specs in, byte-identical artifacts out, across machines and hash seeds.
-
-- Closed whitelist of 24 typed mapping transforms with a compile-time typecheck of every chain, decimal precision/scale tracking through arithmetic, and `register_transform` for vetted extensions.
-
-- Resolution stage (`resolve`): cross-spec reference validation, recorded-recipe validation, cycle detection, and metric reachability with specific missing leaves.
-
-- Fail-closed guardrails: unit, tax-basis, currency, grain, and additivity checks; mart fan-out and grain protection; `assert:` clauses lowered to target-native audits.
-
-- Wide-mart gold layer: relationship flattening with mandatory prefixes, role-playing date dimensions (`ordered_month`, `shipped_month`, …), and a generated `dim_date` calendar owned by the catalog.
-
-- Emit targets for SQLMesh (models, audits, native SCD2), dbt (models, sources, snapshots, schema tests), and Cube (cubes and views with additivity metadata, ratios as calculated measures), rendering over DuckDB, Trino, and Postgres dialects; `register_emitter` adds extension targets.
-
-- Request-time metric planner (`MetricFlowPlanner`): a structured `MetricRequest` becomes SQL plus typed columns, warnings, a deterministic explanation, and a fingerprint — refusing unknown members, cross-grain requests, and ambiguous dimensions instead of guessing. Row-level scoping via `RowPolicy`.
-
-- Manifest hydration for the planner (`LruManifestHydrator`, `HydrationKey`): an in-process LRU keyed by spec fingerprint and library versions, with an optional caller-owned byte store.
-
-- Spec-diff planning (`plan`): every change between two compiled versions classified as additive, widening, rename, restating, or breaking, with backfill scope, downstream metric impact, and an enforced expand/contract workflow.
-
-- Documentation site: get-started, concepts, how-to guides for every target and the planner, full spec/transform/error/API references, and a runnable `examples/quickstart/` project.
-
-- JSON filter front door: `bloomery.planner.parse_filter_json` parses Mongo-flavoured filter documents into typed clauses, normalizing (De Morgan, complement inversion, capped CNF distribution) before refusing, with `parse_sort_json` and `parse_page_json` alongside.
-
-- Closed refusal list for the query vocabulary: unsupported constructs raise a typed `UnsupportedFilter` with a stable reason code, and the complete set of raisable codes is exported as `bloomery.planner.KNOWN_UNSUPPORTED`.
+[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/morzecrew/bloomery/releases/tag/v0.1.0

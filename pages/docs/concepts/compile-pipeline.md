@@ -27,7 +27,7 @@ path into the offending spec node.
 
 ### 1. Parse
 
-YAML text becomes strict, frozen Pydantic models — the five spec kinds plus the
+YAML text becomes strict, frozen Pydantic models — the six spec kinds plus the
 `Project` container. Parse validates *shape*, not references: unknown keys, missing
 required fields, bad type grammar, and duplicate YAML keys are all refused, because a
 typo'd key that is silently ignored is the worst failure mode in a config-driven

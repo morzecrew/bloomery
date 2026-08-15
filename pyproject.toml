@@ -11,7 +11,13 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries",
     "Topic :: Software Development :: Code Generators",
-    "Development Status :: 2 - Pre-Alpha",
+    # 0.1.0 is a first published release, not scaffolding: every tier runs,
+    # the stability promises bind, and the API is documented and closed over
+    # its own signatures. "Pre-Alpha" described the tree before any of that
+    # and would now understate it to anyone reading the PyPI sidebar.
+    "Development Status :: 3 - Alpha",
+    # `py.typed` ships in the wheel, so callers get the annotations.
+    "Typing :: Typed",
 ]
 description = "Entity-first spec compiler: declarative entity/mapping/metric specs → SQLMesh, dbt, and Cube artifacts"
 readme = { file = "README.md", content-type = "text/markdown" }
@@ -134,6 +140,9 @@ bloomery = "bloomery.cli:main"
 homepage = "https://github.com/morzecrew/bloomery"
 documentation = "https://morzecrew.github.io/bloomery/"
 changelog = "https://github.com/morzecrew/bloomery/blob/main/CHANGELOG.md"
+# The PyPI sidebar is where a reader who installed the wheel looks for
+# somewhere to report what went wrong; without this row there is no link.
+issues = "https://github.com/morzecrew/bloomery/issues"
 
 # ....................... #
 # Build
@@ -270,6 +279,12 @@ exclude = ["^tests/"]
 # RFC 0009 D9, and the one floor that predates this table: an untested
 # guardrail branch is an unshipped guardrail. Exact, not one notch below (D3).
 "src/bloomery/guardrails/*" = 100
+# The modules that are not in a package — `compile.py`, `errors.py`,
+# `evidence.py`, `naming.py`, `schema.py` and `__init__.py`. Every other row
+# here is a directory, and a table of directories cannot see these at all:
+# `errors.py` alone is the root of the whole refusal hierarchy. A `*` glob does
+# not cross a `/`, so this matches the top level and only the top level.
+"src/bloomery/*.py"         = 98   # measured 99.0
 "src/bloomery/cli/*"        = 99   # measured 99.5
 "src/bloomery/dialects/*"   = 98   # measured 98.4
 "src/bloomery/emit/*"       = 98   # measured 98.3

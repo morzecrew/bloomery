@@ -7,7 +7,8 @@ loadable project.
 
 ## quickstart/
 
-The smallest complete project — all five spec kinds over one `order` entity:
+The smallest complete project — the five core spec kinds over one `order` entity (the
+sixth, `steps_version`, is optional and this project wires none):
 
 | File | Spec kind | What it declares |
 |---|---|---|

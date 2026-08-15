@@ -1,7 +1,7 @@
 # Introduction
 
 This page is for a data platform engineer deciding whether bloomery fits their stack.
-It explains the problem the library exists to remove, the five spec kinds it compiles,
+It explains the problem the library exists to remove, the spec kinds it compiles,
 the invariants it holds itself to, and — just as important — what it deliberately does
 not do.
 
@@ -33,10 +33,16 @@ request time, using an embedded, render-only MetricFlow behind a stable bloomery
 contract; `plan()` diffs two spec versions and classifies every change. Nothing is
 executed, read, or written by the library itself.
 
-## The five spec kinds
+## The spec kinds
 
-Four spec kinds plus one describe a project end to end. Each is strict YAML — unknown
-keys are rejected loudly.
+Six document kinds describe a deployment end to end. Each is strict YAML — unknown keys
+are rejected loudly — and each self-identifies by its version key, so bloomery never has
+to guess what it is reading.
+
+The four below the Catalog are the tenant's project; the **Catalog** sits outside it,
+loaded separately and shared across tenants. The sixth kind, **StepSet**
+(`steps_version`), is optional: it wires platform-owned code into the pipeline where a
+declaration cannot reach — see [Steps](../concepts/step-registry.md).
 
 ### Catalog
 

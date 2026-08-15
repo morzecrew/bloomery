@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+import bloomery
 from bloomery import (
     BackfillScope,
     Change,
@@ -784,6 +785,39 @@ def test_there_is_no_execution_command() -> None:
     assert commands == {"compile", "plan", "resolve", "explain", "schema", "fingerprint"}
     for forbidden in ("run", "init", "new", "watch", "serve"):
         assert forbidden not in commands
+
+
+def test_version_is_reachable_without_a_subcommand(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``bloomery --version`` answers the question the bug-report template asks.
+
+    The subparser is ``required=True``, so a flag that only worked *after* a
+    command would be a flag nobody could use to identify a broken install —
+    which is the one moment a version string is worth having. argparse exits
+    while consuming the option, before the required-command check, and ``main``
+    turns that into the ``0`` a shell reads.
+    """
+    assert main(["--version"]) == EXIT_OK
+    printed = capsys.readouterr().out.strip()
+    assert printed == f"bloomery {bloomery.__version__}"
+    assert printed != "bloomery "  # an empty version reads as success and is not
+
+
+def test_the_reported_version_is_the_installed_one() -> None:
+    """``__version__`` comes from the build, not from a string in the tree.
+
+    ``hatch-vcs`` writes ``_version.py`` from the git tag, so a hand-maintained
+    constant here would be a second version that drifts from the wheel's the
+    first time someone forgets it. The fallback is deliberately unmistakable:
+    a bug report quoting ``0.0.0+unknown`` says "unbuilt checkout" rather than
+    naming a release that exists.
+    """
+    assert bloomery.__version__
+    assert bloomery.__version__ != "0.0.0+unknown", (
+        "the test environment is built by `uv sync`, so the generated "
+        "_version.py must be present — an unbuilt tree is the only fallback case"
+    )
 
 
 def test_no_command_takes_a_connection_or_a_profile() -> None:

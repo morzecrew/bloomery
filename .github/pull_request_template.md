@@ -1,6 +1,7 @@
 <!--
 Title: <gitmoji> <type>[scope][!]: <description>   (gitmoji-conventional)
-Pre-0.1: the API is not stable. Breaking changes are allowed but never silent.
+Below 1.0: a breaking API change may ship in a minor release, but never silently —
+it needs a CHANGELOG entry naming what moved and what to write instead.
 -->
 
 ## Summary
