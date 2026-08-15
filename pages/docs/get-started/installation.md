@@ -28,8 +28,12 @@ silently, always with a changelog entry naming the migration, but it may ship. S
 `bloomery>=0.1,<0.2` is the constraint that holds the API still; see
 [Stability](../reference/stability.md) for exactly what each surface promises.
 
-To track unreleased work instead, install from the repository — `uv add
-git+https://github.com/morzecrew/bloomery`, optionally with `@<sha>` to pin a commit.
+To track unreleased work instead, install from the repository — append `@<sha>` to pin a
+commit:
+
+```bash
+uv add git+https://github.com/morzecrew/bloomery
+```
 
 ## For contributors
 
