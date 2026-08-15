@@ -74,6 +74,25 @@ from bloomery.steps import EMPTY_REGISTRY, StepManifest, StepRegistry
 from bloomery.transforms import Builder, OutputType, TransformSpec, register_transform
 from bloomery.typing import ArgKind, LogicalType
 
+try:
+    #: The installed release, written at build time by ``hatch-vcs`` from the
+    #: git tag. A *generated module* rather than
+    #: ``importlib.metadata.version("bloomery")``, deliberately: the metadata
+    #: lookup reads the installed distribution off a disk, and this package
+    #: promises to touch none (RFC 0003). Importing a static module is the
+    #: ordinary import every other line here already does.
+    # Re-exported under its own name deliberately: `__version__` is not in
+    # `__all__` (that list governs `import *`, and a dunder does not belong in
+    # it), so the redundant alias is what tells a strict type checker this is a
+    # public re-export rather than an implementation detail leaking through.
+    from bloomery._version import __version__ as __version__
+except ImportError:  # pragma: no cover - only in a source tree that was never built
+    # A checkout with no build behind it: `_version.py` is generated and
+    # gitignored. Naming the state is better than either raising (which would
+    # make `import bloomery` fail on a bare clone) or inventing a number a bug
+    # report would then quote as real.
+    __version__ = "0.0.0+unknown"
+
 __all__ = [
     "AnyOf",
     "ArgKind",

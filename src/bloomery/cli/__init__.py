@@ -49,6 +49,7 @@ from bloomery import (
     Stage,
     Target,
     TimeGrain,
+    __version__,
     all_spec_schemas,
     build_project_ir,
     compile_project,
@@ -364,6 +365,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bloomery",
         description="Compile, plan and inspect bloomery specs. Reads files; executes nothing.",
+    )
+    # Not a command — a flag, so it needs no subcommand to reach. The bug
+    # report template asks for a bloomery version, and until this existed the
+    # only way to answer was to know the package name well enough to query the
+    # installed metadata by hand.
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"bloomery {__version__}",
+        help="print the installed bloomery version and exit",
     )
     commands = parser.add_subparsers(dest="command", required=True)
 
