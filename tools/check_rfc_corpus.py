@@ -66,45 +66,56 @@ def next_free(index: Path) -> str | None:
     return match["number"] if match else None
 
 
+def _git(root: Path, *args: str) -> str | None:
+    """``git`` output, or ``None`` when the command could not be answered.
+
+    ``None`` covers every way this environment can lack an answer — no ``git``
+    on ``PATH``, no repository, a shallow clone that does not hold the object.
+    They collapse deliberately: the caller's response to all three is the same,
+    and letting ``FileNotFoundError`` escape would end a `just quality` run in a
+    traceback rather than a finding.
+    """
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            capture_output=True,
+            text=True,
+            cwd=root,
+            check=False,
+        )
+    except OSError:  # FileNotFoundError (no git) is one of these
+        return None
+    return result.stdout if result.returncode == 0 else None
+
+
 def deleted_in(sha: str, root: Path) -> set[str]:
     """RFC numbers whose file this commit deleted under ``rfcs/``.
 
-    Returns an empty set when the commit cannot be read at all — a shallow
-    clone has no history, and a check that fails the build for running in one
-    would be a check people delete. The caller distinguishes "unreadable" from
-    "read, and it deleted nothing".
+    An unreadable commit yields the empty set, which the caller reports as "did
+    not delete it" — the honest reading, since a SHA nobody can resolve is no
+    more useful to a reader following a citation than a wrong one.
     """
-    result = subprocess.run(
-        ["git", "show", "--diff-filter=D", "--name-only", "--format=", sha, "--", "rfcs/"],
-        capture_output=True,
-        text=True,
-        cwd=root,
-        check=False,
-    )
-    if result.returncode != 0:
+    output = _git(root, "show", "--diff-filter=D", "--name-only", "--format=", sha, "--", "rfcs/")
+    if output is None:
         return set()
     return {
         match["number"]
-        for line in result.stdout.splitlines()
+        for line in output.splitlines()
         if (match := RFC_FILE.match(Path(line.strip()).name))
     }
 
 
 def history_available(root: Path) -> bool:
-    """Whether this clone has the history the SHA check needs.
+    """Whether this checkout can resolve historical commits at all.
 
-    A shallow clone is the normal case in CI (`actions/checkout` defaults to
-    depth 1), and the structural half of this check is worth running there. The
-    SHA half is skipped rather than failed, and says so.
+    False in a shallow clone — the normal case in CI, since `actions/checkout`
+    defaults to depth 1 — and equally false with no repository or no ``git``.
+    The structural half of this check runs regardless; only the SHA half needs
+    history, and it is skipped rather than failed, because a gate that cannot
+    run in CI is a gate that gets removed.
     """
-    result = subprocess.run(
-        ["git", "rev-parse", "--is-shallow-repository"],
-        capture_output=True,
-        text=True,
-        cwd=root,
-        check=False,
-    )
-    return result.returncode == 0 and result.stdout.strip() == "false"
+    output = _git(root, "rev-parse", "--is-shallow-repository")
+    return output is not None and output.strip() == "false"
 
 
 def check(root: Path) -> list[str]:
@@ -138,9 +149,23 @@ def check(root: Path) -> list[str]:
             for number in range(1, int(claimed))
             if f"{number:04d}" not in accounted
         ]
+        # A retired number at or above the next-free claim means the index is
+        # about to mint a number that is already spent, and INDEX.md promises
+        # numbers are never reused. Checked structurally rather than through the
+        # SHA, because the SHA half does not run in CI's shallow clone — which
+        # is exactly where this would otherwise go unseen.
+        findings += [
+            f"RETIRED.md: {number} is retired but the index's next free number is "
+            f"{claimed} — a spent number is about to be minted again"
+            for number in sorted(set(retired_numbers))
+            if int(number) >= int(claimed)
+        ]
 
     if not history_available(root):
-        findings.append("note: shallow clone — retiring commits not verified (structure was)")
+        findings.append(
+            "note: no usable history (shallow clone, no repository, or no git) — "
+            "retiring commits not verified; the structural checks above did run"
+        )
         return findings
 
     for number, sha in rows:
