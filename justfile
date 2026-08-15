@@ -91,6 +91,7 @@ quality strict="false":
     just _uv_cmd "Dependencies" {{ strict }} deptry .
     just _uv_cmd "Security" {{ strict }} bandit -c pyproject.toml -r "src"
     just _uv_cmd "Purity" {{ strict }} python tools/check_purity.py "src/bloomery"
+    just _uv_cmd "RFC corpus" {{ strict }} python tools/check_rfc_corpus.py .
     just _uv_cmd "Workflows" {{ strict }} zizmor --collect=default .github/
     just _uv_cmd "Secrets" {{ strict }} pre-commit run gitleaks --all-files
 

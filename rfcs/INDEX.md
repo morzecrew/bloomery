@@ -14,9 +14,10 @@ the same way; what stops the design being re-proposed is the rejection recorded 
 the alternative was chosen, not an unread file sitting in this directory.
 
 Retire in the same change that flips the status. `git rm` the file, drop its row from the
-table below, and note nothing else here — the deletion commit is the record.
-`git log --diff-filter=D -- rfcs/` lists the commits that retired documents, and
-`git show <commit>^:rfcs/<file>` prints one back in full.
+table below, and add one to [`RETIRED.md`](RETIRED.md) — number, title, retiring SHA, and
+nothing else. That table is how a citation stays followable once the document is gone;
+`just quality` refuses a number that is neither live nor retired.
+`git show <commit>^:rfcs/<file>` prints a retired document back in full.
 
 Two consequences worth knowing:
 

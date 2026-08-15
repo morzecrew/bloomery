@@ -32,9 +32,25 @@ of the wrong design. Small fixes and additions within a live RFC's scope do not 
 
 The corpus holds only designs that have not yet landed. **When the work an RFC describes is
 complete — or the design is rejected — retire the RFC in the same change**: `git rm` the
-file and drop its row from the index. The code, tests and docs become the account of shipped
-behaviour. `git log --diff-filter=D -- rfcs/` finds the commit that retired a document;
-`git show <commit>^:rfcs/<file>` prints it back.
+file, drop its row from the index, and **add a row to [`rfcs/RETIRED.md`](rfcs/RETIRED.md)**
+— number, title, and the SHA of the retiring commit. The code, tests and docs become the
+account of shipped behaviour.
+
+**The row lands in a second commit, and it has to.** A commit cannot contain its own SHA, and
+amending does not help — amending produces a new commit with a new SHA, so the row would name
+one that never existed. So: commit the retirement (`git rm` plus the index row), then commit
+the `RETIRED.md` row naming it. Both in the same pull request.
+
+The consequence is worth knowing rather than discovering: **the first of those two commits
+does not pass `just quality` on its own**, because its number is briefly neither live nor
+retired. CI runs the branch head, so the pair is green; a bisect landing between them is not.
+That is the price of a row that names its own retiring commit, and it is cheaper than a row
+that names the wrong one.
+
+That table is what makes the citations in this codebase followable: source, tests and docs
+cite decisions as `RFC 0016 D84`, and the file that defines D84 is deliberately not in the
+tree. `RETIRED.md` maps the number to the commit; `git show <commit>^:rfcs/<file>` prints
+the document back.
 
 ## Development Setup
 
