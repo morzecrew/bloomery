@@ -1814,20 +1814,24 @@ unmapped enum values, failed casts, and rules you wrote all travel the same road
 <p><code>coercible</code> is <strong>opt-in per entity</strong>. An entity joins the quality system by declaring
 <code>quality:</code>, <code>quarantine:</code>, or any field-level <code>quality:</code>; <code>dedupe:</code> alone does not. An
 entity that declares none of them keeps the produce-or-raise lowering it always had.</p>
-<div class="admonition warning">
-<p class="admonition-title">Postgres cannot host a quality-carrying entity — nor a dedupe-only one</p>
-<p>The marker needs a real NULL-on-failure cast. DuckDB and Trino have <code>TRY_CAST</code>;
-Postgres does not, and rendering it there as a plain <code>CAST</code> would turn "quarantine
-this row" into "abort this run". Compiling a <code>coercible</code>-carrying entity for
-Postgres raises <code>UnsupportedByTarget</code> rather than degrading silently.</p>
-<p>The refusal reaches one shape past the rules, which is worth reading against the
-paragraph directly above. The ingestion-metadata audit every <code>dedupe:</code>/<code>quarantine:</code>
-entity gets asserts that <code>_ingested_at</code> casts to timestamp, and that assertion is
-itself a <code>TRY_CAST</code> — so an entity that declares only <code>dedupe:</code>, and therefore
-carries no quality rules whatsoever, is refused for Postgres on the audit's own
-account. Not joining the quality system spares you the rules; it does not buy back
-the dialect.</p>
-</div>
+<p>The marker needs a NULL-on-failure cast, and the three shipped dialects all have one.
+DuckDB and Trino spell it <code>TRY_CAST</code>. Postgres has no such keyword and gets a guard
+around its <em>own</em> input parser instead — <code>CASE WHEN pg_input_is_valid(x, 't') THEN CAST(x
+AS t) END</code> — so the accept/reject set is the engine's rather than a regex approximation
+of it. Compiling the dirty-data corpus for Postgres emits the same 70 artifacts as
+DuckDB, with the guarded cast in exactly the 66 where DuckDB writes <code>TRY_CAST</code>.</p>
+<p>One deliberate narrowing comes with the Postgres form. That engine accepts <code>now</code>,
+<code>today</code>, <code>tomorrow</code> and <code>yesterday</code> as datetime input and resolves them to the
+transaction timestamp, so the same cell would coerce to a different value on every run.
+Those are excluded from the guard, which makes such a cell an ordinary coercion failure —
+quarantined like any other bad value rather than silently unstable.</p>
+<p>A dialect <em>without</em> a NULL-on-failure cast still cannot host a quality-carrying entity,
+or even a dedupe-only one: the ingestion-metadata audit every <code>dedupe:</code>/<code>quarantine:</code>
+entity gets asserts that <code>_ingested_at</code> casts to timestamp, and that assertion is itself
+a <code>TRY_CAST</code>. Compiling either for such a dialect raises <code>UnsupportedByTarget</code> rather
+than degrading a "quarantine this row" into an "abort this run". No shipped dialect is in
+that position; the refusal is what a fourth one would meet if it arrived without the
+capability.</p>
 <h2 id="the-pipeline-order-is-fixed">The pipeline order is fixed<a class="headerlink" href="#the-pipeline-order-is-fixed" title="Permanent link">&para;</a></h2>
 <p>Declared once, never per field, never configurable:</p>
 <pre class="mermaid"><code>flowchart LR

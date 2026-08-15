@@ -1604,10 +1604,14 @@ catches everything — and every class lives in <code>bloomery.errors</code>, im
 pulling in any pipeline stage.</p>
 <h2 id="the-hierarchy">The hierarchy<a class="headerlink" href="#the-hierarchy" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>BloomeryError
+├── InvariantViolated
 ├── SpecParseError
 ├── UnknownTransformError
 ├── TypeCheckError
 ├── TransformRegistrationError
+├── StepError
+│   ├── StepDeterminismError
+│   └── StepContractViolation
 ├── ResolutionError
 │   ├── CircularDerivation
 │   └── MissingReference
@@ -1665,6 +1669,26 @@ pulling in any pipeline stage.</p>
 <td><code>BloomeryError</code></td>
 <td>—</td>
 <td>Base class; carries <code>message</code>, <code>source_path</code>, and <code>collected</code></td>
+</tr>
+<tr>
+<td><code>InvariantViolated</code></td>
+<td>any</td>
+<td>A guarantee an earlier stage was supposed to have established did not hold — never an authored spec's fault, and never spec feedback. Every total lookup that raises it is total <em>because</em> a guardrail already refused the case, so seeing one is a bug report</td>
+</tr>
+<tr>
+<td><code>StepError</code></td>
+<td>steps</td>
+<td>Base of the referenced-implementation family (RFC 0017)</td>
+</tr>
+<tr>
+<td><code>StepDeterminismError</code></td>
+<td>steps (compile)</td>
+<td>A step declaring <code>determinism: nondeterministic</code>, or a <code>seeded</code> step wired without a seed — a nondeterministic step makes a backfill disagree with the run it replaces</td>
+</tr>
+<tr>
+<td><code>StepContractViolation</code></td>
+<td>steps (<strong>run time</strong>)</td>
+<td>Raised by the wrapper bloomery generates <em>into your warehouse</em>: the step's actual output contradicts its manifest — a missing or undeclared output, a differing column set, an unassignable type, or a NULL in a required column. The one error here a reader meets outside a compile</td>
 </tr>
 <tr>
 <td><code>SpecParseError</code></td>
@@ -1954,13 +1978,18 @@ addressed message inside the same batched aggregate:</p>
 </tbody>
 </table>
 <p>Data-quality refusals also happen at emit time rather than compile time, and those are
-<code>UnsupportedByTarget</code>. Two are about the <em>dialect</em>, both on the absent NULL-on-failure
-cast: compiling an entity with <code>coercible</code> rules for Postgres (RFC 0016 D30), and —
-because the ingestion-metadata audit asserts <code>_ingested_at</code> casts to timestamp, which is
-a <code>TRY_CAST</code> of its own — compiling a <strong>dedupe-only</strong> entity for Postgres too, even
-though it carries no quality rules at all (D31). One is about the <em>target</em>: a
-<code>quarantine:</code> block or a <code>reconcile:</code> check compiled for dbt, which lowers neither in
-this wave. All of them name the target or dialect that does support the construct.</p>
+<code>UnsupportedByTarget</code>. Two are about the <em>dialect</em>, both on an absent NULL-on-failure
+cast: an entity with <code>coercible</code> rules (RFC 0016 D30), and — because the
+ingestion-metadata audit asserts <code>_ingested_at</code> casts to timestamp, which is a
+<code>TRY_CAST</code> of its own — a <strong>dedupe-only</strong> entity too, even though it carries no quality
+rules at all (D31). A third is about an absent Unicode normalization (D86). <strong>None of
+the three can fire on a shipped dialect</strong>: DuckDB and Trino have <code>TRY_CAST</code>, Postgres
+gets a guard around its own input parser (D84), and all three normalize. They are what a
+fourth dialect would meet if it arrived without the capability, and they are provoked in
+the test suite against exactly such a dialect.</p>
+<p>One is about the <em>target</em>: a <code>quarantine:</code> block or a <code>reconcile:</code> check compiled for
+dbt, which lowers neither in this wave. All of them name the target or dialect that does
+support the construct.</p>
 <h2 id="the-closed-refusal-list">The closed refusal list<a class="headerlink" href="#the-closed-refusal-list" title="Permanent link">&para;</a></h2>
 <p>The <code>UnsupportedFilter</code> family is a <strong>closed, reviewed list</strong> (RFC 0015), not drift:
 every construct the query vocabulary cannot express was refused deliberately, with a
