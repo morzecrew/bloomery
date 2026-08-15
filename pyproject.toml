@@ -11,7 +11,13 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries",
     "Topic :: Software Development :: Code Generators",
-    "Development Status :: 2 - Pre-Alpha",
+    # 0.1.0 is a first published release, not scaffolding: every tier runs,
+    # the stability promises bind, and the API is documented and closed over
+    # its own signatures. "Pre-Alpha" described the tree before any of that
+    # and would now understate it to anyone reading the PyPI sidebar.
+    "Development Status :: 3 - Alpha",
+    # `py.typed` ships in the wheel, so callers get the annotations.
+    "Typing :: Typed",
 ]
 description = "Entity-first spec compiler: declarative entity/mapping/metric specs → SQLMesh, dbt, and Cube artifacts"
 readme = { file = "README.md", content-type = "text/markdown" }
@@ -134,6 +140,9 @@ bloomery = "bloomery.cli:main"
 homepage = "https://github.com/morzecrew/bloomery"
 documentation = "https://morzecrew.github.io/bloomery/"
 changelog = "https://github.com/morzecrew/bloomery/blob/main/CHANGELOG.md"
+# The PyPI sidebar is where a reader who installed the wheel looks for
+# somewhere to report what went wrong; without this row there is no link.
+issues = "https://github.com/morzecrew/bloomery/issues"
 
 # ....................... #
 # Build
