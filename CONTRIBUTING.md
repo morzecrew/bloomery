@@ -32,9 +32,19 @@ of the wrong design. Small fixes and additions within a live RFC's scope do not 
 
 The corpus holds only designs that have not yet landed. **When the work an RFC describes is
 complete — or the design is rejected — retire the RFC in the same change**: `git rm` the
-file and drop its row from the index. The code, tests and docs become the account of shipped
-behaviour. `git log --diff-filter=D -- rfcs/` finds the commit that retired a document;
-`git show <commit>^:rfcs/<file>` prints it back.
+file, drop its row from the index, and **add a row to [`rfcs/RETIRED.md`](rfcs/RETIRED.md)**
+— number, title, and the SHA of the retiring commit. The code, tests and docs become the
+account of shipped behaviour.
+
+The retiring SHA is only knowable once the commit exists, so the row is written in the same
+change and its SHA filled in by amending it. `just quality` refuses a number that is neither
+live nor retired, so a skipped row fails the build rather than being discovered by the next
+reader to follow a citation.
+
+That table is what makes the citations in this codebase followable: source, tests and docs
+cite decisions as `RFC 0016 D84`, and the file that defines D84 is deliberately not in the
+tree. `RETIRED.md` maps the number to the commit; `git show <commit>^:rfcs/<file>` prints
+the document back.
 
 ## Development Setup
 
