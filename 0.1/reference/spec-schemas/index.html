@@ -1,0 +1,3720 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Entity-first spec compiler: declarative entity/mapping/metric specs → SQLMesh, dbt, and Cube artifacts">
+      
+      
+        <meta name="author" content="Lev Litvinov">
+      
+      
+        <link rel="canonical" href="https://morzecrew.github.io/bloomery/0.1/reference/spec-schemas/">
+      
+      
+        <link rel="prev" href="../../how-to/use-the-cli/">
+      
+      
+        <link rel="next" href="../json-schema/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.53">
+    
+    
+      
+        <title>Spec schemas - Bloomery</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.20815dad.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.dfe2e883.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#spec-schemas" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Bloomery" class="md-header__button md-logo" aria-label="Bloomery" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Bloomery
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Spec schemas
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="slate" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/morzecrew/bloomery" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bloomery
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../get-started/introduction/" class="md-tabs__link">
+          
+  
+  Get Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/specs-and-catalog/" class="md-tabs__link">
+          
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../how-to/emit-sqlmesh/" class="md-tabs__link">
+          
+  
+  How-to
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="././" class="md-tabs__link">
+          
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Bloomery" class="md-nav__button md-logo" aria-label="Bloomery" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    Bloomery
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/morzecrew/bloomery" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bloomery
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Get Started
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Get Started
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/introduction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Introduction
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Installation
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Quickstart
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Concepts
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Concepts
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/specs-and-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Specs and the catalog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/compile-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The compile pipeline
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/determinism/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Determinism
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Guardrails
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data quality
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/wide-marts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The wide-mart gold layer
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/step-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Steps: referenced implementations
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  How-to
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  How-to
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/emit-sqlmesh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit SQLMesh artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/emit-cube/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit Cube artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/emit-dbt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit dbt artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/add-quality-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Add quality rules to an entity
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/plan-a-metric-request/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan a metric request
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/evolve-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Evolve a spec safely
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/evaluate-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Assess a spec before it compiles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/resolve-identities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Resolve identities across systems
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/use-the-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Use the CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Reference
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Spec schemas
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Spec schemas
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#shared-grammars" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Shared grammars
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#catalog-catalog_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Catalog (<code>catalog_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Catalog (catalog_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#canonicalfield" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        CanonicalField
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recipe" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Recipe
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#canonicalrelationship" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        CanonicalRelationship
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metrictemplate" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        MetricTemplate
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datedimension" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        DateDimension
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#entitymodel-spec_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        EntityModel (<code>spec_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="EntityModel (spec_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#entity" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Entity
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#field" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Field
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assertclause" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        AssertClause
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#relationship" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Relationship
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#entity-quality-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Entity quality rules
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dedupe" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Dedupe
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quarantine" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Quarantine
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reconcile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Reconcile
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mapping-mapping_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Mapping (<code>mapping_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Mapping (mapping_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#keyfield" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        KeyField
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fieldmapping-two-forms" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        FieldMapping — two forms
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transform-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Transform steps
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#field-quality-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Field quality rules
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Field quality rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-portable-regex-subset" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The portable regex subset
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metricset-metrics_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        MetricSet (<code>metrics_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MetricSet (metrics_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Metric
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ratiospec" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        RatioSpec
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#semiadditivepolicy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        SemiAdditivePolicy
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#martset-marts_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        MartSet (<code>marts_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MartSet (marts_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mart" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Mart
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#flatten-steps-two-forms" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Flatten steps — two forms
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stepset-steps_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        StepSet (<code>steps_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="StepSet (steps_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stepwiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        StepWiring
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../json-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  JSON Schema export
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../transforms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Transforms
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Errors
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Stability
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#shared-grammars" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Shared grammars
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#catalog-catalog_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Catalog (<code>catalog_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Catalog (catalog_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#canonicalfield" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        CanonicalField
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recipe" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Recipe
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#canonicalrelationship" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        CanonicalRelationship
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metrictemplate" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        MetricTemplate
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#datedimension" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        DateDimension
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#entitymodel-spec_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        EntityModel (<code>spec_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="EntityModel (spec_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#entity" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Entity
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#field" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Field
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assertclause" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        AssertClause
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#relationship" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Relationship
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#entity-quality-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Entity quality rules
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dedupe" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Dedupe
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quarantine" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Quarantine
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reconcile" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Reconcile
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mapping-mapping_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Mapping (<code>mapping_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Mapping (mapping_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#keyfield" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        KeyField
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fieldmapping-two-forms" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        FieldMapping — two forms
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transform-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Transform steps
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#field-quality-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Field quality rules
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Field quality rules">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-portable-regex-subset" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The portable regex subset
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metricset-metrics_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        MetricSet (<code>metrics_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MetricSet (metrics_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Metric
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ratiospec" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        RatioSpec
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#semiadditivepolicy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        SemiAdditivePolicy
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#martset-marts_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        MartSet (<code>marts_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MartSet (marts_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mart" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Mart
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#flatten-steps-two-forms" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Flatten steps — two forms
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stepset-steps_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        StepSet (<code>steps_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="StepSet (steps_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stepwiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        StepWiring
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+    
+    
+    
+      <li class="md-path__item">
+        <a href="././" class="md-path__link">
+          
+  
+  <span class="md-ellipsis">
+    Reference
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="spec-schemas">Spec schemas<a class="headerlink" href="#spec-schemas" title="Permanent link">&para;</a></h1>
+<p>Field-by-field reference for the six spec kinds. Parsing is strict: unknown keys,
+duplicate YAML keys, and grammar violations are hard <code>SpecParseError</code>s, batched per
+document with a source path per failure. Parse validates shape and grammar only —
+whether references exist is checked at resolution.</p>
+<p>Each project document self-identifies by its version key: <code>spec_version</code> (EntityModel),
+<code>mapping_version</code> (Mapping), <code>metrics_version</code> (MetricSet), <code>marts_version</code> (MartSet),
+<code>steps_version</code> (StepSet). A project holds exactly one EntityModel, any number of
+Mappings, and at most one MetricSet, MartSet and StepSet. The Catalog
+(<code>catalog_version</code>) is not part of a project — load it with <code>load_catalog</code> and pass it
+separately.</p>
+<p>A version key is required, and it is also how bloomery tells one kind of document from
+another. Each is pinned to <code>1</code>: a document declaring a version bloomery does not
+implement is <strong>refused</strong>, never read as one it does.</p>
+<h2 id="shared-grammars">Shared grammars<a class="headerlink" href="#shared-grammars" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Grammar</th>
+<th>Rule</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Type string</td>
+<td><code>string</code>, <code>int</code>, <code>bool</code>, <code>date</code>, <code>timestamp</code>, <code>variant</code>, or <code>decimal(p, s)</code></td>
+<td><code>decimal(12,4)</code></td>
+</tr>
+<tr>
+<td>Partition spec</td>
+<td>A bare column, or <code>fn(column)</code> with <code>fn</code> ∈ <code>days</code>/<code>months</code>/<code>years</code>/<code>hours</code></td>
+<td><code>days(order_date)</code></td>
+</tr>
+<tr>
+<td>Source path</td>
+<td>JSONPath-lite: <code>$</code> followed by dotted identifiers only</td>
+<td><code>$.customer.id</code></td>
+</tr>
+<tr>
+<td>Currency code</td>
+<td>Three uppercase letters (ISO 4217)</td>
+<td><code>EUR</code></td>
+</tr>
+<tr>
+<td>Member name</td>
+<td>Any identifier except the reserved names</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Rule name</td>
+<td><code>[a-z0-9_]+</code> — identifier-constrained so no flag lowering ever needs escaping</td>
+<td><code>discount_not_exceeding_gross</code></td>
+</tr>
+<tr>
+<td>Retention duration</td>
+<td>A positive integer (no leading zero, ≤ 5 digits) plus one unit of <code>h</code> / <code>d</code> / <code>w</code></td>
+<td><code>90d</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reserved names.</strong> <code>metric_time</code> may not be used as a field, dimension, or role name —
+the planner owns it as the canonical query-time dimension. The generated data-quality
+and ingestion-metadata columns are reserved on the same terms: <code>_quality_flags</code>,
+<code>_quality_ok</code>, <code>_load_id</code>, <code>_ingested_at</code>, <code>_source_row_id</code>, <code>has_quality_flags</code>.</p>
+<p><strong>Retention units.</strong> Months and years are deliberately absent — they are not fixed
+durations, and a retention window that means something different in February is a legal
+problem rather than a convenience. Minutes are absent because <code>m</code> would read as either.</p>
+<h2 id="catalog-catalog_version">Catalog (<code>catalog_version</code>)<a class="headerlink" href="#catalog-catalog_version" title="Permanent link">&para;</a></h2>
+<p>One per vertical, loaded via <code>load_catalog(text)</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>catalog_version</code></td>
+<td>int ≥ 1</td>
+<td>yes</td>
+<td>Document version key</td>
+</tr>
+<tr>
+<td><code>vertical</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The vertical this catalog describes</td>
+</tr>
+<tr>
+<td><code>canonical_fields</code></td>
+<td>map name → CanonicalField</td>
+<td>no (<code>{}</code>)</td>
+<td>The domain's named quantities</td>
+</tr>
+<tr>
+<td><code>canonical_relationships</code></td>
+<td>list of CanonicalRelationship</td>
+<td>no (<code>[]</code>)</td>
+<td>The canonical entity graph</td>
+</tr>
+<tr>
+<td><code>metric_templates</code></td>
+<td>map name → MetricTemplate</td>
+<td>no (<code>{}</code>)</td>
+<td>Reusable metric definitions</td>
+</tr>
+<tr>
+<td><code>date_dimension</code></td>
+<td>DateDimension</td>
+<td>no</td>
+<td>The vertical-owned calendar</td>
+</tr>
+</tbody>
+</table>
+<h3 id="canonicalfield">CanonicalField<a class="headerlink" href="#canonicalfield" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>entity</code></td>
+<td>string</td>
+<td>yes</td>
+<td>Home entity of the field</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>type string</td>
+<td>yes</td>
+<td>Logical type</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>string</td>
+<td>no</td>
+<td>Carried into semantic-layer emissions</td>
+</tr>
+<tr>
+<td><code>unit</code></td>
+<td><code>currency</code> | <code>count</code></td>
+<td>no</td>
+<td>Drives the unit guardrail; absent = unknown</td>
+</tr>
+<tr>
+<td><code>tax_basis</code></td>
+<td><code>net</code> | <code>gross</code> | <code>unknown</code></td>
+<td>no</td>
+<td>Drives the tax-basis guardrail</td>
+</tr>
+<tr>
+<td><code>currency</code></td>
+<td>ISO 4217 code</td>
+<td>no</td>
+<td>Drives the currency guardrail</td>
+</tr>
+<tr>
+<td><code>recipes</code></td>
+<td>list of Recipe</td>
+<td>no (<code>[]</code>)</td>
+<td>Alternative derivation paths, ordered by reliability</td>
+</tr>
+</tbody>
+</table>
+<h3 id="recipe">Recipe<a class="headerlink" href="#recipe" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The id a mapping records with <code>recipe:</code></td>
+</tr>
+<tr>
+<td><code>requires</code></td>
+<td>list of strings</td>
+<td>yes</td>
+<td>Names the recipe consumes</td>
+</tr>
+<tr>
+<td><code>expr</code></td>
+<td>string</td>
+<td>no</td>
+<td>Derivation expression over the required names</td>
+</tr>
+</tbody>
+</table>
+<h3 id="canonicalrelationship">CanonicalRelationship<a class="headerlink" href="#canonicalrelationship" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>from</code></td>
+<td>string</td>
+<td>yes</td>
+<td>From-entity</td>
+</tr>
+<tr>
+<td><code>to</code></td>
+<td>string</td>
+<td>yes</td>
+<td>To-entity</td>
+</tr>
+<tr>
+<td><code>via</code></td>
+<td>string</td>
+<td>yes</td>
+<td>Join column</td>
+</tr>
+<tr>
+<td><code>cardinality</code></td>
+<td><code>many_to_one</code> | <code>one_to_one</code> | <code>one_to_many</code></td>
+<td>yes</td>
+<td>Relationship cardinality</td>
+</tr>
+</tbody>
+</table>
+<h3 id="metrictemplate">MetricTemplate<a class="headerlink" href="#metrictemplate" title="Permanent link">&para;</a></h3>
+<p>Same shape as a <a href="#metric">Metric</a> minus <code>template</code>/<code>cumulative</code>, with <code>additivity</code>
+required. A project metric that names it via <code>template:</code> merges values with the
+metric's own winning.</p>
+<h3 id="datedimension">DateDimension<a class="headerlink" href="#datedimension" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>no (<code>dim_date</code>)</td>
+<td>Emitted gold relation name</td>
+</tr>
+<tr>
+<td><code>grain</code></td>
+<td><code>day</code></td>
+<td>no (<code>day</code>)</td>
+<td>Calendar grain (only <code>day</code> today)</td>
+</tr>
+<tr>
+<td><code>start_year</code></td>
+<td>int 1–9999</td>
+<td>yes</td>
+<td>First calendar year, inclusive</td>
+</tr>
+<tr>
+<td><code>end_year</code></td>
+<td>int 1–9999, ≥ <code>start_year</code></td>
+<td>yes</td>
+<td>Last calendar year, inclusive</td>
+</tr>
+</tbody>
+</table>
+<p>One definition emits both the <code>gold.dim_date</code> model and the MetricFlow time-spine
+declaration — bounds are calendar years, never a clock.</p>
+<h2 id="entitymodel-spec_version">EntityModel (<code>spec_version</code>)<a class="headerlink" href="#entitymodel-spec_version" title="Permanent link">&para;</a></h2>
+<p>Exactly one per project.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>spec_version</code></td>
+<td>int ≥ 1</td>
+<td>yes</td>
+<td>Document version key</td>
+</tr>
+<tr>
+<td><code>entities</code></td>
+<td>map name → Entity</td>
+<td>yes</td>
+<td>The project's entities</td>
+</tr>
+<tr>
+<td><code>relationships</code></td>
+<td>list of Relationship</td>
+<td>no (<code>[]</code>)</td>
+<td>Declared relationships</td>
+</tr>
+<tr>
+<td><code>reconcile</code></td>
+<td>list of Reconcile</td>
+<td>no (<code>[]</code>)</td>
+<td>Cross-entity reconciliation checks — see <a href="#reconcile">Reconcile</a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="entity">Entity<a class="headerlink" href="#entity" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>grain</code></td>
+<td>string</td>
+<td>yes</td>
+<td>Prose grain — appears in error messages and explanations</td>
+</tr>
+<tr>
+<td><code>key</code></td>
+<td>list of field names, ≥ 1</td>
+<td>yes</td>
+<td>Entity key, authored order kept</td>
+</tr>
+<tr>
+<td><code>scd</code></td>
+<td><code>type1</code> | <code>type2</code></td>
+<td>no (<code>type1</code>)</td>
+<td>Slowly-changing-dimension kind</td>
+</tr>
+<tr>
+<td><code>partition_by</code></td>
+<td>list of partition specs</td>
+<td>no (<code>[]</code>)</td>
+<td>Physical partitioning</td>
+</tr>
+<tr>
+<td><code>materialization</code></td>
+<td><code>full</code> | <code>incremental_by_key</code> | <code>incremental_by_partition</code></td>
+<td>no</td>
+<td>Explicit wins; default is <code>incremental_by_partition</code> when <code>partition_by</code> is set, else <code>full</code></td>
+</tr>
+<tr>
+<td><code>fields</code></td>
+<td>map name → Field</td>
+<td>yes</td>
+<td>Typed fields (<code>metric_time</code> reserved)</td>
+</tr>
+<tr>
+<td><code>quality</code></td>
+<td>list of entity quality rules</td>
+<td>no (<code>[]</code>)</td>
+<td>Row rules — see <a href="#entity-quality-rules">Entity quality rules</a></td>
+</tr>
+<tr>
+<td><code>dedupe</code></td>
+<td>Dedupe</td>
+<td>no</td>
+<td>Keep one row per key — see <a href="#dedupe">Dedupe</a></td>
+</tr>
+<tr>
+<td><code>quarantine</code></td>
+<td>Quarantine</td>
+<td>no</td>
+<td>Reject-table policy — see <a href="#quarantine">Quarantine</a></td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>materialization</code> is derived, never inferred, and that distinction is the rule.</strong> An
+entity with a partition key gets <code>incremental_by_partition</code> without anyone writing it —
+that is a <em>default</em>: visible in the compiled output, and overridable by saying otherwise.
+What bloomery will not do is <em>infer</em> the strategy from grain and partition key in the
+ambiguous cases, because an inference is a guess the author cannot see, and a wrong guess
+here produces a wrong backfill scope that surfaces as missing rows.</p>
+<blockquote>
+<p><strong>bloomery derives defaults; it does not infer intent.</strong></p>
+</blockquote>
+<p>The same line runs through recipes: the compiler validates the recipe a mapping recorded
+and never chooses one itself. If a specific inference is later shown to be both safe <em>and</em>
+visible in the emitted artifact, it can be argued as a change — a default carries no such
+burden, which is why one is cheap and the other is not.</p>
+<h3 id="field">Field<a class="headerlink" href="#field" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>type</code></td>
+<td>type string</td>
+<td>yes</td>
+<td>Logical type</td>
+</tr>
+<tr>
+<td><code>required</code></td>
+<td>bool</td>
+<td>no (<code>false</code>)</td>
+<td>Whether the mapping must supply it</td>
+</tr>
+<tr>
+<td><code>canonical</code></td>
+<td>string</td>
+<td>no</td>
+<td>Link to a catalog canonical field</td>
+</tr>
+<tr>
+<td><code>renamed_from</code></td>
+<td>string</td>
+<td>no</td>
+<td>One-shot rename annotation for <code>plan()</code></td>
+</tr>
+<tr>
+<td><code>assert</code></td>
+<td>AssertClause</td>
+<td>no</td>
+<td>Range-sanity assertions, lowered to audits</td>
+</tr>
+</tbody>
+</table>
+<h3 id="assertclause">AssertClause<a class="headerlink" href="#assertclause" title="Permanent link">&para;</a></h3>
+<p>All members optional; at least one should be present for the clause to do anything.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>min</code> / <code>max</code></td>
+<td>int, decimal, or string</td>
+<td>Inclusive bounds; well-typedness against the field's type is checked at the guardrail stage</td>
+</tr>
+<tr>
+<td><code>not_null</code></td>
+<td>bool</td>
+<td>Column must not be null</td>
+</tr>
+<tr>
+<td><code>enum</code></td>
+<td>list of strings/ints</td>
+<td>Closed value set</td>
+</tr>
+<tr>
+<td><code>regex</code></td>
+<td>string</td>
+<td>Value pattern</td>
+</tr>
+</tbody>
+</table>
+<p><code>not_null</code> and <code>enum</code> lower to builtin audits/tests; <code>min</code>, <code>max</code>, and <code>regex</code> lower to
+custom audit artifacts.</p>
+<h3 id="relationship">Relationship<a class="headerlink" href="#relationship" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>yes</td>
+<td>Referenced by mart <code>via:</code> flatten steps</td>
+</tr>
+<tr>
+<td><code>from</code> / <code>to</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The two entities</td>
+</tr>
+<tr>
+<td><code>via</code></td>
+<td>map from-column → to-column, ≥ 1</td>
+<td>yes</td>
+<td>Join columns — a relationship <em>is</em> its join, so an empty map is a <code>SpecParseError</code></td>
+</tr>
+<tr>
+<td><code>cardinality</code></td>
+<td><code>many_to_one</code> | <code>one_to_one</code> | <code>one_to_many</code></td>
+<td>yes</td>
+<td>Checked by the fan-out guardrail</td>
+</tr>
+</tbody>
+</table>
+<h3 id="entity-quality-rules">Entity quality rules<a class="headerlink" href="#entity-quality-rules" title="Permanent link">&para;</a></h3>
+<p>Row rules, discriminated on <code>rule</code>. Both read more than one column, which is why they
+sit on the entity rather than on a mapping field.</p>
+<table>
+<thead>
+<tr>
+<th><code>rule</code></th>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>expression</code></td>
+<td><code>name</code></td>
+<td>rule name</td>
+<td>yes</td>
+<td>Reaches <code>_quality_flags</code> and the quality mart, so it is authored, never generated. Refused if it collides with a name generated from the mapping</td>
+</tr>
+<tr>
+<td><code>expression</code></td>
+<td><code>expr</code></td>
+<td>string</td>
+<td>yes</td>
+<td>Boolean predicate over the entity's own columns</td>
+</tr>
+<tr>
+<td><code>expression</code></td>
+<td><code>on_fail</code></td>
+<td><code>flag</code> | <code>quarantine</code> | <code>fail</code></td>
+<td>yes</td>
+<td>Disposition</td>
+</tr>
+<tr>
+<td><code>referential</code></td>
+<td><code>via</code></td>
+<td>relationship name</td>
+<td>yes</td>
+<td>The declared relationship to probe</td>
+</tr>
+<tr>
+<td><code>referential</code></td>
+<td><code>on_missing</code></td>
+<td><code>unknown_member</code> | <code>quarantine</code> | <code>flag</code></td>
+<td>yes</td>
+<td>Disposition for a non-null fk with no matching row</td>
+</tr>
+</tbody>
+</table>
+<p><code>referential</code> carries <code>on_missing</code>, not <code>on_fail</code>: <code>unknown_member</code> is a disposition no
+other rule has (the row passes with its fk rewritten to the reserved <code>'__unknown__'</code>
+member), and <code>fail</code> is deliberately unavailable — a pipeline-stopping orphan gate is a
+<code>reconcile</code> check instead. <code>unknown_member</code> requires a string-typed fk; the relationship's
+<code>to</code> side may not be the declaring entity.</p>
+<h3 id="dedupe">Dedupe<a class="headerlink" href="#dedupe" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>keep</code></td>
+<td><code>latest_by</code></td>
+<td>yes</td>
+<td>Closed vocabulary, one value today</td>
+</tr>
+<tr>
+<td><code>field</code></td>
+<td>column name</td>
+<td>yes</td>
+<td>The recency column, ordered descending</td>
+</tr>
+<tr>
+<td><code>tie_break</code></td>
+<td>list of column names</td>
+<td>no (<code>[]</code>)</td>
+<td>Further sort keys, authored order kept</td>
+</tr>
+</tbody>
+</table>
+<p>Partitions by the entity's <code>key</code>. <code>tie_break</code> is optional in the grammar and <strong>mandatory
+in a model</strong>: its absence under <code>keep: latest_by</code> is the compile error
+<code>DedupeTieBreakMissing</code>. The order finishes with <code>_source_row_id</code>, with <code>NULLS LAST</code>
+pinned on every sort key, so the winner is unique by construction.</p>
+<h3 id="quarantine">Quarantine<a class="headerlink" href="#quarantine" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>retention</code></td>
+<td>retention duration</td>
+<td>yes</td>
+<td>How long reject rows live; the only deleter</td>
+</tr>
+<tr>
+<td><code>redact</code></td>
+<td>list of source paths</td>
+<td>no (<code>[]</code>)</td>
+<td>JSONPaths stripped from <code>raw</code> and <code>key_values</code> at write time</td>
+</tr>
+</tbody>
+</table>
+<p>The block is required whenever any rule can quarantine — <code>QuarantineRetentionMissing</code>
+otherwise, never a default, because reject rows hold raw source payloads. A <code>redact:</code>
+path may not intersect a path the mapping reads (<code>RedactionConflict</code>): replay re-runs the
+mapping against <code>raw</code>, and a redacted path is gone by then.</p>
+<h3 id="reconcile">Reconcile<a class="headerlink" href="#reconcile" title="Permanent link">&para;</a></h3>
+<p>Document-level, a sibling of <code>entities:</code> — a check relates two entities and belongs to
+neither.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>rule name</td>
+<td>yes</td>
+<td>Unique per project; each check emits its own model and audit</td>
+</tr>
+<tr>
+<td><code>left</code> / <code>right</code></td>
+<td>reconcile side</td>
+<td>yes</td>
+<td>The two sides, keyed on the same columns</td>
+</tr>
+<tr>
+<td><code>tolerance</code></td>
+<td>quoted decimal ≥ 0</td>
+<td>yes</td>
+<td>Absolute tolerance; an unquoted YAML number is a float and refused</td>
+</tr>
+<tr>
+<td><code>on_fail</code></td>
+<td><code>flag</code> | <code>quarantine</code> | <code>fail</code></td>
+<td>yes</td>
+<td>Disposition</td>
+</tr>
+</tbody>
+</table>
+<p>A side is one of two closed shapes:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">left</span><span class="p">:</span><span class="w">  </span><span class="s">&quot;sum(order_item.line_total)</span><span class="nv"> </span><span class="s">by</span><span class="nv"> </span><span class="s">order_id&quot;</span><span class="w">   </span><span class="c1"># &lt;agg&gt;(&lt;entity&gt;.&lt;column&gt;) by &lt;columns&gt;</span>
+<span class="nt">right</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;order.total_amount&quot;</span><span class="w">                       </span><span class="c1"># &lt;entity&gt;.&lt;column&gt;, keyed by that entity&#39;s key</span>
+</code></pre></div>
+<p>Both sides must key on the same columns, since they join on their keys. Anything outside
+the grammar is a <code>GuardrailError</code> — a reconcile side is a declared shape, not SQL.</p>
+<p><strong>A NULL key is a group, not an absence.</strong> The comparison is null-safe throughout,
+because the aggregate side's <code>GROUP BY</code> already collects every NULL key into one group
+and everything below it has to read that column by the same rule. The emitted model is a
+<code>_keys</code> CTE — both sides' key columns, <code>UNION</code>ed — with each side attached by
+<code>LEFT JOIN ... IS NOT DISTINCT FROM</code>. A key present on <em>one side only</em> still fails, which
+is what the outer join is for, but a NULL group that agrees on both sides passes, as one
+row. Neither the entity key nor an aggregate's <code>by</code> columns are forced non-nullable, so
+this is reachable from an ordinary project; if a NULL key is itself a data-quality problem
+for you, say so with a <code>not_null</code> rule.</p>
+<p>The long spelling is not a stylistic choice. <code>FULL OUTER JOIN ... ON a IS NOT DISTINCT
+FROM b</code> says the same thing in one line and renders identically on all three dialects,
+and PostgreSQL then refuses to run it — its full join is planned as a merge or hash join,
+and a null-safe condition is neither. One shape is emitted everywhere rather than a check
+that compares NULL keys on two engines out of three.</p>
+<h2 id="mapping-mapping_version">Mapping (<code>mapping_version</code>)<a class="headerlink" href="#mapping-mapping_version" title="Permanent link">&para;</a></h2>
+<p>One document per (source, target entity) pair.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mapping_version</code></td>
+<td>int ≥ 1</td>
+<td>yes</td>
+<td>Document version key</td>
+</tr>
+<tr>
+<td><code>source</code></td>
+<td>string</td>
+<td>yes</td>
+<td>Bronze relation name</td>
+</tr>
+<tr>
+<td><code>target</code></td>
+<td>string</td>
+<td>yes</td>
+<td>Target entity</td>
+</tr>
+<tr>
+<td><code>key</code></td>
+<td>map key-column → KeyField</td>
+<td>yes</td>
+<td>Key lowering</td>
+</tr>
+<tr>
+<td><code>fields</code></td>
+<td>map field → FieldMapping</td>
+<td>no (<code>{}</code>)</td>
+<td>Field lowering</td>
+</tr>
+<tr>
+<td><code>unmapped</code></td>
+<td>list of source paths</td>
+<td>no (<code>[]</code>)</td>
+<td>The explicitly unmapped tail</td>
+</tr>
+</tbody>
+</table>
+<p>An entity that uses <code>quarantine:</code> or <code>dedupe:</code> requires the bronze ingestion-metadata
+columns <code>_load_id</code>, <code>_ingested_at</code>, and <code>_source_row_id</code>. They are reserved names, so a
+mapping states they exist by listing them in <code>unmapped:</code>; their absence is
+<code>IngestionMetadataMissing</code>. Their <em>values</em> are checked at run time by a generated
+blocking audit: none of the three may be null, <code>_source_row_id</code> must be unique per
+source row, and <code>_ingested_at</code> must cast to timestamp. The audit is emitted only for
+dialects with <code>TRY_CAST</code>; on the others the entity is <code>UnsupportedByTarget</code>.</p>
+<h3 id="keyfield">KeyField<a class="headerlink" href="#keyfield" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>from</code></td>
+<td>source path</td>
+<td>yes</td>
+<td>Where the key column comes from</td>
+</tr>
+<tr>
+<td><code>transform</code></td>
+<td>transform chain</td>
+<td>no (<code>[]</code>)</td>
+<td>Steps applied in order</td>
+</tr>
+</tbody>
+</table>
+<h3 id="fieldmapping-two-forms">FieldMapping — two forms<a class="headerlink" href="#fieldmapping-two-forms" title="Permanent link">&para;</a></h3>
+<p>A field mapping is <strong>simple</strong> or <strong>recipe</strong>, discriminated on the presence of <code>recipe</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># simple: one source path plus a transform chain</span>
+<span class="nt">quantity</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.qty&quot;</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">to_int</span><span class="p p-Indicator">]}</span>
+
+<span class="c1"># recipe: a recorded catalog recipe id plus alias → path bindings</span>
+<span class="nt">unit_price</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">recipe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">from_total</span>
+<span class="w">  </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">line_total</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.total&quot;</span><span class="p p-Indicator">,</span><span class="nt"> quantity</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.qty&quot;</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Form</th>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>simple</td>
+<td><code>from</code></td>
+<td>source path</td>
+<td>yes</td>
+<td>Source column path</td>
+</tr>
+<tr>
+<td>simple</td>
+<td><code>transform</code></td>
+<td>transform chain</td>
+<td>no (<code>[]</code>)</td>
+<td>Steps applied in order</td>
+</tr>
+<tr>
+<td>simple</td>
+<td><code>quality</code></td>
+<td>list of field quality rules</td>
+<td>no (<code>[]</code>)</td>
+<td>See <a href="#field-quality-rules">Field quality rules</a></td>
+</tr>
+<tr>
+<td>recipe</td>
+<td><code>recipe</code></td>
+<td>string</td>
+<td>yes</td>
+<td>Catalog recipe id, chosen upstream and recorded here</td>
+</tr>
+<tr>
+<td>recipe</td>
+<td><code>from</code></td>
+<td>map alias → source path</td>
+<td>yes</td>
+<td>Bindings for every name in the recipe's <code>requires</code> — exactly, no more, no fewer</td>
+</tr>
+<tr>
+<td>recipe</td>
+<td><code>direct</code></td>
+<td>source path</td>
+<td>no</td>
+<td>The source <em>also</em> carries the field directly — emits a <code>&lt;name&gt;__direct</code> shadow column and a reconciliation audit</td>
+</tr>
+<tr>
+<td>recipe</td>
+<td><code>quality</code></td>
+<td>list of field quality rules</td>
+<td>no (<code>[]</code>)</td>
+<td>See <a href="#field-quality-rules">Field quality rules</a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="transform-steps">Transform steps<a class="headerlink" href="#transform-steps" title="Permanent link">&para;</a></h3>
+<p>A step is a bare name or a single-key mapping; args normalize to a tuple:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">trim</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">to_string</span><span class="p p-Indicator">]</span><span class="w">              </span><span class="c1"># zero-arg steps</span>
+<span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">parse_ts</span><span class="p">:</span><span class="w"> </span><span class="nv">ISO8601</span><span class="p p-Indicator">}]</span><span class="w">          </span><span class="c1"># one arg</span>
+<span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">to_decimal</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">12</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]}]</span><span class="w">        </span><span class="c1"># multiple args</span>
+</code></pre></div>
+<p>The available names are the closed whitelist in the
+<a href="../transforms/">transforms reference</a>; existence is checked at typecheck, not parse.</p>
+<h3 id="field-quality-rules">Field quality rules<a class="headerlink" href="#field-quality-rules" title="Permanent link">&para;</a></h3>
+<p>A closed catalogue, discriminated on <code>rule</code>. New rules are RFC amendments, never config.
+Every rule requires <code>on_fail</code> ∈ <code>flag</code> | <code>quarantine</code> | <code>fail</code> — there is no
+project-wide default, and there is deliberately no <code>drop</code> and no <code>repair</code> in v1.</p>
+<table>
+<thead>
+<tr>
+<th><code>rule</code></th>
+<th>Parameters</th>
+<th>Fires when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>coercible</code></td>
+<td>—</td>
+<td>The transform chain produced a coercion-failure marker</td>
+</tr>
+<tr>
+<td><code>not_null</code></td>
+<td>—</td>
+<td>The value is NULL</td>
+</tr>
+<tr>
+<td><code>range</code></td>
+<td><code>min</code> and/or <code>max</code> (int, decimal, or an exact string bound; ≥ 1 of the two)</td>
+<td>The value falls outside a declared bound</td>
+</tr>
+<tr>
+<td><code>length</code></td>
+<td><code>min</code> and/or <code>max</code> (int ≥ 0; ≥ 1 of the two)</td>
+<td>The character count falls outside a declared bound</td>
+</tr>
+<tr>
+<td><code>pattern</code></td>
+<td><code>regex</code> (portable subset)</td>
+<td>The value does not match</td>
+</tr>
+<tr>
+<td><code>in_enum</code></td>
+<td>—</td>
+<td>The value survived its <code>enum_map</code> chain unmapped</td>
+</tr>
+<tr>
+<td><code>in_set</code></td>
+<td><code>values</code> (list of strings/ints, ≥ 1)</td>
+<td>The value is outside the literal set</td>
+</tr>
+<tr>
+<td><code>unique</code></td>
+<td>—</td>
+<td>The value repeats within the partition slice</td>
+</tr>
+</tbody>
+</table>
+<p>Notes that change how you write them:</p>
+<ul>
+<li><strong><code>coercible</code> is implicit and opt-in per entity.</strong> An entity joins the quality system
+  by declaring <code>quality:</code>, <code>quarantine:</code>, or any field-level <code>quality:</code> — <code>dedupe:</code>
+  alone does not. Every mapped field of a quality-carrying entity then gets a <code>coercible</code>
+  rule at <code>quarantine</code> unless you declare one explicitly to override the disposition.
+  It is forced to <code>fail</code> on any field named by <code>dedupe.field</code>/<code>tie_break</code>
+  (<code>DedupeDispositionConflict</code> otherwise).</li>
+<li><strong>Bounds are separate rules.</strong> <code>range</code>/<code>length</code> take one or both bounds, and two bounds
+  needing different dispositions are simply two rules.</li>
+<li><strong><code>range</code> bounds are exact.</strong> Write an int, or quote the value: a quoted bound must be
+  an exact decimal (<code>"10000000000"</code>, <code>"0.01"</code> — sign and fraction allowed, no exponent)
+  or an ISO date/timestamp. <code>"nan"</code>, <code>"inf"</code>, and <code>"1e10"</code> are refused at parse: the
+  first two make a comparison that is never true on one engine and always true on
+  another, and the third renders as a float literal, which no emission path may carry.</li>
+<li><strong><code>in_enum</code> takes no values.</strong> The admissible set <em>is</em> the chain's <code>enum_map</code> targets;
+  restating it here would let the two drift.</li>
+<li><strong><code>unique</code> is per partition slice</strong>, in both full and incremental runs — for an
+  unpartitioned entity the slice is the whole table. Cross-partition duplicates are
+  key-based <code>dedupe</code>'s job, in every mode.</li>
+<li><strong>Nulls belong to <code>not_null</code> and <code>coercible</code> only.</strong> Every other rule's violation
+  predicate must be definitively TRUE to fire; a NULL-involved comparison evaluates to
+  SQL <code>UNKNOWN</code> and stays silent.</li>
+</ul>
+<p><code>assert:</code> on an entity field and <code>quality:</code> on a mapping field are different tools:
+<code>assert:</code> is "alert me" (an audit that observes), <code>quality:</code> is "act on the row" (the
+disposition system that routes). A field may carry both.</p>
+<h4 id="the-portable-regex-subset">The portable regex subset<a class="headerlink" href="#the-portable-regex-subset" title="Permanent link">&para;</a></h4>
+<p><code>pattern</code> regexes are restricted to what the shipped dialect ports agree on — DuckDB and
+Trino run RE2, Postgres runs POSIX ARE. The subset is an <strong>allowlist</strong>: a pattern is
+scanned left to right and anything the list below does not name is refused at parse,
+with the construct named in the error.</p>
+<table>
+<thead>
+<tr>
+<th>Accepted</th>
+<th>Refused (a selection — the list is closed, so anything unnamed is refused too)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Literals and escaped literals (<code>\.</code>, <code>\(</code>, <code>\\</code>, <code>\t</code>, <code>\n</code>, <code>\r</code>)</td>
+<td>Backreferences <code>\1</code>, property classes <code>\p{L}</code>, character-code escapes <code>\x41</code></td>
+</tr>
+<tr>
+<td><code>.</code></td>
+<td><code>\A</code>, <code>\Z</code>, <code>\z</code>, <code>\b</code>, <code>\B</code>, <code>\G</code></td>
+</tr>
+<tr>
+<td>Character classes <code>[a-z]</code>, <code>[^a-z]</code>, with ranges and negation</td>
+<td>POSIX classes <code>[[:alpha:]]</code>, collating elements <code>[[.x.]]</code>, equivalence classes <code>[[=x=]]</code></td>
+</tr>
+<tr>
+<td><code>\d</code> <code>\w</code> <code>\s</code> and <code>\D</code> <code>\W</code> <code>\S</code></td>
+<td><code>\D</code> <code>\W</code> <code>\S</code> <em>inside</em> a class — an error on Postgres, legal on RE2</td>
+</tr>
+<tr>
+<td>Anchors <code>^</code> <code>$</code></td>
+<td>Anchors inside a group, or mid-alternative</td>
+</tr>
+<tr>
+<td>Quantifiers <code>*</code> <code>+</code> <code>?</code> <code>{n}</code> <code>{n,}</code> <code>{n,m}</code></td>
+<td>Lazy <code>a*?</code>, possessive <code>a*+</code>, doubled <code>a**</code></td>
+</tr>
+<tr>
+<td>Alternation <code>\|</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>Non-capturing groups <code>(?:…)</code></td>
+<td>Capturing groups <code>(…)</code>, lookaround <code>(?=</code> <code>(?!</code> <code>(?&lt;=</code> <code>(?&lt;!</code>, named groups <code>(?P&lt;</code> <code>(?&lt;</code>, atomic groups <code>(?&gt;</code>, inline flags <code>(?i)</code>, comments <code>(?#</code>, conditionals <code>(?(</code></td>
+</tr>
+</tbody>
+</table>
+<p>Escapes and character classes are scanned, not substring-matched, so <code>\(?=</code> and <code>[(?=]</code>
+are literals rather than lookahead.</p>
+<p><strong>Patterns must be anchored, and you write the anchors.</strong> <code>[0-9]{5}</code> is refused;
+<code>^[0-9]{5}$</code> is accepted. A SQL regex predicate matches a substring, so the unanchored
+form would accept <code>abc12345xyz</code>. Each top-level alternative carries its own pair:
+<code>^a$|^b$</code>, not <code>^a|b$</code>.</p>
+<p>Capturing groups are refused in favour of <code>(?:…)</code>: a rule is a boolean match and
+captures nothing, and numbered groups are what backreferences read.</p>
+<p>Two divergences are accepted and documented rather than refused: <code>.</code> excludes newline on
+RE2 and includes it on Postgres ARE, and <code>\d</code>/<code>\w</code>/<code>\s</code> are ASCII on RE2 but
+locale-defined on ARE.</p>
+<p>At the guardrail stage each pattern is additionally checked against the shipped dialect
+ports (<code>duckdb</code>, <code>postgres</code>, <code>trino</code>) for a <em>regex surface</em> — a dialect that declares no
+regex support, or through which the pattern literal cannot be rendered, is a
+<code>GuardrailError</code>. That check is deliberately narrow: bloomery never executes SQL, so
+nothing at compile time can prove an engine's regex engine accepts a pattern. The subset
+above is what carries the portability claim.</p>
+<h2 id="metricset-metrics_version">MetricSet (<code>metrics_version</code>)<a class="headerlink" href="#metricset-metrics_version" title="Permanent link">&para;</a></h2>
+<p>At most one per project.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>metrics_version</code></td>
+<td>int ≥ 1</td>
+<td>yes</td>
+<td>Document version key</td>
+</tr>
+<tr>
+<td><code>metrics</code></td>
+<td>map name → Metric</td>
+<td>yes</td>
+<td>The project's metrics</td>
+</tr>
+</tbody>
+</table>
+<h3 id="metric">Metric<a class="headerlink" href="#metric" title="Permanent link">&para;</a></h3>
+<p>A metric is a template instantiation (<code>template:</code> plus overrides) or fully inline.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>template</code></td>
+<td>string</td>
+<td>no</td>
+<td>Catalog template to instantiate; own values win over the template's</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>string</td>
+<td>no</td>
+<td>Carried into semantic-layer emissions</td>
+</tr>
+<tr>
+<td><code>requires</code></td>
+<td>list of canonical field names</td>
+<td>no (<code>[]</code>)</td>
+<td>Leaves the metric reads</td>
+</tr>
+<tr>
+<td><code>requires_metrics</code></td>
+<td>list of metric names</td>
+<td>no (<code>[]</code>)</td>
+<td>Metrics a derived metric reads</td>
+</tr>
+<tr>
+<td><code>grain</code></td>
+<td>string</td>
+<td>no</td>
+<td>Entity grain the metric aggregates from</td>
+</tr>
+<tr>
+<td><code>additivity</code></td>
+<td><code>additive</code> | <code>semi_additive</code> | <code>non_additive</code></td>
+<td>effectively yes (inline or via template)</td>
+<td>Aggregation class, enforced by guardrails</td>
+</tr>
+<tr>
+<td><code>agg</code></td>
+<td>string</td>
+<td>no</td>
+<td>Aggregation function (<code>sum</code>, <code>count</code>, …)</td>
+</tr>
+<tr>
+<td><code>expr</code></td>
+<td>string</td>
+<td>no</td>
+<td>Expression over the required names</td>
+</tr>
+<tr>
+<td><code>ratio</code></td>
+<td>RatioSpec</td>
+<td>with <code>non_additive</code></td>
+<td>Additive decomposition to recompute from</td>
+</tr>
+<tr>
+<td><code>semi_additive</code></td>
+<td>SemiAdditivePolicy</td>
+<td>with <code>semi_additive</code></td>
+<td>The dimension and rule</td>
+</tr>
+<tr>
+<td><code>cumulative</code></td>
+<td>CumulativeSpec</td>
+<td>no</td>
+<td>Reserved surface: exactly one of <code>window</code> / <code>grain_to_date</code>; parse-validated only</td>
+</tr>
+</tbody>
+</table>
+<h3 id="ratiospec">RatioSpec<a class="headerlink" href="#ratiospec" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>numerator</code> / <code>denominator</code></td>
+<td>metric name</td>
+<td>yes</td>
+<td>The additive components</td>
+</tr>
+</tbody>
+</table>
+<h3 id="semiadditivepolicy">SemiAdditivePolicy<a class="headerlink" href="#semiadditivepolicy" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>over</code></td>
+<td>dimension name</td>
+<td>yes</td>
+<td>The dimension the metric is not additive over</td>
+</tr>
+<tr>
+<td><code>rule</code></td>
+<td><code>last</code> | <code>first</code> | <code>avg</code> | <code>min</code> | <code>max</code></td>
+<td>yes</td>
+<td>Rule applied along <code>over</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="martset-marts_version">MartSet (<code>marts_version</code>)<a class="headerlink" href="#martset-marts_version" title="Permanent link">&para;</a></h2>
+<p>At most one per project; a project without marts compiles silver only.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>marts_version</code></td>
+<td>int ≥ 1</td>
+<td>yes</td>
+<td>Document version key</td>
+</tr>
+<tr>
+<td><code>marts</code></td>
+<td>map name → Mart</td>
+<td>yes</td>
+<td>The gold layer</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mart">Mart<a class="headerlink" href="#mart" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>grain</code></td>
+<td>string</td>
+<td>yes</td>
+<td>Must equal the base entity's grain; every measure's grain must match it strictly</td>
+</tr>
+<tr>
+<td><code>base</code></td>
+<td>entity name</td>
+<td>yes</td>
+<td>The fact the mart is built from</td>
+</tr>
+<tr>
+<td><code>flatten</code></td>
+<td>list of flatten steps</td>
+<td>no (<code>[]</code>)</td>
+<td>Applied in authored order; chains flatten transitively</td>
+</tr>
+<tr>
+<td><code>measures</code></td>
+<td>list of metric names</td>
+<td>no (<code>[]</code>)</td>
+<td>Metrics this mart serves; a mart with measures must declare a date role</td>
+</tr>
+<tr>
+<td><code>partition_by</code></td>
+<td>list of partition specs</td>
+<td>no (<code>[]</code>)</td>
+<td>Physical partitioning</td>
+</tr>
+<tr>
+<td><code>materialization</code></td>
+<td>as Entity</td>
+<td>no</td>
+<td>Materialization override</td>
+</tr>
+<tr>
+<td><code>cost_hint</code></td>
+<td>int ≥ 1</td>
+<td>no (<code>1</code>)</td>
+<td>Tie-breaker when several marts can serve a metric — cheapest wins</td>
+</tr>
+</tbody>
+</table>
+<h3 id="flatten-steps-two-forms">Flatten steps — two forms<a class="headerlink" href="#flatten-steps-two-forms" title="Permanent link">&para;</a></h3>
+<p>Discriminated on <code>via</code> vs <code>date</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">flatten</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">via</span><span class="p">:</span><span class="w"> </span><span class="nv">item_of_order</span><span class="p p-Indicator">,</span><span class="nt"> prefix</span><span class="p">:</span><span class="w"> </span><span class="nv">order_</span><span class="p p-Indicator">}</span><span class="w">    </span><span class="c1"># flatten a relationship</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">date</span><span class="p">:</span><span class="w"> </span><span class="nv">order_date</span><span class="p p-Indicator">,</span><span class="nt"> role</span><span class="p">:</span><span class="w"> </span><span class="nv">ordered</span><span class="p p-Indicator">}</span><span class="w">       </span><span class="c1"># declare a date role</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Form</th>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>via</td>
+<td><code>via</code></td>
+<td>relationship name</td>
+<td>yes</td>
+<td>Relationship to flatten; <code>one_to_many</code> is refused (fan-out)</td>
+</tr>
+<tr>
+<td>via</td>
+<td><code>prefix</code></td>
+<td>string, non-empty</td>
+<td>yes</td>
+<td>Prefix on every flattened column — mandatory, collisions are errors</td>
+</tr>
+<tr>
+<td>date</td>
+<td><code>date</code></td>
+<td>field name</td>
+<td>yes</td>
+<td>A date/timestamp column of the base entity</td>
+</tr>
+<tr>
+<td>date</td>
+<td><code>role</code></td>
+<td>member name</td>
+<td>yes</td>
+<td>Expands to <code>&lt;role&gt;_day</code> … <code>&lt;role&gt;_year</code> bucket columns (<code>metric_time</code> reserved)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="stepset-steps_version">StepSet (<code>steps_version</code>)<a class="headerlink" href="#stepset-steps_version" title="Permanent link">&para;</a></h2>
+<p>At most one per project, and optional — most projects wire no steps. A step is a
+<em>referenced implementation</em>: the document names platform-owned code by <code>ref@version</code> and
+binds it into the pipeline. It cannot carry a body and cannot name a file to load, which
+is what keeps an authored spec from becoming an arbitrary-code-execution surface — the
+property comes from the absence of a field, not from validating one.</p>
+<p>The manifest describing what a step <em>is</em> — its tier, its declared inputs, outputs and
+parameter bounds — is not a spec document. It reaches the compiler as a <code>StepRegistry</code>
+passed to <code>compile_project(..., steps=…)</code>, so bloomery reads no step files at all. See
+<a href="../../concepts/step-registry/">Steps: referenced implementations</a> for the manifest side
+and the three tiers.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>steps_version</code></td>
+<td><code>1</code></td>
+<td>yes</td>
+<td>Document version key</td>
+</tr>
+<tr>
+<td><code>steps</code></td>
+<td>list of StepWiring</td>
+<td>no (<code>[]</code>)</td>
+<td>One wiring per step</td>
+</tr>
+</tbody>
+</table>
+<h3 id="stepwiring">StepWiring<a class="headerlink" href="#stepwiring" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>use</code></td>
+<td><code>ref@version</code></td>
+<td>yes</td>
+<td><code>^[a-z][a-z0-9_]*@[1-9][0-9]*$</code>. One wiring per <code>ref</code> — a version bump is that step changing, not a second step</td>
+</tr>
+<tr>
+<td><code>outputs</code></td>
+<td>map name → relation</td>
+<td>yes, ≥ 1</td>
+<td>Binds each declared output to a relation it writes</td>
+</tr>
+<tr>
+<td><code>inputs</code></td>
+<td>map name → relation</td>
+<td>no (<code>{}</code>)</td>
+<td>Binds each declared input to a relation it reads</td>
+</tr>
+<tr>
+<td><code>parameters</code></td>
+<td>map name → string / int / bool / decimal</td>
+<td>no (<code>{}</code>)</td>
+<td>Tunables the manifest declares, within the bounds it declares</td>
+</tr>
+<tr>
+<td><code>seed</code></td>
+<td>int</td>
+<td>no</td>
+<td>Required for a <code>seeded</code> step, refused for the other two tiers</td>
+</tr>
+<tr>
+<td><code>quality</code></td>
+<td>list of expression rules</td>
+<td>no (<code>[]</code>)</td>
+<td><code>expression</code> rules only; see <a href="#entity-quality-rules">Entity quality rules</a> for the shape</td>
+</tr>
+<tr>
+<td><code>applies_to</code></td>
+<td>map rule name → output</td>
+<td>no (<code>{}</code>)</td>
+<td>Which output each rule applies to. Required for every declared rule — a step has several outputs, so "on this step" cannot be lowered</td>
+</tr>
+<tr>
+<td><code>canonical</code></td>
+<td canonical="canonical" column:="column:" field="field">map output →</td>
+<td>no (<code>{}</code>)</td>
+<td>Which canonical field a produced column <em>is</em>. Never inferred from a matching name; without it, metrics over a step output are unreachable</td>
+</tr>
+</tbody>
+</table>
+<p>A bound relation is an optionally-namespaced identifier and nothing else
+(<code>^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$</code>) — these strings reach generated
+source, so the grammar is the second of two locks.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">steps_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="nt">steps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">use</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">resolve_customers@2</span>
+<span class="w">    </span><span class="nt">inputs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">shopify</span><span class="p">:</span><span class="w"> </span><span class="nv">bronze.shopify_customers</span><span class="p p-Indicator">,</span><span class="nt"> stripe</span><span class="p">:</span><span class="w"> </span><span class="nv">bronze.stripe_customers</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">outputs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">customer</span><span class="p">:</span><span class="w"> </span><span class="nv">silver.customer</span><span class="p p-Indicator">,</span><span class="nt"> links</span><span class="p">:</span><span class="w"> </span><span class="nv">silver.customer_link</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">threshold</span><span class="p">:</span><span class="w"> </span><span class="nv">0.92</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">canonical</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">customer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">customer_id</span><span class="p">:</span><span class="w"> </span><span class="nv">customer_id</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">quality</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">confidence_is_sane</span><span class="p p-Indicator">,</span><span class="nt"> rule</span><span class="p">:</span><span class="w"> </span><span class="nv">expression</span><span class="p p-Indicator">,</span><span class="nt"> expr</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;confidence</span><span class="nv"> </span><span class="s">BETWEEN</span><span class="nv"> </span><span class="s">0</span><span class="nv"> </span><span class="s">AND</span><span class="nv"> </span><span class="s">1&quot;</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">fail</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">applies_to</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">confidence_is_sane</span><span class="p">:</span><span class="w"> </span><span class="nv">links</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p><strong>Shape versus resolution.</strong> Parse checks that <code>canonical</code> and <code>applies_to</code> name outputs
+this wiring binds and that every declared rule says which output it applies to. Whether
+the manifest actually declares that output, that column or that parameter is a resolution
+question — the spec layer has never seen a manifest.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../../how-to/use-the-cli/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Use the CLI">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Use the CLI
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../json-schema/" class="md-footer__link md-footer__link--next" aria-label="Next: JSON Schema export">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                JSON Schema export
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2026 Lev Litvinov and contributors
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.69c251d7.min.js"></script>
+      
+    
+  </body>
+</html>

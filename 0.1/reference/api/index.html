@@ -1,0 +1,3065 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Entity-first spec compiler: declarative entity/mapping/metric specs → SQLMesh, dbt, and Cube artifacts">
+      
+      
+        <meta name="author" content="Lev Litvinov">
+      
+      
+        <link rel="canonical" href="https://morzecrew.github.io/bloomery/0.1/reference/api/">
+      
+      
+        <link rel="prev" href="../errors/">
+      
+      
+        <link rel="next" href="../stability/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.53">
+    
+    
+      
+        <title>API - Bloomery</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.20815dad.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.dfe2e883.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#api" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Bloomery" class="md-header__button md-logo" aria-label="Bloomery" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Bloomery
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              API
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="slate" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/morzecrew/bloomery" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bloomery
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../get-started/introduction/" class="md-tabs__link">
+          
+  
+  Get Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/specs-and-catalog/" class="md-tabs__link">
+          
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../how-to/emit-sqlmesh/" class="md-tabs__link">
+          
+  
+  How-to
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../spec-schemas/" class="md-tabs__link">
+          
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Bloomery" class="md-nav__button md-logo" aria-label="Bloomery" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    Bloomery
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/morzecrew/bloomery" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bloomery
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Get Started
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Get Started
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/introduction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Introduction
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Installation
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Quickstart
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Concepts
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Concepts
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/specs-and-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Specs and the catalog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/compile-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The compile pipeline
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/determinism/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Determinism
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Guardrails
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data quality
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/wide-marts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The wide-mart gold layer
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/step-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Steps: referenced implementations
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  How-to
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  How-to
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/emit-sqlmesh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit SQLMesh artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/emit-cube/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit Cube artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/emit-dbt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit dbt artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/add-quality-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Add quality rules to an entity
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/plan-a-metric-request/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan a metric request
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/evolve-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Evolve a spec safely
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/evaluate-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Assess a spec before it compiles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/resolve-identities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Resolve identities across systems
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/use-the-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Use the CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Reference
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-schemas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Spec schemas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../json-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  JSON Schema export
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../transforms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Transforms
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Errors
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#loading" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Loading
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Loading">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#load_catalogtext-str-catalog" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>load_catalog(text: str) -&gt; Catalog</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#load_projectsources-mappingstr-str-project" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>load_project(sources: Mapping[str, str]) -&gt; Project</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compiling" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Compiling
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compiling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#compile_projectproject-target-dialect-namingnone-catalognone-stepsempty_registry-tupleemittedartifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>compile_project(project, *, target, dialect, naming=None, catalog=None, steps=EMPTY_REGISTRY) -&gt; tuple[EmittedArtifact, ...]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#target" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Target</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Analysis
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resolveproject-project-catalog-catalog-none-none-resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>resolve(project: Project, catalog: Catalog | None = None) -&gt; Resolution</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#build_project_irproject-catalognone-stepsempty_registry-projectir" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>build_project_ir(project, catalog=None, *, steps=EMPTY_REGISTRY) -&gt; ProjectIR</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#project_fingerprintir-projectir-str" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>project_fingerprint(ir: ProjectIR) -&gt; str</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluateproject-catalognone-stepsempty_registry-specevidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>evaluate(project, *, catalog=None, steps=EMPTY_REGISTRY) -&gt; SpecEvidence</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#specevidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>SpecEvidence</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Stage</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#martsummary" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>MartSummary</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unreachablemetric" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>UnreachableMetric</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spec-diff-planning" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Spec-diff planning
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Spec-diff planning">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#planold-projectir-none-new-projectir-plan" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>plan(old: ProjectIR | None, new: ProjectIR) -&gt; Plan</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plan" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Plan</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Change</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changeclass" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>ChangeClass</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backfillscope" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>BackfillScope</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#replayscope" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>ReplayScope</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#request-time-planning" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Request-time planning
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Request-time planning">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#metricflowplannerhydrator-max_limit50_000-default_limitnone-namingnone" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>MetricFlowPlanner(hydrator, max_limit=50_000, default_limit=None, *, naming=None)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metricrequestmetrics-dimensions-filters-time_grainnone-order_by-limitnone" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>MetricRequest(metrics, dimensions=(), filters=(), time_grain=None, order_by=(), limit=None)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#predicatedimension-op-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Predicate(dimension, op, values=())</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#anyofpredicates" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>AnyOf(predicates)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#op" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Op</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#orderspecfield-directionasc" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>OrderSpec(field, direction="asc")</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timegrain" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>TimeGrain</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rowpolicydimension-op-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>RowPolicy(dimension, op, value)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#queryplan" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>QueryPlan</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#columndescriptor" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>ColumnDescriptor</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryplannerparse_filter_jsonpayload-clause_cap64-tupleclause" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>bloomery.planner.parse_filter_json(payload, *, clause_cap=64) -&gt; tuple[Clause, ...]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryplannerparse_sort_jsonpayload-tupleorderspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>bloomery.planner.parse_sort_json(payload) -&gt; tuple[OrderSpec, ...]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryplannerparse_page_jsonpayload-int-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>bloomery.planner.parse_page_json(payload) -&gt; int | None</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryplannerknown_unsupported-frozensetstr" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>bloomery.planner.KNOWN_UNSUPPORTED: frozenset[str]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lrumanifesthydratornaming-max_entries500-fetch_l2none-prewarmfalse" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>LruManifestHydrator(naming, *, max_entries=500, fetch_l2=None, prewarm=False)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hydrationkey" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>HydrationKey</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#schema-export" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Schema export
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Schema export">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#spec_json_schemakind-speckind-jsondict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>spec_json_schema(kind: SpecKind) -&gt; JsonDict</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#all_spec_schemas-mappingspeckind-jsondict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>all_spec_schemas() -&gt; Mapping[SpecKind, JsonDict]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#speckind" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>SpecKind</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jsondict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>JsonDict</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extension-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Extension points
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Extension points">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#register_transformspec-transformspec-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>register_transform(spec: TransformSpec) -&gt; None</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#register_emitteremitter-targetemitter-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>register_emitter(emitter: TargetEmitter) -&gt; None</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supporting-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Supporting types
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Errors
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Errors">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryerror" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>BloomeryError</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Command line
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../stability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Stability
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#loading" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Loading
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Loading">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#load_catalogtext-str-catalog" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>load_catalog(text: str) -&gt; Catalog</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#load_projectsources-mappingstr-str-project" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>load_project(sources: Mapping[str, str]) -&gt; Project</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compiling" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Compiling
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Compiling">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#compile_projectproject-target-dialect-namingnone-catalognone-stepsempty_registry-tupleemittedartifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>compile_project(project, *, target, dialect, naming=None, catalog=None, steps=EMPTY_REGISTRY) -&gt; tuple[EmittedArtifact, ...]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#target" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Target</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Analysis
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resolveproject-project-catalog-catalog-none-none-resolution" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>resolve(project: Project, catalog: Catalog | None = None) -&gt; Resolution</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#build_project_irproject-catalognone-stepsempty_registry-projectir" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>build_project_ir(project, catalog=None, *, steps=EMPTY_REGISTRY) -&gt; ProjectIR</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#project_fingerprintir-projectir-str" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>project_fingerprint(ir: ProjectIR) -&gt; str</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluateproject-catalognone-stepsempty_registry-specevidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>evaluate(project, *, catalog=None, steps=EMPTY_REGISTRY) -&gt; SpecEvidence</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#specevidence" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>SpecEvidence</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Stage</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#martsummary" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>MartSummary</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unreachablemetric" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>UnreachableMetric</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spec-diff-planning" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Spec-diff planning
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Spec-diff planning">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#planold-projectir-none-new-projectir-plan" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>plan(old: ProjectIR | None, new: ProjectIR) -&gt; Plan</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plan" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Plan</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#change" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Change</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changeclass" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>ChangeClass</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#backfillscope" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>BackfillScope</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#replayscope" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>ReplayScope</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#request-time-planning" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Request-time planning
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Request-time planning">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#metricflowplannerhydrator-max_limit50_000-default_limitnone-namingnone" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>MetricFlowPlanner(hydrator, max_limit=50_000, default_limit=None, *, naming=None)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metricrequestmetrics-dimensions-filters-time_grainnone-order_by-limitnone" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>MetricRequest(metrics, dimensions=(), filters=(), time_grain=None, order_by=(), limit=None)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#predicatedimension-op-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Predicate(dimension, op, values=())</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#anyofpredicates" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>AnyOf(predicates)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#op" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Op</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#orderspecfield-directionasc" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>OrderSpec(field, direction="asc")</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timegrain" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>TimeGrain</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rowpolicydimension-op-value" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>RowPolicy(dimension, op, value)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#queryplan" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>QueryPlan</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#columndescriptor" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>ColumnDescriptor</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryplannerparse_filter_jsonpayload-clause_cap64-tupleclause" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>bloomery.planner.parse_filter_json(payload, *, clause_cap=64) -&gt; tuple[Clause, ...]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryplannerparse_sort_jsonpayload-tupleorderspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>bloomery.planner.parse_sort_json(payload) -&gt; tuple[OrderSpec, ...]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryplannerparse_page_jsonpayload-int-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>bloomery.planner.parse_page_json(payload) -&gt; int | None</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryplannerknown_unsupported-frozensetstr" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>bloomery.planner.KNOWN_UNSUPPORTED: frozenset[str]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#lrumanifesthydratornaming-max_entries500-fetch_l2none-prewarmfalse" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>LruManifestHydrator(naming, *, max_entries=500, fetch_l2=None, prewarm=False)</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hydrationkey" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>HydrationKey</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#schema-export" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Schema export
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Schema export">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#spec_json_schemakind-speckind-jsondict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>spec_json_schema(kind: SpecKind) -&gt; JsonDict</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#all_spec_schemas-mappingspeckind-jsondict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>all_spec_schemas() -&gt; Mapping[SpecKind, JsonDict]</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#speckind" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>SpecKind</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jsondict" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>JsonDict</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extension-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Extension points
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Extension points">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#register_transformspec-transformspec-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>register_transform(spec: TransformSpec) -&gt; None</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#register_emitteremitter-targetemitter-none" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>register_emitter(emitter: TargetEmitter) -&gt; None</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supporting-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Supporting types
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Errors
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Errors">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#bloomeryerror" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>BloomeryError</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Command line
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+    
+    
+    
+      <li class="md-path__item">
+        <a href="../spec-schemas/" class="md-path__link">
+          
+  
+  <span class="md-ellipsis">
+    Reference
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="api">API<a class="headerlink" href="#api" title="Permanent link">&para;</a></h1>
+<p>The public API — everything importable from <code>bloomery</code>, kept in lockstep with the
+package's <code>__all__</code>.</p>
+<p>The list is <strong>closed over its own signatures</strong>: any type named in a public signature is
+exported from <code>bloomery</code> too, so <code>Project</code>, <code>Catalog</code>, <code>ProjectIR</code>, <code>EmittedArtifact</code> and
+the naming policies are importable from the root rather than only from their subpackages.
+The subpackage paths keep working. See <a href="../stability/">Stability</a> for what each surface
+promises.</p>
+<h2 id="loading">Loading<a class="headerlink" href="#loading" title="Permanent link">&para;</a></h2>
+<h3 id="load_catalogtext-str-catalog"><code>load_catalog(text: str) -&gt; Catalog</code><a class="headerlink" href="#load_catalogtext-str-catalog" title="Permanent link">&para;</a></h3>
+<p>Parse a catalog document from YAML text. Pure — strings in, model out; all I/O belongs
+to the caller. Raises <code>SpecParseError</code> on YAML, shape, or kind failures.</p>
+<h3 id="load_projectsources-mappingstr-str-project"><code>load_project(sources: Mapping[str, str]) -&gt; Project</code><a class="headerlink" href="#load_projectsources-mappingstr-str-project" title="Permanent link">&para;</a></h3>
+<p>Parse a project from named YAML documents. Keys are document names (used as
+source-path prefixes in errors), values are YAML text. Each document self-identifies
+via its version key; documents are processed in sorted-name order, and all failures
+across all documents are batched into a single <code>SpecParseError</code>.</p>
+<h2 id="compiling">Compiling<a class="headerlink" href="#compiling" title="Permanent link">&para;</a></h2>
+<h3 id="compile_projectproject-target-dialect-namingnone-catalognone-stepsempty_registry-tupleemittedartifact"><code>compile_project(project, *, target, dialect, naming=None, catalog=None, steps=EMPTY_REGISTRY) -&gt; tuple[EmittedArtifact, ...]</code><a class="headerlink" href="#compile_projectproject-target-dialect-namingnone-catalognone-stepsempty_registry-tupleemittedartifact" title="Permanent link">&para;</a></h3>
+<p>Compile a parsed project into target artifacts — the whole pipeline (resolve,
+typecheck, guardrails, lower, emit) as one pure function. <code>target</code> is a <code>Target</code> or
+the string name of a registered extension emitter; <code>dialect</code> is <code>"duckdb"</code>,
+<code>"trino"</code>, or <code>"postgres"</code>; <code>naming</code> defaults to layer-based naming
+(<code>silver.&lt;entity&gt;</code>, <code>gold.mart_&lt;name&gt;</code>). Same specs in, byte-identical artifacts out.
+Each <code>EmittedArtifact</code> carries <code>path</code>, <code>content</code>, <code>kind</code>, and <code>checksum</code>.</p>
+<p><code>steps</code> is a <code>StepRegistry</code> — the manifests behind whatever the project's
+<code>steps_version</code> document wires. It is a <em>caller-assembled</em> argument rather than a spec
+document because bloomery reads no step files: a project that wires a step and compiles
+without its registry is refused, not silently compiled without it. A project wiring no
+steps needs nothing here.</p>
+<h3 id="target"><code>Target</code><a class="headerlink" href="#target" title="Permanent link">&para;</a></h3>
+<p>The shipped emit targets: <code>Target.SQLMESH</code>, <code>Target.CUBE</code>, <code>Target.DBT</code>. A string
+enum, so <code>target="sqlmesh"</code> also works.</p>
+<h2 id="analysis">Analysis<a class="headerlink" href="#analysis" title="Permanent link">&para;</a></h2>
+<h3 id="resolveproject-project-catalog-catalog-none-none-resolution"><code>resolve(project: Project, catalog: Catalog | None = None) -&gt; Resolution</code><a class="headerlink" href="#resolveproject-project-catalog-catalog-none-none-resolution" title="Permanent link">&para;</a></h3>
+<p>Run reference validation, recipe validation, and reachability without emitting
+anything. The <code>Resolution</code> carries <code>reachable_metrics</code>, <code>unreachable_metrics</code> (each
+with its specific missing leaves), per-field <code>provenance</code> (direct / recipe / native),
+and the deterministic topological order.</p>
+<h3 id="build_project_irproject-catalognone-stepsempty_registry-projectir"><code>build_project_ir(project, catalog=None, *, steps=EMPTY_REGISTRY) -&gt; ProjectIR</code><a class="headerlink" href="#build_project_irproject-catalognone-stepsempty_registry-projectir" title="Permanent link">&para;</a></h3>
+<p>Compile specs into the frozen intermediate representation without emitting — the
+input to <code>project_fingerprint</code>, <code>plan</code>, and <code>MetricFlowPlanner.plan</code>. Runs the same
+resolution, typecheck, and guardrail stages as <code>compile_project</code>, so a spec that
+builds an IR is a spec that compiles — and takes <code>steps</code> for the same reason and on
+the same terms.</p>
+<h3 id="project_fingerprintir-projectir-str"><code>project_fingerprint(ir: ProjectIR) -&gt; str</code><a class="headerlink" href="#project_fingerprintir-projectir-str" title="Permanent link">&para;</a></h3>
+<p>The <code>blm1:</code>-prefixed SHA-256 content hash of a project IR — the value stamped into
+every emitted artifact's header. Stable within a bloomery version, deliberately not
+across versions.</p>
+<h3 id="evaluateproject-catalognone-stepsempty_registry-specevidence"><code>evaluate(project, *, catalog=None, steps=EMPTY_REGISTRY) -&gt; SpecEvidence</code><a class="headerlink" href="#evaluateproject-catalognone-stepsempty_registry-specevidence" title="Permanent link">&para;</a></h3>
+<p>Everything knowable about a spec without touching data, as one frozen value: what is
+reachable, what is not and which leaf is missing, what was refused and where, and the
+shape of every mart. <strong>Never raises for a spec-level refusal</strong> — refusals are the
+return value, and whatever analysis completed before them comes back alongside.</p>
+<p><code>InvariantViolated</code> and every programming error still propagate. See
+<a href="../../how-to/evaluate-a-spec/">Assess a spec</a>.</p>
+<h3 id="specevidence"><code>SpecEvidence</code><a class="headerlink" href="#specevidence" title="Permanent link">&para;</a></h3>
+<p><code>stage_reached</code>, <code>reachable</code>, <code>unreachable</code>, <code>refusals</code>, <code>marts</code>, <code>entities</code>,
+<code>fingerprint</code>. <strong>Read <code>stage_reached</code> first</strong>: every tuple is empty both when there was
+nothing to find and when the stage that finds it never ran, and those mean opposite
+things. <code>fingerprint</code> is <code>None</code> unless <code>stage_reached is Stage.COMPLETE</code>.</p>
+<h3 id="stage"><code>Stage</code><a class="headerlink" href="#stage" title="Permanent link">&para;</a></h3>
+<p><code>RESOLVE</code>, <code>TYPECHECK</code>, <code>LOWER</code>, <code>GUARDRAILS</code>, <code>COMPLETE</code> — the stage analysis stopped
+at. Treat it as an <strong>open</strong> enum: compare against <code>COMPLETE</code> and read everything else
+as "analysis stopped early", so a stage added later does not break the comparison.</p>
+<h3 id="martsummary"><code>MartSummary</code><a class="headerlink" href="#martsummary" title="Permanent link">&para;</a></h3>
+<p><code>name</code>, <code>grain</code>, <code>measures</code>, <code>dimensions</code> (role-qualified), <code>materialization</code> — a mart's
+shape, projected from the IR rather than recomputed.</p>
+<h3 id="unreachablemetric"><code>UnreachableMetric</code><a class="headerlink" href="#unreachablemetric" title="Permanent link">&para;</a></h3>
+<p><code>name</code>, <code>missing</code>, <code>via</code>. <code>missing</code> names the specific <em>leaves</em> — the canonical fields
+nothing maps — because the fix is always a mapping. <code>via</code> names the metrics between this
+one and those leaves, when it is blocked through another metric rather than on its own.</p>
+<h2 id="spec-diff-planning">Spec-diff planning<a class="headerlink" href="#spec-diff-planning" title="Permanent link">&para;</a></h2>
+<h3 id="planold-projectir-none-new-projectir-plan"><code>plan(old: ProjectIR | None, new: ProjectIR) -&gt; Plan</code><a class="headerlink" href="#planold-projectir-none-new-projectir-plan" title="Permanent link">&para;</a></h3>
+<p>Diff two compiled IRs into a classified migration plan. <code>plan(None, new)</code> is the
+initial deploy; <code>plan(ir, ir)</code> is empty. Raises <code>RenameTargetMissing</code> on a stale
+<code>renamed_from</code> annotation and <code>ContractViolation</code> on an expand/contract breach; every
+other change, breaking included, is classified and returned. See
+<a href="../../how-to/evolve-a-spec/">Evolve a spec safely</a>.</p>
+<h3 id="plan"><code>Plan</code><a class="headerlink" href="#plan" title="Permanent link">&para;</a></h3>
+<p><code>changes</code> (sorted <code>Change</code> tuple), <code>backfill_scope</code> (<code>BackfillScope</code>), <code>replay_scope</code>
+(<code>ReplayScope</code>), and <code>downstream_impact</code> (affected metric names). Properties:
+<code>has_changes</code>, <code>breaking</code>.</p>
+<h3 id="change"><code>Change</code><a class="headerlink" href="#change" title="Permanent link">&para;</a></h3>
+<p>One classified difference: <code>entity</code>, <code>subject</code> (<code>&lt;kind&gt;:&lt;name&gt;</code>), <code>change_class</code>,
+human-readable <code>detail</code>, and compact <code>old</code>/<code>new</code> value reprs.</p>
+<h3 id="changeclass"><code>ChangeClass</code><a class="headerlink" href="#changeclass" title="Permanent link">&para;</a></h3>
+<p>The closed classification vocabulary: <code>ADDITIVE</code>, <code>WIDENING</code>, <code>RENAME</code>, <code>RESTATING</code>,
+<code>BREAKING</code>.</p>
+<h3 id="backfillscope"><code>BackfillScope</code><a class="headerlink" href="#backfillscope" title="Permanent link">&para;</a></h3>
+<p><code>entities</code> — the sorted entities whose stored rows a plan invalidates — and
+<code>restates_history</code>, true when any RESTATING change is present.</p>
+<h3 id="replayscope"><code>ReplayScope</code><a class="headerlink" href="#replayscope" title="Permanent link">&para;</a></h3>
+<p><code>entities</code> — the sorted entities whose <code>&lt;entity&gt;__reject</code> tables a plan invalidates.
+Distinct from <code>BackfillScope</code> because the two name different storage: a backfill
+recomputes an entity from bronze, while a replay re-runs the current mapping against
+rows that are not in bronze's incremental window at all. Populated only where a change
+can actually free rows: the <strong>old</strong> disposition was <code>quarantine</code>, and the rule is now
+gone, now disposes as <code>flag</code>, or has relaxed parameters. A tightening — a narrowed
+bound, or <code>quarantine → fail</code> — needs a backfill and no replay: every quarantined row
+still fails the rule, so replaying it drains nothing. Where relaxation is undecidable
+from the parameters (a <code>pattern</code> regex, an <code>expression</code>), the replay is reported.
+bloomery emits the replay merge artifact; executing it is the caller's. See <a href="../../how-to/add-quality-rules/">Add quality
+rules</a>.</p>
+<h2 id="request-time-planning">Request-time planning<a class="headerlink" href="#request-time-planning" title="Permanent link">&para;</a></h2>
+<h3 id="metricflowplannerhydrator-max_limit50_000-default_limitnone-namingnone"><code>MetricFlowPlanner(hydrator, max_limit=50_000, default_limit=None, *, naming=None)</code><a class="headerlink" href="#metricflowplannerhydrator-max_limit50_000-default_limitnone-namingnone" title="Permanent link">&para;</a></h3>
+<p>The planner port backed by an embedded, render-only MetricFlow. <code>naming</code> must match
+the policy the artifacts were emitted with.</p>
+<p><strong><code>.plan(ir, request, *, dialect, policy=None) -&gt; QueryPlan</code></strong> — validate the request,
+check mart coverage, and render SQL; nothing is executed. Refusals raise the planner
+error taxonomy (<code>UnknownMember</code>, <code>UnreachableAtGrain</code>, <code>AmbiguousDimension</code>,
+<code>InvalidRequest</code>, <code>FilterTypeMismatch</code>, and the <code>UnsupportedFilter</code> family). See
+<a href="../../how-to/plan-a-metric-request/">Plan a metric request</a>.</p>
+<h3 id="metricrequestmetrics-dimensions-filters-time_grainnone-order_by-limitnone"><code>MetricRequest(metrics, dimensions=(), filters=(), time_grain=None, order_by=(), limit=None)</code><a class="headerlink" href="#metricrequestmetrics-dimensions-filters-time_grainnone-order_by-limitnone" title="Permanent link">&para;</a></h3>
+<p>A structured metric request. Construction enforces the structural rules (at least one
+metric, no duplicates, order over requested members only, <code>limit &gt;= 1</code>). <code>filters</code> is
+CNF: a tuple of clauses (implicit AND), each a <code>Predicate</code> or one <code>AnyOf</code> group.</p>
+<h3 id="predicatedimension-op-values"><code>Predicate(dimension, op, values=())</code><a class="headerlink" href="#predicatedimension-op-values" title="Permanent link">&para;</a></h3>
+<p>One typed single-dimension filter (RFC 0015). <code>op</code> is an <code>Op</code> member; value arity is
+checked per operator (<code>is_null</code> takes exactly one bool; <code>like</code>/<code>ilike</code> take one or
+more patterns). Floats are accepted and normalized to <code>Decimal(str(value))</code> at
+construction; non-finite numerics raise <code>InvalidLiteral</code>.</p>
+<h3 id="anyofpredicates"><code>AnyOf(predicates)</code><a class="headerlink" href="#anyofpredicates" title="Permanent link">&para;</a></h3>
+<p>One disjunction group — OR across its predicates, AND with every other clause.
+Exactly one level: members are <code>Predicate</code> only, and may span different dimensions.</p>
+<h3 id="op"><code>Op</code><a class="headerlink" href="#op" title="Permanent link">&para;</a></h3>
+<p>The closed filter-operator vocabulary: <code>EQ</code>, <code>NE</code>, <code>GT</code>, <code>GTE</code>, <code>LT</code>, <code>LTE</code>, <code>IN</code>,
+<code>NOT_IN</code>, <code>IS_NULL</code>, <code>LIKE</code>, <code>ILIKE</code>. A string enum, so <code>op="eq"</code> also works.
+<code>like</code>/<code>ilike</code> operands are SQL <code>LIKE</code> patterns — caller-owned wildcards with <code>\</code> as
+the escape character; nothing is auto-wrapped.</p>
+<h3 id="orderspecfield-directionasc"><code>OrderSpec(field, direction="asc")</code><a class="headerlink" href="#orderspecfield-directionasc" title="Permanent link">&para;</a></h3>
+<p>One ordering term over a requested metric or dimension — never arbitrary SQL. Carries
+no nulls placement (non-default placements are refused at the JSON front door).</p>
+<h3 id="timegrain"><code>TimeGrain</code><a class="headerlink" href="#timegrain" title="Permanent link">&para;</a></h3>
+<p>Requestable grains: <code>HOUR</code>, <code>DAY</code>, <code>WEEK</code>, <code>MONTH</code>, <code>QUARTER</code>, <code>YEAR</code>. Applies to
+every date-role dimension in the request; <code>HOUR</code> is refused at coverage (marts carry
+day–year buckets).</p>
+<h3 id="rowpolicydimension-op-value"><code>RowPolicy(dimension, op, value)</code><a class="headerlink" href="#rowpolicydimension-op-value" title="Permanent link">&para;</a></h3>
+<p>A row-level scoping filter — dimension, <code>Op</code>, scalar or scalar tuple — rendered
+through the same escaping pipeline as user filters (via <code>as_clause()</code>) and prepended
+to them, reaching every scan. A policy is one predicate; range policies compose into
+the request filters instead. Deciding whose policy applies is upstream work.</p>
+<h3 id="queryplan"><code>QueryPlan</code><a class="headerlink" href="#queryplan" title="Permanent link">&para;</a></h3>
+<p>The planner's product: <code>sql</code>, <code>columns</code> (tuple of <code>ColumnDescriptor</code>), <code>mart</code>,
+<code>warnings</code>, <code>explanation</code> (with <code>.render()</code>), and <code>fingerprint</code> (<code>sha256(sql)</code>).</p>
+<h3 id="columndescriptor"><code>ColumnDescriptor</code><a class="headerlink" href="#columndescriptor" title="Permanent link">&para;</a></h3>
+<p>One output column, carrying both names it has:</p>
+<ul>
+<li><code>name</code> — what you asked for, in bloomery's vocabulary (<code>ordered_month</code>).</li>
+<li><code>sql_alias</code> — what the emitted SQL actually projects (<code>order__ordered_day__month</code>).</li>
+<li><code>type</code> — the logical type.</li>
+<li><code>role</code> — <code>"dimension"</code> or <code>"measure"</code>.</li>
+<li><code>label</code> — optional description.</li>
+</ul>
+<p>Constructed by keyword only — <code>sql_alias</code> sits second rather than last, so a positional
+call would misassign every field after the first.</p>
+<p><strong>Bind result rows by <code>sql_alias</code>, display <code>name</code>.</strong> For a measure the two agree; for a
+dimension they do not, because MetricFlow qualifies the column by entity and suffixes a
+date role with its grain. Positional binding — <code>columns[i]</code> against projection <code>i</code> — works
+and always did.</p>
+<h3 id="bloomeryplannerparse_filter_jsonpayload-clause_cap64-tupleclause"><code>bloomery.planner.parse_filter_json(payload, *, clause_cap=64) -&gt; tuple[Clause, ...]</code><a class="headerlink" href="#bloomeryplannerparse_filter_jsonpayload-clause_cap64-tupleclause" title="Permanent link">&para;</a></h3>
+<p>The public JSON front door for the Mongo-flavoured filter grammar (<code>$and</code>/<code>$or</code>/
+<code>$not</code>, field maps <code>{field: scalar | {op: value} | [array]}</code>, spellings <code>$eq $neq $gt
+$gte $lt $lte $in $nin $null $like $ilike</code>). Normalizes before refusing — De Morgan
+push-down, complement inversion, CNF distribution with the clause cap enforced during
+distribution — and refuses only with <code>UnsupportedFilter</code> leaves carrying stable
+<code>.reason</code> codes.</p>
+<p>Two failure classes, deliberately distinct. A construct the vocabulary reviewed and
+declined — a set relation, a hierarchy operator, <code>$regex</code>, an over-cap CNF expansion, a
+non-invertible negation — raises <code>UnsupportedFilter</code> with a <code>.reason</code> from
+<code>KNOWN_UNSUPPORTED</code>. Refusals fire wherever the parser reaches them: operator refusals,
+non-finite literals, and the nesting-depth cap during tree construction;
+<code>UnsupportedNegation</code> and the CNF clause cap after the rewrite. <code>.normalized</code> is set
+wherever it says something useful — the form the document had reached for
+<code>UnsupportedNegation</code>, a size sentinel (<code>&gt;64 levels deep</code>, <code>&gt;64 clauses</code>) for the two
+caps. A <em>malformed</em> document — a non-mapping payload, a
+field map of the wrong shape, an unknown <code>$op</code>, an operand of the wrong type — raises
+<code>InvalidRequest</code>: it never reaches the closed list, because malformed input is a schema
+error, not a reviewed gap. The same split holds for <code>parse_sort_json</code> and
+<code>parse_page_json</code>: only a well-formed placement or a well-formed non-zero offset reaches
+<code>UnsupportedSortNulls</code>/<code>UnsupportedPagination</code>; anything else is <code>InvalidRequest</code>.</p>
+<h3 id="bloomeryplannerparse_sort_jsonpayload-tupleorderspec"><code>bloomery.planner.parse_sort_json(payload) -&gt; tuple[OrderSpec, ...]</code><a class="headerlink" href="#bloomeryplannerparse_sort_jsonpayload-tupleorderspec" title="Permanent link">&para;</a></h3>
+<p>Sort documents (<code>{field: "asc" | "desc" | {"dir": …, "nulls": …}}</code>) to order terms. A
+<code>nulls</code> equal to the canonical default (<code>first</code> for asc, <code>last</code> for desc) is dropped; a
+well-formed non-default placement raises <code>UnsupportedSortNulls</code>. A <em>present</em> <code>nulls</code> key
+must hold exactly <code>"first"</code> or <code>"last"</code> — a wrong type, an explicit <code>null</code>, or an unknown
+word is <code>InvalidRequest</code>; omitting the key is the canonical default.</p>
+<h3 id="bloomeryplannerparse_page_jsonpayload-int-none"><code>bloomery.planner.parse_page_json(payload) -&gt; int | None</code><a class="headerlink" href="#bloomeryplannerparse_page_jsonpayload-int-none" title="Permanent link">&para;</a></h3>
+<p>Pagination documents (<code>{"limit": …, "offset": …}</code>) to the request limit. Non-zero
+offsets and cursor keys (<code>after</code>/<code>before</code>) raise <code>UnsupportedPagination</code>; a malformed
+payload — a non-mapping document, an unknown key, a non-int <code>limit</code>/<code>offset</code> — raises
+<code>InvalidRequest</code>.</p>
+<h3 id="bloomeryplannerknown_unsupported-frozensetstr"><code>bloomery.planner.KNOWN_UNSUPPORTED: frozenset[str]</code><a class="headerlink" href="#bloomeryplannerknown_unsupported-frozensetstr" title="Permanent link">&para;</a></h3>
+<p>The closed refusal list: exactly the <code>.reason</code> codes the three parse functions can
+raise, drift-guarded by test. Adapters assert their refusal handling covers this set.</p>
+<h3 id="lrumanifesthydratornaming-max_entries500-fetch_l2none-prewarmfalse"><code>LruManifestHydrator(naming, *, max_entries=500, fetch_l2=None, prewarm=False)</code><a class="headerlink" href="#lrumanifesthydratornaming-max_entries500-fetch_l2none-prewarmfalse" title="Permanent link">&para;</a></h3>
+<p>The default in-process manifest cache behind the planner: an LRU of hydrated semantic
+manifests keyed by <code>HydrationKey</code>. On a miss it consults the caller-injected
+<code>fetch_l2</code> callable (your storage, your I/O), falling back to rebuilding from the IR.
+<code>hits</code>/<code>misses</code>/<code>hit_rate</code> are plain counters to poll into your metrics system.
+<strong><code>.get(ir)</code></strong> returns the hydrated lookup for a project.</p>
+<h3 id="hydrationkey"><code>HydrationKey</code><a class="headerlink" href="#hydrationkey" title="Permanent link">&para;</a></h3>
+<p>The cache key covering all three invalidation axes: <code>spec_fingerprint</code>,
+<code>bloomery_version</code>, <code>metricflow_version</code>. A spec edit or a version bump changes the
+key, so stale entries are a miss, never an error.</p>
+<h2 id="schema-export">Schema export<a class="headerlink" href="#schema-export" title="Permanent link">&para;</a></h2>
+<h3 id="spec_json_schemakind-speckind-jsondict"><code>spec_json_schema(kind: SpecKind) -&gt; JsonDict</code><a class="headerlink" href="#spec_json_schemakind-speckind-jsondict" title="Permanent link">&para;</a></h3>
+<p>The JSON Schema for one spec kind, generated from the Pydantic model so it cannot drift
+from the parser. Deterministic (sorted keys), addressable (<code>$schema</code> plus a
+version-carrying <code>$id</code>), and faithful to the <em>authored</em> shape rather than the parsed
+one. See <a href="../json-schema/">JSON Schema</a>.</p>
+<h3 id="all_spec_schemas-mappingspeckind-jsondict"><code>all_spec_schemas() -&gt; Mapping[SpecKind, JsonDict]</code><a class="headerlink" href="#all_spec_schemas-mappingspeckind-jsondict" title="Permanent link">&para;</a></h3>
+<p>Every kind's schema, in <code>SpecKind</code> order — six standalone documents, not a bundle.</p>
+<h3 id="speckind"><code>SpecKind</code><a class="headerlink" href="#speckind" title="Permanent link">&para;</a></h3>
+<p>The six loadable kinds: <code>CATALOG</code>, <code>ENTITY_MODEL</code>, <code>MAPPING</code>, <code>MARTS</code>, <code>METRICS</code>,
+<code>STEPS</code>. A string enum, so <code>spec_json_schema("metrics")</code> also works.</p>
+<h3 id="jsondict"><code>JsonDict</code><a class="headerlink" href="#jsondict" title="Permanent link">&para;</a></h3>
+<p>One JSON Schema document — <code>dict[str, object]</code>. A schema is produced to be serialized,
+not indexed.</p>
+<h2 id="extension-points">Extension points<a class="headerlink" href="#extension-points" title="Permanent link">&para;</a></h2>
+<h3 id="register_transformspec-transformspec-none"><code>register_transform(spec: TransformSpec) -&gt; None</code><a class="headerlink" href="#register_transformspec-transformspec-none" title="Permanent link">&para;</a></h3>
+<p>Register an extension transform into the process-global overlay consulted after the
+built-in whitelist. Name collisions raise <code>TransformRegistrationError</code>. See
+<a href="../transforms/#custom-transforms">Transforms</a>.</p>
+<h3 id="register_emitteremitter-targetemitter-none"><code>register_emitter(emitter: TargetEmitter) -&gt; None</code><a class="headerlink" href="#register_emitteremitter-targetemitter-none" title="Permanent link">&para;</a></h3>
+<p>Register an extension target emitter; the emitter's <code>name</code> becomes a valid <code>target=</code>
+string for <code>compile_project</code>. Collisions raise <code>EmitError</code>.</p>
+<h2 id="supporting-types">Supporting types<a class="headerlink" href="#supporting-types" title="Permanent link">&para;</a></h2>
+<p>Signature closure puts every type named above in the root namespace, so none of them needs
+a deep import:</p>
+<table>
+<thead>
+<tr>
+<th>Group</th>
+<th>Names</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Specs and IR</td>
+<td><code>Project</code>, <code>Catalog</code>, <code>ProjectIR</code>, <code>UnreachableMetric</code></td>
+</tr>
+<tr>
+<td>Compilation</td>
+<td><code>EmittedArtifact</code>, <code>ArtifactKind</code>, <code>TargetEmitter</code>, <code>NamingPolicy</code>, <code>DefaultNaming</code></td>
+</tr>
+<tr>
+<td>Analysis</td>
+<td><code>Resolution</code>, <code>FieldProvenance</code>, <code>Provenance</code>, <code>Node</code>, <code>NodeKind</code></td>
+</tr>
+<tr>
+<td>Planner</td>
+<td><code>Clause</code>, <code>Scalar</code>, <code>Explanation</code>, <code>MeasureExplanation</code>, <code>ColumnRole</code>, <code>OrderDirection</code></td>
+</tr>
+<tr>
+<td>Steps</td>
+<td><code>StepRegistry</code>, <code>StepManifest</code>, <code>EMPTY_REGISTRY</code></td>
+</tr>
+<tr>
+<td>Transforms and types</td>
+<td><code>TransformSpec</code>, <code>ArgKind</code>, <code>Builder</code>, <code>OutputType</code>, <code>LogicalType</code></td>
+</tr>
+<tr>
+<td>Schema export</td>
+<td><code>SpecKind</code>, <code>JsonDict</code></td>
+</tr>
+<tr>
+<td>Fix suggestions</td>
+<td><code>MartCoverage</code>, <code>MeasureRef</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>Project</code>, <code>Catalog</code> and <code>ProjectIR</code> are <strong>handles</strong>: you receive one and pass it back.
+Their fields are internal and change freely — read <code>Resolution</code> or <code>QueryPlan</code> instead.</p>
+<h2 id="errors">Errors<a class="headerlink" href="#errors" title="Permanent link">&para;</a></h2>
+<h3 id="bloomeryerror"><code>BloomeryError</code><a class="headerlink" href="#bloomeryerror" title="Permanent link">&para;</a></h3>
+<p>The base of every error the package raises — <code>str(exc)</code> is the human message,
+<code>exc.source_path</code> addresses the offending spec node, <code>exc.collected</code> holds individual
+failures on batched aggregates. The full tree lives in <a href="../errors/">Errors</a>.</p>
+<p>Five refusals also carry a structured fix suggestion — <code>UnknownMember.did_you_mean</code>,
+<code>UnreachableAtGrain.covering_marts</code>, <code>GrainViolation.offending_measures</code>,
+<code>UnknownStep.available_versions</code>, <code>UnsupportedFilter.nearest_supported</code> — each exposing a
+value bloomery already computed on its way to writing the message. The two payload types
+<code>MartCoverage</code> and <code>MeasureRef</code> are exported from the root. See
+<a href="../errors/#fix-suggestions">Errors</a>.</p>
+<h2 id="command-line">Command line<a class="headerlink" href="#command-line" title="Permanent link">&para;</a></h2>
+<p><code>bloomery compile|plan|resolve|explain|schema|fingerprint</code> is a thin argument shell over
+exactly the functions above — no logic of its own, no execution, no state. It is the only
+part of the package that touches a filesystem, and nothing in the library imports it. See
+<a href="../../how-to/use-the-cli/">Use the CLI</a>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../errors/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Errors">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Errors
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../stability/" class="md-footer__link md-footer__link--next" aria-label="Next: Stability">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Stability
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2026 Lev Litvinov and contributors
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.69c251d7.min.js"></script>
+      
+    
+  </body>
+</html>
