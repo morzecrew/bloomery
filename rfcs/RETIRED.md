@@ -59,6 +59,7 @@ arrive here first. Three columns describe no behaviour and so cannot be wrong.
 | 0020 | Authoring ergonomics: schema export, CLI, fix suggestions | `bde63f2` |
 | 0021 | Capability boundaries: identity resolution, dialects, closed questions | `828fd5b` |
 | 0022 | `SpecEvidence`: spec analysis as a first-class output | `68353d7` |
+| 0025 | v0.1.0 release readiness | `820979c` |
 
 ## Not in the table
 
