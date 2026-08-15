@@ -5,14 +5,16 @@ promise, and the third is the one that gets misread.
 
 | Surface | Promise |
 | --- | --- |
-| **Python API** — `bloomery.__all__` and each subpackage's `__all__` | SemVer. A breaking change requires a major version. |
+| **Python API** — `bloomery.__all__` and each subpackage's `__all__` | SemVer. A breaking change is never silent, and below 1.0 it requires a minor — see [what binds at 0.1](#what-binds-at-01-and-what-waits-for-10). |
 | **Spec YAML** | Per-kind document versioning. Additive within a version; a breaking change mints a new version. |
 | **Emitted artifacts** | **Not stable.** Byte-reproducible for fixed inputs; not comparable across bloomery versions. |
 
 ## The Python API
 
 `bloomery.__all__` is the contract. What is in it follows SemVer: a name will not be
-removed, and a signature will not narrow, without a major version.
+removed, and a signature will not narrow, without a version bump that says so — a minor
+while bloomery is below 1.0, a major from 1.0 onward. Either way it is in the changelog
+with the migration; the section at the foot of this page is the exact split.
 
 The list is **closed over its own signatures**. If a type appears in the signature of
 anything exported — as a parameter, a return, a generic argument, a field of a returned
@@ -146,9 +148,9 @@ The middle row is the whole split, so it is worth stating without the table:
   it may never be *quiet*: every breaking change appears in `CHANGELOG.md` with the name
   that moved and what to write instead, and a minor bump is the floor for one. A patch
   release never breaks anything.
-- **From 1.0, breaking requires a major version.** That is the promise the table's first
-  row already makes for spec YAML, extended to the Python surface once the surface has
-  been used enough to be worth freezing.
+- **From 1.0, breaking requires a major version.** That is the promise spec YAML already
+  makes in the row above, extended to the Python surface once the surface has been used
+  enough to be worth freezing.
 
 Pinning follows from that: pin the minor (`bloomery>=0.1,<0.2`) if you want the API to
 hold still, and read the changelog on every minor bump.
