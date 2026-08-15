@@ -268,23 +268,36 @@ def _config(requested: bool = False, keyword: str = "") -> _FakeConfig:
     )
 
 
-def test_the_census_enforces_when_asked() -> None:
-    assert census_is_enforceable(cast("pytest.Config", _config(requested=True))) is None
+@pytest.mark.parametrize(
+    ("collected", "deselected"),
+    [
+        (2935, 93),  # `just test`
+        (2942, 86),  # CI's expression, which keeps the chaos tier
+        (2, 1),  # the boundary: strictly more collected than deselected
+    ],
+)
+def test_the_census_enforces_on_a_deselecting_run(collected: int, deselected: int) -> None:
+    config = cast("pytest.Config", _config(requested=True))
+    assert census_is_enforceable(config, collected, deselected) is None
 
 
 @pytest.mark.parametrize(
-    ("requested", "keyword", "why"),
+    ("requested", "keyword", "collected", "deselected", "why"),
     [
-        (False, "", "not requested"),
-        (True, "docs", "narrowed by -k"),
+        (False, "", 2935, 93, "not requested"),
+        (True, "docs", 2935, 93, "narrowed by -k"),
+        (True, "", 33, 3000, "selecting rather than deselecting"),  # `-m golden`
+        (True, "", 50, 50, "selecting rather than deselecting"),  # the boundary
     ],
 )
 def test_the_census_stands_down_and_says_why(
-    requested: bool, keyword: str, why: str
+    requested: bool, keyword: str, collected: int, deselected: int, why: str
 ) -> None:
     """A silent skip is the failure mode being avoided — this one spent its
-    first hour skipping every run without saying so."""
-    reason = census_is_enforceable(cast("pytest.Config", _config(requested, keyword)))
+    first hour skipping every run without saying so, and then a round of review
+    found it failing 49 refusals on a run of the golden tier alone."""
+    config = cast("pytest.Config", _config(requested, keyword))
+    reason = census_is_enforceable(config, collected, deselected)
     assert reason is not None
     assert why in reason
 

@@ -46,6 +46,11 @@ CONSTRUCTED: dict[str, set[str]] = {}
 #: count, since they still come from real code.
 _CURRENT: list[str] = [""]
 
+#: How many items this session deselected, via the public ``pytest_deselected``
+#: hook. Read against the collected count to tell a *deselecting* marker
+#: expression from a *selecting* one — see :func:`census_is_enforceable`.
+_DESELECTED: list[int] = [0]
+
 _ORIGINAL_INIT = errors_module.BloomeryError.__init__
 
 
@@ -62,6 +67,10 @@ def _recording_init(self: errors_module.BloomeryError, *args: object, **kwargs: 
 
 def pytest_runtest_setup(item: pytest.Item) -> None:
     _CURRENT[0] = item.nodeid
+
+
+def pytest_deselected(items: list[pytest.Item]) -> None:
+    _DESELECTED[0] += len(items)
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -88,7 +97,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
-def census_is_enforceable(config: pytest.Config) -> str | None:
+def census_is_enforceable(
+    config: pytest.Config, collected: int, deselected: int
+) -> str | None:
     """``None`` when the census can be trusted, else why it cannot.
 
     The claim is "the **suite** produces every documented refusal", which only a
@@ -110,11 +121,27 @@ def census_is_enforceable(config: pytest.Config) -> str | None:
     ``-k`` is still refused on top of the flag: ``just test -k something``
     forwards its arguments, and the census would otherwise fail a run the
     developer narrowed on purpose.
+
+    So is a **selecting** marker expression. ``pytest -m golden --refusal-census``
+    is someone pointing the flag at a tier, and it failed with 49 refusals the
+    golden tier never had reason to produce. The rule is *collected must exceed
+    deselected*, which needs no threshold to maintain and no expression to
+    parse: a deselecting run keeps almost everything and drops the Docker
+    tiers, while a marker that names a tier keeps a sliver and drops the rest —
+    two orders of magnitude apart, so the comparison needs no tuning as the
+    suite grows. The counts come from pytest's own hooks rather than from the
+    command line, which is the whole lesson of this function's history.
     """
     if not config.getoption(CENSUS_FLAG):
         return f"not requested ({CENSUS_FLAG} is passed by `just test` and CI)"
     if config.option.keyword:
         return f"narrowed by -k {config.option.keyword!r}"
+    if collected <= deselected:
+        return (
+            f"selecting rather than deselecting — {collected} collected against "
+            f"{deselected} deselected, which is a slice of the suite rather than "
+            "the suite less its Docker tiers"
+        )
     return None
 
 
@@ -123,7 +150,9 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     unproduced."""
     if exitstatus != 0 or session.testsfailed:
         return  # a red suite has a better message already
-    reason = census_is_enforceable(session.config)
+    reason = census_is_enforceable(
+        session.config, session.testscollected, _DESELECTED[0]
+    )
     reporter = session.config.pluginmanager.get_plugin("terminalreporter")
     if reason is not None:
         if reporter is not None:
