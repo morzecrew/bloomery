@@ -283,7 +283,13 @@ class TaxBasisMismatch(GuardrailError):
 
 class CurrencyMismatch(GuardrailError):
     """Guardrail stage (RFC 0006 §5.2): two operands with distinct declared
-    ISO-4217 currency codes and no explicit ``convert`` in the chain."""
+    ISO-4217 currency codes.
+
+    Unconditional. A ``convert`` step in the chain used to satisfy the rule and
+    no longer does (RFC 0023 D5): the transform has no lowering on any dialect,
+    so the marker bought a compile-time pass whose only outcome was a run-time
+    failure.
+    """
 
 
 class GrainMismatch(GuardrailError):

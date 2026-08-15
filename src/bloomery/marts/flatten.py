@@ -66,7 +66,7 @@ from bloomery.typing import (
 )
 
 if TYPE_CHECKING:
-    from bloomery.ir import EntityIR, ProjectIR
+    from bloomery.ir import EntityIR, ProjectIR, RelationshipIR
     from bloomery.spec.marts import DateRoleStep, Mart, MartSet
 
 __all__ = [
@@ -145,6 +145,39 @@ _HISTORICAL_FIX = (
 )
 
 
+def _historical_leaf(
+    rel: RelationshipIR, entities: dict[str, EntityIR], step_path: str
+) -> list[GuardrailError]:
+    """The ``HistoricalFanout`` for this step, or ``[]`` (RFC 0023 D1).
+
+    The join this step produces is an equality on the relationship's columns
+    and nothing else; a ``type2`` relation holds one row per version per key,
+    so it matches every version and multiplies the base grain. Nothing
+    downstream notices — the declared cardinality is about the domain, and it
+    is usually correct.
+
+    A list rather than an optional so the callers can splice it into whatever
+    they were already returning: this leaf never *replaces* a structural
+    refusal, it accompanies one.
+
+    An entity no mapping lowers yields ``[]``: it has no ``scd`` to read, and
+    its own leaf is the one worth reporting.
+    """
+    to_entity = entities.get(rel.to_entity)
+    if to_entity is None or to_entity.scd is not SCDKind.TYPE2:
+        return []
+    msg = (
+        f"flatten step joins entity {rel.to_entity!r} through relationship "
+        f"{rel.name!r} ({rel.cardinality}), and {rel.to_entity!r} is declared "
+        "scd: type2 — the emitted join carries no validity predicate, so it "
+        f"matches every version of each {rel.to_entity!r} key and each base row "
+        "is multiplied by that key's version count. The declared cardinality is a "
+        "claim about the domain; the relation holds one row per version "
+        f"(RFC 0023 D1). {_HISTORICAL_FIX}"
+    )
+    return [HistoricalFanout(msg, source_path=step_path)]
+
+
 def _flatten_via(
     step: ViaStep,
     index: int,
@@ -161,6 +194,14 @@ def _flatten_via(
         known = sorted(r.name for r in draft.relationships)
         msg = f"flatten step names no declared relationship {step.via!r}; known: {known}"
         return [FanoutRisk(msg, source_path=step_path)]
+    # Historical is checked *beside* the structural rules below rather than
+    # after them, because the two are independent: ``one_to_many`` is a
+    # property of the relationship and ``scd: type2`` a property of the
+    # entity, and a step can be wrong in both ways at once. Behind an early
+    # return it was the second reason that never got reported — and putting it
+    # first would only have suppressed the other one instead. The stage exists
+    # so an author fixes a spec in one round-trip, so both leaves go out.
+    historical = _historical_leaf(rel, entities, step_path)
     if rel.cardinality is Cardinality.ONE_TO_MANY:
         msg = (
             f"relationship {rel.name!r} is one_to_many: flattening it multiplies the "
@@ -168,7 +209,7 @@ def _flatten_via(
             "flatten only many_to_one/one_to_one relationships, or model a mart at "
             f"the grain of {rel.to_entity!r}"
         )
-        return [FanoutRisk(msg, source_path=step_path)]
+        return [*historical, FanoutRisk(msg, source_path=step_path)]
     if rel.from_entity not in state.prefixes:
         msg = (
             f"relationship {rel.name!r} joins from entity {rel.from_entity!r}, which is "
@@ -176,7 +217,7 @@ def _flatten_via(
             "transitively in authored order (RFC 0010 D3). Fix: flatten a relationship "
             f"reaching {rel.from_entity!r} first"
         )
-        return [FanoutRisk(msg, source_path=step_path)]
+        return [*historical, FanoutRisk(msg, source_path=step_path)]
     to_entity = entities.get(rel.to_entity)
     if to_entity is None:
         msg = (
@@ -184,22 +225,8 @@ def _flatten_via(
             "lowers — a mart cannot flatten an unbuilt entity"
         )
         return [GuardrailError(msg, source_path=step_path)]
-    if to_entity.scd is SCDKind.TYPE2:
-        # RFC 0023 D1. The join this step produces is an equality on the
-        # relationship's columns and nothing else; a type2 relation holds one
-        # row per version per key, so it matches every version and multiplies
-        # the base grain. Nothing downstream notices: the declared cardinality
-        # is about the domain, and it is usually correct.
-        msg = (
-            f"flatten step joins entity {rel.to_entity!r} through relationship "
-            f"{rel.name!r} ({rel.cardinality}), and {rel.to_entity!r} is declared "
-            "scd: type2 — the emitted join carries no validity predicate, so it "
-            f"matches every version of each {rel.to_entity!r} key and each base row "
-            "is multiplied by that key's version count. The declared cardinality is a "
-            "claim about the domain; the relation holds one row per version "
-            f"(RFC 0023 D1). {_HISTORICAL_FIX}"
-        )
-        return [HistoricalFanout(msg, source_path=step_path)]
+    if historical:
+        return historical
 
     from_prefix = state.prefixes[rel.from_entity]
     state.joins.append(
