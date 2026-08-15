@@ -24,6 +24,7 @@ BloomeryError
 │   ├── AssertLoweringError
 │   ├── GrainViolation
 │   ├── FanoutRisk
+│   ├── HistoricalFanout
 │   ├── NonAdditiveWithoutComponents
 │   ├── MartMissingTimeDimension
 │   ├── QuarantineRetentionMissing
@@ -70,12 +71,13 @@ BloomeryError
 | `GuardrailError` | guardrails | The batched aggregate of guardrail violations, sorted by `(source_path, type name)` |
 | `UnitMismatch` | guardrails | `+`/`-` operands with differing declared `unit` (currency + count) |
 | `TaxBasisMismatch` | guardrails | `net` and `gross` — or an unknown basis beside a monetary operand — meeting in additive arithmetic |
-| `CurrencyMismatch` | guardrails | Two distinct declared currencies with no explicit `convert` step in the chain |
+| `CurrencyMismatch` | guardrails | Two distinct declared currencies meeting in one expression — unconditional, since `convert` is refused at emit |
 | `GrainMismatch` | guardrails | An expression combining columns of different grains without explicit aggregation |
 | `AdditivityViolation` | guardrails | An aggregation contradicting the metric's declared additivity |
 | `AssertLoweringError` | guardrails | An `assert:` clause ill-typed against the field's logical type |
 | `GrainViolation` | guardrails | A mart measure whose grain does not strictly equal the mart grain |
 | `FanoutRisk` | guardrails | A mart `via:` flatten step over a `one_to_many` relationship |
+| `HistoricalFanout` | guardrails | A mart that flattens — or is based on — an `scd: type2` entity, whose relation holds one row per version per key |
 | `NonAdditiveWithoutComponents` | guardrails | A non-additive metric with no ratio/additive decomposition to recompute from |
 | `MartMissingTimeDimension` | guardrails | A measure-carrying mart that declares no date role |
 | `QuarantineRetentionMissing` | guardrails | An entity with a `quarantine` disposition and no `quarantine:` block — reject rows hold raw payloads, so retention is required and never defaulted |

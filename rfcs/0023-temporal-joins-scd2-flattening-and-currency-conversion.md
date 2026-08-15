@@ -1,6 +1,8 @@
 # RFC 0023 — Temporal joins: SCD2 flattening and currency conversion
 
-- **Status:** 📝 Draft
+- **Status:** 🚧 In progress — **P1 landed** (both refusals, §5.1/§5.2); P2 unscheduled.
+  Per §9 the document stays rather than being retired: deleting the shipped half would
+  leave the refusals with no recorded reason. Execution departures are D12–D15.
 - **Scope:** Two constructs that compile clean today and cannot be correct at run time,
   because both need a join against a **validity interval** and bloomery models none.
   Flattening a `scd: type2` entity into a mart emits an equality join on the business key,
@@ -395,6 +397,10 @@ Phase 2 tests are not specified here; the design is not scheduled.
 | 9 | `ASSUMED` | A fact row whose anchor matches no version takes the existing `unknown_member` disposition (RFC 0016) rather than a new one. |
 | 10 | `OPEN` | Whether `convert` is refused (D4) or removed from the transform whitelist outright. Removal is cleaner and changes the exported JSON Schema's transform enum — a spec-surface change this RFC declines to make on a construct that may return. |
 | 11 | `LOCKED` | The FX rate relation declares **both** interval ends (`valid_from` and `valid_to`), never `valid_from` alone. One end is not an interval: a fact row would match every rate at or before its anchor and the conversion would fan out. Deriving the upper bound with `LEAD(valid_from)` is rejected — it makes every conversion a window function over the whole rate table, and it extends the newest rate to infinity, so a stale feed converts at last week's rate instead of failing. Consequence: a gap in the rate table is a *miss*, taking D9's `unknown_member` disposition, rather than silently resolving to a neighbour. |
+| 12 | `ASSUMED` | **Departure (spec-gap).** `HistoricalFanout` is raised in `marts/flatten.py`, not `guardrails/grain.py` as §5.1 places it. `FanoutRisk` is *declared* in `errors.py` and *raised* in the flattener; `grain.py`'s own docstring says the mart-level leaves "run where marts are lowered", so the RFC's placement named a file the sibling it cites is not in. Behaviour is unchanged — both leaves batch into the same guardrail aggregate. §5.1's prose is left as written. |
+| 13 | `ASSUMED` | **Departure (spec-gap).** `scd2_customers` does **not** gain a `marts.yaml` (§6). It is the only golden coverage of the SCD2 silver lowering — SQLMesh's `SCD_TYPE_2_BY_COLUMN` and dbt's check-strategy snapshot — across five tiers, and §8 leaves that fully supported; any mart in that fixture is necessarily based on its one type2 entity, so following §6 would have deleted the coverage this refusal is defined against. A new fixture `scd2_mart_refusal` carries both sides instead, in **one** document rather than one per refusal: the property §6 asks for is that a single line is the whole difference, and two fixtures would let an unrelated difference stand in for it. |
+| 14 | `ASSUMED` | **Departure (spec-gap).** The `convert` refusal is **unconditional**, not gated on a declared capability. D4 says a future dialect clears it "by declaring a `Feature` — the mechanism RFC 0008 already provides", but `SQLGlotDialect.features` defaults to `frozenset(DialectFeature)`: a flag for a capability *nothing* has would be claimed by default by all three shipped dialects and by every dialect added later, so declaring one now would encode the opposite of the fact. The escape hatch is added when a dialect can actually clear it; until then the refusal states what is true — no lowering exists anywhere. |
+| 15 | `ASSUMED` | **Departure (discovery).** The `convert` refusal's `source_path` is `entity_model: entities.<entity>.fields.<column>`, not the mapping path §5.2's illustrative message shows. By emit the transform chain no longer exists: the marker sits in a lowered `ColumnIR.expr`, and the mapping's step index is not recoverable from it. Refusing earlier, where the path *is* known, would contradict D4's `LOCKED` "at **emit**". |
 
 ## 12. Phasing
 

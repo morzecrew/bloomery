@@ -51,6 +51,34 @@ declare at least one date role (`MartMissingTimeDimension`). Fan-out is refused 
 it would be *built*, not detected where it would be *summed* — the
 [guardrails](guardrails.md) page shows the exact messages.
 
+## Historical dimensions are not flattenable
+
+An entity declared `scd: type2` keeps its history: the silver relation holds one row per
+version per key. A mart cannot use one — neither as a `flatten:` target nor as its
+`base:` — and the refusal is `HistoricalFanout`.
+
+The emitted join is an equality on the relationship's columns and nothing else, so it
+matches *every version* of each key and multiplies the base grain by the version count.
+Nothing downstream notices, which is what makes it worth refusing rather than warning
+about: the declared `cardinality: many_to_one` is a claim about the domain and it stays
+perfectly true, so `FanoutRisk` sees nothing wrong, the row counts look plausible, and
+the number is silently multiplied. The `base:` side has no join and fails the same way
+for a different reason — the mart declares one row per entity while the relation holds
+one per entity per version, so a `count` returns revisions.
+
+Fixing it requires a join predicate against the validity interval, and bloomery has no
+way to express one: the anchor date — *as of when* — is intent, not something to be
+inferred, and the interval column names are currently invented privately by each target.
+Until that exists, the shipped answer is a `type1` current-view entity built from the
+historical one, which is what the refusal message recommends. Filtering to the current
+version automatically was considered and rejected: it silently converts a historical
+dimension into a current-view one, so a mart whose whole purpose is point-in-time
+attribution returns today's segment for a two-year-old order, with no diagnostic —
+the row counts would look right.
+
+`scd: type2` itself is untouched. It remains fully supported as a silver target on both
+SQLMesh and dbt; only the mart-level combination is refused.
+
 ## Role-playing dimensions
 
 An order has an order date and a ship date — the same date dimension playing two roles.
