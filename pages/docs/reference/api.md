@@ -59,7 +59,8 @@ and the deterministic topological order.
 Compile specs into the frozen intermediate representation without emitting — the
 input to `project_fingerprint`, `plan`, and `MetricFlowPlanner.plan`. Runs the same
 resolution, typecheck, and guardrail stages as `compile_project`, so a spec that
-builds an IR is a spec that compiles.
+builds an IR is a spec that compiles — and takes `steps` for the same reason and on
+the same terms.
 
 ### `project_fingerprint(ir: ProjectIR) -> str`
 
