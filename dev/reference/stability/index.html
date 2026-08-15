@@ -1377,13 +1377,30 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#before-01" class="md-nav__link">
+  <a href="#what-binds-at-01-and-what-waits-for-10" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Before 0.1
+        What binds at 0.1, and what waits for 1.0
       </span>
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="What binds at 0.1, and what waits for 1.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-installed-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The installed version
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1505,13 +1522,30 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#before-01" class="md-nav__link">
+  <a href="#what-binds-at-01-and-what-waits-for-10" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Before 0.1
+        What binds at 0.1, and what waits for 1.0
       </span>
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="What binds at 0.1, and what waits for 1.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-installed-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The installed version
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1599,7 +1633,7 @@ promise, and the third is the one that gets misread.</p>
 <tbody>
 <tr>
 <td><strong>Python API</strong> — <code>bloomery.__all__</code> and each subpackage's <code>__all__</code></td>
-<td>SemVer. A breaking change requires a major version.</td>
+<td>SemVer. A breaking change is never silent, and below 1.0 it requires a minor — see <a href="#what-binds-at-01-and-what-waits-for-10">what binds at 0.1</a>.</td>
 </tr>
 <tr>
 <td><strong>Spec YAML</strong></td>
@@ -1613,7 +1647,9 @@ promise, and the third is the one that gets misread.</p>
 </table>
 <h2 id="the-python-api">The Python API<a class="headerlink" href="#the-python-api" title="Permanent link">&para;</a></h2>
 <p><code>bloomery.__all__</code> is the contract. What is in it follows SemVer: a name will not be
-removed, and a signature will not narrow, without a major version.</p>
+removed, and a signature will not narrow, without a version bump that says so — a minor
+while bloomery is below 1.0, a major from 1.0 onward. Either way it is in the changelog
+with the migration; the section at the foot of this page is the exact split.</p>
 <p>The list is <strong>closed over its own signatures</strong>. If a type appears in the signature of
 anything exported — as a parameter, a return, a generic argument, a field of a returned
 dataclass, a constructor argument, or a property — that type is exported too. So you can
@@ -1728,11 +1764,57 @@ approximates a feature produces plausible wrong rows instead of an error. A new 
 inherits its own cost questions — whether its regex engine backtracks decides whether a
 <code>pattern</code> rule is a denial-of-service surface there, and that belongs in the port's own
 assessment rather than being assumed from the three that ship.</p>
-<h2 id="before-01">Before 0.1<a class="headerlink" href="#before-01" title="Permanent link">&para;</a></h2>
-<p>bloomery is pre-0.1 and <strong>the API is not stable yet</strong>. Anything described here may change
-before the first release. The promises above describe how bloomery will behave from 0.1
-onward, and are written down now because the surface is cheapest to get right while
-nothing depends on it.</p>
+<h2 id="what-binds-at-01-and-what-waits-for-10">What binds at 0.1, and what waits for 1.0<a class="headerlink" href="#what-binds-at-01-and-what-waits-for-10" title="Permanent link">&para;</a></h2>
+<p>The promises above are in force from <strong>0.1.0</strong>. They are not all in force to the same
+degree, and the difference is what SemVer itself says about versions below 1.0.</p>
+<table>
+<thead>
+<tr>
+<th>Promise</th>
+<th>At 0.1</th>
+<th>At 1.0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Spec YAML</strong> — a document that loads keeps loading; a breaking grammar change mints a new <code>&lt;kind&gt;_version</code></td>
+<td><strong>Fully binding</strong></td>
+<td>Unchanged</td>
+</tr>
+<tr>
+<td><strong>Python API</strong> — nothing in an <code>__all__</code> moves without a version bump and a changelog entry naming the migration</td>
+<td><strong>Binding: never silent</strong></td>
+<td><strong>Binding: never breaking outside a major</strong></td>
+</tr>
+<tr>
+<td><strong>Emitted artifacts</strong> — not stable across versions</td>
+<td>Binding as stated (it is a <em>non</em>-promise, and it does not soften)</td>
+<td>Unchanged</td>
+</tr>
+</tbody>
+</table>
+<p>The middle row is the whole split, so it is worth stating without the table:</p>
+<ul>
+<li><strong>Below 1.0, a breaking change to the Python API may ship in a minor release</strong> — 0.1 to
+  0.2 — which is exactly what SemVer reserves the <code>0.</code> series for. What binds now is that
+  it may never be <em>quiet</em>: every breaking change appears in <code>CHANGELOG.md</code> with the name
+  that moved and what to write instead, and a minor bump is the floor for one. A patch
+  release never breaks anything.</li>
+<li><strong>From 1.0, breaking requires a major version.</strong> That is the promise spec YAML already
+  makes in the row above, extended to the Python surface once the surface has been used
+  enough to be worth freezing.</li>
+</ul>
+<p>Pinning follows from that: pin the minor (<code>bloomery&gt;=0.1,&lt;0.2</code>) if you want the API to
+hold still, and read the changelog on every minor bump.</p>
+<p><strong>The spec YAML promise does not wait</strong>, and it is deliberately the strong one. A spec is
+authored by people and lives in a repository far longer than the library version that
+compiled it, so <code>spec_version: 1</code> documents keep loading — a breaking grammar change gets
+a new version number rather than a new bloomery release. Those two clocks are independent
+by design.</p>
+<h3 id="the-installed-version">The installed version<a class="headerlink" href="#the-installed-version" title="Permanent link">&para;</a></h3>
+<p><code>bloomery.__version__</code> and <code>bloomery --version</code> report the release you have. Both come
+from the build rather than from a constant in the source, so they cannot disagree with
+the wheel. Quote one of them in a bug report.</p>
 
 
 

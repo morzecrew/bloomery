@@ -1342,10 +1342,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#compile_projectproject-target-dialect-namingnone-catalognone-tupleemittedartifact" class="md-nav__link">
+  <a href="#compile_projectproject-target-dialect-namingnone-catalognone-stepsempty_registry-tupleemittedartifact" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        <code>compile_project(project, *, target, dialect, naming=None, catalog=None) -&gt; tuple[EmittedArtifact, ...]</code>
+        <code>compile_project(project, *, target, dialect, naming=None, catalog=None, steps=EMPTY_REGISTRY) -&gt; tuple[EmittedArtifact, ...]</code>
       </span>
     </span>
   </a>
@@ -1392,10 +1392,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#build_project_irproject-project-catalog-catalog-none-none-projectir" class="md-nav__link">
+  <a href="#build_project_irproject-catalognone-stepsempty_registry-projectir" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        <code>build_project_ir(project: Project, catalog: Catalog | None = None) -&gt; ProjectIR</code>
+        <code>build_project_ir(project, catalog=None, *, steps=EMPTY_REGISTRY) -&gt; ProjectIR</code>
       </span>
     </span>
   </a>
@@ -2034,10 +2034,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#compile_projectproject-target-dialect-namingnone-catalognone-tupleemittedartifact" class="md-nav__link">
+  <a href="#compile_projectproject-target-dialect-namingnone-catalognone-stepsempty_registry-tupleemittedartifact" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        <code>compile_project(project, *, target, dialect, naming=None, catalog=None) -&gt; tuple[EmittedArtifact, ...]</code>
+        <code>compile_project(project, *, target, dialect, naming=None, catalog=None, steps=EMPTY_REGISTRY) -&gt; tuple[EmittedArtifact, ...]</code>
       </span>
     </span>
   </a>
@@ -2084,10 +2084,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#build_project_irproject-project-catalog-catalog-none-none-projectir" class="md-nav__link">
+  <a href="#build_project_irproject-catalognone-stepsempty_registry-projectir" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        <code>build_project_ir(project: Project, catalog: Catalog | None = None) -&gt; ProjectIR</code>
+        <code>build_project_ir(project, catalog=None, *, steps=EMPTY_REGISTRY) -&gt; ProjectIR</code>
       </span>
     </span>
   </a>
@@ -2680,13 +2680,18 @@ source-path prefixes in errors), values are YAML text. Each document self-identi
 via its version key; documents are processed in sorted-name order, and all failures
 across all documents are batched into a single <code>SpecParseError</code>.</p>
 <h2 id="compiling">Compiling<a class="headerlink" href="#compiling" title="Permanent link">&para;</a></h2>
-<h3 id="compile_projectproject-target-dialect-namingnone-catalognone-tupleemittedartifact"><code>compile_project(project, *, target, dialect, naming=None, catalog=None) -&gt; tuple[EmittedArtifact, ...]</code><a class="headerlink" href="#compile_projectproject-target-dialect-namingnone-catalognone-tupleemittedartifact" title="Permanent link">&para;</a></h3>
+<h3 id="compile_projectproject-target-dialect-namingnone-catalognone-stepsempty_registry-tupleemittedartifact"><code>compile_project(project, *, target, dialect, naming=None, catalog=None, steps=EMPTY_REGISTRY) -&gt; tuple[EmittedArtifact, ...]</code><a class="headerlink" href="#compile_projectproject-target-dialect-namingnone-catalognone-stepsempty_registry-tupleemittedartifact" title="Permanent link">&para;</a></h3>
 <p>Compile a parsed project into target artifacts — the whole pipeline (resolve,
 typecheck, guardrails, lower, emit) as one pure function. <code>target</code> is a <code>Target</code> or
 the string name of a registered extension emitter; <code>dialect</code> is <code>"duckdb"</code>,
 <code>"trino"</code>, or <code>"postgres"</code>; <code>naming</code> defaults to layer-based naming
 (<code>silver.&lt;entity&gt;</code>, <code>gold.mart_&lt;name&gt;</code>). Same specs in, byte-identical artifacts out.
 Each <code>EmittedArtifact</code> carries <code>path</code>, <code>content</code>, <code>kind</code>, and <code>checksum</code>.</p>
+<p><code>steps</code> is a <code>StepRegistry</code> — the manifests behind whatever the project's
+<code>steps_version</code> document wires. It is a <em>caller-assembled</em> argument rather than a spec
+document because bloomery reads no step files: a project that wires a step and compiles
+without its registry is refused, not silently compiled without it. A project wiring no
+steps needs nothing here.</p>
 <h3 id="target"><code>Target</code><a class="headerlink" href="#target" title="Permanent link">&para;</a></h3>
 <p>The shipped emit targets: <code>Target.SQLMESH</code>, <code>Target.CUBE</code>, <code>Target.DBT</code>. A string
 enum, so <code>target="sqlmesh"</code> also works.</p>
@@ -2696,11 +2701,12 @@ enum, so <code>target="sqlmesh"</code> also works.</p>
 anything. The <code>Resolution</code> carries <code>reachable_metrics</code>, <code>unreachable_metrics</code> (each
 with its specific missing leaves), per-field <code>provenance</code> (direct / recipe / native),
 and the deterministic topological order.</p>
-<h3 id="build_project_irproject-project-catalog-catalog-none-none-projectir"><code>build_project_ir(project: Project, catalog: Catalog | None = None) -&gt; ProjectIR</code><a class="headerlink" href="#build_project_irproject-project-catalog-catalog-none-none-projectir" title="Permanent link">&para;</a></h3>
+<h3 id="build_project_irproject-catalognone-stepsempty_registry-projectir"><code>build_project_ir(project, catalog=None, *, steps=EMPTY_REGISTRY) -&gt; ProjectIR</code><a class="headerlink" href="#build_project_irproject-catalognone-stepsempty_registry-projectir" title="Permanent link">&para;</a></h3>
 <p>Compile specs into the frozen intermediate representation without emitting — the
 input to <code>project_fingerprint</code>, <code>plan</code>, and <code>MetricFlowPlanner.plan</code>. Runs the same
 resolution, typecheck, and guardrail stages as <code>compile_project</code>, so a spec that
-builds an IR is a spec that compiles.</p>
+builds an IR is a spec that compiles — and takes <code>steps</code> for the same reason and on
+the same terms.</p>
 <h3 id="project_fingerprintir-projectir-str"><code>project_fingerprint(ir: ProjectIR) -&gt; str</code><a class="headerlink" href="#project_fingerprintir-projectir-str" title="Permanent link">&para;</a></h3>
 <p>The <code>blm1:</code>-prefixed SHA-256 content hash of a project IR — the value stamped into
 every emitted artifact's header. Stable within a bloomery version, deliberately not

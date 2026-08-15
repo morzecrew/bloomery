@@ -1702,6 +1702,9 @@ bloomery fingerprint &lt;dir&gt; [--catalog F]
 </code></pre></div>
 <p>Every command reads files, calls the public API, and writes stdout or a directory.
 Nothing is executed, nothing is cached, and there is no state anywhere.</p>
+<p>One flag needs no command: <code>bloomery --version</code> prints the installed release and exits
+<code>0</code>. It is a flag rather than a seventh command because the moment you most need it is
+when something is wrong enough that you do not trust the rest of the surface.</p>
 <h2 id="the-spec-directory">The spec directory<a class="headerlink" href="#the-spec-directory" title="Permanent link">&para;</a></h2>
 <p><code>&lt;dir&gt;</code> is a directory of <code>.yaml</code> / <code>.yml</code> documents. Each is keyed by its filename stem,
 which is the prefix you will see in every error message — so a refusal reads

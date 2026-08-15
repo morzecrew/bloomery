@@ -521,15 +521,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-five-spec-kinds" class="md-nav__link">
+  <a href="#the-spec-kinds" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The five spec kinds
+        The spec kinds
       </span>
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="The five spec kinds">
+    <nav class="md-nav" aria-label="The spec kinds">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1512,15 +1512,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-five-spec-kinds" class="md-nav__link">
+  <a href="#the-spec-kinds" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The five spec kinds
+        The spec kinds
       </span>
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="The five spec kinds">
+    <nav class="md-nav" aria-label="The spec kinds">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1678,7 +1678,7 @@
 
 <h1 id="introduction">Introduction<a class="headerlink" href="#introduction" title="Permanent link">&para;</a></h1>
 <p>This page is for a data platform engineer deciding whether bloomery fits their stack.
-It explains the problem the library exists to remove, the five spec kinds it compiles,
+It explains the problem the library exists to remove, the spec kinds it compiles,
 the invariants it holds itself to, and — just as important — what it deliberately does
 not do.</p>
 <h2 id="the-problem">The problem<a class="headerlink" href="#the-problem" title="Permanent link">&para;</a></h2>
@@ -1703,9 +1703,14 @@ semantic manifest; the planner turns a <code>MetricRequest</code> into SQL over 
 request time, using an embedded, render-only MetricFlow behind a stable bloomery-owned
 contract; <code>plan()</code> diffs two spec versions and classifies every change. Nothing is
 executed, read, or written by the library itself.</p>
-<h2 id="the-five-spec-kinds">The five spec kinds<a class="headerlink" href="#the-five-spec-kinds" title="Permanent link">&para;</a></h2>
-<p>Four spec kinds plus one describe a project end to end. Each is strict YAML — unknown
-keys are rejected loudly.</p>
+<h2 id="the-spec-kinds">The spec kinds<a class="headerlink" href="#the-spec-kinds" title="Permanent link">&para;</a></h2>
+<p>Six document kinds describe a deployment end to end. Each is strict YAML — unknown keys
+are rejected loudly — and each self-identifies by its version key, so bloomery never has
+to guess what it is reading.</p>
+<p>The four below the Catalog are the tenant's project; the <strong>Catalog</strong> sits outside it,
+loaded separately and shared across tenants. The sixth kind, <strong>StepSet</strong>
+(<code>steps_version</code>), is optional: it wires platform-owned code into the pipeline where a
+declaration cannot reach — see <a href="../../concepts/step-registry/">Steps</a>.</p>
 <h3 id="catalog">Catalog<a class="headerlink" href="#catalog" title="Permanent link">&para;</a></h3>
 <p>Domain knowledge, one per vertical, written by the platform operator — never by tenants.
 It holds canonical fields with units and tax bases, derivation recipes ordered by

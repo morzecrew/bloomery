@@ -537,10 +537,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#install-from-source" class="md-nav__link">
+  <a href="#install" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Install from source
+        Install
       </span>
     </span>
   </a>
@@ -1440,10 +1440,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#install-from-source" class="md-nav__link">
+  <a href="#install" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Install from source
+        Install
       </span>
     </span>
   </a>
@@ -1563,17 +1563,21 @@ does not need.</p>
 <li>Nothing else: no database, no orchestrator, no cloud credentials. bloomery is a pure
   library — it emits artifacts and plans; executing them is another tool's job.</li>
 </ul>
-<h2 id="install-from-source">Install from source<a class="headerlink" href="#install-from-source" title="Permanent link">&para;</a></h2>
-<p>bloomery is pre-0.1 and <strong>not yet published to PyPI</strong> — install it from the Git
-repository.</p>
+<h2 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h2>
 <p>With <a href="https://docs.astral.sh/uv/">uv</a>:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span>git+https://github.com/morzecrew/bloomery
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span>bloomery
 </code></pre></div>
 <p>With pip:</p>
-<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/morzecrew/bloomery
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>bloomery
 </code></pre></div>
-<p>To pin a specific commit, append <code>@&lt;sha&gt;</code> to the URL. The API is not stable before 0.1,
-so pinning is the sensible default.</p>
+<p><strong>Pin the minor.</strong> Below 1.0 a breaking API change may ship in a minor release — never
+silently, always with a changelog entry naming the migration, but it may ship. So
+<code>bloomery&gt;=0.1,&lt;0.2</code> is the constraint that holds the API still; see
+<a href="../../reference/stability/">Stability</a> for exactly what each surface promises.</p>
+<p>To track unreleased work instead, install from the repository — append <code>@&lt;sha&gt;</code> to pin a
+commit:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span>git+https://github.com/morzecrew/bloomery
+</code></pre></div>
 <h2 id="for-contributors">For contributors<a class="headerlink" href="#for-contributors" title="Permanent link">&para;</a></h2>
 <p>Clone the repository and let uv build the environment from the lockfile:</p>
 <div class="highlight"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/morzecrew/bloomery
@@ -1590,11 +1594,12 @@ MetricFlow that powers the request-time planner — embedded and render-only, ne
 connected to a database. The emitted artifacts are consumed by SQLMesh, dbt, or Cube;
 none of those need to be installed alongside bloomery, only wherever the artifacts run.</p>
 <h2 id="verify">Verify<a class="headerlink" href="#verify" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import bloomery; print(sorted(bloomery.__all__))&quot;</span>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>--version
+python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import bloomery; print(sorted(bloomery.__all__))&quot;</span>
 </code></pre></div>
-<p>You should see the public API surface, <code>load_project</code> through <code>compile_project</code> to
-<code>MetricFlowPlanner</code>. Continue to the <a href="../quickstart/">Quickstart</a> to compile your first
-project.</p>
+<p>The first prints the release you installed — quote it in a bug report. The second prints
+the public API surface, <code>load_project</code> through <code>compile_project</code> to <code>MetricFlowPlanner</code>.
+Continue to the <a href="../quickstart/">Quickstart</a> to compile your first project.</p>
 
 
 

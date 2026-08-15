@@ -1719,7 +1719,7 @@ each either succeeds completely or raises a <code>BloomeryError</code> subclass 
 path into the offending spec node.</p>
 <h2 id="the-six-stages">The six stages<a class="headerlink" href="#the-six-stages" title="Permanent link">&para;</a></h2>
 <h3 id="1-parse">1. Parse<a class="headerlink" href="#1-parse" title="Permanent link">&para;</a></h3>
-<p>YAML text becomes strict, frozen Pydantic models — the five spec kinds plus the
+<p>YAML text becomes strict, frozen Pydantic models — the six spec kinds plus the
 <code>Project</code> container. Parse validates <em>shape</em>, not references: unknown keys, missing
 required fields, bad type grammar, and duplicate YAML keys are all refused, because a
 typo'd key that is silently ignored is the worst failure mode in a config-driven

@@ -1348,11 +1348,12 @@ library: declarative specs go in, byte-reproducible SQL artifacts and query plan
 out. It is deterministic, fail-closed, and tenant-agnostic — the same specs compile to
 the same bytes forever, anything plausible-but-wrong is refused with a named error, and
 the compiler never knows what a tenant is.</p>
-<p>It does three things:</p>
+<p>It does four things:</p>
 <ul>
-<li><strong>Compiles specs into artifacts</strong> — Catalog, EntityModel, Mapping, MetricSet, and
-  Marts specs become SQLMesh, dbt, and Cube models, audits, and MetricFlow semantic
-  manifests.</li>
+<li><strong>Compiles specs into artifacts</strong> — Catalog, EntityModel, Mapping, MetricSet, Marts
+  and StepSet documents become SQLMesh, dbt, and Cube models, audits, and MetricFlow
+  semantic manifests, with <a href="concepts/data-quality/">declarative data quality</a> —
+  cleansing, dedupe, quarantine and replay — lowered into the same pipeline.</li>
 <li><strong>Plans metric queries</strong> — a <code>MetricRequest</code> becomes SQL over a wide, pre-joined
   mart, with no query-time joins and no execution. Behind the stable request/plan
   contract sits an embedded, render-only MetricFlow — pinned, driven entirely
@@ -1360,7 +1361,13 @@ the compiler never knows what a tenant is.</p>
 <li><strong>Diffs spec versions</strong> — two compiled versions produce a plan in which every change
   is classified (additive, widening, rename, restating, breaking), with backfill scope
   and downstream impact computed from the dependency graph.</li>
+<li><strong>Assesses a spec</strong> — <code>evaluate()</code> returns everything knowable without touching data:
+  what is reachable, what is not and which leaf is missing, and every refusal with its
+  source path. Refusals come back as a <em>value</em>, so a draft mid-edit still reports what
+  it would give you.</li>
 </ul>
+<p>All four are reachable from a shell as well as from Python — see
+<a href="how-to/use-the-cli/">Use the CLI</a>.</p>
 <p>New here? Start with the <a href="get-started/introduction/">Introduction</a> to see the problem
 bloomery solves and how the spec kinds fit together, then read the
 <a href="concepts/specs-and-catalog/">Concepts</a> pages for the domain model, the

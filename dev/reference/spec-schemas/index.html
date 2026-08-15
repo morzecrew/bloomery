@@ -1537,6 +1537,34 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#stepset-steps_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        StepSet (<code>steps_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="StepSet (steps_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stepwiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        StepWiring
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2083,6 +2111,34 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#stepset-steps_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        StepSet (<code>steps_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="StepSet (steps_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stepwiring" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        StepWiring
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2155,15 +2211,19 @@
 
 
 <h1 id="spec-schemas">Spec schemas<a class="headerlink" href="#spec-schemas" title="Permanent link">&para;</a></h1>
-<p>Field-by-field reference for the five spec kinds. Parsing is strict: unknown keys,
+<p>Field-by-field reference for the six spec kinds. Parsing is strict: unknown keys,
 duplicate YAML keys, and grammar violations are hard <code>SpecParseError</code>s, batched per
 document with a source path per failure. Parse validates shape and grammar only —
 whether references exist is checked at resolution.</p>
 <p>Each project document self-identifies by its version key: <code>spec_version</code> (EntityModel),
-<code>mapping_version</code> (Mapping), <code>metrics_version</code> (MetricSet), <code>marts_version</code> (MartSet).
-A project holds exactly one EntityModel, any number of Mappings, and at most one
-MetricSet and one MartSet. The Catalog (<code>catalog_version</code>) is not part of a project —
-load it with <code>load_catalog</code> and pass it separately.</p>
+<code>mapping_version</code> (Mapping), <code>metrics_version</code> (MetricSet), <code>marts_version</code> (MartSet),
+<code>steps_version</code> (StepSet). A project holds exactly one EntityModel, any number of
+Mappings, and at most one MetricSet, MartSet and StepSet. The Catalog
+(<code>catalog_version</code>) is not part of a project — load it with <code>load_catalog</code> and pass it
+separately.</p>
+<p>A version key is required, and it is also how bloomery tells one kind of document from
+another. Each is pinned to <code>1</code>: a document declaring a version bloomery does not
+implement is <strong>refused</strong>, never read as one it does.</p>
 <h2 id="shared-grammars">Shared grammars<a class="headerlink" href="#shared-grammars" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -3432,6 +3492,121 @@ above is what carries the portability claim.</p>
 </tr>
 </tbody>
 </table>
+<h2 id="stepset-steps_version">StepSet (<code>steps_version</code>)<a class="headerlink" href="#stepset-steps_version" title="Permanent link">&para;</a></h2>
+<p>At most one per project, and optional — most projects wire no steps. A step is a
+<em>referenced implementation</em>: the document names platform-owned code by <code>ref@version</code> and
+binds it into the pipeline. It cannot carry a body and cannot name a file to load, which
+is what keeps an authored spec from becoming an arbitrary-code-execution surface — the
+property comes from the absence of a field, not from validating one.</p>
+<p>The manifest describing what a step <em>is</em> — its tier, its declared inputs, outputs and
+parameter bounds — is not a spec document. It reaches the compiler as a <code>StepRegistry</code>
+passed to <code>compile_project(..., steps=…)</code>, so bloomery reads no step files at all. See
+<a href="../../concepts/step-registry/">Steps: referenced implementations</a> for the manifest side
+and the three tiers.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>steps_version</code></td>
+<td><code>1</code></td>
+<td>yes</td>
+<td>Document version key</td>
+</tr>
+<tr>
+<td><code>steps</code></td>
+<td>list of StepWiring</td>
+<td>no (<code>[]</code>)</td>
+<td>One wiring per step</td>
+</tr>
+</tbody>
+</table>
+<h3 id="stepwiring">StepWiring<a class="headerlink" href="#stepwiring" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>use</code></td>
+<td><code>ref@version</code></td>
+<td>yes</td>
+<td><code>^[a-z][a-z0-9_]*@[1-9][0-9]*$</code>. One wiring per <code>ref</code> — a version bump is that step changing, not a second step</td>
+</tr>
+<tr>
+<td><code>outputs</code></td>
+<td>map name → relation</td>
+<td>yes, ≥ 1</td>
+<td>Binds each declared output to a relation it writes</td>
+</tr>
+<tr>
+<td><code>inputs</code></td>
+<td>map name → relation</td>
+<td>no (<code>{}</code>)</td>
+<td>Binds each declared input to a relation it reads</td>
+</tr>
+<tr>
+<td><code>parameters</code></td>
+<td>map name → string / int / bool / decimal</td>
+<td>no (<code>{}</code>)</td>
+<td>Tunables the manifest declares, within the bounds it declares</td>
+</tr>
+<tr>
+<td><code>seed</code></td>
+<td>int</td>
+<td>no</td>
+<td>Required for a <code>seeded</code> step, refused for the other two tiers</td>
+</tr>
+<tr>
+<td><code>quality</code></td>
+<td>list of expression rules</td>
+<td>no (<code>[]</code>)</td>
+<td><code>expression</code> rules only; see <a href="#entity-quality-rules">Entity quality rules</a> for the shape</td>
+</tr>
+<tr>
+<td><code>applies_to</code></td>
+<td>map rule name → output</td>
+<td>no (<code>{}</code>)</td>
+<td>Which output each rule applies to. Required for every declared rule — a step has several outputs, so "on this step" cannot be lowered</td>
+</tr>
+<tr>
+<td><code>canonical</code></td>
+<td canonical="canonical" column:="column:" field="field">map output →</td>
+<td>no (<code>{}</code>)</td>
+<td>Which canonical field a produced column <em>is</em>. Never inferred from a matching name; without it, metrics over a step output are unreachable</td>
+</tr>
+</tbody>
+</table>
+<p>A bound relation is an optionally-namespaced identifier and nothing else
+(<code>^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$</code>) — these strings reach generated
+source, so the grammar is the second of two locks.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">steps_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="nt">steps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">use</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">resolve_customers@2</span>
+<span class="w">    </span><span class="nt">inputs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">shopify</span><span class="p">:</span><span class="w"> </span><span class="nv">bronze.shopify_customers</span><span class="p p-Indicator">,</span><span class="nt"> stripe</span><span class="p">:</span><span class="w"> </span><span class="nv">bronze.stripe_customers</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">outputs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">customer</span><span class="p">:</span><span class="w"> </span><span class="nv">silver.customer</span><span class="p p-Indicator">,</span><span class="nt"> links</span><span class="p">:</span><span class="w"> </span><span class="nv">silver.customer_link</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">threshold</span><span class="p">:</span><span class="w"> </span><span class="nv">0.92</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">canonical</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">customer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">customer_id</span><span class="p">:</span><span class="w"> </span><span class="nv">customer_id</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">quality</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">confidence_is_sane</span><span class="p p-Indicator">,</span><span class="nt"> rule</span><span class="p">:</span><span class="w"> </span><span class="nv">expression</span><span class="p p-Indicator">,</span><span class="nt"> expr</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;confidence</span><span class="nv"> </span><span class="s">BETWEEN</span><span class="nv"> </span><span class="s">0</span><span class="nv"> </span><span class="s">AND</span><span class="nv"> </span><span class="s">1&quot;</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">fail</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">applies_to</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">confidence_is_sane</span><span class="p">:</span><span class="w"> </span><span class="nv">links</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p><strong>Shape versus resolution.</strong> Parse checks that <code>canonical</code> and <code>applies_to</code> name outputs
+this wiring binds and that every declared rule says which output it applies to. Whether
+the manifest actually declares that output, that column or that parameter is a resolution
+question — the spec layer has never seen a manifest.</p>
 
 
 
