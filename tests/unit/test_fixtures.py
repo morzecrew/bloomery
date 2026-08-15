@@ -136,6 +136,30 @@ def test_scd2_customers_loads_clean() -> None:
     assert segment.assert_.enum == ("business", "consumer")
 
 
+def test_scd2_mart_refusal_loads_clean() -> None:
+    # Parses clean; the refusal is the guardrail stage's (RFC 0023 D1/D2).
+    # Deliberately a second fixture rather than a marts.yaml on
+    # `scd2_customers`: that one is the only golden coverage of the SCD2
+    # silver lowering, which §8 leaves fully supported.
+    project = load_fixture_project("scd2_mart_refusal")
+    assert project.entity_model.entities["customer"].scd == "type2"
+    assert project.marts is not None
+    marts = project.marts.marts
+    assert marts["customers"].base == "customer"  # the base-side case
+    assert [step.via for step in marts["orders"].flatten if hasattr(step, "via")] == [
+        "order_of_customer"  # the flatten-side case
+    ]
+
+
+def test_currency_convert_refusal_loads_clean() -> None:
+    # Parses *and* typechecks clean — convert is decimal → decimal (RFC 0023
+    # D4). The refusal is at emit, which is what makes it a fixture about a
+    # stage rather than about a grammar.
+    project = load_fixture_project("currency_convert_refusal")
+    amount_usd = project.mappings[0].fields["amount_usd"]
+    assert [step.name for step in amount_usd.transform] == ["to_decimal", "convert"]
+
+
 def test_path_conflict_loads_clean() -> None:
     project = load_fixture_project("path_conflict")
     net_price = project.mappings[0].fields["net_price"]

@@ -48,11 +48,18 @@ exactly where money math happens.
 
 ## Currency
 
-Two operands with *distinct declared* ISO-4217 codes require an explicit `convert`
-transform in the chain; otherwise `CurrencyMismatch`. Unlike tax basis, an absent code
-is compatible with anything — single-currency tenants are the common case, and forcing
-declaration everywhere would train authors to paste a constant, destroying the signal.
-Declared-versus-declared is the bug worth refusing.
+Two operands with *distinct declared* ISO-4217 codes may not meet: `CurrencyMismatch`,
+with no escape. Unlike tax basis, an absent code is compatible with anything —
+single-currency tenants are the common case, and forcing declaration everywhere would
+train authors to paste a constant, destroying the signal. Declared-versus-declared is
+the bug worth refusing.
+
+The `convert` transform used to satisfy this rule, and no longer does. It has no
+lowering on any dialect — a conversion is a join against a dated rate table, and
+bloomery models no rate relation — so its marker bought a compile-time "yes" whose only
+outcome was a run-time failure. Both were removed together: `convert` is now
+[refused at emit](../reference/transforms.md#currency), and the currency rule is
+unconditional. Bring the operands into one currency upstream, or split the derivation.
 
 ## Grain: the fan-out guard
 

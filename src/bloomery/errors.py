@@ -59,6 +59,7 @@ __all__ = [
     "GrainViolation",
     "guaranteed",
     "FanoutRisk",
+    "HistoricalFanout",
     "NonAdditiveWithoutComponents",
     "MartMissingTimeDimension",
     "QuarantineRetentionMissing",
@@ -282,7 +283,13 @@ class TaxBasisMismatch(GuardrailError):
 
 class CurrencyMismatch(GuardrailError):
     """Guardrail stage (RFC 0006 §5.2): two operands with distinct declared
-    ISO-4217 currency codes and no explicit ``convert`` in the chain."""
+    ISO-4217 currency codes.
+
+    Unconditional. A ``convert`` step in the chain used to satisfy the rule and
+    no longer does (RFC 0023 D5): the transform has no lowering on any dialect,
+    so the marker bought a compile-time pass whose only outcome was a run-time
+    failure.
+    """
 
 
 class GrainMismatch(GuardrailError):
@@ -325,6 +332,18 @@ class GrainViolation(GuardrailError):
 class FanoutRisk(GuardrailError):
     """Guardrail stage, mart-level (RFC 0010 D3): a mart ``via:`` flatten step
     over a ``one_to_many`` relationship."""
+
+
+class HistoricalFanout(GuardrailError):
+    """Guardrail stage, mart-level (RFC 0023 D1/D2): a mart that flattens — or
+    is based on — an entity declared ``scd: type2``.
+
+    Distinct from :class:`FanoutRisk` on purpose. That one reports a *declared
+    cardinality* the author can go and correct; here the cardinality is
+    typically right and the relation is the thing that holds more rows than it
+    claims, one per version per key. Pointing one error at both would send the
+    reader to a ``cardinality:`` that is already correct.
+    """
 
 
 class NonAdditiveWithoutComponents(GuardrailError):

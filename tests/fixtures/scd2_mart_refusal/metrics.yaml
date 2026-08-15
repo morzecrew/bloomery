@@ -1,0 +1,12 @@
+metrics_version: 1
+metrics:
+  revenue:
+    grain: order
+    additivity: additive
+    agg: sum
+    expr: "amount"
+  customer_count:
+    grain: customer
+    additivity: additive
+    agg: count
+    expr: "customer_id"

@@ -17,7 +17,9 @@ Validation is total — this module never raises. Violations are collected as
 (mart grain must equal the base grain, and measure grain must strictly equal
 mart grain — RFC 0010 D2), :class:`FanoutRisk` (a ``via:`` step that is not
 a declared, transitively reachable ``many_to_one``/``one_to_one``
-relationship — RFC 0010 D3), :class:`MartMissingTimeDimension` (a
+relationship — RFC 0010 D3), :class:`HistoricalFanout` (a ``via:`` step onto,
+or a ``base:`` of, an ``scd: type2`` entity — RFC 0023 D1/D2),
+:class:`MartMissingTimeDimension` (a
 measure-carrying mart without a date role — RFC 0010 D9), and untyped
 :class:`GuardrailError` leaves for collisions and unresolvable names. The
 guardrail stage (RFC 0006 §5.1) batches them into its single aggregate; a
@@ -33,6 +35,7 @@ from bloomery.errors import (
     FanoutRisk,
     GrainViolation,
     GuardrailError,
+    HistoricalFanout,
     MartMissingTimeDimension,
     MeasureRef,
 )
@@ -47,6 +50,7 @@ from bloomery.ir import (
     MartIR,
     MartJoinIR,
     Materialization,
+    SCDKind,
     partition_specs,
 )
 from bloomery.spec.marts import ViaStep
@@ -62,7 +66,7 @@ from bloomery.typing import (
 )
 
 if TYPE_CHECKING:
-    from bloomery.ir import EntityIR, ProjectIR
+    from bloomery.ir import EntityIR, ProjectIR, RelationshipIR
     from bloomery.spec.marts import DateRoleStep, Mart, MartSet
 
 __all__ = [
@@ -131,6 +135,49 @@ def _grain_prose(entity_name: str, entities: dict[str, EntityIR]) -> str:
     return entity.grain if entity is not None else "undeclared in this project"
 
 
+#: What a `type2` entity's author is told to do instead, on both sides of the
+#: refusal. There is exactly one shipped answer (RFC 0023 §5.1) and it is the
+#: whole reason the refusal is a boundary rather than a gap, so the two
+#: messages say it in the same words.
+_HISTORICAL_FIX = (
+    "Fix: declare the entity scd: type1, or build a type1 current-view entity "
+    "from it and use that here"
+)
+
+
+def _historical_leaf(
+    rel: RelationshipIR, entities: dict[str, EntityIR], step_path: str
+) -> list[GuardrailError]:
+    """The ``HistoricalFanout`` for this step, or ``[]`` (RFC 0023 D1).
+
+    The join this step produces is an equality on the relationship's columns
+    and nothing else; a ``type2`` relation holds one row per version per key,
+    so it matches every version and multiplies the base grain. Nothing
+    downstream notices — the declared cardinality is about the domain, and it
+    is usually correct.
+
+    A list rather than an optional so the callers can splice it into whatever
+    they were already returning: this leaf never *replaces* a structural
+    refusal, it accompanies one.
+
+    An entity no mapping lowers yields ``[]``: it has no ``scd`` to read, and
+    its own leaf is the one worth reporting.
+    """
+    to_entity = entities.get(rel.to_entity)
+    if to_entity is None or to_entity.scd is not SCDKind.TYPE2:
+        return []
+    msg = (
+        f"flatten step joins entity {rel.to_entity!r} through relationship "
+        f"{rel.name!r} ({rel.cardinality}), and {rel.to_entity!r} is declared "
+        "scd: type2 — the emitted join carries no validity predicate, so it "
+        f"matches every version of each {rel.to_entity!r} key and each base row "
+        "is multiplied by that key's version count. The declared cardinality is a "
+        "claim about the domain; the relation holds one row per version "
+        f"(RFC 0023 D1). {_HISTORICAL_FIX}"
+    )
+    return [HistoricalFanout(msg, source_path=step_path)]
+
+
 def _flatten_via(
     step: ViaStep,
     index: int,
@@ -147,6 +194,14 @@ def _flatten_via(
         known = sorted(r.name for r in draft.relationships)
         msg = f"flatten step names no declared relationship {step.via!r}; known: {known}"
         return [FanoutRisk(msg, source_path=step_path)]
+    # Historical is checked *beside* the structural rules below rather than
+    # after them, because the two are independent: ``one_to_many`` is a
+    # property of the relationship and ``scd: type2`` a property of the
+    # entity, and a step can be wrong in both ways at once. Behind an early
+    # return it was the second reason that never got reported — and putting it
+    # first would only have suppressed the other one instead. The stage exists
+    # so an author fixes a spec in one round-trip, so both leaves go out.
+    historical = _historical_leaf(rel, entities, step_path)
     if rel.cardinality is Cardinality.ONE_TO_MANY:
         msg = (
             f"relationship {rel.name!r} is one_to_many: flattening it multiplies the "
@@ -154,7 +209,7 @@ def _flatten_via(
             "flatten only many_to_one/one_to_one relationships, or model a mart at "
             f"the grain of {rel.to_entity!r}"
         )
-        return [FanoutRisk(msg, source_path=step_path)]
+        return [*historical, FanoutRisk(msg, source_path=step_path)]
     if rel.from_entity not in state.prefixes:
         msg = (
             f"relationship {rel.name!r} joins from entity {rel.from_entity!r}, which is "
@@ -162,7 +217,7 @@ def _flatten_via(
             "transitively in authored order (RFC 0010 D3). Fix: flatten a relationship "
             f"reaching {rel.from_entity!r} first"
         )
-        return [FanoutRisk(msg, source_path=step_path)]
+        return [*historical, FanoutRisk(msg, source_path=step_path)]
     to_entity = entities.get(rel.to_entity)
     if to_entity is None:
         msg = (
@@ -170,6 +225,8 @@ def _flatten_via(
             "lowers — a mart cannot flatten an unbuilt entity"
         )
         return [GuardrailError(msg, source_path=step_path)]
+    if historical:
+        return historical
 
     from_prefix = state.prefixes[rel.from_entity]
     state.joins.append(
@@ -500,6 +557,19 @@ def _lower_mart(
         return None, [GuardrailError(msg, source_path=f"{path}.base")]
 
     violations: list[GuardrailError] = []
+    if base.scd is SCDKind.TYPE2:
+        # RFC 0023 D2. Nothing is multiplied here — there is no join — but the
+        # mart declares one row per entity while the relation holds one per
+        # entity per version, so every measure over it counts revisions rather
+        # than entities. That is the same grain lie ``GrainViolation`` refuses
+        # above, arriving through the physical relation instead of the header.
+        msg = (
+            f"mart base names entity {mart.base!r}, which is declared scd: type2 — the "
+            f"relation holds one row per {mart.base!r} version, while the mart's grain "
+            f"({mart.grain!r}) claims one row per {mart.base!r}. Every measure over it "
+            f"counts revisions (RFC 0023 D2). {_HISTORICAL_FIX}"
+        )
+        violations.append(HistoricalFanout(msg, source_path=f"{path}.base"))
     if mart.grain != mart.base:
         msg = (
             f"mart grain {mart.grain!r} does not equal its base entity {mart.base!r} "

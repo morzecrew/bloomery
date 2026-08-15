@@ -1,0 +1,15 @@
+# The currency-conversion refusal fixture (RFC 0023 D4). `amount_usd` is a
+# EUR amount put through the `convert` transform — which typechecks
+# decimal → decimal, passes every guardrail, and lowers to a CONVERT_CURRENCY
+# call no engine defines. The refusal is at emit, so this project resolves and
+# passes guardrails: the stage it fails at is part of what the fixture pins.
+spec_version: 1
+entities:
+  payment:
+    grain: one row per payment
+    key: [payment_id]
+    fields:
+      payment_id: {type: string, required: true}
+      amount_eur: {type: "decimal(12,4)"}
+      amount_usd: {type: "decimal(12,4)"}
+      paid_at: {type: date}

@@ -374,14 +374,32 @@ def abs_(col: Expression) -> Expression:
 
 
 # ....................... #
-# Currency-conversion marker (RFC 0004 D3; semantics land with RFC 0006)
+# Currency-conversion marker (RFC 0004 D3) — refused at emit (RFC 0023 D4)
+
+#: The call :func:`convert` builds, and the token the emit side refuses on
+#: (RFC 0023 D4). Shared rather than spelled twice: a marker whose producer
+#: and whose refusal disagree about its name is a refusal that never fires.
+CONVERT_MARKER = "CONVERT_CURRENCY"
 
 
 @transform(
     "convert", arity=1, arg_kinds=(ArgKind.STR,), input=(DecimalType,), output=lambda t, _args: t
 )
 def convert(col: Expression, currency: str) -> Expression:
-    """The explicit conversion marker the currency guardrail requires for
-    mixed-currency arithmetic (RFC 0006). Typechecks decimal → decimal; the
-    rate source and target-currency semantics are guardrail/emit concerns."""
-    return exp.Anonymous(this="CONVERT_CURRENCY", expressions=[col, exp.Literal.string(currency)])
+    """The conversion marker — **registered, typechecked, and refused at emit**
+    (RFC 0023 D4).
+
+    It stays in the whitelist with an unchanged decimal → decimal typecheck, so
+    the spec surface does not move and the exported JSON Schema's transform
+    enum is stable. What it cannot do is reach SQL: a currency conversion is a
+    join against a dated rate table, bloomery models no rate relation, and the
+    :data:`CONVERT_MARKER` call this builds exists in no engine. Emitting it
+    produced a project that compiled clean and failed on its first run — the
+    one place the architecture promises there will not be a failure.
+
+    The signature is also *incomplete*, which is why the refusal is not
+    provisional: a rate without a date is under-determined, so whatever
+    conversion eventually looks like, it names an anchor and this spelling does
+    not (RFC 0023 §5.4).
+    """
+    return exp.Anonymous(this=CONVERT_MARKER, expressions=[col, exp.Literal.string(currency)])

@@ -49,7 +49,7 @@ settled — not work in flight.
 
 | # | Title | Status | One-line routing description |
 |---|---|---|---|
-| [0023](0023-temporal-joins-scd2-flattening-and-currency-conversion.md) | Temporal joins: SCD2 flattening and currency conversion | 📝 Draft | Two constructs that compile clean and cannot be correct — flattening a historical dimension, and `convert` — both needing a join against a validity interval. Refuse now, design the as-of join later. |
+| [0023](0023-temporal-joins-scd2-flattening-and-currency-conversion.md) | Temporal joins: SCD2 flattening and currency conversion | 🚧 In progress | Two constructs that compile clean and cannot be correct — flattening a historical dimension, and `convert` — both needing a join against a validity interval. **P1 (both refusals) has landed**; the as-of join design is unscheduled. |
 | [0024](0024-deterministic-union-merge.md) | Deterministic union merge | 📝 Draft | Letting several mappings build one entity when they share a key space but no overlapping keys, so the entity model integrates sources instead of renaming one. Overlap stays a step. |
 | [0025](0025-v0-1-0-release-readiness.md) | v0.1.0 release readiness | 📝 Draft | What must hold before the stability promises stop describing an intention and start binding: the ratchets RFC 0001 deferred to this moment, a navigable retired corpus, and the release act. |
 

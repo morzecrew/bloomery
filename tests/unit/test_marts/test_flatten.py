@@ -11,6 +11,7 @@ from bloomery.errors import (
     FanoutRisk,
     GrainViolation,
     GuardrailError,
+    HistoricalFanout,
     MartMissingTimeDimension,
     MeasureRef,
 )
@@ -22,7 +23,7 @@ from bloomery.ir import (
     ProjectIR,
 )
 from bloomery.ir import OK_COLUMN
-from bloomery.marts import DATE_BUCKETS, HAS_QUALITY_FLAGS, lower_marts
+from bloomery.marts import DATE_BUCKETS, HAS_QUALITY_FLAGS, MartLowering, lower_marts
 from bloomery.spec import MartSet
 from bloomery.typing import BoolType, DateType
 from support.compiling import load_fixture
@@ -154,6 +155,38 @@ def _violations(marts_yaml: str) -> tuple[GuardrailError, ...]:
     lowering = lower_marts(_mart_set(marts_yaml), _draft())
     assert lowering.marts == ()  # a mart with any violation contributes no IR
     return lowering.violations
+
+
+def _as_type2(entity: str) -> dict[str, str]:
+    """``_SOURCES`` with one entity declared ``scd: type2``.
+
+    One added line is the whole difference RFC 0023 D1/D2 refuse on, so the
+    tests below are written as that line rather than as a second corpus: what
+    they discriminate is the *combination*, and a separate document would let
+    an unrelated difference stand in for it.
+    """
+    anchor = f"  {entity}:\n"
+    assert anchor in _SOURCES["entity_model"]
+    return {
+        **_SOURCES,
+        "entity_model": _SOURCES["entity_model"].replace(anchor, f"{anchor}    scd: type2\n", 1),
+    }
+
+
+def _historical(entity: str, marts_yaml: str) -> MartLowering:
+    """The whole lowering for ``marts_yaml`` with ``entity`` made historical.
+
+    The lowering rather than its violations, because "a mart with any violation
+    contributes no IR" is half the refusal contract: an implementation that
+    reported ``HistoricalFanout`` *and* still emitted the multiplying mart would
+    satisfy a violations-only assertion. ``_violations`` above pins that half
+    with its own assert; this helper cannot, because one of its callers is the
+    case where the mart legitimately lowers.
+    """
+    sources = _as_type2(entity)
+    project = load_project({**sources, "marts": marts_yaml})
+    assert project.marts is not None
+    return lower_marts(project.marts, build_project_ir(load_project(sources)))
 
 
 # ....................... #
@@ -443,6 +476,162 @@ marts:
     assert isinstance(violation, FanoutRisk)
     assert "neither the base nor a previously flattened entity" in str(violation)
     assert "authored order" in str(violation)
+
+
+# ....................... #
+# Historical dimensions (RFC 0023 D1/D2) — the join that has no validity
+# predicate, and the base whose grain counts revisions.
+
+_CHAIN_TO_CUSTOMER = """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: item_of_order, prefix: order_}
+      - {via: order_of_customer, prefix: customer_}
+"""
+
+_ORDERS_BASE = """\
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+"""
+
+
+def test_flattening_a_type2_entity_is_historical_fanout() -> None:
+    lowering = _historical("customer", _CHAIN_TO_CUSTOMER)
+    # The other half of the refusal: the multiplying mart must not reach the IR.
+    # Reporting the violation and emitting the mart anyway would satisfy an
+    # assertion over the violations alone.
+    assert lowering.marts == ()
+    (violation,) = lowering.violations
+    assert isinstance(violation, HistoricalFanout)
+    assert violation.source_path == "marts: marts.items.flatten[1].via"
+    assert "no validity predicate" in str(violation)
+    assert "version count" in str(violation)
+    # The declared cardinality is correct and must not be what the reader is
+    # sent to check — that is the whole reason this is not a FanoutRisk.
+    assert not isinstance(violation, FanoutRisk)
+    assert "claim about the domain" in str(violation)
+
+
+def test_the_same_flatten_over_a_type1_entity_is_clean() -> None:
+    # The nearest non-trigger: one line apart from the case above.
+    lowering = lower_marts(_mart_set(_CHAIN_TO_CUSTOMER), _draft())
+    assert lowering.violations == ()
+    assert [m.name for m in lowering.marts] == ["items"]
+
+
+def test_a_type2_base_is_historical_fanout() -> None:
+    lowering = _historical("order", _ORDERS_BASE)
+    assert lowering.marts == ()
+    (violation,) = lowering.violations
+    assert isinstance(violation, HistoricalFanout)
+    assert violation.source_path == "marts: marts.orders.base"
+    assert "counts revisions" in str(violation)
+
+
+def test_a_one_to_many_flatten_onto_a_type2_entity_reports_both_reasons() -> None:
+    """Two independent faults, one round-trip.
+
+    ``one_to_many`` is a property of the relationship and ``scd: type2`` a
+    property of the entity, so a step can be wrong in both ways at once and
+    fixing either alone leaves the other. Behind an early return the second
+    reason was never reported; ordering the two differently would only have
+    suppressed the other one instead.
+    """
+    lowering = _historical(
+        "order_item",
+        """\
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    flatten:
+      - {via: items_of_order, prefix: item_}
+""",
+    )
+    assert lowering.marts == ()
+    historical, fanout = lowering.violations
+    assert isinstance(historical, HistoricalFanout)
+    assert "scd: type2" in str(historical)
+    assert isinstance(fanout, FanoutRisk)
+    assert "one_to_many" in str(fanout)
+    assert {v.source_path for v in lowering.violations} == {
+        "marts: marts.orders.flatten[0].via"
+    }
+
+
+def test_an_unreachable_chain_onto_a_type2_entity_reports_both_reasons() -> None:
+    lowering = _historical(
+        "customer",
+        """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: order_of_customer, prefix: customer_}
+""",
+    )
+    assert lowering.marts == ()
+    historical, unreachable = lowering.violations
+    assert isinstance(historical, HistoricalFanout)
+    assert isinstance(unreachable, FanoutRisk)
+    assert "neither the base nor a previously flattened entity" in str(unreachable)
+
+
+def test_an_unmapped_type2_target_reports_only_the_unmapped_leaf() -> None:
+    """An entity no mapping lowers has no ``scd`` to read, and its own leaf is
+    the one worth reporting — ``warehouse`` is declared and never mapped."""
+    lowering = _historical(
+        "warehouse",
+        """\
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    flatten:
+      - {via: order_of_warehouse, prefix: wh_}
+""",
+    )
+    (violation,) = lowering.violations
+    assert type(violation) is GuardrailError
+    assert "no mapping lowers" in str(violation)
+
+
+def test_the_same_base_as_type1_is_clean() -> None:
+    lowering = lower_marts(_mart_set(_ORDERS_BASE), _draft())
+    assert lowering.violations == ()
+    assert [m.name for m in lowering.marts] == ["orders"]
+
+
+def test_a_type2_entity_the_mart_never_reaches_is_not_refused() -> None:
+    """The refusal is the *combination*, never the feature (RFC 0023 §4).
+
+    ``customer`` is historical and the mart neither flattens it nor is based on
+    it — so the mart lowers, and the silver model keeping that history is
+    untouched.
+    """
+    marts = """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: item_of_order, prefix: order_}
+"""
+    lowering = _historical("customer", marts)
+    assert lowering.violations == ()
+    assert [m.name for m in lowering.marts] == ["items"]
 
 
 def test_flattening_an_unmapped_entity_is_refused() -> None:

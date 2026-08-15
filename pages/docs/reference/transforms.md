@@ -62,7 +62,24 @@ to `decimal(p1+p2, s1+s2)`; crossing the 38-digit precision cap is a loud
 
 | Name | Args | Input → output | Usage |
 |---|---|---|---|
-| `convert` | currency (str) | decimal → decimal | `[{convert: EUR}]` — the explicit conversion marker the currency guardrail requires for mixed-currency arithmetic; rate semantics live downstream |
+| `convert` | currency (str) | decimal → decimal | **Unimplemented — refused at emit.** Whitelisted and typechecked, but a chain containing it cannot be compiled to SQL |
+
+`convert` is refused rather than removed, and the distinction matters: it is not a
+feature that was withdrawn, it is a promise that was never kept. Converting a currency
+is a join against a *dated* rate table, and bloomery models no rate relation — so the
+step lowered to a `CONVERT_CURRENCY(...)` call that no engine defines. A project using
+it compiled clean and failed on its first run, which is the one place the architecture
+promises there will not be a failure. Compiling one now raises `UnsupportedByTarget`
+naming the column.
+
+The signature is also incomplete, which is why the refusal is not a stopgap: a rate
+without a date is under-determined, so whatever conversion eventually looks like, it
+names an anchor and `convert(x, 'USD')` has nowhere to put one. Shipping it as-is would
+pin a grammar that cannot express the feature.
+
+Until then, `CurrencyMismatch` is unconditional: two operands with distinct declared
+ISO-4217 codes may not meet, and there is no step that makes them. Derive the operands
+in one currency upstream of bloomery, or split the derivation per currency.
 
 ## Custom transforms
 

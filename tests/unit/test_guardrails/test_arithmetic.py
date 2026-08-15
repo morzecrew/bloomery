@@ -12,6 +12,7 @@ from bloomery.guardrails.arithmetic import check_arithmetic
 from bloomery.guardrails.operands import Derivation
 from bloomery.ir import Additivity, MetricIR, SqlExpr
 from bloomery.spec import Catalog
+from bloomery.transforms import CONVERT_MARKER
 
 pytestmark = pytest.mark.unit
 
@@ -151,9 +152,15 @@ def test_absent_codes_are_compatible() -> None:
     assert _check("net_eur + net_price", "net_eur", "net_price") == []
 
 
-def test_an_explicit_convert_step_satisfies_the_rule() -> None:
-    expr = "CONVERT_CURRENCY(net_eur, 'USD') + net_usd"
-    assert _check(expr, "net_eur", "net_usd") == []
+def test_the_convert_marker_no_longer_satisfies_the_rule() -> None:
+    # RFC 0023 D5. The marker used to be the escape hatch: its presence on
+    # either side permitted the arithmetic. It bought a compile-time "yes"
+    # whose only outcome was a run-time failure, because the transform that
+    # produces it is refused at emit (D4) and no engine defines the call.
+    expr = f"{CONVERT_MARKER}(net_eur, 'USD') + net_usd"
+    (violation,) = _check(expr, "net_eur", "net_usd")
+    assert isinstance(violation, CurrencyMismatch)
+    assert "no rate relation is modelled" in str(violation)
 
 
 def test_currency_mismatch_reports_once_per_expression() -> None:

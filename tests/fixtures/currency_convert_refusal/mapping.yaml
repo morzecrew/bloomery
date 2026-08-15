@@ -1,0 +1,9 @@
+mapping_version: 1
+source: psp__payments
+target: payment
+key:
+  payment_id: {from: "$.id", transform: [to_string]}
+fields:
+  amount_eur: {from: "$.amount"}
+  amount_usd: {from: "$.amount", transform: [{to_decimal: [12, 4]}, {convert: USD}]}
+  paid_at: {from: "$.paid_at", transform: [{parse_date: ISO8601}]}
