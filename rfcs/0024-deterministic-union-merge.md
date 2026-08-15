@@ -391,6 +391,12 @@ appends to `columns` and `source_fields` in one loop, side by side. `_column_ir`
 a schema constructor and a projection constructor called from the same place, and the union
 is then a `UNION ALL` over `SourceIR.columns` in `sources` order.
 
+**`_column_ir` is not the only site that builds a lowering, and D27 is the one it misses.**
+`guardrails/conflict.py:_shadow` constructs a `ColumnIR` carrying a lowered `expr` *after*
+the builder has run — the `<field>__direct` shadow the guardrail stage merges into an
+entity — so the split has a second constructor to feed, and a merged entity raises a
+question about how many shadows a `direct:` path produces. See D27.
+
 ### Alternatives considered
 
 **Leave it to a Tier 3 step (the status quo).** It works today and is the honest current
@@ -549,6 +555,7 @@ relation is an expensive way to be silent.
 | 24 | `ASSUMED` | **Answers D11 (`OPEN`) — `required:` means coverage, and the runtime null check stays `assert: {not_null: true}`.** No generated `IS NULL` audit. D11 framed the choice as the audit or an explicit statement; this is the statement. Generating one for merged entities only would make a third thing depend on mapping count, and the authored mechanism already exists, is documented, and lowers to the same audit a generated one would emit. §7's how-to says to use it on required fields of a merged entity, which is where a reader meets the asymmetry. |
 | 25 | `OPEN` | **Where per-source column expressions live — the IR restructure D1 understates, found by building.** D1 says `EntityIR` "gains a set of source mappings where it had one", which reads as a one-field change. It is not: `ColumnIR` carries **one** `expr: SqlExpr`, lowered from *the* mapping's field (`resolve/build.py:_column`), and a union needs one projection per source per column — different source paths and different transform chains. No arrangement of `EntityIR.sources` alone can express that, so the union cannot be emitted until this is settled. Three shapes, none free: **(a)** `SourceIR` gains `columns`, and `EntityIR.columns` becomes the merged *schema* (name, type, canonical, unit, tax_basis, required) with `expr`/`recipe_id` moving per-source — correct, and it touches the IR's central node plus 37 `.columns` read sites outside marts, `plan/diff.py:338`'s `column.expr.sql`, and the guardrails that walk derivations; **(b)** keep `expr` on `EntityIR.columns` as the first source's — a lie on every merged entity and exactly the silent-wrong-answer this project refuses; **(c)** `ColumnIR.exprs` as a tuple index-coupled to `sources` — no new node, and a coupling nothing enforces. **Lean (a).** Whoever takes this decides and logs it *before* writing the union, because it decides what P1 costs. |
 | 26 | `ASSUMED` | **Answers D25 (`OPEN`) — option (a), and D25's blast-radius figure was wrong by an order of magnitude.** The lowered expression moves to a new column-grained `SourceColumnIR` on `SourceIR`; `ColumnIR` keeps the schema (§5.7). D25 said "37 `.columns` read sites" and estimated the cost from that; measured, **exactly 8 sites read a `ColumnIR` lowering field, in 3 files** — `plan/diff.py` (`renamed_from` ×4, `recipe_id`, `expr.sql`) and `emit/lower/silver.py` (`expr.ast()` ×2). Four of those eight are `renamed_from`, which D25 mis-assigned to the lowering half and which is declared on the EntityModel `Field`, so it does not move at all. The 37 was a count of `.columns` readers, and `.columns` readers are overwhelmingly *schema* readers — they survive untouched, which is the whole point of the split. **Real cost: two constructors where there was one, and four call sites.** The golden churn stands regardless — the IR shape moves and D17 bumps the version. |
+| 27 | `OPEN` | **The `direct:` shadow column builds a lowering outside the builder, and on a merged entity it is not one column.** `guardrails/conflict.py:_shadow` constructs a `ColumnIR` with a lowered `expr` — the `<field>__direct` extraction that the reconcile audit compares a recipe-derived value against — and the guardrail stage merges it into the entity after `_build_entity` has finished. Under D26's split that constructor has to produce a schema column *and* a projection, which is mechanical. What is not mechanical: **the direct extraction reads a source payload**, so a merged entity needs one shadow projection per source, and D14 does not refuse the combination — `direct:` is a catalog-recipe property, unrelated to `dedupe:`/`quarantine:`. Three options: emit one shadow projection per source and keep the audit comparing the merged column (probably right, and it is the same fan-out the union already does); refuse `direct:` on a merged entity in P1 (cheap, and it narrows a capability for a reason unrelated to it); or refuse the whole path-conflict amendment there (worse — it removes a check rather than scoping it). Decide before writing the split, not during: the shadow is built from a `Derivation`, which is per entity and not yet per source. |
 
 ## 12. Phasing
 
@@ -558,7 +565,9 @@ and `quarantine:` refused on a merged entity (D14).
 
 **Take the IR split first, on its own.** `ColumnIR` shedding two fields into
 `SourceColumnIR` is a pure refactor while every entity still has one source: same emitted
-bytes, same behaviour, one version bump, and the whole golden corpus re-fingerprinted once.
+**SQL**, same behaviour, with only the `fingerprint:` header moving — one version bump, and
+the whole golden corpus re-stamped once. (An earlier line here said "same emitted bytes",
+which contradicts the re-fingerprint in the same sentence.)
 Landing it before the union means the diff that adds multi-source is about multi-source,
 and the corpus churn is not sitting on top of it — which is the difference between a
 reviewable change and a large one. It is *not* release-gating: the refusal
