@@ -43,15 +43,14 @@ filename in sync.
 
 ## Index
 
-Every RFC 0001–0022 landed or was rejected and was retired in the change that finished it;
-the three below are the first live rows since. A live row means a design argued and not yet
+Every RFC 0001–0022 landed or was rejected and was retired in the change that finished it,
+as did 0025. A live row means a design argued and not yet
 settled — not work in flight.
 
 | # | Title | Status | One-line routing description |
 |---|---|---|---|
 | [0023](0023-temporal-joins-scd2-flattening-and-currency-conversion.md) | Temporal joins: SCD2 flattening and currency conversion | 🚧 In progress | Two constructs that compile clean and cannot be correct — flattening a historical dimension, and `convert` — both needing a join against a validity interval. **P1 (both refusals) has landed**; the as-of join design is unscheduled. |
 | [0024](0024-deterministic-union-merge.md) | Deterministic union merge | 📝 Draft | Letting several mappings build one entity when they share a key space but no overlapping keys, so the entity model integrates sources instead of renaming one. Overlap stays a step. |
-| [0025](0025-v0-1-0-release-readiness.md) | v0.1.0 release readiness | 🚧 In progress | What must hold before the stability promises stop describing an intention and start binding. **The ratchets, the retired corpus and §5.5 items 1–3 have landed** — the changelog is cut, the stability page states what binds at 0.1 versus 1.0 (D23), and installation is PyPI. What remains is §5.5's item 4, **pushing the tag** — an act rather than a change. |
 
 ## Status legend
 
