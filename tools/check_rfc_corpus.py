@@ -6,22 +6,29 @@ not in the tree. `rfcs/RETIRED.md` is what makes those citations followable, and
 it is hand-appended in the retiring change (RFC 0025 D7) — which means it is
 exactly the kind of file that silently falls behind.
 
-Two invariants, both cheap and both total:
+Three invariants. The first two are structural and run anywhere; the third
+needs history.
 
-* **A number is live or retired, never both and never neither.** Every number
-  below the index's next-free claim appears in exactly one of ``rfcs/`` and
-  ``RETIRED.md``. A number in both says a retired document came back; a number
-  in neither says a retirement skipped its row, which is the failure mode that
-  makes the table untrustworthy — a reader who finds one gap stops believing the
-  rest.
+* **A number is used exactly once.** Every number below the index's next-free
+  claim appears in exactly one of ``rfcs/`` and ``RETIRED.md``, and in only one
+  document within each. A number in both says a retired design came back; in
+  neither, that a retirement skipped its row — the failure that makes the table
+  untrustworthy, because a reader who finds one gap stops believing the rest.
+* **The index's next-free claim is still free.** No number at or above it is
+  live or retired, since ``INDEX.md`` promises numbers are never reused and a
+  stale claim is how the promise breaks.
 * **A retired row names a commit that actually retired it.** The SHA must
   resolve and must have deleted a file matching that number under ``rfcs/``.
   A typo'd SHA is worse than a missing row: the row reads as recoverable and
   sends the reader to a commit that never held the document.
 
+A row that looks like a table entry and parses as nothing is reported rather
+than skipped — silently dropping it would let the table display an entry every
+check treats as absent.
+
 Deliberately *not* checked: the titles. Verifying one means reading the deleted
-document, which needs the full history this check must run without — the second
-invariant already fails on the SHA that would make a title unverifiable anyway.
+document, which needs history the structural half deliberately runs without —
+and a SHA that cannot be resolved already fails the third invariant.
 
 Run by ``just quality``; exits non-zero with one line per finding.
 """
@@ -47,18 +54,41 @@ NEXT_FREE = re.compile(r"next free number is \*\*(?P<number>\d{4})\*\*")
 RFC_FILE = re.compile(r"^(?P<number>\d{4})-[a-z0-9-]+\.md$")
 
 
-def live_numbers(rfcs: Path) -> set[str]:
-    """The numbers with a document in the tree."""
-    return {match["number"] for path in rfcs.glob("*.md") if (match := RFC_FILE.match(path.name))}
+def live_files(rfcs: Path) -> dict[str, list[str]]:
+    """Filenames in the tree, grouped by the number they claim.
+
+    A ``dict`` rather than a ``set`` because two files can claim one number,
+    and collapsing them would hide it: both would be "accounted for", and the
+    one-document-per-number invariant would go unchecked by the only gate CI
+    runs.
+    """
+    grouped: dict[str, list[str]] = {}
+    for path in sorted(rfcs.glob("*.md")):
+        if match := RFC_FILE.match(path.name):
+            grouped.setdefault(match["number"], []).append(path.name)
+    return grouped
 
 
-def retired_rows(retired: Path) -> list[tuple[str, str]]:
-    """``(number, sha)`` per table row, in file order."""
-    return [
-        (match["number"], match["sha"])
-        for line in retired.read_text().splitlines()
-        if (match := ROW.match(line.strip()))
-    ]
+def retired_rows(retired: Path) -> tuple[list[tuple[str, str]], list[str]]:
+    """``([(number, sha)], [unparseable lines])`` from the table.
+
+    Unparseable rows are returned rather than dropped. A line that looks like a
+    table row to a reader and matches nothing here is the worst of both: the
+    table shows an entry, and every check behaves as though it is absent. For a
+    number below the next-free claim the completeness check catches it by
+    accident; above it, nothing would.
+    """
+    rows: list[tuple[str, str]] = []
+    malformed: list[str] = []
+    for raw in retired.read_text().splitlines():
+        line = raw.strip()
+        if not line.startswith("|"):
+            continue
+        if match := ROW.match(line):
+            rows.append((match["number"], match["sha"]))
+        elif not set(line) <= set("|- :") and not line.startswith("| #"):
+            malformed.append(line)
+    return rows, malformed
 
 
 def next_free(index: Path) -> str | None:
@@ -126,38 +156,46 @@ def check(root: Path) -> list[str]:
         return [f"{retired}: missing — every retirement appends a row here (RFC 0025 §5.4)"]
 
     findings: list[str] = []
-    live = live_numbers(rfcs)
-    rows = retired_rows(retired)
+    live = live_files(rfcs)
+    rows, malformed = retired_rows(retired)
     retired_numbers = [number for number, _ in rows]
+
+    findings += [f"RETIRED.md: unreadable row — {line}" for line in malformed]
+
+    findings += [
+        f"rfcs/: {number} is claimed by more than one document ({', '.join(names)})"
+        for number, names in sorted(live.items())
+        if len(names) > 1
+    ]
 
     duplicates = sorted({n for n in retired_numbers if retired_numbers.count(n) > 1})
     findings += [f"RETIRED.md: {n} appears in more than one row" for n in duplicates]
 
     findings += [
         f"RETIRED.md: {n} is listed as retired, but rfcs/{n}-*.md is in the tree"
-        for n in sorted(live & set(retired_numbers))
+        for n in sorted(set(live) & set(retired_numbers))
     ]
 
     claimed = next_free(index)
     if claimed is None:
         findings.append("INDEX.md: no 'next free number is **NNNN**' claim to check against")
     else:
-        accounted = live | set(retired_numbers)
+        accounted = set(live) | set(retired_numbers)
         findings += [
             f"RETIRED.md: {number:04d} is neither live nor retired — a retirement "
             f"skipped its row, or the number was never used"
             for number in range(1, int(claimed))
             if f"{number:04d}" not in accounted
         ]
-        # A retired number at or above the next-free claim means the index is
-        # about to mint a number that is already spent, and INDEX.md promises
-        # numbers are never reused. Checked structurally rather than through the
-        # SHA, because the SHA half does not run in CI's shallow clone — which
-        # is exactly where this would otherwise go unseen.
+        # A number at or above the next-free claim — live or retired — means the
+        # index is about to mint one that is already taken, and INDEX.md
+        # promises numbers are never reused. Checked structurally rather than
+        # through the SHA, because the SHA half is the half that can be skipped.
         findings += [
-            f"RETIRED.md: {number} is retired but the index's next free number is "
-            f"{claimed} — a spent number is about to be minted again"
-            for number in sorted(set(retired_numbers))
+            f"{'rfcs/' if number in live else 'RETIRED.md'}: {number} is in use but the "
+            f"index's next free number is {claimed} — a spent number is about to be "
+            f"minted again"
+            for number in sorted(accounted)
             if int(number) >= int(claimed)
         ]
 

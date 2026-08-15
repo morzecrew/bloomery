@@ -35,7 +35,14 @@ TOOL = pathlib.Path(__file__).resolve().parents[2] / "tools" / "check_rfc_corpus
 #: A corpus with one live design (0002) and one retired (0001), which is the
 #: smallest tree where every check below has something to say.
 INDEX = "The next free number is **0003**.\n"
-RETIRED_HEADER = "| # | Title | Retired in |\n|---|---|---|\n"
+
+#: Prose above the table on purpose: the real `RETIRED.md` opens with several
+#: paragraphs, and a fixture of nothing but rows would never exercise the
+#: not-a-table-line branch that skips them.
+RETIRED_HEADER = (
+    "# Retired RFCs\n\nEvery RFC that has landed, and the commit that deleted it.\n\n"
+    "| # | Title | Retired in |\n|---|---|---|\n"
+)
 
 
 def load_checker() -> object:
@@ -116,7 +123,46 @@ def test_a_spent_number_above_the_next_free_claim_is_caught(tmp_path: pathlib.Pa
         tmp_path,
         retired_rows="| 0001 | Retired thing | `abc1234` |\n| 0009 | Ghost | `abc1234` |\n",
     )
-    assert any("0009 is retired but the index's next free number is 0003" in f for f in findings)
+    assert any("0009 is in use but the index's next free number is 0003" in f for f in findings)
+
+
+def test_two_documents_claiming_one_number_are_caught(tmp_path: pathlib.Path) -> None:
+    """One number, one document. Grouping live files by number rather than
+    collecting them into a set is what makes this visible: a set would have
+    counted both as "accounted for" and reported nothing."""
+    findings = findings_for(
+        tmp_path,
+        retired_rows="| 0001 | Retired thing | `abc1234` |\n",
+        live=("0002-live", "0002-also-live"),
+    )
+    assert any("0002 is claimed by more than one document" in f for f in findings)
+
+
+def test_an_unreadable_row_is_reported_rather_than_skipped(tmp_path: pathlib.Path) -> None:
+    """A row above the next-free claim that parses as nothing.
+
+    Below the claim, the completeness check catches a malformed row by accident
+    — its number stops being accounted for. Above it, nothing does: the number
+    is outside the range and absent from every list, so the table could display
+    an entry that every check treated as missing.
+    """
+    findings = findings_for(
+        tmp_path,
+        retired_rows="| 0001 | Retired thing | `abc1234` |\n| 9999 | Ghost | no-backticks |\n",
+    )
+    assert any("unreadable row" in f and "9999" in f for f in findings)
+
+
+def test_a_live_document_at_the_next_free_claim_is_caught(tmp_path: pathlib.Path) -> None:
+    """The claim is stale, and the next RFC would collide with a document that
+    already exists. The retired-side of this was already checked; the live side
+    was not, which left `INDEX.md`'s never-reused promise half-guarded."""
+    findings = findings_for(
+        tmp_path,
+        retired_rows="| 0001 | Retired thing | `abc1234` |\n",
+        live=("0002-live", "0003-squatter"),
+    )
+    assert any("0003 is in use but the index's next free number is 0003" in f for f in findings)
 
 
 def test_a_missing_table_is_caught(tmp_path: pathlib.Path) -> None:

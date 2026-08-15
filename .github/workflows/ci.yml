@@ -46,6 +46,7 @@ jobs:
 
     outputs:
       code: ${{ steps.scope.outputs.code }}
+      corpus: ${{ steps.scope.outputs.corpus }}
       engine: ${{ steps.scope.outputs.engine }}
       force_full: ${{ steps.force.outputs.force_full }}
 
@@ -79,6 +80,15 @@ jobs:
               - "uv.lock"
               - ".pre-commit-config.yaml"
               - ".github/workflows/ci.yml"
+            # The RFC corpus and the gate that checks it. Separate from `code`
+            # on purpose: a retirement must run `just quality` — that is where
+            # `check_rfc_corpus.py` lives — without pulling the whole test
+            # matrix for a change that touches no Python the package ships.
+            corpus:
+              - "rfcs/**"
+              - "tools/**"
+              - "justfile"
+              - ".github/workflows/ci.yml"
             # What only a real engine or a real target framework can check:
             # the dialect ports (SQL that must parse and run *there*), the
             # emitters (artifacts a framework must accept), and the two tiers
@@ -98,7 +108,7 @@ jobs:
   quality:
     name: Run quality checks
     needs: changes
-    if: needs.changes.outputs.force_full == 'true' || needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.force_full == 'true' || needs.changes.outputs.code == 'true' || needs.changes.outputs.corpus == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -111,6 +121,12 @@ jobs:
 
       - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # `tools/check_rfc_corpus.py` verifies that each RETIRED.md row names
+          # the commit that actually deleted that document, and a depth-1
+          # checkout cannot resolve one — the check would skip its SHA half in
+          # the one place it most needs to run.
+          fetch-depth: 0
 
       - name: Install uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
