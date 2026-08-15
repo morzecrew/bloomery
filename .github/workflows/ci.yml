@@ -26,6 +26,7 @@ on:
       - "pyproject.toml"
       - "uv.lock"
       - ".pre-commit-config.yaml"
+      - "pages/**"
       - ".github/workflows/ci.yml"
 
   # Nightly lane for the Docker-backed tiers (engine matrix + target e2e —
@@ -47,6 +48,7 @@ jobs:
     outputs:
       code: ${{ steps.scope.outputs.code }}
       corpus: ${{ steps.scope.outputs.corpus }}
+      docs: ${{ steps.scope.outputs.docs }}
       engine: ${{ steps.scope.outputs.engine }}
       force_full: ${{ steps.force.outputs.force_full }}
 
@@ -89,6 +91,15 @@ jobs:
               - "tools/**"
               - "justfile"
               - ".github/workflows/ci.yml"
+            # The documentation site and the gate that builds it. Its own
+            # filter for the same reason `corpus` has one: a docs-only PR must
+            # run `just build-docs --strict` — which is the only thing that
+            # fails on a broken internal link — without pulling the test matrix
+            # for a change that ships no Python.
+            docs:
+              - "pages/**"
+              - "justfile"
+              - ".github/workflows/ci.yml"
             # What only a real engine or a real target framework can check:
             # the dialect ports (SQL that must parse and run *there*), the
             # emitters (artifacts a framework must accept), and the two tiers
@@ -104,6 +115,44 @@ jobs:
               - "pyproject.toml"
               - "uv.lock"
               - ".github/workflows/ci.yml"
+
+  # RFC 0025 §5.1 item 3, the half a test cannot see. Zensical resolves page
+  # links; `--strict` is what makes a broken one fail rather than print. The
+  # claim checks — documented classes, the refusal census, cited repo paths —
+  # are unit tests and ride the `test` matrix instead.
+  docs:
+    name: Build docs (strict)
+    needs: changes
+    if: needs.changes.outputs.force_full == 'true' || needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Install just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Build the documentation site
+        run: just build-docs
 
   quality:
     name: Run quality checks
@@ -299,7 +348,7 @@ jobs:
   # gate self-contained.
   required-ci:
     name: Required Continuous Integration
-    needs: [changes, quality, test, coverage]
+    needs: [changes, docs, quality, test, coverage]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -312,53 +361,56 @@ jobs:
         shell: bash
         env:
           CHANGES_RESULT: ${{ needs.changes.result }}
+          DOCS_RESULT: ${{ needs.docs.result }}
           QUALITY_RESULT: ${{ needs.quality.result }}
           TEST_RESULT: ${{ needs.test.result }}
           COVERAGE_RESULT: ${{ needs.coverage.result }}
           CODE: ${{ needs.changes.outputs.code }}
+          CORPUS: ${{ needs.changes.outputs.corpus }}
+          DOCS: ${{ needs.changes.outputs.docs }}
           FORCE_FULL: ${{ needs.changes.outputs.force_full }}
         run: |
           echo "changes.result=${CHANGES_RESULT}"
+          echo "docs.result=${DOCS_RESULT}     (docs=${DOCS})"
           echo "quality.result=${QUALITY_RESULT}"
           echo "test.result=${TEST_RESULT}"
           echo "coverage.result=${COVERAGE_RESULT}"
-          echo "code=${CODE}"
-          echo "force_full=${FORCE_FULL}"
+          echo "code=${CODE} corpus=${CORPUS} force_full=${FORCE_FULL}"
 
           if [[ "${CHANGES_RESULT}" != "success" ]]; then
             echo "changes job failed"
             exit 1
           fi
 
-          if [[ "${FORCE_FULL}" == "true" || "${CODE}" == "true" ]]; then
-            if [[ "${QUALITY_RESULT}" != "success" ]]; then
-              echo "quality job did not succeed"
+          # Each job is checked against *its own* trigger, not against `code`.
+          # A single flag was right while `code` gated everything; it stopped
+          # being right when `quality` gained the `corpus` trigger, which made
+          # an rfcs-only PR run quality successfully and then fail here for not
+          # having skipped it. `docs` would have repeated the mistake.
+          expect() {
+            local name="$1" triggered="$2" result="$3"
+            if [[ "${FORCE_FULL}" == "true" || "${triggered}" == "true" ]]; then
+              if [[ "${result}" != "success" ]]; then
+                echo "${name} did not succeed"
+                exit 1
+              fi
+            elif [[ "${result}" != "skipped" ]]; then
+              echo "${name} was expected to be skipped, got ${result}"
               exit 1
             fi
-            if [[ "${TEST_RESULT}" != "success" ]]; then
-              echo "test matrix did not succeed"
-              exit 1
-            fi
-            # The coverage floor lives in that job now, so a skipped or failed
-            # `coverage` means the floor went unenforced — which must not pass.
-            if [[ "${COVERAGE_RESULT}" != "success" ]]; then
-              echo "coverage gate did not succeed"
-              exit 1
-            fi
-          else
-            if [[ "${QUALITY_RESULT}" != "skipped" ]]; then
-              echo "quality was expected to be skipped"
-              exit 1
-            fi
-            if [[ "${TEST_RESULT}" != "skipped" ]]; then
-              echo "test was expected to be skipped"
-              exit 1
-            fi
-            if [[ "${COVERAGE_RESULT}" != "skipped" ]]; then
-              echo "coverage was expected to be skipped"
-              exit 1
-            fi
+          }
+
+          quality_triggered=false
+          if [[ "${CODE}" == "true" || "${CORPUS}" == "true" ]]; then
+            quality_triggered=true
           fi
+
+          expect "docs build" "${DOCS}" "${DOCS_RESULT}"
+          expect "quality" "${quality_triggered}" "${QUALITY_RESULT}"
+          expect "test matrix" "${CODE}" "${TEST_RESULT}"
+          # The coverage floor lives in that job, so a skipped or failed
+          # `coverage` on a code change means the floor went unenforced.
+          expect "coverage gate" "${CODE}" "${COVERAGE_RESULT}"
 
           echo "required-ci passed"
 

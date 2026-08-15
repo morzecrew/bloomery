@@ -103,10 +103,16 @@ quality strict="false":
 serve-docs:
     uv run zensical serve
 
-# Build the documentation site into pages/site
+# Build the documentation site into pages/site.
+#
+# `--strict` because without it the build *reports* a broken internal link and
+# exits 0 — so every "no issues found" was read by a human and enforced by
+# nobody. The link half of RFC 0025 §5.1 item 3 is Zensical's; the repo-path
+# half a page cites in backticks is invisible to it and lives in
+# `tests/unit/test_docs_floor.py`.
 [working-directory("pages")]
 build-docs:
-    uv run zensical build
+    uv run zensical build --strict
 
 # ----------------------- #
 # Utils
