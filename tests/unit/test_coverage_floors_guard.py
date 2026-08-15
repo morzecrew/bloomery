@@ -137,6 +137,82 @@ def test_an_unreadable_coverage_report_is_a_finding_not_a_crash(
 
 
 # ....................... #
+# Reading `coverage report`'s output
+#
+# Most tests above monkeypatch `measured`, which left the parsing itself
+# uncovered — and the parsing is the part that breaks when `coverage`'s output
+# format moves, silently turning every floor into "could not measure". Found by
+# measuring this file's own coverage rather than by reading it.
+
+
+def _with_output(monkeypatch: pytest.MonkeyPatch, stdout: str, returncode: int = 0) -> None:
+    class _Fake:
+        @staticmethod
+        def run(*_args: object, **_kwargs: object) -> object:
+            class _Result:
+                pass
+
+            result = _Result()
+            result.returncode = returncode  # type: ignore[attr-defined]
+            result.stdout = stdout  # type: ignore[attr-defined]
+            return result
+
+    monkeypatch.setattr(CHECKER, "subprocess", _Fake)
+
+
+_HEADER = "Name    Stmts   Miss Branch BrPart  Cover\n----\n"
+
+
+def test_a_total_line_is_read(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _with_output(monkeypatch, _HEADER + "TOTAL   692      1    276      1  99.8%\n")
+    assert CHECKER.measured(tmp_path, "src/a/*") == 99.8
+
+
+def test_a_single_file_report_is_read_without_a_total(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`coverage report` over a glob matching one file prints the file row and
+    no TOTAL. A parser that only looked for TOTAL would report "could not
+    measure" for the smallest packages — the ones whose floor is easiest to
+    hold and so least likely to be noticed missing."""
+    _with_output(monkeypatch, _HEADER + "src/bloomery/a/b.py   12   0   4   0  100.0%\n")
+    assert CHECKER.measured(tmp_path, "src/bloomery/a/*") == 100.0
+
+
+def test_a_report_with_nothing_to_read_is_none(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _with_output(monkeypatch, "No data to report.\n")
+    assert CHECKER.measured(tmp_path, "src/a/*") is None
+
+
+def test_an_unparseable_percentage_is_none_not_a_crash(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A TOTAL row whose last column is not a number — a format change, or a
+    `coverage` that grew a column. Reported as unmeasured rather than raising
+    mid-gate."""
+    _with_output(monkeypatch, _HEADER + "TOTAL   692      1    276      1  n/a\n")
+    assert CHECKER.measured(tmp_path, "src/a/*") is None
+
+
+def test_the_last_matching_line_wins(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """TOTAL comes after the file rows, so the scan runs from the bottom. Read
+    top-down it would return the first file's percentage and call it the
+    package's."""
+    _with_output(
+        monkeypatch,
+        _HEADER
+        + "src/bloomery/a/b.py   12   6   4   0  50.0%\n"
+        + "src/bloomery/a/c.py   12   0   4   0  100.0%\n"
+        + "TOTAL                 24   6   8   0  75.0%\n",
+    )
+    assert CHECKER.measured(tmp_path, "src/bloomery/a/*") == 75.0
+
+
+# ....................... #
 # The real table
 
 

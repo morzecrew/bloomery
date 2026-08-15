@@ -52,7 +52,7 @@ _uv_cmd name strict *command:
 test *args='':
     {{ _uv_sync }}
 
-    uv run pytest -m "not engine and not e2e and not chaos and not perf" {{ args }}
+    uv run pytest -m "not engine and not e2e and not chaos and not perf" --refusal-census {{ args }}
 
 # Run the full suite including the engine matrix and target e2e (Docker required)
 test-all *args='':
@@ -75,7 +75,7 @@ coverage *args='':
     {{ _uv_sync }}
 
     uv run pytest -m "not engine and not e2e and not chaos and not perf" \
-        --cov=src --cov-report=term {{ args }}
+        --refusal-census --cov=src --cov-report=term {{ args }}
     uv run python tools/check_coverage_floors.py .
 
 # The single quality authority, byte-for-byte the same locally and in CI (RFC 0001 D4; CI runs `-s`)

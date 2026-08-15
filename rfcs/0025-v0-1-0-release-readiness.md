@@ -2,7 +2,7 @@
 
 - **Status:** 🚧 In progress — **§5.1, §5.2, §5.3 and §5.4 have landed** (the three
   RFC 0001 §8 ratchets, and `RETIRED.md`). Remaining: §5.5, the release act, gated on D10.
-  Execution answers D5, D11 and D12, and logs D16–D19.
+  Execution answers D5, D11 and D12, and logs D16–D22.
 - **Scope:** What must be true before bloomery is tagged `0.1.0` — the point at which the
   stability promises in `pages/docs/reference/stability.md` stop describing an intention
   and start binding. Three groups: the **ratchets** RFC 0001 §8 deferred to exactly this
@@ -348,6 +348,7 @@ describes a release that already shipped.
 | 19 | `ASSUMED` | **Departure (spec-gap): §3's "already shipped" list was wrong about both ratchets it described.** The `guardrails/` 100% floor was **red** on `main` — four uncovered lines, including a D90 refusal branch nothing provoked — and CI never ran `just coverage`, so nothing enforced it. The perf tier "run in the scheduled lane" ran nowhere. Both are fixed here rather than worked around: the four lines are covered (one was unreachable and is now `guaranteed(...)`), and both lanes are wired. The lesson generalizes past this RFC — **a gate's existence and a gate's execution are separate claims**, and §3 asserted the first while meaning the second. |
 | 20 | `ASSUMED` | **Departure (discovery): two CI defects found while landing the floor, neither in scope and both blocking it.** `just build-docs` printed "1 issue found" and exited **0**, so the only check that resolves internal doc links could not fail anything, and no PR-triggered workflow ran it at all — `--strict` plus a `docs` job fixes both. And `required-ci` checked every job against a single `code` flag, so an rfcs-only PR would run `quality` successfully and then fail for not having skipped it — a latent bug from §5.4's own `corpus` filter, unexercised because every rfcs PR so far also touched `ci.yml`. Each job is now checked against its own trigger. |
 | 21 | `ASSUMED` | **Answers §10's placement question with §6's own answer.** The docs-floor checks are tests in the unit tier, not `just quality` steps, so `quality` stays byte-identical to CI (RFC 0001 D4). §10 called this open; §6 had already settled it. The one exception is the *session-scoped* half — "every documented refusal is produced somewhere" is a claim about the whole run, so it lives in `tests/conftest.py` and stands down, out loud, on a narrowed session. |
+| 22 | `ASSUMED` | **Departure (discovery): the census's precondition is declared, not inferred.** It runs only when the invocation passes `--refusal-census`, which `just test`, `just coverage` and CI's `pytest` line all do, and a test asserts all three still do. Inference was tried twice and was wrong twice: comparing `config.args` to the rootdir made *every* session look narrowed (pytest fills `args` from the `testpaths` ini), and fixing that left a worse bug — `pytest -m golden` is narrower than anything `args` can show, so it failed with 49 refusals the golden tier never had reason to produce. A whole-suite claim needs a whole-suite session, and whether a session is whole is not recoverable from its command line. |
 
 ## 12. Phasing
 

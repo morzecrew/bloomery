@@ -8,7 +8,8 @@ external reviewer read it and concluded Postgres was "closer to a demo dialect
 than a peer". A stale refusal cost a supported dialect its standing, and
 nothing in any gate could have caught it (D2).
 
-So the floor checks claims. Four of them, in increasing strength:
+So the floor checks claims. Four of them — the first three about refusals,
+roughly in increasing strength, and the fourth about citations:
 
 1. **The documented class set is the exported class set** — both directions.
    A renamed or deleted refusal fails, and so does one added to
@@ -48,7 +49,7 @@ import pytest
 
 from bloomery import Target, compile_project
 from bloomery.errors import BloomeryError, GuardrailError, UnsupportedByTarget
-from conftest import census_is_enforceable
+from conftest import CENSUS_FLAG, census_is_enforceable
 from support.compiling import load_fixture
 from support.docs_claims import (
     TAXONOMY_SMOKE_MODULE,
@@ -252,48 +253,65 @@ def test_every_claim_block_is_represented_in_the_table() -> None:
 
 @dataclass(frozen=True)
 class _FakeConfig:
-    args: list[str]
+    requested: bool
     rootpath: Path
     option: object
 
-    def getini(self, name: str) -> list[str]:
-        assert name == "testpaths"
-        return ["tests"]
+    def getoption(self, name: str) -> bool:
+        assert name == CENSUS_FLAG
+        return self.requested
 
 
-def _config(args: list[str], keyword: str = "") -> _FakeConfig:
+def _config(requested: bool = False, keyword: str = "") -> _FakeConfig:
     return _FakeConfig(
-        args=args, rootpath=ROOT, option=SimpleNamespace(keyword=keyword)
+        requested=requested, rootpath=ROOT, option=SimpleNamespace(keyword=keyword)
     )
 
 
-@pytest.mark.parametrize(
-    ("args", "keyword"),
-    [
-        (["tests"], ""),  # what `just test` and CI actually pass
-        ([str(ROOT)], ""),
-        ([], ""),
-    ],
-)
-def test_the_census_enforces_on_a_whole_suite_run(args: list[str], keyword: str) -> None:
-    assert census_is_enforceable(cast("pytest.Config", _config(args, keyword))) is None
+def test_the_census_enforces_when_asked() -> None:
+    assert census_is_enforceable(cast("pytest.Config", _config(requested=True))) is None
 
 
 @pytest.mark.parametrize(
-    ("args", "keyword", "why"),
+    ("requested", "keyword", "why"),
     [
-        (["tests/unit/test_docs_floor.py"], "", "narrowed to"),
-        (["tests/unit"], "", "narrowed to"),
-        (["tests"], "docs", "narrowed by -k"),
+        (False, "", "not requested"),
+        (True, "docs", "narrowed by -k"),
     ],
 )
-def test_the_census_stands_down_on_a_narrowed_run(
-    args: list[str], keyword: str, why: str
+def test_the_census_stands_down_and_says_why(
+    requested: bool, keyword: str, why: str
 ) -> None:
-    """And says which — a silent skip is the failure mode being avoided."""
-    reason = census_is_enforceable(cast("pytest.Config", _config(args, keyword)))
+    """A silent skip is the failure mode being avoided — this one spent its
+    first hour skipping every run without saying so."""
+    reason = census_is_enforceable(cast("pytest.Config", _config(requested, keyword)))
     assert reason is not None
     assert why in reason
+
+
+def test_every_full_suite_invocation_asks_for_the_census() -> None:
+    """The flag is the census's whole precondition, so a full-suite invocation
+    that stopped passing it would be a gate that stopped running with nothing
+    to show for it.
+
+    Asserted against the files rather than trusted, because there are three of
+    them and they are edited for unrelated reasons: two `just` recipes and CI's
+    own `pytest` line, which does not go through `just`.
+    """
+    justfile = (ROOT / "justfile").read_text()
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+    full_suite = [
+        line
+        for line in (*justfile.splitlines(), *ci.splitlines())
+        if "pytest" in line and "not engine and not e2e" in line
+    ]
+    assert len(full_suite) == 3, f"expected three full-suite invocations, found {full_suite}"
+    for line in full_suite:
+        # CI splits its invocation across continuations, so the flag may be on
+        # a later line; check the surrounding block instead of the line alone.
+        block = ci if line in ci else justfile
+        start = block.index(line)
+        assert CENSUS_FLAG in block[start : start + 400], f"no {CENSUS_FLAG} near: {line.strip()}"
 
 
 def test_the_taxonomy_smoke_module_it_discounts_still_exists() -> None:

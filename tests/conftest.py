@@ -32,6 +32,10 @@ if TYPE_CHECKING:
 #: Set by ``tests/chaos/test_mutation_harness.py`` in a subprocess.
 CHAOS_ENV = "BLOOMERY_CHAOS_MUTATION"
 
+#: The opt-in for the refusal census. Declared rather than inferred — see
+#: :func:`census_is_enforceable`.
+CENSUS_FLAG = "--refusal-census"
+
 #: Error class name → the test node ids that constructed one. A mapping rather
 #: than a set because *which* test produced it decides whether it counts: see
 #: :data:`~support.docs_claims.TAXONOMY_SMOKE_MODULE`.
@@ -71,31 +75,46 @@ def pytest_configure(config: pytest.Config) -> None:
     apply_mutation(mutation)
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        CENSUS_FLAG,
+        action="store_true",
+        default=False,
+        help=(
+            "Assert that every error class errors.md documents was produced by "
+            "some code path during this session (RFC 0025 §5.1). Only meaningful "
+            "on a whole-suite run; `just test`, `just coverage` and CI pass it."
+        ),
+    )
+
+
 def census_is_enforceable(config: pytest.Config) -> str | None:
     """``None`` when the census can be trusted, else why it cannot.
 
     The claim is "the **suite** produces every documented refusal", which only a
-    session that collected the whole suite can make. A narrowed session is told
-    so out loud rather than passing quietly: a gate that decides for itself when
-    not to run is the shape that let the RFC-corpus check sit unexercised in CI
-    for a whole release.
+    session that ran the whole suite can make. The precondition is therefore
+    **declared** by the invocation rather than inferred from it, and the
+    declaration is asserted by
+    :func:`tests.unit.test_docs_floor.test_every_full_suite_invocation_asks_for_the_census`
+    — a flag that silently stopped being passed would be a gate that silently
+    stopped running.
 
-    Marker filtering is fine — ``just test`` and CI both deselect the
-    Docker-backed tiers, and no documented refusal lives only there. Selecting
-    by path or by ``-k`` is not.
+    Inferring it was tried and was wrong twice, which is why it is not inferred
+    now. Comparing ``config.args`` against the rootdir made *every* session look
+    narrowed, because pytest fills ``args`` from the ``testpaths`` ini; fixing
+    that left a worse bug, since a marker-selected run like ``pytest -m golden``
+    is narrower than anything ``args`` can show and failed with 49 refusals the
+    golden tier never had reason to produce. A precondition that has to be
+    guessed from the command line is one that will be guessed wrong again.
 
-    The whole-suite case is ``config.args`` matching the ``testpaths`` ini,
-    **not** matching the rootdir: pytest fills ``args`` from ``testpaths`` when
-    no path is given, so an invocation with no arguments at all arrives here as
-    ``['tests']``. Comparing against the rootdir instead made every run look
-    narrowed, which is how this check spent its first hour never firing.
+    ``-k`` is still refused on top of the flag: ``just test -k something``
+    forwards its arguments, and the census would otherwise fail a run the
+    developer narrowed on purpose.
     """
+    if not config.getoption(CENSUS_FLAG):
+        return f"not requested ({CENSUS_FLAG} is passed by `just test` and CI)"
     if config.option.keyword:
         return f"narrowed by -k {config.option.keyword!r}"
-    default = {str(config.rootpath), *config.getini("testpaths")}
-    chosen = [arg for arg in config.args if arg.split("::")[0].rstrip("/") not in default]
-    if chosen:
-        return f"narrowed to {chosen}"
     return None
 
 
