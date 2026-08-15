@@ -270,6 +270,12 @@ exclude = ["^tests/"]
 # RFC 0009 D9, and the one floor that predates this table: an untested
 # guardrail branch is an unshipped guardrail. Exact, not one notch below (D3).
 "src/bloomery/guardrails/*" = 100
+# The modules that are not in a package — `compile.py`, `errors.py`,
+# `evidence.py`, `naming.py`, `schema.py` and `__init__.py`. Every other row
+# here is a directory, and a table of directories cannot see these at all:
+# `errors.py` alone is the root of the whole refusal hierarchy. A `*` glob does
+# not cross a `/`, so this matches the top level and only the top level.
+"src/bloomery/*.py"         = 98   # measured 99.0
 "src/bloomery/cli/*"        = 99   # measured 99.5
 "src/bloomery/dialects/*"   = 98   # measured 98.4
 "src/bloomery/emit/*"       = 98   # measured 98.3
