@@ -253,6 +253,40 @@ exclude = ["^tests/"]
 # Every layer is optional (parenthesised) until its module lands — the contract
 # is authored before the code so the code arrives through the gate.
 
+# ....................... #
+# Per-package coverage floors (RFC 0025 §5.2, D3/D5)
+#
+# The global `fail_under = 80` above cannot see a package regressing: the
+# project sits near 99%, so one package falling to 60 disappears into the
+# total. These are enforced by `tools/check_coverage_floors.py`, which
+# `just coverage` and CI's coverage job both run — one authority, as with
+# `just quality`.
+#
+# **Every number is measured, then dropped one notch** (D5). A floor above
+# current coverage fails on day one; a floor far below it ratchets nothing.
+# Raise one when the measurement moves up — never lower one to make a red
+# build green, which is the failure mode a ratchet exists to prevent.
+[tool.bloomery.coverage-floors]
+# RFC 0009 D9, and the one floor that predates this table: an untested
+# guardrail branch is an unshipped guardrail. Exact, not one notch below (D3).
+"src/bloomery/guardrails/*" = 100
+"src/bloomery/cli/*"        = 99   # measured 99.5
+"src/bloomery/dialects/*"   = 98   # measured 98.4
+"src/bloomery/emit/*"       = 98   # measured 98.3
+"src/bloomery/ir/*"         = 99   # measured 100.0
+"src/bloomery/marts/*"      = 99   # measured 100.0
+"src/bloomery/plan/*"       = 99   # measured 100.0
+"src/bloomery/planner/*"    = 99   # measured 99.8
+"src/bloomery/quality/*"    = 99   # measured 99.7
+"src/bloomery/resolve/*"    = 98   # measured 98.6
+"src/bloomery/runtime/*"    = 99   # measured 100.0
+"src/bloomery/spec/*"       = 99   # measured 99.5
+"src/bloomery/steps/*"      = 92   # measured 92.5 — the lowest, and the one
+                                   # worth watching: `steps` is the newest
+                                   # package and carries the run-time contract.
+"src/bloomery/transforms/*" = 99   # measured 100.0
+"src/bloomery/typing/*"     = 98   # measured 99.0
+
 [tool.importlinter]
 root_packages = ["bloomery"]
 exclude_type_checking_imports = true

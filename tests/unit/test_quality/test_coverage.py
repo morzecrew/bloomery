@@ -273,6 +273,30 @@ def test_a_referenced_entity_nothing_writes_is_refused() -> None:
         compile_project(project, target=Target.SQLMESH, dialect="duckdb")
 
 
+def test_an_unmapped_dependent_side_is_refused() -> None:
+    """The other endpoint, and the branch nothing reached.
+
+    The test above drops the mapping for the relationship's ``to`` side, which
+    is the entity the audit *counts against*. This drops the ``from`` side —
+    the dependent entity the audit hangs off — and D90's refusal for it had
+    never been provoked: a whole detection branch in `guardrails/`, which is
+    exactly what RFC 0009 D9's 100% floor exists to make impossible. Emitted
+    against an unmapped dependent, the check would ship and never run.
+    """
+    project = load_project(
+        {
+            "entity_model": ENTITY_MODEL.format(clauses=GOOD),
+            "mapping_customers": MAPPINGS["mapping_customers"],
+        }
+    )
+    with pytest.raises(GuardrailError) as excinfo:
+        compile_project(project, target=Target.SQLMESH, dialect="duckdb")
+    message = str(excinfo.value)
+    assert "lowers to an audit on the dependent side" in message
+    assert "'order'" in message
+    assert "would be emitted and never run" in message
+
+
 def test_the_refusal_is_a_guardrail_not_a_stop_iteration() -> None:
     """The control on the control. A ``StopIteration`` would satisfy "raises"
     just as well, and it is the *kind* of failure that was the defect."""

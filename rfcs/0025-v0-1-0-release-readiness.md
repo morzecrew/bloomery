@@ -1,6 +1,8 @@
 # RFC 0025 — v0.1.0 release readiness
 
-- **Status:** 📝 Draft
+- **Status:** 🚧 In progress — **§5.1, §5.2, §5.3 and §5.4 have landed** (the three
+  RFC 0001 §8 ratchets, and `RETIRED.md`). Remaining: §5.5, the release act, gated on D10.
+  Execution answers D5, D11 and D12, and logs D16–D22.
 - **Scope:** What must be true before bloomery is tagged `0.1.0` — the point at which the
   stability promises in `pages/docs/reference/stability.md` stop describing an intention
   and start binding. Three groups: the **ratchets** RFC 0001 §8 deferred to exactly this
@@ -93,12 +95,25 @@ Verified against `main` @ `828fd5b` (2026-08-14).
   `coverage report --include="src/bloomery/guardrails/*" --fail-under=100`
   ([`justfile#L76`](../justfile#L76)). RFC 0009 D9's "an untested guardrail branch is an unshipped
   guardrail" is enforced today. So this ratchet is a *generalization*, not a build.
+  > **Correction (execution, D19).** The second sentence was false when this section
+  > was written, and false at the commit it claims to verify against. The floor was
+  > **red** at `828fd5b` — four uncovered lines in `guardrails/quality.py`, the oldest
+  > introduced before that commit — and **CI has never run `just coverage`**, so
+  > nothing enforced it anywhere. This is corrected in place rather than left as a
+  > record, because §3 reports a *measurement* rather than a decision: an
+  > append-only table protects choices from being retrofitted, and preserving a
+  > wrong reading of the tree only reproduces the drifting second account the
+  > retirement policy exists to prevent.
 - Global `fail_under = 80` ([`pyproject.toml#L214`](../pyproject.toml#L214)), mirrored in
   [`codecov.yml`](../codecov.yml), which is `informational: true` by RFC 0001 D4 so it never
   becomes a second branch-protection authority.
 - A **perf tier exists**: the `perf` marker and `tests/bench/test_hydration.py`, excluded
   from `just test`. RFC 0014 measured 10.5 ms median cold against a 50 ms budget. What is
   missing is a *gate* — nothing fails when a number regresses.
+  > **Correction (execution, D19).** The last sentence misnames what was missing. The
+  > assertions exist and do fail — what did not exist was any workflow running the
+  > `perf` marker, so they had never executed outside a terminal. Missing wiring, not
+  > a missing gate.
 - **Publishing is built**: [`release.yaml`](../.github/workflows/release.yaml) has a
   `publish` job on the `pypi` environment using pinned
   `pypa/gh-action-pypi-publish`, with the version dynamic through `hatch-vcs`
@@ -340,6 +355,13 @@ describes a release that already shipped.
 | 13 | `LOCKED` | The perf gate runs in **two** places: informational on the scheduled lane, blocking on a release-candidate job in the tag workflow. A gate only on a schedule can run after the tag, which would satisfy D1 on paper and enforce nothing. The other two ratchets need no equivalent — they already run on every PR. |
 | 14 | `ASSUMED` | **Departure from D7, logged at execution (§5.4 shipped).** The consistency check lives in `tools/check_rfc_corpus.py`, wired into `just quality`, not in `rfc_index.py check` as D7 and §6 state. `rfc_index.py` is a **vendored** file — `skills-lock.json` pins `rfc-writer` to `morzecrew/agent-skills` with a content hash, and `c4e1c1b` is a sync commit — so an edit there is overwritten on the next sync, and `RETIRED.md` is a bloomery convention upstream has no reason to know about. `tools/check_purity.py` is the established precedent for a structural invariant enforced by `just quality`. Class: **spec-gap** — knowable at design time, and the RFC did not look. §5.4 and §6 are left as written rather than retrofitted; this row is the record that they changed. |
 | 15 | `ASSUMED` | The check degrades in a **shallow clone**: the structural half (every number used exactly once, the next-free claim still free) still fails the build, the SHA-verification half is skipped and says so. Discovered while building it — `actions/checkout` defaults to depth 1, so a check that hard-failed without history would fail in CI on every run. **Degrading is not sufficient on its own**: review found that the quality job's shallow checkout meant the SHA half never ran in CI at all, making it a local-only check, so that job now takes `fetch-depth: 0` and the degradation is a fallback rather than the normal path. The shallow path is exercised by a real `--depth 1` clone; the SHA path by a temporary repository with a genuine retirement in it. |
+| 16 | `ASSUMED` | **Answers D5 (`OPEN`).** The floors, each measured on the tree that declared them and dropped one notch, with the measurement kept in a comment beside the number: `guardrails` 100 (exact, D3), `cli` 99, `dialects` 98, `emit` 98, `ir` 99, `marts` 99, `plan` 99, `planner` 99, `quality` 99, `resolve` 98, `runtime` 99, `spec` 99, `steps` 92, `transforms` 99, `typing` 98. `steps` is the lowest and the one worth watching — newest package, and it carries the run-time contract. A test asserts every package under `src/bloomery/` has a row, because the package with no floor is always the newest code. |
+| 17 | `ASSUMED` | **Answers D11 (`OPEN`).** The completeness trigger is **admonition blocks** (`!!! warning` / `!!! danger`), not prose. §5.1's proposed rule — every refusal-asserting block names an error class — does not survive measurement: 189 paragraphs in `pages/docs/` contain a refusal verb and 132 name no class, so the rule is either 132 edits or an allowlist that defeats itself. An admonition is the deliberate form for "this will refuse you", it is the form the Postgres claim used, and a reader treats it as binding. **Stated limit:** a stale claim in ordinary prose is not caught, and the class-level census below is what covers the rest. |
+| 18 | `ASSUMED` | **Answers D12 (`OPEN`), and the question was already answered.** `tests/bench/test_hydration.py` pins all six: a 30-model reference tenant built through the real emitter, cold = bytes → `hydrate_manifest`, warm = an L1 hit after one populating `get`, median of 25, ceiling = RFC 0014's budget × the documented 3× CI multiplier. What §3 called "missing a gate" was missing **wiring**: no workflow ran the `perf` marker at all — the only mention of it in CI was the expression excluding it — so the assertions had never run outside a terminal. Measured while wiring: cold 10.8 ms against 150, warm 7.9 ms against 30. **Scope, stated rather than implied:** the two measured paths are a direct `hydrate_manifest` and an L1 hit. §5.3 names a third — an L2 fetch — and a full rebuild, and neither is benchmarked. That is deliberate: RFC 0014's budgets are two numbers, cold and warm, and a ceiling is only worth asserting where a budget exists to assert it against. An L2 gate needs an L2 budget first, which is a question for whoever writes one. |
+| 19 | `ASSUMED` | **Departure (spec-gap): §3's "already shipped" list was wrong about both ratchets it described.** The `guardrails/` 100% floor was **red** on `main` — four uncovered lines, including a D90 refusal branch nothing provoked — and CI never ran `just coverage`, so nothing enforced it. The perf tier "run in the scheduled lane" ran nowhere. Both are fixed here rather than worked around: the four lines are covered (one was unreachable and is now `guaranteed(...)`), and both lanes are wired. The lesson generalizes past this RFC — **a gate's existence and a gate's execution are separate claims**, and §3 asserted the first while meaning the second. |
+| 20 | `ASSUMED` | **Departure (discovery): two CI defects found while landing the floor, neither in scope and both blocking it.** `just build-docs` printed "1 issue found" and exited **0**, so the only check that resolves internal doc links could not fail anything, and no PR-triggered workflow ran it at all — `--strict` plus a `docs` job fixes both. And `required-ci` checked every job against a single `code` flag, so an rfcs-only PR would run `quality` successfully and then fail for not having skipped it — a latent bug from §5.4's own `corpus` filter, unexercised because every rfcs PR so far also touched `ci.yml`. Each job is now checked against its own trigger. |
+| 21 | `ASSUMED` | **Answers §10's placement question with §6's own answer.** The docs-floor checks are tests in the unit tier, not `just quality` steps, so `quality` stays byte-identical to CI (RFC 0001 D4). §10 called this open; §6 had already settled it. The one exception is the *session-scoped* half — "every documented refusal is produced somewhere" is a claim about the whole run, so it lives in `tests/conftest.py` and stands down, out loud, on a narrowed session. |
+| 22 | `ASSUMED` | **Departure (discovery): the census's precondition is declared, not inferred.** It runs only when the invocation passes `--refusal-census`, which `just test`, `just coverage` and CI's `pytest` line all do, and a test asserts all three still do. Inference was tried twice and was wrong twice: comparing `config.args` to the rootdir made *every* session look narrowed (pytest fills `args` from the `testpaths` ini), and fixing that left a worse bug — `pytest -m golden` is narrower than anything `args` can show, so it failed with 49 refusals the golden tier never had reason to produce. A whole-suite claim needs a whole-suite session, and whether a session is whole is not recoverable from its command line. |
 
 ## 12. Phasing
 

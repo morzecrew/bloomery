@@ -107,20 +107,26 @@ unmapped enum values, failed casts, and rules you wrote all travel the same road
 `quality:`, `quarantine:`, or any field-level `quality:`; `dedupe:` alone does not. An
 entity that declares none of them keeps the produce-or-raise lowering it always had.
 
-!!! warning "Postgres cannot host a quality-carrying entity — nor a dedupe-only one"
+The marker needs a NULL-on-failure cast, and the three shipped dialects all have one.
+DuckDB and Trino spell it `TRY_CAST`. Postgres has no such keyword and gets a guard
+around its *own* input parser instead — `CASE WHEN pg_input_is_valid(x, 't') THEN CAST(x
+AS t) END` — so the accept/reject set is the engine's rather than a regex approximation
+of it. Compiling the dirty-data corpus for Postgres emits the same 70 artifacts as
+DuckDB, with the guarded cast in exactly the 66 where DuckDB writes `TRY_CAST`.
 
-    The marker needs a real NULL-on-failure cast. DuckDB and Trino have `TRY_CAST`;
-    Postgres does not, and rendering it there as a plain `CAST` would turn "quarantine
-    this row" into "abort this run". Compiling a `coercible`-carrying entity for
-    Postgres raises `UnsupportedByTarget` rather than degrading silently.
+One deliberate narrowing comes with the Postgres form. That engine accepts `now`,
+`today`, `tomorrow` and `yesterday` as datetime input and resolves them to the
+transaction timestamp, so the same cell would coerce to a different value on every run.
+Those are excluded from the guard, which makes such a cell an ordinary coercion failure —
+quarantined like any other bad value rather than silently unstable.
 
-    The refusal reaches one shape past the rules, which is worth reading against the
-    paragraph directly above. The ingestion-metadata audit every `dedupe:`/`quarantine:`
-    entity gets asserts that `_ingested_at` casts to timestamp, and that assertion is
-    itself a `TRY_CAST` — so an entity that declares only `dedupe:`, and therefore
-    carries no quality rules whatsoever, is refused for Postgres on the audit's own
-    account. Not joining the quality system spares you the rules; it does not buy back
-    the dialect.
+A dialect *without* a NULL-on-failure cast still cannot host a quality-carrying entity,
+or even a dedupe-only one: the ingestion-metadata audit every `dedupe:`/`quarantine:`
+entity gets asserts that `_ingested_at` casts to timestamp, and that assertion is itself
+a `TRY_CAST`. Compiling either for such a dialect raises `UnsupportedByTarget` rather
+than degrading a "quarantine this row" into an "abort this run". No shipped dialect is in
+that position; the refusal is what a fourth one would meet if it arrived without the
+capability.
 
 ## The pipeline order is fixed
 

@@ -8,10 +8,14 @@ pulling in any pipeline stage.
 
 ```text
 BloomeryError
+├── InvariantViolated
 ├── SpecParseError
 ├── UnknownTransformError
 ├── TypeCheckError
 ├── TransformRegistrationError
+├── StepError
+│   ├── StepDeterminismError
+│   └── StepContractViolation
 ├── ResolutionError
 │   ├── CircularDerivation
 │   └── MissingReference
@@ -61,6 +65,10 @@ BloomeryError
 | Class | Stage | Raised when |
 |---|---|---|
 | `BloomeryError` | — | Base class; carries `message`, `source_path`, and `collected` |
+| `InvariantViolated` | any | A guarantee an earlier stage was supposed to have established did not hold — never an authored spec's fault, and never spec feedback. Every total lookup that raises it is total *because* a guardrail already refused the case, so seeing one is a bug report |
+| `StepError` | steps | Base of the referenced-implementation family (RFC 0017) |
+| `StepDeterminismError` | steps (compile) | A step declaring `determinism: nondeterministic`, or a `seeded` step wired without a seed — a nondeterministic step makes a backfill disagree with the run it replaces |
+| `StepContractViolation` | steps (**run time**) | Raised by the wrapper bloomery generates *into your warehouse*: the step's actual output contradicts its manifest — a missing or undeclared output, a differing column set, an unassignable type, or a NULL in a required column. The one error here a reader meets outside a compile |
 | `SpecParseError` | parse | YAML failures, duplicate keys, unknown keys, shape/grammar violations — batched per document |
 | `UnknownTransformError` | typecheck | A transform chain names a transform absent from the registry; message names the closest match |
 | `TypeCheckError` | typecheck | Unparsable type strings; a chain's terminal type not assignable to the declared type; precision-cap overflows |
@@ -129,13 +137,19 @@ addressed message inside the same batched aggregate:
 | Reserved metric name | A project metric colliding with one the quality mart owns (`quality_rows_evaluated`, `quality_rows_failed`, `quality_rows_quarantined`, `quality_rows_deduped`, `quality_quarantine_rate`) — one flat namespace, and two definitions of one name is a silent winner, not a merge |
 
 Data-quality refusals also happen at emit time rather than compile time, and those are
-`UnsupportedByTarget`. Two are about the *dialect*, both on the absent NULL-on-failure
-cast: compiling an entity with `coercible` rules for Postgres (RFC 0016 D30), and —
-because the ingestion-metadata audit asserts `_ingested_at` casts to timestamp, which is
-a `TRY_CAST` of its own — compiling a **dedupe-only** entity for Postgres too, even
-though it carries no quality rules at all (D31). One is about the *target*: a
-`quarantine:` block or a `reconcile:` check compiled for dbt, which lowers neither in
-this wave. All of them name the target or dialect that does support the construct.
+`UnsupportedByTarget`. Two are about the *dialect*, both on an absent NULL-on-failure
+cast: an entity with `coercible` rules (RFC 0016 D30), and — because the
+ingestion-metadata audit asserts `_ingested_at` casts to timestamp, which is a
+`TRY_CAST` of its own — a **dedupe-only** entity too, even though it carries no quality
+rules at all (D31). A third is about an absent Unicode normalization (D86). **None of
+the three can fire on a shipped dialect**: DuckDB and Trino have `TRY_CAST`, Postgres
+gets a guard around its own input parser (D84), and all three normalize. They are what a
+fourth dialect would meet if it arrived without the capability, and they are provoked in
+the test suite against exactly such a dialect.
+
+One is about the *target*: a `quarantine:` block or a `reconcile:` check compiled for
+dbt, which lowers neither in this wave. All of them name the target or dialect that does
+support the construct.
 
 ## The closed refusal list
 
