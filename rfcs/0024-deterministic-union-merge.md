@@ -1,6 +1,6 @@
 # RFC 0024 — Deterministic union merge
 
-- **Status:** 📝 Draft — **P1 scoped by D14**: the union, its checks, the collision audit and the `multi_source` fixture, with `dedupe:` and `quarantine:` refused on a merged entity (§5.6). D8, D10 and D11 are answered by D22–D24; D14–D21 record what reading the code turned up that §3 had not. **D25 is the blocker**: `ColumnIR` carries one lowered expression per column and a union needs one per source, so the IR restructure D1 describes as one field is a change to the IR's central node. That shape is `OPEN` and P1 cannot start until it is chosen.
+- **Status:** 📝 Draft — **P1 scoped by D14**: the union, its checks, the collision audit and the `multi_source` fixture, with `dedupe:` and `quarantine:` refused on a merged entity (§5.6). D8, D10 and D11 are answered by D22–D24; D14–D21 record what reading the code turned up that §3 had not. **D26 answers D25** and unblocks P1: the lowered expression moves to a per-source `SourceColumnIR` and `ColumnIR` keeps the schema (§5.7), measured at four call sites rather than the thirty-seven D25 estimated.
 - **Scope:** Allowing **more than one mapping to target one entity**, merged by a
   deterministic `UNION ALL`, when the mappings agree on the entity's key and cover its
   required fields. Covers the shape where two systems describe the same kind of thing in
@@ -346,6 +346,51 @@ cannot be written, because no collapse exists. D13 is not weakened, it is unexer
 it returns with the P2 that restores `dedupe:`. Shipping a simpler audit that resembles the
 designed one without saying so is the failure this paragraph exists to prevent.
 
+### 5.7 Where the lowered expression lives (answers D25)
+
+A union needs one projection per source per column, and `ColumnIR` carries exactly one
+`expr`. The shape that fixes it is not invented here — **the seam already exists**, in the
+signature of the function that builds the node:
+
+```python
+def _column_ir(name, field, declared, expr, catalog, *, recipe_id=None) -> ColumnIR:
+```
+
+Everything `_column_ir` derives from `field` and `catalog` is **entity-scoped**: `name`,
+`type` (the entity's *declared* type), `canonical`, `unit`, `tax_basis`, `required`,
+`description`, and `renamed_from` — which is declared on the EntityModel `Field`
+(`spec/entity.py:58`), not on a mapping. Exactly two arguments come from the mapping:
+`expr` and `recipe_id`.
+
+So the split is along a line the code already draws, and the schema half is *provably*
+identical across mappings rather than merely expected to be — it is computed from the
+entity model, which every mapping targets. §5.2 rule 4's type agreement is the same fact
+seen from the other side: each mapping's chain is checked against the declaration, so two
+mappings cannot disagree about a column's type without both failing first.
+
+**The shape.** `ColumnIR` sheds the two mapping-derived fields; a new column-grained node
+carries them per source:
+
+```python
+class ColumnIR:            # EntityIR.columns — the merged schema
+    name, type, canonical, unit, tax_basis, renamed_from, required, description
+
+class SourceColumnIR:      # SourceIR.columns — one projection, per source
+    name, expr, recipe_id
+```
+
+**Not on `SourceFieldIR`**, which is the tempting shortcut and is wrong: that node is
+*path*-grained — a recipe field mapping produces one `SourceFieldIR` per required path and
+a single column — so hanging `expr` there would duplicate one expression across a recipe's
+paths and leave no single place to read it from. `SourceIR` gains a second collection
+rather than overloading the first, and the two answer different questions: `fields` is what
+the reject payload and replay read, `columns` is what the SELECT projects.
+
+**Where it lands in the builder**, which is why this is cheap: `_build_entity` already
+appends to `columns` and `source_fields` in one loop, side by side. `_column_ir` splits into
+a schema constructor and a projection constructor called from the same place, and the union
+is then a `UNION ALL` over `SourceIR.columns` in `sources` order.
+
 ### Alternatives considered
 
 **Leave it to a Tier 3 step (the status quo).** It works today and is the honest current
@@ -503,12 +548,20 @@ relation is an expensive way to be silent.
 | 23 | `ASSUMED` | **Answers D10 (`OPEN`) — `scd: type2` plus multi-source is refused.** The expected answer, and D14 makes it cheap: the collision audit would fire on every key holding versions from two sources, and distinguishing a version from a collision needs the validity columns RFC 0023 §5.3 proposes and does not build. Refused with a message naming that dependency, so the refusal routes rather than merely blocks. |
 | 24 | `ASSUMED` | **Answers D11 (`OPEN`) — `required:` means coverage, and the runtime null check stays `assert: {not_null: true}`.** No generated `IS NULL` audit. D11 framed the choice as the audit or an explicit statement; this is the statement. Generating one for merged entities only would make a third thing depend on mapping count, and the authored mechanism already exists, is documented, and lowers to the same audit a generated one would emit. §7's how-to says to use it on required fields of a merged entity, which is where a reader meets the asymmetry. |
 | 25 | `OPEN` | **Where per-source column expressions live — the IR restructure D1 understates, found by building.** D1 says `EntityIR` "gains a set of source mappings where it had one", which reads as a one-field change. It is not: `ColumnIR` carries **one** `expr: SqlExpr`, lowered from *the* mapping's field (`resolve/build.py:_column`), and a union needs one projection per source per column — different source paths and different transform chains. No arrangement of `EntityIR.sources` alone can express that, so the union cannot be emitted until this is settled. Three shapes, none free: **(a)** `SourceIR` gains `columns`, and `EntityIR.columns` becomes the merged *schema* (name, type, canonical, unit, tax_basis, required) with `expr`/`recipe_id` moving per-source — correct, and it touches the IR's central node plus 37 `.columns` read sites outside marts, `plan/diff.py:338`'s `column.expr.sql`, and the guardrails that walk derivations; **(b)** keep `expr` on `EntityIR.columns` as the first source's — a lie on every merged entity and exactly the silent-wrong-answer this project refuses; **(c)** `ColumnIR.exprs` as a tuple index-coupled to `sources` — no new node, and a coupling nothing enforces. **Lean (a).** Whoever takes this decides and logs it *before* writing the union, because it decides what P1 costs. |
+| 26 | `ASSUMED` | **Answers D25 (`OPEN`) — option (a), and D25's blast-radius figure was wrong by an order of magnitude.** The lowered expression moves to a new column-grained `SourceColumnIR` on `SourceIR`; `ColumnIR` keeps the schema (§5.7). D25 said "37 `.columns` read sites" and estimated the cost from that; measured, **exactly 8 sites read a `ColumnIR` lowering field, in 3 files** — `plan/diff.py` (`renamed_from` ×4, `recipe_id`, `expr.sql`) and `emit/lower/silver.py` (`expr.ast()` ×2). Four of those eight are `renamed_from`, which D25 mis-assigned to the lowering half and which is declared on the EntityModel `Field`, so it does not move at all. The 37 was a count of `.columns` readers, and `.columns` readers are overwhelmingly *schema* readers — they survive untouched, which is the whole point of the split. **Real cost: two constructors where there was one, and four call sites.** The golden churn stands regardless — the IR shape moves and D17 bumps the version. |
 
 ## 12. Phasing
 
-**P1 — §5.1–§5.5 and §5.6's boundary.** The union, the compile-time checks, the collision
+**P1 — §5.1–§5.7.** The IR split (§5.7), the union, the compile-time checks, the collision
 audit, `_source`, the plan-classifier rows, and the `multi_source` fixture — with `dedupe:`
-and `quarantine:` refused on a merged entity (D14). It is *not* release-gating: the refusal
+and `quarantine:` refused on a merged entity (D14).
+
+**Take the IR split first, on its own.** `ColumnIR` shedding two fields into
+`SourceColumnIR` is a pure refactor while every entity still has one source: same emitted
+bytes, same behaviour, one version bump, and the whole golden corpus re-fingerprinted once.
+Landing it before the union means the diff that adds multi-source is about multi-source,
+and the corpus churn is not sitting on top of it — which is the difference between a
+reviewable change and a large one. It is *not* release-gating: the refusal
 it replaces is honest, tested, and names its own limitation, so shipping 0.1 without this
 costs nothing but capability.
 
