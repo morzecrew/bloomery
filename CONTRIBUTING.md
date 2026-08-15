@@ -346,12 +346,21 @@ Releases are tag-driven; there are no version strings in the repository.
 Creating a tag `vX.Y.Z` (on a commit contained in `main`) triggers GitHub Actions to:
 
 1. Re-run full CI (including the Docker-backed tiers)
-2. Build the package
-3. Publish it to PyPI via Trusted Publishing
-4. Create a GitHub release with the matching changelog section
-5. Deploy the versioned documentation
+2. Assert the hydration budgets — the `perf` lane, blocking here and informational nightly
+3. Build the package
+4. Publish it to PyPI via Trusted Publishing
+5. Create a GitHub release with the matching changelog section
+6. Deploy the versioned documentation
 
-Before tagging a release, move the relevant entries from the `[Unreleased]` section to the new version section in `CHANGELOG.md`.
+**Cut the changelog section before tagging, not after.** `hatch-vcs` derives the version
+from the tag, so a section written afterwards describes a release that already shipped —
+and step 5 reads `CHANGELOG.md` for a section named exactly `X.Y.Z`, so a missing one
+fails the release *after* the PyPI upload, which cannot be taken back. Rename
+`[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD`, open a fresh empty `[Unreleased]` above it, and
+add both link references at the foot of the file.
+
+Below 1.0, a breaking change bumps the **minor** — `0.1.x` to `0.2.0`. A patch release
+never breaks anything.
 
 ## Questions
 

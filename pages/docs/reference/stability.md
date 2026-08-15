@@ -128,9 +128,39 @@ inherits its own cost questions — whether its regex engine backtracks decides 
 `pattern` rule is a denial-of-service surface there, and that belongs in the port's own
 assessment rather than being assumed from the three that ship.
 
-## Before 0.1
+## What binds at 0.1, and what waits for 1.0
 
-bloomery is pre-0.1 and **the API is not stable yet**. Anything described here may change
-before the first release. The promises above describe how bloomery will behave from 0.1
-onward, and are written down now because the surface is cheapest to get right while
-nothing depends on it.
+The promises above are in force from **0.1.0**. They are not all in force to the same
+degree, and the difference is what SemVer itself says about versions below 1.0.
+
+| Promise | At 0.1 | At 1.0 |
+| --- | --- | --- |
+| **Spec YAML** — a document that loads keeps loading; a breaking grammar change mints a new `<kind>_version` | **Fully binding** | Unchanged |
+| **Python API** — nothing in an `__all__` moves without a version bump and a changelog entry naming the migration | **Binding: never silent** | **Binding: never breaking outside a major** |
+| **Emitted artifacts** — not stable across versions | Binding as stated (it is a *non*-promise, and it does not soften) | Unchanged |
+
+The middle row is the whole split, so it is worth stating without the table:
+
+- **Below 1.0, a breaking change to the Python API may ship in a minor release** — 0.1 to
+  0.2 — which is exactly what SemVer reserves the `0.` series for. What binds now is that
+  it may never be *quiet*: every breaking change appears in `CHANGELOG.md` with the name
+  that moved and what to write instead, and a minor bump is the floor for one. A patch
+  release never breaks anything.
+- **From 1.0, breaking requires a major version.** That is the promise the table's first
+  row already makes for spec YAML, extended to the Python surface once the surface has
+  been used enough to be worth freezing.
+
+Pinning follows from that: pin the minor (`bloomery>=0.1,<0.2`) if you want the API to
+hold still, and read the changelog on every minor bump.
+
+**The spec YAML promise does not wait**, and it is deliberately the strong one. A spec is
+authored by people and lives in a repository far longer than the library version that
+compiled it, so `spec_version: 1` documents keep loading — a breaking grammar change gets
+a new version number rather than a new bloomery release. Those two clocks are independent
+by design.
+
+### The installed version
+
+`bloomery.__version__` and `bloomery --version` report the release you have. Both come
+from the build rather than from a constant in the source, so they cannot disagree with
+the wheel. Quote one of them in a bug report.

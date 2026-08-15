@@ -4,8 +4,8 @@
 
 ## What it is
 
-bloomery is a pure function library. You hand it five kinds of declarative specs —
-catalog, entities, mappings, metrics, marts — and it compiles them into ready-to-run
+bloomery is a pure function library. You hand it declarative specs — a catalog, entities,
+mappings, metrics, marts, and optionally steps — and it compiles them into ready-to-run
 artifacts for SQLMesh, dbt, and Cube: models, audits, and semantic-layer definitions.
 The same specs also serve metric queries at request time: a structured `MetricRequest`
 becomes SQL over a wide mart, planned by an embedded, render-only MetricFlow.
@@ -28,10 +28,8 @@ becomes SQL over a wide mart, planned by an embedded, render-only MetricFlow.
 
 ## Quick start
 
-Pre-0.1, not yet on PyPI — install from the repository:
-
 ```bash
-uv add git+https://github.com/morzecrew/bloomery
+uv add bloomery
 ```
 
 Compile specs into SQLMesh artifacts (the library never touches the filesystem —
@@ -123,18 +121,21 @@ uv run python examples/quickstart/run.py
 
 ## Status
 
-Pre-0.1. All core milestones (M1–M10) are implemented behind the quality gate: spec
-layer, deterministic IR, transforms and typecheck, resolution, guardrails, wide marts
-with role-playing dates, the SQLMesh/Cube/dbt emitters over DuckDB/Trino/Postgres, the
-MetricFlow-backed planner with manifest hydration, spec-diff planning, and the CNF query
-vocabulary with its JSON filter front door — 1200+ tests across the default tiers. The
-end-to-end and cross-target equivalence tiers are still landing. **The API is not
-stable yet** — anything may change before 0.1. What each surface will promise from 0.1
-onward is written down now, in
-[Stability](https://morzecrew.github.io/bloomery/reference/stability/): SemVer over the
-Python API, per-kind versioning over spec YAML, and emitted artifacts explicitly **not**
-stable — byte-reproducible for fixed inputs, which is determinism rather than a
-cross-version promise.
+**0.1.0** — the first release. Everything the library does ships behind the quality gate:
+the spec layer over six document kinds, the deterministic IR, transforms and typecheck,
+resolution, fail-closed guardrails, declarative data quality with quarantine and replay,
+steps as referenced implementations, wide marts with role-playing dates, the
+SQLMesh/dbt/Cube emitters over DuckDB/Trino/Postgres, the MetricFlow-backed planner with
+manifest hydration, spec-diff planning, spec assessment, the CLI and the JSON Schema
+export. Every test tier runs, including the Docker-backed engine matrix, the target e2e
+tiers and the three-way equivalence tier.
+
+From this release the promises in
+[Stability](https://morzecrew.github.io/bloomery/reference/stability/) bind: per-kind
+versioning over spec YAML (fully), SemVer over the Python API (breaking changes are
+allowed in a minor below 1.0, but never silent), and emitted artifacts explicitly **not**
+stable across versions — byte-reproducible for fixed inputs, which is determinism rather
+than a cross-version promise. Pin the minor if you want the API to hold still.
 
 Designs that have not yet landed live as RFCs in [`rfcs/`](rfcs/INDEX.md); code that
 contradicts a live RFC is the bug, not the RFC. An RFC is retired once it ships — the
