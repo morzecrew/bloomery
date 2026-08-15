@@ -129,13 +129,19 @@ addressed message inside the same batched aggregate:
 | Reserved metric name | A project metric colliding with one the quality mart owns (`quality_rows_evaluated`, `quality_rows_failed`, `quality_rows_quarantined`, `quality_rows_deduped`, `quality_quarantine_rate`) — one flat namespace, and two definitions of one name is a silent winner, not a merge |
 
 Data-quality refusals also happen at emit time rather than compile time, and those are
-`UnsupportedByTarget`. Two are about the *dialect*, both on the absent NULL-on-failure
-cast: compiling an entity with `coercible` rules for Postgres (RFC 0016 D30), and —
-because the ingestion-metadata audit asserts `_ingested_at` casts to timestamp, which is
-a `TRY_CAST` of its own — compiling a **dedupe-only** entity for Postgres too, even
-though it carries no quality rules at all (D31). One is about the *target*: a
-`quarantine:` block or a `reconcile:` check compiled for dbt, which lowers neither in
-this wave. All of them name the target or dialect that does support the construct.
+`UnsupportedByTarget`. Two are about the *dialect*, both on an absent NULL-on-failure
+cast: an entity with `coercible` rules (RFC 0016 D30), and — because the
+ingestion-metadata audit asserts `_ingested_at` casts to timestamp, which is a
+`TRY_CAST` of its own — a **dedupe-only** entity too, even though it carries no quality
+rules at all (D31). A third is about an absent Unicode normalization (D86). **None of
+the three can fire on a shipped dialect**: DuckDB and Trino have `TRY_CAST`, Postgres
+gets a guard around its own input parser (D84), and all three normalize. They are what a
+fourth dialect would meet if it arrived without the capability, and they are provoked in
+the test suite against exactly such a dialect.
+
+One is about the *target*: a `quarantine:` block or a `reconcile:` check compiled for
+dbt, which lowers neither in this wave. All of them name the target or dialect that does
+support the construct.
 
 ## The closed refusal list
 
