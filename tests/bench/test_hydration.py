@@ -7,7 +7,23 @@ programmatically through the real emitter. A 3× model-size point (~90
 models) is recorded as info — it keeps V3's roughly-linear extrapolation
 honest as tenants grow, without asserting on it.
 
-Marked ``perf``: excluded from ``just test``, run in the scheduled lane."""
+Marked ``perf``: excluded from ``just test``. It now genuinely **runs** in two
+places (RFC 0025 D13) — informational on the nightly CI lane, and blocking on a
+release-candidate job in ``release.yaml``. That sentence used to say "run in
+the scheduled lane" while no workflow ran the ``perf`` marker at all: the only
+mention of it in CI was the expression excluding it, so these assertions had
+never executed anywhere but a developer's terminal.
+
+The blocking copy is on the *release* rather than on every PR because a budget
+is a ceiling, not a per-commit signal, and because ``just test`` excludes this
+lane — a gate that only ever ran on a schedule could fire after the tag, which
+satisfies the ratchet on paper and enforces nothing.
+
+Measured on the tree that wired it up (30-model reference tenant, median of
+25): **cold 10.8 ms** against the 150 ms ceiling, **warm 7.9 ms** against 30 ms,
+and the 3× size point at 35.2 ms. The headroom is the point (D4): an
+order-of-magnitude regression fails, and a slow shared runner does not.
+"""
 
 from __future__ import annotations
 

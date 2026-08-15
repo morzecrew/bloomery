@@ -23,9 +23,59 @@ jobs:
       # (paths-filter falls back to git, and force_full skips the filter's result anyway).
       pull-requests: read
 
+  # RFC 0025 D13. The perf lane is informational on the nightly schedule and
+  # **blocking here**, and the asymmetry is the decision: `just test` excludes
+  # `perf`, so a gate living only on a schedule can run after the tag or skip a
+  # release candidate entirely — satisfying D1 on paper and enforcing nothing.
+  #
+  # The assertion is an absolute ceiling with headroom (D4), never a drift
+  # comparison against a stored baseline: runner variance on millisecond
+  # measurements makes percentage drift flaky, and a flaky gate is one people
+  # learn to re-run. Measured on this tree, 30-model reference tenant, median
+  # of 25: cold 10.8 ms against a 150 ms ceiling, warm 7.9 ms against 30 ms.
+  # An order-of-magnitude regression is what this blocks; noise is not.
+  perf:
+    name: Hydration budgets (release candidate)
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Uncached deliberately. This workflow publishes, so a restored cache is
+      # a supply-chain surface (`build` suppresses the same audit with a
+      # justification it can make and this job cannot). A perf job also has a
+      # second reason: it measures, and a restored environment is one more
+      # thing that differs between the number here and the number nightly.
+      # One `uv sync` per release is a cost worth paying twice over.
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          # Explicit: the action caches by default, so omitting the key would
+          # have left the cache on while the comment above said otherwise.
+          enable-cache: false
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      # Exit code 5 (no tests collected) is a failure, not a tolerance: an
+      # empty perf lane is a release that measured nothing, which is the one
+      # outcome indistinguishable from a release that met its budgets.
+      - name: Assert the hydration budgets
+        run: uv run pytest -m perf
+
   build:
     name: Build the package
-    needs: ci
+    needs: [ci, perf]
     runs-on: ubuntu-latest
     permissions:
       contents: read

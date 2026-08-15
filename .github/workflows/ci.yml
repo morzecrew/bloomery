@@ -422,6 +422,50 @@ jobs:
 
           echo "required-ci passed"
 
+  # The bench lane (RFC 0009 §5.9), informational — the other half of D13.
+  # Its module docstring claimed it "runs in the scheduled lane" while no
+  # workflow ran the `perf` marker at all: the only mention of it in CI was the
+  # expression excluding it. Drift between releases shows up here; the blocking
+  # copy is the release-candidate job in `release.yaml`.
+  #
+  # Not in `required-ci`, and `continue-on-error` on purpose: a slow shared
+  # runner must not fail a nightly for reasons no code changed. The release
+  # job is where the budget binds.
+  perf:
+    name: Hydration budgets (informational)
+    needs: [changes, quality]
+    if: |
+      needs.quality.result == 'success' &&
+      (needs.changes.outputs.force_full == 'true' || github.event_name == 'schedule')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Measure the hydration budgets
+        run: uv run pytest -m perf
+
   # Tiers 5–6 (engine matrix via testcontainers, target e2e). Runs on the
   # nightly schedule, on explicit force_full runs (workflow_dispatch, release),
   # and — since the PR that measured it — on same-repo pull requests that touch
