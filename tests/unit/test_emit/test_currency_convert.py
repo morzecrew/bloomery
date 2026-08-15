@@ -1,11 +1,14 @@
 """The ``convert`` refusal (RFC 0023 D4/D5).
 
 The transform stays whitelisted and typechecked; what it may not do is reach
-SQL. Both halves are tested here — that no (target × dialect) cell emits the
-marker, and that removing the refusal is not silently survivable — plus the
-guardrail consequence D5 makes explicit: `CurrencyMismatch` no longer has an
-escape hatch, so mixed-currency arithmetic is refused at compile rather than
-permitted into a run-time failure.
+SQL. Three things are pinned here: that no (target × dialect) cell emits the
+marker, that the refusal sits low enough to cover the *other* SELECTs an
+entity produces — the reject table and the replay — and that the token the
+transform builds is the token the refusal looks for.
+
+The guardrail consequence D5 makes explicit — `CurrencyMismatch` losing its
+escape hatch — is tested beside the rule itself, in
+`test_guardrails/test_arithmetic.py`.
 """
 
 from __future__ import annotations
@@ -14,9 +17,16 @@ import pytest
 from sqlglot import exp
 
 from bloomery import Target, compile_project
+from bloomery.dialects import get_dialect
+from bloomery.emit import EmitContext
+from bloomery.emit.lower import entity_select
+from bloomery.emit.lower.silver import reject_select
 from bloomery.errors import UnsupportedByTarget
+from bloomery.naming import DefaultNaming
 from bloomery.transforms import CONVERT_MARKER, DEFAULT_REGISTRY
 from support.compiling import load_fixture
+from support.plan_ir import column as plan_column
+from support.plan_ir import entity as plan_entity
 
 pytestmark = pytest.mark.unit
 
@@ -49,6 +59,33 @@ def test_the_refusal_names_no_dialect() -> None:
     with pytest.raises(UnsupportedByTarget) as excinfo:
         compile_project(project, target=Target.SQLMESH, dialect="trino", catalog=catalog)
     assert "trino" not in str(excinfo.value)
+
+
+def test_the_reject_and_replay_selects_refuse_too() -> None:
+    """The refusal is in `_extract_select`, the one place a `ColumnIR.expr`
+    becomes SQL — so it covers every SELECT an entity produces, not only its
+    model.
+
+    Called directly because the model path refuses first: compiling a project
+    can only ever show the first refusal, so it cannot tell a check that runs
+    everywhere from one hoisted into `entity_select` alone. Hoisting it is
+    exactly the change this would stop being safe under.
+    """
+    carrier = plan_entity(
+        name="payment",
+        key=("payment_id",),
+        columns=(
+            plan_column("payment_id", required=True),
+            plan_column("amount_usd", expr=f"{CONVERT_MARKER}(amount, 'USD')"),
+        ),
+    )
+    ctx = EmitContext(
+        fingerprint="blm1:test", naming=DefaultNaming(), dialect=get_dialect("duckdb")
+    )
+    for lowering in (entity_select, reject_select):
+        with pytest.raises(UnsupportedByTarget) as excinfo:
+            lowering(carrier, ctx)
+        assert "amount_usd" in str(excinfo.value)
 
 
 def test_convert_stays_registered_and_typechecked() -> None:
