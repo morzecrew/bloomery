@@ -285,7 +285,7 @@ def _require_no_currency_conversion(entity: EntityIR) -> None:
     ``ColumnIR.expr`` is realized, so no emission path — model, reject table,
     replay, or fail audit — can reach the marker without passing this.
     """
-    for column in entity.columns:
+    for column in entity.source.columns:
         if not any(
             str(call.this).upper() == CONVERT_MARKER
             for call in column.expr.ast().find_all(exp.Anonymous)
@@ -329,7 +329,11 @@ def _extract_select(
 
     repaired = {rule.column: rule for rule in entity.quality if repairs(rule)}
     projections: list[Expression] = []
-    for column in entity.columns:
+    # The lowering, not the schema (RFC 0024 D26): what this SELECT projects is
+    # one source's expression per column, and `SourceIR.columns` is sorted by
+    # name exactly as `EntityIR.columns` is, so the projection order does not
+    # move.
+    for column in entity.source.columns:
         raw = source(column.expr.ast())
         rule = repaired.get(column.name)
         if rule is None:

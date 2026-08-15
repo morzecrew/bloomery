@@ -34,6 +34,7 @@ from bloomery.ir import (
     SCDKind,
     SemiAdditivePolicy,
     SourceFieldIR,
+    SourceColumnIR,
     SourceIR,
     SqlExpr,
     TaxBasis,
@@ -56,18 +57,29 @@ def column(
     renamed_from: str | None = None,
     required: bool = False,
     description: str | None = None,
-) -> ColumnIR:
-    return ColumnIR(
-        name=name,
-        type=type_ if type_ is not None else StringType(),
-        canonical=canonical,
-        unit=unit,
-        tax_basis=tax_basis,
-        expr=SqlExpr(expr if expr is not None else name),
-        recipe_id=recipe_id,
-        renamed_from=renamed_from,
-        required=required,
-        description=description,
+) -> tuple[ColumnIR, SourceColumnIR]:
+    """Both halves of one column (RFC 0024 D26).
+
+    Returns the pair rather than the schema alone so a test cannot build a
+    column the emitted SELECT has no projection for — the same reason
+    ``resolve.build._column_pair`` returns two values. ``entity`` unzips it.
+    """
+    return (
+        ColumnIR(
+            name=name,
+            type=type_ if type_ is not None else StringType(),
+            canonical=canonical,
+            unit=unit,
+            tax_basis=tax_basis,
+            renamed_from=renamed_from,
+            required=required,
+            description=description,
+        ),
+        SourceColumnIR(
+            name=name,
+            expr=SqlExpr(expr if expr is not None else name),
+            recipe_id=recipe_id,
+        ),
     )
 
 
@@ -91,6 +103,8 @@ def entity(
     produced_by: str | None = None,
 ) -> EntityIR:
     resolved = columns if columns is not None else (column("id", required=True),)
+    schema = tuple(sorted((pair[0] for pair in resolved), key=lambda c: c.name))
+    projections = tuple(sorted((pair[1] for pair in resolved), key=lambda c: c.name))
     return EntityIR(
         name=name,
         grain=grain,
@@ -98,10 +112,11 @@ def entity(
         scd=scd,
         materialization=materialization,
         partition_by=partition_by,
-        columns=tuple(sorted(resolved, key=lambda c: c.name)),
+        columns=schema,
         source=SourceIR(
             relation=relation,
             fields=tuple(sorted(source_fields, key=lambda f: (f.target_field, f.source_path))),
+            columns=projections,
             mapping_version=mapping_version,
             unmapped=tuple(sorted(unmapped)),
         ),

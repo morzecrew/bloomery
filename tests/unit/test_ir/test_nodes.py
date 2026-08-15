@@ -77,7 +77,7 @@ def test_ir_version_is_five() -> None:
     # (the encoder covers field names and count), so nothing failed — but
     # `plan()` would have diffed a coverage-carrying IR against one without,
     # both calling themselves v3.
-    assert ProjectIR().bloomery_ir_version == 5
+    assert ProjectIR().bloomery_ir_version == 6
 
 
 def test_the_compiler_emits_the_declared_ir_version() -> None:

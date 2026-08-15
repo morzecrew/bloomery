@@ -29,6 +29,7 @@ from bloomery.ir import (
     ProjectIR,
     ReconcileIR,
     SCDKind,
+    SourceColumnIR,
     SourceIR,
     SqlExpr,
 )
@@ -54,11 +55,31 @@ def _column(name: str, column_type: LogicalType) -> ColumnIR:
         canonical=None,
         unit=None,
         tax_basis=None,
-        expr=SqlExpr(name),
-        recipe_id=None,
         renamed_from=None,
         required=False,
     )
+
+
+def _projection(name: str) -> SourceColumnIR:
+    """This source\'s lowering of the column (RFC 0024 D26)."""
+    return SourceColumnIR(name=name, expr=SqlExpr(name))
+
+
+#: Every column these builders declare, lowered as itself. The emitted
+#: SELECT projects `SourceIR.columns`, so a name missing here is a column
+#: the model cannot produce (RFC 0024 D26).
+_SOURCE = SourceIR(
+    relation="src",
+    columns=tuple(
+        _projection(name)
+        for name in (
+            "amount",
+            "item_id",
+            "qty",
+            "sku",
+        )
+    ),
+)
 
 
 def _entity(
@@ -82,7 +103,7 @@ def _entity(
             _column("qty", IntType()),
             _column("sku", StringType()),
         ),
-        source=SourceIR(relation="src"),
+        source=_SOURCE,
         audits=tuple(sorted(audits, key=lambda a: (a.kind, a.column))),
     )
 

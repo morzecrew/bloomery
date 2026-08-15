@@ -20,6 +20,7 @@ from bloomery.ir import (
     SCDKind,
     SemiAdditivePolicy,
     SemiAdditiveRule,
+    SourceColumnIR,
     SourceIR,
     SqlExpr,
 )
@@ -57,8 +58,6 @@ def _entity(*column_names: str) -> EntityIR:
             canonical=None,
             unit=None,
             tax_basis=None,
-            expr=SqlExpr(name),
-            recipe_id=None,
             renamed_from=None,
             required=False,
         )
@@ -72,7 +71,10 @@ def _entity(*column_names: str) -> EntityIR:
         materialization=Materialization.FULL,
         partition_by=(),
         columns=columns,
-        source=SourceIR(relation="src"),
+        source=SourceIR(
+            relation="src",
+            columns=tuple(SourceColumnIR(name=name, expr=SqlExpr(name)) for name in column_names),
+        ),
     )
 
 

@@ -40,6 +40,7 @@ from bloomery.ir import (
     OnFail,
     QualityRuleIR,
     SCDKind,
+    SourceColumnIR,
     SourceIR,
     StepColumnIR,
     StepIR,
@@ -630,19 +631,26 @@ def step_entities(
                             ),
                             unit=None,
                             tax_basis=None,
-                            # A step column has no lowering: the wrapper wrote
-                            # it. The expression is the column referring to
-                            # itself, which is exactly what a downstream model
-                            # selecting from this relation would emit — an
-                            # honest identity rather than a fabricated derivation.
-                            expr=canon(exp.column(column.name)),
-                            recipe_id=None,
                             renamed_from=None,
                             required=column.required,
                         )
                         for column in output.columns
                     ),
-                    source=SourceIR(relation=output.relation),
+                    source=SourceIR(
+                        relation=output.relation,
+                        # A step column has no lowering: the wrapper wrote it.
+                        # The expression is the column referring to itself,
+                        # which is exactly what a downstream model selecting
+                        # from this relation would emit — an honest identity
+                        # rather than a fabricated derivation. It lives here
+                        # with every other per-source projection (RFC 0024
+                        # D26) even though a step output has exactly one
+                        # source and always will.
+                        columns=tuple(
+                            SourceColumnIR(name=column.name, expr=canon(exp.column(column.name)))
+                            for column in sorted(output.columns, key=lambda c: c.name)
+                        ),
+                    ),
                     quality=rules.get((step.ref, step.version, output.name), ()),
                     produced_by=f"{step.ref}@{step.version}",
                 )

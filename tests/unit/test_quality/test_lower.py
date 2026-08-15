@@ -132,14 +132,14 @@ def test_the_transform_chain_lowers_try_cast_shaped() -> None:
     project, catalog = load_fixture("semi_additive_inventory")
     ir = build_project_ir(project, catalog)
     (entity,) = ir.entities
-    assert all("TRY_CAST" in column.expr.sql for column in entity.columns)
+    assert all("TRY_CAST" in column.expr.sql for column in entity.source.columns)
 
 
 def test_a_quality_free_project_keeps_plain_casts() -> None:
     project, catalog = load_fixture("minimal")
     ir = build_project_ir(project, catalog)
     (entity,) = ir.entities
-    assert all("TRY_CAST" not in column.expr.sql for column in entity.columns)
+    assert all("TRY_CAST" not in column.expr.sql for column in entity.source.columns)
 
 
 # ....................... #

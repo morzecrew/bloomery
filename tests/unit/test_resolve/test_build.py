@@ -29,10 +29,12 @@ def test_minimal_ir_lowering() -> None:
     assert entity.materialization is Materialization.FULL
     assert [c.name for c in entity.columns] == ["event_id", "kind", "occurred_at"]
     by_name = {c.name: c for c in entity.columns}
+    # The lowered expression moved to the source (RFC 0024 D26).
+    lowered = {c.name: c for c in entity.source.columns}
     # A chain lowers through the registry builders; a chain-less mapping is a
     # declared-type cast at extraction.
-    assert by_name["event_id"].expr.sql == "CAST(id AS TEXT)"
-    assert by_name["occurred_at"].expr.sql == "CAST(ts AS TIMESTAMP)"
+    assert lowered["event_id"].expr.sql == "CAST(id AS TEXT)"
+    assert lowered["occurred_at"].expr.sql == "CAST(ts AS TIMESTAMP)"
     assert by_name["occurred_at"].type == TimestampType()
     assert entity.source.relation == "raw__events"
     assert ir.metrics == ()
@@ -44,8 +46,9 @@ def test_ecom_recipe_lowering_records_the_recipe_id() -> None:
     ir = build_project_ir(project, catalog)
     order_item = next(e for e in ir.entities if e.name == "order_item")
     unit_price = next(c for c in order_item.columns if c.name == "unit_price")
-    assert unit_price.expr.sql == "CAST(total / qty AS DECIMAL(12, 4))"
-    assert unit_price.recipe_id == "from_total"
+    lowered = next(c for c in order_item.source.columns if c.name == "unit_price")
+    assert lowered.expr.sql == "CAST(total / qty AS DECIMAL(12, 4))"
+    assert lowered.recipe_id == "from_total"
     assert unit_price.type == DecimalType(12, 4)
     assert unit_price.canonical == "unit_price"
     assert unit_price.unit is not None and unit_price.unit.value == "currency"
@@ -57,7 +60,8 @@ def test_ecom_nested_jsonpath_lowering() -> None:
     ir = build_project_ir(project, catalog)
     order = next(e for e in ir.entities if e.name == "order")
     customer_id = next(c for c in order.columns if c.name == "customer_id")
-    assert customer_id.expr.sql == "CAST(JSON_EXTRACT_SCALAR(customer, '$.id') AS TEXT)"
+    lowered = next(c for c in order.source.columns if c.name == "customer_id")
+    assert lowered.expr.sql == "CAST(JSON_EXTRACT_SCALAR(customer, '$.id') AS TEXT)"
     assert customer_id.type == StringType()
 
 

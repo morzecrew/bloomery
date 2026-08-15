@@ -60,6 +60,7 @@ from bloomery.ir import (
     SCDKind,
     SemiAdditivePolicy,
     SemiAdditiveRule,
+    SourceColumnIR,
     SourceFieldIR,
     SourceIR,
     TaxBasis,
@@ -393,7 +394,7 @@ def _catalog_metadata(
     return unit, tax, canonical_field.description
 
 
-def _column_ir(
+def _column_pair(
     name: str,
     field: Field,
     declared: LogicalType,
@@ -401,19 +402,33 @@ def _column_ir(
     catalog: Catalog | None,
     *,
     recipe_id: str | None = None,
-) -> ColumnIR:
+) -> tuple[ColumnIR, SourceColumnIR]:
+    """The entity's column and this mapping's projection of it (RFC 0024 D26).
+
+    One function rather than two because the two halves are decided together
+    and must not drift: every ``ColumnIR`` an entity carries needs exactly one
+    projection per source, and building them apart is how a column comes to
+    exist with nothing to select for it.
+
+    The split is the parameter list's own: ``field`` and ``catalog`` decide
+    the schema — identical for every mapping targeting this entity, since both
+    come from the entity model — while ``expr`` and ``recipe_id`` come from
+    the mapping and are the only things a second source would spell
+    differently.
+    """
     unit, tax_basis, description = _catalog_metadata(field, catalog)
-    return ColumnIR(
-        name=name,
-        type=declared,
-        canonical=field.canonical,
-        unit=unit,
-        tax_basis=tax_basis,
-        expr=canon(expr),
-        recipe_id=recipe_id,
-        renamed_from=field.renamed_from,
-        required=field.required,
-        description=description,
+    return (
+        ColumnIR(
+            name=name,
+            type=declared,
+            canonical=field.canonical,
+            unit=unit,
+            tax_basis=tax_basis,
+            renamed_from=field.renamed_from,
+            required=field.required,
+            description=description,
+        ),
+        SourceColumnIR(name=name, expr=canon(expr), recipe_id=recipe_id),
     )
 
 
@@ -717,7 +732,22 @@ def _build_entity(
 ) -> EntityIR:
     doc = mapping_doc(mapping)
     columns: list[ColumnIR] = []
+    projections: list[SourceColumnIR] = []
     source_fields: list[SourceFieldIR] = []
+
+    def add_column(
+        name: str,
+        field: Field,
+        declared: LogicalType,
+        expr: Expression,
+        *,
+        recipe_id: str | None = None,
+    ) -> None:
+        """Append both halves of one column, so neither can be added alone."""
+        column, projection = _column_pair(name, field, declared, expr, catalog, recipe_id=recipe_id)
+        columns.append(column)
+        projections.append(projection)
+
     # Stages 1–2 of the fixed pipeline order (RFC 0016 §5.4): extract, then
     # transform. A quality-carrying entity's transforms lower to the
     # coercion-failure-marker form, feeding the implicit ``coercible`` rule.
@@ -735,7 +765,7 @@ def _build_entity(
             steps,
             source_path=f"{doc}: key.{field_name}",
         )
-        columns.append(_column_ir(field_name, field, declared, shape(expr), catalog))
+        add_column(field_name, field, declared, shape(expr))
         source_fields.append(
             SourceFieldIR(
                 target_field=field_name,
@@ -754,7 +784,7 @@ def _build_entity(
             expr = _macro_expr(
                 field_mapping, declared, steps, source_path=f"{doc}: fields.{field_name}"
             )
-            columns.append(_column_ir(field_name, field, declared, shape(expr), catalog))
+            add_column(field_name, field, declared, shape(expr))
             source_fields.extend(
                 SourceFieldIR(target_field=field_name, source_path=path)
                 for _alias, path in sorted(field_mapping.from_.items())
@@ -763,9 +793,7 @@ def _build_entity(
             expr, recipe_id = _recipe_expr(
                 field_mapping, declared, mapping, field_name, project, catalog
             )
-            columns.append(
-                _column_ir(field_name, field, declared, shape(expr), catalog, recipe_id=recipe_id)
-            )
+            add_column(field_name, field, declared, shape(expr), recipe_id=recipe_id)
             source_fields.extend(
                 SourceFieldIR(target_field=field_name, source_path=path)
                 for _alias, path in sorted(field_mapping.from_.items())
@@ -793,7 +821,7 @@ def _build_entity(
                 steps,
                 source_path=f"{doc}: fields.{field_name}",
             )
-            columns.append(_column_ir(field_name, field, declared, shape(expr), catalog))
+            add_column(field_name, field, declared, shape(expr))
             source_fields.append(
                 SourceFieldIR(
                     target_field=field_name,
@@ -815,6 +843,7 @@ def _build_entity(
         source=SourceIR(
             relation=mapping.source,
             fields=tuple(sorted(source_fields, key=lambda f: (f.target_field, f.source_path))),
+            columns=tuple(sorted(projections, key=lambda c: c.name)),
             mapping_version=mapping.mapping_version,
             unmapped=tuple(sorted(mapping.unmapped)),
         ),

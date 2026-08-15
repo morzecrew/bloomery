@@ -29,7 +29,7 @@ from bloomery.guardrails.quality import check_quality
 from bloomery.marts import lower_marts
 
 if TYPE_CHECKING:
-    from bloomery.ir import AuditIR, ColumnIR, EntityIR, ProjectIR
+    from bloomery.ir import AuditIR, ColumnIR, EntityIR, ProjectIR, SourceColumnIR
     from bloomery.spec.catalog import Catalog
     from bloomery.spec.project import Project
 
@@ -41,7 +41,7 @@ __all__ = [
 def _amended_entity(
     entity: EntityIR,
     lowered: dict[str, list[AuditIR]],
-    shadows: dict[str, list[ColumnIR]],
+    shadows: dict[str, list[tuple[ColumnIR, SourceColumnIR]]],
     reconcile: dict[str, list[AuditIR]],
 ) -> EntityIR:
     audits = tuple(
@@ -51,11 +51,26 @@ def _amended_entity(
         )
     )
     present = {column.name for column in entity.columns}
-    extra = [column for column in shadows.get(entity.name, []) if column.name not in present]
+    extra = [pair for pair in shadows.get(entity.name, []) if pair[0].name not in present]
     if audits == entity.audits and not extra:
         return entity
-    columns = tuple(sorted([*entity.columns, *extra], key=lambda column: column.name))
-    return replace(entity, columns=columns, audits=audits)
+    columns = tuple(
+        sorted([*entity.columns, *(column for column, _ in extra)], key=lambda column: column.name)
+    )
+    # Both halves move together (RFC 0024 D26): a schema column with no
+    # projection is a column the SELECT cannot produce, which would compile
+    # clean and fail on the first run. ``direct:`` is refused on a merged
+    # entity (D28), so there is exactly one source to amend here.
+    source = replace(
+        entity.source,
+        columns=tuple(
+            sorted(
+                [*entity.source.columns, *(projection for _, projection in extra)],
+                key=lambda column: column.name,
+            )
+        ),
+    )
+    return replace(entity, columns=columns, source=source, audits=audits)
 
 
 def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | None) -> ProjectIR:

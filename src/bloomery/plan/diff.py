@@ -123,6 +123,7 @@ if TYPE_CHECKING:
         QualityRuleIR,
         QuarantineIR,
         ReconcileIR,
+        SourceColumnIR,
         StepIR,
         TransformStepIR,
     )
@@ -327,15 +328,28 @@ def _source_signature(
 _SEMANTIC_FACETS = ("canonical", "recipe", "expression", "unit", "tax_basis", "source")
 
 
+def _projection(entity: EntityIR, name: str) -> SourceColumnIR | None:
+    """This entity's lowering of ``name``, or ``None`` if it has none.
+
+    The lowered expression moved off :class:`ColumnIR` onto the source
+    (RFC 0024 D26), so a diff that compares what a column *means* has to read
+    it from there. ``None`` rather than a raise: a diff runs over two IRs that
+    may disagree about which columns exist, and that disagreement is the thing
+    being classified rather than an invariant to assert.
+    """
+    return next((column for column in entity.source.columns if column.name == name), None)
+
+
 def _semantic_signature(
     entity: EntityIR, column: ColumnIR
 ) -> tuple[object, object, object, object, object, object]:
     """What the column *means* (D4), name and shape excluded: canonical link,
     recipe, lowered expression, catalog metadata, and source lowering."""
+    lowering = _projection(entity, column.name)
     return (
         column.canonical,
-        column.recipe_id,
-        column.expr.sql,
+        lowering.recipe_id if lowering else None,
+        lowering.expr.sql if lowering else None,
         column.unit,
         column.tax_basis,
         _source_signature(entity, column.name),
@@ -452,6 +466,9 @@ def _column_pair(
         return
     old_sig = _semantic_signature(old_e, old_c)
     new_sig = _semantic_signature(new_e, new_c)
+    old_lowering, new_lowering = _projection(old_e, old_c.name), _projection(new_e, new_c.name)
+    old_recipe = old_lowering.recipe_id if old_lowering else None
+    new_recipe = new_lowering.recipe_id if new_lowering else None
     if old_sig != new_sig:
         facets = [
             facet
@@ -464,8 +481,8 @@ def _column_pair(
                 subject,
                 ChangeClass.RESTATING,
                 f"semantics changed ({', '.join(facets)})",
-                old=old_c.recipe_id if old_c.recipe_id != new_c.recipe_id else None,
-                new=new_c.recipe_id if old_c.recipe_id != new_c.recipe_id else None,
+                old=old_recipe if old_recipe != new_recipe else None,
+                new=new_recipe if old_recipe != new_recipe else None,
             )
         )
         acc.backfill.add(new_e.name)
