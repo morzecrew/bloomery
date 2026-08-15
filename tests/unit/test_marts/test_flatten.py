@@ -11,6 +11,7 @@ from bloomery.errors import (
     FanoutRisk,
     GrainViolation,
     GuardrailError,
+    HistoricalFanout,
     MartMissingTimeDimension,
     MeasureRef,
 )
@@ -154,6 +155,30 @@ def _violations(marts_yaml: str) -> tuple[GuardrailError, ...]:
     lowering = lower_marts(_mart_set(marts_yaml), _draft())
     assert lowering.marts == ()  # a mart with any violation contributes no IR
     return lowering.violations
+
+
+def _as_type2(entity: str) -> dict[str, str]:
+    """``_SOURCES`` with one entity declared ``scd: type2``.
+
+    One added line is the whole difference RFC 0023 D1/D2 refuse on, so the
+    tests below are written as that line rather than as a second corpus: what
+    they discriminate is the *combination*, and a separate document would let
+    an unrelated difference stand in for it.
+    """
+    anchor = f"  {entity}:\n"
+    assert anchor in _SOURCES["entity_model"]
+    return {
+        **_SOURCES,
+        "entity_model": _SOURCES["entity_model"].replace(anchor, f"{anchor}    scd: type2\n", 1),
+    }
+
+
+def _historical(entity: str, marts_yaml: str) -> tuple[GuardrailError, ...]:
+    """Violations for ``marts_yaml`` with ``entity`` made historical."""
+    sources = _as_type2(entity)
+    project = load_project({**sources, "marts": marts_yaml})
+    assert project.marts is not None
+    return lower_marts(project.marts, build_project_ir(load_project(sources))).violations
 
 
 # ....................... #
@@ -443,6 +468,81 @@ marts:
     assert isinstance(violation, FanoutRisk)
     assert "neither the base nor a previously flattened entity" in str(violation)
     assert "authored order" in str(violation)
+
+
+# ....................... #
+# Historical dimensions (RFC 0023 D1/D2) — the join that has no validity
+# predicate, and the base whose grain counts revisions.
+
+_CHAIN_TO_CUSTOMER = """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: item_of_order, prefix: order_}
+      - {via: order_of_customer, prefix: customer_}
+"""
+
+_ORDERS_BASE = """\
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+"""
+
+
+def test_flattening_a_type2_entity_is_historical_fanout() -> None:
+    (violation,) = _historical("customer", _CHAIN_TO_CUSTOMER)
+    assert isinstance(violation, HistoricalFanout)
+    assert violation.source_path == "marts: marts.items.flatten[1].via"
+    assert "no validity predicate" in str(violation)
+    assert "version count" in str(violation)
+    # The declared cardinality is correct and must not be what the reader is
+    # sent to check — that is the whole reason this is not a FanoutRisk.
+    assert not isinstance(violation, FanoutRisk)
+    assert "claim about the domain" in str(violation)
+
+
+def test_the_same_flatten_over_a_type1_entity_is_clean() -> None:
+    # The nearest non-trigger: one line apart from the case above.
+    lowering = lower_marts(_mart_set(_CHAIN_TO_CUSTOMER), _draft())
+    assert lowering.violations == ()
+    assert [m.name for m in lowering.marts] == ["items"]
+
+
+def test_a_type2_base_is_historical_fanout() -> None:
+    (violation,) = _historical("order", _ORDERS_BASE)
+    assert isinstance(violation, HistoricalFanout)
+    assert violation.source_path == "marts: marts.orders.base"
+    assert "counts revisions" in str(violation)
+
+
+def test_the_same_base_as_type1_is_clean() -> None:
+    lowering = lower_marts(_mart_set(_ORDERS_BASE), _draft())
+    assert lowering.violations == ()
+    assert [m.name for m in lowering.marts] == ["orders"]
+
+
+def test_a_type2_entity_the_mart_never_reaches_is_not_refused() -> None:
+    """The refusal is the *combination*, never the feature (RFC 0023 §4).
+
+    ``customer`` is historical and the mart neither flattens it nor is based on
+    it — so the mart lowers, and the silver model keeping that history is
+    untouched.
+    """
+    marts = """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: item_of_order, prefix: order_}
+"""
+    assert _historical("customer", marts) == ()
 
 
 def test_flattening_an_unmapped_entity_is_refused() -> None:

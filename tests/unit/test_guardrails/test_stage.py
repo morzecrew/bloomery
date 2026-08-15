@@ -13,6 +13,7 @@ from bloomery.errors import (
     GrainMismatch,
     GrainViolation,
     GuardrailError,
+    HistoricalFanout,
     NonAdditiveWithoutComponents,
     SpecParseError,
 )
@@ -62,6 +63,56 @@ def test_fanout_trap_violations_sort_by_source_path() -> None:
         "metrics: metrics.landed_revenue",
     ]
     assert paths == sorted(p or "" for p in paths)
+
+
+# ....................... #
+# Acceptance: scd2_mart_refusal fails closed on both sides (RFC 0023 D1/D2)
+
+
+def test_scd2_mart_refusal_fails_closed_on_both_sides() -> None:
+    project, catalog = load_fixture("scd2_mart_refusal")
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(project, catalog)
+    leaves = excinfo.value.collected
+    assert [type(leaf) for leaf in leaves] == [HistoricalFanout, HistoricalFanout]
+    assert [leaf.source_path for leaf in leaves] == [
+        "marts: marts.customers.base",
+        "marts: marts.orders.flatten[0].via",
+    ]
+    message = str(excinfo.value)
+    # Each side names its own mechanism: the base counts revisions, the
+    # flatten multiplies. One error class, two readings, neither generic.
+    assert "counts revisions" in message
+    assert "matches every version of each 'customer' key" in message
+    assert message.count("Fix: declare the entity scd: type1") == 2
+
+
+def test_the_same_project_without_the_scd2_line_compiles_clean() -> None:
+    """The one-line discrimination (RFC 0023 §6).
+
+    ``scd: type2`` is the whole difference between the fixture and a project
+    that lowers two marts — so the refusal is pinned to the *combination*
+    rather than to anything else about the documents.
+    """
+    sources = dict(fixture_sources("scd2_mart_refusal"))
+    sources["entity_model"] = sources["entity_model"].replace("    scd: type2\n", "")
+    project = load_project(sources)
+    # Asserted on the parsed model, not on the text: the fixture's own comment
+    # quotes the line it is about, so a substring check over the document
+    # would be satisfied by prose.
+    assert project.entity_model.entities["customer"].scd == "type1"
+    _project, catalog = load_fixture("scd2_mart_refusal")
+    ir = build_project_ir(project, catalog)
+    assert [mart.name for mart in ir.marts] == ["customers", "orders"]
+
+
+def test_a_type2_entity_with_no_mart_still_lowers() -> None:
+    """RFC 0023 §8: ``scd: type2`` as a silver target is untouched. The
+    fixture that owns that coverage must keep compiling."""
+    project, catalog = load_fixture("scd2_customers")
+    ir = build_project_ir(project, catalog)
+    (customer,) = ir.entities
+    assert customer.scd == "type2"
 
 
 # ....................... #

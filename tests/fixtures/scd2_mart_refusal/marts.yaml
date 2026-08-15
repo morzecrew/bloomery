@@ -1,0 +1,25 @@
+# One mart per side of the refusal (RFC 0023 §5.1).
+#
+# `orders` is the fan-out: the emitted join is an equality on customer_id and
+# nothing else, so every order matches every *version* of its customer and the
+# order grain is multiplied by the version count — while the declared
+# many_to_one stays perfectly true of the domain.
+#
+# `customers` multiplies nothing; there is no join. Its grain says one row per
+# customer and the relation holds one row per customer per version, so
+# customer_count counts revisions.
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    flatten:
+      - {via: order_of_customer, prefix: customer_}
+      - {date: order_date, role: ordered}
+    measures: [revenue]
+  customers:
+    grain: customer
+    base: customer
+    flatten:
+      - {date: signed_up_at, role: signed_up}
+    measures: [customer_count]

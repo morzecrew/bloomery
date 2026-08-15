@@ -1,0 +1,35 @@
+# The historical-dimension refusal fixture (RFC 0023 D1/D2). One line — the
+# `scd: type2` on `customer` — is the whole difference between this project and
+# a clean one, which is what makes it a fixture about a *combination* rather
+# than about a spec. Both refusals hang off it: `orders` flattens the
+# historical dimension, `customers` is based on it.
+#
+# Deliberately not `scd2_customers`. That fixture is the only golden coverage
+# of the SCD2 silver lowering — SQLMesh's SCD_TYPE_2_BY_COLUMN and dbt's
+# check-strategy snapshot — and `scd: type2` as a silver target stays fully
+# supported (RFC 0023 §8). Giving it a marts.yaml would have deleted that
+# coverage to buy this.
+spec_version: 1
+entities:
+  customer:
+    grain: one row per customer
+    key: [customer_id]
+    scd: type2
+    fields:
+      customer_id: {type: string, required: true}
+      segment: {type: string}
+      signed_up_at: {type: timestamp}
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      customer_id: {type: string}
+      amount: {type: "decimal(12,4)"}
+      order_date: {type: date}
+relationships:
+  - name: order_of_customer
+    from: order
+    to: customer
+    via: {customer_id: customer_id}
+    cardinality: many_to_one
