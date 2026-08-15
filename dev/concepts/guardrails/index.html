@@ -1659,11 +1659,17 @@ is equally refused. A margin computed as <code>unit_price - supplier_cost</code>
 <p>The frustration of an early <code>unknown</code> refusal is deliberate: it forces catalog linkage
 exactly where money math happens.</p>
 <h2 id="currency">Currency<a class="headerlink" href="#currency" title="Permanent link">&para;</a></h2>
-<p>Two operands with <em>distinct declared</em> ISO-4217 codes require an explicit <code>convert</code>
-transform in the chain; otherwise <code>CurrencyMismatch</code>. Unlike tax basis, an absent code
-is compatible with anything — single-currency tenants are the common case, and forcing
-declaration everywhere would train authors to paste a constant, destroying the signal.
-Declared-versus-declared is the bug worth refusing.</p>
+<p>Two operands with <em>distinct declared</em> ISO-4217 codes may not meet: <code>CurrencyMismatch</code>,
+with no escape. Unlike tax basis, an absent code is compatible with anything —
+single-currency tenants are the common case, and forcing declaration everywhere would
+train authors to paste a constant, destroying the signal. Declared-versus-declared is
+the bug worth refusing.</p>
+<p>The <code>convert</code> transform used to satisfy this rule, and no longer does. It has no
+lowering on any dialect — a conversion is a join against a dated rate table, and
+bloomery models no rate relation — so its marker bought a compile-time "yes" whose only
+outcome was a run-time failure. Both were removed together: <code>convert</code> is now
+<a href="../../reference/transforms/#currency">refused at emit</a>, and the currency rule is
+unconditional. Bring the operands into one currency upstream, or split the derivation.</p>
 <h2 id="grain-the-fan-out-guard">Grain: the fan-out guard<a class="headerlink" href="#grain-the-fan-out-guard" title="Permanent link">&para;</a></h2>
 <p>All operands of a derivation must share the derivation's grain, or the expression must
 contain an explicit aggregation over the finer grain. An order-grain value joined down

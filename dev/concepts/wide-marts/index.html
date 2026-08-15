@@ -794,6 +794,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#historical-dimensions-are-not-flattenable" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Historical dimensions are not flattenable
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#role-playing-dimensions" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1462,6 +1473,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#historical-dimensions-are-not-flattenable" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Historical dimensions are not flattenable
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#role-playing-dimensions" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1645,6 +1667,29 @@ column collisions are errors, never auto-renames; and a mart that carries measur
 declare at least one date role (<code>MartMissingTimeDimension</code>). Fan-out is refused where
 it would be <em>built</em>, not detected where it would be <em>summed</em> — the
 <a href="../guardrails/">guardrails</a> page shows the exact messages.</p>
+<h2 id="historical-dimensions-are-not-flattenable">Historical dimensions are not flattenable<a class="headerlink" href="#historical-dimensions-are-not-flattenable" title="Permanent link">&para;</a></h2>
+<p>An entity declared <code>scd: type2</code> keeps its history: the silver relation holds one row per
+version per key. A mart cannot use one — neither as a <code>flatten:</code> target nor as its
+<code>base:</code> — and the refusal is <code>HistoricalFanout</code>.</p>
+<p>The emitted join is an equality on the relationship's columns and nothing else, so it
+matches <em>every version</em> of each key and multiplies the base grain by the version count.
+Nothing downstream notices, which is what makes it worth refusing rather than warning
+about: the declared <code>cardinality: many_to_one</code> is a claim about the domain and it stays
+perfectly true, so <code>FanoutRisk</code> sees nothing wrong, the row counts look plausible, and
+the number is silently multiplied. The <code>base:</code> side has no join and fails the same way
+for a different reason — the mart declares one row per entity while the relation holds
+one per entity per version, so a <code>count</code> returns revisions.</p>
+<p>Fixing it requires a join predicate against the validity interval, and bloomery has no
+way to express one: the anchor date — <em>as of when</em> — is intent, not something to be
+inferred, and the interval column names are currently invented privately by each target.
+Until that exists, the shipped answer is a <code>type1</code> current-view entity built from the
+historical one, which is what the refusal message recommends. Filtering to the current
+version automatically was considered and rejected: it silently converts a historical
+dimension into a current-view one, so a mart whose whole purpose is point-in-time
+attribution returns today's segment for a two-year-old order, with no diagnostic —
+the row counts would look right.</p>
+<p><code>scd: type2</code> itself is untouched. It remains fully supported as a silver target on both
+SQLMesh and dbt; only the mart-level combination is refused.</p>
 <h2 id="role-playing-dimensions">Role-playing dimensions<a class="headerlink" href="#role-playing-dimensions" title="Permanent link">&para;</a></h2>
 <p>An order has an order date and a ship date — the same date dimension playing two roles.
 This is the concept that breaks naive semantic layers (joining one dimension table

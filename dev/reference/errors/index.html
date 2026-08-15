@@ -1620,6 +1620,7 @@ pulling in any pipeline stage.</p>
 │   ├── AssertLoweringError
 │   ├── GrainViolation
 │   ├── FanoutRisk
+│   ├── HistoricalFanout
 │   ├── NonAdditiveWithoutComponents
 │   ├── MartMissingTimeDimension
 │   ├── QuarantineRetentionMissing
@@ -1718,7 +1719,7 @@ pulling in any pipeline stage.</p>
 <tr>
 <td><code>CurrencyMismatch</code></td>
 <td>guardrails</td>
-<td>Two distinct declared currencies with no explicit <code>convert</code> step in the chain</td>
+<td>Two distinct declared currencies meeting in one expression — unconditional, since <code>convert</code> is refused at emit</td>
 </tr>
 <tr>
 <td><code>GrainMismatch</code></td>
@@ -1744,6 +1745,11 @@ pulling in any pipeline stage.</p>
 <td><code>FanoutRisk</code></td>
 <td>guardrails</td>
 <td>A mart <code>via:</code> flatten step over a <code>one_to_many</code> relationship</td>
+</tr>
+<tr>
+<td><code>HistoricalFanout</code></td>
+<td>guardrails</td>
+<td>A mart that flattens — or is based on — an <code>scd: type2</code> entity, whose relation holds one row per version per key</td>
 </tr>
 <tr>
 <td><code>NonAdditiveWithoutComponents</code></td>
