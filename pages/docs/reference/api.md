@@ -25,7 +25,7 @@ across all documents are batched into a single `SpecParseError`.
 
 ## Compiling
 
-### `compile_project(project, *, target, dialect, naming=None, catalog=None) -> tuple[EmittedArtifact, ...]`
+### `compile_project(project, *, target, dialect, naming=None, catalog=None, steps=EMPTY_REGISTRY) -> tuple[EmittedArtifact, ...]`
 
 Compile a parsed project into target artifacts — the whole pipeline (resolve,
 typecheck, guardrails, lower, emit) as one pure function. `target` is a `Target` or
@@ -33,6 +33,12 @@ the string name of a registered extension emitter; `dialect` is `"duckdb"`,
 `"trino"`, or `"postgres"`; `naming` defaults to layer-based naming
 (`silver.<entity>`, `gold.mart_<name>`). Same specs in, byte-identical artifacts out.
 Each `EmittedArtifact` carries `path`, `content`, `kind`, and `checksum`.
+
+`steps` is a `StepRegistry` — the manifests behind whatever the project's
+`steps_version` document wires. It is a *caller-assembled* argument rather than a spec
+document because bloomery reads no step files: a project that wires a step and compiles
+without its registry is refused, not silently compiled without it. A project wiring no
+steps needs nothing here.
 
 ### `Target`
 
@@ -48,7 +54,7 @@ anything. The `Resolution` carries `reachable_metrics`, `unreachable_metrics` (e
 with its specific missing leaves), per-field `provenance` (direct / recipe / native),
 and the deterministic topological order.
 
-### `build_project_ir(project: Project, catalog: Catalog | None = None) -> ProjectIR`
+### `build_project_ir(project, catalog=None, *, steps=EMPTY_REGISTRY) -> ProjectIR`
 
 Compile specs into the frozen intermediate representation without emitting — the
 input to `project_fingerprint`, `plan`, and `MetricFlowPlanner.plan`. Runs the same

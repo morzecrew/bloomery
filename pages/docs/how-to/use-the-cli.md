@@ -74,6 +74,10 @@ bloomery fingerprint <dir> [--catalog F]
 Every command reads files, calls the public API, and writes stdout or a directory.
 Nothing is executed, nothing is cached, and there is no state anywhere.
 
+One flag needs no command: `bloomery --version` prints the installed release and exits
+`0`. It is a flag rather than a seventh command because the moment you most need it is
+when something is wrong enough that you do not trust the rest of the surface.
+
 ## The spec directory
 
 `<dir>` is a directory of `.yaml` / `.yml` documents. Each is keyed by its filename stem,

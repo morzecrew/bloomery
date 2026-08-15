@@ -237,4 +237,4 @@ page names each stage you just ran.
 - [Plan a metric request](../how-to/plan-a-metric-request.md) — filters, time grains,
   row policies, and the refusal taxonomy.
 - [Specs and the catalog](../concepts/specs-and-catalog.md) — the domain model behind
-  the five spec kinds.
+  the spec kinds.
