@@ -1,6 +1,6 @@
 # RFC 0024 — Deterministic union merge
 
-- **Status:** 📝 Draft
+- **Status:** 📝 Draft — **P1 scoped by D14**: the union, its checks, the collision audit and the `multi_source` fixture, with `dedupe:` and `quarantine:` refused on a merged entity (§5.6). D8, D10 and D11 are answered by D22–D24; D14–D21 record what reading the code turned up that §3 had not.
 - **Scope:** Allowing **more than one mapping to target one entity**, merged by a
   deterministic `UNION ALL`, when the mappings agree on the entity's key and cover its
   required fields. Covers the shape where two systems describe the same kind of thing in
@@ -297,6 +297,55 @@ The two removal rows are the ones worth verifying during implementation. The sec
 sharp one: dropping back to a single mapping removes `_source`, and if anything downstream
 reads it the existing contract check must fire.
 
+### 5.6 The quality-system boundary
+
+An earlier draft of this document designed the union and said nothing about RFC 0016's
+machinery. Reading the code showed the two meet in more places than §3 recorded, and in one
+of them the meeting is a **blocking audit that would refuse valid data**.
+
+**The row identity is per source, and a blocking audit assumes it is per entity.** The
+generated metadata audit is, verbatim:
+
+```sql
+SELECT *, COUNT(*) OVER (PARTITION BY _source_row_id) AS _row_id_count FROM @this_model
+```
+
+`_source_row_id` is bronze's row identity (RFC 0016 D21), unique *within a source relation*.
+On a merged entity `@this_model` is the union, so two sources whose row ids are ordinary
+per-table sequences collide on the first run — and the audit is blocking. That is a false
+refusal on correct data, which D13 already names as the worst failure available to a
+generated audit. It fires whenever the entity declares `dedupe:` **or** `quarantine:`, since
+that pair is the audit's emission condition.
+
+**The reject table is one per entity by a decision that assumed one mapping.**
+`emit/lower/silver.py` records it: *"one per entity, never per mapping (RFC 0016 §5.6, D10):
+per-mapping tables multiply into the small-file problem and make replay N-way."* A merged
+entity is N-way by construction, and `source_relation`, `mapping` and `mapping_version` are
+compile-time literals off the single mapping. `reject_id` survives — it is already a digest
+of `(source_relation, row identity)`, so the pair was designed for this — but **replay
+re-runs *the* current mapping**, and making it branch per source is precisely the N-way
+replay D10 rejected.
+
+**So P1 draws the boundary at the two block-level declarations**, and the boundary is exact
+rather than approximate: every use of the row identity in the silver lowering sits behind
+one of them — the reject projection, the conservation audit, the dedupe sort key, and the
+replay merge. The `on_fail: fail` audit path (`emit/lower/predicates.py:audit_predicate`)
+references it **zero** times.
+
+A merged entity in P1 may therefore still carry field rules and row rules with `on_fail:
+flag` and `on_fail: fail`, `assert:` clauses, `references:` and `coverage:` checks. What it
+may not carry is `dedupe:` or `quarantine:`, refused at compile time with a message naming
+the reason. This matches RFC 0016's own framing — joining the quality system is per entity
+and explicit — rather than inventing a new kind of exclusion.
+
+**What that costs, stated rather than discovered later.** With `dedupe:` refused, nothing
+between the union and the model output collapses rows, so §5.4's collision audit can read
+the model directly and D13's careful distinction — read the union stage, *not* `silver.x` —
+becomes untestable in P1: the test it names ("a collision `dedupe:` would have collapsed")
+cannot be written, because no collapse exists. D13 is not weakened, it is unexercised, and
+it returns with the P2 that restores `dedupe:`. Shipping a simpler audit that resembles the
+designed one without saying so is the failure this paragraph exists to prevent.
+
 ### Alternatives considered
 
 **Leave it to a Tier 3 step (the status quo).** It works today and is the honest current
@@ -331,11 +380,22 @@ relation is an expensive way to be silent.
   audit silently passes is worse than no union. The seed must be a collision **`dedupe:`
   would have collapsed**, which is the only version of this test that distinguishes D13's
   audit placement from an audit reading `silver.<entity>`.
+  > **Scope (execution, D14).** The second sentence of that seed requirement cannot be met
+  > in P1 and is deferred with `dedupe:` itself. With no dedupe on a merged entity nothing
+  > collapses rows between the union and the model output, so there is no collision a
+  > reader could hide — the audit reads the model and the distinction D13 draws is
+  > unexercised rather than weakened. The collision test still runs, verified red; what
+  > waits for P2 is the *placement* half of it.
 - **A composite-key fixture.** The single-column example in §5.4 passes with a partial-key
   audit; only a composite key catches a generated `GROUP BY` that dropped a component.
-- Compile-time refusals: partial key, missing required field, unacknowledged absent field,
-  and two mappings naming one source (D12). Each with the source path of the offending
-  mapping, not the entity.
+- Compile-time refusals: partial key, missing required field, and two mappings naming one
+  source (D12). Each with the source path of the offending mapping, not the entity. The
+  "unacknowledged absent field" case is gone with D22 — there is no acknowledgement, and
+  the typo it would have caught is already a `MissingReference`.
+- The D14 boundary: `dedupe:` and `quarantine:` on a merged entity are each refused, and a
+  merged entity mixing a mapped source with a step output (D21), and `scd: type2` with more
+  than one mapping (D23). Each of these is a shape that compiles today for one mapping, so
+  each needs a test proving the refusal arrives only when a second one does.
 - **Determinism**: the two mappings declared in both orders in the project must produce
   byte-identical artifacts. This is the assertion that pins D3, and it belongs in the
   existing cross-`PYTHONHASHSEED` harness.
@@ -380,6 +440,14 @@ relation is an expensive way to be silent.
   source genuinely lacks. §5.2 rule 3 requires acknowledgement for that reason; if D8 lands
   as "no acknowledgement needed", this risk is accepted rather than mitigated, and the
   decision row should say so.
+  > **Correction (execution, D22).** This risk does not exist. A mapping naming a field the
+  > entity model does not declare is already refused today — `MissingReference: mapping maps
+  > unknown field 'loyalty_teir' of entity 'order'`, measured on this tree against the
+  > single-mapping path. A misspelling is therefore a compile error, not a silent NULL, and
+  > the only thing an acknowledgement could mark is a *correctly spelled* field a source
+  > deliberately lacks — the legitimate case, not the dangerous one. Corrected in place
+  > rather than left standing: this is a claim about how the compiler behaves, not a
+  > decision, and preserving a false one would make the decision table argue from it.
 - **The disjointness guarantee is run-time.** Compilation cannot establish it, so a project
   can pass every compile-time check and fail on first run. That is the correct split and it
   is the same one `dedupe` and `referential` already live with — but the docs must not
@@ -423,13 +491,37 @@ relation is an expensive way to be silent.
 | 11 | `OPEN` | Whether the union stage emits a generated `IS NULL` audit over `required: true` columns. D4's coverage check proves each mapping *declares* the field and proves nothing about what its source path returns per row — `required:` is a schema declaration, and the runtime null check is the separate `assert: {not_null: true}` mechanism. The asymmetry predates this RFC; a merge makes it worse, because one bad source poisons a column the others fill correctly. Whoever builds this decides, and the decision is either the audit or an explicit statement that `required:` means coverage only. |
 | 12 | `LOCKED` | `(target, source)` is **unique**: two mappings for one entity may not read the same source relation. Lexicographic ordering needs a total order and two branches on one relation tie, which would leave branch order undefined, `_source` ambiguous, and the collision audit unable to name a branch. Consequence: reading one relation twice is expressed as one mapping with a filter, not two mappings. |
 | 13 | `LOCKED` | The collision audit reads the **union output, before dedupe**, and groups by **every** declared key column. Reading `silver.order` would let dedupe collapse the colliding rows before the audit counts them — the audit would be checking the one relation guaranteed not to contain what it looks for. Grouping by a partial key would merge distinct composite keys and block valid data, which on a blocking audit is the worst failure available. |
+| 14 | `LOCKED` | **P1 refuses `dedupe:` and `quarantine:` on a merged entity** (§5.6). The boundary is drawn at those two block-level declarations because it is exact, not approximate: every use of the per-source row identity in the silver lowering sits behind one of them — the reject projection, the conservation audit, the dedupe sort key, the replay merge — and the `on_fail: fail` audit path references it zero times. A merged entity may still carry field and row rules (`flag`/`fail`), `assert:`, `references:` and `coverage:`. Consequence: P1 ships the union to entities with no dedupe and no quarantine, which is the shape the `multi_source` fixture needs, and the two blocks return in P2. |
+| 15 | `ASSUMED` | **Discovery: the metadata audit would refuse valid data on a merged entity.** It is `COUNT(*) OVER (PARTITION BY _source_row_id) > 1` over `@this_model`, and `_source_row_id` is unique per *source relation* (RFC 0016 D21), so two sources with ordinary per-table row sequences collide on the first run — a **blocking false refusal**, the failure D13 names as the worst available. The one-word fix (`PARTITION BY _source, _source_row_id`) is deliberately not taken in P1: it makes the audit body depend on mapping count, which is the same "does the artifact shape vary" question as D7 and belongs with the reject-table decision in P2 rather than scattered ahead of it. |
+| 16 | `LOCKED` | **RFC 0016 D10 is not reopened here.** That decision chose one reject table per entity *on the ground that per-mapping tables make replay N-way*, and a merged entity is N-way by construction. `reject_id` itself survives — it is already a digest of `(source_relation, row identity)`, so the pair was designed for exactly this — but replay re-runs *the* current mapping, and branching it per source is the thing D10 refused. N-way replay gets its own RFC, argued against D10 directly, rather than being decided inside a feature branch. |
+| 17 | `ASSUMED` | **`bloomery_ir_version` 5 → 6.** `EntityIR` gains its source tuple, and the canonical encoder writes each dataclass's field names and count, so every fingerprint moves whether or not a project merges anything. Stated because it is exactly what went unstated at v4, where the bump was missed and only the encoder's own strictness kept it honest. `plan()` refuses to diff a v5 IR against a v6 one. |
+| 18 | `LOCKED` | **`_source` joins `RESERVED_MEMBER_NAMES`.** Every other generated column is reserved — `_quality_flags`, `_quality_ok`, `_load_id`, `_ingested_at`, `_source_row_id`, `has_quality_flags` — and a generated column that is not is one an author can collide with. Reserved unconditionally, not only on merged entities: a name that is legal until a second mapping arrives is a trap laid for the change that adds one. |
+| 19 | `ASSUMED` | **The quality mart accounts per entity, not per source.** Its mapping identity is `f"{source.relation}->{entity.name}"`, which has no single value on a merged entity. Per entity, because the mart's row is "one rule evaluation on this entity" and the rules run on the merged relation (D6) — a per-source split would report rule counts against a population the rule never saw. Provenance is still reachable: `_source` is a real column, so a per-source view is a filter rather than a schema. |
+| 20 | `ASSUMED` | **dbt emits one `source()` per mapping**, and the model body unions them. Nothing about the union needs a dbt capability it lacks, so refusing it there — as dbt is refused for `python_model` steps, mart assertions and reject tables — would be a limitation invented rather than found. |
+| 21 | `LOCKED` | **A merged entity may not mix a mapped source with a step-produced output**, refused explicitly rather than left to fail somewhere downstream. §8 already puts it out of scope; this is the refusal that makes the scope real, since a step output entity carries `produced_by` and no mapping at all, and the union has nothing to order it by. |
+| 22 | `ASSUMED` | **Answers D8 (`OPEN`) — no acknowledgement, and §9's premise for wanting one is false.** A mapping naming a field the entity model does not declare is *already* refused: `MissingReference: mapping maps unknown field 'loyalty_teir' of entity 'order'`, measured on this tree against the existing single-mapping path. So a misspelling is a compile error rather than a silent NULL, and the only thing an acknowledgement could mark is a correctly-spelled field a source deliberately lacks — the legitimate case. Adding a key for that would also strain D2's "no new syntax", to flag the one shape the RFC agrees is fine. §9's risk row is corrected in place. |
+| 23 | `ASSUMED` | **Answers D10 (`OPEN`) — `scd: type2` plus multi-source is refused.** The expected answer, and D14 makes it cheap: the collision audit would fire on every key holding versions from two sources, and distinguishing a version from a collision needs the validity columns RFC 0023 §5.3 proposes and does not build. Refused with a message naming that dependency, so the refusal routes rather than merely blocks. |
+| 24 | `ASSUMED` | **Answers D11 (`OPEN`) — `required:` means coverage, and the runtime null check stays `assert: {not_null: true}`.** No generated `IS NULL` audit. D11 framed the choice as the audit or an explicit statement; this is the statement. Generating one for merged entities only would make a third thing depend on mapping count, and the authored mechanism already exists, is documented, and lowers to the same audit a generated one would emit. §7's how-to says to use it on required fields of a merged entity, which is where a reader meets the asymmetry. |
 
 ## 12. Phasing
 
-**P1 — the whole of §5.** The design is one coherent unit: union, checks, audit, fixture. It
-is *not* release-gating — the refusal it replaces is honest, tested, and names its own
-limitation, so shipping 0.1 without this costs nothing but capability.
+**P1 — §5.1–§5.5 and §5.6's boundary.** The union, the compile-time checks, the collision
+audit, `_source`, the plan-classifier rows, and the `multi_source` fixture — with `dedupe:`
+and `quarantine:` refused on a merged entity (D14). It is *not* release-gating: the refusal
+it replaces is honest, tested, and names its own limitation, so shipping 0.1 without this
+costs nothing but capability.
 
-Sequenced **after** RFC 0023 P1 if both are taken: D10 needs an answer for `scd: type2`, and
+An earlier version of this section said "the whole of §5" and called the design "one
+coherent unit". Reading the code found that it is not: the union is one unit and the union
+*combined with the quality system* is another, and the second has a blocking audit in it
+that would refuse valid data (D15). Splitting them is what makes P1 executable in one pass.
+
+**P2 — the quality system on a merged entity.** `dedupe:` first, which needs only the
+metadata audit's partition widened and the "does artifact shape vary with mapping count"
+question answered once for D7 and D15 together. `quarantine:` after, and only behind the
+N-way replay RFC that D16 defers — that one reopens RFC 0016 D10 and deserves its own
+argument rather than a paragraph here.
+
+Sequenced **after** RFC 0023 P1 if both are taken: D23 needs an answer for `scd: type2`, and
 RFC 0023's refusals make the SCD2-and-mart combination illegal anyway, which narrows this
 one's surface to a decision rather than a design.
