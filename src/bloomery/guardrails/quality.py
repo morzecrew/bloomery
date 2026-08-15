@@ -51,6 +51,7 @@ from bloomery.errors import (
     IngestionMetadataMissing,
     QuarantineRetentionMissing,
     RedactionConflict,
+    guaranteed,
 )
 from bloomery.ir import OnFail
 from bloomery.quality import (
@@ -870,9 +871,19 @@ def _check_expression_rules(
     """
     if not entity.quality:
         return []
-    lowered = {ent.name: ent for ent in draft.entities}.get(entity_name)
-    if lowered is None:
-        return []  # nothing lowered this entity, so there is no model to check against
+    # Stated as an invariant rather than swallowed. This used to be
+    # ``if lowered is None: return []``, which read as caution and was
+    # unreachable: the caller skips every entity no mapping targets, and
+    # ``_build_entities`` builds one ``EntityIR`` per mapped entity
+    # unconditionally — so there is no spec that gets here without a model.
+    # A branch no input can reach is a branch no test can cover, which is
+    # what RFC 0009 D9's 100% floor is for; the honest form of "this cannot
+    # happen" is the one that says so if it does.
+    lowered = guaranteed(
+        (ent for ent in draft.entities if ent.name == entity_name),
+        expected=f"the lowered entity {entity_name!r}",
+        by="the caller, which skips an entity no mapping targets",
+    )
     # The **lowered** columns, not the declared fields. A field the entity
     # declares but no mapping fills is never projected, so a rule naming one
     # compiled clean and then failed on the binder — the very failure this

@@ -67,15 +67,16 @@ snapshot-update:
 
     uv run pytest tests/golden --snapshot-update
 
-# Run the default tiers with coverage and enforce the fail_under floor,
-# plus the day-one per-package floor: bloomery/guardrails/ at 100% branch
-# (RFC 0009 D9 — an untested guardrail branch is an unshipped guardrail)
+# Run the default tiers with coverage, enforce the global fail_under floor,
+# then every per-package floor declared in pyproject.toml (RFC 0025 §5.2).
+# `guardrails/` at 100% is the oldest of those and the reason for the rest —
+# an untested guardrail branch is an unshipped guardrail (RFC 0009 D9).
 coverage *args='':
     {{ _uv_sync }}
 
     uv run pytest -m "not engine and not e2e and not chaos and not perf" \
         --cov=src --cov-report=term {{ args }}
-    uv run coverage report --include="src/bloomery/guardrails/*" --fail-under=100
+    uv run python tools/check_coverage_floors.py .
 
 # The single quality authority, byte-for-byte the same locally and in CI (RFC 0001 D4; CI runs `-s`)
 # Run all quality checks

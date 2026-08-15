@@ -188,6 +188,42 @@ def test_a_boolean_column_on_its_own_is_still_a_predicate() -> None:
     assert "_quality_flags" in compile_silver("live")
 
 
+@pytest.mark.parametrize("expr", ["(live)", "((live))"])
+def test_parentheses_around_a_boolean_column_are_still_a_predicate(expr: str) -> None:
+    """The shape check unwraps ``Paren`` before deciding, and nothing exercised
+    the loop.
+
+    It matters because the bare-column case is the one decided from the *model*
+    rather than the AST: without the unwrap, ``(live)`` is an ``exp.Paren`` —
+    not an ``exp.Column`` — so it falls through to "not obviously non-boolean"
+    and is accepted by accident rather than on purpose. Two levels, because a
+    single `if` would pass the first case and fail the second.
+    """
+    assert "_quality_flags" in compile_silver(expr)
+
+
+def test_a_parenthesised_non_boolean_is_still_refused() -> None:
+    """The control: the unwrap must not become a way past the check."""
+    with pytest.raises(GuardrailError, match="not a boolean predicate"):
+        compile_silver("(amt)")
+
+
+def test_an_entity_no_mapping_lowers_has_no_expression_scope_to_check() -> None:
+    """The scope check reads the *lowered* columns, so an entity nothing
+    lowers has no model to check a rule against and reports nothing.
+
+    Returning ``[]`` rather than refusing is deliberate and was untested: the
+    missing mapping is already refused elsewhere, and a second message about a
+    predicate's scope would name a cause that is not the cause.
+    """
+    from bloomery import build_project_ir  # noqa: PLC0415 — one use, kept adjacent
+
+    # `live` is a legal predicate, so a scope complaint here could only come
+    # from checking it against a model that does not exist.
+    ir = build_project_ir(load_project({"entity_model": entity_model("live")}))
+    assert ir.entities == ()
+
+
 def test_a_second_statement_is_refused() -> None:
     """``parse_one`` returns a ``Block`` for ``amt > 0; DELETE FROM x``, and
     the lowering would wrap the whole block in ``NOT (...)`` — emitting
