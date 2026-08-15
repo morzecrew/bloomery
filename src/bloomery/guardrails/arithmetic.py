@@ -12,8 +12,13 @@ is how extensive quantities work):
   arithmetic with a monetary operand is refused — unknown poisons monetary
   arithmetic rather than silently passing (RFC 0006 D3, worked example §5.7).
 - **Currency** (:class:`~bloomery.errors.CurrencyMismatch`): both sides
-  declare distinct ISO-4217 codes and neither carries an explicit ``convert``
-  marker. Absent codes are compatible — opt-in by design (RFC 0006 D4).
+  declare distinct ISO-4217 codes. Absent codes are compatible — opt-in by
+  design (RFC 0006 D4). There is no escape: RFC 0023 D5 removed the
+  ``CONVERT_CURRENCY`` marker that used to permit the arithmetic, because the
+  ``convert`` transform it came from is refused at emit (D4), so the only
+  thing the escape could still do was turn a compile-time refusal into a
+  run-time failure. Until a rate relation exists, "you cannot add EUR to USD"
+  is unconditional — which is the honest state, not a stricter one.
 
 Each rule reports at most once per expression (the first offending node in
 walk order — deterministic, SQLGlot's walk is syntactic); violations across
@@ -41,10 +46,6 @@ __all__ = [
     "check_arithmetic",
 ]
 
-#: The explicit-conversion marker the ``convert`` transform lowers to
-#: (RFC 0004 D3); its presence on a side satisfies the currency rule.
-_CONVERT_MARKER = "CONVERT_CURRENCY"
-
 # Keyed by ``exp.Expr`` — sqlglot's static base of ``Binary`` (the runtime
 # mro injects ``Expression``, but ``type(node)`` is ``type[Binary]`` to mypy).
 _OPS: dict[type[exp.Expr], str] = {
@@ -57,20 +58,15 @@ _OPS: dict[type[exp.Expr], str] = {
 
 @dataclass(frozen=True, slots=True)
 class _Side:
-    """One operand side of an arithmetic node: its resolved leaf metadata (in
-    syntactic order, deduplicated) and whether the subtree carries an explicit
-    ``convert`` marker."""
+    """One operand side of an arithmetic node: its resolved leaf metadata, in
+    syntactic order, deduplicated."""
 
     metas: tuple[OperandMeta, ...]
-    converted: bool
 
 
 def _summarize(node: Expression, lookup: dict[str, OperandMeta]) -> _Side:
     names = dict.fromkeys(col.name for col in node.find_all(exp.Column) if col.name in lookup)
-    converted = any(
-        str(call.this).upper() == _CONVERT_MARKER for call in node.find_all(exp.Anonymous)
-    )
-    return _Side(metas=tuple(lookup[name] for name in names), converted=converted)
+    return _Side(metas=tuple(lookup[name] for name in names))
 
 
 def _declared_units(side: _Side) -> set[str]:
@@ -135,13 +131,13 @@ def _check_currency(
     left_codes, right_codes = _declared_currencies(left), _declared_currencies(right)
     if len(left_codes) != 1 or len(right_codes) != 1 or left_codes == right_codes:
         return None
-    if left.converted or right.converted:
-        return None
     metas = left.metas + right.metas
     msg = (
-        f"{op!r} combines {_described(metas, 'currency')} with no explicit convert step; "
-        "distinct declared codes require one (RFC 0006 D4). Fix: apply the convert "
-        "transform to one operand so the conversion is a recorded, auditable decision"
+        f"{op!r} combines {_described(metas, 'currency')}; distinct declared codes may "
+        "not meet (RFC 0006 D4). bloomery has no conversion to offer: a rate is a dated "
+        "fact and no rate relation is modelled, so the convert transform that used to "
+        "satisfy this rule is itself refused (RFC 0023 D4/D5). Fix: derive the operands "
+        "in one currency upstream, or split the derivation per currency"
     )
     return CurrencyMismatch(msg, source_path=source_path)
 

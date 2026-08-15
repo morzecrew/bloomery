@@ -64,6 +64,7 @@ from bloomery.quality import (
     windowed,
     with_dedupe_qualify,
 )
+from bloomery.transforms import CONVERT_MARKER
 
 if TYPE_CHECKING:
     from bloomery.emit.base import EmitContext
@@ -268,6 +269,42 @@ def _json_object(pairs: list[tuple[str, Expression]], ctx: EmitContext) -> Expre
     return ctx.dialect.json_object(pairs)
 
 
+def _require_no_currency_conversion(entity: EntityIR) -> None:
+    """Refuse a lowered column that carries the currency-conversion marker
+    (RFC 0023 D4).
+
+    Unconditional rather than dialect-conditional, because nothing about it is
+    a dialect's fault: a conversion is a join against a dated rate table, and
+    bloomery declares no rate relation for any target to join to. The
+    ``CONVERT_CURRENCY(…)`` call the transform builds exists in no engine, so
+    every dialect renders it beautifully and every engine fails on it — the
+    "compiles clean, aborts the run" shape RFC 0008 D3 refuses.
+
+    Checked here rather than in the guardrail stage because here is where the
+    marker becomes SQL: :func:`_extract_select` is the one place a
+    ``ColumnIR.expr`` is realized, so no emission path — model, reject table,
+    replay, or fail audit — can reach the marker without passing this.
+    """
+    for column in entity.columns:
+        if not any(
+            str(call.this).upper() == CONVERT_MARKER
+            for call in column.expr.ast().find_all(exp.Anonymous)
+        ):
+            continue
+        msg = (
+            f"column {column.name!r} of entity {entity.name!r} applies the convert "
+            "transform, which has no lowering on any shipped dialect — a currency "
+            "conversion is a join against a dated rate table, and bloomery models no "
+            f"rate relation (RFC 0023 §5.4, D4). The emitted {CONVERT_MARKER}(...) call "
+            "exists in no engine, so the model would compile here and fail on its first "
+            "run. Fix: drop the convert step and keep the amounts in their source "
+            "currency, or convert upstream of bloomery"
+        )
+        raise UnsupportedByTarget(
+            msg, source_path=f"entity_model: entities.{entity.name}.fields.{column.name}"
+        )
+
+
 def _extract_select(
     entity: EntityIR, ctx: EmitContext, *, include_raw: bool = False, from_payload: bool = False
 ) -> exp.Select:
@@ -281,6 +318,7 @@ def _extract_select(
     pipeline (RFC 0016 §5.6). No ``QUALIFY`` there: the reject table already
     holds one row per source-row identity.
     """
+    _require_no_currency_conversion(entity)
     if from_payload:
         namespace, relation = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
     else:
