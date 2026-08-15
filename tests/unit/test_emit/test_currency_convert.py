@@ -20,7 +20,7 @@ from bloomery import Target, compile_project
 from bloomery.dialects import get_dialect
 from bloomery.emit import EmitContext
 from bloomery.emit.lower import entity_select
-from bloomery.emit.lower.silver import reject_select
+from bloomery.emit.lower.silver import reject_select, replay_statements
 from bloomery.errors import UnsupportedByTarget
 from bloomery.naming import DefaultNaming
 from bloomery.transforms import CONVERT_MARKER, DEFAULT_REGISTRY
@@ -82,7 +82,7 @@ def test_the_reject_and_replay_selects_refuse_too() -> None:
     ctx = EmitContext(
         fingerprint="blm1:test", naming=DefaultNaming(), dialect=get_dialect("duckdb")
     )
-    for lowering in (entity_select, reject_select):
+    for lowering in (entity_select, reject_select, replay_statements):
         with pytest.raises(UnsupportedByTarget) as excinfo:
             lowering(carrier, ctx)
         assert "amount_usd" in str(excinfo.value)
