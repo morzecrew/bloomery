@@ -12,6 +12,7 @@ from support import plan_ir
 from support.ir_factory import build_project_ir as factory_ir
 
 from bloomery.errors import ContractViolation, PlanError, RenameTargetMissing
+from bloomery.plan.diff import _reject_source  # pyright: ignore[reportPrivateUsage]
 from bloomery.ir import (
     AuditIR,
     Cardinality,
@@ -360,6 +361,19 @@ def test_changed_source_relation_is_restating_at_the_entity_subject() -> None:
 # The union merge's source set (RFC 0024 §5.5, D9). No new change class: the
 # table falls out of the existing classifier, which is one of the three reasons
 # RFC 0021's reusable question answers "yes" for this feature.
+
+
+def test_the_reject_schema_diff_says_so_when_the_invariant_stops_holding() -> None:
+    """`quarantine:` is refused on a merged entity (RFC 0024 D14), so the reject
+    schema is always one mapping's — but written as `sources[0]` that reads as a
+    choice among branches. The guard is exercised so its message is known to be
+    right on the day P2 lifts D14."""
+    merged = plan_ir.entity(relation="raw__a", merged_with=("raw__b",))
+    with pytest.raises(PlanError) as excinfo:
+        _reject_source(merged)
+    message = str(excinfo.value)
+    assert "2 sources" in message
+    assert "RFC 0024 D14" in message
 
 
 def test_a_mapping_added_to_a_single_source_entity_is_additive() -> None:

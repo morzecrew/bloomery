@@ -414,7 +414,7 @@ def _source_signature(
     relation once per column as well.
     """
     origin = next((source for source in entity.sources if source.relation == relation), None)
-    if origin is None:
+    if origin is None:  # pragma: no cover — `relations` is the shared set, so it is present
         return ()
     return tuple(
         (entry.source_path, entry.transform)

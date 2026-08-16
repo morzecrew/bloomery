@@ -23,6 +23,15 @@ GOLDEN = Path(__file__).resolve().parent
 #: rendering surface is covered by these cells (RFC 0009 §5.4).
 EXPECTED_PATHS = {
     "minimal": ["models/silver/event.sql"],
+    # RFC 0024: the union merge brings two constructs nothing else here emits —
+    # `UNION ALL` between branches, and the typed `NULL` that fills a column one
+    # mapping does not map. Both are rendered by the dialect port, and a
+    # duckdb-only cell would leave the port's claim unproven for exactly the
+    # SQL this feature added.
+    "multi_source": [
+        "audits/order_line_source_collision.sql",
+        "models/silver/order_line.sql",
+    ],
     "ecom_basic": [
         "models/gold/dim_date.sql",
         "models/gold/mart_order_items.sql",
