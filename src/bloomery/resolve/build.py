@@ -1080,7 +1080,12 @@ def _quality_refusals(
     """
     count = len(mappings)
     errors: list[ResolutionError] = []
-    for block in ("dedupe", "quarantine"):
+    # One reason, two destinations: D14 refuses both blocks for the same row
+    # identity, but §12 restores them in different phases — `dedupe:` in P2b,
+    # `quarantine:` in P2c behind the N-way replay RFC D16 defers. A shared
+    # message would route half its readers to the phase that restores the
+    # *other* block.
+    for block, phase in (("dedupe", "P2b"), ("quarantine", "P2c")):
         if getattr(entity, block) is None:
             continue
         msg = (
@@ -1089,8 +1094,8 @@ def _quality_refusals(
             "'_source_row_id', which is unique within *one* source relation (RFC 0016 D21) "
             "— on a merged entity two sources with ordinary per-table row sequences collide, "
             "and the audit that guards it is blocking, so correct data would stop the run "
-            "(RFC 0024 D14). Fix: drop the block, or keep one mapping per entity until P2 "
-            "restores it"
+            "(RFC 0024 D14). Fix: drop the block, or keep one mapping per entity — the "
+            f"merged form is designed and unscheduled (RFC 0024 §12 {phase})"
         )
         errors.append(
             ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.{block}")
@@ -1127,7 +1132,8 @@ _QUALITY_MERGE_MESSAGE = (
     "paths into a rule the merged relation evaluates once, and the other source's bronze "
     "relation need not have the column it names — so P1 refuses a merged entity that joins "
     "the data-quality system at all (RFC 0024 D29). 'assert:', 'references:' and 'coverage:' "
-    "are unaffected. Fix: drop the rules, or keep one mapping per entity until P2"
+    "are unaffected. Fix: drop the rules, or keep one mapping per entity — the merged form "
+    "is designed and unscheduled (RFC 0024 §12 P2a)"
 )
 
 

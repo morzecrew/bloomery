@@ -474,13 +474,21 @@ key:
 
 
 @pytest.mark.parametrize(
-    ("block", "citation"),
+    ("block", "citation", "phase"),
     [
         (
             """\
     dedupe: {keep: latest_by, field: occurred_at}
 """,
             "RFC 0024 D14",
+            "RFC 0024 §12 P2b",
+        ),
+        (
+            """\
+    quarantine: {retention: 90d}
+""",
+            "RFC 0024 D14",
+            "RFC 0024 §12 P2c",
         ),
         (
             """\
@@ -488,20 +496,33 @@ key:
       - {rule: expression, name: has_kind, expr: "kind IS NOT NULL", on_fail: flag}
 """,
             "RFC 0024 D29",
+            "RFC 0024 §12 P2a",
         ),
     ],
-    ids=["dedupe", "entity_quality"],
+    ids=["dedupe", "quarantine", "entity_quality"],
 )
-def test_the_quality_system_is_refused_on_a_merged_entity(block: str, citation: str) -> None:
+def test_the_quality_system_is_refused_on_a_merged_entity(
+    block: str, citation: str, phase: str
+) -> None:
     """RFC 0024 D14, widened by D29. Each leg of ``opts_in`` is its own
     assertion: the predicate is a disjunction, and a test of one leg proves
-    nothing about the others."""
+    nothing about the others.
+
+    ``phase`` is asserted separately from ``citation`` because the two answer
+    different questions and only one of them was ever wrong: the citation says
+    *why* the construct is refused, the phase says *where the merged form is
+    designed* — and §12 puts `dedupe:` in P2b and `quarantine:` in P2c. One
+    message served both blocks, so a `quarantine:` refusal routed its reader to
+    the phase that restores the other block.
+    """
     model = _MERGE_ENTITY_MODEL.replace(
         "      note: {type: string}\n", "      note: {type: string}\n" + block
     )
     with pytest.raises(ResolutionError) as excinfo:
         build_project_ir(load_project(_merge_sources(entity_model=model)))
-    assert citation in str(excinfo.value)
+    message = str(excinfo.value)
+    assert citation in message
+    assert phase in message
 
 
 def test_a_field_level_quality_block_is_refused_on_a_merged_entity() -> None:
