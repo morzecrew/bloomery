@@ -1,10 +1,22 @@
 """The dbt emitter (RFC 0008 §5.5) — the compatibility target.
 
-**Compatible with dbt ``>=1.10,<2``** (RFC 0008 D22). Stated because "the
-compatibility target" had never said compatible with *what*: the floor is where
-generic-test ``arguments`` nesting arrived, which the emitted ``schema.yml``
-uses and which dbt 1.9 rejects outright, so the range and the emitted form are
-one decision.
+**Compatible with dbt ``>=1.10.8,<2``** (RFC 0008 D22). Stated because "the
+compatibility target" had never said compatible with *what*: the emitted
+``schema.yml`` nests generic-test arguments under ``arguments``, so the range
+and the emitted form are one decision.
+
+The floor is where dbt makes that nesting the **default**, not where the
+property arrived — and that boundary is not a minor version. 1.9 rejects the
+nested form outright, and so do 1.10.0–1.10.7: through 1.10.7 it needs the
+``require_generic_test_arguments_property`` behaviour flag, and without it dbt
+passes ``arguments`` to the macro as a literal keyword. Measured rather than
+read off a changelog: the matrix lives in ``tests/unit/test_emit/test_dbt.py``
+beside the test that pins the emitted form, and covers six real installs from
+1.9.10 to 1.12.0 — including the pair that locates the boundary: 1.10.7, the
+last release that rejects the nested form without the flag, and 1.10.8, the
+first that accepts it without one. ``pyproject.toml`` carries the same bound.
+An earlier version of this line said ``>=1.10``, which admits the seven
+patch releases that reject what this emitter writes.
 
 
 Its real job is proving the port abstraction (RFC 0008 D5, spec §9): it ships
