@@ -1,6 +1,6 @@
 # RFC 0024 — Deterministic union merge
 
-- **Status:** 📝 Draft — **P1 scoped by D14**: the union, its checks, the collision audit and the `multi_source` fixture, with `dedupe:` and `quarantine:` refused on a merged entity (§5.6). D8, D10 and D11 are answered by D22–D24; D14–D21 record what reading the code turned up that §3 had not. **D26 answers D25** and **D28 answers D27**: the lowered expression moves to a per-source `SourceColumnIR` while `ColumnIR` keeps the schema (§5.7), and a `direct:` path is refused on a merged entity. The surface D26 moves is enumerated and closed — **three `ColumnIR` constructors and four lowering reads** — so P1 is specified and executable in the order §5.7 → §5.1–§5.6.
+- **Status:** 📝 Draft — **P1 scoped by D14**: the union, its checks, the collision audit and the `multi_source` fixture, with `dedupe:` and `quarantine:` refused on a merged entity (§5.6). D8, D10 and D11 are answered by D22–D24; D14–D21 record what reading the code turned up that §3 had not. **D26 answers D25** and **D28 answers D27**: the lowered expression moves to a per-source `SourceColumnIR` while `ColumnIR` keeps the schema (§5.7), and a `direct:` path is refused on a merged entity. The surface D26 moves is enumerated and closed — **three `ColumnIR` constructors and four lowering reads** — so P1 is specified and executable in the order §5.7 → §5.1–§5.6. **D29 widens D14's boundary to `opts_in`**: §5.6 traced the row identity soundly and then generalised past it, and rule lowering turns out to be per mapping behind neither block — so P1 refuses the quality system on a merged entity rather than only its two entity-level declarations.
 - **Scope:** Allowing **more than one mapping to target one entity**, merged by a
   deterministic `UNION ALL`, when the mappings agree on the entity's key and cover its
   required fields. Covers the shape where two systems describe the same kind of thing in
@@ -338,6 +338,20 @@ may not carry is `dedupe:` or `quarantine:`, refused at compile time with a mess
 the reason. This matches RFC 0016's own framing — joining the quality system is per entity
 and explicit — rather than inventing a new kind of exclusion.
 
+> **Correction (execution, D29).** The first sentence of that paragraph is wrong, and the
+> error is a consequence reaching further than the argument that produced it. This section
+> establishes its boundary by tracing **the row identity**, and that trace is sound; it then
+> generalises to the whole quality system, which the code does not support. Rule *lowering*
+> is per mapping and sits behind neither block — `lower_quality` takes one `Mapping`,
+> `opts_in` reads that mapping's field-level `quality:` blocks and also selects the
+> `TRY_CAST` shape, and the generated `coercible`/`enum` rules embed one mapping's source
+> paths and transform chain into a rule evaluated over the merged relation. So the P1
+> boundary is `opts_in`, not `dedupe:`/`quarantine:`. `assert:`, `references:` and
+> `coverage:` do survive: they are lowered from the entity model and the draft IR, never
+> from a mapping. D29 carries the argument and the measurements; the sentence is left
+> standing rather than rewritten, because what it claimed is the thing D29 has to be read
+> against.
+
 **What that costs, stated rather than discovered later.** With `dedupe:` refused, nothing
 between the union and the model output collapses rows, so §5.4's collision audit can read
 the model directly and D13's careful distinction — read the union stage, *not* `silver.x` —
@@ -443,10 +457,15 @@ relation is an expensive way to be silent.
   source (D12). Each with the source path of the offending mapping, not the entity. The
   "unacknowledged absent field" case is gone with D22 — there is no acknowledgement, and
   the typo it would have caught is already a `MissingReference`.
-- The D14 boundary: `dedupe:` and `quarantine:` on a merged entity are each refused, and a
-  merged entity mixing a mapped source with a step output (D21), and `scd: type2` with more
-  than one mapping (D23). Each of these is a shape that compiles today for one mapping, so
-  each needs a test proving the refusal arrives only when a second one does.
+- The D14 boundary as D29 widens it: a merged entity that joins the quality system at all is
+  refused — `dedupe:`, `quarantine:`, an entity-level `quality:` block, and a field-level
+  `quality:` block on any of its mappings, each asserted separately, since `opts_in` is a
+  disjunction and a test of one leg proves nothing about the others. Plus a merged entity
+  mixing a mapped source with a step output (D21), and `scd: type2` with more than one
+  mapping (D23). Each of these is a shape that compiles today for one mapping, so each needs
+  a test proving the refusal arrives only when a second one does. And the converse, which is
+  what keeps the refusal from being a wider one wearing D29's name: `assert:`,
+  `references:` and `coverage:` on a merged entity all compile.
 - **Determinism**: the two mappings declared in both orders in the project must produce
   byte-identical artifacts. This is the assertion that pins D3, and it belongs in the
   existing cross-`PYTHONHASHSEED` harness.
@@ -557,6 +576,7 @@ relation is an expensive way to be silent.
 | 26 | `ASSUMED` | **Answers D25 (`OPEN`) — option (a), and D25's blast-radius figure was wrong by an order of magnitude.** The lowered expression moves to a new column-grained `SourceColumnIR` on `SourceIR`; `ColumnIR` keeps the schema (§5.7). D25 said "37 `.columns` read sites" and estimated the cost from that; measured, **exactly 8 sites read a `ColumnIR` lowering field, in 3 files** — `plan/diff.py` (`renamed_from` ×4, `recipe_id`, `expr.sql`) and `emit/lower/silver.py` (`expr.ast()` ×2). Four of those eight are `renamed_from`, which D25 mis-assigned to the lowering half and which is declared on the EntityModel `Field`, so it does not move at all. The 37 was a count of `.columns` readers, and `.columns` readers are overwhelmingly *schema* readers — they survive untouched, which is the whole point of the split. **Real cost: two constructors where there was one, and four call sites.** The golden churn stands regardless — the IR shape moves and D17 bumps the version. |
 | 27 | `OPEN` | **The `direct:` shadow column builds a lowering outside the builder, and on a merged entity it is not one column.** `guardrails/conflict.py:_shadow` constructs a `ColumnIR` with a lowered `expr` — the `<field>__direct` extraction that the reconcile audit compares a recipe-derived value against — and the guardrail stage merges it into the entity after `_build_entity` has finished. Under D26's split that constructor has to produce a schema column *and* a projection, which is mechanical. What is not mechanical: **the direct extraction reads a source payload**, so a merged entity needs one shadow projection per source, and D14 does not refuse the combination — `direct:` is a catalog-recipe property, unrelated to `dedupe:`/`quarantine:`. Three options: emit one shadow projection per source and keep the audit comparing the merged column (probably right, and it is the same fan-out the union already does); refuse `direct:` on a merged entity in P1 (cheap, and it narrows a capability for a reason unrelated to it); or refuse the whole path-conflict amendment there (worse — it removes a check rather than scoping it). Decide before writing the split, not during: the shadow is built from a `Derivation`, which is per entity and not yet per source. |
 | 28 | `LOCKED` | **Answers D27 — a `direct:` path is refused on a merged entity in P1.** `direct:` is a field of `RecipeFieldMapping`, so it is per mapping, and two mappings may record *different recipes* for one column — `recipe_id` is in the lowering half for exactly that reason. A merged entity can therefore have a direct path on one source and none on another, which leaves the `<field>__direct` shadow NULL for the second source's rows. That is not a gap to fill: a NULL shadow is indistinguishable from a genuinely NULL direct value, so the reconcile audit either reports a false disagreement or silently skips rows it was built to check — and a check that quietly stops checking is worse than one that is absent. **The cost of refusing is measured, not assumed: `direct:` appears once in the entire corpus** (`tests/fixtures/path_conflict/mapping.yaml`), so no project shape loses anything. P2 chooses between one shadow projection per source with a null-safe audit, and a coverage rule in D4's shape (if any mapping records a direct path, all must); this RFC does not pick, because the choice is about what a reconcile check *means* across sources and that deserves the argument. Consequence for D26: `_shadow` only ever runs on a single-source entity, so the split feeds it the same way it feeds `_column_ir` and nothing about it becomes N-way. |
+| 29 | `LOCKED` | **§5.6's consequence was wider than its argument — P1 refuses the whole quality system on a merged entity, not only `dedupe:` and `quarantine:`.** D14's *reason* survives measurement: every use of `_source_row_id` in the silver lowering does sit behind one of those two blocks. Its *consequence* — "a merged entity may therefore still carry field rules and row rules" — does not follow, because the row identity is not the only per-mapping coupling. **The rule lowering itself is per mapping, and sits behind neither block**: `lower_quality(entity, mapping, …)` takes one `Mapping` (`resolve/build.py`), so `mappings[0]` would silently win; `opts_in(entity, mapping)` is true when *that mapping's* fields carry `quality:`, so two mappings can disagree about whether the entity joined the system at all — and that same predicate selects `_try_cast_shape`, so opt-in reaches column lowering; a generated `coercible` rule carries `field_sources(mapping, column)`, *that mapping's* raw JSONPaths, which the extract projects per branch, so source B's branch would have to read source A's `$.a.b` off a relation that need not have it, for a rule evaluated once over the merged relation; generated `enum` spellings come from the mapping's transform chain the same way; and `check_quality`'s `by_target` dict keeps the **last** mapping per target, so every per-mapping quality guardrail would check one of N. The boundary D14 wanted — exact rather than approximate — is therefore `opts_in`, one predicate that already exists and already decides this. **`assert:`, `references:` and `coverage:` survive**, measured rather than assumed: `lower_asserts` reads the entity model and the draft IR and never a mapping, and the relationship-driven checks are entity-model-shaped. Consequence: P1 ships the union to entities outside the quality system, which is the shape the `multi_source` fixture needs, and P2 restores the system to a merged entity as one piece rather than in two unrelated halves. |
 
 ## 12. Phasing
 
@@ -580,11 +600,14 @@ coherent unit". Reading the code found that it is not: the union is one unit and
 *combined with the quality system* is another, and the second has a blocking audit in it
 that would refuse valid data (D15). Splitting them is what makes P1 executable in one pass.
 
-**P2 — the quality system on a merged entity.** `dedupe:` first, which needs only the
-metadata audit's partition widened and the "does artifact shape vary with mapping count"
-question answered once for D7 and D15 together. `quarantine:` after, and only behind the
-N-way replay RFC that D16 defers — that one reopens RFC 0016 D10 and deserves its own
-argument rather than a paragraph here.
+**P2 — the quality system on a merged entity.** Larger than this section first estimated,
+because D29 found the boundary one predicate wider: P2 now starts with **rule lowering
+itself**, which is per mapping and has to become per source or be proven mapping-invariant
+before any disposition question arises. `dedupe:` follows, needing the metadata audit's
+partition widened and the "does artifact shape vary with mapping count" question answered
+once for D7 and D15 together. `quarantine:` after, and only behind the N-way replay RFC that
+D16 defers — that one reopens RFC 0016 D10 and deserves its own argument rather than a
+paragraph here.
 
 Sequenced **after** RFC 0023 P1 if both are taken: D23 needs an answer for `scd: type2`, and
 RFC 0023's refusals make the SCD2-and-mart combination illegal anyway, which narrows this
