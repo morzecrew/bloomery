@@ -16,6 +16,8 @@ Retired with the RFC when P1 lands; the rows worth keeping become decision rows 
 
 ---
 
+## Deviations
+
 ### V-001 — D14's boundary is one predicate wider than it says
 
 - **Touches:** D14 (`LOCKED`), §5.6
@@ -60,9 +62,8 @@ Retired with the RFC when P1 lands; the rows worth keeping become decision rows 
   sentence was *not* stretched to cover this: it authorizes dbt's partiality for the
   quality artifacts, and a rule an author chose to make blocking is not the same as the one
   check a feature cannot be correct without.
-- **Proposed row:** dbt refuses a merged entity while the collision audit has no honest
-  dbt lowering; restoring it means giving the emitter a singular-test surface, which is its
-  own change.
+- **Resolution:** landed as **D30**, appended; D20's row is untouched, so what it
+  predicted survives as the thing D30 has to be read against.
 
 ### V-003 — `_source` is an emitted column, not a `ColumnIR`
 
