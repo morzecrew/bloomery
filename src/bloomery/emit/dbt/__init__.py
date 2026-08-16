@@ -12,8 +12,9 @@ nested form outright, and so do 1.10.0–1.10.7: through 1.10.7 it needs the
 passes ``arguments`` to the macro as a literal keyword. Measured rather than
 read off a changelog: the matrix lives in ``tests/unit/test_emit/test_dbt.py``
 beside the test that pins the emitted form, and covers six real installs from
-1.9.10 to 1.12.0 — the two on either side of the boundary, 1.10.7 and 1.10.8,
-being the ones that fix it. ``pyproject.toml`` carries the same bound.
+1.9.10 to 1.12.0 — including the pair that locates the boundary: 1.10.7, the
+last release that rejects the nested form without the flag, and 1.10.8, the
+first that accepts it without one. ``pyproject.toml`` carries the same bound.
 An earlier version of this line said ``>=1.10``, which admits the seven
 patch releases that reject what this emitter writes.
 
