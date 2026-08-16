@@ -356,6 +356,75 @@ def test_changed_source_relation_is_restating_at_the_entity_subject() -> None:
     assert plan(old, new).backfill_scope.entities == ("order_item",)
 
 
+# ....................... #
+# The union merge's source set (RFC 0024 §5.5, D9). No new change class: the
+# table falls out of the existing classifier, which is one of the three reasons
+# RFC 0021's reusable question answers "yes" for this feature.
+
+
+def test_a_mapping_added_to_a_single_source_entity_is_additive() -> None:
+    old = plan_ir.project(entities=(plan_ir.entity(relation="raw__a"),))
+    new = plan_ir.project(entities=(plan_ir.entity(relation="raw__a", merged_with=("raw__b",)),))
+    change = only_change(old, new)
+    assert change.change_class is ChangeClass.ADDITIVE
+    assert change.subject == "entity:order_item"
+    assert "raw__b" in change.detail
+    # D9's second half: the transition is a schema move, and an operator should
+    # see it in `plan()` before it lands rather than discover the column later.
+    assert "_source" in change.detail
+    # New rows, and a column that is a constant per branch — nothing stored
+    # restates.
+    assert plan(old, new).backfill_scope.entities == ()
+
+
+def test_a_mapping_added_to_an_already_merged_entity_does_not_re_announce_source() -> None:
+    old = plan_ir.project(entities=(plan_ir.entity(relation="raw__a", merged_with=("raw__b",)),))
+    new = plan_ir.project(
+        entities=(plan_ir.entity(relation="raw__a", merged_with=("raw__b", "raw__c")),)
+    )
+    change = only_change(old, new)
+    assert change.change_class is ChangeClass.ADDITIVE
+    assert "raw__c" in change.detail
+    assert "_source" not in change.detail  # already present
+
+
+def test_a_mapping_removed_leaving_two_is_restating() -> None:
+    old = plan_ir.project(
+        entities=(plan_ir.entity(relation="raw__a", merged_with=("raw__b", "raw__c")),)
+    )
+    new = plan_ir.project(entities=(plan_ir.entity(relation="raw__a", merged_with=("raw__b",)),))
+    change = only_change(old, new)
+    assert change.change_class is ChangeClass.RESTATING
+    assert "raw__c" in change.detail
+    assert "_source" not in change.detail  # two sources remain, so it stays
+    # Same columns, fewer rows — the relation must be rebuilt.
+    assert plan(old, new).backfill_scope.entities == ("order_item",)
+
+
+def test_a_mapping_removed_leaving_one_drops_the_source_column() -> None:
+    """The sharp row of §5.5's table, and the one D9 asks to verify."""
+    old = plan_ir.project(entities=(plan_ir.entity(relation="raw__a", merged_with=("raw__b",)),))
+    new = plan_ir.project(entities=(plan_ir.entity(relation="raw__a"),))
+    change = only_change(old, new)
+    assert change.change_class is ChangeClass.RESTATING
+    assert "raw__b" in change.detail
+    assert "_source" in change.detail
+    assert plan(old, new).backfill_scope.entities == ("order_item",)
+
+
+def test_a_swap_reports_the_addition_and_the_removal_separately() -> None:
+    """Two facts, two changes: an operator adding one shop while retiring
+    another needs to see both, and the classes differ."""
+    old = plan_ir.project(entities=(plan_ir.entity(relation="raw__a", merged_with=("raw__b",)),))
+    new = plan_ir.project(entities=(plan_ir.entity(relation="raw__a", merged_with=("raw__c",)),))
+    classes = {change.detail: change.change_class for change in plan(old, new).changes}
+    assert len(classes) == 2
+    assert {change_class for change_class in classes.values()} == {
+        ChangeClass.ADDITIVE,
+        ChangeClass.RESTATING,
+    }
+
+
 def test_partition_and_audit_changes_are_additive_metadata() -> None:
     old = plan_ir.project(entities=(plan_ir.entity(),))
     new = plan_ir.project(

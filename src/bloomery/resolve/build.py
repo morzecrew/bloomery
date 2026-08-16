@@ -1031,9 +1031,7 @@ def _merge_refusals(
             "combination rather than shipping an audit that blocks correct data "
             "(RFC 0024 D23). Fix: keep one mapping per historical entity"
         )
-        errors.append(
-            ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.scd")
-        )
+        errors.append(ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.scd"))
 
     for mapping in mappings:
         doc = mapping_doc(mapping)
@@ -1050,9 +1048,7 @@ def _merge_refusals(
                 "false disagreement or silently stops checking (RFC 0024 D28). Fix: drop "
                 "'direct:' while the entity is merged"
             )
-            errors.append(
-                ResolutionError(msg, source_path=f"{doc}: fields.{field_name}.direct")
-            )
+            errors.append(ResolutionError(msg, source_path=f"{doc}: fields.{field_name}.direct"))
     return errors
 
 

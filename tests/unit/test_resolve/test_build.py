@@ -273,16 +273,22 @@ entities:
 """
 
 
-def _merge_sources(**overrides: str) -> dict[str, str]:
-    """Two mappings targeting ``event``, ``src_z`` declared first on purpose.
+#: The mapping of ``src_a``, and the mapping of ``src_z``. Which *document*
+#: carries which is varied by the callers below, because ``load_project`` reads
+#: documents in sorted-name order — so a helper whose document names agree with
+#: its source names cannot tell "sorted by source" from "sorted by document",
+#: and every ordering assertion over it passes either way.
+_SRC_A_MAPPING = """\
+mapping_version: 1
+source: src_a
+target: event
+key:
+  event_id: {from: "$.identifier", transform: [to_string]}
+fields:
+  kind: {from: "$.type", transform: [to_string]}
+"""
 
-    The declaration order is reversed relative to the lexicographic one so that
-    every assertion about branch order is testing D3 rather than testing that
-    the dict happened to be built in the right order.
-    """
-    sources = {
-        "entity_model": _MERGE_ENTITY_MODEL,
-        "mapping_z": """\
+_SRC_Z_MAPPING = """\
 mapping_version: 1
 source: src_z
 target: event
@@ -291,16 +297,22 @@ key:
 fields:
   kind: {from: "$.kind", transform: [to_string]}
   note: {from: "$.note", transform: [to_string]}
-""",
-        "mapping_a": """\
-mapping_version: 1
-source: src_a
-target: event
-key:
-  event_id: {from: "$.identifier", transform: [to_string]}
-fields:
-  kind: {from: "$.type", transform: [to_string]}
-""",
+"""
+
+
+def _merge_sources(**overrides: str) -> dict[str, str]:
+    """Two mappings targeting ``event``, with the **later** source relation in
+    the **earlier** document.
+
+    ``mapping_a`` holds ``src_z`` and ``mapping_z`` holds ``src_a``, so
+    document order and branch order disagree and an assertion about branch
+    order is testing D3 rather than testing that documents happened to sort the
+    right way.
+    """
+    sources = {
+        "entity_model": _MERGE_ENTITY_MODEL,
+        "mapping_a": _SRC_Z_MAPPING,
+        "mapping_z": _SRC_A_MAPPING,
     }
     sources.update(overrides)
     return sources
@@ -312,8 +324,10 @@ def test_two_mappings_build_one_entity_ordered_lexicographically() -> None:
     ir = build_project_ir(load_project(_merge_sources()))
     (entity,) = ir.entities
     assert entity.name == "event"
-    # Declared z-then-a; ordered a-then-z. Branch order is the source relation's,
-    # not the document's, or the emitted SQL would depend on filesystem order.
+    # `src_z`'s mapping is in the first document and `src_a`'s in the second;
+    # the branches come out the other way round. Branch order is the source
+    # relation's, not the document's, or the emitted SQL would depend on what
+    # somebody named a file.
     assert [source.relation for source in entity.sources] == ["src_a", "src_z"]
     # One schema, one projection per source per column.
     assert [column.name for column in entity.columns] == ["event_id", "kind", "note"]
@@ -350,22 +364,39 @@ def test_a_field_no_mapping_produces_is_a_typed_null_in_every_branch() -> None:
 
 
 def test_declaration_order_cannot_move_the_ir() -> None:
-    """D3's determinism claim, at the level the builder can prove it."""
-    forward = build_project_ir(load_project(_merge_sources()))
-    sources = _merge_sources()
-    reversed_docs = {
-        "entity_model": sources["entity_model"],
-        "mapping_a": sources["mapping_a"],
-        "mapping_z": sources["mapping_z"],
-    }
-    assert build_project_ir(load_project(reversed_docs)) == forward
+    """D3's determinism claim, at the level the builder can prove it.
+
+    The same two mappings, swapped between the two document names — so they
+    reach the builder in both orders `load_project` can deliver them in. The
+    IR records no document name, so the two compilations must be equal, and
+    they are only equal if branch order is derived from the source relation.
+    """
+    forward = build_project_ir(
+        load_project(
+            {
+                "entity_model": _MERGE_ENTITY_MODEL,
+                "mapping_a": _SRC_Z_MAPPING,
+                "mapping_z": _SRC_A_MAPPING,
+            }
+        )
+    )
+    swapped = build_project_ir(
+        load_project(
+            {
+                "entity_model": _MERGE_ENTITY_MODEL,
+                "mapping_a": _SRC_A_MAPPING,
+                "mapping_z": _SRC_Z_MAPPING,
+            }
+        )
+    )
+    assert swapped == forward
 
 
 def test_two_mappings_on_one_relation_are_refused() -> None:
     """RFC 0024 D12: lexicographic order needs a total order, and two branches
     on one relation tie."""
     sources = _merge_sources(
-        mapping_a="""\
+        mapping_z="""\
 mapping_version: 1
 source: src_z
 target: event
@@ -478,7 +509,7 @@ def test_a_field_level_quality_block_is_refused_on_a_merged_entity() -> None:
     a field rule is declared on a *mapping*, so two mappings can disagree about
     whether the entity joined the quality system at all."""
     sources = _merge_sources(
-        mapping_a="""\
+        mapping_z="""\
 mapping_version: 1
 source: src_a
 target: event

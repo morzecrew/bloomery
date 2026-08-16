@@ -323,6 +323,42 @@ def test_a_step_output_colliding_with_an_entity_is_refused() -> None:
         build_project_ir(project, steps=registry)
 
 
+def test_a_mapped_entity_may_not_also_be_written_by_a_step() -> None:
+    """RFC 0024 D21, and the refusal it asks for **already exists**.
+
+    D21 requires that a merged entity may not mix a mapped source with a
+    step-produced output, "refused explicitly rather than left to fail
+    somewhere downstream". Building the union showed the combination is
+    unreachable for a stronger reason that predates it: RFC 0017 §5.8 D8
+    refuses *any* relation with two writers, seeded from every declared entity,
+    so a mapping and a step output cannot both claim one name — merged or not.
+
+    Pinned here rather than added to `resolve.build`, because a second refusal
+    of the same shape would be a check that can never fire, and the sibling
+    above only covers an entity nothing maps.
+    """
+    project = load_project(
+        {
+            "entity_model": (
+                "spec_version: 1\nentities:\n  customer:\n"
+                "    grain: one row per customer\n    key: [id]\n"
+                "    fields:\n      id: {type: string, required: true}\n"
+            ),
+            "mapping": (
+                "mapping_version: 1\nsource: crm__customers\ntarget: customer\n"
+                'key:\n  id: {from: "$.id", transform: [to_string]}\n'
+            ),
+            "steps": (
+                "steps_version: 1\nsteps:\n  - use: resolve_customers@3\n"
+                "    inputs: {raw: silver.raw}\n    outputs: {customer: silver.customer}\n"
+            ),
+        }
+    )
+    registry = StepRegistry({("resolve_customers", 3): manifest(parameters={})})
+    with pytest.raises(StepError, match="written by two things"):
+        build_project_ir(project, steps=registry)
+
+
 def test_a_sql_macro_is_not_wired_in_the_steps_document() -> None:
     """Tier 1 writes no relation, so it has no output to bind here — and one
     wiring per ref (D13) would make a macro usable in exactly one mapping,

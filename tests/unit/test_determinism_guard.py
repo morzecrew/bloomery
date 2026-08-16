@@ -55,6 +55,19 @@ for artifact in compile_project(project, target=Target.SQLMESH, dialect="duckdb"
     print(artifact.path, artifact.kind, artifact.checksum)
     print(artifact.content)
 
+# The union merge (RFC 0024 §6, D3): a merged entity's branch order is the one
+# thing about it that could drift, and it is derived from a dict grouped by
+# target and a fold over the sorted result. Both artifacts ride here — the
+# model whose UNION ALL carries the order, and the collision audit whose
+# GROUP BY carries the composite key.
+ms_dir = fixture_dir.parent / "multi_source"
+ms_sources = {path.stem: path.read_text() for path in sorted(ms_dir.glob("*.yaml"))}
+for artifact in compile_project(
+    load_project(ms_sources), target=Target.SQLMESH, dialect="duckdb"
+):
+    print(artifact.path, artifact.kind, artifact.checksum)
+    print(artifact.content)
+
 # The second targets (M10): cube YAML and dbt artifacts must be
 # hash-seed-independent too — every artifact's full bytes are compared.
 eb_dir = fixture_dir.parent / "ecom_basic"

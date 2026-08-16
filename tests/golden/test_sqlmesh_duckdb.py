@@ -43,6 +43,15 @@ EXPECTED_PATHS = {
         "models/silver/customer_xref.py",
     ],
     "minimal": ["models/silver/event.sql"],
+    # RFC 0024 §5.4/D5: the union merge's one generated artifact beyond the
+    # model — the blocking audit that establishes what compilation cannot, that
+    # the sources' key sets are disjoint. It is here rather than under a
+    # `_quality_*` name because it guards the *merge*, not the quality system,
+    # which a merged entity is outside of in P1 (D29).
+    "multi_source": [
+        "audits/order_line_source_collision.sql",
+        "models/silver/order_line.sql",
+    ],
     "ecom_basic": [
         "models/gold/dim_date.sql",
         "models/gold/mart_order_items.sql",

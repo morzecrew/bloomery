@@ -770,11 +770,7 @@ def entity_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     # ``.select()`` on a ``UNION`` would attach them to its last branch alone,
     # which parses and is wrong — the other branches would be short two
     # columns.
-    return (
-        exp.Select()
-        .select(exp.Star(), flags, ok)
-        .from_(extract.subquery(alias=_EXTRACT_ALIAS))
-    )
+    return exp.Select().select(exp.Star(), flags, ok).from_(extract.subquery(alias=_EXTRACT_ALIAS))
 
 
 def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
@@ -1070,7 +1066,12 @@ def collision_audit_select(entity: EntityIR) -> exp.Select:
     duplicated *within* one source: that is ordinary duplication and ``dedupe:``
     already owns it.
     """
-    distinct_sources = exp.Count(this=exp.column(SOURCE_COLUMN), distinct=True)
+    # ``COUNT(DISTINCT …)`` is an ``exp.Distinct`` *inside* the count, not a
+    # keyword argument on it: ``exp.Count(distinct=True)`` is silently ignored
+    # and renders a plain ``COUNT``, which would fire on a key duplicated
+    # within one source — ordinary duplication that ``dedupe:`` owns and that
+    # D5 says this audit must never refuse.
+    distinct_sources = exp.Count(this=exp.Distinct(expressions=[exp.column(SOURCE_COLUMN)]))
     return (
         exp.Select()
         .select(

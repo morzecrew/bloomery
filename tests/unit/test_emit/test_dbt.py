@@ -6,6 +6,7 @@ proof itself — dbt and SQLMesh emit byte-identical SELECTs."""
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from decimal import Decimal
 from typing import cast
 
@@ -18,6 +19,7 @@ from bloomery.dialects import get_dialect
 from bloomery.emit import ArtifactKind, EmitContext, EmittedArtifact
 from bloomery.emit.base import Feature
 from bloomery.emit.dbt import DbtEmitter
+from bloomery.emit.dbt import _reference_map  # pyright: ignore[reportPrivateUsage]
 from bloomery.emit.sqlmesh import SQLMeshEmitter
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import (
@@ -360,6 +362,42 @@ def test_reconcile_refusal_names_the_check_and_the_decision_authorizing_it() -> 
     assert "non-blocking" in message
     assert "__reject" not in message
     assert excinfo.value.source_path == "entity_model: reconcile"
+
+
+def test_a_merged_entity_is_refused_with_the_audit_it_cannot_emit() -> None:
+    """RFC 0024 D5 against RFC 0008 D3, and a departure from D20.
+
+    The ``UNION ALL`` needs no dbt capability — it is the same shared SELECT —
+    but the merge's *correctness condition* is a blocking audit, and this
+    emitter's whole test surface is ``schema.yml`` entries. Emitting the union
+    without it is a model that compiles here, runs anywhere, and double-counts
+    an entity in silence.
+    """
+    merged = replace(
+        _entity(),
+        sources=(_SOURCE, replace(_SOURCE, relation="src_b")),
+    )
+    with pytest.raises(UnsupportedByTarget) as excinfo:
+        DbtEmitter().emit(ProjectIR(entities=(merged,)), _ctx())
+    message = str(excinfo.value)
+    assert "src" in message
+    assert "src_b" in message
+    assert "item_source_collision" in message
+    assert "RFC 0024" in message
+    # It routes rather than merely blocking (D5's own doctrine for the audit).
+    assert "sqlmesh" in message
+
+
+def test_a_merged_entity_declares_every_source(  # the half of D20 that survives
+) -> None:
+    """One ``source()`` per mapping. The refusal above fires on the *entity*
+    model, so the sources.yml walk is exercised here on the artifact that is
+    built before it — a merged entity must still name both relations, or the
+    day the refusal lifts dbt cannot resolve the second."""
+    merged = replace(_entity(), sources=(_SOURCE, replace(_SOURCE, relation="src_b")))
+    references = _reference_map(ProjectIR(entities=(merged,)), _ctx())
+    assert ("bronze", "src") in references
+    assert ("bronze", "src_b") in references
 
 
 def test_scaffold_and_sources_artifacts() -> None:

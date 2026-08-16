@@ -50,8 +50,8 @@ from bloomery.emit.lower.reconcile import (
     reconcile_select,
 )
 from bloomery.emit.lower.silver import (
-    REJECT_KEY,
     COLLISION_COUNT_COLUMN,
+    REJECT_KEY,
     ROW_ID_COUNT_COLUMN,
     THIS_MODEL,
     collision_audit,

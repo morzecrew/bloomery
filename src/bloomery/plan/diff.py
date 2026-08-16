@@ -386,20 +386,39 @@ def _rename_map(old_e: EntityIR, new_e: EntityIR) -> dict[str, str]:
     return renames
 
 
-def _source_signature(
-    entity: EntityIR, column: str
-) -> tuple[tuple[str, tuple[TransformStepIR, ...]], ...]:
-    """The column's lowering entries, name-independent: (source path, chain),
-    across every source in branch order.
+def _shared_relations(old_e: EntityIR, new_e: EntityIR) -> tuple[str, ...]:
+    """The bronze relations both sides build the entity from, in old-side
+    branch order.
 
-    The bronze *relation* is deliberately not part of this: it is reported at
-    the entity subject by :func:`_source_set_changes`, and folding it in here
-    would report one repointed relation once per column as well.
+    Column semantics are compared **only over these** (RFC 0024 §5.5). A source
+    added or removed is a fact about the entity, reported once at the entity
+    subject by :func:`_source_set_changes`; comparing a merged column's whole
+    lowering tuple against a single-source one would additionally report
+    "semantics changed" on *every column of the entity*, as RESTATING with a
+    backfill — for a change §5.5 classifies ADDITIVE and which restates
+    nothing. What a column means did not change; it now also arrives from
+    somewhere else.
     """
+    present = frozenset(_relations(new_e))
+    return tuple(relation for relation in _relations(old_e) if relation in present)
+
+
+def _source_signature(
+    entity: EntityIR, column: str, relation: str
+) -> tuple[tuple[str, tuple[TransformStepIR, ...]], ...]:
+    """One source's lowering entries for ``column``, name-independent:
+    (source path, chain).
+
+    The bronze *relation* is deliberately not part of the value: it is reported
+    at the entity subject, and folding it in would report one repointed
+    relation once per column as well.
+    """
+    origin = next((source for source in entity.sources if source.relation == relation), None)
+    if origin is None:
+        return ()
     return tuple(
         (entry.source_path, entry.transform)
-        for source in entity.sources
-        for entry in source.fields
+        for entry in origin.fields
         if entry.target_field == column
     )
 
@@ -407,51 +426,62 @@ def _source_signature(
 _SEMANTIC_FACETS = ("canonical", "recipe", "expression", "unit", "tax_basis", "source")
 
 
-def _lowerings(entity: EntityIR, name: str) -> tuple[SourceColumnIR, ...]:
-    """Every source's lowering of ``name``, in branch order; empty if none.
+def _lowerings(entity: EntityIR, name: str) -> dict[str, SourceColumnIR]:
+    """Every source's lowering of ``name``, keyed by source relation.
 
     The lowered expression moved off :class:`ColumnIR` onto the source
     (RFC 0024 D26), so a diff that compares what a column *means* has to read
     it from there — and a merged entity lowers one column once per source, with
-    different paths, different chains and possibly different recipes (D28), so
-    the answer is a tuple rather than a value.
+    different paths, different chains and possibly different recipes (D28).
 
-    Empty rather than a raise: a diff runs over two IRs that may disagree about
-    which columns exist, and that disagreement is the thing being classified
-    rather than an invariant to assert.
+    Keyed rather than positional, because the two sides of a diff need not have
+    the same sources and index-matching them would compare one shop's lowering
+    against another's.
     """
-    return tuple(
-        column for source in entity.sources for column in source.columns if column.name == name
-    )
+    return {
+        source.relation: column
+        for source in entity.sources
+        for column in source.columns
+        if column.name == name
+    }
 
 
-def _recipe_label(lowerings: tuple[SourceColumnIR, ...]) -> str | None:
-    """What a semantics change reports as the column's recipe.
+def _recipe_label(entity: EntityIR, name: str, relations: tuple[str, ...]) -> str | None:
+    """What a semantics change reports as the column's recipe, over the sources
+    both sides of the diff share.
 
-    The bare id for the ordinary single-source column, so the reported change
-    reads as it always has; ``recipe@source`` per branch once an entity is
-    merged, since two mappings may record different recipes for one column and
-    naming one of them would be the silent pick D29 refuses elsewhere.
+    The bare id for the ordinary single-source column, so a reported change
+    reads as it always has; the distinct ids, sorted, once an entity is merged —
+    two mappings may record different recipes for one column (D28), and naming
+    one of them would be the silent pick D29 refuses elsewhere.
     """
-    if len(lowerings) == 1:
-        return lowerings[0].recipe_id
-    labelled = [column.recipe_id for column in lowerings if column.recipe_id is not None]
-    return ", ".join(sorted(labelled)) or None
+    lowerings = _lowerings(entity, name)
+    recipes = [lowerings[relation].recipe_id for relation in relations if relation in lowerings]
+    if len(recipes) == 1:
+        return recipes[0]
+    return ", ".join(sorted({recipe for recipe in recipes if recipe is not None})) or None
 
 
 def _semantic_signature(
-    entity: EntityIR, column: ColumnIR
+    entity: EntityIR, column: ColumnIR, relations: tuple[str, ...]
 ) -> tuple[object, object, object, object, object, object]:
     """What the column *means* (D4), name and shape excluded: canonical link,
-    recipe, lowered expression, catalog metadata, and source lowering."""
+    recipe, lowered expression, catalog metadata, and source lowering — the
+    last three per shared source, in a fixed order so the two sides line up."""
     lowerings = _lowerings(entity, column.name)
     return (
         column.canonical,
-        tuple(lowering.recipe_id for lowering in lowerings),
-        tuple(lowering.expr.sql for lowering in lowerings),
+        tuple(
+            lowerings[relation].recipe_id if relation in lowerings else None
+            for relation in relations
+        ),
+        tuple(
+            lowerings[relation].expr.sql if relation in lowerings else None
+            for relation in relations
+        ),
         column.unit,
         column.tax_basis,
-        _source_signature(entity, column.name),
+        tuple(_source_signature(entity, column.name, relation) for relation in relations),
     )
 
 
@@ -563,10 +593,11 @@ def _column_pair(
             )
         acc.seeds |= refs
         return
-    old_sig = _semantic_signature(old_e, old_c)
-    new_sig = _semantic_signature(new_e, new_c)
-    old_recipe = _recipe_label(_lowerings(old_e, old_c.name))
-    new_recipe = _recipe_label(_lowerings(new_e, new_c.name))
+    shared = _shared_relations(old_e, new_e)
+    old_sig = _semantic_signature(old_e, old_c, shared)
+    new_sig = _semantic_signature(new_e, new_c, shared)
+    old_recipe = _recipe_label(old_e, old_c.name, shared)
+    new_recipe = _recipe_label(new_e, new_c.name, shared)
     if old_sig != new_sig:
         facets = [
             facet

@@ -1,0 +1,18 @@
+# The shop being migrated onto. Two mappings, one `target:`, and nothing else
+# to say so (RFC 0024 D2): an entity built from two mappings differs from one
+# built from one only in how many documents point at it.
+#
+# Every field is read from a *different* path than the other shop reads it
+# from, which is the point of the union: one entity, two lowerings per column,
+# `UNION ALL` in lexicographic source order (D3). This document sorts second
+# and its branch is unioned first — see `mapping_legacy.yaml`.
+mapping_version: 1
+source: shopify__order_lines
+target: order_line
+key:
+  order_id: {from: "$.order.id", transform: [to_string]}
+  line_no: {from: "$.position", transform: [to_int]}
+fields:
+  sku: {from: "$.variant.sku", transform: [to_string]}
+  quantity: {from: "$.quantity", transform: [to_int]}
+  gift_note: {from: "$.properties.gift_note", transform: [to_string]}
