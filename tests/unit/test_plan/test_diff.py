@@ -610,6 +610,51 @@ def test_downstream_impact_walks_the_depends_on_closure() -> None:
     assert plan(old, new).downstream_impact == ("base", "derived")
 
 
+def test_a_source_addition_reports_the_metrics_whose_numbers_move() -> None:
+    """Adding a branch to a union merge changes no column's meaning and every
+    metric's *value* — the entity's row population grew.
+
+    That makes it the first ADDITIVE change in this differ that a metric
+    consumer has to know about, and the sibling test below is why the
+    distinction needs stating: a column *addition* seeds nothing because no
+    existing number moves, and until now "ADDITIVE" and "no downstream impact"
+    happened to coincide. `downstream_impact` is documented as "the metric
+    names affected by any change", and a metric over a merged entity reports a
+    different number the day the second shop lands.
+    """
+    columns = (plan_ir.column("id", required=True), plan_ir.column("amount", canonical="amount"))
+    metrics = (plan_ir.metric("revenue", depends_on=("amount",)),)
+    old = plan_ir.project(
+        entities=(plan_ir.entity(columns=columns, relation="raw__a"),), metrics=metrics
+    )
+    new = plan_ir.project(
+        entities=(plan_ir.entity(columns=columns, relation="raw__a", merged_with=("raw__b",)),),
+        metrics=metrics,
+    )
+    result = plan(old, new)
+    assert result.downstream_impact == ("revenue",)
+    # Still ADDITIVE, and still no backfill — the classification is right, it
+    # was only the impact set that was silent.
+    (change,) = result.changes
+    assert change.change_class is ChangeClass.ADDITIVE
+    assert result.backfill_scope.entities == ()
+
+
+def test_a_source_removal_reports_them_too() -> None:
+    """The symmetric case, which already worked — a removal seeds through the
+    `redefined` path. Pinned so the two directions cannot drift apart again."""
+    columns = (plan_ir.column("id", required=True), plan_ir.column("amount", canonical="amount"))
+    metrics = (plan_ir.metric("revenue", depends_on=("amount",)),)
+    old = plan_ir.project(
+        entities=(plan_ir.entity(columns=columns, relation="raw__a", merged_with=("raw__b",)),),
+        metrics=metrics,
+    )
+    new = plan_ir.project(
+        entities=(plan_ir.entity(columns=columns, relation="raw__a"),), metrics=metrics
+    )
+    assert plan(old, new).downstream_impact == ("revenue",)
+
+
 def test_additive_changes_do_not_seed_downstream_impact() -> None:
     entity = plan_ir.entity(columns=(plan_ir.column("id", required=True),))
     grown = plan_ir.entity(

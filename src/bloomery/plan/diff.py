@@ -289,6 +289,16 @@ def _source_set_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> bool:
         if len(old_relations) == 1:
             detail += f"; the {SOURCE_COLUMN} column appears"
         acc.changes.append(Change(new_e.name, subject, ChangeClass.ADDITIVE, detail))
+        # Seeded despite being ADDITIVE, which no other addition in this differ
+        # is. A column addition seeds nothing because no *existing* number
+        # moves — the metric reading it had no value before. A **source**
+        # addition changes no column's meaning and every metric's value, since
+        # the entity's row population grew, and `downstream_impact` is "the
+        # metric names affected by any change". Until this row, ADDITIVE and
+        # value-neutral happened to coincide; they do not here, and a merge
+        # that silently tells an operator no metric is affected is the reading
+        # that costs them the most.
+        acc.seeds |= _entity_columns_refs(new_e)
     if removed:
         detail = f"source removed from the union merge ({', '.join(removed)})"
         if len(new_relations) == 1:

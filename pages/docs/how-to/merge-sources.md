@@ -185,6 +185,12 @@ Adding a source is not a silent schema move: `plan()` names the relation and say
 `_source` column is arriving, which is exactly the kind of change an operator should see
 before it lands.
 
+It also reports the affected metrics. A source addition is `ADDITIVE` and needs no
+backfill, but it is the one additive change that moves numbers already on a dashboard — the
+entity's row population grew, so every metric over it reports differently the day the
+second shop lands. Those names show up in `downstream_impact`, in both directions: adding a
+source and removing one each report the metrics whose values move.
+
 ## Target support
 
 SQLMesh only, for now. The `UNION ALL` itself needs nothing dbt lacks — and the dbt emitter
