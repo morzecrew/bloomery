@@ -721,7 +721,7 @@ def _materialization(entity: Entity) -> Materialization:
     return Materialization.FULL
 
 
-def _build_entity(
+def _build_source(
     entity_name: str,
     entity: Entity,
     mapping: Mapping,
@@ -729,7 +729,17 @@ def _build_entity(
     catalog: Catalog | None,
     reg: Registry,
     steps: StepRegistry,
-) -> EntityIR:
+) -> tuple[tuple[ColumnIR, ...], SourceIR]:
+    """One mapping's contribution: the entity columns it declares, and its own
+    :class:`SourceIR` projection of them (RFC 0024 D26).
+
+    The schema half is returned rather than kept because a merged entity's
+    columns are the *union* over its mappings — one system may map a loyalty
+    tier the other has never heard of (§5.2 rule 3) — and the caller is what
+    can see all of them. Every mapping targeting one entity produces byte-equal
+    ``ColumnIR`` values for a shared column, since :func:`_column_pair` derives
+    that half from the entity model and the catalog alone.
+    """
     doc = mapping_doc(mapping)
     columns: list[ColumnIR] = []
     projections: list[SourceColumnIR] = []
@@ -832,6 +842,89 @@ def _build_entity(
                 )
             )
 
+    return (
+        tuple(sorted(columns, key=lambda c: c.name)),
+        SourceIR(
+            relation=mapping.source,
+            fields=tuple(sorted(source_fields, key=lambda f: (f.target_field, f.source_path))),
+            columns=tuple(sorted(projections, key=lambda c: c.name)),
+            mapping_version=mapping.mapping_version,
+            unmapped=tuple(sorted(mapping.unmapped)),
+        ),
+    )
+
+
+def _filled(source: SourceIR, columns: tuple[ColumnIR, ...]) -> SourceIR:
+    """``source`` with a typed ``NULL`` projection for every entity column it
+    does not map (RFC 0024 §5.2 rule 3).
+
+    A field one mapping produces and another does not is legitimate — one
+    system has no loyalty tier — and it is `NULL` for the other's rows. That
+    has to be a *projection* rather than an absence: the branches of a
+    ``UNION ALL`` must agree on column count and order, so a branch missing a
+    column is not a narrower branch, it is invalid SQL.
+
+    Cast, not a bare ``NULL``: an untyped null makes the union's column type
+    depend on which branch the engine reads first, and the whole point of a
+    fixed branch order is that nothing downstream depends on it.
+
+    The identity on a single-source entity, where the schema is exactly what
+    the one mapping produced.
+    """
+    projected = {column.name for column in source.columns}
+    missing = [column for column in columns if column.name not in projected]
+    if not missing:
+        return source
+    return replace(
+        source,
+        columns=tuple(
+            sorted(
+                [
+                    *source.columns,
+                    *(
+                        SourceColumnIR(
+                            name=column.name,
+                            expr=canon(exp.cast(exp.null(), generic_type(column.type))),
+                        )
+                        for column in missing
+                    ),
+                ],
+                key=lambda column: column.name,
+            )
+        ),
+    )
+
+
+def _build_entity(
+    entity_name: str,
+    entity: Entity,
+    mappings: tuple[Mapping, ...],
+    project: Project,
+    catalog: Catalog | None,
+    reg: Registry,
+    steps: StepRegistry,
+) -> EntityIR:
+    """One entity from one *or more* mappings, merged by ``UNION ALL``
+    (RFC 0024 D1).
+
+    ``mappings`` arrives sorted by source relation and stays that way on
+    ``EntityIR.sources``: branch order is lexicographic so the emitted SQL is
+    byte-identical across processes (D3). Row order is not claimed and nothing
+    downstream may depend on it — ``UNION ALL`` is a bag.
+    """
+    built = [
+        _build_source(entity_name, entity, mapping, project, catalog, reg, steps)
+        for mapping in mappings
+    ]
+    # By name, because every mapping spells a shared column identically (see
+    # :func:`_build_source`) and the entity's schema is the union over its
+    # sources — not the intersection, which would silently drop a field only
+    # one system carries.
+    schema = {column.name: column for columns, _source in built for column in columns}
+    columns = tuple(sorted(schema.values(), key=lambda column: column.name))
+    #: The one mapping to lower rules from, or ``None`` when the entity is
+    #: merged and there is no such thing (D29).
+    sole = mappings[0] if len(mappings) == 1 else None
     return EntityIR(
         name=entity_name,
         grain=entity.grain,
@@ -839,50 +932,254 @@ def _build_entity(
         scd=SCDKind(entity.scd),
         materialization=_materialization(entity),
         partition_by=partition_specs(entity.partition_by),
-        columns=tuple(sorted(columns, key=lambda c: c.name)),
-        source=SourceIR(
-            relation=mapping.source,
-            fields=tuple(sorted(source_fields, key=lambda f: (f.target_field, f.source_path))),
-            columns=tuple(sorted(projections, key=lambda c: c.name)),
-            mapping_version=mapping.mapping_version,
-            unmapped=tuple(sorted(mapping.unmapped)),
-        ),
+        columns=columns,
+        sources=tuple(_filled(source, columns) for _columns, source in built),
         audits=(),  # populated by the guardrail stage: assert: lowering + reconcile (RFC 0006)
         # Stages 3–6 (RFC 0016 §5.4): dedupe, field rules, row rules, route.
         # The rules are one sorted tuple — the fixed pipeline order, not the
         # node type, is what separates a field rule from a row rule, and
         # emission renders the stages in that order.
-        quality=lower_quality(
-            entity,
-            mapping,
-            project.entity_model.relationships,
-            _repair_bodies(entity_name, entity, mapping, steps),
+        #
+        # A merged entity reads no mapping here at all (RFC 0024 D29). Rule
+        # lowering is per mapping — ``opts_in`` reads the mapping's field-level
+        # blocks, a generated ``coercible`` rule carries that mapping's source
+        # paths — so ``mappings[0]`` would silently pick a winner among N.
+        # :func:`_merge_refusals` has already refused every merged entity that
+        # could produce a rule, which is what makes the empty tuple a fact
+        # rather than a hope.
+        quality=(
+            ()
+            if sole is None
+            else lower_quality(
+                entity,
+                sole,
+                project.entity_model.relationships,
+                _repair_bodies(entity_name, entity, sole, steps),
+            )
         ),
-        dedupe=lower_dedupe(entity),
-        quarantine=lower_quarantine(entity),
+        dedupe=None if sole is None else lower_dedupe(entity),
+        quarantine=None if sole is None else lower_quarantine(entity),
     )
+
+
+def _merge_refusals(
+    entity_name: str, entity: Entity, mappings: tuple[Mapping, ...]
+) -> list[ResolutionError]:
+    """Everything a union merge refuses at compile time (RFC 0024 §5.2, §5.6).
+
+    Batched rather than raised one at a time, so an author sees every
+    disagreement in one round-trip (RFC 0002 D6) — and returned rather than
+    raised so the caller can batch these across *entities* too.
+
+    Two of §5.2's four checks are absent because they already hold. **The full
+    declared key** is enforced per mapping by ``resolve.refs`` ("entity key
+    column %r is not lowered by the mapping's key:"), which runs over every
+    mapping and therefore over every branch of a merge. **Type agreement** is
+    the existing per-mapping typecheck seen from the other side: each mapping's
+    chain is checked against the entity's *declaration*, so two mappings cannot
+    disagree about a column's type without both failing first (§5.7).
+    """
+    errors: list[ResolutionError] = []
+    if len(mappings) < 2:
+        return errors
+    count = len(mappings)
+
+    by_source: dict[str, list[Mapping]] = {}
+    for mapping in mappings:
+        by_source.setdefault(mapping.source, []).append(mapping)
+    for relation in sorted(by_source):
+        tied = by_source[relation]
+        if len(tied) < 2:
+            continue
+        msg = (
+            f"entity {entity_name!r} is built from {len(tied)} mappings that all read "
+            f"{relation!r}. A union merge orders its branches lexicographically by source "
+            "relation, and two branches on one relation have no order — which leaves "
+            "'_source' ambiguous between them and the collision audit unable to name which "
+            "branch it means (RFC 0024 D12). Fix: express two disjoint row sets of one "
+            "relation as one mapping with a filter"
+        )
+        errors.extend(
+            ResolutionError(msg, source_path=f"{mapping_doc(mapping)}: source")
+            for mapping in tied[1:]
+        )
+
+    for mapping in mappings:
+        doc = mapping_doc(mapping)
+        produced = set(mapping.key) | set(mapping.fields)
+        for field_name in sorted(entity.fields):
+            if not entity.fields[field_name].required or field_name in produced:
+                continue
+            msg = (
+                f"entity {entity_name!r} is built from {count} mappings and declares "
+                f"{field_name!r} required, but the mapping of {mapping.source!r} does not "
+                "produce it — the merge would NULL-fill a required column for that source's "
+                "rows alone, so the entity looks internally inconsistent rather than "
+                "externally broken (RFC 0024 D4). Fix: map the field in every mapping, or "
+                "drop 'required: true'"
+            )
+            errors.append(ResolutionError(msg, source_path=f"{doc}: fields"))
+
+    errors.extend(_quality_refusals(entity_name, entity, mappings))
+
+    if entity.scd == "type2":
+        msg = (
+            f"entity {entity_name!r} declares 'scd: type2' and is built from {count} "
+            "mappings. The collision audit a merge generates would fire on every key "
+            "holding versions from two sources, and telling a version from a collision "
+            "needs validity columns nothing models yet (RFC 0023 §5.3) — so P1 refuses the "
+            "combination rather than shipping an audit that blocks correct data "
+            "(RFC 0024 D23). Fix: keep one mapping per historical entity"
+        )
+        errors.append(
+            ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.scd")
+        )
+
+    for mapping in mappings:
+        doc = mapping_doc(mapping)
+        for field_name in sorted(mapping.fields):
+            field_mapping = mapping.fields[field_name]
+            if not isinstance(field_mapping, RecipeFieldMapping) or field_mapping.direct is None:
+                continue
+            msg = (
+                f"entity {entity_name!r} is built from {count} mappings and this one records "
+                f"a direct: path for {field_name!r}. 'direct:' is per mapping, so a merged "
+                f"entity can have one on this source and none on another — which leaves the "
+                f"'{field_name}__direct' shadow NULL for the other's rows, indistinguishable "
+                "from a genuinely NULL direct value, and the reconcile audit either reports a "
+                "false disagreement or silently stops checking (RFC 0024 D28). Fix: drop "
+                "'direct:' while the entity is merged"
+            )
+            errors.append(
+                ResolutionError(msg, source_path=f"{doc}: fields.{field_name}.direct")
+            )
+    return errors
+
+
+def _quality_refusals(
+    entity_name: str, entity: Entity, mappings: tuple[Mapping, ...]
+) -> list[ResolutionError]:
+    """The data-quality boundary on a merged entity (RFC 0024 D14, widened by
+    D29).
+
+    D14 drew the boundary at ``dedupe:`` and ``quarantine:`` by tracing the
+    per-source row identity, and that trace holds. D29 found the consequence
+    reached further than the argument: **rule lowering is itself per mapping**
+    and sits behind neither block — ``lower_quality`` takes one ``Mapping``,
+    ``opts_in`` reads that mapping's field-level ``quality:`` blocks and also
+    selects the ``TRY_CAST`` column shape, and a generated ``coercible`` rule
+    carries that mapping's raw source paths into a rule evaluated once over the
+    merged relation, where the other branch's bronze relation need not have the
+    column it names.
+
+    So the boundary is ``opts_in``, one predicate that already exists and
+    already decides this. ``assert:``, ``references:`` and ``coverage:``
+    survive untouched: they lower from the entity model and the draft IR and
+    never read a mapping.
+
+    Two messages rather than one, because the two blocks are refused for
+    different reasons and an author fixing the wrong one learns nothing:
+    ``dedupe:``/``quarantine:`` name the row identity (D14), the rest names the
+    rule lowering (D29).
+    """
+    count = len(mappings)
+    errors: list[ResolutionError] = []
+    for block in ("dedupe", "quarantine"):
+        if getattr(entity, block) is None:
+            continue
+        msg = (
+            f"entity {entity_name!r} is built from {count} mappings and declares "
+            f"'{block}:'. Both the reject projection and the dedupe sort key are built from "
+            "'_source_row_id', which is unique within *one* source relation (RFC 0016 D21) "
+            "— on a merged entity two sources with ordinary per-table row sequences collide, "
+            "and the audit that guards it is blocking, so correct data would stop the run "
+            "(RFC 0024 D14). Fix: drop the block, or keep one mapping per entity until P2 "
+            "restores it"
+        )
+        errors.append(
+            ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.{block}")
+        )
+    if entity.quality:
+        errors.append(
+            ResolutionError(
+                _QUALITY_MERGE_MESSAGE.format(entity=entity_name, count=count, where="quality:"),
+                source_path=f"entity_model: entities.{entity_name}.quality",
+            )
+        )
+    for mapping in mappings:
+        doc = mapping_doc(mapping)
+        for field_name, field_mapping in mapped_fields(mapping):
+            if field_mapping is None or not field_mapping.quality:
+                continue
+            errors.append(
+                ResolutionError(
+                    _QUALITY_MERGE_MESSAGE.format(
+                        entity=entity_name, count=count, where=f"quality: on {field_name!r}"
+                    ),
+                    source_path=f"{doc}: fields.{field_name}.quality",
+                )
+            )
+    return errors
+
+
+#: One sentence per reason, shared by the two sites D29's refusal fires from —
+#: the entity-level block and a mapping's field-level one. Written once because
+#: they are the same refusal reached through the two legs of ``opts_in``.
+_QUALITY_MERGE_MESSAGE = (
+    "entity {entity!r} is built from {count} mappings and declares {where}. Quality rules "
+    "are lowered *per mapping* — a generated coercible rule carries one mapping's source "
+    "paths into a rule the merged relation evaluates once, and the other source's bronze "
+    "relation need not have the column it names — so P1 refuses a merged entity that joins "
+    "the data-quality system at all (RFC 0024 D29). 'assert:', 'references:' and 'coverage:' "
+    "are unaffected. Fix: drop the rules, or keep one mapping per entity until P2"
+)
 
 
 def _build_entities(
     project: Project, catalog: Catalog | None, reg: Registry, steps: StepRegistry
 ) -> tuple[EntityIR, ...]:
+    """Every mapped entity, each from the mappings that target it (RFC 0024 D1).
+
+    More than one mapping is a **union merge**, which replaces the refusal that
+    stood here and kept the promise its message made. The grouping was already
+    by-target-then-sorted, so the structure the merge needs is the one the
+    refusal was sitting on.
+    """
     by_target: dict[str, list[Mapping]] = {}
     for mapping in project.mappings:
         by_target.setdefault(mapping.target, []).append(mapping)
-    entities: list[EntityIR] = []
-    for entity_name in sorted(by_target):
-        mappings = by_target[entity_name]
-        if len(mappings) > 1:
-            msg = (
-                f"{len(mappings)} mappings target entity {entity_name!r}; deterministic "
-                "union merge lands with the multi_source milestone (RFC 0009 D4)"
-            )
-            raise ResolutionError(msg, source_path=f"{mapping_doc(mappings[1])}: target")
-        entity = project.entity_model.entities[entity_name]
-        entities.append(
-            _build_entity(entity_name, entity, mappings[0], project, catalog, reg, steps)
+    # Sorted by source relation: this is D3's branch order, established once
+    # here so that everything downstream — `EntityIR.sources`, the UNION ALL,
+    # the `_source` literals — inherits it rather than re-deriving it.
+    grouped = {
+        entity_name: tuple(sorted(mappings, key=lambda mapping: mapping.source))
+        for entity_name, mappings in by_target.items()
+    }
+    refusals = [
+        error
+        for entity_name in sorted(grouped)
+        for error in _merge_refusals(
+            entity_name, project.entity_model.entities[entity_name], grouped[entity_name]
         )
-    return tuple(entities)  # sorted: by_target iterated in sorted order
+    ]
+    if refusals:
+        ordered = tuple(sorted(refusals, key=lambda error: (error.source_path or "", str(error))))
+        if len(ordered) == 1:
+            raise ordered[0]
+        raise ResolutionError.from_collected(ordered)
+    entities = [
+        _build_entity(
+            entity_name,
+            project.entity_model.entities[entity_name],
+            grouped[entity_name],
+            project,
+            catalog,
+            reg,
+            steps,
+        )
+        for entity_name in sorted(grouped)
+    ]
+    return tuple(entities)  # sorted: `grouped` iterated in sorted order
 
 
 def _build_metrics(

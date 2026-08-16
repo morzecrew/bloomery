@@ -63,6 +63,7 @@ __all__ = [
     "RelationshipIR",
     "SCDKind",
     "SemiAdditivePolicy",
+    "SOURCE_COLUMN",
     "SemiAdditiveRule",
     "SourceColumnIR",
     "SourceFieldIR",
@@ -102,6 +103,17 @@ OK_COLUMN = "_quality_ok"
 REPAIRS_COLUMN = "_quality_repairs"
 #: One ``<entity>__reject`` per entity, never per mapping (D10).
 REJECT_SUFFIX = "__reject"
+#: The provenance column a **merged** entity carries: which source relation a
+#: row came from (RFC 0024 D7). Load-bearing rather than diagnostic — the
+#: collision audit reports *which* sources shared a key, and without it the
+#: report is "this key is duplicated somewhere", which is not actionable on a
+#: five-source entity.
+#:
+#: Emitted only on merged entities, like :data:`REPAIRS_COLUMN` and unlike the
+#: two universal columns (D7): on a single-source entity it is a constant, and
+#: putting a constant into every relation forever to spare one classified
+#: change is how a schema move gets hidden from ``plan()``.
+SOURCE_COLUMN = "_source"
 
 
 # ....................... #
@@ -523,7 +535,17 @@ class EntityIR:
     materialization: Materialization
     partition_by: tuple[PartitionSpec, ...]
     columns: tuple[ColumnIR, ...]
-    source: SourceIR
+    #: The bronze relations this entity is built from, sorted by ``relation``
+    #: (RFC 0024 D1/D3). More than one is a **union merge**: the silver model
+    #: is a ``UNION ALL`` of one projection per source, in this order, so the
+    #: emitted SQL is byte-identical across processes. Row order is not
+    #: claimed — ``UNION ALL`` is a bag (D3).
+    #:
+    #: A step-produced entity has exactly one, naming its own output relation
+    #: with identity projections — it is not a mapping, and D21 refuses mixing
+    #: it with one: the union has nothing to order a step output by, and
+    #: ``produced_by`` already means bloomery builds no SELECT for it.
+    sources: tuple[SourceIR, ...]
     audits: tuple[AuditIR, ...] = ()
     quality: tuple[QualityRuleIR, ...] = ()
     dedupe: DedupeIR | None = None

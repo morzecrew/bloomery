@@ -224,6 +224,45 @@ def _refuse_quarantine(entity: EntityIR) -> None:
     raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}.quarantine")
 
 
+def _refuse_merged(entity: EntityIR) -> None:
+    """dbt has no surface for the union merge's collision audit (RFC 0024 D5).
+
+    **A departure from RFC 0024 D20**, which predicted that "nothing about the
+    union needs a dbt capability it lacks". The ``UNION ALL`` itself needs
+    none — it is the same shared SELECT both targets render, and one
+    ``source()`` per mapping is ordinary dbt. What the *merge* needs is the
+    blocking audit that establishes the sources' key sets are disjoint, and
+    this emitter has no artifact for it: its whole test surface is
+    ``schema.yml`` entries, which cover ``not_null``, ``accepted_values`` and
+    an expression test, and a generated ``GROUP BY <key> HAVING
+    COUNT(DISTINCT _source) > 1`` is none of those.
+
+    Refused rather than emitted without the audit, because the audit is not a
+    feature of the merge — it is its correctness condition (D5 makes it
+    blocking and not configurable to a weaker disposition). Shipping the union
+    without it produces a model that compiles here, runs anywhere, and
+    double-counts an entity in silence, which is exactly the degradation
+    RFC 0008 D3 refuses. The RFC 0016 §5.4 precedent — ``on_fail: fail`` audits
+    are SQLMesh-only and dbt emits the model anyway — does not reach this:
+    that sentence authorizes dbt's partiality for the *quality* artifacts, and
+    a rule an author chose to make blocking is not the same as the one check a
+    feature cannot be correct without.
+    """
+    if len(entity.sources) < 2:
+        return
+    relations = ", ".join(source.relation for source in entity.sources)
+    msg = (
+        f"entity {entity.name!r} is a union merge of {relations}, which requires the "
+        f"generated {entity.name}_source_collision audit to establish that the sources' "
+        "key sets are disjoint (RFC 0024 §5.4, D5 — blocking, and not configurable to a "
+        "weaker disposition). The dbt emitter's test surface is schema.yml entries, which "
+        "cannot express it, and emitting the union without it would double-count the "
+        "entity in silence (RFC 0008 D3). Fix: compile this project for the sqlmesh "
+        "target, or keep one mapping per entity"
+    )
+    raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
+
+
 def _refuse_reconcile(ir: ProjectIR) -> None:
     """dbt lowers no reconcile artifacts in this wave (RFC 0016 D58).
 
@@ -455,9 +494,13 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
 
 def _sources_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
     relations_by_namespace: dict[str, set[str]] = {}
+    # One ``source()`` per mapping (RFC 0024 D20): a merged entity reads every
+    # relation its branches do, and a sources.yml naming only the first would
+    # leave dbt unable to resolve the rest.
     for entity in ir.entities:
-        namespace, relation = ctx.naming.relation(entity.source.relation, Layer.BRONZE)
-        relations_by_namespace.setdefault(namespace, set()).add(relation)
+        for origin in entity.sources:
+            namespace, relation = ctx.naming.relation(origin.relation, Layer.BRONZE)
+            relations_by_namespace.setdefault(namespace, set()).add(relation)
     if not relations_by_namespace:
         return None
     document: dict[str, object] = {
@@ -500,8 +543,9 @@ def _reference_map(ir: ProjectIR, ctx: EmitContext) -> dict[tuple[str, str], str
             references[(namespace, relation)] = reference
 
     for entity in ir.entities:
-        namespace, relation = ctx.naming.relation(entity.source.relation, Layer.BRONZE)
-        add(namespace, relation, f"{{{{ source('{namespace}', '{relation}') }}}}")
+        for origin in entity.sources:
+            namespace, relation = ctx.naming.relation(origin.relation, Layer.BRONZE)
+            add(namespace, relation, f"{{{{ source('{namespace}', '{relation}') }}}}")
     for entity in ir.entities:
         namespace, relation = ctx.naming.relation(entity.name, Layer.SILVER)
         # An SCD2 entity's rows live in the snapshot, which is the only thing
@@ -685,6 +729,7 @@ class DbtEmitter:
             if entity.produced_by is not None:
                 continue
             _refuse_quarantine(entity)
+            _refuse_merged(entity)
             if entity.scd is SCDKind.TYPE2:
                 artifacts.append(_snapshot_artifact(entity, ctx, references))
                 continue

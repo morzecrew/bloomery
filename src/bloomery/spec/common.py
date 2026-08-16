@@ -81,6 +81,10 @@ _RESERVED_MEMBER_REASONS: dict[str, str] = {
     "_load_id": "RFC 0016 D21: bronze ingestion metadata",
     "_ingested_at": "RFC 0016 D21: bronze ingestion metadata",
     "_source_row_id": "RFC 0016 D21: the stable source-row identity",
+    # Reserved unconditionally, not only on merged entities (RFC 0024 D18): a
+    # name that is legal until a second mapping arrives is a trap laid for the
+    # change that adds one.
+    "_source": "RFC 0024 D7: the generated union-merge provenance column",
     "has_quality_flags": "RFC 0016 D9: the generated mart dimension",
 }
 

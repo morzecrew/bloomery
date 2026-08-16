@@ -74,7 +74,7 @@ CALL = '    step: extract_domain@1\n    from: {email: "$.email"}\n'
 
 def domain_expr(ir: object) -> str:
     (entity,) = [e for e in ir.entities if e.name == "customer"]  # type: ignore[attr-defined]
-    (column,) = [c for c in entity.source.columns if c.name == "email_domain"]
+    (column,) = [c for c in entity.sources[0].columns if c.name == "email_domain"]
     return column.expr.sql
 
 
@@ -113,7 +113,7 @@ def test_the_spliced_column_reads_the_bound_source_path() -> None:
     """
     ir = build(CALL)
     (entity,) = [e for e in ir.entities if e.name == "customer"]
-    (column,) = [c for c in entity.source.columns if c.name == "email_domain"]
+    (column,) = [c for c in entity.sources[0].columns if c.name == "email_domain"]
     tree = column.expr.ast()
     assert tree.find(exp.Placeholder) is None
     assert [c.name for c in tree.find_all(exp.Column)] == ["email"]
@@ -253,7 +253,7 @@ def test_the_column_expression_is_a_single_expression() -> None:
     query and lineage column-level."""
     ir = build(CALL)
     (entity,) = [e for e in ir.entities if e.name == "customer"]
-    (column,) = [c for c in entity.source.columns if c.name == "email_domain"]
+    (column,) = [c for c in entity.sources[0].columns if c.name == "email_domain"]
     tree = column.expr.ast()
     assert tree.find(exp.Select) is None
 
@@ -282,7 +282,7 @@ def test_a_macro_composes_with_tier_0_transforms_in_one_chain() -> None:
 def test_the_running_value_fills_the_macro_s_single_accepted_column() -> None:
     ir = build(CHAIN, chain_registry())
     (entity,) = [e for e in ir.entities if e.name == "customer"]
-    (column,) = [c for c in entity.source.columns if c.name == "email_domain"]
+    (column,) = [c for c in entity.sources[0].columns if c.name == "email_domain"]
     tree = column.expr.ast()
     assert tree.find(exp.Placeholder) is None
     # The macro wraps the *lowered* value, not the raw extraction.

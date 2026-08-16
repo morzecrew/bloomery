@@ -23,7 +23,7 @@ def test_both_columns_and_the_reconcile_audit_land_in_the_ir() -> None:
     # The shadow lands in **both** halves, and that is the property worth
     # pinning (RFC 0024 D26): a schema column with no projection is a column
     # the SELECT cannot produce, and it would compile clean.
-    lowered = {column.name: column for column in entity.source.columns}
+    lowered = {column.name: column for column in entity.sources[0].columns}
     assert sorted(by_name) == ["item_id", "net_price", "net_price__direct", "quantity"]
     assert sorted(lowered) == sorted(by_name)
 

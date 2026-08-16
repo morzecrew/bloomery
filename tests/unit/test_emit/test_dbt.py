@@ -103,7 +103,7 @@ def _entity(
             _column("qty", IntType()),
             _column("sku", StringType()),
         ),
-        source=_SOURCE,
+        sources=(_SOURCE,),
         audits=tuple(sorted(audits, key=lambda a: (a.kind, a.column))),
     )
 

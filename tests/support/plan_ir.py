@@ -93,6 +93,7 @@ def entity(
     partition_by: tuple[PartitionSpec, ...] = (),
     columns: tuple[ColumnIR, ...] | None = None,
     relation: str = "raw__items",
+    merged_with: tuple[str, ...] = (),
     source_fields: tuple[SourceFieldIR, ...] = (),
     mapping_version: int = 1,
     unmapped: tuple[str, ...] = (),
@@ -105,6 +106,21 @@ def entity(
     resolved = columns if columns is not None else (column("id", required=True),)
     schema = tuple(sorted((pair[0] for pair in resolved), key=lambda c: c.name))
     projections = tuple(sorted((pair[1] for pair in resolved), key=lambda c: c.name))
+    # ``merged_with`` names the *other* relations of a union merge (RFC 0024
+    # D1). Every branch gets the same projections, which is what the builder
+    # produces for two mappings that lower a column the same way — enough for
+    # the plan classifier, whose subject is the source *set*.
+    relations = tuple(sorted({relation, *merged_with}))
+    sources = tuple(
+        SourceIR(
+            relation=each,
+            fields=tuple(sorted(source_fields, key=lambda f: (f.target_field, f.source_path))),
+            columns=projections,
+            mapping_version=mapping_version,
+            unmapped=tuple(sorted(unmapped)),
+        )
+        for each in relations
+    )
     return EntityIR(
         name=name,
         grain=grain,
@@ -113,13 +129,7 @@ def entity(
         materialization=materialization,
         partition_by=partition_by,
         columns=schema,
-        source=SourceIR(
-            relation=relation,
-            fields=tuple(sorted(source_fields, key=lambda f: (f.target_field, f.source_path))),
-            columns=projections,
-            mapping_version=mapping_version,
-            unmapped=tuple(sorted(unmapped)),
-        ),
+        sources=sources,
         audits=audits,
         quality=tuple(sorted(quality, key=quality_sort_key)),
         dedupe=dedupe,

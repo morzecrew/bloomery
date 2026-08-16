@@ -77,24 +77,26 @@ def build_project_ir(*, column_names: tuple[str, ...] = ("unit_price", "order_id
         materialization=Materialization.INCREMENTAL_BY_PARTITION,
         partition_by=(PartitionSpec(transform="days", column="order_date"),),
         columns=columns,
-        source=SourceIR(
-            relation="shopify__order_lines",
-            fields=(
-                SourceFieldIR(
-                    target_field="order_id",
-                    source_path="$.order_id",
-                    transform=(TransformStepIR(name="to_string"),),
-                ),
-                SourceFieldIR(
-                    target_field="unit_price",
-                    source_path="$.total",
-                    transform=(
-                        TransformStepIR(name="to_decimal", args=(12, 4)),
-                        TransformStepIR(name="parse_ts", args=("ISO8601",)),
+        sources=(
+            SourceIR(
+                relation="shopify__order_lines",
+                fields=(
+                    SourceFieldIR(
+                        target_field="order_id",
+                        source_path="$.order_id",
+                        transform=(TransformStepIR(name="to_string"),),
+                    ),
+                    SourceFieldIR(
+                        target_field="unit_price",
+                        source_path="$.total",
+                        transform=(
+                            TransformStepIR(name="to_decimal", args=(12, 4)),
+                            TransformStepIR(name="parse_ts", args=("ISO8601",)),
+                        ),
                     ),
                 ),
+                columns=tuple(_projection(name) for name in sorted(column_names)),
             ),
-            columns=tuple(_projection(name) for name in sorted(column_names)),
         ),
         audits=(AuditIR(kind="not_null", column="order_id"),),
     )

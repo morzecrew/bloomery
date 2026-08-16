@@ -104,7 +104,7 @@ def _entity(name: str = "order") -> EntityIR:
         materialization=Materialization.FULL,
         partition_by=(),
         columns=(_column("amount", DecimalType(12, 4)), _column("order_id", StringType())),
-        source=_SOURCE,
+        sources=(_SOURCE,),
     )
 
 

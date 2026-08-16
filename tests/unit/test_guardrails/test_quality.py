@@ -947,7 +947,7 @@ def test_a_direct_path_reaches_the_reject_payload() -> None:
     reconcile audit whose whole job is to compare it."""
     sources, catalog = _direct()
     ir = build_project_ir(load_project(sources), catalog)
-    paths = {field.source_path for field in ir.entities[0].source.fields}
+    paths = {field.source_path for field in ir.entities[0].sources[0].fields}
     assert "$.price" in paths
 
 

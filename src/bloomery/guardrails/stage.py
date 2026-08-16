@@ -60,17 +60,24 @@ def _amended_entity(
     # Both halves move together (RFC 0024 D26): a schema column with no
     # projection is a column the SELECT cannot produce, which would compile
     # clean and fail on the first run. ``direct:`` is refused on a merged
-    # entity (D28), so there is exactly one source to amend here.
-    source = replace(
-        entity.source,
-        columns=tuple(
-            sorted(
-                [*entity.source.columns, *(projection for _, projection in extra)],
-                key=lambda column: column.name,
-            )
-        ),
+    # entity (D28), so ``extra`` is empty for every entity with more than one
+    # source and the comprehension amends the only one there is — written over
+    # ``sources`` rather than over ``sources[0]`` so that the day D28 lifts,
+    # this reads as an unfinished fan-out instead of a silent single-branch
+    # amendment.
+    sources = tuple(
+        replace(
+            source,
+            columns=tuple(
+                sorted(
+                    [*source.columns, *(projection for _, projection in extra)],
+                    key=lambda column: column.name,
+                )
+            ),
+        )
+        for source in entity.sources
     )
-    return replace(entity, columns=columns, source=source, audits=audits)
+    return replace(entity, columns=columns, sources=sources, audits=audits)
 
 
 def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | None) -> ProjectIR:

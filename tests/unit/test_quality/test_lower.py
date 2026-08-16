@@ -123,8 +123,8 @@ def test_the_entity_blocks_reach_the_ir() -> None:
     assert entity.quarantine is not None
     assert entity.quarantine.retention == "90d"
     assert entity.quarantine.redact == ("$.operator_note",)
-    assert entity.source.mapping_version == 1
-    assert "$.operator_note" in entity.source.unmapped
+    assert entity.sources[0].mapping_version == 1
+    assert "$.operator_note" in entity.sources[0].unmapped
 
 
 def test_the_transform_chain_lowers_try_cast_shaped() -> None:
@@ -132,14 +132,14 @@ def test_the_transform_chain_lowers_try_cast_shaped() -> None:
     project, catalog = load_fixture("semi_additive_inventory")
     ir = build_project_ir(project, catalog)
     (entity,) = ir.entities
-    assert all("TRY_CAST" in column.expr.sql for column in entity.source.columns)
+    assert all("TRY_CAST" in column.expr.sql for column in entity.sources[0].columns)
 
 
 def test_a_quality_free_project_keeps_plain_casts() -> None:
     project, catalog = load_fixture("minimal")
     ir = build_project_ir(project, catalog)
     (entity,) = ir.entities
-    assert all("TRY_CAST" not in column.expr.sql for column in entity.source.columns)
+    assert all("TRY_CAST" not in column.expr.sql for column in entity.sources[0].columns)
 
 
 # ....................... #

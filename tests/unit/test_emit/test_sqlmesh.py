@@ -188,7 +188,7 @@ def _audited_entity(*audits: AuditIR) -> EntityIR:
             _column("shipped_on", DateType()),
             _column("status", StringType()),
         ),
-        source=_SOURCE,
+        sources=(_SOURCE,),
         audits=tuple(sorted(audits, key=lambda a: (a.kind, a.column))),
     )
 

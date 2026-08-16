@@ -71,9 +71,13 @@ def _entity(*column_names: str) -> EntityIR:
         materialization=Materialization.FULL,
         partition_by=(),
         columns=columns,
-        source=SourceIR(
-            relation="src",
-            columns=tuple(SourceColumnIR(name=name, expr=SqlExpr(name)) for name in column_names),
+        sources=(
+            SourceIR(
+                relation="src",
+                columns=tuple(
+                    SourceColumnIR(name=name, expr=SqlExpr(name)) for name in column_names
+                ),
+            ),
         ),
     )
 
