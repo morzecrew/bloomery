@@ -9,9 +9,11 @@ The floor is where dbt makes that nesting the **default**, not where the
 property arrived — and that boundary is not a minor version. 1.9 rejects the
 nested form outright, and so do 1.10.0–1.10.7: through 1.10.7 it needs the
 ``require_generic_test_arguments_property`` behaviour flag, and without it dbt
-passes ``arguments`` to the macro as a literal keyword. Measured on eight real
-installs; the matrix lives in ``tests/unit/test_emit/test_dbt.py`` beside the
-test that pins the emitted form, and ``pyproject.toml`` carries the same bound.
+passes ``arguments`` to the macro as a literal keyword. Measured rather than
+read off a changelog: the matrix lives in ``tests/unit/test_emit/test_dbt.py``
+beside the test that pins the emitted form, and covers six real installs from
+1.9.10 to 1.12.0 — the two on either side of the boundary, 1.10.7 and 1.10.8,
+being the ones that fix it. ``pyproject.toml`` carries the same bound.
 An earlier version of this line said ``>=1.10``, which admits the seven
 patch releases that reject what this emitter writes.
 
