@@ -38,7 +38,7 @@ Two consequences worth knowing:
 
 ## Allocating a number
 
-The next free number is **0026**. Before creating an RFC, read the number above — do not
+The next free number is **0027**. Before creating an RFC, read the number above — do not
 compute it from `ls`, which no longer sees retired documents. **Numbers are never reused**:
 0001–0022 are retired and permanently spent. Update this section in the same change that
 mints a number.
@@ -56,6 +56,7 @@ settled — not work in flight.
 |---|---|---|---|
 | [0023](0023-temporal-joins-scd2-flattening-and-currency-conversion.md) | Temporal joins: SCD2 flattening and currency conversion | 🚧 In progress | Two constructs that compile clean and cannot be correct — flattening a historical dimension, and `convert` — both needing a join against a validity interval. **P1 (both refusals) has landed**; the as-of join design is unscheduled. |
 | [0024](0024-deterministic-union-merge.md) | Deterministic union merge | 🚧 In progress | Letting several mappings build one entity when they share a key space but no overlapping keys, so the entity model integrates sources instead of renaming one. Overlap stays a step. **P1 shipped** — the union, its refusals, the collision audit and the `multi_source` fixture. **P2 (the quality system on a merged entity) is designed and demand-gated**: D31–D35 settle it, and the code waits for a project that needs it. Departures in [0024-DEVIATIONS.md](0024-DEVIATIONS.md). |
+| [0026](0026-dbt-singular-test-surface.md) | The dbt singular-test surface | 📝 Draft | Five dbt refusals are one missing artifact — a check that groups or joins has no schema-test shape. Emitting singular tests gives it one, and lifts RFC 0024 D30's SQLMesh-only merged entities. |
 
 ## Status legend
 
