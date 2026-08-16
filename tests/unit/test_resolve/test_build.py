@@ -532,6 +532,68 @@ fields:
     assert "fields.kind.quality" in excinfo.value.source_path
 
 
+def test_a_mart_over_a_merged_entity_flattens() -> None:
+    """Marts are not in RFC 0024's surface, and that is the claim being tested.
+
+    A mart reads the base entity's *schema* — `columns`, `key` — and the silver
+    relation, and the merge changes the shape of neither: the union is below the
+    relation the mart selects from. Pinned because "nothing to do here" is a
+    statement about the code that only a test keeps true, and because `_source`
+    staying out of the flattened column set is the observable half of it not
+    being a declared field.
+    """
+    sources = _merge_sources(
+        entity_model="""\
+spec_version: 1
+entities:
+  event:
+    grain: one row per event
+    key: [event_id]
+    fields:
+      event_id: {type: string, required: true}
+      kind: {type: string}
+      occurred_at: {type: timestamp}
+""",
+        mapping_a="""\
+mapping_version: 1
+source: src_z
+target: event
+key:
+  event_id: {from: "$.id", transform: [to_string]}
+fields:
+  kind: {from: "$.kind", transform: [to_string]}
+  occurred_at: {from: "$.ts", transform: [{parse_ts: ["ISO8601"]}]}
+""",
+        mapping_z="""\
+mapping_version: 1
+source: src_a
+target: event
+key:
+  event_id: {from: "$.identifier", transform: [to_string]}
+fields:
+  kind: {from: "$.type", transform: [to_string]}
+  occurred_at: {from: "$.at", transform: [{parse_ts: ["ISO8601"]}]}
+""",
+        marts="""\
+marts_version: 1
+marts:
+  events:
+    grain: event
+    base: event
+    flatten:
+      - {date: occurred_at, role: seen}
+""",
+    )
+    ir = build_project_ir(load_project(sources))
+    (mart,) = ir.marts
+    names = [column.name for column in mart.columns]
+    assert "event_id" in names
+    assert "seen_day" in names
+    # `_source` is a generated column, not a declared field, so it is not a
+    # dimension — a mart over a merged entity is a mart like any other.
+    assert "_source" not in names
+
+
 def test_a_mapping_lowering_a_partial_key_is_refused() -> None:
     """§5.2 rule 1, and it needs no code of its own: `resolve.refs` enforces
     full-key coverage per mapping, so it enforces it per branch. Pinned here
