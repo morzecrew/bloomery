@@ -1089,8 +1089,8 @@ def _quality_refusals(
             "'_source_row_id', which is unique within *one* source relation (RFC 0016 D21) "
             "— on a merged entity two sources with ordinary per-table row sequences collide, "
             "and the audit that guards it is blocking, so correct data would stop the run "
-            "(RFC 0024 D14). Fix: drop the block, or keep one mapping per entity until P2 "
-            "restores it"
+            "(RFC 0024 D14). Fix: drop the block, or keep one mapping per entity — the "
+            "merged form is designed and unscheduled (RFC 0024 §12 P2b)"
         )
         errors.append(
             ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.{block}")
@@ -1127,7 +1127,8 @@ _QUALITY_MERGE_MESSAGE = (
     "paths into a rule the merged relation evaluates once, and the other source's bronze "
     "relation need not have the column it names — so P1 refuses a merged entity that joins "
     "the data-quality system at all (RFC 0024 D29). 'assert:', 'references:' and 'coverage:' "
-    "are unaffected. Fix: drop the rules, or keep one mapping per entity until P2"
+    "are unaffected. Fix: drop the rules, or keep one mapping per entity — the merged form "
+    "is designed and unscheduled (RFC 0024 §12 P2a)"
 )
 
 
