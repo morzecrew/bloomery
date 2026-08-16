@@ -137,7 +137,7 @@ argues in part that "dbt's test surface has no non-blocking equivalent that woul
 not silently turn 'report the disagreement' into 'fail the build'". dbt tests do
 carry `severity: warn`, so that half of the argument does not survive. The other
 half does: a reconcile check is "a model **and** a non-blocking audit", and this
-RFC gives dbt no models. See §5.5 and D8.
+RFC gives dbt no models. See §5.6 and D8.
 
 ## 4. Goals / Non-goals
 
@@ -201,7 +201,43 @@ artifact**, and it goes through `_reference_map` rather than string formatting,
 so a singular test participates in dbt's DAG exactly as a model does — which is
 what makes it run against the right relation in the right order.
 
-### 5.3 Which refusals lift, and which do not
+### 5.3 Where the audits come from, and the one thing that has to move
+
+"One file per audit" is not a routing contract, and the audits do not come from
+one place. Six producers reach the five lifted refusals, and they do not agree
+today about what they return:
+
+| Producer | Where | Returns today |
+| --- | --- | --- |
+| `EntityIR.audits` | walked by `_entity_tests` | an IR node the emitter maps |
+| `collision_audit_select` | [`emit/lower/silver.py:1037`](../src/bloomery/emit/lower/silver.py) | an `exp.Select` |
+| `_quality_audits` | [`emit/sqlmesh/__init__.py:597`](../src/bloomery/emit/sqlmesh/__init__.py) | SQLMesh artifacts, in the SQLMesh emitter |
+| `quality_audits` | [`emit/steps.py:598`](../src/bloomery/emit/steps.py) | an **`EmittedArtifact`**, from shared code |
+| `consistency_audits` | [`emit/steps.py:660`](../src/bloomery/emit/steps.py) | an **`EmittedArtifact`**, from shared code |
+| Mart `asserts` / `coverage` | `ir.marts[].asserts`, `ir.coverage` | refused before lowering |
+
+**The last two are the problem, and they are why §12's "a template, a path, and
+turning four raises into routes" was too glib.** `emit/steps.py` is
+target-neutral by position and is not by content: `_AUDIT`
+([`emit/steps.py:267`](../src/bloomery/emit/steps.py)) bakes SQLMesh's
+`AUDIT (name …);` header into the shared module, so a producer that both targets
+need already hands back a SQLMesh artifact. A dbt caller cannot use it, and
+adding a second template beside it would give one audit body two spellings
+maintained in parallel — the divergence the shared lowering exists to prevent.
+
+**So the envelope separates from the body.** A producer returns a *named body* —
+the rendered SELECT and the audit's name and disposition — and each target wraps
+it: SQLMesh in `AUDIT (…);`, dbt in a `tests/<name>.sql` with its `config()`
+header. That is the one structural change in this RFC, and it is what makes the
+rest a template and a path.
+
+It also fixes a smaller thing on the way. `@this_model` is SQLMesh's spelling
+and appears inside those shared bodies; the relation has to arrive as a
+parameter the target fills — `@this_model` for one, `_reference_map`'s
+`{{ ref('…') }}` for the other — rather than as a literal the dbt side would
+have to rewrite by substitution.
+
+### 5.4 Which refusals lift, and which do not
 
 | Construct | After this RFC |
 | --- | --- |
@@ -210,7 +246,7 @@ what makes it run against the right relation in the right order.
 | Coverage checks | **Emitted** |
 | Step audits | **Emitted** |
 | Unmapped entity audit kinds | **Emitted** — the `else` branch becomes a singular test rather than a raise |
-| `reconcile:` | Still refused — needs a *model* (§5.5) |
+| `reconcile:` | Still refused — needs a *model* (§5.6) |
 | `quarantine:` (reject/replay) | Still refused — models and a replay statement |
 | Tier 3 Python models | Still refused — no adapter |
 | Composite-key SCD2 | Still refused — snapshot `unique_key` |
@@ -221,7 +257,7 @@ lowering where dbt has a native equivalent, because a native `not_null` reads
 better in `dbt docs` and in test output than a hand-rolled query, and the
 singular test is the fallback rather than the replacement.
 
-### 5.4 Blocking, and the one honest weakening
+### 5.5 Blocking, and the two honest weakenings
 
 **This is the decision the RFC turns on.** A SQLMesh audit blocks because the
 framework evaluates it as part of the model's own materialization. A dbt test
@@ -245,11 +281,31 @@ audits are blocking under `dbt build`.** That sentence is the cost of this RFC,
 and writing it down is what keeps this from being a silent degradation under
 RFC 0008 D3.
 
-### 5.5 Severity, and why `reconcile:` stays refused
+### 5.6 Severity, and why `reconcile:` stays refused
 
 `on_fail` maps to dbt's `severity`: `fail` → `error` (the default, written
-explicitly), `flag` → `warn`. This is a real equivalence, not an approximation,
-and it corrects half of `_refuse_reconcile`'s argument (§3).
+explicitly), `flag` → `warn`. The mapping is exact, and it corrects half of
+`_refuse_reconcile`'s argument (§3).
+
+**But the *disposition* is invocation-dependent in both directions, and §5.5
+only found one of them.** `--warn-error` promotes every warning to an error, so
+a `flag` audit — which the whole disposition vocabulary defines as "record it
+and keep the row" — stops the build under that flag. That is the exact mirror
+of `dbt run` skipping a `fail` audit: neither is a mapping error, and both are
+the same fact about dbt, that a test's consequence is chosen by the invocation
+rather than by the artifact.
+
+So the operator contract carries **two** sentences, not one, and they belong
+together because a reader who gets one and not the other has the wrong model:
+
+> On dbt, a blocking audit blocks under `dbt build`. A flagging audit does not
+> block, unless the run passes `--warn-error`, which promotes it.
+
+SQLMesh needs neither sentence, because there the artifact carries its own
+disposition (`blocking false`) and no invocation flag overrides it. Recording
+the asymmetry is the point: it is the one place where bloomery's three-value
+disposition model does not survive intact to a target, and it survives as far
+as it does only because the operator is told where the boundary is.
 
 `reconcile:` stays refused anyway, on the half that survives: a reconcile check
 lowers to a **comparison model** plus a non-blocking audit over it. This RFC
@@ -303,14 +359,24 @@ construct its target supports is describing itself rather than the target.
   own reason rather than the lifted one. `reconcile:` is the sharp case: its
   message must stop citing the missing test surface (§3) and cite the missing
   model.
-- Sabotage: removing `test-paths` from `dbt_project.yml` must fail a test — a
-  singular test in an undeclared directory is a file dbt never runs, which is
-  the silent-no-op version of this whole feature.
+- **Both invocation modes, for both dispositions** (§5.6): a `fail` audit under
+  `dbt run` and a `flag` audit under `--warn-error` are the two cases where the
+  emitted disposition and the observed one differ, and the contract sentences
+  are only true if someone has run them.
+- Sabotage: **not** "remove `test-paths` and watch discovery break". dbt's
+  default for `test-paths` is already `["tests"]`, so removing the declaration
+  changes nothing about whether the tests run — an earlier draft of this line
+  claimed otherwise and was wrong. Two assertions replace it, because the
+  declaration and the discovery are separate claims: that `dbt_project.yml`
+  states `test-paths` explicitly, which is the same self-describing-layout
+  contract `macro-paths` is held to; and that the e2e tier sees a seeded
+  collision actually fail `dbt build`, which is the only evidence that the file
+  is a test dbt runs rather than SQL in a directory.
 
 ## 7. Docs
 
 - The target-coverage table, wherever it states what dbt cannot do — five rows
-  come out, and the `dbt build` sentence from §5.4 goes in.
+  come out, and the operator-contract sentences from §5.5 go in.
 - `pages/docs/how-to/merge-sources.md` loses its SQLMesh-only note.
 - The operator contract gains the `dbt build` requirement, stated as a
   requirement rather than a recommendation.
@@ -323,19 +389,19 @@ construct its target supports is describing itself rather than the target.
 - **Reject/replay on dbt** — RFC 0016 §5.4 and D10. Models and a statement to
   run; unrelated to tests. Would change if someone designs the dbt reject
   lowering.
-- **`reconcile:` on dbt** — §5.5. Needs the comparison model. Would change with
+- **`reconcile:` on dbt** — §5.6. Needs the comparison model. Would change with
   a decision about what that model is.
 - **Tier 3 Python models** — no adapter in reach runs one.
 - **Test selection, tags, or `store_failures`.** dbt offers all three; none is
   needed to make a check exist, and each is a choice about *operating* the
   emitted project rather than compiling it.
 - **Making the dbt target's audits blocking under `dbt run`.** Not possible, and
-  §5.4 accepts it rather than working around it.
+  §5.5 accepts it rather than working around it.
 
 ## 9. Risks
 
 - **`dbt build` vs `dbt run` is missed by a reader**, and a project runs with its
-  audits silently unevaluated. This is the RFC's real risk and §5.4 is the
+  audits silently unevaluated. This is the RFC's real risk and §5.5 is the
   mitigation — but a sentence in a contract is weaker than a mechanism, and there
   is no mechanism available. Stated rather than solved.
 - **The lifted refusals were load-bearing for something else.** Each of the five
@@ -356,7 +422,7 @@ construct its target supports is describing itself rather than the target.
   does, and it is what `plan()` diffs. A `.sql` file whose first line is a
   comment is fine for dbt; the question is whether a test's fingerprint means
   anything to a reader, or is noise on an artifact nobody diffs.
-- **Do `not_null` and `enum` stay schema tests?** §5.3 says yes, on readability
+- **Do `not_null` and `enum` stay schema tests?** §5.4 says yes, on readability
   grounds. Emitting *everything* as a singular test would make one mechanism
   where there are two, at the cost of losing dbt's native test output. Whoever
   builds this should confirm the readability claim against real `dbt test`
@@ -371,20 +437,22 @@ construct its target supports is describing itself rather than the target.
 | --- | --- | --- |
 | 1 | `LOCKED` | **The dbt emitter gains singular tests** — `.sql` files under a declared `test-paths`, one per audit with no schema-test mapping. This is the artifact five refusals were each missing, and it is dbt's own mechanism rather than an approximation of one. Consequence: `_entity_tests`'s `else` branch stops being a raise and becomes a route, so "no honest mapping" ceases to be a reachable state for an audit kind. |
 | 2 | `LOCKED` | **A `dbt build`-conditional block satisfies RFC 0024 D5.** A dbt test does not run under `dbt run`, so the collision audit is blocking only under `dbt build`. Accepted because **every schema test this emitter already ships has the same property** — a `not_null` audit does not block `dbt run` either — and refusing the merge for a property shared by every existing dbt check would apply a standard exactly once. Consequence: the emitted project's operator contract states that bloomery's blocking audits on dbt are blocking under `dbt build`; that sentence is this RFC's cost and it is not optional. |
-| 3 | `ASSUMED` | **`on_fail` maps to `severity`**: `fail` → `error` written explicitly, `flag` → `warn`. A real equivalence rather than an approximation, and it corrects half of `_refuse_reconcile`'s stated argument (§3) — which is recorded here so that the correction is not mistaken for a licence to lift D58. |
+| 3 | `LOCKED` | **`on_fail` maps to `severity`** — `fail` → `error` written explicitly, `flag` → `warn` — **and the operator contract carries two sentences, not one.** The mapping is exact; the *disposition* is not, because dbt lets the invocation choose the consequence in both directions. `dbt run` skips a `fail` audit (D2) and `--warn-error` promotes a `flag` one, so the contract states both or it misleads: a reader given only D2's sentence will believe `flag` is unconditionally non-blocking. This is the one place bloomery's three-value disposition model does not survive intact to a target — SQLMesh needs neither sentence, since there the artifact carries `blocking false` and no flag overrides it. Graded `LOCKED` with D2 because they are one fact about dbt seen from two sides, and separating them is how half of it gets dropped. Also corrects half of `_refuse_reconcile`'s stated argument (§3), recorded so the correction is not mistaken for a licence to lift D58. |
 | 4 | `ASSUMED` | **Native schema tests stay preferred where dbt has an equivalent.** `not_null` and `enum` keep their builtin lowering; the singular test is the fallback, not the replacement. Rationale is reader-facing: a native test names its column in `dbt test` output and appears in `dbt docs`, and a hand-rolled query does neither. Graded `ASSUMED` because it is a readability claim, and D10 asks whoever builds this to check it against real output. |
 | 5 | `LOCKED` | **The model reference goes through `_reference_map`, never string formatting.** It is what makes a singular test a DAG participant rather than a query that happens to name a table, and it is already built for exactly this shape. Consequence: a singular test is ordered against its model by dbt, which is what makes "blocking" mean anything at all under D2. |
 | 6 | `OPEN` | **The test-file naming scheme.** A singular test's name is its filename in a namespace shared with generic tests. Audit names are unique per project and `[a-z0-9_]+`-constrained, so the raw name may suffice; a `bloomery_` prefix would match the macro's convention at the cost of length. Whoever builds this decides and logs it. |
 | 7 | `OPEN` | **Whether the fingerprint header goes on a test artifact.** Every other emitted file carries one. Whoever builds this decides, and the decision is either "yes, uniformly" or an explicit statement of which artifact classes carry it and why. |
 | 8 | `ASSUMED` | **`reconcile:` stays refused, and its message changes.** The surviving half of D58's argument is the comparison *model*, which this RFC does not provide. Its refusal message currently cites the missing test surface; once that surface exists the message would be false, so lifting-adjacent work has to correct it even though the refusal stands. |
 | 9 | `ASSUMED` | **RFC 0024 D30 is lifted, not superseded.** D30's argument was correct when written — the emitter genuinely had no artifact for the audit. What changes is the emitter, not the reasoning, and D30's row stays as the record of why merged entities were SQLMesh-only for one release. |
+| 10 | `LOCKED` | **The audit envelope separates from the audit body** (§5.3). `emit/steps.py` is target-neutral by position and not by content: its `_AUDIT` template bakes SQLMesh's `AUDIT (name …);` header in, so `quality_audits` and `consistency_audits` hand shared callers a SQLMesh artifact. A producer instead returns a *named body* — rendered SELECT, name, disposition — and each target wraps it. The alternative, a second template beside the first, gives one audit body two spellings maintained in parallel, which is the divergence the shared lowering exists to prevent. Consequence: this is the only structural change here, and it is what makes the remaining work a template and a path rather than five separate liftings. It also carries the relation in as a parameter, so `@this_model` stops being a literal the dbt side would rewrite by substitution. |
 
 ## 12. Phasing
 
 **One phase.** The five refusals share a cause, and lifting them separately would
-mean five changes each re-arguing the same premise. The fixtures in §6 are the
-bulk of the work; the emitter change is a template, a path, and turning four
-raises into routes.
+mean five changes each re-arguing the same premise. The work is D10's envelope
+split first — the shared producers have to stop returning SQLMesh artifacts
+before any dbt caller can use them — then a template, a path, and turning four
+raises into routes. The fixtures in §6 are the bulk of it.
 
 **Gated on a dbt consumer**, and the gate is worth naming precisely because it is
 weaker than RFC 0023 P2's or RFC 0024 P2's. Those wait for someone to need a
