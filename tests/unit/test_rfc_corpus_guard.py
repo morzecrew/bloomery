@@ -40,8 +40,8 @@ INDEX = "The next free number is **0003**.\n"
 #: paragraphs, and a fixture of nothing but rows would never exercise the
 #: not-a-table-line branch that skips them.
 RETIRED_HEADER = (
-    "# Retired RFCs\n\nEvery RFC that has landed, and the commit that deleted it.\n\n"
-    "| # | Title | Retired in |\n|---|---|---|\n"
+    "# Retired RFCs\n\nEvery RFC that has landed, and a commit it is readable at.\n\n"
+    "| # | Title | Readable at |\n|---|---|---|\n"
 )
 
 
@@ -229,14 +229,25 @@ def _git(root: pathlib.Path, *args: str) -> None:
     )
 
 
+def _head(root: pathlib.Path) -> str:
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True
+    ).stdout.strip()[:7]
+
+
 @pytest.fixture
 def retired_in_a_real_repo(tmp_path: pathlib.Path) -> tuple[pathlib.Path, str, str]:
     """A repository where one RFC was genuinely retired.
 
-    Returns the root, the SHA that deleted it, and one that did not. The SHA
-    half of the gate only runs where history exists, so without this it is a
-    detection branch nothing reaches — the tests above all run outside a
-    repository, and coverage said so.
+    Returns the root, the SHA the document is **readable at**, and the SHA that
+    deleted it — which under the current rule is the *wrong* one to record, and
+    is returned so a test can say so. The SHA half of the gate only runs where
+    history exists, so without this it is a detection branch nothing reaches —
+    the tests above all run outside a repository, and coverage said so.
+
+    ``-b main`` is load-bearing: the reachability half needs a mainline ref, and
+    a repository whose default branch is named anything else would degrade to
+    the note branch and quietly stop exercising it.
     """
     root = tmp_path
     (root / "rfcs").mkdir()
@@ -244,46 +255,94 @@ def retired_in_a_real_repo(tmp_path: pathlib.Path) -> tuple[pathlib.Path, str, s
     (root / "rfcs" / "RETIRED.md").write_text(RETIRED_HEADER)
     (root / "rfcs" / "0001-gone.md").write_text("# RFC 0001 — gone\n")
     (root / "rfcs" / "0002-live.md").write_text("# RFC 0002 — live\n")
-    _git(root, "init", "-q")
+    _git(root, "init", "-q", "-b", "main")
     _git(root, "add", "-A")
     _git(root, "commit", "-qm", "add")
-    innocent = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True
-    ).stdout.strip()[:7]
+    holding = _head(root)
 
     (root / "rfcs" / "0001-gone.md").unlink()
     _git(root, "add", "-A")
     _git(root, "commit", "-qm", "retire 0001")
-    retiring = subprocess.run(
-        ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, check=True
-    ).stdout.strip()[:7]
-    return root, retiring, innocent
+    return root, holding, _head(root)
 
 
-def test_a_row_naming_its_real_retiring_commit_passes(
+def test_a_row_naming_a_commit_the_document_is_readable_at_passes(
     retired_in_a_real_repo: tuple[pathlib.Path, str, str],
 ) -> None:
-    root, retiring, _ = retired_in_a_real_repo
-    (root / "rfcs" / "RETIRED.md").write_text(
-        RETIRED_HEADER + f"| 0001 | Gone | `{retiring}` |\n"
-    )
+    root, holding, _ = retired_in_a_real_repo
+    (root / "rfcs" / "RETIRED.md").write_text(RETIRED_HEADER + f"| 0001 | Gone | `{holding}` |\n")
     checker = load_checker()
     assert checker.check(root) == []  # type: ignore[attr-defined]
 
 
-def test_a_row_naming_the_wrong_commit_is_caught(
+def test_a_row_naming_the_deleting_commit_is_caught(
     retired_in_a_real_repo: tuple[pathlib.Path, str, str],
 ) -> None:
-    """A plausible SHA that did not delete the document. Worse than a missing
-    row: it reads as recoverable and sends the reader somewhere the document
-    never was."""
-    root, _, innocent = retired_in_a_real_repo
-    (root / "rfcs" / "RETIRED.md").write_text(
-        RETIRED_HEADER + f"| 0001 | Gone | `{innocent}` |\n"
-    )
+    """The inversion of the rule this table used to state, pinned so it cannot
+    drift back. The deleting commit is exactly where the document is *not*, so
+    a row naming it sends the reader to a tree the file has already left."""
+    root, _, deleting = retired_in_a_real_repo
+    (root / "rfcs" / "RETIRED.md").write_text(RETIRED_HEADER + f"| 0001 | Gone | `{deleting}` |\n")
     checker = load_checker()
     findings = checker.check(root)  # type: ignore[attr-defined]
-    assert any(f"0001 names `{innocent}`" in f for f in findings)
+    assert any(f"0001 names `{deleting}`" in f and "does not hold" in f for f in findings)
+
+
+def test_a_commit_the_mainline_cannot_reach_is_caught(tmp_path: pathlib.Path) -> None:
+    """The regression this whole rule change is about, reproduced in miniature.
+
+    The named commit **does** hold the document, so the first half of the check
+    passes — and it is on a branch the mainline never took, which is what a
+    squash-merge leaves behind. On the author's machine the object is right
+    there and the row reads fine; a fresh clone cannot reach it at all. Only the
+    reachability half tells the two apart, and its absence is why RFC 0025's row
+    shipped naming a SHA no clone of `main` could resolve.
+    """
+    root = tmp_path
+    (root / "rfcs").mkdir()
+    (root / "rfcs" / "INDEX.md").write_text(INDEX)
+    (root / "rfcs" / "RETIRED.md").write_text(RETIRED_HEADER)
+    (root / "rfcs" / "0001-gone.md").write_text("# RFC 0001 — gone\n")
+    (root / "rfcs" / "0002-live.md").write_text("# RFC 0002 — live\n")
+    _git(root, "init", "-q", "-b", "main")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "add")
+
+    # The branch: it still holds 0001, and `main` never takes this commit.
+    _git(root, "checkout", "-q", "-b", "retire-0001")
+    (root / "rfcs" / "0001-gone.md").write_text("# RFC 0001 — gone (edited on the branch)\n")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "touch 0001")
+    orphaned = _head(root)
+
+    # The squash-merge: one commit on `main`, and the branch's SHA is not in it.
+    _git(root, "checkout", "-q", "main")
+    (root / "rfcs" / "0001-gone.md").unlink()
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "retire 0001")
+
+    (root / "rfcs" / "RETIRED.md").write_text(RETIRED_HEADER + f"| 0001 | Gone | `{orphaned}` |\n")
+    checker = load_checker()
+    findings = checker.check(root)  # type: ignore[attr-defined]
+    assert not any("does not hold" in f for f in findings)
+    assert any(f"0001 names `{orphaned}`" in f and "not an ancestor of main" in f for f in findings)
+
+
+def test_without_a_mainline_ref_reachability_degrades(
+    retired_in_a_real_repo: tuple[pathlib.Path, str, str],
+) -> None:
+    """A checkout with no `origin/main` and no `main` — a detached build, or a
+    repository on a differently-named default branch. The half that needs the
+    ref is skipped with a note and the half that does not still runs, which is
+    the same bargain `history_available` already strikes."""
+    root, holding, _ = retired_in_a_real_repo
+    _git(root, "checkout", "-q", "-b", "elsewhere")
+    _git(root, "branch", "-q", "-D", "main")
+    (root / "rfcs" / "RETIRED.md").write_text(RETIRED_HEADER + f"| 0001 | Gone | `{holding}` |\n")
+    checker = load_checker()
+    findings = checker.check(root)  # type: ignore[attr-defined]
+    assert any(f.startswith("note: no mainline ref") for f in findings)
+    assert [f for f in findings if not f.startswith("note:")] == []
 
 
 def test_a_sha_that_resolves_to_nothing_is_caught(
@@ -291,7 +350,7 @@ def test_a_sha_that_resolves_to_nothing_is_caught(
 ) -> None:
     """A mistyped SHA — the realistic version of a wrong one. git errors rather
     than returning an empty answer, which is a different path through
-    `deleted_in` than the wrong-but-real commit above, and reaches the same
+    `readable_at` than the wrong-but-real commit above, and reaches the same
     finding."""
     root, _, _ = retired_in_a_real_repo
     (root / "rfcs" / "RETIRED.md").write_text(f"{RETIRED_HEADER}| 0001 | Gone | `0000000` |\n")

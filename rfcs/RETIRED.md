@@ -1,6 +1,6 @@
 # Retired RFCs
 
-Every RFC that has landed or been rejected, and the commit that deleted it.
+Every RFC that has landed or been rejected, and a commit its document can still be read at.
 
 **This is an index, not an archive.** It exists because source, tests and docs cite
 decisions by number — `RFC 0016 D84`, `RFC 0010 §5.1` — and those numbers name files that
@@ -15,13 +15,22 @@ The filename is not stored — it is derived, which is what keeps this table to 
 columns and therefore unable to drift:
 
 ```bash
-git show --name-only --format= f4ae4a0 -- rfcs/ | grep 0016
+git ls-tree --name-only 33bc4f9 rfcs/ | grep 0016
 #   rfcs/0016-data-quality.md
-git show f4ae4a0^:rfcs/0016-data-quality.md
+git show 33bc4f9:rfcs/0016-data-quality.md
 ```
 
-Note the `^`: the retiring commit is the one that *deleted* the document, so the content
-lives in its parent.
+**The commit is one the document still exists at, not the one that deleted it** — so there
+is no `^`, and the same two commands work for every row. That is not a cosmetic choice. A
+retirement is written in the change that deletes the document, and under squash-merge the
+deleting commit does not exist until *after* that change lands: its SHA is the branch's,
+which the squash discards. So a column meaning "the commit that deleted it" cannot be
+filled in correctly by the change that fills it in — the rule was unsatisfiable, and the
+one row ever written to it in flight (0025) recorded a SHA no clone of `main` can resolve.
+A commit the document is readable *at* is known before the retirement starts, and stays
+true afterwards.
+
+In practice that is the branch point: whatever `main` was when the retirement began.
 
 This needs the git object, and therefore a full clone — `git clone --depth 1`, and the
 shallow checkouts most CI jobs get, cannot print the document. What the table gives such a
@@ -30,36 +39,36 @@ what three columns can honestly promise.
 
 ## The table
 
-**Number, title, retiring commit — never a summary.** A fourth column describing what an
-RFC decided would be a second account of behaviour the code already defines, drifting from
-it silently; that is the failure the retirement policy exists to prevent, and it would
-arrive here first. Three columns describe no behaviour and so cannot be wrong.
+**Number, title, a commit it is readable at — never a summary.** A fourth column describing
+what an RFC decided would be a second account of behaviour the code already defines,
+drifting from it silently; that is the failure the retirement policy exists to prevent, and
+it would arrive here first. Three columns describe no behaviour and so cannot be wrong.
 
-| # | Title | Retired in |
+| # | Title | Readable at |
 |---|---|---|
-| 0001 | Project foundations: packaging, tooling, CI, docs | `f4ae4a0` |
-| 0002 | Spec layer and error model | `f4ae4a0` |
-| 0003 | Intermediate representation and determinism contract | `f4ae4a0` |
-| 0004 | Logical types and the transform registry | `f4ae4a0` |
-| 0005 | Resolution: dependency DAG, recipes, reachability | `f4ae4a0` |
-| 0006 | Guardrails: refusing plausible-but-wrong arithmetic | `f4ae4a0` |
-| 0007 | Plan: spec diff and change classification | `f4ae4a0` |
-| 0008 | Ports and emitters: targets, dialects, naming | `ed8d72b` |
-| 0009 | Testing strategy and fixture corpus | `ed8d72b` |
-| 0010 | Marts and role-playing dimensions | `f4ae4a0` |
-| 0011 | Native planner: MetricRequest → QueryPlan | `f4ae4a0` |
-| 0012 | CompiledSemantic: serializable planner artifact | `f4ae4a0` |
-| 0013 | MetricFlow backend: manifest emitter and planner adapter | `f4ae4a0` |
-| 0014 | Hydration and caching of the planner artifact | `f4ae4a0` |
-| 0015 | Query vocabulary: filters, sort, pagination | `f4ae4a0` |
-| 0016 | Data quality: declarative cleansing, dispositions, quarantine | `f4ae4a0` |
-| 0017 | The step registry: referenced implementations | `f4ae4a0` |
-| 0018 | Public surface and stability policy | `ed8d72b` |
-| 0019 | Lowering decomposition | `d5b6f16` |
-| 0020 | Authoring ergonomics: schema export, CLI, fix suggestions | `bde63f2` |
-| 0021 | Capability boundaries: identity resolution, dialects, closed questions | `828fd5b` |
-| 0022 | `SpecEvidence`: spec analysis as a first-class output | `68353d7` |
-| 0025 | v0.1.0 release readiness | `4cb015c` |
+| 0001 | Project foundations: packaging, tooling, CI, docs | `33bc4f9` |
+| 0002 | Spec layer and error model | `33bc4f9` |
+| 0003 | Intermediate representation and determinism contract | `33bc4f9` |
+| 0004 | Logical types and the transform registry | `33bc4f9` |
+| 0005 | Resolution: dependency DAG, recipes, reachability | `33bc4f9` |
+| 0006 | Guardrails: refusing plausible-but-wrong arithmetic | `33bc4f9` |
+| 0007 | Plan: spec diff and change classification | `33bc4f9` |
+| 0008 | Ports and emitters: targets, dialects, naming | `7ba117b` |
+| 0009 | Testing strategy and fixture corpus | `7ba117b` |
+| 0010 | Marts and role-playing dimensions | `33bc4f9` |
+| 0011 | Native planner: MetricRequest → QueryPlan | `33bc4f9` |
+| 0012 | CompiledSemantic: serializable planner artifact | `33bc4f9` |
+| 0013 | MetricFlow backend: manifest emitter and planner adapter | `33bc4f9` |
+| 0014 | Hydration and caching of the planner artifact | `33bc4f9` |
+| 0015 | Query vocabulary: filters, sort, pagination | `33bc4f9` |
+| 0016 | Data quality: declarative cleansing, dispositions, quarantine | `33bc4f9` |
+| 0017 | The step registry: referenced implementations | `33bc4f9` |
+| 0018 | Public surface and stability policy | `7ba117b` |
+| 0019 | Lowering decomposition | `ed8d72b` |
+| 0020 | Authoring ergonomics: schema export, CLI, fix suggestions | `d5b6f16` |
+| 0021 | Capability boundaries: identity resolution, dialects, closed questions | `68353d7` |
+| 0022 | `SpecEvidence`: spec analysis as a first-class output | `cc8c691` |
+| 0025 | v0.1.0 release readiness | `e7f71a4` |
 
 ## Not in the table
 

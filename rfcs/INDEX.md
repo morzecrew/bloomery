@@ -14,10 +14,15 @@ the same way; what stops the design being re-proposed is the rejection recorded 
 the alternative was chosen, not an unread file sitting in this directory.
 
 Retire in the same change that flips the status. `git rm` the file, drop its row from the
-table below, and add one to [`RETIRED.md`](RETIRED.md) — number, title, retiring SHA, and
-nothing else. That table is how a citation stays followable once the document is gone;
-`just quality` refuses a number that is neither live nor retired.
-`git show <commit>^:rfcs/<file>` prints a retired document back in full.
+table below, and add one to [`RETIRED.md`](RETIRED.md) — number, title, **a commit the
+document is readable at**, and nothing else. In practice that is the branch point: whatever
+`main` was when you started. It is deliberately *not* the commit that deletes the document,
+which does not exist until after the change lands and whose branch SHA the squash-merge
+discards — the rule used to ask for that one, and the single row ever written to it in
+flight named a commit no clone of `main` can resolve. That table is how a citation stays
+followable once the document is gone; `just quality` refuses a number that is neither live
+nor retired, a commit that does not hold the document, and one the mainline cannot reach.
+`git show <commit>:rfcs/<file>` prints a retired document back in full.
 
 Two consequences worth knowing:
 

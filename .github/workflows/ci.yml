@@ -172,9 +172,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # `tools/check_rfc_corpus.py` verifies that each RETIRED.md row names
-          # the commit that actually deleted that document, and a depth-1
-          # checkout cannot resolve one — the check would skip its SHA half in
-          # the one place it most needs to run.
+          # a commit that holds that document and that the mainline can reach,
+          # and a depth-1 checkout can resolve neither — the check would skip
+          # both halves in the one place it most needs to run. Depth 0 also
+          # fetches `origin/main`, which the reachability half is measured
+          # against.
           fetch-depth: 0
 
       - name: Install uv
