@@ -8,7 +8,11 @@ import pytest
 
 from bloomery.errors import SpecParseError
 from bloomery.spec import EntityModel
-from bloomery.spec.common import RESERVED_MEMBER_NAMES, validate_document
+from bloomery.spec.common import (  # noqa: PLC2701 — the reason is part of the contract
+    _RESERVED_MEMBER_REASONS,
+    RESERVED_MEMBER_NAMES,
+    validate_document,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -148,6 +152,13 @@ def test_every_generated_column_name_is_reserved(name: str) -> None:
         )
     assert excinfo.value.source_path == f"entity_model: entities.e.fields.{name}"
     assert "reserved name" in str(excinfo.value)
+    # The reason is contractual, not decorative — the stability reference makes
+    # a newly reserved name the one change that may refuse a `spec_version: 1`
+    # document without minting a version, and it is admissible *because* the
+    # refusal says which layer owns the name and what to do. A message reading
+    # only "reserved" would leave an author who has just been broken by an
+    # upgrade with nothing to act on, which is the version bump's job undone.
+    assert _RESERVED_MEMBER_REASONS[name] in str(excinfo.value)
 
 
 def test_the_reserved_set_is_exactly_the_generated_names() -> None:

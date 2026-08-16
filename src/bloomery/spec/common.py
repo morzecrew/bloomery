@@ -73,6 +73,15 @@ JSONPATH_PATTERN = r"^\$(?:\.[A-Za-z_][A-Za-z0-9_]*)+$"
 #: rest are the data-quality columns and the bronze ingestion-metadata contract
 #: (RFC 0016 §5.5, §5.6, D9/D21/D23). Each carries the reason its message
 #: quotes: a bare "reserved" tells an author nothing about which layer owns it.
+#:
+#: **Adding to this dict is the one change that can stop a document loading
+#: without minting a new spec version** — the exception the stability reference
+#: states and bounds. It is admissible because the outcome is binary: the
+#: document loads unchanged, or it is refused with a message naming the name,
+#: the owning layer and the fix. A reserved name can never reinterpret a
+#: document, which is what a version bump exists to prevent. Two obligations
+#: come with that: the reason string below is part of the contract rather than
+#: a comment, and every addition is a ``CHANGELOG.md`` entry under *Changed*.
 _RESERVED_MEMBER_REASONS: dict[str, str] = {
     "metric_time": "RFC 0013 R4: the canonical query-time dimension",
     "_quality_flags": "RFC 0016 D9: the generated silver quality-flag column",
