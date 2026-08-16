@@ -161,6 +161,29 @@ def test_every_generated_column_name_is_reserved(name: str) -> None:
     assert _RESERVED_MEMBER_REASONS[name] in str(excinfo.value)
 
 
+#: The only reserved names an *entity* or *mart* can be called: the other seven
+#: begin with ``_`` and `RELATION_NAME_PATTERN` refuses them before the reserved
+#: check runs, so a test over all nine would assert nothing about seven of them.
+RESERVED_RELATION_NAMES = ("has_quality_flags", "metric_time")
+
+
+@pytest.mark.parametrize("name", RESERVED_RELATION_NAMES)
+def test_a_reserved_relation_name_says_to_rename_the_relation(name: str) -> None:
+    """`MemberName` and `RelationName` share the reserved list and not the
+    repair instruction. One validator served both and told everyone to rename a
+    "field/dimension/role", so an *entity* called `metric_time` was pointed at a
+    field it does not have — and the stability reference admits a newly reserved
+    name as the one within-version refusal precisely because the message is
+    actionable, so naming the wrong surface undoes the argument.
+    """
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(f"spec_version: 1\nentities:\n  {name}:\n    grain: g\n    key: [k]\n    fields:\n      k: {{type: string}}\n")
+    message = str(excinfo.value)
+    assert _RESERVED_MEMBER_REASONS[name] in message
+    assert "entity/mart" in message
+    assert "field" not in message.split("pick a different")[1]
+
+
 def test_the_reserved_set_is_exactly_the_generated_names() -> None:
     assert RESERVED_MEMBER_NAMES == (
         "_ingested_at",
