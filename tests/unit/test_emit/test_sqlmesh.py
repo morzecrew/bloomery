@@ -4,6 +4,8 @@ fingerprint headers, kind mapping, naming-policy routing, and audit lowering
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from bloomery import Target, build_project_ir, compile_project, project_fingerprint
@@ -17,6 +19,7 @@ from bloomery.ir import (
     Materialization,
     ProjectIR,
     SCDKind,
+    SourceColumnIR,
     SourceIR,
     SqlExpr,
 )
@@ -140,11 +143,91 @@ def _column(name: str, column_type: LogicalType) -> ColumnIR:
         canonical=None,
         unit=None,
         tax_basis=None,
-        expr=SqlExpr(name),
-        recipe_id=None,
         renamed_from=None,
         required=False,
     )
+
+
+def _projection(name: str) -> SourceColumnIR:
+    """This source\'s lowering of the column (RFC 0024 D26)."""
+    return SourceColumnIR(name=name, expr=SqlExpr(name))
+
+
+#: Every column these builders declare, lowered as itself. The emitted
+#: SELECT projects `SourceIR.columns`, so a name missing here is a column
+#: the model cannot produce (RFC 0024 D26).
+_SOURCE = SourceIR(
+    relation="src",
+    columns=tuple(
+        _projection(name)
+        for name in (
+            "amount",
+            "item_id",
+            "net_price",
+            "net_price__direct",
+            "qty",
+            "shipped_on",
+            "status",
+        )
+    ),
+)
+
+
+def _ctx() -> EmitContext:
+    return EmitContext(
+        dialect=get_dialect("duckdb"), naming=DefaultNaming(), fingerprint="blm1:test"
+    )
+
+
+def _merged_entity() -> EntityIR:
+    """The same entity built from two sources, each with its own lowering."""
+    return replace(
+        _audited_entity(),
+        sources=(
+            replace(_SOURCE, relation="src_a"),
+            replace(_SOURCE, relation="src_b"),
+        ),
+    )
+
+
+def test_the_union_orders_branches_and_stamps_provenance() -> None:
+    """RFC 0024 D3/D7: lexicographic branch order, and a ``_source`` literal
+    per branch."""
+    artifacts = SQLMeshEmitter().emit(ProjectIR(entities=(_merged_entity(),)), _ctx())
+    model = next(a for a in artifacts if a.path == "models/silver/item.sql")
+    body = model.content
+    assert "UNION ALL" in body
+    assert body.index("'src_a' AS _source") < body.index("'src_b' AS _source")
+    assert body.index("bronze.src_a") < body.index("bronze.src_b")
+
+
+def test_a_single_source_entity_emits_no_union_and_no_source_column() -> None:
+    """D7: ``_source`` exists only on merged entities. The union of one is
+    itself, not a one-branch UNION, so the whole existing corpus keeps its
+    emitted SQL."""
+    artifacts = SQLMeshEmitter().emit(ProjectIR(entities=(_audited_entity(),)), _ctx())
+    body = next(a for a in artifacts if a.path == "models/silver/item.sql").content
+    assert "UNION ALL" not in body
+    assert "_source" not in body
+
+
+def test_the_collision_audit_is_emitted_only_for_a_merged_entity() -> None:
+    single = SQLMeshEmitter().emit(ProjectIR(entities=(_audited_entity(),)), _ctx())
+    merged = SQLMeshEmitter().emit(ProjectIR(entities=(_merged_entity(),)), _ctx())
+    assert not [a for a in single if "collision" in a.path]
+    (audit,) = [a for a in merged if "collision" in a.path]
+    assert audit.path == "audits/item_source_collision.sql"
+    assert audit.kind is ArtifactKind.AUDIT
+    # Grouped by every declared key column (D13), and counting *distinct*
+    # sources — a plain COUNT would refuse a key duplicated within one source,
+    # which is ordinary duplication `dedupe:` owns.
+    assert "COUNT(DISTINCT _source)" in audit.content
+    assert "GROUP BY" in audit.content
+    # Blocking: SQLMesh audits block unless declared otherwise, so the envelope
+    # says nothing about it — and there is no knob to say otherwise (D5).
+    assert "blocking" not in audit.content
+    model = next(a for a in merged if a.path == "models/silver/item.sql").content
+    assert "item_source_collision" in model
 
 
 def _audited_entity(*audits: AuditIR) -> EntityIR:
@@ -164,7 +247,7 @@ def _audited_entity(*audits: AuditIR) -> EntityIR:
             _column("shipped_on", DateType()),
             _column("status", StringType()),
         ),
-        source=SourceIR(relation="src"),
+        sources=(_SOURCE,),
         audits=tuple(sorted(audits, key=lambda a: (a.kind, a.column))),
     )
 

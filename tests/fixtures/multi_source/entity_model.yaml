@@ -1,0 +1,28 @@
+# The union merge (RFC 0024): two shops on one platform, one shared key space
+# with disjoint key sets. The fixture RFC 0009 D4 named and never built.
+#
+# The key is **composite** on purpose. §5.4's illustration groups by one
+# column, and a generated GROUP BY that dropped a component would pass against
+# it while merging distinct composite keys — a false refusal on a blocking
+# audit, which D13 calls the worst failure available to a generated check. A
+# single-column key cannot catch that; this one can.
+#
+# No `quality:`, no `dedupe:`, no `quarantine:`: a merged entity is outside the
+# data-quality system in P1 (RFC 0024 D14, widened by D29), because rule
+# lowering is per mapping and has no merged form yet.
+spec_version: 1
+entities:
+  order_line:
+    grain: one row per line on an order, across both shops
+    key: [order_id, line_no]
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      sku: {type: string, required: true}
+      quantity: {type: int}
+      # Mapped by one shop and not the other — legitimate (§5.2 rule 3), and
+      # NULL for the other's rows. Its whole job here is to prove the branch
+      # that does not map it still projects a typed NULL, because a UNION ALL
+      # whose arms disagree on arity is not a narrower branch, it is invalid
+      # SQL.
+      gift_note: {type: string}

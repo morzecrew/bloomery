@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Union merge** — several mappings may target one entity, and it is emitted as a
+  `UNION ALL` of one projection per source in lexicographic order of source relation. No
+  new syntax: two mappings name the same `target:`. Covers one shared key space with
+  disjoint key sets — two shops on one platform, a region-sharded table, a post-migration
+  merge. See [Merge sources into one entity](https://morzecrew.github.io/bloomery/how-to/merge-sources/).
+- A `_source` provenance column on merged entities, carrying the relation each row came
+  from, and a generated **blocking** `<entity>_source_collision` audit that stops the run
+  when one key appears in more than one source. Disjointness is the one condition of a
+  merge that compilation cannot establish.
+
+### Changed
+
+- **`_source` is a reserved member name**, unconditionally — a field, dimension or role
+  may not be called `_source` even in a project that merges nothing, because a name that
+  is legal until a second mapping arrives is a trap laid for the change that adds one.
+- `EntityIR.source` is now `EntityIR.sources`, a tuple. `bloomery_ir_version` moves 5 → 6,
+  so every fingerprint changes and `plan()` refuses to diff a v5 IR against a v6 one.
+  Emitted SQL for single-source entities is unchanged; only the fingerprint header moves.
+
+### Limitations
+
+- A merged entity may not carry `quality:` rules, `dedupe:` or `quarantine:`, may not
+  declare `scd: type2`, and may not record a `direct:` path. Each is refused at compile
+  time with a message naming the reason. `assert:`, `references:` and `coverage:` are
+  unaffected.
+- The dbt target refuses a merged entity: the collision audit has no honest dbt
+  equivalent, and the merge is not correct without it.
+
 ## [0.1.0] - 2026-08-15
 
 First release. Everything bloomery does is new here, so this section is one `Added` —

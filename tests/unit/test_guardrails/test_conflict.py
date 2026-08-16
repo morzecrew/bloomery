@@ -20,19 +20,24 @@ def test_both_columns_and_the_reconcile_audit_land_in_the_ir() -> None:
     ir = build_project_ir(project, catalog)
     (entity,) = ir.entities
     by_name = {column.name: column for column in entity.columns}
+    # The shadow lands in **both** halves, and that is the property worth
+    # pinning (RFC 0024 D26): a schema column with no projection is a column
+    # the SELECT cannot produce, and it would compile clean.
+    lowered = {column.name: column for column in entity.sources[0].columns}
     assert sorted(by_name) == ["item_id", "net_price", "net_price__direct", "quantity"]
+    assert sorted(lowered) == sorted(by_name)
 
     derived = by_name["net_price"]
-    assert derived.recipe_id == "from_total"  # the recipe is the recorded decision
-    assert derived.expr.sql == "CAST(total / qty AS DECIMAL(12, 4))"
+    assert lowered["net_price"].recipe_id == "from_total"  # the recorded decision
+    assert lowered["net_price"].expr.sql == "CAST(total / qty AS DECIMAL(12, 4))"
 
     shadow = by_name["net_price__direct"]
-    assert shadow.expr.sql == "CAST(price AS DECIMAL(12, 4))"
+    assert lowered["net_price__direct"].expr.sql == "CAST(price AS DECIMAL(12, 4))"
     assert shadow.type == DecimalType(12, 4)
     assert shadow.canonical == derived.canonical  # same canonical field
     assert shadow.unit == derived.unit
     assert shadow.tax_basis == derived.tax_basis
-    assert shadow.recipe_id is None
+    assert lowered["net_price__direct"].recipe_id is None
     assert not shadow.required
 
     assert entity.audits == (
@@ -46,7 +51,7 @@ def test_amendments_are_computed_per_entity() -> None:
     derivations = collect_derivations(project, catalog)
     shadows, audits = path_conflict_amendments(derivations, draft)
     assert sorted(shadows) == ["item"]
-    assert [column.name for column in shadows["item"]] == ["net_price__direct"]
+    assert [column.name for column, _ in shadows["item"]] == ["net_price__direct"]
     assert [audit.column for audit in audits["item"]] == ["net_price"]
 
 

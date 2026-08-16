@@ -63,7 +63,9 @@ __all__ = [
     "RelationshipIR",
     "SCDKind",
     "SemiAdditivePolicy",
+    "SOURCE_COLUMN",
     "SemiAdditiveRule",
+    "SourceColumnIR",
     "SourceFieldIR",
     "SourceIR",
     "SqlExpr",
@@ -101,6 +103,17 @@ OK_COLUMN = "_quality_ok"
 REPAIRS_COLUMN = "_quality_repairs"
 #: One ``<entity>__reject`` per entity, never per mapping (D10).
 REJECT_SUFFIX = "__reject"
+#: The provenance column a **merged** entity carries: which source relation a
+#: row came from (RFC 0024 D7). Load-bearing rather than diagnostic — the
+#: collision audit reports *which* sources shared a key, and without it the
+#: report is "this key is duplicated somewhere", which is not actionable on a
+#: five-source entity.
+#:
+#: Emitted only on merged entities, like :data:`REPAIRS_COLUMN` and unlike the
+#: two universal columns (D7): on a single-source entity it is a constant, and
+#: putting a constant into every relation forever to spare one classified
+#: change is how a schema move gets hidden from ``plan()``.
+SOURCE_COLUMN = "_source"
 
 
 # ....................... #
@@ -294,6 +307,33 @@ class TransformStepIR:
 
 
 @dataclass(frozen=True, slots=True)
+class SourceColumnIR:
+    """One column's **lowering**, for one source (RFC 0024 D26).
+
+    The half of the old ``ColumnIR`` that came from a mapping: the canonical
+    lowered expression, and the recorded recipe id when the mapping derived
+    the value rather than reading it. One of these per entity column per
+    source, so several mappings can build one entity and each contributes its
+    own projection to the ``UNION ALL``.
+
+    **Column-grained, unlike :class:`SourceFieldIR`**, and the distinction is
+    why this is a separate node rather than two more fields there. A recipe
+    field mapping reads several bronze paths to produce one column, so it
+    yields several ``SourceFieldIR`` and exactly one of these — hanging the
+    expression on the path-grained node would store it once per path with no
+    single place to read it from.
+
+    ``name`` matches the :class:`ColumnIR` it lowers; the two collections are
+    joined by name rather than by position, because a mapping's columns sort
+    the same way but nothing enforces alignment.
+    """
+
+    name: str
+    expr: SqlExpr
+    recipe_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class SourceFieldIR:
     """One lowered (target field ← source path) entry with its chain."""
 
@@ -323,23 +363,40 @@ class SourceIR:
 
     relation: str
     fields: tuple[SourceFieldIR, ...] = ()
+    #: This source's projection of each entity column, sorted by name
+    #: (RFC 0024 D26). ``fields`` is what the reject payload and replay read;
+    #: this is what the SELECT projects. The two answer different questions
+    #: and are grained differently — see :class:`SourceColumnIR`.
+    columns: tuple[SourceColumnIR, ...] = ()
     mapping_version: int = 1
     unmapped: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
 class ColumnIR:
-    """One entity column with its lowered expression and catalog metadata.
+    """One entity column's **schema**: declared type and catalog metadata.
     ``description`` comes from the canonical field, when one is bound — it is
-    carried into semantic-layer emissions (RFC 0013 R1)."""
+    carried into semantic-layer emissions (RFC 0013 R1).
+
+    **The lowered expression is not here** (RFC 0024 D26). Every field on this
+    node is derived from the EntityModel ``Field`` and the catalog, so it is
+    identical for every mapping that targets the entity — by construction,
+    not by convention. What comes from a *mapping* — the lowered ``expr`` and
+    the recorded ``recipe_id`` — lives on :class:`SourceColumnIR`, one per
+    source, which is what lets several mappings build one entity.
+
+    The split follows a line the builder already drew: ``_column_ir`` took
+    ``field``/``catalog`` for everything here and exactly two arguments from
+    the mapping.
+    """
 
     name: str
     type: LogicalType
     canonical: str | None
     unit: Unit | None
     tax_basis: TaxBasis | None
-    expr: SqlExpr
-    recipe_id: str | None
+    #: Declared on the EntityModel ``Field``, not on a mapping — so it is
+    #: schema like the rest of this node, and stays here (RFC 0024 D26).
     renamed_from: str | None
     required: bool
     description: str | None = None
@@ -478,7 +535,17 @@ class EntityIR:
     materialization: Materialization
     partition_by: tuple[PartitionSpec, ...]
     columns: tuple[ColumnIR, ...]
-    source: SourceIR
+    #: The bronze relations this entity is built from, sorted by ``relation``
+    #: (RFC 0024 D1/D3). More than one is a **union merge**: the silver model
+    #: is a ``UNION ALL`` of one projection per source, in this order, so the
+    #: emitted SQL is byte-identical across processes. Row order is not
+    #: claimed — ``UNION ALL`` is a bag (D3).
+    #:
+    #: A step-produced entity has exactly one, naming its own output relation
+    #: with identity projections — it is not a mapping, and D21 refuses mixing
+    #: it with one: the union has nothing to order a step output by, and
+    #: ``produced_by`` already means bloomery builds no SELECT for it.
+    sources: tuple[SourceIR, ...]
     audits: tuple[AuditIR, ...] = ()
     quality: tuple[QualityRuleIR, ...] = ()
     dedupe: DedupeIR | None = None
@@ -797,7 +864,10 @@ class ProjectIR:
     ``quality``/``dedupe``/``quarantine`` on every :class:`EntityIR`. Version 3
     (RFC 0017 M13) adds ``steps``. Version 4 adds ``coverage`` here and
     ``asserts`` on every :class:`MartIR` (RFC 0016 D89/D90). Version 5
-    (RFC 0022 M19) adds ``via`` to every :class:`UnreachableMetric`. The bump is
+    (RFC 0022 M19) adds ``via`` to every :class:`UnreachableMetric`. Version 6
+    (RFC 0024 D17/D26) moves each column's lowered expression off
+    :class:`ColumnIR` onto a per-source :class:`SourceColumnIR`, so an entity
+    can be built from more than one mapping. The bump is
     the point — every artifact's fingerprint header moves, and ``plan()``
     refuses to diff across versions rather than misreading one as the other.
 
@@ -808,7 +878,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 5
+    bloomery_ir_version: int = 6
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

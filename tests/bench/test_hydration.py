@@ -98,7 +98,7 @@ def _model(index: int) -> tuple[EntityIR, MartIR, list[MetricIR]]:
         materialization=Materialization.FULL,
         partition_by=(),
         columns=tuple(columns),
-        source=SourceIR(relation=f"src__{entity_name}"),
+        sources=(SourceIR(relation=f"src__{entity_name}"),),
     )
     mart_columns = [
         MartColumnIR(name=c.name, type=c.type, source_entity=entity_name, source_column=c.name)

@@ -1043,27 +1043,35 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     stopped being true when step outputs became reconcile sides.
     """
     relationships = project.entity_model.relationships
-    by_target = {mapping.target: mapping for mapping in project.mappings}
+    # A **list** per target, not one mapping (RFC 0024 D1). The dict
+    # comprehension this replaces kept the *last* mapping of a merged entity
+    # and every per-mapping check below then judged one branch of N — which is
+    # the silent-wrong-answer shape, not a narrower check. Sorted by source so
+    # the batched errors come out in branch order (D3).
+    by_target: dict[str, list[Mapping]] = {}
+    for mapping in sorted(project.mappings, key=lambda m: m.source):
+        by_target.setdefault(mapping.target, []).append(mapping)
     errors: list[GuardrailError] = []
     for entity_name in sorted(project.entity_model.entities):
         entity = project.entity_model.entities[entity_name]
-        mapping = by_target.get(entity_name)
-        if mapping is None:
+        mappings = by_target.get(entity_name)
+        if not mappings:
             continue  # an unmapped entity emits nothing; nothing to refuse
         errors.extend(_check_dedupe(entity_name, entity))
         errors.extend(_check_dedupe_columns(entity_name, entity))
-        errors.extend(_check_dedupe_disposition(entity_name, entity, mapping))
-        errors.extend(_check_ingestion_metadata(entity_name, entity, mapping))
-        errors.extend(_check_redaction(entity_name, entity, mapping))
-        errors.extend(_check_patterns(entity_name, mapping))
-        errors.extend(_check_chain_derived_rules(entity_name, entity, mapping))
-        errors.extend(_check_rule_names(entity_name, entity, mapping, relationships))
         errors.extend(_check_referential(entity_name, entity, relationships))
         errors.extend(_check_expression_rules(entity_name, entity, draft))
-        # This one reads the *lowered* rules rather than the opt-in flag:
-        # ``lower_quality`` is empty for an entity that never joined the
-        # quality system, so it is silently satisfied there.
-        errors.extend(_check_retention(entity_name, entity, mapping, relationships))
+        for mapping in mappings:
+            errors.extend(_check_dedupe_disposition(entity_name, entity, mapping))
+            errors.extend(_check_ingestion_metadata(entity_name, entity, mapping))
+            errors.extend(_check_redaction(entity_name, entity, mapping))
+            errors.extend(_check_patterns(entity_name, mapping))
+            errors.extend(_check_chain_derived_rules(entity_name, entity, mapping))
+            errors.extend(_check_rule_names(entity_name, entity, mapping, relationships))
+            # This one reads the *lowered* rules rather than the opt-in flag:
+            # ``lower_quality`` is empty for an entity that never joined the
+            # quality system, so it is silently satisfied there.
+            errors.extend(_check_retention(entity_name, entity, mapping, relationships))
     # Project-level, not per entity: a reconcile check relates two entities and
     # belongs to neither, and the reserved metric names are one flat namespace.
     errors.extend(_check_reconcile(project, draft))

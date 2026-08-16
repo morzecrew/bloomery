@@ -31,7 +31,10 @@ implement is **refused**, never read as one it does.
 **Reserved names.** `metric_time` may not be used as a field, dimension, or role name —
 the planner owns it as the canonical query-time dimension. The generated data-quality
 and ingestion-metadata columns are reserved on the same terms: `_quality_flags`,
-`_quality_ok`, `_load_id`, `_ingested_at`, `_source_row_id`, `has_quality_flags`.
+`_quality_ok`, `_quality_repairs`, `_load_id`, `_ingested_at`, `_source_row_id`,
+`has_quality_flags`. So is `_source`, the union merge's provenance column — reserved
+unconditionally rather than only on merged entities, because a name that is legal until a
+second mapping arrives is a trap laid for the change that adds one.
 
 **Retention units.** Months and years are deliberately absent — they are not fixed
 durations, and a retention window that means something different in February is a legal

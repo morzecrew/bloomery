@@ -138,6 +138,24 @@ with unbound requires and surplus aliases both errors.
     recipe disappears, that is a loud `ResolutionError` the upstream chooser must
     re-decide — never a decision the compiler quietly remakes.
 
+### One entity, several mappings
+
+Nothing above says *one* mapping per entity. Several may name the same `target:`, and the
+entity is then the `UNION ALL` of them in lexicographic order of source relation — two
+shops on one platform, a region-sharded table, a migration halfway done.
+
+That is what makes the EntityModel an **integration** layer rather than a renaming layer.
+Without it, two systems holding orders produce `order_shopify` and `order_woo` and the
+model that is supposed to say what a tenant's data *means* stops at the boundary of
+whichever system produced it.
+
+The merge is deliberately narrow. It covers one shared key space with disjoint key sets,
+and nothing else: overlapping keys are refused, because a key in two sources is either
+duplication or an accident, and choosing between two rows that claim one key is a business
+rule the compiler cannot check. Sources that need *matching* rather than merging are
+[identity resolution](../how-to/resolve-identities.md), which is a step. The full mechanics
+are in [Merge sources into one entity](../how-to/merge-sources.md).
+
 ## MetricSet: measures and additivity classes
 
 The MetricSet declares the tenant's measures, either inline or by reference to a Catalog

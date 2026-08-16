@@ -1,0 +1,22 @@
+# The shop being migrated away from — a post-migration merge, one of the three
+# shapes RFC 0024 covers.
+#
+# **Document order opposes branch order, deliberately.** `load_project` reads
+# documents in sorted-name order, so this one is parsed *first*
+# (`mapping_legacy` < `mapping_platform`) while its branch is unioned *second*
+# (`shopify__order_lines` < `woo__order_lines`). Without that opposition the
+# golden would pass whether or not the compiler sorts by source relation at
+# all, and D3 would be pinned by a coincidence rather than by a check.
+mapping_version: 1
+source: woo__order_lines
+target: order_line
+key:
+  order_id: {from: "$.order_number", transform: [to_string]}
+  line_no: {from: "$.item_index", transform: [to_int]}
+fields:
+  sku: {from: "$.product_sku", transform: [to_string]}
+  quantity: {from: "$.qty", transform: [to_int]}
+# `gift_note` is absent: this shop has no such concept. It is NULL for these
+# rows, and the compiler asks for no acknowledgement — a misspelled field name
+# is already a `MissingReference` against the entity model (RFC 0024 D22), so
+# silence here can only mean the legitimate case.

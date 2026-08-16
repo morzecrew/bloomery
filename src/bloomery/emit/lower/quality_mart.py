@@ -41,6 +41,7 @@ from .silver import (
     _EXTRACT_ALIAS,  # pyright: ignore[reportPrivateUsage]
     _arrays,  # pyright: ignore[reportPrivateUsage]
     _extract_select,  # pyright: ignore[reportPrivateUsage]
+    _sole_source,  # pyright: ignore[reportPrivateUsage]
     reject_relation,
 )
 
@@ -69,8 +70,18 @@ _BRANCH_COLUMNS = (
 
 def _mapping_identity(entity: EntityIR) -> str:
     """The ``mapping`` dimension's value — the same string the reject table
-    records, so the two surfaces name one mapping the same way."""
-    return f"{entity.source.relation}->{entity.name}"
+    records, so the two surfaces name one mapping the same way.
+
+    **Unexercised on a merged entity, and RFC 0024 D19 is why it need not be.**
+    D19 reasoned that the mart accounts per entity because this identity has no
+    single value across N sources. D29 removes the question rather than
+    answering it: a merged entity is refused from the quality system entirely
+    in P1, so it has no rules, contributes no evaluations, and never reaches
+    this mart. The sole-source read is therefore a fact, not a choice among
+    branches — and it is spelled as one so that the day P2 restores the rules,
+    this raises instead of naming one source for all of them.
+    """
+    return f"{_sole_source(entity, 'the quality mart').relation}->{entity.name}"
 
 
 def _quality_rows_cte(entity: EntityIR, ctx: EmitContext) -> exp.Select | exp.Union:
@@ -156,7 +167,8 @@ def _rows_deduped(entity: EntityIR, ctx: EmitContext) -> Expression:
     """
     if entity.dedupe is None or entity.scd is SCDKind.TYPE2:
         return exp.Literal.number(0)
-    namespace, relation = ctx.naming.relation(entity.source.relation, Layer.BRONZE)
+    origin = _sole_source(entity, "the quality mart's deduped count")
+    namespace, relation = ctx.naming.relation(origin.relation, Layer.BRONZE)
     bronze = (
         exp.Select()
         .select(exp.Count(this=exp.Star()))

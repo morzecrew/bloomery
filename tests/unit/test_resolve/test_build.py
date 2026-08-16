@@ -29,12 +29,14 @@ def test_minimal_ir_lowering() -> None:
     assert entity.materialization is Materialization.FULL
     assert [c.name for c in entity.columns] == ["event_id", "kind", "occurred_at"]
     by_name = {c.name: c for c in entity.columns}
+    # The lowered expression moved to the source (RFC 0024 D26).
+    lowered = {c.name: c for c in entity.sources[0].columns}
     # A chain lowers through the registry builders; a chain-less mapping is a
     # declared-type cast at extraction.
-    assert by_name["event_id"].expr.sql == "CAST(id AS TEXT)"
-    assert by_name["occurred_at"].expr.sql == "CAST(ts AS TIMESTAMP)"
+    assert lowered["event_id"].expr.sql == "CAST(id AS TEXT)"
+    assert lowered["occurred_at"].expr.sql == "CAST(ts AS TIMESTAMP)"
     assert by_name["occurred_at"].type == TimestampType()
-    assert entity.source.relation == "raw__events"
+    assert entity.sources[0].relation == "raw__events"
     assert ir.metrics == ()
     assert ir.marts == ()
 
@@ -44,8 +46,9 @@ def test_ecom_recipe_lowering_records_the_recipe_id() -> None:
     ir = build_project_ir(project, catalog)
     order_item = next(e for e in ir.entities if e.name == "order_item")
     unit_price = next(c for c in order_item.columns if c.name == "unit_price")
-    assert unit_price.expr.sql == "CAST(total / qty AS DECIMAL(12, 4))"
-    assert unit_price.recipe_id == "from_total"
+    lowered = next(c for c in order_item.sources[0].columns if c.name == "unit_price")
+    assert lowered.expr.sql == "CAST(total / qty AS DECIMAL(12, 4))"
+    assert lowered.recipe_id == "from_total"
     assert unit_price.type == DecimalType(12, 4)
     assert unit_price.canonical == "unit_price"
     assert unit_price.unit is not None and unit_price.unit.value == "currency"
@@ -57,7 +60,8 @@ def test_ecom_nested_jsonpath_lowering() -> None:
     ir = build_project_ir(project, catalog)
     order = next(e for e in ir.entities if e.name == "order")
     customer_id = next(c for c in order.columns if c.name == "customer_id")
-    assert customer_id.expr.sql == "CAST(JSON_EXTRACT_SCALAR(customer, '$.id') AS TEXT)"
+    lowered = next(c for c in order.sources[0].columns if c.name == "customer_id")
+    assert lowered.expr.sql == "CAST(JSON_EXTRACT_SCALAR(customer, '$.id') AS TEXT)"
     assert customer_id.type == StringType()
 
 
@@ -252,10 +256,11 @@ fields:
     assert "closest match: 'parse_ts'" in str(error)
 
 
-def test_multiple_mappings_per_entity_refuse_until_multi_source() -> None:
-    project, _ = load_fixture("minimal")
-    sources = {
-        "entity_model": """\
+# ....................... #
+# The union merge (RFC 0024): two mappings, one entity.
+
+
+_MERGE_ENTITY_MODEL = """\
 spec_version: 1
 entities:
   event:
@@ -263,21 +268,431 @@ entities:
     key: [event_id]
     fields:
       event_id: {type: string, required: true}
-""",
-        "mapping_a": """\
+      kind: {type: string}
+      note: {type: string}
+"""
+
+
+#: The mapping of ``src_a``, and the mapping of ``src_z``. Which *document*
+#: carries which is varied by the callers below, because ``load_project`` reads
+#: documents in sorted-name order — so a helper whose document names agree with
+#: its source names cannot tell "sorted by source" from "sorted by document",
+#: and every ordering assertion over it passes either way.
+_SRC_A_MAPPING = """\
 mapping_version: 1
 source: src_a
 target: event
 key:
+  event_id: {from: "$.identifier", transform: [to_string]}
+fields:
+  kind: {from: "$.type", transform: [to_string]}
+"""
+
+_SRC_Z_MAPPING = """\
+mapping_version: 1
+source: src_z
+target: event
+key:
+  event_id: {from: "$.id", transform: [to_string]}
+fields:
+  kind: {from: "$.kind", transform: [to_string]}
+  note: {from: "$.note", transform: [to_string]}
+"""
+
+
+def _merge_sources(**overrides: str) -> dict[str, str]:
+    """Two mappings targeting ``event``, with the **later** source relation in
+    the **earlier** document.
+
+    ``mapping_a`` holds ``src_z`` and ``mapping_z`` holds ``src_a``, so
+    document order and branch order disagree and an assertion about branch
+    order is testing D3 rather than testing that documents happened to sort the
+    right way.
+    """
+    sources = {
+        "entity_model": _MERGE_ENTITY_MODEL,
+        "mapping_a": _SRC_Z_MAPPING,
+        "mapping_z": _SRC_A_MAPPING,
+    }
+    sources.update(overrides)
+    return sources
+
+
+def test_two_mappings_build_one_entity_ordered_lexicographically() -> None:
+    """RFC 0024 D1/D3: the refusal this replaces kept a promise nothing else
+    was scheduled to keep."""
+    ir = build_project_ir(load_project(_merge_sources()))
+    (entity,) = ir.entities
+    assert entity.name == "event"
+    # `src_z`'s mapping is in the first document and `src_a`'s in the second;
+    # the branches come out the other way round. Branch order is the source
+    # relation's, not the document's, or the emitted SQL would depend on what
+    # somebody named a file.
+    assert [source.relation for source in entity.sources] == ["src_a", "src_z"]
+    # One schema, one projection per source per column.
+    assert [column.name for column in entity.columns] == ["event_id", "kind", "note"]
+    for source in entity.sources:
+        assert [column.name for column in source.columns] == ["event_id", "kind", "note"]
+    # Each branch keeps its own lowering — the whole reason `expr` moved off
+    # `ColumnIR` (D26).
+    lowered = {
+        source.relation: {column.name: column.expr.sql for column in source.columns}
+        for source in entity.sources
+    }
+    assert lowered["src_a"]["event_id"] != lowered["src_z"]["event_id"]
+    assert "identifier" in lowered["src_a"]["event_id"]
+    assert "id" in lowered["src_z"]["event_id"]
+
+
+def test_a_field_no_mapping_produces_is_a_typed_null_in_every_branch() -> None:
+    """RFC 0024 §5.2 rule 3. A branch missing a column is not a narrower
+    branch — it is a `UNION ALL` whose arms disagree on arity."""
+    ir = build_project_ir(load_project(_merge_sources()))
+    (entity,) = ir.entities
+    lowered = {
+        source.relation: {column.name: column.expr.sql for column in source.columns}
+        for source in entity.sources
+    }
+    # `src_z` maps `note`; `src_a` has never heard of it. Both branches project
+    # it, or the arms disagree on arity and the union is invalid SQL.
+    filled = lowered["src_a"]["note"].upper()
+    assert "NULL" in filled
+    # Cast, not a bare NULL: an untyped null makes the union's column type
+    # depend on which branch the engine reads first.
+    assert "CAST" in filled
+    assert "NOTE" in lowered["src_z"]["note"].upper()
+
+
+def test_declaration_order_cannot_move_the_ir() -> None:
+    """D3's determinism claim, at the level the builder can prove it.
+
+    The same two mappings, swapped between the two document names — so they
+    reach the builder in both orders `load_project` can deliver them in. The
+    IR records no document name, so the two compilations must be equal, and
+    they are only equal if branch order is derived from the source relation.
+    """
+    forward = build_project_ir(
+        load_project(
+            {
+                "entity_model": _MERGE_ENTITY_MODEL,
+                "mapping_a": _SRC_Z_MAPPING,
+                "mapping_z": _SRC_A_MAPPING,
+            }
+        )
+    )
+    swapped = build_project_ir(
+        load_project(
+            {
+                "entity_model": _MERGE_ENTITY_MODEL,
+                "mapping_a": _SRC_A_MAPPING,
+                "mapping_z": _SRC_Z_MAPPING,
+            }
+        )
+    )
+    assert swapped == forward
+
+
+def test_two_mappings_on_one_relation_are_refused() -> None:
+    """RFC 0024 D12: lexicographic order needs a total order, and two branches
+    on one relation tie."""
+    sources = _merge_sources(
+        mapping_z="""\
+mapping_version: 1
+source: src_z
+target: event
+key:
+  event_id: {from: "$.identifier", transform: [to_string]}
+""",
+    )
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources))
+    message = str(excinfo.value)
+    assert "src_z" in message
+    assert "RFC 0024 D12" in message
+    assert "one mapping with a filter" in message
+
+
+def test_a_required_field_one_mapping_omits_is_refused() -> None:
+    """RFC 0024 D4. The check is the merge's, deliberately: one bad source
+    silently poisons a column the others fill correctly."""
+    sources = _merge_sources(
+        mapping_a="""\
+mapping_version: 1
+source: src_a
+target: event
+key:
+  kind: {from: "$.type", transform: [to_string]}
+""",
+        entity_model="""\
+spec_version: 1
+entities:
+  event:
+    grain: one row per event
+    key: [kind]
+    fields:
+      kind: {type: string}
+      event_id: {type: string, required: true}
+""",
+        mapping_z="""\
+mapping_version: 1
+source: src_z
+target: event
+key:
+  kind: {from: "$.kind", transform: [to_string]}
+fields:
   event_id: {from: "$.id", transform: [to_string]}
 """,
-        "mapping_b": """\
+    )
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources))
+    message = str(excinfo.value)
+    assert "'event_id'" in message
+    assert "RFC 0024 D4" in message
+    # The offending mapping, not the entity — an author needs the document to
+    # open, in the message and in the source path (§6).
+    assert "src_a" in message
+    assert excinfo.value.source_path == "mapping[src_a->event]: fields"
+
+
+def test_a_single_mapping_may_still_omit_a_required_field() -> None:
+    """The converse of D4, and the reason it is scoped to a merge: the
+    coverage asymmetry predates this RFC (§5.2 rule 2) and widening it here
+    would be a compatibility break the RFC does not authorize."""
+    sources = {
+        "entity_model": _MERGE_ENTITY_MODEL,
+        "mapping_z": """\
 mapping_version: 1
-source: src_b
+source: src_z
 target: event
 key:
   event_id: {from: "$.id", transform: [to_string]}
 """,
     }
-    with pytest.raises(ResolutionError, match="multi_source milestone"):
+    ir = build_project_ir(load_project(sources))
+    (entity,) = ir.entities
+    assert [column.name for column in entity.columns] == ["event_id"]
+
+
+@pytest.mark.parametrize(
+    ("block", "citation"),
+    [
+        (
+            """\
+    dedupe: {keep: latest_by, field: occurred_at}
+""",
+            "RFC 0024 D14",
+        ),
+        (
+            """\
+    quality:
+      - {rule: expression, name: has_kind, expr: "kind IS NOT NULL", on_fail: flag}
+""",
+            "RFC 0024 D29",
+        ),
+    ],
+    ids=["dedupe", "entity_quality"],
+)
+def test_the_quality_system_is_refused_on_a_merged_entity(block: str, citation: str) -> None:
+    """RFC 0024 D14, widened by D29. Each leg of ``opts_in`` is its own
+    assertion: the predicate is a disjunction, and a test of one leg proves
+    nothing about the others."""
+    model = _MERGE_ENTITY_MODEL.replace(
+        "      note: {type: string}\n", "      note: {type: string}\n" + block
+    )
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(_merge_sources(entity_model=model)))
+    assert citation in str(excinfo.value)
+
+
+def test_a_field_level_quality_block_is_refused_on_a_merged_entity() -> None:
+    """The third leg of ``opts_in`` (D29), and the one the row is really about:
+    a field rule is declared on a *mapping*, so two mappings can disagree about
+    whether the entity joined the quality system at all."""
+    sources = _merge_sources(
+        mapping_z="""\
+mapping_version: 1
+source: src_a
+target: event
+key:
+  event_id: {from: "$.identifier", transform: [to_string]}
+fields:
+  kind:
+    from: "$.type"
+    transform: [to_string]
+    quality:
+      - {rule: not_null, on_fail: flag}
+""",
+    )
+    with pytest.raises(ResolutionError) as excinfo:
         build_project_ir(load_project(sources))
+    message = str(excinfo.value)
+    assert "RFC 0024 D29" in message
+    # It names the mapping's own document, not the entity model.
+    assert excinfo.value.source_path is not None
+    assert "fields.kind.quality" in excinfo.value.source_path
+
+
+def test_a_mart_over_a_merged_entity_flattens() -> None:
+    """Marts are not in RFC 0024's surface, and that is the claim being tested.
+
+    A mart reads the base entity's *schema* — `columns`, `key` — and the silver
+    relation, and the merge changes the shape of neither: the union is below the
+    relation the mart selects from. Pinned because "nothing to do here" is a
+    statement about the code that only a test keeps true, and because `_source`
+    staying out of the flattened column set is the observable half of it not
+    being a declared field.
+    """
+    sources = _merge_sources(
+        entity_model="""\
+spec_version: 1
+entities:
+  event:
+    grain: one row per event
+    key: [event_id]
+    fields:
+      event_id: {type: string, required: true}
+      kind: {type: string}
+      occurred_at: {type: timestamp}
+""",
+        mapping_a="""\
+mapping_version: 1
+source: src_z
+target: event
+key:
+  event_id: {from: "$.id", transform: [to_string]}
+fields:
+  kind: {from: "$.kind", transform: [to_string]}
+  occurred_at: {from: "$.ts", transform: [{parse_ts: ["ISO8601"]}]}
+""",
+        mapping_z="""\
+mapping_version: 1
+source: src_a
+target: event
+key:
+  event_id: {from: "$.identifier", transform: [to_string]}
+fields:
+  kind: {from: "$.type", transform: [to_string]}
+  occurred_at: {from: "$.at", transform: [{parse_ts: ["ISO8601"]}]}
+""",
+        marts="""\
+marts_version: 1
+marts:
+  events:
+    grain: event
+    base: event
+    flatten:
+      - {date: occurred_at, role: seen}
+""",
+    )
+    ir = build_project_ir(load_project(sources))
+    (mart,) = ir.marts
+    names = [column.name for column in mart.columns]
+    assert "event_id" in names
+    assert "seen_day" in names
+    # `_source` is a generated column, not a declared field, so it is not a
+    # dimension — a mart over a merged entity is a mart like any other.
+    assert "_source" not in names
+
+
+def test_a_mapping_lowering_a_partial_key_is_refused() -> None:
+    """§5.2 rule 1, and it needs no code of its own: `resolve.refs` enforces
+    full-key coverage per mapping, so it enforces it per branch. Pinned here
+    because the merge is what makes a partial key meaningless rather than
+    merely incomplete — a union on one is a relation whose rows cannot be told
+    apart."""
+    sources = _merge_sources(
+        entity_model=_MERGE_ENTITY_MODEL.replace(
+            "    key: [event_id]\n", "    key: [event_id, kind]\n"
+        )
+    )
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources))
+    message = str(excinfo.value)
+    assert "'kind' is not lowered by the mapping's key" in message
+    # Both mappings, not just the first: an author fixes the spec in one round.
+    assert message.count("is not lowered by the mapping's key") == 2
+
+
+def test_a_direct_path_is_refused_on_a_merged_entity() -> None:
+    """RFC 0024 D28. `direct:` is per mapping, so a merged entity can have one
+    on one source and none on another — which leaves the shadow NULL for the
+    other's rows, indistinguishable from a genuinely NULL direct value, and the
+    reconcile audit either reports a false disagreement or quietly stops
+    checking."""
+    sources = _merge_sources(
+        entity_model="""\
+spec_version: 1
+entities:
+  event:
+    grain: one row per event
+    key: [event_id]
+    fields:
+      event_id: {type: string, required: true}
+      kind: {type: string, canonical: kind}
+""",
+        mapping_z="""\
+mapping_version: 1
+source: src_a
+target: event
+key:
+  event_id: {from: "$.identifier", transform: [to_string]}
+fields:
+  kind:
+    recipe: passthrough
+    from: {value: "$.type"}
+    direct: "$.kind_direct"
+""",
+        mapping_a="""\
+mapping_version: 1
+source: src_z
+target: event
+key:
+  event_id: {from: "$.id", transform: [to_string]}
+fields:
+  kind: {from: "$.kind", transform: [to_string]}
+""",
+    )
+    catalog = load_catalog("""\
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  kind:
+    entity: event
+    type: string
+    recipes:
+      - {id: passthrough, requires: [value], expr: "value"}
+""")
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources), catalog)
+    message = str(excinfo.value)
+    assert "RFC 0024 D28" in message
+    assert "kind__direct" in message
+
+
+def test_scd_type2_is_refused_on_a_merged_entity() -> None:
+    """RFC 0024 D23: the collision audit would fire on every key holding
+    versions from two sources, and telling a version from a collision needs
+    validity columns nothing models."""
+    model = _MERGE_ENTITY_MODEL.replace(
+        "    key: [event_id]\n", "    key: [event_id]\n    scd: type2\n"
+    )
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(_merge_sources(entity_model=model)))
+    message = str(excinfo.value)
+    assert "RFC 0024 D23" in message
+    assert "RFC 0023" in message
+
+
+def test_the_refusals_are_batched() -> None:
+    """§5.2: an author sees every disagreement at once (RFC 0002 D6), rather
+    than fixing one and recompiling to find the next."""
+    model = _MERGE_ENTITY_MODEL.replace(
+        "    key: [event_id]\n", "    key: [event_id]\n    scd: type2\n"
+    ).replace(
+        "      note: {type: string}\n",
+        "      note: {type: string}\n"
+        "    dedupe: {keep: latest_by, field: occurred_at}\n",
+    )
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(_merge_sources(entity_model=model)))
+    assert len(excinfo.value.collected) >= 2

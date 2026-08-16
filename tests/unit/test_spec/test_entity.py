@@ -157,6 +157,10 @@ def test_the_reserved_set_is_exactly_the_generated_names() -> None:
         "_quality_flags",
         "_quality_ok",
         "_quality_repairs",
+        # Reserved unconditionally, not only on a merged entity (RFC 0024 D18):
+        # a name that is legal until a second mapping arrives is a trap laid
+        # for the change that adds one.
+        "_source",
         "_source_row_id",
         "has_quality_flags",
         "metric_time",

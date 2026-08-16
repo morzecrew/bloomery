@@ -50,9 +50,12 @@ from bloomery.emit.lower.reconcile import (
     reconcile_select,
 )
 from bloomery.emit.lower.silver import (
+    COLLISION_COUNT_COLUMN,
     REJECT_KEY,
     ROW_ID_COUNT_COLUMN,
     THIS_MODEL,
+    collision_audit,
+    collision_audit_select,
     conservation_audit,
     conservation_audit_select,
     entity_select,
@@ -66,10 +69,13 @@ from bloomery.emit.lower.silver import (
 
 __all__ = [
     "REJECT_KEY",
+    "COLLISION_COUNT_COLUMN",
     "ROW_ID_COUNT_COLUMN",
     "THIS_MODEL",
     "audit_predicate",
     "column_type",
+    "collision_audit",
+    "collision_audit_select",
     "conservation_audit",
     "conservation_audit_select",
     "coverage_audit_name",

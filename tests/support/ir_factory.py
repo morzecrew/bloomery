@@ -29,6 +29,7 @@ from bloomery.ir import (
     SemiAdditivePolicy,
     SemiAdditiveRule,
     SourceFieldIR,
+    SourceColumnIR,
     SourceIR,
     SqlExpr,
     TaxBasis,
@@ -40,16 +41,26 @@ from bloomery.typing import DecimalType, IntType, StringType, TimestampType
 
 
 def _column(name: str, *, canonical: str | None = None) -> ColumnIR:
+    """The schema half. Pair it with :func:`_projection` — a column with no
+    projection is one the emitted SELECT cannot produce (RFC 0024 D26)."""
     return ColumnIR(
         name=name,
         type=DecimalType(12, 4) if name == "unit_price" else StringType(),
         canonical=canonical,
         unit=Unit.CURRENCY if name == "unit_price" else None,
         tax_basis=TaxBasis.NET if name == "unit_price" else None,
-        expr=SqlExpr(name),
-        recipe_id="from_total" if name == "unit_price" else None,
         renamed_from=None,
         required=name == "order_id",
+    )
+
+
+def _projection(name: str) -> SourceColumnIR:
+    """The lowering half, mirroring what ``resolve.build._column_pair`` would
+    produce for the same column."""
+    return SourceColumnIR(
+        name=name,
+        expr=SqlExpr(name),
+        recipe_id="from_total" if name == "unit_price" else None,
     )
 
 
@@ -66,22 +77,25 @@ def build_project_ir(*, column_names: tuple[str, ...] = ("unit_price", "order_id
         materialization=Materialization.INCREMENTAL_BY_PARTITION,
         partition_by=(PartitionSpec(transform="days", column="order_date"),),
         columns=columns,
-        source=SourceIR(
-            relation="shopify__order_lines",
-            fields=(
-                SourceFieldIR(
-                    target_field="order_id",
-                    source_path="$.order_id",
-                    transform=(TransformStepIR(name="to_string"),),
-                ),
-                SourceFieldIR(
-                    target_field="unit_price",
-                    source_path="$.total",
-                    transform=(
-                        TransformStepIR(name="to_decimal", args=(12, 4)),
-                        TransformStepIR(name="parse_ts", args=("ISO8601",)),
+        sources=(
+            SourceIR(
+                relation="shopify__order_lines",
+                fields=(
+                    SourceFieldIR(
+                        target_field="order_id",
+                        source_path="$.order_id",
+                        transform=(TransformStepIR(name="to_string"),),
+                    ),
+                    SourceFieldIR(
+                        target_field="unit_price",
+                        source_path="$.total",
+                        transform=(
+                            TransformStepIR(name="to_decimal", args=(12, 4)),
+                            TransformStepIR(name="parse_ts", args=("ISO8601",)),
+                        ),
                     ),
                 ),
+                columns=tuple(_projection(name) for name in sorted(column_names)),
             ),
         ),
         audits=(AuditIR(kind="not_null", column="order_id"),),

@@ -20,10 +20,12 @@ from sqlglot.expressions.core import Expression
 from bloomery.dialects import DialectFeature
 from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.ir import (
+    SOURCE_COLUMN,
     EntityIR,
     Layer,
     OnFail,
     QualityRuleIR,
+    SourceIR,
     SqlExpr,
 )
 from bloomery.quality import (
@@ -131,6 +133,31 @@ def reject_relation(entity: EntityIR) -> str:
     return f"{entity.name}{REJECT_SUFFIX}"
 
 
+def _sole_source(entity: EntityIR, feature: str) -> SourceIR:
+    """The entity's one source, for a surface that has no merged form.
+
+    The reject projection, the replay merge and the conservation audit are all
+    built from compile-time literals off *the* mapping — its relation, its
+    version — and from ``_source_row_id``, which is unique within one source
+    relation (RFC 0016 D21). RFC 0024 D14 refuses ``dedupe:`` and
+    ``quarantine:`` on a merged entity for exactly that reason, and those two
+    blocks are the emission condition for every caller here.
+
+    So this never raises for any project the resolver admits. It exists because
+    the alternative spelling — ``entity.sources[0]`` — reads as a choice among
+    N and would quietly become one on the day P2 lifts D14.
+    """
+    if len(entity.sources) != 1:
+        msg = (
+            f"{feature} on entity {entity.name!r} was built from "
+            f"{len(entity.sources)} sources; it is defined for one (RFC 0024 D14 refuses "
+            "the blocks that emit it on a merged entity, so this is a resolver "
+            "invariant that has stopped holding)"
+        )
+        raise EmitError(msg)
+    return entity.sources[0]
+
+
 def _arrays(ctx: EmitContext) -> bool:
     return ctx.dialect.supports(DialectFeature.ARRAY)
 
@@ -157,7 +184,7 @@ def _windowed_rules(entity: EntityIR) -> tuple[QualityRuleIR, ...]:
     return tuple(rule for rule in entity.quality if windowed(rule))
 
 
-def _stage(select: exp.Select, entity: EntityIR) -> exp.Select:
+def _stage(select: exp.Select | exp.Union, entity: EntityIR) -> exp.Select | exp.Union:
     """Wrap an extract SELECT in the level that computes windowed verdicts.
 
     The window is deliberately computed **above** the dedupe ``QUALIFY``, not
@@ -253,7 +280,8 @@ def _payload_columns(entity: EntityIR) -> tuple[str, ...]:
     redacted = frozenset(
         payload_key(path) for path in (entity.quarantine.redact if entity.quarantine else ())
     )
-    paths = {field.source_path for field in entity.source.fields} | set(entity.source.unmapped)
+    source = _sole_source(entity, "the reject table's raw payload")
+    paths = {field.source_path for field in source.fields} | set(source.unmapped)
     return tuple(sorted({payload_key(path) for path in paths} - redacted))
 
 
@@ -282,10 +310,14 @@ def _require_no_currency_conversion(entity: EntityIR) -> None:
 
     Checked here rather than in the guardrail stage because here is where the
     marker becomes SQL: :func:`_extract_select` is the one place a
-    ``ColumnIR.expr`` is realized, so no emission path — model, reject table,
-    replay, or fail audit — can reach the marker without passing this.
+    ``SourceColumnIR.expr`` is realized, so no emission path — model, reject
+    table, replay, or fail audit — can reach the marker without passing this.
+
+    Every source, not the first: a merged entity's branches carry independent
+    lowerings, so one may apply the transform where another does not, and a
+    check over one branch would pass the compile that emits the call.
     """
-    for column in entity.columns:
+    for column in (column for source in entity.sources for column in source.columns):
         if not any(
             str(call.this).upper() == CONVERT_MARKER
             for call in column.expr.ast().find_all(exp.Anonymous)
@@ -305,31 +337,47 @@ def _require_no_currency_conversion(entity: EntityIR) -> None:
         )
 
 
-def _extract_select(
-    entity: EntityIR, ctx: EmitContext, *, include_raw: bool = False, from_payload: bool = False
+def _branch_select(
+    entity: EntityIR,
+    origin: SourceIR,
+    ctx: EmitContext,
+    *,
+    include_raw: bool = False,
+    from_payload: bool = False,
 ) -> exp.Select:
-    """Stages 1–3: the bronze projections, the ingestion metadata, the ``raw``
-    payload where a reject table needs it, and the dedupe ``QUALIFY``.
+    """Stages 1–2 for **one** source: its bronze projections, the ingestion
+    metadata, and the ``raw`` payload where a reject table needs it.
+
+    One of these per :attr:`EntityIR.sources` entry, unioned by
+    :func:`_extract_select` (RFC 0024 D3). Everything below the union lives
+    here; everything the merged relation is judged by — the dedupe ``QUALIFY``,
+    the windowed verdicts, the rules — lives above it, because a stage
+    evaluated per source would judge rows the merged relation does not contain
+    (D6).
 
     ``from_payload`` builds the **replay** form of the same stages: the very
     same lowered column expressions, with their bronze column references
     rewritten to extractions out of the reject table's ``raw``. One lowering,
     two sources — replay cannot drift from the pipeline because it *is* the
-    pipeline (RFC 0016 §5.6). No ``QUALIFY`` there: the reject table already
-    holds one row per source-row identity.
+    pipeline (RFC 0016 §5.6).
     """
-    _require_no_currency_conversion(entity)
     if from_payload:
         namespace, relation = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
     else:
-        namespace, relation = ctx.naming.relation(entity.source.relation, Layer.BRONZE)
+        namespace, relation = ctx.naming.relation(origin.relation, Layer.BRONZE)
 
     def source(node: Expression) -> Expression:
         return _from_payload(node) if from_payload else node
 
     repaired = {rule.column: rule for rule in entity.quality if repairs(rule)}
     projections: list[Expression] = []
-    for column in entity.columns:
+    # The lowering, not the schema (RFC 0024 D26): what this SELECT projects is
+    # one source's expression per column, and `SourceIR.columns` is sorted by
+    # name exactly as `EntityIR.columns` is — and covers it exactly, since the
+    # builder fills an unmapped column with a typed NULL (§5.2 rule 3). So
+    # every branch projects the same names in the same order, which is what a
+    # `UNION ALL` requires.
+    for column in origin.columns:
         raw = source(column.expr.ast())
         rule = repaired.get(column.name)
         if rule is None:
@@ -377,13 +425,74 @@ def _extract_select(
             [(column, exp.column(column)) for column in _payload_columns(entity)], ctx
         )
         projections.append(cast("Expression", exp.alias_(payload, "_raw")))
+    if len(entity.sources) > 1:
+        # Provenance, and only where it means something (RFC 0024 D7): the
+        # collision audit reports *which* sources shared a key, and on a
+        # single-source entity the column would be a constant in every row of
+        # every relation forever.
+        projections.append(
+            cast("Expression", exp.alias_(exp.Literal.string(origin.relation), SOURCE_COLUMN))
+        )
     select = exp.Select().select(*projections).from_(exp.table_(relation, db=namespace))
     if from_payload:
-        unresolved = select.where(exp.Is(this=exp.column("resolved_at"), expression=exp.null()))
-        return _stage(unresolved, entity)
+        return select.where(exp.Is(this=exp.column("resolved_at"), expression=exp.null()))
+    return select
+
+
+def _extract_select(
+    entity: EntityIR, ctx: EmitContext, *, include_raw: bool = False, from_payload: bool = False
+) -> exp.Select | exp.Union:
+    """Stages 1–3: one :func:`_branch_select` per source, unioned, then the
+    dedupe ``QUALIFY`` and the windowed-verdict level over the result.
+
+    **The union is the first stage** (RFC 0024 D6): union → dedupe → rules. A
+    rule evaluated per source would judge a row the merged relation does not
+    contain, which is the argument that fixed dedupe-before-rules in RFC 0016.
+
+    Branch order is lexicographic by source relation, inherited from
+    ``EntityIR.sources`` rather than re-derived, so the emitted text is
+    byte-identical across processes (D3). Row order is **not** claimed:
+    ``UNION ALL`` is a bag, and where an order is needed it comes from declared
+    ordering columns as it does today.
+
+    Returns a ``Select`` for the ordinary single-source entity — the union of
+    one is itself, not a one-branch ``UNION`` — so nothing about the existing
+    corpus moves except the fingerprint.
+    """
+    _require_no_currency_conversion(entity)
+    branches = [
+        _branch_select(entity, origin, ctx, include_raw=include_raw, from_payload=from_payload)
+        for origin in entity.sources
+    ]
+    if len(branches) > 1:
+        # `dedupe:` and every quality rule are refused on a merged entity
+        # (D14/D29), so nothing is owed to the levels below — the union *is*
+        # the extract. `_stage` still runs: it is the identity with no windowed
+        # rules, and writing it as one keeps the pipeline order readable here
+        # rather than only in the branch that happens to exercise it.
+        return _stage(_union_all(branches), entity)
+    select = branches[0]
+    if from_payload:
+        # No `QUALIFY` on replay: the reject table already holds one row per
+        # source-row identity.
+        return _stage(select, entity)
     if entity.dedupe is not None:
         select = with_dedupe_qualify(select, entity.dedupe, entity.key)
     return _stage(select, entity)
+
+
+def _union_all(branches: list[exp.Select]) -> exp.Union:
+    """``branches`` folded left into one ``UNION ALL``, in the order given.
+
+    ``UNION ALL``, never ``UNION`` (RFC 0024, alternatives): distinct would make
+    the collision audit unnecessary for exact duplicates by *hiding* them, and
+    two sources agreeing on every column of one key is a fact an operator
+    should see. It is also an expensive way to be silent on a wide relation.
+    """
+    folded: exp.Select | exp.Union = branches[0]
+    for branch in branches[1:]:
+        folded = exp.Union(this=folded, expression=branch, distinct=False)
+    return cast("exp.Union", folded)
 
 
 def _over(node: Expression, column: str, value: Expression) -> Expression:
@@ -575,7 +684,9 @@ def _repair_projections(entity: EntityIR, *, arrays: bool) -> list[Expression]:
     return [cast("Expression", exp.alias_(flags_expression(pairs, arrays=arrays), REPAIRS_COLUMN))]
 
 
-def _quality_pipeline(entity: EntityIR, ctx: EmitContext, extract: exp.Select) -> exp.Select:
+def _quality_pipeline(
+    entity: EntityIR, ctx: EmitContext, extract: exp.Select | exp.Union
+) -> exp.Select:
     """Stages 4–6 over an extract SELECT: the rule predicates, the single
     ``_quality_flags`` pass, the routing ``WHERE``, and ``_quality_ok``.
 
@@ -648,12 +759,18 @@ def entity_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     _require_try_cast(entity, ctx)
     _require_unicode_normalize(entity, ctx)
     extract = _extract_select(entity, ctx)
-    if not entity.quality:
-        return extract.select(
-            exp.alias_(empty_flags(arrays=_arrays(ctx)), FLAGS_COLUMN),
-            exp.alias_(exp.true(), OK_COLUMN),
-        )
-    return _quality_pipeline(entity, ctx, extract)
+    if entity.quality:
+        return _quality_pipeline(entity, ctx, extract)
+    flags = exp.alias_(empty_flags(arrays=_arrays(ctx)), FLAGS_COLUMN)
+    ok = exp.alias_(exp.true(), OK_COLUMN)
+    if isinstance(extract, exp.Select):
+        return extract.select(flags, ok)
+    # A merged entity carries no quality rules (RFC 0024 D29), so the union is
+    # the whole body and the two generated columns ride one level above it.
+    # ``.select()`` on a ``UNION`` would attach them to its last branch alone,
+    # which parses and is wrong — the other branches would be short two
+    # columns.
+    return exp.Select().select(exp.Star(), flags, ok).from_(extract.subquery(alias=_EXTRACT_ALIAS))
 
 
 def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
@@ -682,6 +799,10 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     _require_try_cast(entity, ctx)
     _require_unicode_normalize(entity, ctx)
     arrays = _arrays(ctx)
+    # `source_relation`, `mapping` and `mapping_version` are compile-time
+    # literals off *the* mapping, which is why the reject table has no merged
+    # form and RFC 0024 D14 refuses `quarantine:` on a merged entity.
+    origin = _sole_source(entity, "the reject table")
     extract = _extract_select(entity, ctx, include_raw=True)
     recorded = _recorded_rules(entity)
     row_id = exp.column(ROW_ID_COLUMN, table=_EXTRACT_ALIAS)
@@ -690,21 +811,18 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
         cast(
             "Expression",
             exp.alias_(
-                reject_id(entity.source.relation, row_id.copy(), ctx.dialect.text_sha256),
+                reject_id(origin.relation, row_id.copy(), ctx.dialect.text_sha256),
                 "reject_id",
             ),
         ),
+        cast("Expression", exp.alias_(exp.Literal.string(origin.relation), "source_relation")),
         cast(
             "Expression",
-            exp.alias_(exp.Literal.string(entity.source.relation), "source_relation"),
+            exp.alias_(exp.Literal.string(f"{origin.relation}->{entity.name}"), "mapping"),
         ),
         cast(
             "Expression",
-            exp.alias_(exp.Literal.string(f"{entity.source.relation}->{entity.name}"), "mapping"),
-        ),
-        cast(
-            "Expression",
-            exp.alias_(exp.Literal.number(entity.source.mapping_version), "mapping_version"),
+            exp.alias_(exp.Literal.number(origin.mapping_version), "mapping_version"),
         ),
         cast(
             "Expression",
@@ -899,6 +1017,73 @@ def _counted_as(predicate: Expression, name: str) -> Expression:
     return cast("Expression", exp.alias_(exp.Sum(this=case), name))
 
 
+#: The column the collision audit projects its per-key source count under.
+COLLISION_COUNT_COLUMN = "sources"
+
+
+def collision_audit(entity: EntityIR) -> bool:
+    """Whether a merged entity's key-collision audit is emitted (RFC 0024 D5).
+
+    Merged entities only, not every mapped one. Emitting it unconditionally
+    would make the artifact set uniform and cost a scan per entity for a check
+    that cannot fire — a single-source entity has one value of ``_source``, so
+    ``COUNT(DISTINCT _source) > 1`` is false by construction — and it would
+    also need a ``_source`` column on every relation to group by, which D7
+    refuses for the same reason it refuses the uniform column.
+    """
+    return len(entity.sources) > 1
+
+
+def collision_audit_select(entity: EntityIR) -> exp.Select:
+    """The disjointness law as a **runtime** audit (RFC 0024 §5.4, D5, D13).
+
+    The compiler has no data, so it cannot know two sources' key sets are
+    disjoint. This is the run-time half of that split, and it is the same split
+    ``dedupe`` and ``referential`` already live with::
+
+        SELECT <key…>, COUNT(DISTINCT _source) AS sources
+        FROM @this_model
+        GROUP BY <key…>
+        HAVING COUNT(DISTINCT _source) > 1
+
+    **Grouped by every declared key column**, generated from ``entity.key``.
+    The single-column form §5.4 illustrates is one instance and not the spec: a
+    composite key grouped by its first column alone merges distinct keys and
+    blocks valid data, which on a blocking audit is the worst failure available
+    (D13).
+
+    **It reads the model**, and that is D13's placement rather than a departure
+    from it. D13 says the *union output, before dedupe*, because dedupe is
+    precisely the operation that collapses rows sharing an entity key — an
+    audit below it would be reading the one relation guaranteed not to contain
+    what it looks for. With ``dedupe:`` refused on a merged entity (D14) there
+    is no such stage: nothing between the union and the model output collapses
+    rows, so the model *is* the union output. The distinction D13 draws is
+    unexercised in P1 rather than weakened, and it returns with the P2 that
+    restores ``dedupe:``.
+
+    ``COUNT(DISTINCT _source) > 1`` deliberately does **not** fire on a key
+    duplicated *within* one source: that is ordinary duplication and ``dedupe:``
+    already owns it.
+    """
+    # ``COUNT(DISTINCT …)`` is an ``exp.Distinct`` *inside* the count, not a
+    # keyword argument on it: ``exp.Count(distinct=True)`` is silently ignored
+    # and renders a plain ``COUNT``, which would fire on a key duplicated
+    # within one source — ordinary duplication that ``dedupe:`` owns and that
+    # D5 says this audit must never refuse.
+    distinct_sources = exp.Count(this=exp.Distinct(expressions=[exp.column(SOURCE_COLUMN)]))
+    return (
+        exp.Select()
+        .select(
+            *(exp.column(column) for column in entity.key),
+            cast("Expression", exp.alias_(distinct_sources, COLLISION_COUNT_COLUMN)),
+        )
+        .from_(_this_model(_ENTITY_ALIAS))
+        .group_by(*(exp.column(column) for column in entity.key))
+        .having(exp.GT(this=distinct_sources.copy(), expression=exp.Literal.number(1)))
+    )
+
+
 def conservation_audit(entity: EntityIR) -> bool:
     """Whether the conservation audit can be emitted for this entity.
 
@@ -965,7 +1150,8 @@ def conservation_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     # The audited entity is addressed through THIS_MODEL, never through the
     # naming policy: an audit must follow the model into whatever physical
     # table the framework's virtual layer put it in.
-    bronze_namespace, bronze_rel = ctx.naming.relation(entity.source.relation, Layer.BRONZE)
+    origin = _sole_source(entity, "the conservation audit")
+    bronze_namespace, bronze_rel = ctx.naming.relation(origin.relation, Layer.BRONZE)
     diverted = _route_predicate(entity, _SURVIVORS_CTE, quarantined=True)
     if diverted is None:  # pragma: no cover — a quarantine block implies rules
         diverted = exp.false()

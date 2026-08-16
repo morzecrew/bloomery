@@ -102,7 +102,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 from bloomery.errors import ContractViolation, PlanError, RenameTargetMissing
-from bloomery.ir import OnFail, ProjectIR
+from bloomery.ir import SOURCE_COLUMN, OnFail, ProjectIR
 from bloomery.plan.model import BackfillScope, Change, ChangeClass, Plan, ReplayScope
 from bloomery.quality import disposition, payload_key
 from bloomery.spec.quality import EXACT_DECIMAL
@@ -123,6 +123,8 @@ if TYPE_CHECKING:
         QualityRuleIR,
         QuarantineIR,
         ReconcileIR,
+        SourceColumnIR,
+        SourceIR,
         StepIR,
         TransformStepIR,
     )
@@ -214,6 +216,98 @@ def _dropped_entity(entity: EntityIR, acc: _Acc) -> None:
     acc.seeds |= _entity_columns_refs(entity)
 
 
+def _reject_source(entity: EntityIR) -> SourceIR:
+    """The one source behind a reject table (RFC 0016 §5.6).
+
+    Every caller is gated on a ``quarantine:`` block existing on both sides of
+    the diff, and RFC 0024 D14 refuses that block on a merged entity — so the
+    reject schema is a fact of exactly one mapping and this is not a choice
+    among branches. Spelled as an accessor so it stops being true loudly if
+    P2 ever lets both hold at once.
+    """
+    if len(entity.sources) != 1:
+        msg = (
+            f"the reject schema of entity {entity.name!r} was diffed across "
+            f"{len(entity.sources)} sources; a reject table records one mapping's "
+            "relation and version (RFC 0016 §5.6), and RFC 0024 D14 refuses "
+            "'quarantine:' on a merged entity"
+        )
+        raise PlanError(msg)
+    return entity.sources[0]
+
+
+def _relations(entity: EntityIR) -> tuple[str, ...]:
+    """The bronze relations the entity is built from, in branch order."""
+    return tuple(source.relation for source in entity.sources)
+
+
+def _source_set_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> bool:
+    """Classify a change to *which* relations build the entity (RFC 0024 §5.5).
+
+    Returns whether the entity was **redefined** — i.e. whether the caller
+    should seed the reference closure from both column sets.
+
+    | Change | Class |
+    | --- | --- |
+    | a mapping added | `ADDITIVE` — new rows, and on the first merge the `_source` column appears |
+    | a mapping removed | `RESTATING` — same columns, fewer rows, so the relation must be rebuilt |
+    | the one relation repointed | `RESTATING`, as it has always been |
+
+    **`_source` is named in the message rather than diffed as a column**, and
+    that is a departure from D9's spelling with D9's purpose intact. D9 asked
+    for two `ADDITIVE` changes — the rows and the column — reasoning that "the
+    transition showing up in `plan()` is the better outcome ... it is exactly
+    the kind of schema move an operator should see before it lands". It does
+    show up, here, in the change that causes it. What D9 additionally wanted —
+    "dropping to one mapping removes `_source`, and anything reading it must
+    trip the existing contract check" — has nothing to protect in P1: the only
+    mechanism that could read the column is a quality rule over `_source`
+    (§8), and D29 refuses rules on a merged entity outright. Making `_source` a
+    real `ColumnIR` to satisfy a contract check with no possible referent would
+    put a bloomery-invented column into every mart, metric and contract surface
+    for nothing.
+    """
+    subject = f"entity:{new_e.name}"
+    old_relations, new_relations = _relations(old_e), _relations(new_e)
+    if len(old_relations) == 1 and len(new_relations) == 1:
+        acc.changes.append(
+            Change(
+                new_e.name,
+                subject,
+                ChangeClass.RESTATING,
+                "source relation changed",
+                old=old_relations[0],
+                new=new_relations[0],
+            )
+        )
+        acc.backfill.add(new_e.name)
+        return True
+    added = tuple(relation for relation in new_relations if relation not in old_relations)
+    removed = tuple(relation for relation in old_relations if relation not in new_relations)
+    if added:
+        detail = f"source added to the union merge ({', '.join(added)})"
+        if len(old_relations) == 1:
+            detail += f"; the {SOURCE_COLUMN} column appears"
+        acc.changes.append(Change(new_e.name, subject, ChangeClass.ADDITIVE, detail))
+        # Seeded despite being ADDITIVE, which no other addition in this differ
+        # is. A column addition seeds nothing because no *existing* number
+        # moves — the metric reading it had no value before. A **source**
+        # addition changes no column's meaning and every metric's value, since
+        # the entity's row population grew, and `downstream_impact` is "the
+        # metric names affected by any change". Until this row, ADDITIVE and
+        # value-neutral happened to coincide; they do not here, and a merge
+        # that silently tells an operator no metric is affected is the reading
+        # that costs them the most.
+        acc.seeds |= _entity_columns_refs(new_e)
+    if removed:
+        detail = f"source removed from the union merge ({', '.join(removed)})"
+        if len(new_relations) == 1:
+            detail += f"; the {SOURCE_COLUMN} column is dropped"
+        acc.changes.append(Change(new_e.name, subject, ChangeClass.RESTATING, detail))
+        acc.backfill.add(new_e.name)
+    return bool(removed)
+
+
 def _entity_level_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
     """§5.2 rule 1: grain/key/scd/materialization redefine what a row *is* —
     BREAKING at the entity subject; column diffs are still reported."""
@@ -238,19 +332,8 @@ def _entity_level_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                     new=new_repr,
                 )
             )
-    if old_e.source.relation != new_e.source.relation:
-        acc.changes.append(
-            Change(
-                new_e.name,
-                subject,
-                ChangeClass.RESTATING,
-                "source relation changed",
-                old=old_e.source.relation,
-                new=new_e.source.relation,
-            )
-        )
-        acc.backfill.add(new_e.name)
-        redefined = True
+    if _relations(old_e) != _relations(new_e):
+        redefined |= _source_set_changes(old_e, new_e, acc)
     if redefined:
         acc.seeds |= _entity_columns_refs(old_e) | _entity_columns_refs(new_e)
     if old_e.partition_by != new_e.partition_by:
@@ -313,13 +396,39 @@ def _rename_map(old_e: EntityIR, new_e: EntityIR) -> dict[str, str]:
     return renames
 
 
+def _shared_relations(old_e: EntityIR, new_e: EntityIR) -> tuple[str, ...]:
+    """The bronze relations both sides build the entity from, in old-side
+    branch order.
+
+    Column semantics are compared **only over these** (RFC 0024 §5.5). A source
+    added or removed is a fact about the entity, reported once at the entity
+    subject by :func:`_source_set_changes`; comparing a merged column's whole
+    lowering tuple against a single-source one would additionally report
+    "semantics changed" on *every column of the entity*, as RESTATING with a
+    backfill — for a change §5.5 classifies ADDITIVE and which restates
+    nothing. What a column means did not change; it now also arrives from
+    somewhere else.
+    """
+    present = frozenset(_relations(new_e))
+    return tuple(relation for relation in _relations(old_e) if relation in present)
+
+
 def _source_signature(
-    entity: EntityIR, column: str
+    entity: EntityIR, column: str, relation: str
 ) -> tuple[tuple[str, tuple[TransformStepIR, ...]], ...]:
-    """The column's lowering entries, name-independent: (source path, chain)."""
+    """One source's lowering entries for ``column``, name-independent:
+    (source path, chain).
+
+    The bronze *relation* is deliberately not part of the value: it is reported
+    at the entity subject, and folding it in would report one repointed
+    relation once per column as well.
+    """
+    origin = next((source for source in entity.sources if source.relation == relation), None)
+    if origin is None:  # pragma: no cover — `relations` is the shared set, so it is present
+        return ()
     return tuple(
         (entry.source_path, entry.transform)
-        for entry in entity.source.fields
+        for entry in origin.fields
         if entry.target_field == column
     )
 
@@ -327,18 +436,62 @@ def _source_signature(
 _SEMANTIC_FACETS = ("canonical", "recipe", "expression", "unit", "tax_basis", "source")
 
 
+def _lowerings(entity: EntityIR, name: str) -> dict[str, SourceColumnIR]:
+    """Every source's lowering of ``name``, keyed by source relation.
+
+    The lowered expression moved off :class:`ColumnIR` onto the source
+    (RFC 0024 D26), so a diff that compares what a column *means* has to read
+    it from there — and a merged entity lowers one column once per source, with
+    different paths, different chains and possibly different recipes (D28).
+
+    Keyed rather than positional, because the two sides of a diff need not have
+    the same sources and index-matching them would compare one shop's lowering
+    against another's.
+    """
+    return {
+        source.relation: column
+        for source in entity.sources
+        for column in source.columns
+        if column.name == name
+    }
+
+
+def _recipe_label(entity: EntityIR, name: str, relations: tuple[str, ...]) -> str | None:
+    """What a semantics change reports as the column's recipe, over the sources
+    both sides of the diff share.
+
+    The bare id for the ordinary single-source column, so a reported change
+    reads as it always has; the distinct ids, sorted, once an entity is merged —
+    two mappings may record different recipes for one column (D28), and naming
+    one of them would be the silent pick D29 refuses elsewhere.
+    """
+    lowerings = _lowerings(entity, name)
+    recipes = [lowerings[relation].recipe_id for relation in relations if relation in lowerings]
+    if len(recipes) == 1:
+        return recipes[0]
+    return ", ".join(sorted({recipe for recipe in recipes if recipe is not None})) or None
+
+
 def _semantic_signature(
-    entity: EntityIR, column: ColumnIR
+    entity: EntityIR, column: ColumnIR, relations: tuple[str, ...]
 ) -> tuple[object, object, object, object, object, object]:
     """What the column *means* (D4), name and shape excluded: canonical link,
-    recipe, lowered expression, catalog metadata, and source lowering."""
+    recipe, lowered expression, catalog metadata, and source lowering — the
+    last three per shared source, in a fixed order so the two sides line up."""
+    lowerings = _lowerings(entity, column.name)
     return (
         column.canonical,
-        column.recipe_id,
-        column.expr.sql,
+        tuple(
+            lowerings[relation].recipe_id if relation in lowerings else None
+            for relation in relations
+        ),
+        tuple(
+            lowerings[relation].expr.sql if relation in lowerings else None
+            for relation in relations
+        ),
         column.unit,
         column.tax_basis,
-        _source_signature(entity, column.name),
+        tuple(_source_signature(entity, column.name, relation) for relation in relations),
     )
 
 
@@ -450,8 +603,11 @@ def _column_pair(
             )
         acc.seeds |= refs
         return
-    old_sig = _semantic_signature(old_e, old_c)
-    new_sig = _semantic_signature(new_e, new_c)
+    shared = _shared_relations(old_e, new_e)
+    old_sig = _semantic_signature(old_e, old_c, shared)
+    new_sig = _semantic_signature(new_e, new_c, shared)
+    old_recipe = _recipe_label(old_e, old_c.name, shared)
+    new_recipe = _recipe_label(new_e, new_c.name, shared)
     if old_sig != new_sig:
         facets = [
             facet
@@ -464,8 +620,8 @@ def _column_pair(
                 subject,
                 ChangeClass.RESTATING,
                 f"semantics changed ({', '.join(facets)})",
-                old=old_c.recipe_id if old_c.recipe_id != new_c.recipe_id else None,
-                new=new_c.recipe_id if old_c.recipe_id != new_c.recipe_id else None,
+                old=old_recipe if old_recipe != new_recipe else None,
+                new=new_recipe if old_recipe != new_recipe else None,
             )
         )
         acc.backfill.add(new_e.name)
@@ -903,7 +1059,8 @@ def _raw_payload_columns(entity: EntityIR) -> frozenset[str]:
     Redaction is diffed by :func:`_quarantine_changes` and deliberately left out
     here, so a ``redact:`` edit is never reported twice.
     """
-    paths = {field.source_path for field in entity.source.fields} | set(entity.source.unmapped)
+    origin = _reject_source(entity)
+    paths = {field.source_path for field in origin.fields} | set(origin.unmapped)
     return frozenset(payload_key(path) for path in paths)
 
 
@@ -930,15 +1087,15 @@ def _reject_schema_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
     if old_e.quarantine is None or new_e.quarantine is None:
         return
     subject = f"quarantine:{new_e.name}"
-    if old_e.source.mapping_version != new_e.source.mapping_version:
+    if _reject_source(old_e).mapping_version != _reject_source(new_e).mapping_version:
         acc.changes.append(
             Change(
                 new_e.name,
                 subject,
                 ChangeClass.ADDITIVE,
                 "mapping_version changed (reject provenance stamp)",
-                old=str(old_e.source.mapping_version),
-                new=str(new_e.source.mapping_version),
+                old=str(_reject_source(old_e).mapping_version),
+                new=str(_reject_source(new_e).mapping_version),
             )
         )
     old_raw, new_raw = _raw_payload_columns(old_e), _raw_payload_columns(new_e)

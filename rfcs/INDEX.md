@@ -50,7 +50,7 @@ settled — not work in flight.
 | # | Title | Status | One-line routing description |
 |---|---|---|---|
 | [0023](0023-temporal-joins-scd2-flattening-and-currency-conversion.md) | Temporal joins: SCD2 flattening and currency conversion | 🚧 In progress | Two constructs that compile clean and cannot be correct — flattening a historical dimension, and `convert` — both needing a join against a validity interval. **P1 (both refusals) has landed**; the as-of join design is unscheduled. |
-| [0024](0024-deterministic-union-merge.md) | Deterministic union merge | 📝 Draft | Letting several mappings build one entity when they share a key space but no overlapping keys, so the entity model integrates sources instead of renaming one. Overlap stays a step. |
+| [0024](0024-deterministic-union-merge.md) | Deterministic union merge | 🚧 In progress | Letting several mappings build one entity when they share a key space but no overlapping keys, so the entity model integrates sources instead of renaming one. Overlap stays a step. **P1 shipped** — the union, its refusals, the collision audit and the `multi_source` fixture; the document remains for P2, the quality system on a merged entity. Departures in [0024-DEVIATIONS.md](0024-DEVIATIONS.md). |
 
 ## Status legend
 
