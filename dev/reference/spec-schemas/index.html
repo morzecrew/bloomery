@@ -1008,6 +1008,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/merge-sources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Merge sources into one entity
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/resolve-identities/" class="md-nav__link">
         
   
@@ -2274,7 +2301,10 @@ implement is <strong>refused</strong>, never read as one it does.</p>
 <p><strong>Reserved names.</strong> <code>metric_time</code> may not be used as a field, dimension, or role name —
 the planner owns it as the canonical query-time dimension. The generated data-quality
 and ingestion-metadata columns are reserved on the same terms: <code>_quality_flags</code>,
-<code>_quality_ok</code>, <code>_load_id</code>, <code>_ingested_at</code>, <code>_source_row_id</code>, <code>has_quality_flags</code>.</p>
+<code>_quality_ok</code>, <code>_quality_repairs</code>, <code>_load_id</code>, <code>_ingested_at</code>, <code>_source_row_id</code>,
+<code>has_quality_flags</code>. So is <code>_source</code>, the union merge's provenance column — reserved
+unconditionally rather than only on merged entities, because a name that is legal until a
+second mapping arrives is a trap laid for the change that adds one.</p>
 <p><strong>Retention units.</strong> Months and years are deliberately absent — they are not fixed
 durations, and a retention window that means something different in February is a legal
 problem rather than a convenience. Minutes are absent because <code>m</code> would read as either.</p>

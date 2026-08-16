@@ -1181,6 +1181,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/merge-sources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Merge sources into one entity
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/resolve-identities/" class="md-nav__link">
         
   
@@ -1854,6 +1881,15 @@ run on any of three conditions: a null <code>_load_id</code>, <code>_ingested_at
 a <code>_source_row_id</code> that repeats; or an <code>_ingested_at</code> that is present but does not cast
 to timestamp. All three are properties of the <em>data</em>, so no compiler can check them —
 which is why they are asserted at run time rather than refused at compile time.</p>
+<div class="admonition note">
+<p class="admonition-title">One more blocking audit, from outside this system</p>
+<p>An entity built from <a href="../../how-to/merge-sources/">several mappings</a> also carries a
+generated blocking audit — <code>&lt;entity&gt;_source_collision</code>, which stops the run if one key
+appears in more than one source. It is not part of the quality system and reads none of
+its vocabulary: a merged entity carries no <code>quality:</code> rules at all for now. It is listed
+here only because it is the other generated check that can stop a run, and a reader
+cataloguing those should not have to find it by accident.</p>
+</div>
 <p>Dedupe's order is total by construction: the recency field descending, then each
 tie-break column, then the stable <code>_source_row_id</code> — with <code>NULLS LAST</code> pinned on every
 sort key. No two rows can compare equal, so the winner is a function of the data rather

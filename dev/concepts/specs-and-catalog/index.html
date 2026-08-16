@@ -667,6 +667,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Mapping: the recorded decision">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#one-entity-several-mappings" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        One entity, several mappings
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1126,6 +1143,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/merge-sources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Merge sources into one entity
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/resolve-identities/" class="md-nav__link">
         
   
@@ -1470,6 +1514,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Mapping: the recorded decision">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#one-entity-several-mappings" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        One entity, several mappings
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1696,6 +1757,20 @@ itself. The consequence is deliberate: when the Catalog evolves and a recorded
 recipe disappears, that is a loud <code>ResolutionError</code> the upstream chooser must
 re-decide — never a decision the compiler quietly remakes.</p>
 </div>
+<h3 id="one-entity-several-mappings">One entity, several mappings<a class="headerlink" href="#one-entity-several-mappings" title="Permanent link">&para;</a></h3>
+<p>Nothing above says <em>one</em> mapping per entity. Several may name the same <code>target:</code>, and the
+entity is then the <code>UNION ALL</code> of them in lexicographic order of source relation — two
+shops on one platform, a region-sharded table, a migration halfway done.</p>
+<p>That is what makes the EntityModel an <strong>integration</strong> layer rather than a renaming layer.
+Without it, two systems holding orders produce <code>order_shopify</code> and <code>order_woo</code> and the
+model that is supposed to say what a tenant's data <em>means</em> stops at the boundary of
+whichever system produced it.</p>
+<p>The merge is deliberately narrow. It covers one shared key space with disjoint key sets,
+and nothing else: overlapping keys are refused, because a key in two sources is either
+duplication or an accident, and choosing between two rows that claim one key is a business
+rule the compiler cannot check. Sources that need <em>matching</em> rather than merging are
+<a href="../../how-to/resolve-identities/">identity resolution</a>, which is a step. The full mechanics
+are in <a href="../../how-to/merge-sources/">Merge sources into one entity</a>.</p>
 <h2 id="metricset-measures-and-additivity-classes">MetricSet: measures and additivity classes<a class="headerlink" href="#metricset-measures-and-additivity-classes" title="Permanent link">&para;</a></h2>
 <p>The MetricSet declares the tenant's measures, either inline or by reference to a Catalog
 template. Every metric carries a grain and an <strong>additivity class</strong>, which decides how it
