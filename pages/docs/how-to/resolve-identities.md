@@ -36,10 +36,12 @@ meaningfully?* If not, it is a step.
 
 ## The two sources
 
-They stay separate entities. bloomery refuses two mappings into one entity — a
-deterministic union merge is its own milestone — and separate relations are the truer
-shape anyway: a step reads *inputs*, plural, and unioning them first would beg the
-question the step exists to answer.
+They stay separate entities. Two mappings *can* target one entity — that is
+[Merge sources into one entity](merge-sources.md) — but a union is the wrong tool here and
+the compiler would refuse it anyway: a merge requires the sources' key sets to be disjoint
+in one shared key space, and `C-1001` and `AC-77` are not in the same key space at all.
+Separate relations are the truer shape regardless: a step reads *inputs*, plural, and
+unioning them first would beg the question the step exists to answer.
 
 ```yaml title="entity_model.yaml"
 spec_version: 1
@@ -162,3 +164,10 @@ resolved entity like any other — it builds no relation and is asked nothing ab
 **The matching is yours.** The step in bloomery's fixture corpus is a *demonstration*:
 exact email, then a normalized-name comparison, no blocking, no tuning. Its value is the
 wiring, not the matching. A production resolver swaps the body and changes nothing else.
+
+## See also
+
+- [Merge sources into one entity](merge-sources.md) — the other half of this pair. Same key
+  space and disjoint keys is a `UNION ALL` the compiler can check; different key spaces is
+  this page. If you are unsure which you have, ask whether the two systems could ever issue
+  the *same* identifier for different things — if they could not, you want the merge.

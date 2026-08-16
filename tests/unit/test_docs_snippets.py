@@ -45,6 +45,25 @@ EXTRACTED = [
         "metrics.yaml",
         "identity_resolution/metrics.yaml",
     ),
+    # RFC 0024 §7. The union merge's how-to shows all three documents because
+    # the *whole* of what a project writes is those three — the feature's claim
+    # is that it needs no new syntax, and a page that showed only a fragment
+    # would leave a reader wondering what else was on the page it did not show.
+    (
+        "how-to/merge-sources.md",
+        "entity_model.yaml",
+        "multi_source/entity_model.yaml",
+    ),
+    (
+        "how-to/merge-sources.md",
+        "mapping_platform.yaml",
+        "multi_source/mapping_platform.yaml",
+    ),
+    (
+        "how-to/merge-sources.md",
+        "mapping_legacy.yaml",
+        "multi_source/mapping_legacy.yaml",
+    ),
 ]
 
 

@@ -158,6 +158,15 @@ a `_source_row_id` that repeats; or an `_ingested_at` that is present but does n
 to timestamp. All three are properties of the *data*, so no compiler can check them —
 which is why they are asserted at run time rather than refused at compile time.
 
+!!! note "One more blocking audit, from outside this system"
+
+    An entity built from [several mappings](../how-to/merge-sources.md) also carries a
+    generated blocking audit — `<entity>_source_collision`, which stops the run if one key
+    appears in more than one source. It is not part of the quality system and reads none of
+    its vocabulary: a merged entity carries no `quality:` rules at all for now. It is listed
+    here only because it is the other generated check that can stop a run, and a reader
+    cataloguing those should not have to find it by accident.
+
 Dedupe's order is total by construction: the recency field descending, then each
 tie-break column, then the stable `_source_row_id` — with `NULLS LAST` pinned on every
 sort key. No two rows can compare equal, so the winner is a function of the data rather

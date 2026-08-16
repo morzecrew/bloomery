@@ -31,12 +31,14 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from datetime import datetime
 from decimal import Decimal
+import logging
 import sys
 from pathlib import Path
 
 import duckdb
 import pytest
 from sqlmesh import Context
+from sqlmesh.utils.errors import PlanError
 
 import support.identity as support_identity
 from support.compiling import compile_fixture
@@ -273,6 +275,43 @@ def _verify_identity_resolution(connection: duckdb.DuckDBPyConnection) -> None:
     assert mart == (2, 2)
 
 
+def _seed_multi_source(connection: duckdb.DuckDBPyConnection) -> None:
+    """Two shops on one platform, disjoint key sets — the shape the union
+    merge is for (RFC 0024)."""
+    connection.execute("CREATE SCHEMA IF NOT EXISTS bronze")
+    connection.execute(
+        "CREATE TABLE bronze.shopify__order_lines AS SELECT * FROM (VALUES "
+        "('{\"id\": \"S1\"}', 1, '{\"sku\": \"ABC\"}', 2, '{\"gift_note\": \"hi\"}'), "
+        "('{\"id\": \"S1\"}', 2, '{\"sku\": \"DEF\"}', 1, '{}')) "
+        "AS t(\"order\", position, variant, quantity, properties)"
+    )
+    connection.execute(
+        "CREATE TABLE bronze.woo__order_lines AS SELECT * FROM (VALUES "
+        "('W7', 1, 'GHI', 5)) AS t(order_number, item_index, product_sku, qty)"
+    )
+
+
+def _verify_multi_source(connection: duckdb.DuckDBPyConnection) -> None:
+    """Three rows from two shops in one relation, each stamped with where it
+    came from.
+
+    The plan applying at all is the other half of the assertion, and the half
+    only this tier can make: the collision audit is declared blocking in the
+    MODEL block, its body addresses ``@this_model``, and SQLMesh is what
+    resolves that macro and stops the run when the audit returns rows. A
+    plan that applies is a plan where the audit ran and passed.
+    """
+    rows = connection.execute(
+        "SELECT order_id, line_no, sku, quantity, gift_note, _source "
+        "FROM silver.order_line ORDER BY order_id, line_no"
+    ).fetchall()
+    assert rows == [
+        ("S1", 1, "ABC", 2, "hi", "shopify__order_lines"),
+        ("S1", 2, "DEF", 1, None, "shopify__order_lines"),
+        ("W7", 1, "GHI", 5, None, "woo__order_lines"),
+    ]
+
+
 def _seed_coverage_check(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute("CREATE TABLE bronze.crm__customers (id VARCHAR, name VARCHAR)")
     conn.executemany(
@@ -352,6 +391,16 @@ FIXTURES: dict[str, tuple[Seeder, Verifier, frozenset[str]]] = {
         _seed_coverage_check,
         _verify_coverage_check,
         frozenset({"silver.customer", "silver.order"}),
+    ),
+    # RFC 0024 §6: the union merge, and the one thing no other tier can show —
+    # SQLMesh running the generated collision audit. The execution tier
+    # evaluates that audit's body by hand; only a real plan proves the MODEL
+    # block's `audits (...)` reference resolves, that `@this_model` resolves
+    # inside the body, and that the run is gated on the result.
+    "multi_source": (
+        _seed_multi_source,
+        _verify_multi_source,
+        frozenset({"silver.order_line"}),
     ),
     # RFC 0021 §5.1: identity resolution, which `step_resolution` cannot show
     # — two *inputs*, an `on_fail: fail` rule on a step output, and a mart over
@@ -458,6 +507,67 @@ def _importable() -> Iterator[Callable[[Path], None]]:
     ]
     for name in stale:
         del sys.modules[name]
+
+
+def test_a_key_in_two_sources_stops_the_run(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, _importable: Callable[[Path], None]
+) -> None:
+    """RFC 0024 D5, verified red on a real plan.
+
+    The execution tier evaluates the collision audit's body by hand and sees it
+    return the offending key. That proves the *query* is right and proves
+    nothing about whether anything acts on it. Only a framework running the
+    audit shows the other half — that it is blocking, that the disposition is
+    not negotiable, and that a merged entity with overlapping key sets does not
+    reach the warehouse at all.
+
+    A union whose collision audit silently passes is worse than no union: the
+    merge's whole correctness claim is that the key sets are disjoint, and
+    compilation has no data to establish it with.
+
+    The seed is the ``multi_source`` cell's plus **one row**, so the project,
+    the artifacts and the plan are identical to the passing case and the data
+    is the only variable — which is what makes this a test of the audit rather
+    than a test that something, somewhere, went wrong.
+    """
+    warehouse = tmp_path / "warehouse.db"
+    seeding = duckdb.connect(str(warehouse))
+    seeding.execute("SET TimeZone = 'UTC'")
+    seeding.execute("CREATE SCHEMA bronze")
+    _seed_multi_source(seeding)
+    # Woo now claims (S1, 1) as well — either genuine duplication or a shared
+    # key space by accident, and both are refusals.
+    seeding.execute("INSERT INTO bronze.woo__order_lines VALUES ('S1', 1, 'DUP', 9)")
+    seeding.close()
+
+    _write_project(tmp_path, "multi_source", warehouse)
+    _importable(tmp_path)
+
+    context = Context(paths=str(tmp_path))
+    try:
+        # DEBUG on the *root* logger: SQLMesh reports the failed audit from a
+        # scheduler logger of its own, and a narrower level or a named logger
+        # captures nothing.
+        with caplog.at_level(logging.DEBUG), pytest.raises(PlanError):
+            context.plan(no_prompts=True, auto_apply=True)
+    finally:
+        context.close()
+    # SQLMesh raises a generic "Plan application failed."; the audit that
+    # aborted it is named in the log rather than in the exception, and
+    # asserting on it is what stops this test passing for any other reason a
+    # plan might fail.
+    assert "order_line_source_collision" in caplog.text
+
+    # And the relation is not left behind half-built with the duplicate in it.
+    check = duckdb.connect(str(warehouse))
+    try:
+        tables = check.execute(
+            "SELECT COUNT(*) FROM duckdb_tables() WHERE schema_name = 'silver' "
+            "AND table_name = 'order_line'"
+        ).fetchone()
+        assert tables == (0,)
+    finally:
+        check.close()
 
 
 @pytest.mark.parametrize("fixture", sorted(FIXTURES))
