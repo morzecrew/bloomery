@@ -17,10 +17,18 @@ needs history.
 * **The index's next-free claim is still free.** No number at or above it is
   live or retired, since ``INDEX.md`` promises numbers are never reused and a
   stale claim is how the promise breaks.
-* **A retired row names a commit that actually retired it.** The SHA must
-  resolve and must have deleted a file matching that number under ``rfcs/``.
-  A typo'd SHA is worse than a missing row: the row reads as recoverable and
-  sends the reader to a commit that never held the document.
+* **A retired row names a commit the document can still be read at.** The SHA
+  must hold a file matching that number under ``rfcs/``, *and* be an ancestor of
+  the mainline. A typo'd SHA is worse than a missing row: the row reads as
+  recoverable and sends the reader to a commit that never held the document.
+
+  The ancestry half is not redundant with the first. It is what a fresh clone
+  can reach, and it is the half that was missing: a commit on a branch holds the
+  document and resolves perfectly on the author's machine, then the squash-merge
+  that lands the retirement discards it — so the row passes locally forever and
+  fails for everyone else. Row 0025 was exactly that, and the reason the column
+  now means "readable at" rather than "deleted in" is that the latter can only
+  ever be filled in *after* the change that is supposed to fill it in.
 
 A row that looks like a table entry and parses as nothing is reported rather
 than skipped — silently dropping it would let the table display an entry every
@@ -118,14 +126,14 @@ def _git(root: Path, *args: str) -> str | None:
     return result.stdout if result.returncode == 0 else None
 
 
-def deleted_in(sha: str, root: Path) -> set[str]:
-    """RFC numbers whose file this commit deleted under ``rfcs/``.
+def readable_at(sha: str, root: Path) -> set[str]:
+    """RFC numbers whose file exists under ``rfcs/`` at this commit.
 
-    An unreadable commit yields the empty set, which the caller reports as "did
-    not delete it" — the honest reading, since a SHA nobody can resolve is no
-    more useful to a reader following a citation than a wrong one.
+    An unreadable commit yields the empty set, which the caller reports as "does
+    not hold it" — the honest reading, since a SHA nobody can resolve is no more
+    useful to a reader following a citation than a wrong one.
     """
-    output = _git(root, "show", "--diff-filter=D", "--name-only", "--format=", sha, "--", "rfcs/")
+    output = _git(root, "ls-tree", "--name-only", sha, "rfcs/")
     if output is None:
         return set()
     return {
@@ -133,6 +141,29 @@ def deleted_in(sha: str, root: Path) -> set[str]:
         for line in output.splitlines()
         if (match := RFC_FILE.match(Path(line.strip()).name))
     }
+
+
+#: Where a fresh clone starts, in the order worth trying. ``origin/main`` is the
+#: honest reference — it is what someone cloning this repository gets — and the
+#: local branch is the fallback for a checkout with no remote. There is
+#: deliberately no fall back to ``HEAD``: on the branch of a retirement in
+#: flight, every commit of that branch is an ancestor of ``HEAD``, so the check
+#: would pass on precisely the SHA it exists to refuse.
+MAINLINE_REFS = ("origin/main", "main")
+
+
+def mainline(root: Path) -> str | None:
+    """The first resolvable mainline ref, or ``None`` when none is."""
+    return next(
+        (ref for ref in MAINLINE_REFS if _git(root, "rev-parse", "--verify", f"{ref}^{{commit}}")),
+        None,
+    )
+
+
+def on_mainline(sha: str, ref: str, root: Path) -> bool:
+    """Whether ``sha`` is an ancestor of ``ref`` — i.e. whether a fresh clone
+    can reach it at all."""
+    return _git(root, "merge-base", "--is-ancestor", sha, ref) is not None
 
 
 def history_available(root: Path) -> bool:
@@ -207,10 +238,28 @@ def check(root: Path) -> list[str]:
         return findings
 
     for number, sha in rows:
-        if number not in deleted_in(sha, root):
+        if number not in readable_at(sha, root):
             findings.append(
-                f"RETIRED.md: {number} names `{sha}`, which did not delete rfcs/{number}-*.md"
+                f"RETIRED.md: {number} names `{sha}`, which does not hold rfcs/{number}-*.md"
             )
+
+    # Reported once rather than per row: with no mainline ref every row would
+    # repeat one fact about the checkout, which buries the findings that are
+    # about the corpus.
+    ref = mainline(root)
+    if ref is None:
+        findings.append(
+            "note: no mainline ref (origin/main or main) — reachability not verified; "
+            "the checks above did run"
+        )
+        return findings
+
+    findings += [
+        f"RETIRED.md: {number} names `{sha}`, which is not an ancestor of {ref} — a fresh "
+        f"clone cannot reach it (a branch commit the squash-merge discarded, most likely)"
+        for number, sha in rows
+        if not on_mainline(sha, ref, root)
+    ]
     return findings
 
 
@@ -227,7 +276,9 @@ def main() -> int:
     if hard:
         print(
             f"\nrfc corpus: {len(hard)} problem(s). A citation is followable only if its "
-            f"number is in RETIRED.md with the commit that deleted it (RFC 0025 §5.4)."
+            f"number is in RETIRED.md against a commit that holds the document and that a "
+            f"fresh clone can reach (RFC 0025 §5.4 asked for the deleting commit; see the "
+            f"module docstring for why that one cannot be written down)."
         )
         return 1
     return 0
