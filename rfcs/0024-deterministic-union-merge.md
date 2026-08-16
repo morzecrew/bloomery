@@ -1,6 +1,13 @@
 # RFC 0024 — Deterministic union merge
 
-- **Status:** 📝 Draft — **P1 scoped by D14**: the union, its checks, the collision audit and the `multi_source` fixture, with `dedupe:` and `quarantine:` refused on a merged entity (§5.6). D8, D10 and D11 are answered by D22–D24; D14–D21 record what reading the code turned up that §3 had not. **D26 answers D25** and **D28 answers D27**: the lowered expression moves to a per-source `SourceColumnIR` while `ColumnIR` keeps the schema (§5.7), and a `direct:` path is refused on a merged entity. The surface D26 moves is enumerated and closed — **three `ColumnIR` constructors and four lowering reads** — so P1 is specified and executable in the order §5.7 → §5.1–§5.6. **D29 widens D14's boundary to `opts_in`**: §5.6 traced the row identity soundly and then generalised past it, and rule lowering turns out to be per mapping behind neither block — so P1 refuses the quality system on a merged entity rather than only its two entity-level declarations.
+- **Status:** 🚧 In progress — **P1 landed; P2 open.** The union, its compile-time checks, the collision
+  audit, `_source`, the plan-classifier rows, the `multi_source` fixture and the docs pair
+  are shipped — six departures recorded in
+  [`0024-DEVIATIONS.md`](0024-DEVIATIONS.md), drift count zero. This document stays for
+  **P2** (§12): the quality system on a merged entity, which D29 makes larger than §12
+  first estimated. Everything below describes the design as argued; the deviation log is
+  what says where the code went another way. Original scoping follows.
+- **P1 scope (as designed, D14):** the union, its checks, the collision audit and the `multi_source` fixture, with `dedupe:` and `quarantine:` refused on a merged entity (§5.6). D8, D10 and D11 are answered by D22–D24; D14–D21 record what reading the code turned up that §3 had not. **D26 answers D25** and **D28 answers D27**: the lowered expression moves to a per-source `SourceColumnIR` while `ColumnIR` keeps the schema (§5.7), and a `direct:` path is refused on a merged entity. The surface D26 moves is enumerated and closed — **three `ColumnIR` constructors and four lowering reads** — so P1 is specified and executable in the order §5.7 → §5.1–§5.6. **D29 widens D14's boundary to `opts_in`**: §5.6 traced the row identity soundly and then generalised past it, and rule lowering turns out to be per mapping behind neither block — so P1 refuses the quality system on a merged entity rather than only its two entity-level declarations.
 - **Scope:** Allowing **more than one mapping to target one entity**, merged by a
   deterministic `UNION ALL`, when the mappings agree on the entity's key and cover its
   required fields. Covers the shape where two systems describe the same kind of thing in

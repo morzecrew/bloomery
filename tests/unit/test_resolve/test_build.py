@@ -532,6 +532,81 @@ fields:
     assert "fields.kind.quality" in excinfo.value.source_path
 
 
+def test_a_mapping_lowering_a_partial_key_is_refused() -> None:
+    """§5.2 rule 1, and it needs no code of its own: `resolve.refs` enforces
+    full-key coverage per mapping, so it enforces it per branch. Pinned here
+    because the merge is what makes a partial key meaningless rather than
+    merely incomplete — a union on one is a relation whose rows cannot be told
+    apart."""
+    sources = _merge_sources(
+        entity_model=_MERGE_ENTITY_MODEL.replace(
+            "    key: [event_id]\n", "    key: [event_id, kind]\n"
+        )
+    )
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources))
+    message = str(excinfo.value)
+    assert "'kind' is not lowered by the mapping's key" in message
+    # Both mappings, not just the first: an author fixes the spec in one round.
+    assert message.count("is not lowered by the mapping's key") == 2
+
+
+def test_a_direct_path_is_refused_on_a_merged_entity() -> None:
+    """RFC 0024 D28. `direct:` is per mapping, so a merged entity can have one
+    on one source and none on another — which leaves the shadow NULL for the
+    other's rows, indistinguishable from a genuinely NULL direct value, and the
+    reconcile audit either reports a false disagreement or quietly stops
+    checking."""
+    sources = _merge_sources(
+        entity_model="""\
+spec_version: 1
+entities:
+  event:
+    grain: one row per event
+    key: [event_id]
+    fields:
+      event_id: {type: string, required: true}
+      kind: {type: string, canonical: kind}
+""",
+        mapping_z="""\
+mapping_version: 1
+source: src_a
+target: event
+key:
+  event_id: {from: "$.identifier", transform: [to_string]}
+fields:
+  kind:
+    recipe: passthrough
+    from: {value: "$.type"}
+    direct: "$.kind_direct"
+""",
+        mapping_a="""\
+mapping_version: 1
+source: src_z
+target: event
+key:
+  event_id: {from: "$.id", transform: [to_string]}
+fields:
+  kind: {from: "$.kind", transform: [to_string]}
+""",
+    )
+    catalog = load_catalog("""\
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  kind:
+    entity: event
+    type: string
+    recipes:
+      - {id: passthrough, requires: [value], expr: "value"}
+""")
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources), catalog)
+    message = str(excinfo.value)
+    assert "RFC 0024 D28" in message
+    assert "kind__direct" in message
+
+
 def test_scd_type2_is_refused_on_a_merged_entity() -> None:
     """RFC 0024 D23: the collision audit would fire on every key holding
     versions from two sources, and telling a version from a collision needs
