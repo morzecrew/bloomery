@@ -4,10 +4,11 @@
 #
 # The two shops disagree about more than column names, and that is the part
 # worth noticing. This one is a flat CSV export rather than nested JSON, it
-# bills in decimal currency rather than integer cents, and it writes SKUs in
-# lower case. None of that reaches the entity: different chains land on the
-# same typed columns, and the merged relation cannot tell which shop a row came
-# from except through the generated `_source` column.
+# bills in decimal currency rather than integer cents, it writes SKUs in lower
+# case, and it stamps rows in head-office local time with no zone attached.
+# None of that reaches the entity: four different chains land on the same four
+# typed columns, and the merged relation cannot tell which shop a row came from
+# except through the generated `_source` column.
 #
 # `gift_note` is simply absent. This shop has no such concept, so its rows carry
 # NULL for it.
@@ -28,7 +29,13 @@ fields:
   amount: {from: "$.line_amount", transform: [{to_decimal: [12, 2]}]}
   discount: {from: "$.discount_amount", transform: [{to_decimal: [12, 2]}]}
 
-  # Both shops stamp UTC, so both mappings parse and stop. A source that wrote
-  # *local* wall-clock time would need `{to_utc: <zone>}` after the parse —
-  # `examples/targets/` has one, on a CRM that writes head-office time.
-  ordered_at: {from: "$.placed_at", transform: [{parse_ts: ISO8601}]}
+  # Wall-clock time at head office, stored without a zone — the legacy shop
+  # never had a concept of one. `to_utc` is the only door into the always-UTC
+  # `timestamp` type: it states which zone the zoneless text was written in, so
+  # the two shops' timestamps become comparable instead of merely looking
+  # comparable. The platform shop already stamps UTC and needs no such step.
+  ordered_at:
+    from: "$.placed_at"
+    transform:
+      - {parse_ts: ISO8601}
+      - {to_utc: Europe/Berlin}
