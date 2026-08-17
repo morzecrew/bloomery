@@ -1,0 +1,28 @@
+# The product catalogue: a plain dimension, mapped from a plain CSV export.
+#
+# No `quality:` block anywhere in this document, and that is the point of
+# including it. The quality system is opt-in per entity: `product` gets no
+# reject table, no `_quality_flags` column, and no retention obligation,
+# because it asked for none.
+mapping_version: 1
+source: catalogue__products
+target: product
+
+key:
+  sku: {from: "$.sku", transform: [to_string, trim, upper]}
+
+fields:
+  product_name: {from: "$.name", transform: [to_string, trim]}
+  category: {from: "$.category", transform: [to_string, trim, lower]}
+  is_active: {from: "$.active", transform: [to_bool]}
+
+  # Cents to currency, with a `trim` in front because one row of the export
+  # reads ' 1250'.
+  list_price:
+    from: "$.list_price_cents"
+    transform:
+      - to_string
+      - trim
+      - {to_decimal: [12, 0]}
+      - {multiply: "0.01"}
+      - {to_decimal: [12, 2]}

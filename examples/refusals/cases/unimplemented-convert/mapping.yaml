@@ -1,0 +1,9 @@
+mapping_version: 1
+source: psp__payments
+target: payment
+key:
+  payment_id: {from: "$.id", transform: [to_string]}
+fields:
+  amount_eur: {from: "$.amount", transform: [{to_decimal: [12, 2]}]}
+  # The step that cannot be lowered.
+  amount_usd: {from: "$.amount", transform: [{to_decimal: [12, 2]}, {convert: USD}]}

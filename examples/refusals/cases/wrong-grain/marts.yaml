@@ -1,0 +1,12 @@
+# The mart is at line grain and lists an *order*-grain measure. Flattened in,
+# shipping_cost is duplicated once per line and every SUM overstates it by the
+# line count — the defect bloomery's introduction opens on.
+marts_version: 1
+marts:
+  order_items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: item_of_order, prefix: order_}
+      - {date: ordered_on, role: ordered}
+    measures: [shipping]

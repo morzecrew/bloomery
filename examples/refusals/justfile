@@ -1,0 +1,24 @@
+set quiet
+set shell := ["bash", "-cu"]
+
+[no-exit-message]
+_default:
+    echo "Six specs that look right and cannot be right."
+    echo
+    just --color=always --list | sed '1d'
+    echo
+    echo "Start here:  just show"
+
+# Walk every case: what it would have done, and what bloomery says instead
+show:
+    cd {{ justfile_directory() }}/../.. && uv run python examples/refusals/run.py
+
+# Print one case's specs: `just spec scd2-flatten`
+spec case:
+    for f in {{ justfile_directory() }}/cases/{{ case }}/*.yaml; do \
+        echo "===== $(basename "$f")"; cat "$f"; echo; \
+    done
+
+# List the cases
+list:
+    ls -1 {{ justfile_directory() }}/cases

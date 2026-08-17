@@ -1,0 +1,7 @@
+customer_id,email,segment,signed_up_at,billing_country,marketing_source
+C-001,"  Ada@Example.COM ",Consumer,2023-11-02T09:12:00,de,organic
+C-002,grace@example.com,B2B,2023-12-14T14:30:00,US,paid_search
+C-003,"LINUS@Example.com ",CONSUMER,2024-01-03T11:45:00,de,organic
+C-004,edsger@example.com,business,2024-01-20T17:05:00,nl,N/A
+C-005,barbara@example.com,,2024-02-02T08:15:00,us,referral
+C-006,alan@example.com,b2c,2024-02-18T19:40:00,gb,N/A

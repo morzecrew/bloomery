@@ -1,0 +1,10 @@
+spec_version: 1
+entities:
+  payment:
+    grain: one row per payment
+    key: [payment_id]
+    fields:
+      payment_id: {type: string, required: true}
+      amount_eur: {type: "decimal(12,2)", canonical: amount_eur}
+      amount_usd: {type: "decimal(12,2)", canonical: amount_usd}
+      amount_total: {type: "decimal(12,2)", canonical: amount_total}

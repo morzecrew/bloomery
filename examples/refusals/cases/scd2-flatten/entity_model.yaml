@@ -1,0 +1,26 @@
+# A customer dimension that keeps history, and orders that point at it.
+# `scd: type2` is the only line that matters here — remove it and this project
+# compiles.
+spec_version: 1
+entities:
+  customer:
+    grain: one row per customer
+    key: [customer_id]
+    scd: type2
+    fields:
+      customer_id: {type: string, required: true}
+      segment: {type: string}
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      customer_id: {type: string, required: true}
+      amount: {type: "decimal(12,2)"}
+      order_date: {type: date}
+relationships:
+  - name: order_of_customer
+    from: order
+    to: customer
+    via: {customer_id: customer_id}
+    cardinality: many_to_one

@@ -1,0 +1,7 @@
+metrics_version: 1
+metrics:
+  shipping:
+    grain: order
+    additivity: additive
+    agg: sum
+    expr: "shipping_cost"

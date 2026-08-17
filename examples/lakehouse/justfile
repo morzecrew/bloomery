@@ -1,0 +1,95 @@
+set quiet
+set shell := ["bash", "-cu"]
+
+_compose := "docker compose -f " + justfile_directory() + "/compose.yaml"
+_trino := "docker exec -i bloomery-lakehouse-trino-1 trino"
+
+[no-exit-message]
+_default:
+    echo "The lakehouse example — bloomery against Iceberg, via Lakekeeper and Trino."
+    echo
+    just --color=always --list | sed '1d'
+    echo
+    echo "Start here:  just demo"
+
+# Everything: stack up, bronze seeded, specs compiled and built, results printed
+demo: up seed run
+
+# Bring the stack up and wait for every service to report healthy
+up:
+    echo "▶ starting lakekeeper + postgres + minio + trino (first run pulls images)"
+    {{ _compose }} up -d --wait
+
+# Load the bronze tables the mappings read, from the files in seed/
+seed:
+    echo "▶ seeding bronze from seed/"
+    cd {{ justfile_directory() }}/../.. && uv run python examples/lakehouse/seed.py | {{ _trino }} -f /dev/stdin
+
+# Print the SQL `just seed` would run, without running it
+seed-sql:
+    cd {{ justfile_directory() }}/../.. && uv run python examples/lakehouse/seed.py
+
+# Rebuild every model against the current bronze data.
+#
+# `run` plans, and SQLMesh plans on *model* changes — so editing bronze and
+# re-running correctly does nothing. Restating is how you ask for the rebuild,
+# and it is also what makes the generated audits run again.
+rebuild:
+    cd {{ justfile_directory() }}/out && uv run sqlmesh plan --auto-apply --restate-model 'silver.*' --restate-model 'gold.*'
+
+# Compile the specs, build them with SQLMesh, print what landed
+run:
+    cd {{ justfile_directory() }}/../.. && uv run python examples/lakehouse/run.py
+
+# Open a Trino shell against the lakehouse
+shell:
+    docker exec -it bloomery-lakehouse-trino-1 trino
+
+# Show a table: `just query iceberg.silver.order_line`
+query relation:
+    {{ _trino }} --execute "SELECT * FROM {{ relation }}"
+
+# Give both shops one key, so the blocking collision audit refuses the build.
+# This is the claim worth not taking on faith — see README.md.
+#
+# The recipe demands the *expected* failure rather than merely tolerating any
+# failure. A bare `|| true` would print "that failure is the feature" when the
+# stack was down, when the project would not compile, or when the audit had
+# quietly stopped being generated — turning the one demonstration this example
+# exists for into something that cannot fail and therefore shows nothing.
+break-it:
+    echo "▶ inserting a woo line whose key already exists in shopify"
+    {{ _trino }} --execute "INSERT INTO iceberg.bronze.woo__order_lines VALUES ('SH-1001', '1', 'C-001', 'SKU-DUP', '1', '9.99', '0.00', '2026-03-01 00:00:00')"
+    echo "▶ rebuilding silver.order_line — the audit should stop this"
+    cd {{ justfile_directory() }}/out || exit 1; \
+    plan=$(uv run sqlmesh plan --auto-apply --restate-model 'silver.order_line' 2>&1); \
+    status=$?; \
+    printf '%s\n' "$plan" | tail -25; \
+    if [ "$status" -eq 0 ]; then \
+        echo; \
+        echo "✗ the plan SUCCEEDED. The collision audit did not stop a key claimed by"; \
+        echo "  both shops, which is the one thing this recipe exists to show."; \
+        echo "  Undo the insert with: just fix-it"; \
+        exit 1; \
+    fi; \
+    if ! printf '%s' "$plan" | grep -q 'order_line_source_collision'; then \
+        echo; \
+        echo "✗ the plan failed, but not on the collision audit — see the output above."; \
+        echo "  Undo the insert with: just fix-it"; \
+        exit 1; \
+    fi; \
+    echo; \
+    echo "That failure is the feature. Undo it with: just fix-it"
+
+# Undo `break-it` and rebuild cleanly
+fix-it:
+    {{ _trino }} --execute "DELETE FROM iceberg.bronze.woo__order_lines WHERE product_sku = 'SKU-DUP'"
+    cd {{ justfile_directory() }}/out && uv run sqlmesh plan --auto-apply --restate-model 'silver.order_line'
+
+# Tear the stack down. Every service is tmpfs-backed, so nothing survives.
+down:
+    {{ _compose }} down -v
+
+# Follow the logs of one service: `just logs lakekeeper`
+logs service="":
+    {{ _compose }} logs -f {{ service }}

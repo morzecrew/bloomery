@@ -1,0 +1,9 @@
+mapping_version: 1
+source: psp__payments
+target: payment
+key:
+  payment_id: {from: "$.id", transform: [to_string]}
+fields:
+  amount_eur: {from: "$.eur", transform: [{to_decimal: [12, 2]}]}
+  amount_usd: {from: "$.usd", transform: [{to_decimal: [12, 2]}]}
+  amount_total: {recipe: summed, from: {amount_eur: "$.eur", amount_usd: "$.usd"}}

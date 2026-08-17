@@ -243,3 +243,4 @@ coverage-data/
 # its own under tmp_path and never writes into the repo.
 *.duckdb
 *.duckdb.wal
+

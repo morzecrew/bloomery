@@ -1,0 +1,11 @@
+# The mart that would silently return a wrong number: flattening a historical
+# dimension joins every order to *every version* of its customer.
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    flatten:
+      - {via: order_of_customer, prefix: customer_}
+      - {date: order_date, role: ordered}
+    measures: [revenue]

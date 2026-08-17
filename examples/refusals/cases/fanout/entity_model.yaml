@@ -1,0 +1,25 @@
+# The relationship is declared `one_to_many`: one order, many customers. That
+# is what the flatten below walks, and walking it multiplies every order row by
+# however many customers it matches.
+spec_version: 1
+entities:
+  customer:
+    grain: one row per customer
+    key: [customer_id]
+    fields:
+      customer_id: {type: string, required: true}
+      segment: {type: string}
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      customer_id: {type: string, required: true}
+      amount: {type: "decimal(12,2)"}
+      order_date: {type: date}
+relationships:
+  - name: order_of_customer
+    from: order
+    to: customer
+    via: {customer_id: customer_id}
+    cardinality: one_to_many

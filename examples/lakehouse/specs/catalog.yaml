@@ -1,0 +1,31 @@
+# The vertical catalog: the canonical money field, the metric template built on
+# it, and the date dimension that becomes gold.dim_date.
+#
+# `entity: order_line` is what binds `amount` to a real column later — a
+# canonical field names the entity it belongs to, and the entity model's
+# `canonical: amount` is the other half of that link.
+catalog_version: 1
+vertical: ecom_retail
+
+canonical_fields:
+  amount:
+    entity: order_line
+    type: decimal(12,2)
+    unit: currency
+    tax_basis: net
+    recipes:
+      - {id: direct, requires: [amount]}
+
+metric_templates:
+  revenue:
+    requires: [amount]
+    grain: order_line
+    additivity: additive
+    agg: sum
+    expr: "amount"
+
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2023
+  end_year: 2026

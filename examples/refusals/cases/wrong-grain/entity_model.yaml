@@ -1,0 +1,25 @@
+# An order and its lines. `shipping_cost` is charged once per *order*; the mart
+# below is at line grain.
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      shipping_cost: {type: "decimal(12,2)"}
+      order_date: {type: date}
+  order_item:
+    grain: one row per line on an order
+    key: [order_id, line_no]
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      line_total: {type: "decimal(12,2)"}
+      ordered_on: {type: date}
+relationships:
+  - name: item_of_order
+    from: order_item
+    to: order
+    via: {order_id: order_id}
+    cardinality: many_to_one

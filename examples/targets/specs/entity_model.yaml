@@ -1,0 +1,76 @@
+# One spec set, compiled to three targets.
+#
+# Deliberately free of union merge, quarantine, reconcile and coverage: each of
+# those is refused on dbt for a stated reason, and this example is about what
+# all three targets *do* support. `examples/refusals/` shows one of those
+# refusals, and `examples/lakehouse/` shows the same project with them turned on.
+#
+# Three entities, three sources, two relationships. The shape a small retailer
+# actually has: a storefront emitting nested JSON events, a CRM exporting CSV,
+# and a product catalogue exported from somewhere else again.
+spec_version: 1
+
+entities:
+  # ....................... #
+  # The CRM's view of a person. Every field here needs cleaning before it is
+  # comparable — see `mapping_customers.yaml`.
+  customer:
+    grain: one row per customer
+    key: [customer_id]
+    fields:
+      customer_id: {type: string, required: true}
+      email: {type: string}
+      # Cleaned to exactly two values by the mapping's `enum_map`, so it is
+      # safe to group by. The raw column has five spellings.
+      segment: {type: string}
+      billing_country: {type: string}
+      marketing_source: {type: string}
+      signed_up_at: {type: timestamp}
+
+  # ....................... #
+  # The product catalogue. A dimension the storefront never sends: the event
+  # carries a SKU, and everything else about the product is joined in.
+  product:
+    grain: one row per sellable SKU
+    key: [sku]
+    fields:
+      sku: {type: string, required: true}
+      product_name: {type: string}
+      category: {type: string}
+      list_price: {type: "decimal(12,2)"}
+      is_active: {type: bool}
+
+  # ....................... #
+  # The storefront's order events. One event per order, and the interesting
+  # part is that almost every field below is read out of a *nested* JSON
+  # payload rather than out of a column — `$.payload.totals.gross_cents`
+  # lowers to JSON extraction off the physical `payload` column.
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      customer_id: {type: string, required: true}
+      sku: {type: string, required: true}
+      quantity: {type: int}
+      amount: {type: "decimal(12,2)", canonical: amount}
+      ship_country: {type: string}
+      channel: {type: string}
+      # Present on three events out of fourteen. A JSON key that is absent
+      # extracts as NULL, which is the whole reason optional data belongs in
+      # the payload rather than in a column nobody fills.
+      note: {type: string}
+      ordered_at: {type: timestamp, assert: {not_null: true}}
+
+relationships:
+  - name: order_of_customer
+    from: order
+    to: customer
+    via: {customer_id: customer_id}
+    cardinality: many_to_one
+
+  - name: order_of_product
+    from: order
+    to: product
+    via: {sku: sku}
+    cardinality: many_to_one

@@ -1,0 +1,42 @@
+# The product catalogue, cleaned.
+#
+# The money column is the one to look at: prices arrive as integer cents,
+# which is how every payment system stores them, and the chain converts them
+# by *multiplying by 0.01* rather than dividing by 100. That is not a
+# stylistic choice — see the note below.
+mapping_version: 1
+source: catalogue__products
+target: product
+
+key:
+  sku: {from: "$.sku", transform: [to_string, trim, upper]}
+
+fields:
+  product_name:
+    from: "$.name"
+    transform: [to_string, trim]
+
+  # 'Apparel', 'apparel', 'OUTERWEAR' — one taxonomy, three shift keys.
+  category:
+    from: "$.category"
+    transform: [to_string, trim, lower]
+
+  # Cents to currency. `multiply: 0.01` rather than `divide: 100` because the
+  # two are not equivalent on every engine: DuckDB's decimal division promotes
+  # its result to DOUBLE, while decimal multiplication stays exact. A money
+  # column that silently becomes a float is precisely the defect this project
+  # bans in its own IR, so the chain avoids it in the SQL it emits too.
+  #
+  # The leading `trim` is there because one row in the CSV reads ' 1250'.
+  list_price:
+    from: "$.list_price_cents"
+    transform:
+      - to_string
+      - trim
+      - {to_decimal: [12, 0]}
+      - {multiply: "0.01"}
+      - {to_decimal: [12, 2]}
+
+  is_active:
+    from: "$.active"
+    transform: [to_bool]

@@ -31,3 +31,70 @@ uv run python examples/quickstart/run.py
 
 The [Quickstart](https://morzecrew.github.io/bloomery/get-started/quickstart/)
 page walks through the same project step by step.
+
+## lakehouse/
+
+The compiler against a real lakehouse: eight spec documents compiled to SQLMesh
+artifacts, built into Apache Iceberg tables through a [Lakekeeper](https://lakekeeper.io)
+REST catalog over MinIO, queried by Trino. Four containers, one command.
+
+It shows the things a fixture cannot: a **union merge** — two shops that agree
+about nothing, one `order_line` entity, a `_source` column, and the *blocking*
+collision audit that stops the build if their key sets ever overlap — and the
+**quality system**, where a bad row is flagged and kept, a duplicated key is
+resolved by declared policy, and a row whose cast fails is diverted to a reject
+table with its raw payload rather than silently nulled.
+
+Bronze comes from `seed/`: a nested JSON event stream, two CSV exports, and a
+CRM snapshot with real mess in it. Every source is printed before and after its
+mapping, so the declared cleansing is visible as an effect.
+
+```bash
+cd examples/lakehouse
+just demo
+```
+
+See [`lakehouse/README.md`](lakehouse/README.md), which also shows how to break
+the collision audit on purpose and watch the plan refuse to publish.
+
+## refusals/
+
+Six specs that look right and cannot be right, and what bloomery says about
+each. No containers and no setup — every case is decided at compile time.
+
+Four of the six would run fine in a hand-written dbt or SQL project and return
+rows that are silently wrong: a dimension that keeps history flattened into a
+mart, an order-grain cost duplicated per line, a `one_to_many` flatten, EUR
+added to USD. The other two are unsupported rather than wrong, and say which
+target does support them.
+
+```bash
+cd examples/refusals
+just show
+```
+
+See [`refusals/README.md`](refusals/README.md).
+
+## targets/
+
+One spec set compiled to all three targets and each one actually run: SQLMesh
+and dbt both build the mart, **their results are compared row for row**, two
+planned metric requests are executed against the warehouse they built, and Cube
+serves the same numbers over its REST API.
+
+The comparison is the point. A dialect port claims that two frameworks given one
+spec produce one answer; this measures it rather than asserting it. Only Cube
+needs a container — `dbt-duckdb` and SQLMesh run in-process.
+
+Bronze comes from `seed/`: a nested JSON event stream and two CSV exports, none
+of it clean. The mappings do the cleaning with declared transform chains —
+`enum_map`, `nullif`, `strip_prefix`, cents-to-currency, a zone conversion — and
+the run prints every source before and after so the chains are visible as an
+effect rather than as YAML.
+
+```bash
+cd examples/targets
+just demo
+```
+
+See [`targets/README.md`](targets/README.md).

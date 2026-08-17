@@ -479,6 +479,19 @@ ignore_notebooks = true
 # a dependency surface. Excluded so the quality gate tracks src/ only.
 extend_exclude = ["spikes"]
 
+# `examples/` is documentation that runs. The two container-backed examples
+# drive the warehouse they build — `duckdb` to seed and read it back — and that
+# is a *dev-environment* import, not a package one: `src/bloomery` never touches
+# either, which is the surface this gate exists to protect.
+#
+# Scoped to DEP004 and to the one module rather than excluding `examples/`
+# wholesale, so every other deptry rule still reads those files. `run.py` in
+# `quickstart/` and `refusals/` imports nothing but bloomery and the standard
+# library, and the SQLMesh and dbt CLIs are shelled out to rather than imported
+# for exactly this reason — the exception stays one module wide.
+[tool.deptry.per_rule_ignores]
+DEP004 = ["duckdb"]
+
 # jinja2 (emit, M2) has landed alongside pydantic/pyyaml (spec, M1) and
 # sqlglot (ir, M1); no scaffold-time ignores remain.
 
