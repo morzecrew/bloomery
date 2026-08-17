@@ -1,0 +1,61 @@
+set quiet
+set shell := ["bash", "-cu"]
+
+_compose := "docker compose -f " + justfile_directory() + "/compose.yaml"
+_trino := "docker exec -i bloomery-lakehouse-trino-1 trino"
+
+[no-exit-message]
+_default:
+    echo "The lakehouse example — bloomery against Iceberg, via Lakekeeper and Trino."
+    echo
+    just --color=always --list | sed '1d'
+    echo
+    echo "Start here:  just demo"
+
+# Everything: stack up, bronze seeded, specs compiled and built, results printed
+demo: up seed run
+
+# Bring the stack up and wait for every service to report healthy
+up:
+    echo "▶ starting lakekeeper + postgres + minio + trino (first run pulls images)"
+    {{ _compose }} up -d --wait
+
+# Load the bronze tables the mappings read
+seed:
+    echo "▶ seeding bronze"
+    {{ _trino }} -f /dev/stdin < {{ justfile_directory() }}/seed.sql
+
+# Compile the specs, build them with SQLMesh, print what landed
+run:
+    cd {{ justfile_directory() }}/../.. && uv run python examples/lakehouse/run.py
+
+# Open a Trino shell against the lakehouse
+shell:
+    docker exec -it bloomery-lakehouse-trino-1 trino
+
+# Show a table: `just query iceberg.silver.order_line`
+query relation:
+    {{ _trino }} --execute "SELECT * FROM {{ relation }}"
+
+# Give both shops one key, so the blocking collision audit refuses the build.
+# This is the claim worth not taking on faith — see README.md.
+break-it:
+    echo "▶ inserting a woo line whose key already exists in shopify"
+    {{ _trino }} --execute "INSERT INTO iceberg.bronze.woo__order_lines VALUES ('SH-1001', BIGINT '1', 'C-001', 'SKU-DUP', BIGINT '1', DECIMAL '9.99', '2026-03-01 00:00:00')"
+    echo "▶ rebuilding silver.order_line — the audit should stop this"
+    cd {{ justfile_directory() }}/out && uv run sqlmesh plan --auto-apply --restate-model 'silver.order_line' || true
+    echo
+    echo "That failure is the feature. Undo it with: just fix-it"
+
+# Undo `break-it` and rebuild cleanly
+fix-it:
+    {{ _trino }} --execute "DELETE FROM iceberg.bronze.woo__order_lines WHERE product_sku = 'SKU-DUP'"
+    cd {{ justfile_directory() }}/out && uv run sqlmesh plan --auto-apply --restate-model 'silver.order_line'
+
+# Tear the stack down. Every service is tmpfs-backed, so nothing survives.
+down:
+    {{ _compose }} down -v
+
+# Follow the logs of one service: `just logs lakekeeper`
+logs service="":
+    {{ _compose }} logs -f {{ service }}

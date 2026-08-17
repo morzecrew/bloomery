@@ -244,5 +244,3 @@ coverage-data/
 *.duckdb
 *.duckdb.wal
 
-# The lakehouse example's compiled SQLMesh project and local state.
-examples/lakehouse/out/
