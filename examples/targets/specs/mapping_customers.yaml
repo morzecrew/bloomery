@@ -1,7 +1,57 @@
+# The CRM export, cleaned.
+#
+# This is the mapping worth reading closely: every chain below exists because
+# the raw column is unusable as it stands, and the chain is *declared* rather
+# than written as SQL. Compare `seed/customers.csv` line by line.
 mapping_version: 1
 source: crm__customers
 target: customer
+
 key:
-  customer_id: {from: "$.id", transform: [to_string]}
+  customer_id: {from: "$.customer_id", transform: [to_string]}
+
 fields:
-  segment: {from: "$.segment", transform: [to_string]}
+  # '  Ada@Example.COM ' and 'LINUS@Example.com ' are the same kind of value as
+  # 'grace@example.com'; only after trim + lower do they compare equal.
+  email:
+    from: "$.email"
+    transform: [to_string, trim, lower]
+
+  # Five spellings, two meanings. `enum_map` folds the aliases and passes
+  # everything else through unchanged: deciding what to do with a value
+  # *outside* the map is a quality rule's job, not a chain's. C-005 has no
+  # segment at all, which is why `coalesce` closes the chain — an unknown
+  # segment is a value you can group by, and a NULL is a hole in a report.
+  segment:
+    from: "$.segment"
+    transform:
+      - to_string
+      - trim
+      - lower
+      - {enum_map: [b2b, business, b2c, consumer]}
+      - {coalesce: unknown}
+
+  # 'de' and 'US' are one country code written two ways.
+  billing_country:
+    from: "$.billing_country"
+    transform: [to_string, trim, upper]
+
+  # 'N/A' is a string that means "no value" — which is not the same thing as
+  # a value, and `nullif` is the one transform that says so.
+  marketing_source:
+    from: "$.marketing_source"
+    transform:
+      - to_string
+      - trim
+      - lower
+      - {nullif: "n/a"}
+      - {coalesce: unknown}
+
+  # The CRM writes wall-clock time at head office and stores no zone with it.
+  # `to_utc` is the only door into the always-UTC `timestamp` type: it says
+  # which zone the zoneless text was written in.
+  signed_up_at:
+    from: "$.signed_up_at"
+    transform:
+      - {parse_ts: ISO8601}
+      - {to_utc: Europe/Berlin}

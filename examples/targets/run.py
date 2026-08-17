@@ -8,24 +8,31 @@ compare bytes, and the e2e tier checks each framework accepts them. What no test
 shows a person is the thing running: dbt actually building tables, Cube actually
 answering a question, the planner's SQL actually returning a number.
 
-So this example takes one project and drives it all the way through each target
-against the same DuckDB file:
+So this example takes one project — a small retailer with three real sources —
+and drives it all the way through each target:
 
-1. **Seed** three bronze tables — the sources the mappings read.
-2. **SQLMesh** — compile, `sqlmesh plan --auto-apply`, query the mart.
-3. **dbt** — compile, `dbt build`, query the mart dbt built.
-4. **Compare** the two marts row for row. Same specs, two frameworks, one
+1. **Seed** bronze from `seed/`: a CRM CSV export, a product-catalogue CSV, and
+   a storefront's newline-delimited JSON events. Nothing is cleaned on the way
+   in; bronze holds what the sources sent.
+2. **Cleanse**, and show it. The mappings declare transform chains — trim,
+   lower, `enum_map`, `nullif`, `strip_prefix`, cents-to-currency — and the
+   run prints the same rows before and after so the chains are visible as an
+   effect rather than as YAML.
+3. **SQLMesh** — compile, `sqlmesh plan --auto-apply`, query the mart.
+4. **dbt** — compile, `dbt build`, query the mart dbt built.
+5. **Compare** the two marts row for row. Same specs, two frameworks, one
    answer — which is the port abstraction's whole claim, stated as a number
    rather than as prose.
-5. **Plan a metric request** and *execute* it, so the planner is shown serving
-   a question rather than printing SQL nobody runs.
+6. **Plan metric requests** and *execute* them, including a ratio metric that
+   is never stored and is recomputed from its additive parts at whatever grain
+   the question is asked at.
 
 Cube needs a container and lives in `just cube`; see the README.
 
 **Each framework gets its own copy of the warehouse**, seeded identically. Both
 place their mart at `gold.mart_orders`, so sharing one file would mean whichever
 ran second silently overwrote the other and the comparison would be measuring
-one framework twice. Separate files are what make step 4 mean anything.
+one framework twice. Separate files are what make step 5 mean anything.
 """
 
 from __future__ import annotations
@@ -52,6 +59,7 @@ from bloomery.spec import Catalog, Project
 
 HERE = Path(__file__).parent
 SPECS = HERE / "specs"
+SEED = HERE / "seed"
 OUT = HERE / "out"
 SQLMESH_DB = OUT / "warehouse-sqlmesh.duckdb"
 DBT_DB = OUT / "warehouse-dbt.duckdb"
@@ -82,23 +90,85 @@ bloomery:
       schema: dbt
 """
 
-#: The bronze layer both frameworks read. Column names are the ones the mappings
-#: name in their `from:` — that correspondence is the entire contract between a
-#: source table and a mapping.
-SEED = """
+#: The bronze layer, built from `seed/` exactly as the sources shipped it.
+#:
+#: `all_varchar=true` on the CSVs is the honest setting, not a convenience:
+#: bronze is landed text, and every cast in this project belongs to a mapping's
+#: declared transform chain rather than to whatever a loader guessed. Letting
+#: DuckDB infer `list_price_cents` as an integer would quietly do a mapping's
+#: job and hide the ' 1250' that the `trim` step exists for.
+#:
+#: The events land the same way. `read_json_objects` hands back each line's raw
+#: JSON text; the four top-level keys become columns and `payload` stays a JSON
+#: *string* — which is what a webhook landing table actually looks like, and
+#: what makes `$.payload.totals.gross_cents` in the mapping a JSON extraction
+#: off a physical column rather than a pre-shredded field.
+SEED_SQL = """
 CREATE SCHEMA IF NOT EXISTS bronze;
+
 CREATE OR REPLACE TABLE bronze.crm__customers AS
-  SELECT * FROM (VALUES
-    ('C-001', 'consumer'), ('C-002', 'business'), ('C-003', 'consumer')
-  ) AS t(id, segment);
-CREATE OR REPLACE TABLE bronze.shop__orders AS
-  SELECT * FROM (VALUES
-    ('O-1', 'C-001', 42.50, DATE '2024-01-12'),
-    ('O-2', 'C-002', 17.25, DATE '2024-01-19'),
-    ('O-3', 'C-001',  8.00, DATE '2024-02-03'),
-    ('O-4', 'C-003', 99.99, DATE '2024-02-27')
-  ) AS t(id, customer_id, amount, created_at);
+  SELECT * FROM read_csv('{seed}/customers.csv', header = true, all_varchar = true);
+
+CREATE OR REPLACE TABLE bronze.catalogue__products AS
+  SELECT * FROM read_csv('{seed}/products.csv', header = true, all_varchar = true);
+
+CREATE OR REPLACE TABLE bronze.shop__order_events AS
+  SELECT
+    json_extract_string(json, '$.event_id')    AS event_id,
+    json_extract_string(json, '$.order_ref')   AS order_ref,
+    json_extract_string(json, '$.occurred_at') AS occurred_at,
+    json_extract_string(json, '$.payload')     AS payload
+  FROM read_json_objects('{seed}/order_events.jsonl', format = 'newline_delimited');
 """
+
+MART = (
+    "SELECT ordered_month, customer_segment, product_category, "
+    "count(*) AS orders, sum(quantity) AS units, sum(amount) AS revenue "
+    "FROM gold.mart_orders GROUP BY 1, 2, 3 ORDER BY 1, 2, 3"
+)
+
+#: (headline, bronze query, silver query) — the same rows, either side of the
+#: transform chains. Printed so the cleansing is visible as an effect.
+CLEANSING = (
+    (
+        "customers: five spellings of two segments, and an email nobody can join on",
+        "SELECT customer_id, email, segment, marketing_source "
+        "FROM bronze.crm__customers ORDER BY customer_id",
+        "SELECT customer_id, email, segment, marketing_source "
+        "FROM silver.customer ORDER BY customer_id",
+    ),
+    (
+        "products: prices in integer cents, categories in three shift keys",
+        "SELECT sku, category, list_price_cents FROM bronze.catalogue__products ORDER BY sku",
+        "SELECT sku, category, list_price FROM silver.product ORDER BY sku",
+    ),
+    (
+        "orders: one JSON payload column in, eight typed columns out",
+        "SELECT order_ref, payload FROM bronze.shop__order_events ORDER BY order_ref LIMIT 2",
+        "SELECT order_id, customer_id, sku, quantity, amount, ship_country, channel, note "
+        'FROM silver."order" ORDER BY order_id LIMIT 2',
+    ),
+    (
+        "channels: five raw spellings and one empty string, folded to four names",
+        "SELECT DISTINCT payload ->> '$.channel' AS raw "
+        "FROM bronze.shop__order_events ORDER BY raw",
+        'SELECT DISTINCT channel FROM silver."order" ORDER BY channel',
+    ),
+)
+
+#: (metrics, dimensions, what the request is for).
+REQUESTS = (
+    (
+        ("revenue", "order_count"),
+        ("ordered_month", "customer_segment"),
+        "two additive metrics, grouped two ways",
+    ),
+    (
+        ("average_order_value",),
+        ("product_category",),
+        "a ratio: never stored, recomputed here from revenue and order_count",
+    ),
+)
 
 
 def load_specs() -> tuple[Project, Catalog]:
@@ -146,7 +216,7 @@ def seed(database: Path) -> None:
     """A fresh warehouse holding only the bronze the mappings read."""
     database.unlink(missing_ok=True)
     with duckdb.connect(str(database)) as connection:
-        connection.execute(SEED)
+        connection.execute(SEED_SQL.format(seed=SEED.as_posix()))
 
 
 def show(database: Path, title: str, query: str) -> list[tuple[object, ...]]:
@@ -157,17 +227,21 @@ def show(database: Path, title: str, query: str) -> list[tuple[object, ...]]:
     return result
 
 
-MART = (
-    "SELECT ordered_month, customer_segment, count(*) AS orders, "
-    "sum(amount) AS revenue FROM gold.mart_orders GROUP BY 1, 2 ORDER BY 1, 2"
-)
+def show_cleansing(database: Path) -> None:
+    """The transform chains, printed as an effect rather than as YAML."""
+    for headline, before, after in CLEANSING:
+        print(f"\n  {headline}")
+        for label, query in (("bronze", before), ("silver", after)):
+            print(f"    {label}")
+            for row in rows(database, query):
+                print(f"      {row}")
 
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     project, catalog = load_specs()
 
-    print("seeding bronze into a fresh warehouse for each target")
+    print("seeding bronze from seed/ into a fresh warehouse for each target")
     seed(SQLMESH_DB)
     seed(DBT_DB)
 
@@ -177,6 +251,9 @@ def main() -> None:
     (sqlmesh_root / "config.yaml").write_text(SQLMESH_CONFIG.format(database=SQLMESH_DB))
     shell("sqlmesh", "plan", "--auto-apply", "--no-prompts", cwd=sqlmesh_root)
     from_sqlmesh = show(SQLMESH_DB, "gold.mart_orders, built by SQLMesh", MART)
+
+    print("\n─── what the mappings cleaned " + "─" * 37)
+    show_cleansing(SQLMESH_DB)
 
     print("\n─── dbt " + "─" * 59)
     dbt_root = OUT / "dbt"
@@ -205,15 +282,16 @@ def main() -> None:
     print("\n─── the planner " + "─" * 51)
     naming = DefaultNaming()
     planner = MetricFlowPlanner(LruManifestHydrator(naming), naming=naming)
-    plan = planner.plan(
-        build_project_ir(project, catalog=catalog),
-        MetricRequest(metrics=("revenue",), dimensions=("ordered_month",)),
-        dialect="duckdb",
-    )
-    print(textwrap.indent(plan.sql, "  "))
-    print("  executed against the warehouse the targets just built:")
-    for row in rows(SQLMESH_DB, plan.sql):
-        print(f"    {row}")
+    ir = build_project_ir(project, catalog=catalog)
+    for metrics, dimensions, note in REQUESTS:
+        print(f"\n  {', '.join(metrics)} by {', '.join(dimensions)} — {note}")
+        plan = planner.plan(
+            ir, MetricRequest(metrics=metrics, dimensions=dimensions), dialect="duckdb"
+        )
+        print(textwrap.indent(plan.sql, "    "))
+        print("    executed against the warehouse the targets just built:")
+        for row in rows(SQLMESH_DB, plan.sql):
+            print(f"      {row}")
 
 
 if __name__ == "__main__":

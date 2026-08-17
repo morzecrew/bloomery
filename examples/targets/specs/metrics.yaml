@@ -1,11 +1,34 @@
-# The project's metrics: one instantiated from the catalog template, one
-# fully inline. Every metric declares grain and additivity.
+# The project's metrics: one from the catalog template, two inline, and one
+# derived from the others. Every metric declares its grain and its additivity,
+# because those are what let a mart be aggregated without being wrong.
 metrics_version: 1
+
 metrics:
+  # Instantiated from the vertical catalog's `revenue` template, which is what
+  # carries the monetary metadata (unit, tax basis) with it.
   revenue:
     template: revenue
+
   order_count:
+    description: Orders placed, counted once each.
     grain: order
     additivity: additive
     agg: count
     expr: "order_id"
+
+  units:
+    description: Items shipped, summed across orders.
+    grain: order
+    additivity: additive
+    agg: sum
+    expr: "quantity"
+
+  # A ratio is *not* additive: the average of two averages is not the average.
+  # Declaring it as a numerator over a denominator is what lets it be
+  # re-derived correctly at whatever grain the question is asked at, instead
+  # of being averaged from a column that was already averaged.
+  average_order_value:
+    description: Revenue per order — recomputed at every grain, never averaged.
+    grain: order
+    additivity: non_additive
+    ratio: {numerator: revenue, denominator: order_count}

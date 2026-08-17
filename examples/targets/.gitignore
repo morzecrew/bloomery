@@ -1,1 +1,3 @@
+# The compiled projects for all three targets, and the two DuckDB warehouses
+# `run.py` seeds. All generated — the specs and `seed/` beside them are source.
 out/

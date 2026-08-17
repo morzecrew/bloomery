@@ -1,11 +1,66 @@
-# How the bronze source becomes the order entity: key lowering plus one
-# transform chain per field, drawn from the closed transform whitelist.
+# The storefront's order events, flattened.
+#
+# The bronze table has four columns — `event_id`, `order_ref`, `occurred_at`
+# and `payload` — and `payload` holds the whole nested event as JSON. That is
+# what a webhook landing table really looks like, and it is why the `from:`
+# paths below have three segments.
+#
+# The bronze contract (RFC 0002 §5.5): the **first** segment of a path is a
+# physical column, and everything after it is JSON extraction off that column.
+# So `$.payload.totals.gross_cents` lowers to
+# `JSON_EXTRACT_SCALAR(payload, '$.totals.gross_cents')` — one column read, one
+# path, no dependency on how the ingester happened to shred the event.
 mapping_version: 1
-source: shop__orders
+source: shop__order_events
 target: order
+
 key:
-  order_id: {from: "$.id", transform: [to_string]}
+  # 'ORD-000101' is a display reference, not an identifier; the ledger keys on
+  # the number. `strip_prefix` removes exactly the prefix given, and leaves a
+  # value that never had it alone.
+  order_id:
+    from: "$.order_ref"
+    transform: [to_string, {strip_prefix: "ORD-"}]
+
 fields:
-  customer_id: {from: "$.customer_id", transform: [to_string]}
-  amount: {from: "$.amount", transform: [{to_decimal: [12, 2]}]}
-  order_date: {from: "$.created_at", transform: [{parse_date: ISO8601}]}
+  customer_id: {from: "$.payload.customer.ref", transform: [to_string]}
+  sku: {from: "$.payload.item.sku", transform: [to_string, trim, upper]}
+  quantity: {from: "$.payload.item.quantity", transform: [to_int]}
+
+  # Same cents-to-currency conversion as the catalogue's `list_price`, and the
+  # same reason for `multiply: 0.01` — see `mapping_products.yaml`.
+  amount:
+    from: "$.payload.totals.gross_cents"
+    transform:
+      - {to_decimal: [12, 0]}
+      - {multiply: "0.01"}
+      - {to_decimal: [12, 2]}
+
+  ship_country:
+    from: "$.payload.shipping.country"
+    transform: [to_string, trim, upper]
+
+  # The storefront names its own channels; the warehouse names them once.
+  # Values outside the map pass through, so a channel added tomorrow appears
+  # under its raw name rather than vanishing.
+  #
+  # One event carries `"channel": ""`. An empty string is not a value, it is a
+  # field the storefront failed to fill, and `nullif` is the one transform that
+  # says so — without it the mart would grow a silent '' category that groups
+  # separately from every real channel and reads as a channel in a chart.
+  channel:
+    from: "$.payload.channel"
+    transform:
+      - to_string
+      - trim
+      - lower
+      - {nullif: ""}
+      - {enum_map: [web, online, mobile-app, mobile, partner-api, partner]}
+      - {coalesce: unrecorded}
+
+  # Absent from most events. An absent JSON key extracts as NULL — no
+  # coalescing here, because "the customer left no note" is a fact worth
+  # keeping distinct from "the customer left an empty note".
+  note: {from: "$.payload.note", transform: [to_string]}
+
+  ordered_at: {from: "$.occurred_at", transform: [{parse_ts: ISO8601}]}
