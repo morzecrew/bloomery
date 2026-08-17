@@ -1,0 +1,52 @@
+set quiet
+set shell := ["bash", "-cu"]
+
+_compose := "docker compose -f " + justfile_directory() + "/compose.yaml"
+_root := justfile_directory() + "/../.."
+
+#: The same question, asked of Cube's REST API rather than of SQL.
+_query := '{"measures":["orders.revenue"],"dimensions":["orders.customer_segment"]}'
+
+[no-exit-message]
+_default:
+    echo "One spec set, three targets, each one actually run."
+    echo
+    just --color=always --list | sed '1d'
+    echo
+    echo "Start here:  just demo"
+
+# Everything: SQLMesh, dbt, the planner, then Cube
+demo: run cube
+
+# Compile and build with SQLMesh and dbt, compare them, execute a metric request
+run:
+    cd {{ _root }} && uv run python examples/targets/run.py
+
+# Serve the emitted semantic model with Cube and ask it the same question
+cube: up
+    echo
+    echo "─── Cube answers ──────────────────────────────────────────────────"
+    echo '  $ GET /cubejs-api/v1/load  {{ _query }}'
+    curl -sS -m 60 -G 'http://localhost:4000/cubejs-api/v1/load' \
+        --data-urlencode 'query={{ _query }}' \
+        | python3 -c 'import json,sys; [print("   ", r) for r in json.load(sys.stdin)["data"]]'
+    echo
+    echo "  Same mart, same numbers, reached through a semantic layer instead"
+    echo "  of SQL. Cube's playground: http://localhost:4000"
+
+# Bring Cube up against the warehouse `run` built
+up:
+    {{ _compose }} up -d --wait
+
+# Stop Cube
+down:
+    {{ _compose }} down
+
+# Show the emitted artifacts for one target: `just emitted cube`
+emitted target:
+    find {{ justfile_directory() }}/out/{{ target }} -type f \
+        \( -name '*.sql' -o -name '*.yml' -o -name '*.yaml' \) | sort | sed 's|.*/out/||'
+
+# Remove the compiled projects and both warehouses
+clean: down
+    rm -rf {{ justfile_directory() }}/out

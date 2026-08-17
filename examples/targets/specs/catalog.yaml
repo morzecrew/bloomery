@@ -1,0 +1,28 @@
+# The vertical-level catalog: canonical fields with monetary metadata, a
+# reusable metric template, and the vertical-owned date dimension that becomes
+# the emitted gold.dim_date calendar.
+catalog_version: 1
+vertical: ecom_retail
+
+canonical_fields:
+  amount:
+    entity: order
+    type: decimal(12,2)
+    unit: currency
+    tax_basis: net
+    recipes:
+      - {id: direct, requires: [amount]}
+
+metric_templates:
+  revenue:
+    requires: [amount]
+    grain: order
+    additivity: additive
+    agg: sum
+    expr: "amount"
+
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2020
+  end_year: 2030

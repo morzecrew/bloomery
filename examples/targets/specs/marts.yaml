@@ -1,0 +1,11 @@
+# One wide mart: the customer joined in, and order_date expanded into
+# day..year buckets. This is the surface Cube reads and the planner serves from.
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    flatten:
+      - {via: order_of_customer, prefix: customer_}
+      - {date: order_date, role: ordered}
+    measures: [revenue, order_count]

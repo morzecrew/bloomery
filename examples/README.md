@@ -69,3 +69,21 @@ just show
 ```
 
 See [`refusals/README.md`](refusals/README.md).
+
+## targets/
+
+One spec set compiled to all three targets and each one actually run: SQLMesh
+and dbt both build the mart, **their results are compared row for row**, a
+planned metric request is executed against the warehouse they built, and Cube
+serves the same numbers over its REST API.
+
+The comparison is the point. A dialect port claims that two frameworks given one
+spec produce one answer; this measures it rather than asserting it. Only Cube
+needs a container — `dbt-duckdb` and SQLMesh run in-process.
+
+```bash
+cd examples/targets
+just demo
+```
+
+See [`targets/README.md`](targets/README.md).

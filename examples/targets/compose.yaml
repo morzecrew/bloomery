@@ -1,0 +1,37 @@
+# Cube, reading the semantic model bloomery emitted and the warehouse SQLMesh
+# built. One container: Cube's DuckDB driver opens the file directly, so there
+# is no database server to stand up.
+#
+# `run.py` must have run first — the model directory and the warehouse are both
+# things it produces.
+
+name: bloomery-targets
+
+services:
+  cube:
+    image: cubejs/cube:latest
+    ports:
+      - "4000:4000"
+    environment:
+      CUBEJS_DEV_MODE: "true"
+      CUBEJS_DB_TYPE: duckdb
+      CUBEJS_DB_DUCKDB_DATABASE_PATH: /warehouse/warehouse-sqlmesh.duckdb
+      CUBEJS_SCHEMA_PATH: model
+      CUBEJS_TELEMETRY: "false"
+    volumes:
+      # The emitted semantic model, and the tables it describes.
+      - ./out/cube/model:/cube/conf/model:ro
+      - ./out:/warehouse
+    healthcheck:
+      # The image ships no curl, so the probe is node's own fetch. /meta is the
+      # right endpoint: it means the semantic model parsed, which is the thing
+      # that can actually be wrong here. (/readyz reports 500 in dev mode even
+      # while Cube serves queries perfectly well.)
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:4000/cubejs-api/v1/meta').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 3s
+      timeout: 5s
+      retries: 40
