@@ -618,6 +618,11 @@ class _SideEntity:
 
     fields: frozenset[str]
     key: tuple[str, ...]
+    #: The source relations behind it, sorted. More than one means the entity
+    #: is merged (RFC 0024), which a reconcile cannot read — see
+    #: :func:`_resolve_side`. Empty for a step output, which has a relation
+    #: without having a mapping.
+    sources: tuple[str, ...] = ()
 
 
 def _side_entities(project: Project, draft: ProjectIR) -> dict[str, _SideEntity]:
@@ -631,11 +636,17 @@ def _side_entities(project: Project, draft: ProjectIR) -> dict[str, _SideEntity]
     a mapping, which is a fact about who writes it, not about whether it
     exists.
     """
-    mapped = frozenset(mapping.target for mapping in project.mappings)
+    sources: dict[str, tuple[str, ...]] = {}
+    for mapping in project.mappings:
+        sources[mapping.target] = (*sources.get(mapping.target, ()), mapping.source)
     view = {
-        name: _SideEntity(fields=frozenset(entity.fields), key=tuple(entity.key))
+        name: _SideEntity(
+            fields=frozenset(entity.fields),
+            key=tuple(entity.key),
+            sources=tuple(sorted(sources[name])),
+        )
         for name, entity in project.entity_model.entities.items()
-        if name in mapped
+        if name in sources
     }
     view.update(
         {
@@ -693,6 +704,18 @@ def _resolve_side(
             "nor the output of a step; readable relations: "
             f"{sorted(entities)}. Fix: add a mapping whose target is {parsed.entity!r}, "
             "wire a step that writes it, or drop the check"
+        )
+        return None, [GuardrailError(msg, source_path=path)]
+    if len(entity.sources) > 1:
+        msg = (
+            f"reconcile check {check_name!r} {side} side names entity {parsed.entity!r}, "
+            f"which is merged from {len(entity.sources)} mappings "
+            f"({', '.join(entity.sources)}). A reconcile emits a row into the quality "
+            "mart, and that row records the one mapping the check belongs to — a merged "
+            "entity has no such mapping, which is why RFC 0024 D14 refuses dedupe: and "
+            "quarantine: on one for the same reason. Fix: reconcile against a "
+            "single-source entity, or express the check as a mart assert:, which reads "
+            "the aggregate rather than the mapping"
         )
         return None, [GuardrailError(msg, source_path=path)]
     repeated = sorted({name for name in parsed.by if parsed.by.count(name) > 1})
