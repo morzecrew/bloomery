@@ -24,6 +24,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`_source` is a reserved member name**, unconditionally — a field, dimension or role
   may not be called `_source` even in a project that merges nothing, because a name that
   is legal until a second mapping arrives is a trap laid for the change that adds one.
+  **This can stop a `spec_version: 1` document loading**: an entity model that already
+  declares a field, dimension or role called `_source` is now refused, and the fix is to
+  rename it — the error names the column bloomery generates under that name. `spec_version`
+  stays at 1, which is the one exception the
+  [stability reference](https://morzecrew.github.io/bloomery/reference/stability/) allows
+  and bounds: a reserved name can refuse a document but never reinterpret one. This is the
+  first reserved name added since a release, and the exception was written down with it.
 - `EntityIR.source` is now `EntityIR.sources`, a tuple. `bloomery_ir_version` moves 5 → 6,
   so every fingerprint changes and `plan()` refuses to diff a v5 IR against a v6 one.
   Emitted SQL for single-source entities is unchanged; only the fingerprint header moves.

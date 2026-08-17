@@ -8,7 +8,11 @@ import pytest
 
 from bloomery.errors import SpecParseError
 from bloomery.spec import EntityModel
-from bloomery.spec.common import RESERVED_MEMBER_NAMES, validate_document
+from bloomery.spec.common import (  # noqa: PLC2701 — the reason is part of the contract
+    _RESERVED_MEMBER_REASONS,
+    RESERVED_MEMBER_NAMES,
+    validate_document,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -148,6 +152,36 @@ def test_every_generated_column_name_is_reserved(name: str) -> None:
         )
     assert excinfo.value.source_path == f"entity_model: entities.e.fields.{name}"
     assert "reserved name" in str(excinfo.value)
+    # The reason is contractual, not decorative — the stability reference makes
+    # a newly reserved name the one change that may refuse a `spec_version: 1`
+    # document without minting a version, and it is admissible *because* the
+    # refusal says which layer owns the name and what to do. A message reading
+    # only "reserved" would leave an author who has just been broken by an
+    # upgrade with nothing to act on, which is the version bump's job undone.
+    assert _RESERVED_MEMBER_REASONS[name] in str(excinfo.value)
+
+
+#: The only reserved names an *entity* or *mart* can be called: the other seven
+#: begin with ``_`` and `RELATION_NAME_PATTERN` refuses them before the reserved
+#: check runs, so a test over all nine would assert nothing about seven of them.
+RESERVED_RELATION_NAMES = ("has_quality_flags", "metric_time")
+
+
+@pytest.mark.parametrize("name", RESERVED_RELATION_NAMES)
+def test_a_reserved_relation_name_says_to_rename_the_relation(name: str) -> None:
+    """`MemberName` and `RelationName` share the reserved list and not the
+    repair instruction. One validator served both and told everyone to rename a
+    "field/dimension/role", so an *entity* called `metric_time` was pointed at a
+    field it does not have — and the stability reference admits a newly reserved
+    name as the one within-version refusal precisely because the message is
+    actionable, so naming the wrong surface undoes the argument.
+    """
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(f"spec_version: 1\nentities:\n  {name}:\n    grain: g\n    key: [k]\n    fields:\n      k: {{type: string}}\n")
+    message = str(excinfo.value)
+    assert _RESERVED_MEMBER_REASONS[name] in message
+    assert "entity/mart" in message
+    assert "field" not in message.split("pick a different")[1]
 
 
 def test_the_reserved_set_is_exactly_the_generated_names() -> None:

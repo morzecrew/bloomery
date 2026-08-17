@@ -67,12 +67,22 @@ PARTITION_SPEC_PATTERN = (
 #: JSONPath-lite: ``$.a.b`` dotted paths only (RFC 0002 §5.5).
 JSONPATH_PATTERN = r"^\$(?:\.[A-Za-z_][A-Za-z0-9_]*)+$"
 
-#: Names the compiler generates, so an authored field/dimension/role may never
-#: claim one — the generated column would collide silently. ``metric_time`` is
+#: Names the compiler generates, so neither an authored member (a field, a
+#: metric, a date role) nor an authored relation (an entity, a mart) may claim
+#: one — the generated column would collide silently. ``metric_time`` is
 #: MetricFlow's canonical query-time dimension (RFC 0002 D10, RFC 0013 R4); the
 #: rest are the data-quality columns and the bronze ingestion-metadata contract
 #: (RFC 0016 §5.5, §5.6, D9/D21/D23). Each carries the reason its message
 #: quotes: a bare "reserved" tells an author nothing about which layer owns it.
+#:
+#: **Adding to this dict is the one change that can stop a document loading
+#: without minting a new spec version** — the exception the stability reference
+#: states and bounds. It is admissible because the outcome is binary: the
+#: document loads unchanged, or it is refused with a message naming the name,
+#: the owning layer and the fix. A reserved name can never reinterpret a
+#: document, which is what a version bump exists to prevent. Two obligations
+#: come with that: the reason string below is part of the contract rather than
+#: a comment, and every addition is a ``CHANGELOG.md`` entry under *Changed*.
 _RESERVED_MEMBER_REASONS: dict[str, str] = {
     "metric_time": "RFC 0013 R4: the canonical query-time dimension",
     "_quality_flags": "RFC 0016 D9: the generated silver quality-flag column",
@@ -93,19 +103,43 @@ _RESERVED_MEMBER_REASONS: dict[str, str] = {
 RESERVED_MEMBER_NAMES = tuple(sorted(_RESERVED_MEMBER_REASONS))
 
 
-def _reject_reserved(name: str) -> str:
+def _reject_reserved(name: str, *, rename: str) -> str:
+    """Refuse a reserved name, telling the author what to rename.
+
+    ``rename`` is not decoration. The stability reference makes a newly
+    reserved name the one change that may refuse a ``spec_version: 1``
+    document without minting a version, and it is admissible *because* the
+    refusal is actionable — so a message naming a surface the author is not
+    using undoes the argument. One validator served both annotations and said
+    "field/dimension/role" to everyone, so an **entity** called
+    ``metric_time`` was told to rename a field it does not have. Only
+    ``metric_time`` and ``has_quality_flags`` reach that path: the other seven
+    reserved names begin with ``_`` and :data:`RELATION_NAME_PATTERN` refuses
+    them before this runs.
+    """
     reason = _RESERVED_MEMBER_REASONS.get(name)
     if reason is not None:
-        msg = f"{name!r} is a reserved name ({reason}); pick a different field/dimension/role name"
+        msg = f"{name!r} is a reserved name ({reason}); pick a different {rename} name"
         raise ValueError(msg)
     return name
+
+
+def _reject_reserved_member(name: str) -> str:
+    #: Every surface :data:`MemberName` guards: entity and mapping fields,
+    #: metrics, and a mart's role-playing date dimension.
+    return _reject_reserved(name, rename="field/metric/dimension-role")
+
+
+def _reject_reserved_relation(name: str) -> str:
+    #: :data:`RelationName`'s two surfaces (RFC 0002 D14).
+    return _reject_reserved(name, rename="entity/mart")
 
 
 TypeString = Annotated[str, StringConstraints(pattern=TYPE_STRING_PATTERN)]
 PartitionSpecString = Annotated[str, StringConstraints(pattern=PARTITION_SPEC_PATTERN)]
 JsonPath = Annotated[str, StringConstraints(pattern=JSONPATH_PATTERN)]
 CurrencyCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")]
-MemberName = Annotated[str, AfterValidator(_reject_reserved)]
+MemberName = Annotated[str, AfterValidator(_reject_reserved_member)]
 
 #: A name that becomes a **relation** — an entity or a mart (RFC 0002 D14).
 #:
@@ -119,7 +153,7 @@ MemberName = Annotated[str, AfterValidator(_reject_reserved)]
 #: and ``StepRef`` is pinned the same way for the same reason.
 RELATION_NAME_PATTERN = r"^[a-z][a-z0-9_]*$"
 RelationName = Annotated[
-    str, StringConstraints(pattern=RELATION_NAME_PATTERN), AfterValidator(_reject_reserved)
+    str, StringConstraints(pattern=RELATION_NAME_PATTERN), AfterValidator(_reject_reserved_relation)
 ]
 
 AdditivityName = Literal["additive", "semi_additive", "non_additive"]

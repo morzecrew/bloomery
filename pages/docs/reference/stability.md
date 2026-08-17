@@ -74,6 +74,48 @@ version it does not implement rather than reading it as one it does. That refusa
 point — a spec written for a newer bloomery is a mistake worth stopping, not worth
 interpreting.
 
+### The one exception: a new reserved name
+
+There is exactly one way a `spec_version: 1` document that loaded before can stop loading
+without a version bump, and it is written down here rather than discovered on upgrade.
+
+bloomery generates columns — `_quality_flags`, `_source_row_id`, `metric_time` and the
+rest — and an authored field, dimension or role may not claim one of those names, because
+the generated column would collide with it silently. When a release adds a generated
+column, its name joins that reserved list, and a project that had already used the name
+stops compiling.
+
+**Why this does not mint a new version.** A version bump exists to stop bloomery reading a
+document as something it is not, and that risk comes from *meaning* changing under a
+stable spelling. A reserved name cannot do that. The document either loads exactly as
+before or is refused outright, with a message naming the name, the layer that owns it and
+the instruction to rename:
+
+```
+'_source' is a reserved name (RFC 0024 D7: the generated union-merge provenance
+column); pick a different field/dimension/role name
+```
+
+There is no third outcome, no silent reinterpretation, and the fix is a rename the error
+states. Minting a version for it would make every author edit every document to record a
+collision almost none of them have.
+
+**What it costs, stated rather than buried.** `spec_version: 1` therefore means *your
+document keeps its meaning*, not *your document is guaranteed to load*. That is weaker
+than the paragraph above reads on its own, and it is the honest boundary.
+
+The exception is bounded and does not widen:
+
+- It covers **adding** a name to the reserved list. Removing one is additive — a name that
+  was refused starts working — and renaming a spec key, changing a field's meaning,
+  tightening a type, or making an optional key required all still mint a version.
+- Every addition appears in `CHANGELOG.md` under **Changed**, naming the reserved name and
+  the generated column it protects. A reserved name that arrives without a changelog entry
+  is a bug in the release, not an application of this exception.
+- The reason string is part of the contract, not decoration. Each reserved name carries one
+  (`bloomery.spec.common`), and the refusal quotes it, because "reserved" alone tells an
+  author nothing about which layer owns the name or whether it will ever be released.
+
 `spec_version` names the entity model rather than being spelled `entity_model_version`.
 That is inconsistent, and it stays: renaming it would break every existing spec to buy
 tidiness.
@@ -157,9 +199,11 @@ hold still, and read the changelog on every minor bump.
 
 **The spec YAML promise does not wait**, and it is deliberately the strong one. A spec is
 authored by people and lives in a repository far longer than the library version that
-compiled it, so `spec_version: 1` documents keep loading — a breaking grammar change gets
-a new version number rather than a new bloomery release. Those two clocks are independent
-by design.
+compiled it, so `spec_version: 1` documents keep their meaning — a breaking grammar change
+gets a new version number rather than a new bloomery release. Those two clocks are
+independent by design. The single exception, a newly reserved name, is
+[above](#the-one-exception-a-new-reserved-name); it can refuse a document but never
+reinterpret one.
 
 ### The installed version
 
