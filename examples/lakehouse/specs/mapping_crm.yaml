@@ -1,15 +1,83 @@
-# The CRM, mapped to the entity that carries quality rules. `trim` and `lower`
-# run before the rule sees the value, so the check judges the produced column
-# rather than whatever the source happened to send.
+# The CRM, mapped to the entity that carries the quality rules.
+#
+# Two things are worth reading together here: the **transform chain**, which
+# decides what the column becomes, and the **quality rules**, which decide what
+# happens to a row the chain could not save. They run in that order, so every
+# rule below judges the produced column rather than whatever the source sent —
+# `pattern` sees `ada@example.com`, never `  Ada@Example.COM `.
 mapping_version: 1
 source: crm__customers
 target: customer
+
 key:
-  customer_id: {from: "$.id", transform: [to_string]}
+  customer_id: {from: "$.customer_id", transform: [to_string]}
+
 fields:
-  email: {from: "$.email_address", transform: [to_string, trim, lower]}
-  segment: {from: "$.segment", transform: [to_string]}
-  signed_up_at: {from: "$.created_at", transform: [{parse_ts: ISO8601}]}
+  email:
+    from: "$.email_address"
+    transform: [to_string, trim, lower]
+    quality:
+      # The portable regex subset: literals, classes, `\d`/`\w`/`\s`, the
+      # anchors, the bounded quantifiers, alternation, non-capturing groups.
+      # Anchors are required — every SQL regex predicate matches a *substring*
+      # unless the pattern says otherwise, so an unanchored rule would accept
+      # 'nonsense ada@example.com nonsense'.
+      #
+      # `flag` rather than `quarantine`: an address that fails this is still a
+      # customer, and losing the row would understate every count that has
+      # nothing to do with email.
+      - rule: pattern
+        regex: "^[^@\\s]+@[^@\\s]+\\.[a-z]{2,}$"
+        on_fail: flag
+
+  segment:
+    from: "$.segment"
+    transform:
+      - to_string
+      - trim
+      - lower
+      - {enum_map: [b2b, business, b2c, consumer]}
+    quality:
+      # `enum_map` folds the aliases; `in_set` disposes of what is left over.
+      # The two are deliberately separate concerns — a chain rewrites, a rule
+      # judges — and this is the pairing the design recommends for a closed
+      # vocabulary that the source keeps widening.
+      - rule: in_set
+        values: [consumer, business]
+        on_fail: flag
+
+  billing_country:
+    from: "$.billing_country"
+    transform: [to_string, trim, upper]
+    quality:
+      # ISO 3166-1 alpha-2 is two characters. One row in the seed says 'USA'.
+      - rule: length
+        min: 2
+        max: 2
+        on_fail: flag
+
+  marketing_source:
+    from: "$.marketing_source"
+    transform:
+      - to_string
+      - trim
+      - lower
+      - {nullif: "n/a"}
+      - {coalesce: unknown}
+
+  # The row whose `created_at` reads 'last tuesday' is the one to watch. The
+  # cast produces NULL from a source that was not NULL, which is precisely
+  # what the generated `coercible` rule detects — and its default disposition
+  # is quarantine, so that row lands in `silver.customer__reject` with its raw
+  # payload instead of joining the table as a customer who signed up never.
+  signed_up_at:
+    from: "$.created_at"
+    transform: [{parse_ts: ISO8601}]
+
+  updated_at:
+    from: "$.updated_at"
+    transform: [{parse_ts: ISO8601}]
+
 # The ingestion-metadata contract (RFC 0016 D21). An entity that quarantines
 # needs a stable identity per source row so a reject can be replayed, so bronze
 # must supply these three and the mapping must say it knows about them. They are

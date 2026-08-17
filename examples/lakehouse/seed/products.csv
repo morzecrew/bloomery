@@ -1,0 +1,6 @@
+sku,name,category,list_price_cents,active
+SKU-RED-M,"Field tee, red / M",Apparel,3999,true
+SKU-BLU-L,"Field tee, blue / L",apparel,3999,true
+SKU-GRN-S,"Trail cap, green / S",Accessories,1999,true
+SKU-YEL-XL,"Rain shell, yellow / XL",OUTERWEAR,12900,true
+SKU-BLK-OS,"Wool socks, black / OS",accessories," 1250",false

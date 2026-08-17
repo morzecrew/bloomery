@@ -7,16 +7,44 @@
 # not by document name, so this one (`shopify__…`) is unioned first even though
 # its file sorts second. That ordering is what makes the artifact byte-identical
 # across machines.
+#
+# This shop emits one nested JSON event per line. The first segment of every
+# path below is the physical `payload` column; the rest is JSON extraction off
+# it, which is why `$.payload.pricing.line_total_cents` needs no ingester to
+# have shredded the event into columns first.
 mapping_version: 1
 source: shopify__order_lines
 target: order_line
+
 key:
   order_id: {from: "$.order_id", transform: [to_string]}
   line_no: {from: "$.position", transform: [to_int]}
+
 fields:
-  customer_id: {from: "$.customer_id", transform: [to_string]}
-  sku: {from: "$.variant_sku", transform: [to_string]}
-  quantity: {from: "$.quantity", transform: [to_int]}
-  amount: {from: "$.line_total", transform: [{to_decimal: [12, 2]}]}
-  ordered_at: {from: "$.created_at", transform: [{parse_ts: ISO8601}]}
-  gift_note: {from: "$.gift_note", transform: [to_string]}
+  customer_id: {from: "$.payload.customer.id", transform: [to_string]}
+  sku: {from: "$.payload.item.variant_sku", transform: [to_string, trim, upper]}
+  quantity: {from: "$.payload.item.quantity", transform: [to_int]}
+
+  # This shop bills in integer cents. `multiply: "0.01"` rather than
+  # `divide: 100` because the two are not equivalent everywhere — decimal
+  # division promotes to a float on some engines, and money that silently
+  # becomes a float is the defect this project bans in its own IR. The factor
+  # is quoted because an unquoted YAML `0.01` *is* a float.
+  amount:
+    from: "$.payload.pricing.line_total_cents"
+    transform:
+      - {to_decimal: [12, 0]}
+      - {multiply: "0.01"}
+      - {to_decimal: [12, 2]}
+
+  discount:
+    from: "$.payload.pricing.discount_cents"
+    transform:
+      - {to_decimal: [12, 0]}
+      - {multiply: "0.01"}
+      - {to_decimal: [12, 2]}
+
+  # Already UTC on this side of the migration.
+  ordered_at: {from: "$.payload.created_at", transform: [{parse_ts: ISO8601}]}
+
+  gift_note: {from: "$.payload.gift_note", transform: [to_string]}

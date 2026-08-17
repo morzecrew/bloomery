@@ -1,12 +1,34 @@
-# The gold layer: one wide mart at order-line grain, flattening the customer
-# through the declared relationship and expanding `ordered_at` into
-# ordered_day .. ordered_year buckets.
+# The gold layer: one wide mart at order-line grain.
+#
+# Both dimensions are joined in through *declared* relationships rather than
+# hand-written joins, each behind a prefix so `customer_segment` and
+# `product_category` cannot collide with anything the base entity already has.
+# The date role expands `ordered_at` into ordered_day .. ordered_year buckets —
+# the dimensions a metric request is served from.
 marts_version: 1
+
 marts:
   order_lines:
     grain: order_line
     base: order_line
     flatten:
       - {via: line_of_customer, prefix: customer_}
+      - {via: line_of_product, prefix: product_}
       - {date: ordered_at, role: ordered}
-    measures: [revenue, line_count]
+    measures: [revenue, line_count, units]
+
+    # A mart-level assertion: a claim about the *aggregate*, checked where the
+    # aggregate is built. Individual rules judge rows; this one judges the
+    # answer, which is the only place a whole month of missing revenue shows up.
+    #
+    # `measure:` names a **column of the mart**, not a metric: `revenue` is
+    # computed at query time from `amount`, and `amount` is what the table
+    # actually holds. A blocking assertion has to be checkable against stored
+    # rows, or it is checking a claim about a number nobody wrote down.
+    assert:
+      - name: monthly_amount_is_never_negative
+        measure: amount
+        agg: sum
+        by: [ordered_month]
+        min: 0
+        on_fail: fail

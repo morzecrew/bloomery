@@ -20,10 +20,14 @@ up:
     echo "▶ starting lakekeeper + postgres + minio + trino (first run pulls images)"
     {{ _compose }} up -d --wait
 
-# Load the bronze tables the mappings read
+# Load the bronze tables the mappings read, from the files in seed/
 seed:
-    echo "▶ seeding bronze"
-    {{ _trino }} -f /dev/stdin < {{ justfile_directory() }}/seed.sql
+    echo "▶ seeding bronze from seed/"
+    cd {{ justfile_directory() }}/../.. && uv run python examples/lakehouse/seed.py | {{ _trino }} -f /dev/stdin
+
+# Print the SQL `just seed` would run, without running it
+seed-sql:
+    cd {{ justfile_directory() }}/../.. && uv run python examples/lakehouse/seed.py
 
 # Rebuild every model against the current bronze data.
 #
@@ -49,7 +53,7 @@ query relation:
 # This is the claim worth not taking on faith — see README.md.
 break-it:
     echo "▶ inserting a woo line whose key already exists in shopify"
-    {{ _trino }} --execute "INSERT INTO iceberg.bronze.woo__order_lines VALUES ('SH-1001', BIGINT '1', 'C-001', 'SKU-DUP', BIGINT '1', DECIMAL '9.99', '2026-03-01 00:00:00')"
+    {{ _trino }} --execute "INSERT INTO iceberg.bronze.woo__order_lines VALUES ('SH-1001', '1', 'C-001', 'SKU-DUP', '1', '9.99', '0.00', '2026-03-01 00:00:00')"
     echo "▶ rebuilding silver.order_line — the audit should stop this"
     cd {{ justfile_directory() }}/out && uv run sqlmesh plan --auto-apply --restate-model 'silver.order_line' || true
     echo

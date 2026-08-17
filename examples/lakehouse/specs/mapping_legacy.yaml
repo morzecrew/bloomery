@@ -2,17 +2,33 @@
 # named column than the platform shop reads it from — which is the point of the
 # merge: one entity, two lowerings per column, one relation out.
 #
+# The two shops disagree about more than column names, and that is the part
+# worth noticing. This one is a flat CSV export rather than nested JSON, it
+# bills in decimal currency rather than integer cents, and it writes SKUs in
+# lower case. None of that reaches the entity: different chains land on the
+# same typed columns, and the merged relation cannot tell which shop a row came
+# from except through the generated `_source` column.
+#
 # `gift_note` is simply absent. This shop has no such concept, so its rows carry
 # NULL for it.
 mapping_version: 1
 source: woo__order_lines
 target: order_line
+
 key:
   order_id: {from: "$.order_number", transform: [to_string]}
   line_no: {from: "$.item_index", transform: [to_int]}
+
 fields:
   customer_id: {from: "$.buyer_ref", transform: [to_string]}
-  sku: {from: "$.product_sku", transform: [to_string]}
+  sku: {from: "$.product_sku", transform: [to_string, trim, upper]}
   quantity: {from: "$.qty", transform: [to_int]}
+
+  # Already currency, not cents — so no arithmetic, just a cast.
   amount: {from: "$.line_amount", transform: [{to_decimal: [12, 2]}]}
+  discount: {from: "$.discount_amount", transform: [{to_decimal: [12, 2]}]}
+
+  # Both shops stamp UTC, so both mappings parse and stop. A source that wrote
+  # *local* wall-clock time would need `{to_utc: <zone>}` after the parse —
+  # `examples/targets/` has one, on a CRM that writes head-office time.
   ordered_at: {from: "$.placed_at", transform: [{parse_ts: ISO8601}]}

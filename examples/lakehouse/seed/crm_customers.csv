@@ -1,0 +1,8 @@
+customer_id,email_address,segment,billing_country,marketing_source,created_at,updated_at,_ingested_at,_load_id,_source_row_id
+C-001,"  Ada@Example.COM ",Consumer,de,organic,2025-11-02 09:00:00,2026-01-04 08:00:00,2026-01-05 00:00:00,load-2026-01-05,crm-1
+C-002,GRACE@EXAMPLE.COM,B2B,US,paid_search,2025-12-14 14:30:00,2026-01-02 10:00:00,2026-01-05 00:00:00,load-2026-01-05,crm-2
+C-002,grace@example.com,b2b,us,paid_search,2025-12-14 14:30:00,2026-01-18 16:20:00,2026-01-19 00:00:00,load-2026-01-19,crm-6
+C-003,not-an-email,CONSUMER,de,N/A,2026-01-03 11:45:00,2026-01-03 11:45:00,2026-01-05 00:00:00,load-2026-01-05,crm-3
+C-004,linus@example.com,business,nl,referral,2026-01-20 17:05:00,2026-01-20 17:05:00,2026-01-21 00:00:00,load-2026-01-21,crm-4
+C-005,edsger@example.com,consumer,nl,organic,last tuesday,2026-01-22 09:10:00,2026-01-23 00:00:00,load-2026-01-23,crm-5
+C-006,barbara@example.com,b2c,USA,paid_social,2026-02-01 12:00:00,2026-02-01 12:00:00,2026-02-02 00:00:00,load-2026-02-02,crm-7

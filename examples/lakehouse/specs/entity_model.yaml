@@ -1,5 +1,4 @@
-# Two entities that between them show the two halves of what bloomery does to
-# a lakehouse.
+# Three entities that between them show everything bloomery does to a lakehouse.
 #
 #   order_line — built from **two** mappings and merged with UNION ALL
 #                (RFC 0024). Two shops on one platform, one shared key space,
@@ -8,14 +7,22 @@
 #                the run stops rather than double-counting.
 #
 #   customer   — one mapping, and inside the data-quality system. Its rules
-#                lower into the silver model as flags, so a bad row is marked
-#                rather than silently averaged in.
+#                lower into the silver model as flags, a row whose cast fails
+#                is diverted to a reject table rather than nulled, and a
+#                duplicated key is resolved by an explicit `dedupe:` policy.
+#
+#   product    — a plain dimension, and the proof that opting *out* is the
+#                default: no quality block, no reject table, no flags. The
+#                quality system is something an entity joins, not something
+#                the compiler does to every table it touches.
 #
 # A merged entity may not carry `quality:` in this release (RFC 0024 D29 — rule
 # lowering is per mapping and has no merged form yet), which is why the quality
 # rules live on `customer`. `assert:` is unaffected and works on both.
 spec_version: 1
+
 entities:
+  # ....................... #
   order_line:
     grain: one row per line on an order, across both shops
     key: [order_id, line_no]
@@ -26,6 +33,7 @@ entities:
       sku: {type: string, required: true}
       quantity: {type: int}
       amount: {type: "decimal(12,2)", canonical: amount}
+      discount: {type: "decimal(12,2)"}
       ordered_at: {type: timestamp, assert: {not_null: true}}
       # Mapped by the platform shop only. The legacy shop has no such concept,
       # so its branch of the union projects a typed NULL — which is what keeps
@@ -33,26 +41,55 @@ entities:
       # *misspelled* field is already a compile error against this model.
       gift_note: {type: string}
 
+  # ....................... #
   customer:
     grain: one row per customer
     key: [customer_id]
+
     # Joining the quality system is explicit and per entity. It brings more
-    # than the rule below: bloomery also generates a `coercible` rule per
+    # than the rules below: bloomery also generates a `coercible` rule per
     # column ("the cast produced NULL although every source it read was not"),
     # and those default to *quarantine* — so a retention window is required
     # rather than defaulted, because reject rows hold raw source payloads and
     # therefore PII.
     quarantine: {retention: 90d}
+
+    # The CRM exports a full snapshot per load, so a customer edited between
+    # loads arrives twice. `dedupe:` names which copy wins and how ties break;
+    # without it the key would simply not be unique and every downstream join
+    # would fan out. C-002 is in the seed twice for exactly this reason.
+    dedupe:
+      keep: latest_by
+      field: updated_at
+      tie_break: [_source_row_id]
+
+    # Entity-level rules see the whole produced row, so they can compare
+    # columns; field-level rules (in the mapping) see one column each.
     quality:
       - rule: expression
-        name: email_looks_like_an_address
-        expr: "email LIKE '%@%'"
+        name: signup_precedes_last_update
+        expr: "signed_up_at <= updated_at"
         on_fail: flag
+
     fields:
       customer_id: {type: string, required: true}
       email: {type: string}
       segment: {type: string}
+      billing_country: {type: string}
+      marketing_source: {type: string}
       signed_up_at: {type: timestamp}
+      updated_at: {type: timestamp, assert: {not_null: true}}
+
+  # ....................... #
+  product:
+    grain: one row per sellable SKU
+    key: [sku]
+    fields:
+      sku: {type: string, required: true}
+      product_name: {type: string}
+      category: {type: string}
+      list_price: {type: "decimal(12,2)"}
+      is_active: {type: bool}
 
 relationships:
   - name: line_of_customer
@@ -60,3 +97,41 @@ relationships:
     to: customer
     via: {customer_id: customer_id}
     cardinality: many_to_one
+
+  - name: line_of_product
+    from: order_line
+    to: product
+    via: {sku: sku}
+    cardinality: many_to_one
+
+# `referential` asks whether every dependent row has a parent. `coverage` asks
+# the mirror question — whether every *referenced* row has at least `min`
+# dependents — and it is a property of the relationship rather than of either
+# table. A customer who has never ordered is a well-formed row; whether that is
+# a data problem is a judgement the model states here rather than in a query
+# somebody remembers to run.
+coverage:
+  - name: every_customer_has_a_line
+    relationship: line_of_customer
+    min: 1
+    on_fail: flag
+
+# The check that catches a *correct formula over wrong data*. Every rule above
+# judges a row; this compares two **aggregates** and alerts when they differ by
+# more than a tolerance, which is the only shape that catches "the arithmetic
+# is right and the inputs are not".
+#
+# Here: the catalogue must not list one SKU at two prices. Summing `list_price`
+# at the key equals the row's own `list_price` exactly when the key is
+# single-valued, and drifts the moment an export ships a SKU twice — a
+# duplicate that no per-row rule can see, because each of the two rows is
+# perfectly well formed on its own.
+#
+# `tolerance` is a quoted decimal. An unquoted YAML `0.001` is a float, and
+# floats do not enter the IR.
+reconcile:
+  - name: sku_price_is_single_valued
+    left: "sum(product.list_price) by sku"
+    right: "product.list_price"
+    tolerance: "0.001"
+    on_fail: flag
