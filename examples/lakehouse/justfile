@@ -51,12 +51,34 @@ query relation:
 
 # Give both shops one key, so the blocking collision audit refuses the build.
 # This is the claim worth not taking on faith — see README.md.
+#
+# The recipe demands the *expected* failure rather than merely tolerating any
+# failure. A bare `|| true` would print "that failure is the feature" when the
+# stack was down, when the project would not compile, or when the audit had
+# quietly stopped being generated — turning the one demonstration this example
+# exists for into something that cannot fail and therefore shows nothing.
 break-it:
     echo "▶ inserting a woo line whose key already exists in shopify"
     {{ _trino }} --execute "INSERT INTO iceberg.bronze.woo__order_lines VALUES ('SH-1001', '1', 'C-001', 'SKU-DUP', '1', '9.99', '0.00', '2026-03-01 00:00:00')"
     echo "▶ rebuilding silver.order_line — the audit should stop this"
-    cd {{ justfile_directory() }}/out && uv run sqlmesh plan --auto-apply --restate-model 'silver.order_line' || true
-    echo
+    cd {{ justfile_directory() }}/out || exit 1; \
+    plan=$(uv run sqlmesh plan --auto-apply --restate-model 'silver.order_line' 2>&1); \
+    status=$?; \
+    printf '%s\n' "$plan" | tail -25; \
+    if [ "$status" -eq 0 ]; then \
+        echo; \
+        echo "✗ the plan SUCCEEDED. The collision audit did not stop a key claimed by"; \
+        echo "  both shops, which is the one thing this recipe exists to show."; \
+        echo "  Undo the insert with: just fix-it"; \
+        exit 1; \
+    fi; \
+    if ! printf '%s' "$plan" | grep -q 'order_line_source_collision'; then \
+        echo; \
+        echo "✗ the plan failed, but not on the collision audit — see the output above."; \
+        echo "  Undo the insert with: just fix-it"; \
+        exit 1; \
+    fi; \
+    echo; \
     echo "That failure is the feature. Undo it with: just fix-it"
 
 # Undo `break-it` and rebuild cleanly

@@ -184,8 +184,22 @@ def load_specs() -> tuple[Project, Catalog]:
 
 
 def emit(project: Project, catalog: Catalog, target: Target, into: Path) -> int:
-    """Compile to one target and write the artifacts. The only bloomery step."""
+    """Compile to one target and write the artifacts. The only bloomery step.
+
+    Whatever an earlier compile left in the same places is removed first.
+    Writing without sweeping is how a deleted spec keeps its model: SQLMesh and
+    dbt both plan whatever is in the project directory, so a `.sql` file whose
+    spec is gone is silently still part of the project and still gets built.
+    Only the paths a compile *owns* are swept — the framework's own `target/`
+    and `logs/` directories share this root and are none of our business.
+    """
     artifacts = compile_project(project, target=target, dialect="duckdb", catalog=catalog)
+    written = {into / artifact.path for artifact in artifacts}
+    for root in sorted({into / Path(artifact.path).parts[0] for artifact in artifacts}):
+        existing = [root] if root.is_file() else [p for p in root.rglob("*") if p.is_file()]
+        for stale in existing:
+            if stale not in written:
+                stale.unlink()
     for artifact in artifacts:
         destination = into / artifact.path
         destination.parent.mkdir(parents=True, exist_ok=True)

@@ -163,7 +163,16 @@ SHOW_WHAT_LANDED = (
 
 
 def compile_to(out: Path) -> list[str]:
-    """Specs in, SQLMesh project out. The only bloomery step in this file."""
+    """Specs in, SQLMesh project out. The only bloomery step in this file.
+
+    Whatever an earlier compile left in the same places is removed first.
+    Writing without sweeping is how a deleted spec keeps its model: SQLMesh
+    plans whatever is in the project directory, so a `.sql` file whose spec is
+    gone is silently still part of the project and still gets built — and the
+    audit that came with it still runs. Only the directories a compile *owns*
+    are swept; `config.yaml` and SQLMesh's `state.db` live in this same root
+    and are not artifacts.
+    """
     catalog = load_catalog((SPECS / "catalog.yaml").read_text())
     project = load_project(
         {
@@ -172,15 +181,18 @@ def compile_to(out: Path) -> list[str]:
             if path.name != "catalog.yaml"
         }
     )
-    written: list[str] = []
-    for artifact in compile_project(
-        project, target=Target.SQLMESH, dialect="trino", catalog=catalog
-    ):
+    artifacts = compile_project(project, target=Target.SQLMESH, dialect="trino", catalog=catalog)
+    written = {out / artifact.path for artifact in artifacts}
+    for root in sorted({out / Path(artifact.path).parts[0] for artifact in artifacts}):
+        existing = [root] if root.is_file() else [p for p in root.rglob("*") if p.is_file()]
+        for stale in existing:
+            if stale not in written:
+                stale.unlink()
+    for artifact in artifacts:
         destination = out / artifact.path
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(artifact.content)
-        written.append(artifact.path)
-    return written
+    return [artifact.path for artifact in artifacts]
 
 
 def sqlmesh(*args: str) -> str:
