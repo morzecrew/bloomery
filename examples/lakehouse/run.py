@@ -82,6 +82,11 @@ SHOW_WHAT_LANDED = (
         "FROM iceberg.silver.customer ORDER BY customer_id",
     ),
     (
+        "a row that could not be coerced was diverted, not silently nulled",
+        "SELECT failed_rules, key_values, source_relation FROM "
+        "iceberg.silver.customer__reject",
+    ),
+    (
         "the wide mart, joined and bucketed, ready for a metric request",
         "SELECT ordered_month, customer_segment, count(*) AS lines, "
         "sum(amount) AS revenue FROM iceberg.gold.mart_order_lines "

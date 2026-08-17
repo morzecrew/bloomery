@@ -43,5 +43,12 @@ SELECT * FROM (VALUES
   ('C-001', 'ada@example.com',   'consumer', '2025-11-02 09:00:00', TIMESTAMP '2026-01-01 00:00:00', 'load-001', 'crm-1'),
   ('C-002', 'GRACE@EXAMPLE.COM', 'business', '2025-12-14 14:30:00', TIMESTAMP '2026-01-01 00:00:00', 'load-001', 'crm-2'),
   ('C-003', 'not-an-email',      'consumer', '2026-01-03 11:45:00', TIMESTAMP '2026-01-01 00:00:00', 'load-001', 'crm-3'),
-  ('C-004', 'linus@example.com', 'business', '2026-01-20 17:05:00', TIMESTAMP '2026-01-01 00:00:00', 'load-001', 'crm-4')
+  ('C-004', 'linus@example.com', 'business', '2026-01-20 17:05:00', TIMESTAMP '2026-01-01 00:00:00', 'load-001', 'crm-4'),
+  -- `signed_up_at` cannot be parsed as a timestamp. bloomery generates a
+  -- `coercible` rule per column for an entity in the quality system — "the
+  -- projection is NULL although every source it read was not" — and that rule
+  -- defaults to *quarantine*. So this row does not become a silent NULL and it
+  -- does not join `silver.customer`: it lands in `silver.customer__reject`
+  -- with its raw payload, ready to be replayed once the source is fixed.
+  ('C-005', 'edsger@example.com', 'consumer', 'last tuesday', TIMESTAMP '2026-01-01 00:00:00', 'load-001', 'crm-5')
 ) AS t (id, email_address, segment, created_at, _ingested_at, _load_id, _source_row_id);

@@ -25,6 +25,14 @@ seed:
     echo "▶ seeding bronze"
     {{ _trino }} -f /dev/stdin < {{ justfile_directory() }}/seed.sql
 
+# Rebuild every model against the current bronze data.
+#
+# `run` plans, and SQLMesh plans on *model* changes — so editing bronze and
+# re-running correctly does nothing. Restating is how you ask for the rebuild,
+# and it is also what makes the generated audits run again.
+rebuild:
+    cd {{ justfile_directory() }}/out && uv run sqlmesh plan --auto-apply --restate-model 'silver.*' --restate-model 'gold.*'
+
 # Compile the specs, build them with SQLMesh, print what landed
 run:
     cd {{ justfile_directory() }}/../.. && uv run python examples/lakehouse/run.py

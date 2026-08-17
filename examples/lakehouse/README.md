@@ -12,14 +12,19 @@ you can watch what it emits actually build something.
 ## Run it
 
 ```bash
-docker compose -f examples/lakehouse/compose.yaml up -d --wait
-docker exec -i bloomery-lakehouse-trino-1 trino -f /dev/stdin < examples/lakehouse/seed.sql
-uv run python examples/lakehouse/run.py
+cd examples/lakehouse
+just demo
 ```
 
-First run pulls four images and takes a few minutes; after that it is seconds.
-Tear it down with `docker compose -f examples/lakehouse/compose.yaml down -v` —
-all state is in `tmpfs`, so nothing survives and nothing to clean up.
+That is `up`, `seed` and `run` in order. First run pulls four images and takes a
+few minutes; after that it is under a minute. `just` on its own lists everything
+the example can do; `just down` tears the stack down, and since every service is
+`tmpfs`-backed nothing survives and there is nothing to clean up.
+
+**After editing `seed.sql`, use `just rebuild`.** SQLMesh plans on *model*
+changes, so changing bronze data and re-running correctly does nothing —
+restating is how you ask for the rebuild, and it is also what makes the
+generated audits run again.
 
 MinIO's console is on <http://localhost:9001> (`minio-admin` /
 `minio-admin-password`) if you want to see the Parquet and metadata files
@@ -68,6 +73,22 @@ Note `C-002` arrives as `GRACE@EXAMPLE.COM` and lands as `grace@example.com`:
 the `trim`/`lower` chain runs *before* the rule judges the value, so the check
 sees the produced column rather than whatever the source happened to send.
 
+**A row that could not be coerced, diverted rather than nulled.** `C-005`'s
+`signed_up_at` reads `last tuesday`. bloomery generates a `coercible` rule per
+column for an entity in the quality system — *the projection is NULL although
+every source it read was not* — and that rule defaults to quarantine. So the row
+does not join `silver.customer` and does not become a silent NULL; it lands in
+`silver.customer__reject` with the rule that caught it, its key, and the raw
+payload it arrived with:
+
+```
+               failed_rules               key_values source_relation
+  [signed_up_at_coercible]  {"customer_id":"C-005"}  crm__customers
+```
+
+That `raw` column is why `quarantine:` demands a retention window rather than
+defaulting one — reject rows hold source payloads, and therefore PII.
+
 **The wide mart**, customer joined in and `ordered_at` expanded into
 day/week/month/quarter/year buckets — the dimensions a metric request is served
 from.
@@ -83,11 +104,7 @@ nobody reads.
 Give both shops the same key:
 
 ```bash
-docker exec bloomery-lakehouse-trino-1 trino --execute \
-  "INSERT INTO iceberg.bronze.woo__order_lines VALUES
-   ('SH-1001', BIGINT '1', 'C-001', 'SKU-DUP', BIGINT '1', DECIMAL '9.99', '2026-03-01 00:00:00')"
-
-cd examples/lakehouse/out && uv run sqlmesh plan --auto-apply --restate-model 'silver.order_line'
+just break-it
 ```
 
 The plan fails and the table is not published:
@@ -97,8 +114,7 @@ The plan fails and the table is not published:
 Error: Plan application failed.
 ```
 
-Undo it with `DELETE FROM iceberg.bronze.woo__order_lines WHERE product_sku = 'SKU-DUP'`
-and restate again.
+Undo it with `just fix-it`.
 
 **Why a restate rather than re-running `run.py`.** SQLMesh plans on *model*
 changes. Editing bronze data changes no model, so a plain plan correctly decides
