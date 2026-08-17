@@ -1,0 +1,8 @@
+mapping_version: 1
+source: woo__order_lines
+target: order_line
+key:
+  order_id: {from: "$.order_number", transform: [to_string]}
+  line_no: {from: "$.item_index", transform: [to_int]}
+fields:
+  sku: {from: "$.product_sku", transform: [to_string]}

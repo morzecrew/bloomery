@@ -1,0 +1,9 @@
+mapping_version: 1
+source: shop__order_lines
+target: order_item
+key:
+  order_id: {from: "$.order_id", transform: [to_string]}
+  line_no: {from: "$.position", transform: [to_int]}
+fields:
+  line_total: {from: "$.total", transform: [{to_decimal: [12, 2]}]}
+  ordered_on: {from: "$.ordered_on", transform: [{parse_date: ISO8601}]}

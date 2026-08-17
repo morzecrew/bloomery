@@ -51,3 +51,21 @@ uv run python examples/lakehouse/run.py
 
 See [`lakehouse/README.md`](lakehouse/README.md), which also shows how to break
 the collision audit on purpose and watch the plan refuse to publish.
+
+## refusals/
+
+Six specs that look right and cannot be right, and what bloomery says about
+each. No containers and no setup — every case is decided at compile time.
+
+Four of the six would run fine in a hand-written dbt or SQL project and return
+rows that are silently wrong: a dimension that keeps history flattened into a
+mart, an order-grain cost duplicated per line, a `one_to_many` flatten, EUR
+added to USD. The other two are unsupported rather than wrong, and say which
+target does support them.
+
+```bash
+cd examples/refusals
+just show
+```
+
+See [`refusals/README.md`](refusals/README.md).

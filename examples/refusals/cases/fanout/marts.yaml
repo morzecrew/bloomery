@@ -1,0 +1,11 @@
+# Flattening across a one_to_many relationship duplicates the base row, so
+# every SUM over it overstates by the match count.
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    flatten:
+      - {via: order_of_customer, prefix: customer_}
+      - {date: order_date, role: ordered}
+    measures: [revenue]

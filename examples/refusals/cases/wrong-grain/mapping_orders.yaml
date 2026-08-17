@@ -1,0 +1,8 @@
+mapping_version: 1
+source: shop__orders
+target: order
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  shipping_cost: {from: "$.shipping", transform: [{to_decimal: [12, 2]}]}
+  order_date: {from: "$.ordered_on", transform: [{parse_date: ISO8601}]}

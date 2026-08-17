@@ -1,0 +1,34 @@
+# Two money fields in different declared currencies, and a recipe that adds
+# them. Both are `unit: currency` and `tax_basis: net`, so the only thing
+# separating them is the currency code — which is exactly the thing an
+# arithmetic guardrail has to notice.
+catalog_version: 1
+vertical: payments
+
+canonical_fields:
+  amount_eur:
+    entity: payment
+    type: "decimal(12,2)"
+    unit: currency
+    tax_basis: net
+    currency: EUR
+    recipes:
+      - {id: direct, requires: [amount_eur]}
+  amount_usd:
+    entity: payment
+    type: "decimal(12,2)"
+    unit: currency
+    tax_basis: net
+    currency: USD
+    recipes:
+      - {id: direct, requires: [amount_usd]}
+  amount_total:
+    entity: payment
+    type: "decimal(12,2)"
+    unit: currency
+    tax_basis: net
+    recipes:
+      # Plausible, and wrong: these are different currencies.
+      - {id: summed, requires: [amount_eur, amount_usd], expr: "amount_eur + amount_usd"}
+
+date_dimension: {name: dim_date, grain: day, start_year: 2024, end_year: 2026}
