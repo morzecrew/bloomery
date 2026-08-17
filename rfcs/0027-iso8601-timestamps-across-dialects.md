@@ -38,9 +38,10 @@
 
 `{parse_ts: ISO8601}` names a standard. On Trino it does not implement it.
 
-```
-trino> SELECT TRY_CAST('2026-01-06T12:00:00' AS TIMESTAMP);   -- NULL
-trino> SELECT TRY_CAST('2026-01-06 12:00:00' AS TIMESTAMP);   -- 2026-01-06 12:00:00
+```sql
+-- trino
+SELECT TRY_CAST('2026-01-06T12:00:00' AS TIMESTAMP);   -- NULL
+SELECT TRY_CAST('2026-01-06 12:00:00' AS TIMESTAMP);   -- 2026-01-06 12:00:00
 ```
 
 DuckDB and PostgreSQL accept both spellings. Trino accepts only the space
@@ -194,6 +195,26 @@ parsing one — what a zoneless type should do with a value that carries a zone.
 The documented path today is `parse_ts` then `to_utc`, which presumes the text
 had no offset. Fixing the separator does not touch this, and pretending
 otherwise would let a much larger question ride in on a small fix.
+
+**The physical type `to_utc` produces.** Raised in review of the `to_utc` fix
+and true on **every** port, which is why it is not that fix's business:
+`scalar_types` maps the logical `timestamp` to a zoneless `TIMESTAMP`, while a
+zone interpretation yields a zone-aware one — Trino's `with_timezone` returns
+`timestamp(p) with time zone`, DuckDB's `AT TIME ZONE` returns `TIMESTAMP WITH
+TIME ZONE` (observed on `silver.customer.signed_up_at` in
+`examples/targets/`), and PostgreSQL's returns `timestamp with time zone`
+(`pg_typeof`, measured). The silver projection emits the expression with no
+outer cast, so the produced column follows the expression rather than the
+declared mapping.
+
+Normalising it — `… AT TIME ZONE 'UTC'` and a cast back to zoneless — is the
+obvious answer and cannot be applied to one port: doing it on Trino alone would
+manufacture the cross-dialect divergence the `to_utc` fix exists to remove. It
+is one decision about what `to_utc`'s physical output *is*, taken across three
+ports at once, and it moves goldens on all of them and the Iceberg column type
+in `examples/lakehouse/`. Worth noting that the instant is correct either way;
+what is at stake is the schema, and whether a reader of `silver.customer` sees
+the type the entity model declared.
 
 **`measures:` on a non-additive metric.** Found in the same sweep and unrelated:
 `MetricFlow` reads a mart's `measures:` as *what this mart serves* and emits a
