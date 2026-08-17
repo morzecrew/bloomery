@@ -31,3 +31,23 @@ uv run python examples/quickstart/run.py
 
 The [Quickstart](https://morzecrew.github.io/bloomery/get-started/quickstart/)
 page walks through the same project step by step.
+
+## lakehouse/
+
+The compiler against a real lakehouse: seven spec documents compiled to SQLMesh
+artifacts, built into Apache Iceberg tables through a [Lakekeeper](https://lakekeeper.io)
+REST catalog over MinIO, queried by Trino. Four containers, one command.
+
+It shows the two things a fixture cannot: a **union merge** — two shops, one
+`order_line` entity, a `_source` column, and the *blocking* collision audit that
+stops the build if their key sets ever overlap — and the **quality system**,
+where a bad row is flagged and kept rather than silently averaged in.
+
+```bash
+docker compose -f examples/lakehouse/compose.yaml up -d --wait
+docker exec -i bloomery-lakehouse-trino-1 trino -f /dev/stdin < examples/lakehouse/seed.sql
+uv run python examples/lakehouse/run.py
+```
+
+See [`lakehouse/README.md`](lakehouse/README.md), which also shows how to break
+the collision audit on purpose and watch the plan refuse to publish.

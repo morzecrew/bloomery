@@ -1,0 +1,10 @@
+# One metric instantiated from the catalog template, one declared inline.
+metrics_version: 1
+metrics:
+  revenue:
+    template: revenue
+  line_count:
+    grain: order_line
+    additivity: additive
+    agg: count
+    expr: "order_id"

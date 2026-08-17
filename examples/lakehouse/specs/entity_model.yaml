@@ -1,0 +1,62 @@
+# Two entities that between them show the two halves of what bloomery does to
+# a lakehouse.
+#
+#   order_line — built from **two** mappings and merged with UNION ALL
+#                (RFC 0024). Two shops on one platform, one shared key space,
+#                disjoint key sets. bloomery also generates a *blocking*
+#                collision audit for it: if a key ever appears in both shops
+#                the run stops rather than double-counting.
+#
+#   customer   — one mapping, and inside the data-quality system. Its rules
+#                lower into the silver model as flags, so a bad row is marked
+#                rather than silently averaged in.
+#
+# A merged entity may not carry `quality:` in this release (RFC 0024 D29 — rule
+# lowering is per mapping and has no merged form yet), which is why the quality
+# rules live on `customer`. `assert:` is unaffected and works on both.
+spec_version: 1
+entities:
+  order_line:
+    grain: one row per line on an order, across both shops
+    key: [order_id, line_no]
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      customer_id: {type: string, required: true}
+      sku: {type: string, required: true}
+      quantity: {type: int}
+      amount: {type: "decimal(12,2)", canonical: amount}
+      ordered_at: {type: timestamp, assert: {not_null: true}}
+      # Mapped by the platform shop only. The legacy shop has no such concept,
+      # so its branch of the union projects a typed NULL — which is what keeps
+      # the two arms the same width. No acknowledgement is required: a
+      # *misspelled* field is already a compile error against this model.
+      gift_note: {type: string}
+
+  customer:
+    grain: one row per customer
+    key: [customer_id]
+    # Joining the quality system is explicit and per entity. It brings more
+    # than the rule below: bloomery also generates a `coercible` rule per
+    # column ("the cast produced NULL although every source it read was not"),
+    # and those default to *quarantine* — so a retention window is required
+    # rather than defaulted, because reject rows hold raw source payloads and
+    # therefore PII.
+    quarantine: {retention: 90d}
+    quality:
+      - rule: expression
+        name: email_looks_like_an_address
+        expr: "email LIKE '%@%'"
+        on_fail: flag
+    fields:
+      customer_id: {type: string, required: true}
+      email: {type: string}
+      segment: {type: string}
+      signed_up_at: {type: timestamp}
+
+relationships:
+  - name: line_of_customer
+    from: order_line
+    to: customer
+    via: {customer_id: customer_id}
+    cardinality: many_to_one

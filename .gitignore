@@ -243,3 +243,6 @@ coverage-data/
 # its own under tmp_path and never writes into the repo.
 *.duckdb
 *.duckdb.wal
+
+# The lakehouse example's compiled SQLMesh project and local state.
+examples/lakehouse/out/

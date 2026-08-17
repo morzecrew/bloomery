@@ -1,0 +1,12 @@
+# The gold layer: one wide mart at order-line grain, flattening the customer
+# through the declared relationship and expanding `ordered_at` into
+# ordered_day .. ordered_year buckets.
+marts_version: 1
+marts:
+  order_lines:
+    grain: order_line
+    base: order_line
+    flatten:
+      - {via: line_of_customer, prefix: customer_}
+      - {date: ordered_at, role: ordered}
+    measures: [revenue, line_count]

@@ -1,0 +1,22 @@
+# The shop being migrated *onto*. One of two mappings that name
+# `target: order_line` — and that is the whole of the syntax for a merge
+# (RFC 0024 D2): no `union:` kind, no `sources:` list, just two documents
+# pointing at one entity.
+#
+# Branch order in the emitted UNION ALL is lexicographic by **source relation**,
+# not by document name, so this one (`shopify__…`) is unioned first even though
+# its file sorts second. That ordering is what makes the artifact byte-identical
+# across machines.
+mapping_version: 1
+source: shopify__order_lines
+target: order_line
+key:
+  order_id: {from: "$.order_id", transform: [to_string]}
+  line_no: {from: "$.position", transform: [to_int]}
+fields:
+  customer_id: {from: "$.customer_id", transform: [to_string]}
+  sku: {from: "$.variant_sku", transform: [to_string]}
+  quantity: {from: "$.quantity", transform: [to_int]}
+  amount: {from: "$.line_total", transform: [{to_decimal: [12, 2]}]}
+  ordered_at: {from: "$.created_at", transform: [{parse_ts: ISO8601}]}
+  gift_note: {from: "$.gift_note", transform: [to_string]}

@@ -1,0 +1,119 @@
+# The lakehouse this example compiles into: an Iceberg REST catalog
+# (Lakekeeper) over object storage (MinIO), queried by Trino, with Postgres
+# holding both Lakekeeper's metadata and SQLMesh's state.
+#
+# Nothing here is a bloomery dependency. bloomery is a compiler: it emits SQL
+# and model definitions and never talks to a warehouse. This stack exists so a
+# person can watch the artifacts it emits actually build tables.
+#
+#   docker compose -f examples/lakehouse/compose.yaml up -d --wait
+#
+# Credentials are hard-coded demo values on a private network. Do not lift this
+# file into anything that matters.
+
+name: bloomery-lakehouse
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lakekeeper
+      POSTGRES_PASSWORD: lakekeeper
+      POSTGRES_DB: lakekeeper
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lakekeeper -d lakekeeper"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    tmpfs:
+      - /var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio-admin
+      MINIO_ROOT_PASSWORD: minio-admin-password
+    ports:
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    tmpfs:
+      - /data
+
+  # One-shot: create the bucket Lakekeeper writes the warehouse into.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minio-admin minio-admin-password &&
+      mc mb --ignore-existing local/warehouse &&
+      echo 'bucket ready'
+      "
+
+  # Lakekeeper runs its schema migration as a separate command before the
+  # server will start — a first-run step, not a healthcheck concern.
+  lakekeeper-migrate:
+    image: quay.io/lakekeeper/catalog:latest
+    command: ["migrate"]
+    environment:
+      LAKEKEEPER__PG_DATABASE_URL_READ: postgresql://lakekeeper:lakekeeper@postgres:5432/lakekeeper
+      LAKEKEEPER__PG_DATABASE_URL_WRITE: postgresql://lakekeeper:lakekeeper@postgres:5432/lakekeeper
+      RUST_LOG: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  lakekeeper:
+    image: quay.io/lakekeeper/catalog:latest
+    command: ["serve"]
+    environment:
+      LAKEKEEPER__PG_DATABASE_URL_READ: postgresql://lakekeeper:lakekeeper@postgres:5432/lakekeeper
+      LAKEKEEPER__PG_DATABASE_URL_WRITE: postgresql://lakekeeper:lakekeeper@postgres:5432/lakekeeper
+      LAKEKEEPER__AUTHZ_BACKEND: allowall
+      RUST_LOG: info
+    ports:
+      - "8181:8181"
+    depends_on:
+      lakekeeper-migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/home/nonroot/lakekeeper", "healthcheck"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+
+  # One-shot: bootstrap the server and create the `demo` warehouse Trino's
+  # catalog names. Both calls are idempotent, so bringing the stack up a second
+  # time is not an error.
+  lakekeeper-bootstrap:
+    image: curlimages/curl:latest
+    depends_on:
+      lakekeeper:
+        condition: service_healthy
+    volumes:
+      - ./bootstrap.sh:/bootstrap.sh:ro
+    entrypoint: ["sh", "/bootstrap.sh"]
+
+  trino:
+    image: trinodb/trino:latest
+    ports:
+      - "8080:8080"
+    depends_on:
+      lakekeeper-bootstrap:
+        condition: service_completed_successfully
+    volumes:
+      - ./trino/iceberg.properties:/etc/trino/catalog/iceberg.properties:ro
+    healthcheck:
+      test: ["CMD", "trino", "--execute", "SELECT 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 60

@@ -1,0 +1,18 @@
+# The CRM, mapped to the entity that carries quality rules. `trim` and `lower`
+# run before the rule sees the value, so the check judges the produced column
+# rather than whatever the source happened to send.
+mapping_version: 1
+source: crm__customers
+target: customer
+key:
+  customer_id: {from: "$.id", transform: [to_string]}
+fields:
+  email: {from: "$.email_address", transform: [to_string, trim, lower]}
+  segment: {from: "$.segment", transform: [to_string]}
+  signed_up_at: {from: "$.created_at", transform: [{parse_ts: ISO8601}]}
+# The ingestion-metadata contract (RFC 0016 D21). An entity that quarantines
+# needs a stable identity per source row so a reject can be replayed, so bronze
+# must supply these three and the mapping must say it knows about them. They are
+# acknowledged rather than mapped: they are not entity fields, they are how the
+# reject table points back at the row it came from.
+unmapped: ["$._ingested_at", "$._load_id", "$._source_row_id"]

@@ -1,0 +1,18 @@
+# The shop being migrated *away from*. Every field is read from a differently
+# named column than the platform shop reads it from — which is the point of the
+# merge: one entity, two lowerings per column, one relation out.
+#
+# `gift_note` is simply absent. This shop has no such concept, so its rows carry
+# NULL for it.
+mapping_version: 1
+source: woo__order_lines
+target: order_line
+key:
+  order_id: {from: "$.order_number", transform: [to_string]}
+  line_no: {from: "$.item_index", transform: [to_int]}
+fields:
+  customer_id: {from: "$.buyer_ref", transform: [to_string]}
+  sku: {from: "$.product_sku", transform: [to_string]}
+  quantity: {from: "$.qty", transform: [to_int]}
+  amount: {from: "$.line_amount", transform: [{to_decimal: [12, 2]}]}
+  ordered_at: {from: "$.placed_at", transform: [{parse_ts: ISO8601}]}
