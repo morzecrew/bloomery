@@ -20,8 +20,9 @@ from bloomery.dialects import (
     register_dialect,
     registered_dialects,
 )
+from bloomery.dialects.base import strip_iso_text
 from bloomery.emit.base import Feature
-from bloomery.errors import EmitError
+from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.quality.pattern import unsupported_dialects
 from bloomery.typing import DecimalType, StringType
 
@@ -129,3 +130,52 @@ def test_array_is_a_dialect_feature_not_a_target_feature() -> None:
     # the deliberate divergence from Document 5 §5.3, recorded as a test
     assert "array" in {feature.value for feature in DialectFeature}
     assert "array" not in {feature.value for feature in Feature}
+
+
+def test_a_port_that_never_strips_the_iso_marker_is_refused() -> None:
+    """The default is neither identity nor silence (RFC 0027).
+
+    A port registered through `register_dialect` that inherits the base render
+    and never decides what its engine needs would otherwise emit
+    `BLM_ISO_TEXT(x)` — an undefined function that fails at *plan* time with the
+    engine's own message. Defaulting to identity instead would be worse still:
+    an engine whose cast rejects the `T` separator would return NULL for good
+    data, which is the defect RFC 0027 exists to close.
+
+    So the base renderer refuses, at emit, naming the one call to make.
+    """
+
+    class _Forgetful(SQLGlotDialect):
+        name = "forgetful"
+        sqlglot_dialect = "duckdb"
+
+    node = exp.cast(
+        exp.Anonymous(this="BLM_ISO_TEXT", expressions=[exp.column("x")]),
+        exp.DataType.build("TIMESTAMP"),
+    )
+    with pytest.raises(UnsupportedByTarget) as excinfo:
+        _Forgetful().render(node)
+    message = str(excinfo.value)
+    assert "'forgetful'" in message
+    assert "strip_iso_text" in message
+    # The reason, not only the rule: a port author has to know why identity is
+    # not a safe default.
+    assert "silently NULL" in message
+
+
+def test_a_port_that_strips_the_marker_renders_normally() -> None:
+    """The companion: without it, deleting the guard's trigger would look like
+    a pass."""
+
+    class _Careful(SQLGlotDialect):
+        name = "careful"
+        sqlglot_dialect = "duckdb"
+
+        def render(self, node: exp.Expression) -> str:
+            return super().render(strip_iso_text(node.copy(), lambda text: text))
+
+    node = exp.cast(
+        exp.Anonymous(this="BLM_ISO_TEXT", expressions=[exp.column("x")]),
+        exp.DataType.build("TIMESTAMP"),
+    )
+    assert _Careful().render(node) == "CAST(x AS TIMESTAMP)"
