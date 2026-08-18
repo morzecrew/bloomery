@@ -24,7 +24,7 @@
         
       
       
-      <link rel="icon" href="../../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/favicon.svg">
       <meta name="generator" content="zensical-0.0.53">
     
     
@@ -59,6 +59,8 @@
         <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
       
     
+    
+      <link rel="stylesheet" href="../../assets/palette.css">
     
     <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
     
@@ -105,8 +107,7 @@
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href="../.." title="Bloomery" class="md-header__button md-logo" aria-label="Bloomery" data-md-component="logo">
       
-  
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+  <img src="../../assets/logo.svg" alt="Bloomery">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
@@ -331,8 +332,7 @@
   <label class="md-nav__title" for="__drawer">
     <a href="../.." title="Bloomery" class="md-nav__button md-logo" aria-label="Bloomery" data-md-component="logo">
       
-  
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+  <img src="../../assets/logo.svg" alt="Bloomery">
 
     </a>
     Bloomery
@@ -665,6 +665,33 @@
     
   
   Quickstart
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Examples
 
     
   </span>
@@ -1395,6 +1422,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../reference/dialects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Dialects
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../reference/errors/" class="md-nav__link">
         
   
@@ -1723,6 +1777,9 @@ plausible number with no audit trail.</p>
 model that carries units, tax bases, grains, and additivity; anything that would produce
 a plausible-but-wrong number is a compile error with a source path, not a warning. The
 system may not know an answer, but it may not return a wrong one without warning.</p>
+<p>The <code>refusals/</code> <a href="../examples/">example</a> is six of those specs, each one a project that a
+hand-written model would run without complaint, printed next to the message bloomery
+gives instead — worth ten minutes if this section is the reason you are here.</p>
 <h2 id="what-bloomery-is">What bloomery is<a class="headerlink" href="#what-bloomery-is" title="Permanent link">&para;</a></h2>
 <p>A pure function library. Specs go in as data structures; artifacts and plans come out as
 data structures. Compilation produces SQLMesh, dbt, and Cube artifacts plus a MetricFlow
@@ -1827,7 +1884,7 @@ it untestable.</p>
   human-readable query explanations — is generated deterministically.</li>
 </ul>
 <p>If that boundary fits your platform, continue to <a href="../installation/">Installation</a> and
-the <a href="../quickstart/">Quickstart</a>, or read
+the <a href="../quickstart/">Quickstart</a>, run one of the <a href="../examples/">examples</a>, or read
 <a href="../../concepts/specs-and-catalog/">Specs and the catalog</a> for the full domain model.</p>
 
 

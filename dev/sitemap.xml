@@ -13,6 +13,9 @@
         <loc>https://morzecrew.github.io/bloomery/dev/get-started/quickstart/</loc>
       </url>
       <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/get-started/examples/</loc>
+      </url>
+      <url>
         <loc>https://morzecrew.github.io/bloomery/dev/concepts/specs-and-catalog/</loc>
       </url>
       <url>
@@ -71,6 +74,9 @@
       </url>
       <url>
         <loc>https://morzecrew.github.io/bloomery/dev/reference/transforms/</loc>
+      </url>
+      <url>
+        <loc>https://morzecrew.github.io/bloomery/dev/reference/dialects/</loc>
       </url>
       <url>
         <loc>https://morzecrew.github.io/bloomery/dev/reference/errors/</loc>

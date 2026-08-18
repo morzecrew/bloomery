@@ -12,13 +12,13 @@
         <meta name="author" content="Lev Litvinov">
       
       
-        <link rel="canonical" href="https://morzecrew.github.io/bloomery/dev/reference/json-schema/">
+        <link rel="canonical" href="https://morzecrew.github.io/bloomery/dev/reference/dialects/">
       
       
-        <link rel="prev" href="../spec-schemas/">
+        <link rel="prev" href="../transforms/">
       
       
-        <link rel="next" href="../transforms/">
+        <link rel="next" href="../errors/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>JSON Schema export - Bloomery</title>
+        <title>Dialects - Bloomery</title>
       
     
     
@@ -87,7 +87,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#json-schema-export" class="md-skip">
+        <a href="#dialects" class="md-skip">
           Skip to content
         </a>
       
@@ -124,7 +124,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              JSON Schema export
+              Dialects
             
           </span>
         </div>
@@ -1202,36 +1202,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  JSON Schema export
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="././" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../json-schema/" class="md-nav__link">
         
   
   
@@ -1246,93 +1220,6 @@
   
 
       </a>
-      
-        
-
-
-<nav class="md-nav md-nav--secondary" aria-label="On this page">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      On this page
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#what-it-is-for" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        What it is for
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#editor-setup" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Editor setup
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#versioning" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Versioning
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#the-enum-guarantee" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        The enum guarantee
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#where-the-schema-and-the-parser-disagree" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Where the schema and the parser disagree
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#determinism" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Determinism
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1369,10 +1256,36 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../dialects/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Dialects
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1387,6 +1300,82 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#shipped-dialects" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Shipped dialects
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#physical-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Physical types
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-the-ports-spell-things-differently" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Where the ports spell things differently
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#divergences-worth-knowing-before-you-pick" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Divergences worth knowing before you pick
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Notes
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1521,10 +1510,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-it-is-for" class="md-nav__link">
+  <a href="#shipped-dialects" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        What it is for
+        Shipped dialects
       </span>
     </span>
   </a>
@@ -1532,10 +1521,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#editor-setup" class="md-nav__link">
+  <a href="#physical-types" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Editor setup
+        Physical types
       </span>
     </span>
   </a>
@@ -1543,10 +1532,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#versioning" class="md-nav__link">
+  <a href="#where-the-ports-spell-things-differently" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Versioning
+        Where the ports spell things differently
       </span>
     </span>
   </a>
@@ -1554,10 +1543,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-enum-guarantee" class="md-nav__link">
+  <a href="#divergences-worth-knowing-before-you-pick" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The enum guarantee
+        Divergences worth knowing before you pick
       </span>
     </span>
   </a>
@@ -1565,21 +1554,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#where-the-schema-and-the-parser-disagree" class="md-nav__link">
+  <a href="#notes" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Where the schema and the parser disagree
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#determinism" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Determinism
+        Notes
       </span>
     </span>
   </a>
@@ -1657,135 +1635,198 @@
   
 
 
-<h1 id="json-schema-export">JSON Schema export<a class="headerlink" href="#json-schema-export" title="Permanent link">&para;</a></h1>
-<p>The six spec kinds are strict Pydantic models, so a JSON Schema for each is one call
-away. <code>bloomery.schema</code> exposes it:</p>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecKind</span><span class="p">,</span> <span class="n">all_spec_schemas</span><span class="p">,</span> <span class="n">spec_json_schema</span>
-
-<span class="n">schema</span> <span class="o">=</span> <span class="n">spec_json_schema</span><span class="p">(</span><span class="n">SpecKind</span><span class="o">.</span><span class="n">ENTITY_MODEL</span><span class="p">)</span>
-<span class="n">every</span> <span class="o">=</span> <span class="n">all_spec_schemas</span><span class="p">()</span>          <span class="c1"># {SpecKind: schema}, in SpecKind order</span>
-</code></pre></div>
-<p>or from the command line:</p>
-<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>schema<span class="w"> </span>--out<span class="w"> </span>schemas/
-</code></pre></div>
-<div class="highlight"><pre><span></span><code>schemas/catalog.json
-schemas/entity_model.json
-schemas/mapping.json
-schemas/marts.json
-schemas/metrics.json
-schemas/steps.json
-</code></pre></div>
-<p>The documents are generated from the models, so they cannot drift from the parser except
-in the two places JSON Schema cannot express — both measured, both listed below.</p>
-<h2 id="what-it-is-for">What it is for<a class="headerlink" href="#what-it-is-for" title="Permanent link">&para;</a></h2>
-<p>Four consumers, one artifact:</p>
-<ul>
-<li><strong>Editor completion.</strong> Point <code>yaml.schemas</code> at a document and you get inline
-  validation and completion while authoring.</li>
-<li><strong>Form validation</strong> in a control plane, without transcribing the models into
-  TypeScript and keeping the copy in step.</li>
-<li><strong>Reference documentation</strong> generated from the same docstrings the schema carries as
-  <code>description</code>, which is what stops it going stale.</li>
-<li><strong>Constrained generation</strong> for machine-authored specs. This is the one that changes
-  something structural: a generator constrained by the schema <em>cannot</em> emit a transform
-  bloomery does not have, so the refusal that would have caught it never has to fire.</li>
-</ul>
-<h2 id="editor-setup">Editor setup<a class="headerlink" href="#editor-setup" title="Permanent link">&para;</a></h2>
-<p>VS Code, with the YAML extension:</p>
-<div class="highlight"><pre><span></span><code><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;yaml.schemas&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/entity_model.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/entity_model.yaml&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/mapping.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/mapping*.yaml&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/metrics.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/metrics.yaml&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/marts.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/marts.yaml&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/steps.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/steps.yaml&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/catalog.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/catalog.yaml&quot;</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-<p>Six mappings rather than one bundled document, because an editor maps a <em>file glob</em> to a
-schema and a bundle cannot discriminate within itself. Each schema's <code>$id</code> is the URL
-above, so <code>$ref</code>-by-URL works the same way.</p>
-<h2 id="versioning">Versioning<a class="headerlink" href="#versioning" title="Permanent link">&para;</a></h2>
-<p>Every schema carries a <code>$id</code> containing the document version:</p>
-<div class="highlight"><pre><span></span><code>https://morzecrew.github.io/bloomery/schemas/v1/entity_model.json
-</code></pre></div>
-<p>That version is read off the model's own pinned <code>&lt;kind&gt;_version: Literal[1]</code>, not written
-down a second time — so the version a consumer pins to and the version the parser accepts
-are the same fact. See <a href="../stability/">stability</a> for what a version bump means.</p>
-<h2 id="the-enum-guarantee">The enum guarantee<a class="headerlink" href="#the-enum-guarantee" title="Permanent link">&para;</a></h2>
-<p>Every closed set in a spec appears as an enumeration, never a free string: <code>scd</code>,
-<code>cardinality</code>, <code>materialization</code>, <code>on_fail</code>, the quality <code>rule</code> discriminator,
-<code>additivity</code>, a mart measure's <code>agg</code>, catalog <code>unit</code> and <code>tax_basis</code>, and the document
-version key itself.</p>
-<p>The transform whitelist is included, in all three authored spellings:</p>
-<div class="highlight"><pre><span></span><code><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">to_string</span><span class="p p-Indicator">]</span><span class="w">                    </span><span class="c1"># bare name</span>
-<span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">parse_ts</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ISO8601&quot;</span><span class="p p-Indicator">}]</span><span class="w">        </span><span class="c1"># single-key mapping</span>
-<span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">to_string</span><span class="p p-Indicator">,</span><span class="nt"> args</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]}]</span><span class="w">  </span><span class="c1"># normalized form</span>
-</code></pre></div>
-<p>The whitelist is read from the <strong>live</strong> registry, so a process that called
-<code>register_transform</code> exports a schema describing the transforms it actually accepts.</p>
-<p>Two entries in that list are worth being precise about:</p>
-<ul>
-<li><strong>Logical types are a pattern, not an enum.</strong> <code>decimal(p, s)</code> is parameterized, so the
-  closed set is a grammar rather than a list, and the schema carries the same regex the
-  parser does. Regex-constrained decoders consume it the same way.</li>
-<li><strong>Filter operators appear nowhere.</strong> Filters are request-time, not authored — no spec
-  document carries one.</li>
-</ul>
-<h2 id="where-the-schema-and-the-parser-disagree">Where the schema and the parser disagree<a class="headerlink" href="#where-the-schema-and-the-parser-disagree" title="Permanent link">&para;</a></h2>
-<p>The schema is a <strong>pre-filter</strong>; the parser is the authority. Every fixture in the corpus
-validates against its schema, and the mutation classes JSON Schema can express — an
-unknown key, a wrong scalar type, an out-of-enum value — are refused by both. The
-remaining gaps are measured rather than assumed:</p>
+<h1 id="dialects">Dialects<a class="headerlink" href="#dialects" title="Permanent link">&para;</a></h1>
+<p>Three SQL dialects ship — <code>duckdb</code>, <code>postgres</code>, <code>trino</code> — and every emitter renders
+through the same port, so the choice of dialect is independent of the choice of target.</p>
+<h2 id="shipped-dialects">Shipped dialects<a class="headerlink" href="#shipped-dialects" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
-<th>Divergence</th>
-<th>Which is stricter</th>
-<th>Why</th>
+<th><code>--dialect</code></th>
+<th>Port</th>
+<th>Notes</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>An invented transform name</td>
-<td>Schema</td>
-<td>Transform existence is a <em>typecheck</em>-stage refusal, so the parser accepts the document and a later stage refuses it. The schema refuses it at the door, which is the export earning its keep.</td>
+<td><code>duckdb</code></td>
+<td><code>DuckDBDialect</code></td>
+<td>The default in every example; runs in-process, so the execution test tier uses it</td>
 </tr>
 <tr>
-<td><code>reconcile.tolerance: 0.01</code></td>
-<td>Parser</td>
-<td>The parser refuses a YAML float (a binary approximation would reach emission); JSON Schema has one numeric type and cannot tell <code>0.01</code> from <code>1</code>. <code>tolerance: 0</code> is an int and parses, so the schema cannot simply forbid numbers.</td>
+<td><code>postgres</code></td>
+<td><code>PostgresDialect</code></td>
+<td><code>variant</code> is <code>JSONB</code>, and <code>TRY_CAST</code> has no keyword — see below</td>
 </tr>
 <tr>
-<td><code>agg</code> on a metric</td>
-<td>Neither</td>
-<td>A mart measure's <code>agg</code> is a closed set; an authored metric's is a free string in the model, so the schema mirrors that. An out-of-vocabulary value parses and is inert.</td>
-</tr>
-<tr>
-<td><code>{round: [true]}</code> as a transform argument</td>
-<td>Schema</td>
-<td><code>args</code> is <code>str | int</code>, and Pydantic's lax mode coerces a bool into it — <code>true</code> parses and arrives as the integer <code>1</code>. JSON Schema types a boolean as itself. An integral float is <em>not</em> a divergence: JSON Schema's <code>integer</code> accepts <code>1.0</code> exactly as Pydantic does.</td>
-</tr>
-<tr>
-<td><code>{name: to_string, step: null}</code></td>
-<td>Schema</td>
-<td>The one-of encoding asks whether the <code>step</code> <em>key</em> is present; the model asks whether it has a value. Nothing documents that spelling.</td>
+<td><code>trino</code></td>
+<td><code>TrinoDialect</code></td>
+<td>The federated engine; used by the lakehouse example over Iceberg</td>
 </tr>
 </tbody>
 </table>
-<p>Only <code>tolerance</code> is a case where a document passes the schema and fails the parser — the
-direction that costs a round-trip — and it is one key. Everything else here is the schema
-being the stricter of the two, which for a pre-filter is the safe direction: a constrained
-generator simply never writes those spellings.</p>
-<h2 id="determinism">Determinism<a class="headerlink" href="#determinism" title="Permanent link">&para;</a></h2>
-<p>Keys are sorted at every depth and <code>required</code> lists are sorted, so the same registry
-produces byte-identical schemas across processes and hash seeds — checked by the same
-subprocess guard that covers compiled artifacts. The six documents are checked into
-<code>tests/golden/schema/</code>, so a schema change arrives as a reviewable diff rather than as a
-field that quietly stopped being required.</p>
-<p>Two things move those goldens without a bloomery edit, and both are meant to: a Pydantic
-upgrade that renders a constraint differently, and a transform added to the registry.</p>
+<p>Passing any other name is an <code>EmitError</code> naming the three. A fourth port is a
+<code>register_dialect()</code> call away — the port protocol is public, and the capability flags
+below exist so a new one refuses what it cannot express instead of approximating it.</p>
+<h2 id="physical-types">Physical types<a class="headerlink" href="#physical-types" title="Permanent link">&para;</a></h2>
+<p>The seven logical types, as each port spells them:</p>
+<table>
+<thead>
+<tr>
+<th>Logical</th>
+<th><code>duckdb</code></th>
+<th><code>postgres</code></th>
+<th><code>trino</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>string</code></td>
+<td><code>VARCHAR</code></td>
+<td><code>TEXT</code></td>
+<td><code>VARCHAR</code></td>
+</tr>
+<tr>
+<td><code>int</code></td>
+<td><code>BIGINT</code></td>
+<td><code>BIGINT</code></td>
+<td><code>BIGINT</code></td>
+</tr>
+<tr>
+<td><code>decimal(p,s)</code></td>
+<td><code>DECIMAL(p, s)</code></td>
+<td><code>DECIMAL(p, s)</code></td>
+<td><code>DECIMAL(p, s)</code></td>
+</tr>
+<tr>
+<td><code>bool</code></td>
+<td><code>BOOLEAN</code></td>
+<td><code>BOOLEAN</code></td>
+<td><code>BOOLEAN</code></td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td><code>DATE</code></td>
+<td><code>DATE</code></td>
+<td><code>DATE</code></td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td><code>TIMESTAMP</code></td>
+<td><code>TIMESTAMP</code></td>
+<td><code>TIMESTAMP</code></td>
+</tr>
+<tr>
+<td><code>variant</code></td>
+<td><code>JSON</code></td>
+<td><code>JSONB</code></td>
+<td><code>JSON</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>variant</code> is the only row where the choice carries meaning. Postgres maps to <code>JSONB</code> —
+the binary, indexable, canonicalized form — rather than <code>JSON</code>, which is a text blob
+preserving key order and duplicates, properties <code>variant</code> never promises.</p>
+<p>There are no floats. A <code>decimal</code> stays exact end to end, and nothing in the IR or on an
+emission path is ever a binary float.</p>
+<h2 id="where-the-ports-spell-things-differently">Where the ports spell things differently<a class="headerlink" href="#where-the-ports-spell-things-differently" title="Permanent link">&para;</a></h2>
+<p>All three declare every capability, so nothing here is a feature gap. These are the
+places one engine needs different SQL for the same meaning, and the port supplies it —
+the reason a spec compiles to different text without meaning anything different.</p>
+<table>
+<thead>
+<tr>
+<th>Construct</th>
+<th><code>duckdb</code></th>
+<th><code>postgres</code></th>
+<th><code>trino</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Zone interpretation (<code>to_utc</code>)</td>
+<td><code>x AT TIME ZONE 'Europe/Berlin'</code></td>
+<td><code>x AT TIME ZONE 'Europe/Berlin'</code></td>
+<td><code>WITH_TIMEZONE(x, 'Europe/Berlin')</code></td>
+</tr>
+<tr>
+<td>Null-on-failure cast (the <code>coercible</code> marker)</td>
+<td><code>TRY_CAST(x AS BIGINT)</code></td>
+<td><code>CASE WHEN PG_INPUT_IS_VALID(x, 'BIGINT') THEN CAST(x AS BIGINT) END</code></td>
+<td><code>TRY_CAST(x AS BIGINT)</code></td>
+</tr>
+<tr>
+<td>Nested read <code>$.payload.shipping.country</code></td>
+<td><code>payload -&gt;&gt; '$.shipping.country'</code></td>
+<td><code>JSON_EXTRACT_PATH_TEXT(CAST(payload AS JSON), 'shipping', 'country')</code></td>
+<td><code>JSON_EXTRACT_SCALAR(payload, '$.shipping.country')</code></td>
+</tr>
+<tr>
+<td><code>normalize</code> rule</td>
+<td><code>NFC_NORMALIZE(x)</code></td>
+<td><code>NORMALIZE(x, NFC)</code></td>
+<td><code>NORMALIZE(x, NFC)</code></td>
+</tr>
+<tr>
+<td><code>reject_id</code> digest</td>
+<td><code>SHA256('v')</code></td>
+<td><code>ENCODE(SHA256(CONVERT_TO('v', 'UTF8')), 'hex')</code></td>
+<td><code>LOWER(TO_HEX(SHA256(TO_UTF8('v'))))</code></td>
+</tr>
+<tr>
+<td>Reject <code>raw</code> payload</td>
+<td><code>JSON_OBJECT('a', a)</code></td>
+<td><code>JSON_BUILD_OBJECT('a', a)</code></td>
+<td><code>JSON_OBJECT('a': a)</code></td>
+</tr>
+</tbody>
+</table>
+<p>Four of those are not stylistic. Postgres has no <code>TRY_CAST</code> keyword, and SQLGlot renders
+one as a plain <code>CAST</code> — which would turn "quarantine the uncastable row" into "abort the
+run", so the port wraps the engine's own input parser instead of approximating it with a
+regex. Trino's <code>sha256</code> takes and returns <code>varbinary</code>, so the plain spelling does not
+even plan; its <code>to_hex</code> is uppercase, and <code>reject_id</code> has to agree across engines byte
+for byte. Trino parses only the SQL-standard <code>JSON_OBJECT</code> spelling. DuckDB has no
+<code>NORMALIZE</code> at all.</p>
+<h2 id="divergences-worth-knowing-before-you-pick">Divergences worth knowing before you pick<a class="headerlink" href="#divergences-worth-knowing-before-you-pick" title="Permanent link">&para;</a></h2>
+<p>Two engine behaviours differ in ways a spec cannot see. Both are the same shape: one
+spelling, two meanings, and no error to tell you which you got.</p>
+<div class="admonition warning">
+<p class="admonition-title"><code>parse_ts: ISO8601</code> does not accept the <code>T</code> separator on Trino</p>
+<p><code>TRY_CAST('2026-01-06T12:00:00' AS TIMESTAMP)</code> is <code>NULL</code> on Trino and a timestamp on
+DuckDB and PostgreSQL. Trino takes only the space-separated spelling.</p>
+<p>On an entity outside the quality system this is a silent NULL. <strong>Inside it, it is
+worse and louder</strong>: the generated <code>coercible</code> rule reads "the projection is NULL
+although the source was not" as a coercion failure, so every row of that source is
+quarantined and the diagnosis points at data that was fine.</p>
+<p>Until this is fixed, write space-separated timestamps in bronze if you compile for
+Trino, or map the column with a chain that does not end in an ISO parse. The design
+is <a href="https://github.com/morzecrew/bloomery/blob/main/rfcs/0027-iso8601-timestamps-across-dialects.md">RFC 0027</a>;
+the fix changes the emitted text for every project using the transform, which is why
+it is not a patch.</p>
+</div>
+<p>The other divergence — <code>to_utc</code> reading its zone argument backwards on Trino, so the
+instant came out unchanged — <strong>is fixed</strong>. Trino now renders <code>with_timezone</code>, and all
+three ports agree that a 12:00 value read as <code>Europe/Berlin</code> is the instant 11:00Z. If
+you built tables on a version before that fix, the timestamps in them moved.</p>
+<h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>The dialect is not the target.</strong> <code>--target sqlmesh --dialect postgres</code> and
+  <code>--target dbt --dialect postgres</code> share every line of dialect logic; a semantics bug
+  cannot exist in only one target's SQL.</li>
+<li><strong>Rendering never mutates the neutral AST.</strong> One expression tree is shared across
+  ports, so each rewrite works on a copy — a port that edited in place would leave the
+  next one rendering its neighbour's spelling.</li>
+<li><strong>Reserved identifiers are quoted on every port.</strong> An entity named <code>order</code> emits
+  <code>silver."order"</code> everywhere.</li>
+<li><strong>Capability flags are how a fourth dialect stays honest.</strong> A port that cannot express
+  a null-on-failure cast, an array, a text digest, Unicode normalization, or a JSON
+  object refuses the constructs that need them rather than emitting something close.
+  All three shipped ports declare all of them, so no project meets those refusals today;
+  the test suite provokes them against a deliberately incapable port.</li>
+<li>The engine test tier runs the emitted SQL against real DuckDB, PostgreSQL and Trino
+  containers, which is where claims on this page are checked.</li>
+</ul>
 
 
 
@@ -1823,7 +1864,7 @@ upgrade that renders a constraint differently, and a transform added to the regi
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../spec-schemas/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Spec schemas">
+          <a href="../transforms/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Transforms">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
@@ -1833,20 +1874,20 @@ upgrade that renders a constraint differently, and a transform added to the regi
                 Previous
               </span>
               <div class="md-ellipsis">
-                Spec schemas
+                Transforms
               </div>
             </div>
           </a>
         
         
           
-          <a href="../transforms/" class="md-footer__link md-footer__link--next" aria-label="Next: Transforms">
+          <a href="../errors/" class="md-footer__link md-footer__link--next" aria-label="Next: Errors">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Transforms
+                Errors
               </div>
             </div>
             <div class="md-footer__button md-icon">
