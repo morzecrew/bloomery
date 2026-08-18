@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="https://raw.githubusercontent.com/morzecrew/bloomery/main/pages/docs/assets/logo.png" alt="" width="96" height="96">
+
 # bloomery
 
 **Entity-first spec compiler — declarative specs in, SQLMesh, dbt and Cube artifacts out,
@@ -204,6 +206,7 @@ Full documentation: **[morzecrew.github.io/bloomery](https://morzecrew.github.io
   [evolve a spec safely](https://morzecrew.github.io/bloomery/how-to/evolve-a-spec/).
 - Reference — [spec schemas](https://morzecrew.github.io/bloomery/reference/spec-schemas/),
   [transforms](https://morzecrew.github.io/bloomery/reference/transforms/),
+  [dialects](https://morzecrew.github.io/bloomery/reference/dialects/),
   [errors](https://morzecrew.github.io/bloomery/reference/errors/),
   [API](https://morzecrew.github.io/bloomery/reference/api/),
   [stability](https://morzecrew.github.io/bloomery/reference/stability/).
