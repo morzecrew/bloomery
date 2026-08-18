@@ -9,7 +9,7 @@ from typing import ClassVar, cast
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
-from bloomery.dialects.base import SQLGlotDialect
+from bloomery.dialects.base import SQLGlotDialect, strip_iso_text
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -76,8 +76,22 @@ class TrinoDialect(SQLGlotDialect):
         One spec meaning two things on two engines, announced nowhere, is
         exactly what RFC 0008 D3 exists to prevent — so the divergence is
         closed here rather than documented as a caveat.
+
+        The ISO-text marker becomes a separator rewrite, for the same reason
+        one layer down. ``CAST('2026-01-06T12:00:00' AS TIMESTAMP)`` is NULL on
+        Trino and a timestamp on the other two ports — Trino takes only the
+        space-separated spelling, and `CAST(… AS DATE)` refuses the ``T`` form
+        as well. ``REPLACE(text, 'T', ' ')`` accepts both and is a no-op on a
+        value that never had one; it is applied to the *text* rather than to
+        the cast because the cast may already have become a ``TRY_CAST``
+        (RFC 0027 D4).
         """
-        rewritten: Expression = node.copy()
+
+        def space_separated(text: Expression) -> Expression:
+            replaced = exp.func("replace", text, exp.Literal.string("T"), exp.Literal.string(" "))
+            return cast("Expression", replaced)
+
+        rewritten: Expression = strip_iso_text(node.copy(), space_separated)
         for at_zone in reversed(tuple(rewritten.find_all(exp.AtTimeZone))):
             interpretation = cast(
                 "Expression", exp.func("with_timezone", at_zone.this, at_zone.args["zone"])

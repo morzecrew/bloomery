@@ -8,7 +8,8 @@ import pytest
 from sqlglot import exp, parse_one
 
 from bloomery.errors import TypeCheckError
-from bloomery.transforms import DEFAULT_REGISTRY
+from bloomery.resolve.build import _try_cast_shape
+from bloomery.transforms import DEFAULT_REGISTRY, ISO_TEXT_MARKER
 from bloomery.typing import (
     ArgKind,
     BoolType,
@@ -172,12 +173,43 @@ def test_enum_map_builder_maps_pairs_and_passes_unmapped_through() -> None:
     assert node.sql() == "CASE x WHEN 'paid' THEN 'PAID' ELSE x END"
 
 
-def test_parse_builders_iso8601_is_a_cast_and_formats_are_explicit() -> None:
-    """The ISO8601 format name lowers to the engine's native cast; any other
-    format is an explicit STR_TO_TIME/STR_TO_DATE."""
+def test_parse_builders_iso8601_is_a_marked_cast_and_formats_are_explicit() -> None:
+    """The ISO8601 format name lowers to the engine's native cast over a
+    *marked* operand; any other format is an explicit STR_TO_TIME/STR_TO_DATE.
+
+    The marker exists because the engines disagree about what their own casts
+    accept and the IR carries canonical text, so nothing else would tell a
+    dialect that this particular cast is parsing ISO 8601 (RFC 0027 §3). It
+    wraps the operand rather than replacing the cast, so that the quality
+    system's ``Cast`` → ``TryCast`` rewrite still reaches it.
+    """
     parse_ts = DEFAULT_REGISTRY["parse_ts"].builder
     parse_date = DEFAULT_REGISTRY["parse_date"].builder
-    assert parse_ts(exp.column("x"), "ISO8601").sql() == "CAST(x AS TIMESTAMP)"
+    assert parse_ts(exp.column("x"), "ISO8601").sql() == "CAST(BLM_ISO_TEXT(x) AS TIMESTAMP)"
     assert parse_ts(exp.column("x"), "%d/%m/%Y").sql() == "STR_TO_TIME(x, '%d/%m/%Y')"
+    # `parse_date` is deliberately unmarked — see its builder, and RFC 0027 D6.
     assert parse_date(exp.column("x"), "ISO8601").sql() == "CAST(x AS DATE)"
     assert parse_date(exp.column("x"), "%d/%m/%Y").sql() == "STR_TO_DATE(x, '%d/%m/%Y')"
+
+
+def test_the_iso_marker_survives_the_canonical_text_round_trip() -> None:
+    """The load-bearing property. The IR stores an expression as canonical text
+    and re-parses it at emit (RFC 0003 D2), so a marker that did not survive
+    that trip would be gone by the time any dialect could act on it — which is
+    exactly why an AST annotation could not do this job.
+    """
+    built = DEFAULT_REGISTRY["parse_ts"].builder(exp.column("created_at"), "ISO8601")
+    reparsed = parse_one(built.sql())
+    assert isinstance(reparsed, exp.Cast)
+    assert isinstance(reparsed.this, exp.Anonymous)
+    assert reparsed.this.name.upper() == ISO_TEXT_MARKER
+
+
+def test_the_quality_rewrite_still_reaches_a_marked_cast() -> None:
+    """A marker standing *where the cast stood* would not be rewritten to
+    ``TRY_CAST``, turning the construct that most needs to mark a coercion
+    failure back into produce-or-raise. Marking the operand keeps the cast a
+    cast, so the existing rewrite finds it.
+    """
+    built = DEFAULT_REGISTRY["parse_ts"].builder(exp.column("created_at"), "ISO8601")
+    assert _try_cast_shape(built).sql() == "TRY_CAST(BLM_ISO_TEXT(created_at) AS TIMESTAMP)"

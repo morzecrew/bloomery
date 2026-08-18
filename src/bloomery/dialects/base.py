@@ -9,13 +9,14 @@ A transform whose AST cannot render on some dialect is an emit-time
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from enum import StrEnum
 from typing import ClassVar, Protocol, cast
 
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
+from bloomery.transforms import ISO_TEXT_MARKER
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -29,9 +30,33 @@ from bloomery.typing import (
 
 __all__ = [
     "DialectFeature",
+    "strip_iso_text",
     "DialectPort",
     "SQLGlotDialect",
 ]
+
+
+def strip_iso_text(node: Expression, spelling: Callable[[Expression], Expression]) -> Expression:
+    """Replace every ISO-text marker in ``node`` with ``spelling(inner)``.
+
+    ``parse_ts: ISO8601`` and ``parse_date: ISO8601`` wrap the text they are
+    about to cast in :data:`~bloomery.transforms.ISO_TEXT_MARKER`, because the
+    engines disagree about what their own casts accept and the IR carries
+    canonical *text* — so by emit time nothing distinguishes an ISO parse's
+    cast from any other cast unless the spec layer said so (RFC 0027 §3).
+
+    Every port must call this. ``spelling`` is identity for an engine whose
+    cast already takes the ``T`` separator; a port that leaves the marker in
+    place emits a function no engine defines, which is the intended failure —
+    the alternative for such a port is data that is silently NULL.
+    """
+
+    def replace(child: Expression) -> Expression:
+        if isinstance(child, exp.Anonymous) and child.name.upper() == ISO_TEXT_MARKER:
+            return spelling(child.expressions[0])
+        return child
+
+    return node.transform(replace)
 
 
 class DialectFeature(StrEnum):

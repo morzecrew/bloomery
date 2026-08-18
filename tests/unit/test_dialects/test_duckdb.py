@@ -52,3 +52,22 @@ def test_render_is_the_duckdb_generator() -> None:
     assert DIALECT.sqlglot_dialect == "duckdb"
     node = exp.cast(exp.column("x"), exp.DataType.build("TIMESTAMP"))
     assert DIALECT.render(node) == "CAST(x AS TIMESTAMP)"
+
+
+def _iso_cast() -> exp.Expression:
+    """What `{parse_ts: ISO8601}` lowers to: a cast over a marked operand."""
+    return exp.cast(
+        exp.Anonymous(this="BLM_ISO_TEXT", expressions=[exp.column("x")]),
+        exp.DataType.build("TIMESTAMP"),
+    )
+
+
+def test_the_iso_text_marker_is_stripped() -> None:
+    """DuckDB's own cast takes `2026-01-06T12:00:00` and the space-separated
+    spelling alike, so the marker strips to nothing and this port's SQL is
+    byte-identical to what it emitted before the marker existed.
+
+    A port that left the marker in place would emit `BLM_ISO_TEXT(x)`, which no
+    engine defines — deliberately louder than silently NULL data (RFC 0027).
+    """
+    assert DIALECT.render(_iso_cast()) == "CAST(x AS TIMESTAMP)"

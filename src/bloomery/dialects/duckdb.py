@@ -8,7 +8,7 @@ from typing import ClassVar, cast
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
-from bloomery.dialects.base import SQLGlotDialect
+from bloomery.dialects.base import SQLGlotDialect, strip_iso_text
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -48,8 +48,13 @@ class DuckDBDialect(SQLGlotDialect):
         refusing it, so the untouched AST would emit a call the engine has
         never heard of. Verified live: the ``normalize`` rule's execution tier
         fails without this.
+
+        The ISO-text marker strips to nothing: DuckDB's own cast takes both
+        ``2026-01-06T12:00:00`` and the space-separated spelling, so there is
+        nothing for this port to add (RFC 0027).
         """
-        rewritten = node.copy().transform(_nfc_normalize)
+        rewritten = strip_iso_text(node.copy(), lambda text: text)
+        rewritten = rewritten.transform(_nfc_normalize)
         return super().render(rewritten)
 
 

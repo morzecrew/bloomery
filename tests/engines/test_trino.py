@@ -28,6 +28,11 @@ import re
 from collections.abc import Iterator
 
 import pytest
+from sqlglot import exp, parse_one
+
+from bloomery.dialects import TrinoDialect
+from bloomery.resolve.build import _try_cast_shape
+from bloomery.transforms import DEFAULT_REGISTRY
 import trino
 from support.compiling import compile_fixture, extract_select
 from testcontainers.community.trino import TrinoContainer
@@ -339,3 +344,52 @@ def test_an_empty_mart_is_where_the_two_aggregates_part_company(
     empty = "memory.silver.mart_empty"
     assert _run(trino_db, _assert_body("lines_amount_positive_every_month", empty)) == []
     assert _run(trino_db, _assert_body("lines_rows_present", empty)) == [[0]]
+
+
+# ....................... #
+# RFC 0027 — the ISO 8601 separator, executed rather than rendered
+
+
+@pytest.mark.parametrize(
+    ("spelling", "cast_to"),
+    [
+        ("2026-01-06T12:00:00", "TIMESTAMP"),
+        ("2026-01-06 12:00:00", "TIMESTAMP"),
+        ("2026-01-06", "DATE"),
+    ],
+)
+def test_an_iso_parse_survives_both_separators(
+    trino_db: trino.dbapi.Connection, spelling: str, cast_to: str
+) -> None:
+    """What `{parse_ts: ISO8601}` and `{parse_date: ISO8601}` emit here, run.
+
+    This is the test RFC 0027 §6 asked for, and it is at this tier rather than
+    a rendering assertion because the rendering was never what was wrong:
+    `CAST(x AS TIMESTAMP)` is valid Trino, it just returns NULL for the `T`
+    separator that ISO 8601 defines — and inside the quality system a NULL
+    where the source was not null *is* a coercion failure, so every row of a
+    source landed in the reject table while the data was fine.
+
+    Both spellings for the timestamp parse — the `T` row is the regression,
+    the space row is here so a rewrite that broke the ordinary case could not
+    pass — and the date parse, which is unmarked and must stay that way.
+    """
+    node = DEFAULT_REGISTRY["parse_ts" if cast_to == "TIMESTAMP" else "parse_date"].builder(
+        exp.Literal.string(spelling), "ISO8601"
+    )
+    rendered = TrinoDialect().render(parse_one(node.sql()))
+    assert _run(trino_db, f"SELECT {rendered}")[0][0] is not None
+
+
+def test_the_marker_still_marks_a_genuine_coercion_failure(
+    trino_db: trino.dbapi.Connection,
+) -> None:
+    """The separator rewrite must not swallow real bad data.
+
+    `REPLACE` accepts anything, so the guard against over-repair is that the
+    cast still refuses a value that is not a timestamp at all — which is what
+    keeps the `coercible` rule meaningful rather than always-clean.
+    """
+    node = DEFAULT_REGISTRY["parse_ts"].builder(exp.Literal.string("last tuesday"), "ISO8601")
+    shaped = parse_one(_try_cast_shape(node).sql())
+    assert _run(trino_db, f"SELECT {TrinoDialect().render(shaped)}")[0][0] is None

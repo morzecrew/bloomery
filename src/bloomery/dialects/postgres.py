@@ -10,7 +10,7 @@ from typing import ClassVar, Final, cast
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
-from bloomery.dialects.base import SQLGlotDialect
+from bloomery.dialects.base import SQLGlotDialect, strip_iso_text
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -93,8 +93,11 @@ class PostgresDialect(SQLGlotDialect):
         engine tier fails without this). Single-key paths render as the
         polymorphic ``->``/``->>`` operators; deeper paths keep the function
         form over an explicit ``CAST(... AS JSON)``.
+
+        The ISO-text marker strips to nothing: Postgres' own cast takes both
+        ISO spellings, so there is nothing for this port to add (RFC 0027).
         """
-        rewritten = node.copy()
+        rewritten = strip_iso_text(node.copy(), lambda text: text)
         rewritten = rewritten.transform(_guarded_try_cast)
         for identifier in rewritten.find_all(exp.Identifier):
             if identifier.this.lower() in _RESERVED:
