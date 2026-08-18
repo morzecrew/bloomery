@@ -64,26 +64,29 @@ for byte. Trino parses only the SQL-standard `JSON_OBJECT` spelling. DuckDB has 
 Two engine behaviours differ in ways a spec cannot see. Both are the same shape: one
 spelling, two meanings, and no error to tell you which you got.
 
-!!! warning "`parse_ts: ISO8601` does not accept the `T` separator on Trino"
+### `parse_ts: ISO8601` does not accept the `T` separator on Trino
 
-    `TRY_CAST('2026-01-06T12:00:00' AS TIMESTAMP)` is `NULL` on Trino and a timestamp on
-    DuckDB and PostgreSQL. Trino takes only the space-separated spelling.
+`TRY_CAST('2026-01-06T12:00:00' AS TIMESTAMP)` is `NULL` on Trino and a timestamp on
+DuckDB and PostgreSQL. Trino takes only the space-separated spelling.
 
-    On an entity outside the quality system this is a silent NULL. **Inside it, it is
-    worse and louder**: the generated `coercible` rule reads "the projection is NULL
-    although the source was not" as a coercion failure, so every row of that source is
-    quarantined and the diagnosis points at data that was fine.
+**No error is raised for this, which is why it is here rather than in
+[Errors](errors.md).** On an entity outside the quality system it is a silent NULL.
+Inside it, it is worse and louder: the generated `coercible` rule reads "the projection
+is NULL although the source was not" as a coercion failure, so every row of that source
+is quarantined and the diagnosis points at data that was fine.
 
-    Until this is fixed, write space-separated timestamps in bronze if you compile for
-    Trino, or map the column with a chain that does not end in an ISO parse. The design
-    is [RFC 0027](https://github.com/morzecrew/bloomery/blob/main/rfcs/0027-iso8601-timestamps-across-dialects.md);
-    the fix changes the emitted text for every project using the transform, which is why
-    it is not a patch.
+Until this is fixed, write space-separated timestamps in bronze if you compile for
+Trino, or map the column with a chain that does not end in an ISO parse. The design is
+[RFC 0027](https://github.com/morzecrew/bloomery/blob/main/rfcs/0027-iso8601-timestamps-across-dialects.md);
+the fix changes the emitted text for every project using the transform, which is why it
+is not a patch.
 
-The other divergence — `to_utc` reading its zone argument backwards on Trino, so the
-instant came out unchanged — **is fixed**. Trino now renders `with_timezone`, and all
-three ports agree that a 12:00 value read as `Europe/Berlin` is the instant 11:00Z. If
-you built tables on a version before that fix, the timestamps in them moved.
+### `to_utc` reading its zone backwards on Trino — fixed
+
+Trino now renders `with_timezone`, and all three ports agree that a 12:00 value read as
+`Europe/Berlin` is the instant 11:00Z. Before that fix Trino promoted with the *session*
+zone and left the instant unchanged, so if you built tables on an earlier version, the
+timestamps in them moved when you upgraded.
 
 ## Notes
 
