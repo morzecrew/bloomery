@@ -319,5 +319,9 @@ fails it. Widening an `enum_map` — a new target *or* a new spelling for an exi
   question is about semantics — a compiler that never executes SQL cannot prove an
   engine's regex engine accepts a pattern (D55).
 
-Once rules are declared, [Evolve a spec safely](evolve-a-spec.md) covers the rest of the
-change classes a spec edit can produce.
+To watch these rules act on rows rather than read about them, the
+[`lakehouse/` example](../get-started/examples.md) runs them against seed data written to
+trip each disposition: two rows flagged and kept, one duplicate resolved by declared
+policy, and one row diverted to a reject table with its raw payload. Once rules are
+declared, [Evolve a spec safely](evolve-a-spec.md) covers the rest of the change classes
+a spec edit can produce.

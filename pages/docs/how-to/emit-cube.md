@@ -181,3 +181,6 @@ target claims to support but cannot express honestly raises `UnsupportedByTarget
   cheapest-mart ownership rule the planner uses, so the surfaces agree.
 - Deploy the Cube YAML together with the SQLMesh artifacts that build the gold tables
   it points at.
+- The [`targets/` example](../get-started/examples.md) does exactly that in one command:
+  it compiles the semantic model, brings Cube up over the warehouse SQLMesh built, and
+  asks it for the same numbers through the REST API.

@@ -24,6 +24,10 @@ model that carries units, tax bases, grains, and additivity; anything that would
 a plausible-but-wrong number is a compile error with a source path, not a warning. The
 system may not know an answer, but it may not return a wrong one without warning.
 
+The `refusals/` [example](examples.md) is six of those specs, each one a project that a
+hand-written model would run without complaint, printed next to the message bloomery
+gives instead — worth ten minutes if this section is the reason you are here.
+
 ## What bloomery is
 
 A pure function library. Specs go in as data structures; artifacts and plans come out as
@@ -154,5 +158,5 @@ it untestable.
   human-readable query explanations — is generated deterministically.
 
 If that boundary fits your platform, continue to [Installation](installation.md) and
-the [Quickstart](quickstart.md), or read
+the [Quickstart](quickstart.md), run one of the [examples](examples.md), or read
 [Specs and the catalog](../concepts/specs-and-catalog.md) for the full domain model.

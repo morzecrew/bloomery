@@ -91,3 +91,7 @@ whitelist. A `TransformSpec` declares the name, arity and per-argument kinds, in
 type domain, output type (a fixed type or a function of input type and args), and a
 builder that produces a dialect-neutral SQLGlot AST — never string SQL. See the
 [API reference](api.md#extension-points).
+
+That AST is neutral because each [dialect](dialects.md) renders it, and two of the
+transforms here need different SQL per engine — `to_utc` and `parse_ts` both have
+engine-specific behaviour worth reading before you pick a warehouse.

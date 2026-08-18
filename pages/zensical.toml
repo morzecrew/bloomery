@@ -24,6 +24,7 @@ nav = [
         "get-started/introduction.md",
         "get-started/installation.md",
         "get-started/quickstart.md",
+        "get-started/examples.md",
     ] },
     { "Concepts" = [
         "concepts/specs-and-catalog.md",
@@ -50,6 +51,7 @@ nav = [
         "reference/spec-schemas.md",
         "reference/json-schema.md",
         "reference/transforms.md",
+        "reference/dialects.md",
         "reference/errors.md",
         "reference/api.md",
         "reference/stability.md",
@@ -62,9 +64,24 @@ nav = [
 dev_addr = "localhost:8046"
 
 # ....................... #
+# Styles
+#
+# The palette names below stay at the theme's own vocabulary because every
+# structural rule keys off them; `palette.css` re-points the colours those
+# rules read. See the file for the measured contrast of each pairing.
+
+extra_css = ["assets/palette.css"]
+
+# ....................... #
 # Theme
 
 [project.theme]
+# The mark is a bloomery — a shaft furnace on its hearth, with the bloom glowing
+# in the arch. One asset serves the light page and the steel header because the
+# ember clears 3:1 on both; the favicon carries its own steel plate, since a tab
+# strip is a background nobody controls.
+logo = "assets/logo.svg"
+favicon = "assets/favicon.svg"
 features = [
     "search.highlight",
     "navigation.footer",
