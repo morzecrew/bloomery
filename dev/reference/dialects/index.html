@@ -1351,13 +1351,41 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#divergences-worth-knowing-before-you-pick" class="md-nav__link">
+  <a href="#two-divergences-the-ports-absorb-for-you" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Divergences worth knowing before you pick
+        Two divergences the ports absorb for you
       </span>
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Two divergences the ports absorb for you">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parse_ts-iso8601-and-the-t-separator" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>parse_ts: ISO8601</code> and the <code>T</code> separator
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#to_utc-and-the-zone-argument" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>to_utc</code> and the zone argument
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1543,13 +1571,41 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#divergences-worth-knowing-before-you-pick" class="md-nav__link">
+  <a href="#two-divergences-the-ports-absorb-for-you" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Divergences worth knowing before you pick
+        Two divergences the ports absorb for you
       </span>
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Two divergences the ports absorb for you">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parse_ts-iso8601-and-the-t-separator" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>parse_ts: ISO8601</code> and the <code>T</code> separator
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#to_utc-and-the-zone-argument" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>to_utc</code> and the zone argument
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1788,27 +1844,35 @@ regex. Trino's <code>sha256</code> takes and returns <code>varbinary</code>, so 
 even plan; its <code>to_hex</code> is uppercase, and <code>reject_id</code> has to agree across engines byte
 for byte. Trino parses only the SQL-standard <code>JSON_OBJECT</code> spelling. DuckDB has no
 <code>NORMALIZE</code> at all.</p>
-<h2 id="divergences-worth-knowing-before-you-pick">Divergences worth knowing before you pick<a class="headerlink" href="#divergences-worth-knowing-before-you-pick" title="Permanent link">&para;</a></h2>
-<p>Two engine behaviours differ in ways a spec cannot see. Both are the same shape: one
-spelling, two meanings, and no error to tell you which you got.</p>
-<div class="admonition warning">
-<p class="admonition-title"><code>parse_ts: ISO8601</code> does not accept the <code>T</code> separator on Trino</p>
-<p><code>TRY_CAST('2026-01-06T12:00:00' AS TIMESTAMP)</code> is <code>NULL</code> on Trino and a timestamp on
-DuckDB and PostgreSQL. Trino takes only the space-separated spelling.</p>
-<p>On an entity outside the quality system this is a silent NULL. <strong>Inside it, it is
-worse and louder</strong>: the generated <code>coercible</code> rule reads "the projection is NULL
-although the source was not" as a coercion failure, so every row of that source is
-quarantined and the diagnosis points at data that was fine.</p>
-<p>Until this is fixed, write space-separated timestamps in bronze if you compile for
-Trino, or map the column with a chain that does not end in an ISO parse. The design
-is <a href="https://github.com/morzecrew/bloomery/blob/main/rfcs/0027-iso8601-timestamps-across-dialects.md">RFC 0027</a>;
-the fix changes the emitted text for every project using the transform, which is why
-it is not a patch.</p>
-</div>
-<p>The other divergence — <code>to_utc</code> reading its zone argument backwards on Trino, so the
-instant came out unchanged — <strong>is fixed</strong>. Trino now renders <code>with_timezone</code>, and all
-three ports agree that a 12:00 value read as <code>Europe/Berlin</code> is the instant 11:00Z. If
-you built tables on a version before that fix, the timestamps in them moved.</p>
+<h2 id="two-divergences-the-ports-absorb-for-you">Two divergences the ports absorb for you<a class="headerlink" href="#two-divergences-the-ports-absorb-for-you" title="Permanent link">&para;</a></h2>
+<p>Trino's engine differs from the other two in ways a spec cannot see, and both are the
+same shape: one spelling, two meanings, and no error to tell you which you got. Neither
+is a caveat you have to work around any more — the port closes both — but both are worth
+knowing, because each moved data on upgrade.</p>
+<h3 id="parse_ts-iso8601-and-the-t-separator"><code>parse_ts: ISO8601</code> and the <code>T</code> separator<a class="headerlink" href="#parse_ts-iso8601-and-the-t-separator" title="Permanent link">&para;</a></h3>
+<p><code>CAST('2026-01-06T12:00:00' AS TIMESTAMP)</code> is <code>NULL</code> on Trino and a timestamp on DuckDB
+and PostgreSQL: Trino's cast takes only the space-separated spelling, though ISO 8601
+defines the <code>T</code>.</p>
+<p>No error was ever raised for this. Outside the quality system it was a silent NULL;
+inside it the generated <code>coercible</code> rule read "the projection is NULL although the source
+was not" as a coercion failure, so <strong>every row of the source was quarantined</strong> while the
+diagnosis pointed at data that was fine.</p>
+<p>The Trino port now normalizes the separator before the cast, so both spellings parse and
+a value that is genuinely not a timestamp still fails as one. The rewrite is applied to
+the text rather than to the cast, so it survives the cast becoming a <code>TRY_CAST</code> for an
+entity in the quality system.</p>
+<p><code>parse_date: ISO8601</code> is deliberately <em>not</em> normalized. An ISO date has no <code>T</code>, and the
+case that would need it — a full timestamp handed to a date parser — is not helped:
+Trino cannot cast <code>2026-01-06 12:00:00</code> to <code>DATE</code> either, so rewriting only turns a NULL
+into a hard <code>INVALID_CAST_ARGUMENT</code>.</p>
+<h3 id="to_utc-and-the-zone-argument"><code>to_utc</code> and the zone argument<a class="headerlink" href="#to_utc-and-the-zone-argument" title="Permanent link">&para;</a></h3>
+<p>Trino's <code>AT TIME ZONE</code> promotes a zoneless timestamp with the <strong>session</strong> zone before
+converting, leaving the instant unchanged — so the zone argument moved nothing but the
+display, and the same spec produced a different instant than on the other two ports.
+Trino now renders <code>with_timezone</code>, and all three agree that a 12:00 value read as
+<code>Europe/Berlin</code> is the instant 11:00Z.</p>
+<p>If you built tables on a version before either fix, the timestamps in them moved when you
+upgraded — which is the point, but worth planning a restatement around.</p>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>The dialect is not the target.</strong> <code>--target sqlmesh --dialect postgres</code> and
