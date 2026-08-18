@@ -48,6 +48,13 @@ SOURCES: tuple[tuple[str, str], ...] = (
 #: required rather than chosen: the ingestion-metadata contract (RFC 0016 D21)
 #: makes `_ingested_at` the time a reject row is measured against, and a
 #: retention window over a string is not a window.
+#:
+#: It is also the one timestamp in `seed/` still written with a space rather
+#: than the ISO `T`, and for a reason worth keeping: this cast is Trino's own,
+#: not one bloomery emits, so nothing normalizes the separator for it. Every
+#: *mapped* timestamp uses the `T` form, which is what the storefront and the
+#: CRM actually export — and what a bloomery of an earlier version would have
+#: quarantined every row over.
 TYPED: dict[str, str] = {"_ingested_at": "TIMESTAMP"}
 
 

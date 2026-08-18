@@ -82,6 +82,16 @@ jobs:
               - "uv.lock"
               - ".pre-commit-config.yaml"
               - ".github/workflows/ci.yml"
+              # The docs pages are a test *input*, not only a build input:
+              # `tests/unit/test_docs_floor.py` reads every page under
+              # `pages/docs/` and enforces contracts over them — an admonition
+              # claiming a refusal must name an exported error class, and every
+              # documented error must exist. Left out of this filter, a
+              # docs-only PR skipped the matrix that reads its own diff, and a
+              # change that broke that test merged green. `docs` below still
+              # exists and still runs the strict site build; this entry is
+              # about the tests, which is a different question.
+              - "pages/docs/**"
             # The RFC corpus and the gate that checks it. Separate from `code`
             # on purpose: a retirement must run `just quality` — that is where
             # `check_rfc_corpus.py` lives — without pulling the whole test

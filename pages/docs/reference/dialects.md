@@ -59,31 +59,44 @@ even plan; its `to_hex` is uppercase, and `reject_id` has to agree across engine
 for byte. Trino parses only the SQL-standard `JSON_OBJECT` spelling. DuckDB has no
 `NORMALIZE` at all.
 
-## Divergences worth knowing before you pick
+## Two divergences the ports absorb for you
 
-Two engine behaviours differ in ways a spec cannot see. Both are the same shape: one
-spelling, two meanings, and no error to tell you which you got.
+Trino's engine differs from the other two in ways a spec cannot see, and both are the
+same shape: one spelling, two meanings, and no error to tell you which you got. Neither
+is a caveat you have to work around any more — the port closes both — but both are worth
+knowing, because each moved data on upgrade.
 
-!!! warning "`parse_ts: ISO8601` does not accept the `T` separator on Trino"
+### `parse_ts: ISO8601` and the `T` separator
 
-    `TRY_CAST('2026-01-06T12:00:00' AS TIMESTAMP)` is `NULL` on Trino and a timestamp on
-    DuckDB and PostgreSQL. Trino takes only the space-separated spelling.
+`CAST('2026-01-06T12:00:00' AS TIMESTAMP)` is `NULL` on Trino and a timestamp on DuckDB
+and PostgreSQL: Trino's cast takes only the space-separated spelling, though ISO 8601
+defines the `T`.
 
-    On an entity outside the quality system this is a silent NULL. **Inside it, it is
-    worse and louder**: the generated `coercible` rule reads "the projection is NULL
-    although the source was not" as a coercion failure, so every row of that source is
-    quarantined and the diagnosis points at data that was fine.
+No error was ever raised for this. Outside the quality system it was a silent NULL;
+inside it the generated `coercible` rule read "the projection is NULL although the source
+was not" as a coercion failure, so **every row of the source was quarantined** while the
+diagnosis pointed at data that was fine.
 
-    Until this is fixed, write space-separated timestamps in bronze if you compile for
-    Trino, or map the column with a chain that does not end in an ISO parse. The design
-    is [RFC 0027](https://github.com/morzecrew/bloomery/blob/main/rfcs/0027-iso8601-timestamps-across-dialects.md);
-    the fix changes the emitted text for every project using the transform, which is why
-    it is not a patch.
+The Trino port now normalizes the separator before the cast, so both spellings parse and
+a value that is genuinely not a timestamp still fails as one. The rewrite is applied to
+the text rather than to the cast, so it survives the cast becoming a `TRY_CAST` for an
+entity in the quality system.
 
-The other divergence — `to_utc` reading its zone argument backwards on Trino, so the
-instant came out unchanged — **is fixed**. Trino now renders `with_timezone`, and all
-three ports agree that a 12:00 value read as `Europe/Berlin` is the instant 11:00Z. If
-you built tables on a version before that fix, the timestamps in them moved.
+`parse_date: ISO8601` is deliberately *not* normalized. An ISO date has no `T`, and the
+case that would need it — a full timestamp handed to a date parser — is not helped:
+Trino cannot cast `2026-01-06 12:00:00` to `DATE` either, so rewriting only turns a NULL
+into a hard `INVALID_CAST_ARGUMENT`.
+
+### `to_utc` and the zone argument
+
+Trino's `AT TIME ZONE` promotes a zoneless timestamp with the **session** zone before
+converting, leaving the instant unchanged — so the zone argument moved nothing but the
+display, and the same spec produced a different instant than on the other two ports.
+Trino now renders `with_timezone`, and all three agree that a 12:00 value read as
+`Europe/Berlin` is the instant 11:00Z.
+
+If you built tables on a version before either fix, the timestamps in them moved when you
+upgraded — which is the point, but worth planning a restatement around.
 
 ## Notes
 

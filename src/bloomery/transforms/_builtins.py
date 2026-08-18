@@ -253,18 +253,50 @@ def to_bool(col: Expression) -> Expression:
     return exp.cast(col, exp.DataType.build("BOOLEAN"))
 
 
+#: The marker wrapping the *text* an ISO 8601 parse is about to cast
+#: (RFC 0027 D4). Each dialect's ``render`` replaces it with whatever that
+#: engine needs to accept both ISO spellings — nothing at all on DuckDB and
+#: PostgreSQL, whose own casts take the ``T`` separator, and a separator
+#: rewrite on Trino, whose cast takes only the space form and returns NULL for
+#: the other.
+#:
+#: It marks the text rather than replacing the cast, and that is load-bearing:
+#: :func:`bloomery.resolve.build._try_cast_shape` rewrites every ``Cast`` in a
+#: chain to ``TryCast`` for entities inside the quality system, and a marker
+#: standing where the cast stood would not be rewritten — turning the one
+#: construct that most needs to mark a coercion failure back into
+#: produce-or-raise.
+#:
+#: A dialect that does not strip it renders a function no engine defines, which
+#: fails at plan time. That is deliberate: the alternative for a port whose
+#: cast rejects ISO 8601 is silently NULL data.
+ISO_TEXT_MARKER = "BLM_ISO_TEXT"
+
+
+def _iso_text(col: Expression) -> Expression:
+    return exp.Anonymous(this=ISO_TEXT_MARKER, expressions=[col])
+
+
 @transform(
     "parse_ts", arity=1, arg_kinds=(ArgKind.STR,), input=(StringType,), output=TimestampType()
 )
 def parse_ts(col: Expression, fmt: str) -> Expression:
     if fmt == _ISO8601:
-        return exp.cast(col, exp.DataType.build("TIMESTAMP"))
+        return exp.cast(_iso_text(col), exp.DataType.build("TIMESTAMP"))
     return exp.StrToTime(this=col, format=exp.Literal.string(fmt))
 
 
 @transform("parse_date", arity=1, arg_kinds=(ArgKind.STR,), input=(StringType,), output=DateType())
 def parse_date(col: Expression, fmt: str) -> Expression:
     if fmt == _ISO8601:
+        # Deliberately *not* marked, against RFC 0027 D6's assumption, on
+        # engine-tier evidence. An ISO date has no `T` to rewrite, and the case
+        # the marker would have covered — a full ISO timestamp fed to a date
+        # parser — is not helped by it: Trino cannot cast `2026-01-06 12:00:00`
+        # to DATE either, so the rewrite only converts a NULL into
+        # `INVALID_CAST_ARGUMENT: Value cannot be cast to date`. Marking here
+        # would trade a silent wrong answer for a louder wrong answer while
+        # moving every date golden on every dialect for nothing.
         return exp.cast(col, exp.DataType.build("DATE"))
     return exp.StrToDate(this=col, format=exp.Literal.string(fmt))
 

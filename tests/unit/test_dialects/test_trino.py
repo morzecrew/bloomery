@@ -134,3 +134,36 @@ def test_rendering_a_zone_interpretation_does_not_mutate_the_input(nested: bool)
     assert "AT TIME ZONE" in before
     # The shared AST still renders the neutral spelling for the next port.
     assert "AT TIME ZONE" in node.sql(dialect="duckdb")
+
+
+def _iso_cast(to: str = "TIMESTAMP") -> Expression:
+    """What `{parse_ts: ISO8601}` lowers to: a cast over a marked operand."""
+    return exp.cast(
+        exp.Anonymous(this="BLM_ISO_TEXT", expressions=[exp.column("x")]),
+        exp.DataType.build(to),
+    )
+
+
+@pytest.mark.parametrize(("to", "expected"), [("TIMESTAMP", "TIMESTAMP"), ("DATE", "DATE")])
+def test_the_iso_text_marker_becomes_a_separator_rewrite(to: str, expected: str) -> None:
+    """Trino's cast takes only the space-separated spelling and returns NULL
+    for `2026-01-06T12:00:00` — measured, and the same for `AS DATE`. The
+    rewrite accepts both spellings and is a no-op on a value that never had a
+    `T` (RFC 0027).
+    """
+    assert DIALECT.render(_iso_cast(to)) == f"CAST(REPLACE(x, 'T', ' ') AS {expected})"
+
+
+def test_the_marker_is_rewritten_inside_a_try_cast() -> None:
+    """The shape an entity in the quality system actually emits.
+
+    The marker wraps the *operand*, so `_try_cast_shape`'s Cast → TryCast
+    rewrite still reaches the cast, and this port's rewrite still reaches the
+    text. Had the marker replaced the cast, this would be a plain produce-or-
+    raise call and the `coercible` rule would have stopped marking anything.
+    """
+    node = exp.TryCast(
+        this=exp.Anonymous(this="BLM_ISO_TEXT", expressions=[exp.column("created_at")]),
+        to=exp.DataType.build("TIMESTAMP"),
+    )
+    assert DIALECT.render(node) == "TRY_CAST(REPLACE(created_at, 'T', ' ') AS TIMESTAMP)"

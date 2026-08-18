@@ -9,13 +9,15 @@ A transform whose AST cannot render on some dialect is an emit-time
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from enum import StrEnum
 from typing import ClassVar, Protocol, cast
 
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
+from bloomery.errors import UnsupportedByTarget
+from bloomery.transforms import ISO_TEXT_MARKER
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -29,9 +31,36 @@ from bloomery.typing import (
 
 __all__ = [
     "DialectFeature",
+    "strip_iso_text",
     "DialectPort",
     "SQLGlotDialect",
 ]
+
+
+def strip_iso_text(node: Expression, spelling: Callable[[Expression], Expression]) -> Expression:
+    """Replace every ISO-text marker in ``node`` with ``spelling(inner)``.
+
+    ``parse_ts: ISO8601`` wraps the text it is about to cast in
+    :data:`~bloomery.transforms.ISO_TEXT_MARKER`, because the engines disagree
+    about what their own casts accept and the IR carries canonical *text* — so
+    by emit time nothing distinguishes an ISO parse's cast from any other cast
+    unless the spec layer said so (RFC 0027 §3). ``parse_date: ISO8601`` is
+    deliberately **not** marked, so do not add date-specific rewriting here:
+    an ISO date has no ``T``, and no engine is helped by rewriting one.
+
+    Every port must call this. ``spelling`` is identity for an engine whose
+    cast already takes the ``T`` separator; a port that never calls it is
+    refused by :meth:`SQLGlotDialect.render` rather than left to emit a
+    function no engine defines — the alternative, defaulting to identity,
+    would give a port whose cast rejects the separator silently NULL data.
+    """
+
+    def replace(child: Expression) -> Expression:
+        if isinstance(child, exp.Anonymous) and child.name.upper() == ISO_TEXT_MARKER:
+            return spelling(child.expressions[0])
+        return child
+
+    return node.transform(replace)
 
 
 class DialectFeature(StrEnum):
@@ -125,7 +154,40 @@ class SQLGlotDialect:
     }
 
     def render(self, node: Expression) -> str:
-        """Render a dialect-neutral AST as this dialect's SQL text."""
+        """Render a dialect-neutral AST as this dialect's SQL text.
+
+        Refuses a tree still carrying the ISO-text marker. Every shipped port
+        strips it before delegating here, so this never fires for them; it
+        exists for a port registered through
+        :func:`~bloomery.dialects.register_dialect` that has not decided what
+        its engine needs.
+
+        The check lives at this end rather than in each port because ports
+        reach it through ``super().render(...)`` whether or not they override
+        :meth:`render`, so one guard covers both shapes. Without it the marker
+        would reach the engine as an undefined function and fail at *plan*
+        time with the engine's own message — a worse version of the same
+        refusal, arriving later and naming nothing actionable.
+        """
+        surviving = next(
+            (
+                child
+                for child in node.find_all(exp.Anonymous)
+                if child.name.upper() == ISO_TEXT_MARKER
+            ),
+            None,
+        )
+        if surviving is not None:
+            msg = (
+                f"dialect {self.name!r} rendered an ISO 8601 parse without deciding what "
+                f"its engine needs: the {ISO_TEXT_MARKER} marker reached SQL generation "
+                "(RFC 0027). Engines disagree about what their own casts accept — "
+                "DuckDB and PostgreSQL take the 'T' separator, Trino returns NULL for it "
+                "— so the choice cannot be defaulted without risking silently NULL data. "
+                "Fix: call bloomery.dialects.base.strip_iso_text in this port's render, "
+                "with an identity spelling if the engine's cast already takes both forms"
+            )
+            raise UnsupportedByTarget(msg)
         return node.sql(dialect=self.sqlglot_dialect, pretty=True)
 
     def physical_type(self, t: LogicalType) -> str:

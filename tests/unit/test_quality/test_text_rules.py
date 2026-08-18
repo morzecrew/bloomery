@@ -21,6 +21,7 @@ from support.compiling import compile_fixture
 from support.quality_rules import rule_of_kind
 
 from bloomery.dialects import DialectFeature, SQLGlotDialect, get_dialect, register_dialect
+from bloomery.dialects.base import strip_iso_text
 from bloomery.errors import GuardrailError, UnsupportedByTarget
 from bloomery.ir import OnFail, QualityRuleIR
 from bloomery.quality import violation
@@ -247,11 +248,20 @@ def test_charset_renders_identically_on_every_shipped_dialect() -> None:
 
 
 class NoNormalizeDialect(SQLGlotDialect):
-    """DuckDB in every respect but the one under test."""
+    """DuckDB in every respect but the one under test.
+
+    "Every respect" has to include the obligations a real port carries, or the
+    double stops standing in for one: it strips the ISO-text marker exactly as
+    DuckDB does, because a port that skips that is refused by the base renderer
+    before it can reach the refusal this class exists to exercise (RFC 0027).
+    """
 
     name: str = "nonormalize"
     sqlglot_dialect: str = "duckdb"
     features = frozenset(DialectFeature) - {DialectFeature.UNICODE_NORMALIZE}
+
+    def render(self, node: exp.Expression) -> str:
+        return super().render(strip_iso_text(node.copy(), lambda text: text))
 
 
 def test_a_dialect_without_normalization_refuses_the_rule_rather_than_emitting_it() -> None:

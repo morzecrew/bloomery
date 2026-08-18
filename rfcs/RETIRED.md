@@ -69,6 +69,7 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0021 | Capability boundaries: identity resolution, dialects, closed questions | `68353d7` |
 | 0022 | `SpecEvidence`: spec analysis as a first-class output | `cc8c691` |
 | 0025 | v0.1.0 release readiness | `e7f71a4` |
+| 0027 | ISO 8601 timestamps across dialects | `f4ca53d` |
 
 ## Not in the table
 
