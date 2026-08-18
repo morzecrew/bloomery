@@ -118,6 +118,25 @@ docs = [
     "zensical>=0.0.43",
 ]
 
+[tool.uv]
+# `sqlparse` reaches this lockfile only through `dbt-core`, which is a dev
+# dependency — it is never installed by anyone who installs bloomery, and no
+# bloomery code path imports it. It still carried four open advisories, three
+# of them denial-of-service (GHSA-prg7-hcfm-mfcr, GHSA-pwgv-4x5q-6m9f,
+# GHSA-f2ff-p2ww-7p4p) and one an escaping bug in generated snippets
+# (GHSA-3496-9g83-7v6x). All four are fixed in 0.6.0.
+#
+# dbt-core caps it below that — `sqlparse<0.6.0,>=0.5.5` — and still does on
+# 1.12.2, the newest release, so there is no dbt bump that resolves this and
+# waiting means holding four open alerts indefinitely. The override lifts the
+# cap; what makes that safe to assert rather than hope is that dbt is *run*
+# against these artifacts in the target e2e tier and in `examples/targets/`,
+# so a real incompatibility fails a gate rather than lurking.
+#
+# Remove this the moment dbt-core widens its own bound: an override that has
+# stopped doing anything is an override nobody will dare touch later.
+override-dependencies = ["sqlparse>=0.6.0"]
+
 [tool.uv.sources]
 # Zensical's mike fork (no PyPI release). Pin the exact commit: an unpinned git
 # source tracks the default branch's HEAD, so any later `uv lock` (e.g. bumping
