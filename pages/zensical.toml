@@ -24,6 +24,7 @@ nav = [
         "get-started/introduction.md",
         "get-started/installation.md",
         "get-started/quickstart.md",
+        "get-started/examples.md",
     ] },
     { "Concepts" = [
         "concepts/specs-and-catalog.md",

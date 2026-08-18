@@ -132,3 +132,6 @@ share one lowering, so a semantics bug cannot exist in only one target's SQL.
 - `expression_is_true` tests require the `dbt_utils` package in your dbt project.
 - Choose this target when your execution stack is dbt; if you are free to choose,
   [SQLMesh](emit-sqlmesh.md) is the primary target and expresses more of the IR.
+- The [`targets/` example](../get-started/examples.md) runs `dbt build` on emitted
+  artifacts and checks the resulting mart row for row against SQLMesh's — the claim that
+  one spec set yields one answer, measured rather than asserted.

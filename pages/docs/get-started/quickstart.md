@@ -232,6 +232,8 @@ page names each stage you just ran.
 
 ## Where next
 
+- [Examples](examples.md) — the same project plus three larger ones, including one that
+  builds this mart with SQLMesh *and* dbt and compares the two row for row.
 - [Emit SQLMesh artifacts](../how-to/emit-sqlmesh.md) — the full artifact surface:
   audits, SCD2, marts, dialects.
 - [Plan a metric request](../how-to/plan-a-metric-request.md) — filters, time grains,

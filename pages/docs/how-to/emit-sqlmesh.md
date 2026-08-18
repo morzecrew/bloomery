@@ -153,5 +153,8 @@ marker, and inventing one would silently degrade history. Composite keys work he
   backfills stay entirely on the SQLMesh side.
 - The mart and calendar models assume the silver models feed them — deploy the whole
   artifact set together, not model by model.
+- The [`targets/` example](../get-started/examples.md) runs this end to end —
+  `sqlmesh plan --auto-apply` against a seeded DuckDB warehouse — and compares the mart
+  it builds against the one dbt builds from the same specs.
 - To serve metrics over the emitted marts at request time, continue to
   [Plan a metric request](plan-a-metric-request.md).

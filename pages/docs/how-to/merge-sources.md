@@ -201,6 +201,9 @@ shipping an unguarded union.
 
 ## See also
 
+- [The `lakehouse/` example](../get-started/examples.md) — this merge, built into Iceberg
+  tables and queried; `just break-it` gives both shops the same key and shows the
+  collision audit stopping the plan
 - [Resolve identities across systems](resolve-identities.md) — different key spaces, which
   needs matching rather than merging
 - [Add quality rules](add-quality-rules.md) — the system a merged entity is currently

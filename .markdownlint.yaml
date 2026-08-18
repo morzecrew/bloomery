@@ -7,6 +7,11 @@ MD013: false
 # MD033: Inline HTML - the docs use div/img for grids, hero, and layout
 MD033: false
 
+# MD041: First line should be a heading - the README opens with a centred
+# <div> holding the title, badges and nav links, which is the whole point of
+# the hero block. The H1 is inside it.
+MD041: false
+
 # MD056: Table column count - strict consistency can break tables
 MD056: false
 
