@@ -105,8 +105,16 @@ nothing else:
 ```
                 _source  lines  amount            earliest
    shopify__order_lines      7  438.91 2026-01-04 10:15:00
-       woo__order_lines      5  417.97 2026-01-06 12:00:00
+       woo__order_lines      5  417.97 2026-01-06 11:00:00
 ```
+
+The legacy shop's earliest line reads `12:00` in `seed/woo_order_lines.csv` and
+`11:00` here, because that shop stamps head-office wall-clock time with no zone
+attached and its mapping ends in `{to_utc: Europe/Berlin}`. That step is the
+only door into the always-UTC `timestamp` type: it states which zone the
+zoneless text was written in, which is what makes the two shops' timestamps
+comparable rather than merely alike. The platform shop already stamps UTC and
+needs no such step — one entity, two conventions, reconciled in the mapping.
 
 **A column one shop does not have.** `gift_note` is mapped by the platform shop
 only, so the legacy branch of the `UNION ALL` projects a typed NULL — which is

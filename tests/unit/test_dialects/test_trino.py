@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import pytest
 from sqlglot import exp
+from sqlglot.expressions.core import Expression
 
 from bloomery.dialects import TrinoDialect
 from bloomery.typing import (
@@ -55,9 +56,81 @@ def test_render_quotes_reserved_relation_names() -> None:
 def test_render_is_the_trino_generator() -> None:
     assert DIALECT.name == "trino"
     assert DIALECT.sqlglot_dialect == "trino"
+    node = exp.JSONExtract(this=exp.column("payload"), expression=exp.Literal.string("$.a"))
+    assert DIALECT.render(node) == "JSON_EXTRACT(payload, '$.a')"
+
+
+def test_zone_interpretation_uses_with_timezone_not_at_timezone() -> None:
+    """``to_utc`` means *interpret this zoneless timestamp as being in zone*
+    (RFC 0004 §5.1) — the only door into the always-UTC ``timestamp`` type.
+
+    Trino's ``AT TIME ZONE`` does not mean that. Given a zoneless timestamp it
+    promotes the value using the **session** zone first and only then converts
+    to the named one, so the instant comes out unchanged and the zone argument
+    changes nothing but the display. Verified against trinodb/trino with the
+    session on UTC: ``CAST('2026-01-06 12:00:00' AS TIMESTAMP) AT TIME ZONE
+    'Europe/Berlin'`` is ``2026-01-06 13:00:00 Europe/Berlin`` — instant
+    12:00Z — while ``with_timezone`` of the same value is ``2026-01-06
+    12:00:00 Europe/Berlin``, instant 11:00Z. DuckDB and PostgreSQL both give
+    11:00Z for their own ``AT TIME ZONE``, so Trino was the one port that read
+    the transform backwards.
+    """
     node = exp.AtTimeZone(
         this=exp.cast(exp.column("x"), exp.DataType.build("TIMESTAMP")),
         zone=exp.Literal.string("Europe/Paris"),
     )
-    # UNNEST-in-FROM territory and AT_TIMEZONE are where trino diverges.
-    assert DIALECT.render(node) == "AT_TIMEZONE(CAST(x AS TIMESTAMP), 'Europe/Paris')"
+    assert DIALECT.render(node) == "WITH_TIMEZONE(CAST(x AS TIMESTAMP), 'Europe/Paris')"
+
+
+def test_a_nested_zone_interpretation_is_rewritten_too() -> None:
+    """The rewrite walks the tree, and the interesting case is the one a
+    mapping actually produces: the interpretation is a *column* of a SELECT,
+    never the root node the unit above hands it."""
+    node = exp.select(
+        exp.alias_(
+            exp.AtTimeZone(
+                this=exp.cast(exp.column("placed_at"), exp.DataType.build("TIMESTAMP")),
+                zone=exp.Literal.string("Europe/Berlin"),
+            ),
+            "ordered_at",
+        )
+    ).from_("bronze.woo")
+    rendered = DIALECT.render(node)
+    assert "WITH_TIMEZONE(CAST(placed_at AS TIMESTAMP), 'Europe/Berlin')" in rendered
+    assert "AT_TIMEZONE" not in rendered
+
+
+def test_several_zone_interpretations_in_one_tree_are_all_rewritten() -> None:
+    node = exp.select(
+        exp.alias_(
+            exp.AtTimeZone(this=exp.column("a"), zone=exp.Literal.string("Europe/Berlin")), "a"
+        ),
+        exp.alias_(
+            exp.AtTimeZone(this=exp.column("b"), zone=exp.Literal.string("Asia/Kolkata")), "b"
+        ),
+    )
+    rendered = DIALECT.render(node)
+    assert rendered.count("WITH_TIMEZONE") == 2
+    assert "AT_TIMEZONE" not in rendered
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_rendering_a_zone_interpretation_does_not_mutate_the_input(nested: bool) -> None:
+    """The port contract shares one neutral AST across every dialect, so a
+    rewrite that edited in place would leave the next dialect rendering
+    Trino's spelling — and the in-place branch is the *nested* one, since a
+    root node is replaced by rebinding a local.
+
+    Both parameters matter: the root case exercises the rebind, the nested one
+    exercises ``replace()``, and only the second can corrupt the caller's tree.
+    """
+    interpretation = exp.AtTimeZone(this=exp.column("x"), zone=exp.Literal.string("Europe/Paris"))
+    node: Expression = (
+        exp.select(exp.alias_(interpretation, "t")) if nested else interpretation
+    )
+    before = node.sql()
+    DIALECT.render(node)
+    assert node.sql() == before
+    assert "AT TIME ZONE" in before
+    # The shared AST still renders the neutral spelling for the next port.
+    assert "AT TIME ZONE" in node.sql(dialect="duckdb")

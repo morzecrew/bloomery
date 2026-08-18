@@ -176,6 +176,70 @@ def test_a_repeated_by_column_is_refused() -> None:
     assert "ambiguous" in message
 
 
+#: A merged entity — two mappings, one target — carrying nothing else, so the
+#: only thing a reconcile against it can trip is the merge itself. Inline
+#: rather than a fixture because every fixture with a `reconcile:` block also
+#: carries `quality:`, which RFC 0024 D29 refuses on a merged entity first and
+#: would hide the refusal under test.
+_MERGED = {
+    "entity_model.yaml": """
+spec_version: 1
+entities:
+  line:
+    grain: one row per line
+    key: [line_id]
+    fields:
+      line_id: {type: string, required: true}
+      amount: {type: "decimal(12,2)"}
+reconcile:
+  - {name: amount_matches, left: "sum(line.amount) by line_id",
+     right: "line.amount", tolerance: "0.001", on_fail: flag}
+""",
+    "mapping_a.yaml": """
+mapping_version: 1
+source: shop_a__lines
+target: line
+key: {line_id: {from: "$.id", transform: [to_string]}}
+fields: {amount: {from: "$.amount", transform: [{to_decimal: [12, 2]}]}}
+""",
+    "mapping_b.yaml": """
+mapping_version: 1
+source: shop_b__lines
+target: line
+key: {line_id: {from: "$.id", transform: [to_string]}}
+fields: {amount: {from: "$.total", transform: [{to_decimal: [12, 2]}]}}
+""",
+}
+
+
+def test_a_side_naming_a_merged_entity_is_refused() -> None:
+    """A reconcile emits a row into the quality mart, and that row records the
+    *mapping* the check belongs to — which a merged entity does not have one
+    of (RFC 0024 D14).
+
+    Resolving against the merged entity let it through to emission, where it
+    surfaced as a bare ``EmitError`` reading "this is a resolver invariant that
+    has stopped holding" — the internal-assertion shape, raised after the
+    guardrail stage had reported the project clean, and only on SQLMesh: Cube
+    compiled the same project and dbt refused it for an unrelated reason.
+    """
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(load_project(_MERGED))
+    message = str(excinfo.value)
+    assert "names entity 'line', which is merged" in message
+    assert "shop_a__lines" in message and "shop_b__lines" in message
+    # The refusal has to route to the same phase as its siblings, or an author
+    # who reads it goes looking for a release that restores the wrong thing.
+    assert "RFC 0024" in message
+
+
+def test_a_side_naming_a_single_source_entity_still_passes() -> None:
+    """The companion to the refusal above: one mapping, same check, no error.
+    Without this, deleting the merged test's trigger would look like a pass."""
+    single = {k: v for k, v in _MERGED.items() if k != "mapping_b.yaml"}
+    assert build_project_ir(load_project(single)) is not None
+
+
 def test_a_side_naming_a_declared_but_unmapped_entity_is_refused() -> None:
     """``build_project_ir`` builds one silver entity per *mapping*, so a
     declared entity nothing targets has no relation for a reconcile to read.

@@ -10,7 +10,7 @@ MODEL (
 
 SELECT
   CAST(index AS BIGINT) AS line_no,
-  AT_TIMEZONE(CAST(created_at AS TIMESTAMP), 'Europe/Paris') AS order_date,
+  WITH_TIMEZONE(CAST(created_at AS TIMESTAMP), 'Europe/Paris') AS order_date,
   CAST(order_id AS VARCHAR) AS order_id,
   CAST(qty AS BIGINT) AS quantity,
   CAST(CAST(total AS DOUBLE) / qty AS DECIMAL(12, 4)) AS unit_price,
