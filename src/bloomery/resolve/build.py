@@ -265,11 +265,26 @@ def _lower_chain(
     node = extraction(path)
     if not steps:
         return exp.cast(node, generic_type(declared))
+    # The running logical type, threaded so a builder that declares `types` can
+    # construct against the same fact its `output_type` declares (RFC 0029 D1).
+    # Bronze lands as text, which is where `chain_segments` starts too; after a
+    # Tier 1 link it is whatever the macro's manifest says it produces.
+    #
+    # `output_type` cannot raise here: Stage.TYPECHECK runs the batched check
+    # over every chain before Stage.LOWER, so a chain reaching this loop has
+    # already been proven, with the per-step source paths that stage attaches.
+    current: LogicalType = StringType()
     for step in steps:
         if step.step is not None:
-            node = _splice_link(step.step, node, macros, source_path=source_path)
+            node, current = _splice_link(step.step, node, macros, source_path=source_path)
             continue
-        node = reg[step.name].builder(node, *step.args)
+        spec = reg[step.name]
+        node = (
+            spec.builder(node, *step.args, input_type=current)
+            if spec.types
+            else spec.builder(node, *step.args)
+        )
+        current = spec.output_type(current, step.args)
     terminal = _chain_terminal(steps, declared, reg, macros, source_path=source_path)
     if terminal != declared:
         node = exp.cast(node, generic_type(declared))
@@ -278,20 +293,28 @@ def _lower_chain(
 
 def _splice_link(
     use: str, running: Expression, macros: StepRegistry, *, source_path: str
-) -> Expression:
+) -> tuple[Expression, LogicalType]:
     """One Tier 1 link in a chain: the running value fills the macro's single
-    accepted column.
+    accepted column. Returns the spliced node and the type it produces.
 
     Which name that column has does not matter and is deliberately not a
     convention — the manifest declares it, and :func:`_refuse_unchainable`
     has already established there is exactly one.
+
+    The produced type is returned rather than recomputed by the caller because
+    a macro body is opaque SQL: its manifest is the only thing that knows what
+    comes out, and :func:`chain_segments` reads the same declaration for the
+    typecheck (D51). A chain that continues past a macro needs it to keep
+    threading the running type.
     """
     manifest, body = _macro_parts(use, macros, source_path=source_path)
     _refuse_unchainable(use, manifest, source_path=source_path)
     (column,) = manifest.accepts
     arguments: dict[str, Expression] = {column: running}
     arguments.update(_macro_parameters(manifest, {}))
-    return splice(body, arguments)
+    (output,) = manifest.outputs.values()
+    (produced,) = output.produces.values()
+    return splice(body, arguments), parse_type(produced.type, source_path=source_path)
 
 
 def chain_segments(

@@ -43,6 +43,13 @@ __all__ = [
 type OutputType = Callable[[LogicalType, tuple[str | int, ...]], LogicalType]
 
 #: ``(column AST, *spec-level args) -> dialect-neutral SQLGlot AST``.
+#:
+#: A spec declaring ``types=True`` is additionally passed ``input_type=`` — the
+#: logical type entering the step. The signature is deliberately *not* changed
+#: to take it positionally: this alias is exported from ``bloomery.__all__`` and
+#: named in the API reference as an extension point, and moving it would break
+#: every registered third-party builder to serve the handful of built-ins that
+#: need the type (RFC 0029 D1, EXECUTION-LOG D-001).
 type Builder = Callable[..., "Expression"]
 
 #: The read surface every consumer sees: an immutable name → spec mapping.
@@ -66,6 +73,15 @@ class TransformSpec:
     on the transform that knows — rather than kept as a name list inside the
     quality lowering, where the next transform added would reintroduce the
     false positive silently (RFC 0016 §5.2).
+
+    ``types`` declares that the builder must be told the logical type entering
+    the step, and is passed it as ``input_type=``. A builder that constructs a
+    cast, a coercion or a narrowing cannot be correct without it — the
+    *declaration* of what a transform produces is a function of the input type
+    and the construction was not, so the two could disagree and did
+    (RFC 0029 D1). It is declared rather than inferred from the signature so
+    that a builder which forgets to accept the argument fails loudly at its
+    first call rather than silently receiving nothing.
     """
 
     name: str
@@ -76,6 +92,7 @@ class TransformSpec:
     builder: Builder
     variadic: bool = False
     nullifies: bool = False
+    types: bool = False
 
 
 _default: dict[str, TransformSpec] = {}
@@ -115,6 +132,7 @@ def transform(
     output: LogicalType | OutputType,
     variadic: bool = False,
     nullifies: bool = False,
+    types: bool = False,
 ) -> Callable[[Builder], TransformSpec]:
     """Declare a starter transform: wrap a builder into a :class:`TransformSpec`
     and add it to the default registry at import time (RFC 0004 §5.2).
@@ -122,7 +140,8 @@ def transform(
     ``output`` is either a fixed :data:`LogicalType` or a function of
     ``(input type, args)``; a fixed value is wrapped into a constant function.
     ``nullifies`` marks a transform that deliberately produces NULL from a
-    non-NULL input — see :class:`TransformSpec`.
+    non-NULL input, and ``types`` that its builder is passed ``input_type=`` —
+    both see :class:`TransformSpec`.
     """
 
     def decorate(builder: Builder) -> TransformSpec:
@@ -146,6 +165,7 @@ def transform(
             builder=builder,
             variadic=variadic,
             nullifies=nullifies,
+            types=types,
         )
         _validate(spec)
         _check_collision(name)

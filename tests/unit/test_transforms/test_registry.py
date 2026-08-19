@@ -9,15 +9,20 @@ from collections.abc import Iterator
 import pytest
 from sqlglot import exp
 
+from sqlglot.expressions.core import Expression
+
 from bloomery.errors import TransformRegistrationError
+from bloomery.resolve.build import _lower_chain
+from bloomery.spec.mapping import TransformStep
 from bloomery.transforms import (
     DEFAULT_REGISTRY,
+    Builder,
     TransformSpec,
     register_transform,
     registry,
     transform,
 )
-from bloomery.typing import ArgKind, StringType
+from bloomery.typing import ArgKind, IntType, LogicalType, StringType
 
 # The package re-exports the `registry` *function*, shadowing the submodule
 # attribute — fetch the module itself for overlay isolation.
@@ -150,3 +155,50 @@ def test_register_transform_rejects_empty_input_domain() -> None:
     )
     with pytest.raises(TransformRegistrationError, match="input domain must not be empty"):
         register_transform(spec)
+
+
+def test_a_builder_is_told_its_input_type_only_when_it_declares_types() -> None:
+    """RFC 0029 D1: the declaration of what a transform produces is a function
+    of the input type, and the construction was not — so the two could disagree,
+    and across the whole starter set they did.
+
+    The flag is what keeps the public ``Builder`` signature intact: passing
+    ``input_type=`` to every builder would break each registered extension
+    (EXECUTION-LOG D-001), so only a spec that asks for it is given it.
+    """
+    seen: list[object] = []
+
+    def typed_builder(col: Expression, *, input_type: LogicalType) -> Expression:
+        seen.append(input_type)
+        return col
+
+    def plain_builder(col: Expression) -> Expression:
+        seen.append("not offered")
+        return col
+
+    def spec(name: str, builder: Builder, *, types: bool) -> TransformSpec:
+        return TransformSpec(
+            name=name,
+            arity=0,
+            arg_kinds=(),
+            input_domain=(StringType, IntType),
+            output_type=lambda _t, _a: IntType(),
+            builder=builder,
+            types=types,
+        )
+
+    registry: dict[str, TransformSpec] = {
+        "typed": spec("typed", typed_builder, types=True),
+        "plain": spec("plain", plain_builder, types=False),
+    }
+    _lower_chain(
+        "$.x",
+        (TransformStep(name="plain", args=()), TransformStep(name="typed", args=())),
+        IntType(),
+        registry,
+        {},
+        source_path="test",
+    )
+    # Bronze lands as text, so the first step sees `string`; the second sees what
+    # the first *declared* it produces, not what its AST happened to build.
+    assert seen == ["not offered", IntType()]
