@@ -189,7 +189,7 @@ def test_a_port_that_strips_the_marker_renders_normally() -> None:
     ids=lambda dialect: dialect.name,
 )
 def test_the_capture_group_survives_the_canonical_round_trip(dialect: DialectPort) -> None:
-    """``{regex_extract: [pattern, N]}`` extracts group N, on every port.
+    """Every port *renders* ``{regex_extract: [pattern, N]}`` with group N.
 
     ``regex_extract`` builds :class:`sqlglot.exp.RegexpExtract` with ``group``
     set, which renders correctly — but the IR keeps canonical text and
@@ -199,6 +199,14 @@ def test_the_capture_group_survives_the_canonical_round_trip(dialect: DialectPor
     transform returned group 0 — the whole match — on both engines that can run
     it. Measured before the fix: ``REGEXP_EXTRACT('sku-42', 'sku-([0-9]+)')``
     is ``'sku-42'`` on DuckDB where the three-argument form is ``'42'``.
+
+    This asserts the rendering, not the run, and PostgreSQL is parametrized
+    deliberately even though it cannot execute the result — it defines no
+    ``regexp_extract`` at all, which the conformance register carries as
+    ``error:42883`` and RFC 0029 §2.3 schedules. The fix lives in
+    :meth:`SQLGlotDialect.render`, so it is port-independent by construction,
+    and pinning all three is what keeps it that way: whatever spelling
+    PostgreSQL eventually gets has to carry the group too.
 
     No fixture used ``regex_extract``, so no golden showed it; the
     declared-vs-produced battery found it (RFC 0028 D5).

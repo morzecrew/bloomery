@@ -4,6 +4,7 @@ defense, and dialect independence."""
 
 from __future__ import annotations
 
+import re
 from typing import cast
 
 import pytest
@@ -311,6 +312,86 @@ def test_a_non_additive_metric_whose_components_are_absent_is_simply_absent() ->
     artifacts = CubeEmitter().emit(_project(metrics, ("aov",)), _ctx())
     body = next(a.content for a in artifacts if a.path.endswith("orders.yml"))
     assert "aov" not in body
+
+
+def test_a_non_additive_metric_without_a_ratio_is_refused_not_dropped() -> None:
+    """The additivity guardrail accepts a non-additive metric backed by an
+    additive *decomposition* instead of a ratio (RFC 0006 §5.4), and only the
+    ratio has a Cube shape.
+
+    Skipping every non-additive metric from the stored pass while the
+    calculated pass picks up only the ratio-backed ones made this one vanish
+    from the artifact — a served metric the author named, silently absent, on
+    the one target that used to refuse it loudly.
+    """
+    metrics = (
+        _metric("revenue", agg="sum", expr="amount"),
+        _metric(
+            "margin_rate",
+            additivity=Additivity.NON_ADDITIVE,
+            agg=None,
+            expr="amount / 2",
+            ratio=None,
+        ),
+    )
+    with pytest.raises(UnsupportedByTarget, match=r"'margin_rate' is non_additive"):
+        CubeEmitter().emit(_project(metrics, ("margin_rate", "revenue")), _ctx())
+
+
+def test_a_ratio_never_templates_against_a_measure_the_cube_does_not_define() -> None:
+    """The consequence the refusal above prevents, kept as its own case.
+
+    A ratio whose component is itself non-additive and decomposition-backed
+    emitted `{margin_rate} / NULLIF({order_count}, 0)` while `margin_rate` was
+    nowhere in the cube — Cube's `{member}` templating resolving against a
+    measure that does not exist.
+    """
+    metrics = (
+        _metric("order_count", agg="count", expr="order_id"),
+        _metric(
+            "margin_rate",
+            additivity=Additivity.NON_ADDITIVE,
+            agg=None,
+            expr="amount / 2",
+            ratio=None,
+        ),
+        _metric(
+            "rate_per_order",
+            additivity=Additivity.NON_ADDITIVE,
+            agg=None,
+            expr=None,
+            ratio=Ratio(numerator="margin_rate", denominator="order_count"),
+        ),
+    )
+    measures = ("margin_rate", "order_count", "rate_per_order")
+    with pytest.raises(UnsupportedByTarget, match=r"'margin_rate' is non_additive"):
+        CubeEmitter().emit(_project(metrics, measures), _ctx())
+
+
+def test_every_member_a_measure_templates_is_a_measure_the_cube_defines() -> None:
+    """The invariant behind both cases above, asserted directly rather than
+    through the shapes that happened to break it."""
+    metrics = (
+        _metric("revenue", agg="sum", expr="amount"),
+        _metric("order_count", agg="count", expr="order_id"),
+        _metric(
+            "aov",
+            additivity=Additivity.NON_ADDITIVE,
+            agg=None,
+            expr=None,
+            ratio=Ratio(numerator="revenue", denominator="order_count"),
+        ),
+    )
+    artifacts = CubeEmitter().emit(_project(metrics, ("aov", "order_count", "revenue")), _ctx())
+    cube = _cube_yaml(artifacts, "orders")
+    measures = cast("list[dict[str, object]]", cube["measures"])
+    defined = {cast("str", measure["name"]) for measure in measures}
+    referenced = {
+        member
+        for measure in measures
+        for member in re.findall(r"\{(\w+)\}", cast("str", measure.get("sql", "")))
+    }
+    assert referenced <= defined, f"templated against undefined members: {referenced - defined}"
 
 
 def test_unmappable_aggregation_is_refused() -> None:

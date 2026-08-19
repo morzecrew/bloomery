@@ -107,7 +107,28 @@ declared.
 
 If you built tables on a version before either fix, the timestamps in them moved when you
 upgraded, and any date bucket derived from a `to_utc` column moved with them. That is the
-point, and it is worth planning a restatement around.
+point, and it needs a restatement.
+
+**Nothing will tell you that.** Both fixes live in port rendering, so the IR is
+byte-identical across the upgrade and so is `project_fingerprint`; a
+[`plan`](../how-to/evolve-a-spec.md) between the two versions is refused outright for
+crossing `bloomery_ir_version`s, and would report no change even if it were not. The
+emitted SQL is where the difference is.
+
+So find the affected models yourself and rebuild them:
+
+1. `grep -rl to_utc` your mapping specs. Every entity with a `to_utc` step is affected,
+   and so is every mart reading one of its timestamp columns — including any date role
+   bucketed from one.
+2. Rebuild those from bronze rather than incrementally: `sqlmesh plan --restate-model`
+   naming each, or `dbt run --full-refresh --select` over the same set. An incremental
+   run only rewrites new partitions and leaves the old rows on the old semantics, which
+   is worse than not upgrading — one column, two meanings, no boundary marked.
+3. Rebuild downstream marts after the silver models, since a mart's date buckets are
+   derived and will not move on their own.
+
+Diff a sample before and after: a row whose local time is late in the day in a zone east
+of UTC is the one that moves, and it moves by a whole day.
 
 ## Where a transform does not reach every engine
 

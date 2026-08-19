@@ -49,8 +49,15 @@ filename in sync.
 ## Index
 
 Every RFC 0001–0022 landed or was rejected and was retired in the change that finished it,
-as did 0025 and 0027. A live row means a design argued and not yet
-settled — not work in flight.
+as did 0025 and 0027. A live row is usually a design argued and not yet settled — not work
+in flight.
+
+One other row can be live, and 0028 is the first: a document whose decisions are all
+settled and implemented, but which **cannot yet be retired** because a retirement row must
+name a commit the mainline can reach ([`RETIRED.md`](RETIRED.md) argues why) and this one
+has only ever existed on the branch that wrote it. Such a row says so in its description
+and retires in the next change. It is a fact about the retirement mechanism, not about the
+design.
 
 | # | Title | Status | One-line routing description |
 |---|---|---|---|

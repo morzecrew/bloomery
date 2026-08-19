@@ -8,9 +8,12 @@
   after that branch lands.
 - **Scope:** Making `to_utc` produce what `timestamp` is documented to be — a
   **zoneless UTC** value — instead of a zone-aware one whose derived dates
-  depend on something the spec never said. Touches
-  `transforms/_builtins.py` (`to_utc`), all three ports' `render`, every golden
-  holding a `to_utc`, and the Iceberg column type in `examples/lakehouse/`.
+  depend on something the spec never said. The normalization boundary is
+  **port rendering**, per D2: the `to_utc` builder is unchanged and still emits
+  a dialect-neutral `AtTimeZone`, and each port rewrites the whole
+  interpretation on its way to SQL. Touches `dialects/base.py` (the shared
+  `utc_from_zone` walk) and all three ports' `render`, every golden holding a
+  `to_utc`, and the Iceberg column type in `examples/lakehouse/`.
   Adds no spec surface: the YAML does not change.
 - **Related:**
   [`src/bloomery/transforms/_builtins.py`](../src/bloomery/transforms/_builtins.py)
@@ -81,8 +84,14 @@ forbid. It is not a rendering preference.
 `timestamp` is already defined as always UTC. A zone-aware value is not that; it
 is an instant plus a display rule, and every consumer that derives a date, an
 hour or a bucket reads the display rule. So the value is normalized to UTC and
-stripped of its zone at the point it enters the type — inside `to_utc`, which is
-the only door.
+stripped of its zone at the one step that puts a value into the type — the
+`to_utc` step of a chain, which is the only door.
+
+That step is a *neutral* `AtTimeZone` node, and normalizing it is the **port's**
+job rather than the builder's (D2): the three engines need three different
+spellings for the one meaning, and a builder produces dialect-neutral AST
+(RFC 0004 D7). `dialects/base.py` walks the tree for interpretations and each
+port supplies its own rewrite.
 
 Each port has a spelling, each verified session-independent:
 
