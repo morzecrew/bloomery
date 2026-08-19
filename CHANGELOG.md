@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when one key appears in more than one source. Disjointness is the one condition of a
   merge that compilation cannot establish.
 
+- `bloomery.transforms.neutral_type(logical) -> exp.DataType` — the dialect-neutral
+  SQLGlot type for a logical type, which `bloomery.ir.generic_type` now delegates to. A
+  transform builder needs it and sits below `ir`, so the mapping has one home instead of
+  two that can disagree.
+- `TransformSpec.types` — a transform declaring it is passed `input_type=`, the logical
+  type entering its step. The `Builder` signature is unchanged, so existing registered
+  extension builders keep working.
+
 ### Changed
 
 - **`_source` is a reserved member name**, unconditionally — a field, dimension or role
@@ -35,6 +43,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so every fingerprint changes and `plan()` refuses to diff a v5 IR against a v6 one.
   Emitted SQL for single-source entities is unchanged; only the fingerprint header moves.
 
+### Fixed
+
+**These change the values your models produce.** Every item below altered emitted SQL on
+at least one engine; rebuild the affected models from bronze rather than incrementally, or
+one column carries two meanings with no boundary marked. Nothing announces the need —
+these are port-level fixes, so the IR and `project_fingerprint` are byte-identical across
+the upgrade and a `plan` reports nothing.
+
+- **`timestamp` is zoneless UTC on every port.** `to_utc` produced a zone-*aware* value, so
+  a mart's date role bucketed by the reader's session zone on DuckDB and PostgreSQL, and by
+  the mapping's own zone on Trino — two rows at one instant, mapped from two shops in two
+  cities, landed in different days. See
+  [Dialects](https://morzecrew.github.io/bloomery/reference/dialects/) for how to find and
+  restate the affected models.
+- **`parse_ts` with an explicit format** stored a different instant depending on who ran
+  it, on PostgreSQL: `to_timestamp(text, text)` returns `timestamptz`, attaching the
+  session zone to the clock it had just parsed.
+- **`regex_extract` ignored its capture group** on DuckDB and Trino, returning the whole
+  match for any group index. The canonical-text round trip re-bound the argument and both
+  generators then dropped it silently.
+- **`divide` emitted a binary float** on PostgreSQL and Trino. It is now exact decimal
+  division on both. DuckDB has no exact decimal division and is covered under Limitations.
+- **Decimal arithmetic emitted a wider type than it declared** — `multiply`, `round`,
+  `abs` and `coalesce` widened past the tracked `(p, s)`, differently on each engine, which
+  also made the 38-digit precision cap unenforceable.
+- **Transforms that did not run at all on PostgreSQL** now do: `regex_extract`,
+  `strip_suffix`, `to_int` over a `bool` field and `to_bool` over an `int` field, each of
+  which compiled clean and failed on the first run.
+- **`coalesce` and `nullif` did not plan on Trino** over any non-`string` field: Trino does
+  not coerce a literal to the column's type the way DuckDB and PostgreSQL do.
+- **`json_path` on PostgreSQL** returned `json` where `variant` is `JSONB` for a nested
+  path, and did not run at all for a single-key path over a `string` field.
+
 ### Limitations
 
 - A merged entity may not carry `quality:` rules, `dedupe:` or `quarantine:`, may not
@@ -43,6 +84,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unaffected.
 - The dbt target refuses a merged entity: the collision audit has no honest dbt
   equivalent, and the merge is not correct without it.
+- **`divide` is inexact on DuckDB.** That engine has no exact decimal division — `/` is
+  float division and `//` is integer division — so the division happens in binary floating
+  point and the result is narrowed back to the declared decimal. PostgreSQL and Trino
+  divide exactly. Prefer `{multiply: "0.01"}` to `{divide: 100}` on DuckDB, as the shipped
+  examples do.
 
 ## [0.1.0] - 2026-08-15
 

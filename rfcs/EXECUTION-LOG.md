@@ -98,6 +98,8 @@ Branch `design/rfc-0029-transform-types`. RFC 0029 §2.1–§2.4, decisions D1�
 **complete and retired** in this unit; readable at `558b31c`.
 
 **Drift count: 1** — D-004, against RFC 0029's evidence, found while executing it.
+Self-audit added four findings (A-1–A-4) and four unlogged departures (D-006–D-009);
+none was a `drift`.
 
 Executed after the readiness gate was overridden by the author, who elected to proceed
 with G-1–G-3 decided by the executor rather than amended into the RFC first. D-001–D-003
@@ -256,3 +258,111 @@ written. Each proposes a row back to RFC 0029.
   refusal added. The decision stands as policy with no instance, which is worth knowing
   before someone reaches for it: the premise to test first is *inexpressible*, not
   *unimplemented*.
+
+## Self-audit — 2026-08-19, unit 2
+
+Adversarial pass over the finished branch (10 commits, +1049/-569). Scope: whole branch —
+source, tests, docs, corpus. Findings are departures the executor did not notice, which is
+why they are filed here beside the ones they did.
+
+| # | Finding | Severity | Status |
+| --- | --- | --- | --- |
+| A-1 | Three of four new PostgreSQL rewrites had no coverage outside the Docker tier; a sabotage sweep left every non-Docker tier green | High | Fixed |
+| A-2 | `_narrowed` — the branch's largest behaviour change — survived sabotage entirely | High | Fixed |
+| A-3 | No `CHANGELOG.md` entry for a branch that moves stored values on all three engines | High | Fixed |
+| A-4 | Four departures beyond RFC 0029's decision table went unlogged | Medium | Fixed (D-006–D-009) |
+
+**A-1.** Neutering `_zoneless_parse`, `_variant_is_jsonb` or `_jsonb_extraction` left
+`tests/unit`, `tests/golden` and `tests/execution` fully green — only `tests/engines`
+(Docker, opt-in) failed. `just test` is what most contributors run and what CI's fast
+matrix runs, so a regression in any of them would reach review unremarked. Rendering
+assertions added to `tests/unit/test_dialects/test_postgres.py`; the sweep now kills all
+four. The engine tier keeps the semantic claims — a wrong-but-zoneless spelling passes the
+rendering test and fails the session-zone one.
+
+**A-2.** The same shape, one layer up and worse: removing the narrowing cast from every
+arithmetic transform failed **nothing** in the unit tier. No fixture uses `multiply`,
+`divide`, `round` or `abs` (D-005), so there was no golden either, and the conformance
+battery is engine-tier. Rendering and `TRY_CAST`-shape assertions added to
+`test_builtins.py`; re-sabotage now fails seven tests. This is the surviving-mutant case
+the audit exists for: the sweep was clean until it wasn't, and coverage — 86% patch, every
+uncovered line in `postgres.py` — is what pointed at it.
+
+**A-3.** `stability.md` binds `__all__` to SemVer and says a change may never be *quiet*.
+This branch changes emitted SQL on all three engines, and nothing in `CHANGELOG.md` said
+so. RFC 0028's timestamp fix (#41) was missing too — a pre-existing omission, filled here
+rather than left, because both are restating changes and a reader planning an upgrade needs
+them together.
+
+**A-4.** Recorded below as D-006–D-009.
+
+## D-006 — a neutral `variant` cast is `JSONB` on PostgreSQL
+
+- **Touches:** RFC 0029 §2.4 (adjacent to it, not covered by it)
+- **RFC said:** nothing — it listed `json_path`'s output type, not the neutral cast
+- **Built:** `_variant_is_jsonb`, rewriting any neutral `CAST(x AS JSON)` to `JSONB` on
+  this port
+- **Because:** `variant`'s neutral type is `JSON` and its PostgreSQL physical type is
+  `JSONB`, so *every* neutral variant cast disagreed with the column it cast — latent until
+  `COALESCE(jsonb, json)` refused to coerce (`42846`). It is the same declared-vs-produced
+  defect the RFC is about, reached from the type map rather than from a transform.
+- **Class:** `discovery` — only building D6's literal cast surfaced it.
+- **Consequence:** applied *before* the `JSONExtractScalar` lowering, which adds a
+  `CAST(... AS JSON)` of its own and means it; ordering is load-bearing and commented.
+
+## D-007 — `neutral_type` moved from `ir` down to `transforms`
+
+- **Touches:** RFC 0029 D1; no row covers where the mapping lives
+- **Built:** the logical→neutral-SQL map now lives in `transforms.registry`;
+  `ir.generic_type` delegates. `neutral_type` is a new name in
+  `bloomery.transforms.__all__`.
+- **Because:** a builder declaring `types` needs it, and `transforms` sits below `ir` in
+  the layer contract, so the alternative was a second seven-row map that could disagree
+  with the first about one row.
+- **Class:** `spec-gap`
+- **Consequence:** an additive public-surface change, now in the changelog (A-3).
+
+## D-008 — `capture_group` became public and moved earlier in the PostgreSQL pipeline
+
+- **Touches:** RFC 0028 D5's fix, not RFC 0029
+- **Built:** `_capture_group` renamed to `capture_group`, exported from
+  `dialects.base.__all__`, and applied at the *top* of `PostgresDialect.render`
+- **Because:** the base render applies it last, after a port's own rewrites — too late for
+  a port that must read the capture group to spell the call at all, which
+  `regexp_substr` does. The second application is a no-op on a tree that already names a
+  group, and that idempotence is now stated in the docstring and pinned by a test.
+- **Class:** `discovery`
+- **Consequence:** one more name on a public surface; no behaviour change for other ports.
+
+## D-009 — `coalesce` does not cast a string literal over a `string` column
+
+- **Touches:** RFC 0029 D6, decided in D-001's spirit but narrower than "cast the literal"
+- **Built:** the cast is skipped when the input type is `string` *and* the literal is a
+  string; `{coalesce: 0}` over a string column still casts
+- **Because:** all three engines already read a string literal as text there, so the cast
+  buys nothing and the emitted SQL is a reviewed artifact — `{coalesce: unknown}` should
+  read as `COALESCE(segment, 'unknown')`. The condition is on the literal as well as the
+  type because `COALESCE(text, 0)` does not plan on Trino.
+- **Class:** `spec-gap`
+- **Consequence:** a legibility exception inside a correctness rule, which is the kind that
+  rots. Both branches are pinned by test.
+
+## D-010 — `{json_path: "$"}` rendered a call PostgreSQL does not define
+
+- **Touches:** nothing in RFC 0029 — found by the self-audit's boundary pass, pre-existing
+- **RFC said:** nothing; the register listed the two path depths that had cases, and a
+  root-only path had neither
+- **Built:** a root-only path renders as the operand cast to `JSONB` — the identity, which
+  is what the path means
+- **Because:** PostgreSQL's extraction functions are variadic but not *nullary*, so both
+  `json_extract_path(json)` and `jsonb_extract_path(jsonb)` are undefined. Verified against
+  postgres 16 that **both** the old and new spellings fail identically, so this is not a
+  regression from this branch — but it is one line inside a function this branch rewrote
+  twice, and leaving a knowingly invalid render there would have been a choice.
+  DuckDB (`x -> '$'`) and Trino (`JSON_EXTRACT(x, '$')`) both accept their own spelling, so
+  PostgreSQL was the only port that could not express a path the spec allows.
+- **Class:** `discovery` — the boundary pass asks what the empty case does, and the empty
+  case here is a path with no keys.
+- **Consequence:** the conformance battery still does not probe it. Its completeness guard
+  is keyed by (transform, input type), and this is a third *branch* of the same pair — the
+  same hole that hid the single-key failure. Covered by a rendering case instead.

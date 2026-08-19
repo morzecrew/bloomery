@@ -264,3 +264,56 @@ def test_to_int_routes_a_boolean_through_int() -> None:
     assert node.sql() == "CAST(CAST(x AS INT) AS BIGINT)"
     plain = DEFAULT_REGISTRY["to_int"].builder(exp.column("x"), input_type=StringType())
     assert plain.sql() == "CAST(x AS BIGINT)"
+
+
+@pytest.mark.parametrize(
+    ("transform", "args", "input_type", "expected"),
+    [
+        # decimal(12,4) * 2 is decimal(18,4) on DuckDB, decimal(22,4) on Trino
+        # and unconstrained numeric on PostgreSQL — against a declared
+        # decimal(13,4). The cast is lossless: p1+p2 is exactly the width the
+        # exact product needs, which is what `_arith_output` declares.
+        ("multiply", (2,), DecimalType(12, 4), "CAST(x * 2 AS DECIMAL(13, 4))"),
+        ("divide", (2,), DecimalType(12, 4), "CAST(BLM_EXACT_DIV(x, 2) AS DECIMAL(13, 4))"),
+        ("round", (2,), DecimalType(12, 4), "CAST(ROUND(x, 2) AS DECIMAL(10, 2))"),
+        # PostgreSQL has no `round(bigint, int)`, so the argument was promoted
+        # to numeric and the result came back numeric where `round` declares the
+        # input type unchanged.
+        ("round", (0,), IntType(), "CAST(ROUND(x, 0) AS BIGINT)"),
+        ("abs", (), DecimalType(12, 4), "CAST(ABS(x) AS DECIMAL(12, 4))"),
+    ],
+)
+def test_arithmetic_narrows_to_the_type_it_declares(
+    transform: str, args: tuple[object, ...], input_type: LogicalType, expected: str
+) -> None:
+    """RFC 0029 D2. Every engine widens decimal arithmetic past the (p, s)
+    RFC 0004 §5.4 tracks, and each widens differently — so the declaration
+    stopped being true, and with it the 38-digit cap, which is computed over
+    the numbers the compiler tracks rather than the ones the engine uses.
+
+    Asserted here rather than only in the engine-tier battery because no
+    fixture uses any of these four transforms: a sabotage sweep found that
+    removing the narrowing left every non-Docker tier green.
+    """
+    node = DEFAULT_REGISTRY[transform].builder(exp.column("x"), *args, input_type=input_type)
+    assert node.sql() == expected
+
+
+def test_the_narrowing_cast_is_the_declared_output_not_a_second_opinion() -> None:
+    """The builder calls the *same* output function the declaration does, so
+    the two cannot drift into agreeing by inspection only."""
+    spec = DEFAULT_REGISTRY["multiply"]
+    for factor in (2, "0.01", 1000):
+        declared = spec.output_type(DecimalType(12, 4), (factor,))
+        node = spec.builder(exp.column("x"), factor, input_type=DecimalType(12, 4))
+        assert isinstance(declared, DecimalType)
+        assert node.to.sql() == f"DECIMAL({declared.precision}, {declared.scale})"
+
+
+def test_the_narrowing_cast_becomes_a_try_cast_inside_the_quality_system() -> None:
+    """An arithmetic overflow is then a coercion failure and a quarantined row
+    rather than an aborted run — the disposition RFC 0016 gives every other bad
+    value. Asserted because the claim is made in `_narrowed`'s docstring and is
+    the reason narrowing is safe to add to an entity carrying quality rules."""
+    node = DEFAULT_REGISTRY["multiply"].builder(exp.column("x"), 2, input_type=DecimalType(12, 4))
+    assert _try_cast_shape(node).sql() == "TRY_CAST(x * 2 AS DECIMAL(13, 4))"

@@ -243,6 +243,15 @@ def _jsonb_extraction(node: Expression) -> Expression:
         return node
     operand = exp.cast(node.this, exp.DataType.build("JSONB"))
     keys = [part for part in path.expressions if isinstance(part, exp.JSONPathKey)]
+    if not keys:
+        # A root-only path is the identity — the whole document, as a variant.
+        # PostgreSQL's extraction functions are variadic but not *nullary*, so
+        # both `json_extract_path(json)` and `jsonb_extract_path(jsonb)` are
+        # undefined and `{json_path: "$"}` rendered a call no engine has. That
+        # predates RFC 0029 and is not in its register; DuckDB (`x -> '$'`) and
+        # Trino (`JSON_EXTRACT(x, '$')`) both accept theirs, so PostgreSQL was
+        # the only port that could not express a path the spec allows.
+        return operand
     if len(keys) == 1:
         return exp.JSONExtract(this=operand, expression=path.copy(), only_json_types=True)
     literals = [exp.Literal.string(key.this) for key in keys]
