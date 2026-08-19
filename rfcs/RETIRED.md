@@ -71,6 +71,7 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0025 | v0.1.0 release readiness | `e7f71a4` |
 | 0027 | ISO 8601 timestamps across dialects | `f4ca53d` |
 | 0028 | `timestamp` is zoneless UTC, on every port | `558b31c` |
+| 0029 | Transform types the engine agrees with | `558b31c` |
 
 ## Not in the table
 

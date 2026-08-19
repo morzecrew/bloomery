@@ -94,7 +94,8 @@ document.
 
 # Unit 2 · RFC 0029 · transform types the engine agrees with
 
-Branch `design/rfc-0029-transform-types`. RFC 0029 §2.1–§2.4, decisions D1–D6.
+Branch `design/rfc-0029-transform-types`. RFC 0029 §2.1–§2.4, decisions D1–D6 —
+**complete and retired** in this unit; readable at `558b31c`.
 
 **Drift count: 1** — D-004, against RFC 0029's evidence, found while executing it.
 
@@ -249,3 +250,9 @@ written. Each proposes a row back to RFC 0029.
   than registered. `CLAUDE.md`'s float invariant is inexact as stated and was deliberately
   left for the author; `pages/docs/reference/dialects.md` now carries the exception.
 - ~~RFC 0029's readiness gate~~ — overridden by the author; G-1–G-3 decided as D-001–D-003.
+- **D4 shipped unused.** "Where an engine cannot express a transform, the port declares
+  the capability absent and emit refuses by name" was written for the four PostgreSQL
+  cases, and all four turned out to be expressible — so no capability was retired and no
+  refusal added. The decision stands as policy with no instance, which is worth knowing
+  before someone reaches for it: the premise to test first is *inexpressible*, not
+  *unimplemented*.
