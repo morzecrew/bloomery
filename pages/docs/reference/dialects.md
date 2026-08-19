@@ -44,7 +44,7 @@ the reason a spec compiles to different text without meaning anything different.
 
 | Construct | `duckdb` | `postgres` | `trino` |
 |---|---|---|---|
-| Zone interpretation (`to_utc`) | `x AT TIME ZONE 'Europe/Berlin'` | `x AT TIME ZONE 'Europe/Berlin'` | `WITH_TIMEZONE(x, 'Europe/Berlin')` |
+| Zone interpretation (`to_utc`) | `x AT TIME ZONE 'Europe/Berlin' AT TIME ZONE 'UTC'` | same as DuckDB | `CAST(AT_TIMEZONE(WITH_TIMEZONE(x, 'Europe/Berlin'), 'UTC') AS TIMESTAMP)` |
 | Null-on-failure cast (the `coercible` marker) | `TRY_CAST(x AS BIGINT)` | `CASE WHEN PG_INPUT_IS_VALID(x, 'BIGINT') THEN CAST(x AS BIGINT) END` | `TRY_CAST(x AS BIGINT)` |
 | Nested read `$.payload.shipping.country` | `payload ->> '$.shipping.country'` | `JSON_EXTRACT_PATH_TEXT(CAST(payload AS JSON), 'shipping', 'country')` | `JSON_EXTRACT_SCALAR(payload, '$.shipping.country')` |
 | `normalize` rule | `NFC_NORMALIZE(x)` | `NORMALIZE(x, NFC)` | `NORMALIZE(x, NFC)` |
@@ -87,16 +87,27 @@ case that would need it — a full timestamp handed to a date parser — is not 
 Trino cannot cast `2026-01-06 12:00:00` to `DATE` either, so rewriting only turns a NULL
 into a hard `INVALID_CAST_ARGUMENT`.
 
-### `to_utc` and the zone argument
+### `to_utc`, the zone argument, and the zone that came back
+
+Two problems, one after the other, both now closed.
 
 Trino's `AT TIME ZONE` promotes a zoneless timestamp with the **session** zone before
 converting, leaving the instant unchanged — so the zone argument moved nothing but the
-display, and the same spec produced a different instant than on the other two ports.
-Trino now renders `with_timezone`, and all three agree that a 12:00 value read as
-`Europe/Berlin` is the instant 11:00Z.
+display. Trino renders `with_timezone` instead, and all three ports agree that a 12:00
+value read as `Europe/Berlin` is the instant 11:00Z.
+
+Every engine's zone interpretation then returns a zone-*aware* value, while `timestamp`
+is defined as always UTC and maps to a zoneless type. The instant was right and
+everything derived from it read the display rule rather than the instant: on DuckDB and
+PostgreSQL `date(ordered_at)` moved with the **reader's session zone**, and on Trino it
+was the local date in **whatever zone the mapping named** — so two rows at one instant,
+mapped from two shops in two zones, landed in different days. Each port now normalizes
+to UTC and drops the zone, and the emitted column is the zoneless type the entity model
+declared.
 
 If you built tables on a version before either fix, the timestamps in them moved when you
-upgraded — which is the point, but worth planning a restatement around.
+upgraded, and any date bucket derived from a `to_utc` column moved with them. That is the
+point, and it is worth planning a restatement around.
 
 ## Notes
 
