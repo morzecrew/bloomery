@@ -271,9 +271,10 @@ _UNCONSTRAINED = (
     "numeric rather than the declared numeric(p, s)"
 )
 _FLOAT_DIVISION = (
-    "`/` yields a binary float, which RFC 0003 D5 forbids in an emission path; "
-    "SQLGlot's `typed` flag fixes it on PostgreSQL and Trino but does not survive the "
-    "canonical-text round trip, and DuckDB has no exact decimal division at all"
+    "DuckDB has no exact decimal division — `/` is float division and `//` is integer "
+    "division — so the float cannot be removed here the way the `BLM_EXACT_DIV` marker "
+    "removed it on PostgreSQL and Trino. It is bounded by the narrowing cast to the "
+    "declared type instead of registered forever (RFC 0029 §4, EXECUTION-LOG D-003)"
 )
 _ROUND_KEEPS_INPUT = (
     "the engine's `round(x, d)` rounds the value and keeps the input type, where "
@@ -314,7 +315,7 @@ KNOWN: dict[str, dict[str, Divergence]] = {
             "numeric and the result is numeric where `round` declares the input type "
             "unchanged",
         ),
-        "divide-decimal(12,4)": Divergence("DOUBLE PRECISION", _FLOAT_DIVISION),
+        "divide-decimal(12,4)": Divergence("DECIMAL", _UNCONSTRAINED),
         "to_int-bool": Divergence("error:42846", _PG_NO_CAST),
         "to_bool-int": Divergence("error:42846", _PG_NO_CAST),
     },
@@ -322,7 +323,7 @@ KNOWN: dict[str, dict[str, Divergence]] = {
         "coalesce-decimal(12,4)": Divergence("DECIMAL(14, 4)", _WIDENS),
         "multiply-decimal(12,4)": Divergence("DECIMAL(22, 4)", _WIDENS),
         "round-decimal(12,4)": Divergence("DECIMAL(13, 4)", _ROUND_KEEPS_INPUT),
-        "divide-decimal(12,4)": Divergence("DOUBLE", _FLOAT_DIVISION),
+        "divide-decimal(12,4)": Divergence("DECIMAL(23, 15)", _WIDENS),
         "coalesce-bool": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
         "coalesce-date": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
         "coalesce-timestamp": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),

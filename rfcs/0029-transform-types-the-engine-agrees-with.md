@@ -65,10 +65,16 @@ the result is *unconstrained* `numeric` rather than a wider one.
 | Trino | `CAST(x AS DOUBLE) / 2` | `DOUBLE` |
 
 RFC 0003 D5 forbids a float anywhere on an emission path, and this is the
-transform whose output is most often money. It is shipping: three goldens
-compute `unit_price` as `CAST(CAST(total AS DOUBLE PRECISION) / qty AS
-DECIMAL(12, 4))` — the outer cast is bloomery's own declared-type cast, so the
-column's *type* is right and its value has been through a float.
+transform whose output is most often money.
+
+> **Correction, from execution (EXECUTION-LOG D-004).** This section cited three
+> goldens computing `unit_price` as `CAST(CAST(total AS DOUBLE PRECISION) / qty
+> AS DECIMAL(12, 4))` as evidence that `divide` ships a float. The SQL is real
+> and still emitted, but it is **not** `divide`: it comes from the `from_total`
+> catalog recipe, `expr: line_total / quantity`, which is parsed user SQL and
+> carries no marker. No fixture uses the `divide` transform at all. The defect
+> below is real and was measured directly; the shipped example belonged to a
+> different source, and closing it is separate work.
 
 SQLGlot's `Div(typed=True)` fixes the PostgreSQL and Trino spelling, and
 **does not survive the canonical text round trip** (RFC 0003 D2): `x / 2` carries

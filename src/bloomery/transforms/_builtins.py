@@ -349,6 +349,17 @@ def json_path(col: Expression, path: str) -> Expression:
 # Arithmetic (decimal precision/scale tracked — RFC 0004 §5.4)
 
 
+#: The marker wrapping a ``divide``'s two operands (RFC 0029 D3).
+#:
+#: It exists to tell the transform's division apart from any other ``/`` in the
+#: tree. The treatment — exact, non-float division — is the same on every port,
+#: so :meth:`bloomery.dialects.base.SQLGlotDialect.render` applies it centrally
+#: rather than each port re-deciding; what could not be central is *which*
+#: divisions to apply it to, since a ratio metric's ``COUNT(a) / COUNT(b)`` must
+#: keep the engine's own division semantics.
+DIVIDE_MARKER = "BLM_EXACT_DIV"
+
+
 @transform(
     "multiply",
     arity=1,
@@ -368,7 +379,29 @@ def multiply(col: Expression, factor: str | int) -> Expression:
     output=_arith_output("divide"),
 )
 def divide(col: Expression, divisor: str | int) -> Expression:
-    return exp.Div(this=col, expression=_number(divisor))
+    """``x / n``, marked so the ports can keep it in exact arithmetic.
+
+    SQLGlot renders a bare division as ``CAST(x AS DOUBLE PRECISION) / n`` on
+    PostgreSQL and ``CAST(x AS DOUBLE) / n`` on Trino — an explicit **binary
+    float** on an emission path, which RFC 0003 D5 forbids, on the transform
+    whose output is most often money.
+
+    No golden moved when this was fixed, and that is worth knowing rather than
+    glossing: the ``CAST(CAST(total AS DOUBLE PRECISION) / qty AS DECIMAL(12,
+    4))`` in the ``ecom_basic`` goldens comes from a *catalog recipe* —
+    ``expr: line_total / quantity`` — whose SQL is parsed rather than built,
+    so it carries no marker and is untouched here. That float is real and still
+    ships; it is recorded in EXECUTION-LOG D-004, not fixed by this.
+
+    ``exp.Div(typed=True)`` suppresses that cast and **does not survive the
+    canonical round trip** — the IR keeps text and ``x / 2`` carries no flag
+    (RFC 0003 D2). Re-reading every ``Div`` at render was the other option and
+    is wrong: a ratio metric dividing two counts would silently become integer
+    division. So the division is marked, exactly as ``parse_ts`` marks an ISO
+    parse (RFC 0027 D4), and the marker says *this division came from the
+    transform* rather than from someone's SQL (RFC 0029 D3).
+    """
+    return exp.Anonymous(this=DIVIDE_MARKER, expressions=[col, _number(divisor)])
 
 
 def _round_output(t: LogicalType, args: tuple[str | int, ...]) -> LogicalType:

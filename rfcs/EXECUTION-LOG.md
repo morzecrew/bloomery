@@ -96,7 +96,7 @@ document.
 
 Branch `design/rfc-0029-transform-types`. RFC 0029 §2.1–§2.4, decisions D1–D6.
 
-**Drift count: 0.**
+**Drift count: 1** — D-004, against RFC 0029's evidence, found while executing it.
 
 Executed after the readiness gate was overridden by the author, who elected to proceed
 with G-1–G-3 decided by the executor rather than amended into the RFC first. D-001–D-003
@@ -169,3 +169,31 @@ written. Each proposes a row back to RFC 0029.
 - **Deliberately not applied:** refusal on DuckDB via the D4 capability mechanism. It is
   the consistent reading of the invariant and was rejected on blast radius, not on
   principle — if the author prefers it, D-003 is the entry to reverse.
+
+## D-004 — the shipped float is a catalog recipe, not `divide`
+
+- **Touches:** RFC 0029 §2.2 (evidence, not a decision row)
+- **RFC said:** `divide` "is shipping", evidenced by three `ecom_basic` goldens
+  computing `unit_price` as `CAST(CAST(total AS DOUBLE PRECISION) / qty AS DECIMAL(12, 4))`
+- **Built:** the marker, which fixes `divide` — and moved **no golden**, because that SQL
+  is not `divide`. `unit_price` comes from the `from_total` catalog recipe,
+  `expr: line_total / quantity`, whose SQL is parsed rather than built and therefore
+  carries no marker. No fixture uses the `divide` transform at all.
+- **Because:** the two were conflated while writing §2.2 — a float division was found in a
+  golden and attributed to the transform being measured, without checking which surface
+  emitted it. The register's `divide` row was measured directly and is unaffected; the
+  golden was corroborating evidence and was wrong.
+- **Class:** `drift` — against RFC 0029's own evidence section, written by the same author
+  in the previous unit. It could have been known before code existed: `grep divide
+  tests/fixtures/` returns nothing, which is the whole finding.
+- **Consequence:** a float still ships on a money column in three goldens, from a source
+  RFC 0029 does not cover. It is documented in `_builtins.divide` and corrected in §2.2
+  rather than left implying the fix reached it.
+- **Proposed row (RFC 0029):** whether a catalog recipe's `/` should be marked exact the
+  way the transform's is. **Not obviously yes:** a recipe body is arbitrary SQL, and
+  `typed=True` over two integer operands is truncating integer division rather than the
+  float division it does today — so the same change that fixes a money column would
+  silently change an integer ratio. It needs operand types (D1) and probably a narrower
+  trigger than "every `Div` in a recipe".
+
+**Drift count for this unit is now 1** — D-004, against RFC 0029, found while executing it.
