@@ -82,9 +82,12 @@ def test_input_domain_and_output_type(name: str) -> None:
 
 @pytest.mark.parametrize("name", sorted(CASES))
 def test_builder_ast_round_trips_through_sqlglot(name: str) -> None:
-    args, _input_type, _domain, _output = CASES[name]
+    args, input_type, _domain, _output = CASES[name]
     spec = DEFAULT_REGISTRY[name]
-    node = spec.builder(exp.column("x"), *args)
+    # A spec declaring `types` is handed the type entering the step (RFC 0029
+    # D1); the case table already carries it for the output-type assertion.
+    extra = {"input_type": input_type} if spec.types else {}
+    node = spec.builder(exp.column("x"), *args, **extra)
     assert isinstance(node, exp.Expression)
     rendered = node.sql()
     reparsed = parse_one(rendered)
@@ -213,3 +216,51 @@ def test_the_quality_rewrite_still_reaches_a_marked_cast() -> None:
     """
     built = DEFAULT_REGISTRY["parse_ts"].builder(exp.column("created_at"), "ISO8601")
     assert _try_cast_shape(built).sql() == "TRY_CAST(BLM_ISO_TEXT(created_at) AS TIMESTAMP)"
+
+
+@pytest.mark.parametrize(
+    ("input_type", "fallback", "expected"),
+    [
+        # The one case the cast buys nothing: all three engines read a string
+        # literal as text already, and the emitted SQL is a reviewed artifact.
+        (StringType(), "unknown", "COALESCE(x, 'unknown')"),
+        # ...but the condition is on the literal too — `COALESCE(text, 0)` does
+        # not plan on Trino.
+        (StringType(), 0, "COALESCE(x, CAST(0 AS TEXT))"),
+        (DateType(), "1970-01-01", "COALESCE(x, CAST('1970-01-01' AS DATE))"),
+        # An integer fallback over a decimal widened the result past the
+        # declared (p, s) on every engine before this cast (RFC 0029 §2.1).
+        (DecimalType(12, 4), 0, "COALESCE(x, CAST(0 AS DECIMAL(12, 4)))"),
+    ],
+)
+def test_coalesce_casts_its_fallback_to_the_column_type(
+    input_type: LogicalType, fallback: str | int, expected: str
+) -> None:
+    node = DEFAULT_REGISTRY["coalesce"].builder(exp.column("x"), fallback, input_type=input_type)
+    assert node.sql() == expected
+
+
+@pytest.mark.parametrize(
+    ("input_type", "expected"),
+    [
+        # PostgreSQL refuses `bigint` -> `boolean`; `x <> 0` is what DuckDB and
+        # Trino's cast means anyway, measured over 0, 1, 5 and -1 (RFC 0029 D5).
+        (IntType(), "x <> 0"),
+        (StringType(), "CAST(x AS BOOLEAN)"),
+    ],
+)
+def test_to_bool_spells_the_integer_boundary_portably(
+    input_type: LogicalType, expected: str
+) -> None:
+    node = DEFAULT_REGISTRY["to_bool"].builder(exp.column("x"), input_type=input_type)
+    assert node.sql() == expected
+
+
+def test_to_int_routes_a_boolean_through_int() -> None:
+    """PostgreSQL converts `int4` to boolean and back and refuses `bigint` in
+    either direction, so the single cast did not run there at all. The two-step
+    form is neutral — DuckDB and Trino evaluate it identically."""
+    node = DEFAULT_REGISTRY["to_int"].builder(exp.column("x"), input_type=BoolType())
+    assert node.sql() == "CAST(CAST(x AS INT) AS BIGINT)"
+    plain = DEFAULT_REGISTRY["to_int"].builder(exp.column("x"), input_type=StringType())
+    assert plain.sql() == "CAST(x AS BIGINT)"

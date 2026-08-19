@@ -19,15 +19,9 @@ from sqlglot.expressions.core import Expression
 
 from bloomery.ir.nodes import PartitionSpec, SqlExpr
 from bloomery.spec.common import PARTITION_SPEC_PATTERN
+from bloomery.transforms import neutral_type
 from bloomery.typing import (
-    BoolType,
-    DateType,
-    DecimalType,
-    IntType,
     LogicalType,
-    StringType,
-    TimestampType,
-    VariantType,
 )
 
 __all__ = [
@@ -39,23 +33,17 @@ __all__ = [
 
 _PARTITION_RE = re.compile(PARTITION_SPEC_PATTERN)
 
-_GENERIC_TYPES: dict[type[LogicalType], str] = {
-    StringType: "TEXT",
-    IntType: "BIGINT",
-    BoolType: "BOOLEAN",
-    DateType: "DATE",
-    TimestampType: "TIMESTAMP",
-    VariantType: "JSON",
-}
-
 
 def generic_type(t: LogicalType) -> exp.DataType:
     """The dialect-neutral SQLGlot type for a logical type. Physical DDL
     types are the dialect port's job (RFC 0008); this cast is rendered per
-    dialect at emit from the neutral AST."""
-    if isinstance(t, DecimalType):
-        return exp.DataType.build(f"DECIMAL({t.precision}, {t.scale})")
-    return exp.DataType.build(_GENERIC_TYPES[type(t)])
+    dialect at emit from the neutral AST.
+
+    The mapping itself lives in :func:`bloomery.transforms.neutral_type`: a
+    builder declaring ``types`` needs it too, and ``transforms`` is the lower
+    layer, so one definition serves both rather than two that can drift.
+    """
+    return neutral_type(t)
 
 
 def canon(node: Expression) -> SqlExpr:

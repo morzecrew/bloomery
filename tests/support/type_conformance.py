@@ -91,7 +91,12 @@ class Case:
         bound to a different argument entirely. Probing the builder's output
         directly would measure an expression no artifact contains.
         """
-        built = DEFAULT_REGISTRY[self.transform].builder(exp.column(column), *self.args)
+        spec = DEFAULT_REGISTRY[self.transform]
+        # A spec declaring `types` is handed the type entering the step, which
+        # is this case's source (RFC 0029 D1). Omitting it is a TypeError rather
+        # than a silent default — see the flag's rationale on `TransformSpec`.
+        extra = {"input_type": self.source} if spec.types else {}
+        built = spec.builder(exp.column(column), *self.args, **extra)
         return canon(built).ast()
 
 
@@ -299,13 +304,11 @@ _TRINO_LITERAL_NOT_COERCED = (
 #: happens to describe it. Every entry is scheduled in RFC 0029.
 KNOWN: dict[str, dict[str, Divergence]] = {
     "duckdb": {
-        "coalesce-decimal(12,4)": Divergence("DECIMAL(14, 4)", _WIDENS),
         "multiply-decimal(12,4)": Divergence("DECIMAL(18, 4)", _WIDENS),
         "round-decimal(12,4)": Divergence("DECIMAL(12, 2)", _WIDENS),
         "divide-decimal(12,4)": Divergence("DOUBLE", _FLOAT_DIVISION),
     },
     "postgres": {
-        "coalesce-decimal(12,4)": Divergence("DECIMAL", _UNCONSTRAINED),
         "multiply-decimal(12,4)": Divergence("DECIMAL", _UNCONSTRAINED),
         "round-decimal(12,4)": Divergence("DECIMAL", _UNCONSTRAINED),
         "abs-decimal(12,4)": Divergence("DECIMAL", _UNCONSTRAINED),
@@ -316,22 +319,11 @@ KNOWN: dict[str, dict[str, Divergence]] = {
             "unchanged",
         ),
         "divide-decimal(12,4)": Divergence("DECIMAL", _UNCONSTRAINED),
-        "to_int-bool": Divergence("error:42846", _PG_NO_CAST),
-        "to_bool-int": Divergence("error:42846", _PG_NO_CAST),
     },
     "trino": {
-        "coalesce-decimal(12,4)": Divergence("DECIMAL(14, 4)", _WIDENS),
         "multiply-decimal(12,4)": Divergence("DECIMAL(22, 4)", _WIDENS),
         "round-decimal(12,4)": Divergence("DECIMAL(13, 4)", _ROUND_KEEPS_INPUT),
         "divide-decimal(12,4)": Divergence("DECIMAL(23, 15)", _WIDENS),
-        "coalesce-bool": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
-        "coalesce-date": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
-        "coalesce-timestamp": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
-        "coalesce-variant": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
-        "nullif-bool": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
-        "nullif-date": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
-        "nullif-timestamp": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
-        "nullif-variant": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
     },
 }
 

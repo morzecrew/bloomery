@@ -18,7 +18,7 @@ from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
 from bloomery.errors import TypeCheckError
-from bloomery.transforms.registry import OutputType, transform
+from bloomery.transforms.registry import OutputType, neutral_type, transform
 from bloomery.typing import (
     ArgKind,
     BoolType,
@@ -60,6 +60,28 @@ def _literal(value: str | int) -> Expression:
 def _number(value: str | int) -> Expression:
     """A NUMBER-kind arg as a SQLGlot numeric literal node."""
     return exp.Literal.number(value)
+
+
+def _typed_literal(value: str | int, input_type: LogicalType) -> Expression:
+    """A literal argument, cast to the column's type where that changes anything.
+
+    ``coalesce`` and ``nullif`` declare they produce the *input* type, and an
+    uncast literal makes that false: Trino will not coerce a varchar literal to
+    a non-varchar column at all, and an integer fallback over a decimal column
+    widens the result past the declared ``(p, s)`` on every engine
+    (RFC 0029 §2.1, §2.4).
+
+    A string literal against a ``string`` column is the one case where the cast
+    buys nothing — all three engines already read it as text — and the emitted
+    SQL is a reviewed artifact, so ``COALESCE(segment, 'unknown')`` is left as
+    it reads in the spec rather than becoming ``COALESCE(segment, CAST('unknown'
+    AS TEXT))``. The condition is on the literal *and* the type: ``{coalesce: 0}``
+    over a string column still casts, because ``COALESCE(text, 0)`` does not plan
+    on Trino.
+    """
+    if isinstance(input_type, StringType) and isinstance(value, str):
+        return _literal(value)
+    return exp.cast(_literal(value), neutral_type(input_type))
 
 
 def _literal_shape(value: str | int) -> tuple[int, int]:
@@ -221,8 +243,26 @@ def to_string(col: Expression) -> Expression:
     return exp.cast(col, exp.DataType.build("TEXT"))
 
 
-@transform("to_int", arity=0, input=(StringType, IntType, DecimalType, BoolType), output=IntType())
-def to_int(col: Expression) -> Expression:
+@transform(
+    "to_int",
+    arity=0,
+    input=(StringType, IntType, DecimalType, BoolType),
+    output=IntType(),
+    types=True,
+)
+def to_int(col: Expression, *, input_type: LogicalType) -> Expression:
+    """``CAST(x AS BIGINT)``, through ``INT`` when the input is a boolean.
+
+    PostgreSQL converts ``int4`` to boolean and back and refuses ``bigint`` in
+    either direction (``42846``), so the single cast did not run there at all —
+    a whitelisted transform dying on the first run of a shipped dialect
+    (RFC 0029 §2.3). The two-step form is *neutral*, not a PostgreSQL spelling:
+    DuckDB and Trino render and evaluate it identically, so the fix stays in the
+    builder and no port learns about booleans.
+    """
+    if isinstance(input_type, BoolType):
+        through_int = exp.cast(col, exp.DataType.build("INT"))
+        return exp.cast(through_int, exp.DataType.build("BIGINT"))
     return exp.cast(col, exp.DataType.build("BIGINT"))
 
 
@@ -248,8 +288,23 @@ def to_decimal(col: Expression, precision: int, scale: int) -> Expression:
     return exp.cast(col, exp.DataType.build(f"DECIMAL({precision}, {scale})"))
 
 
-@transform("to_bool", arity=0, input=(StringType, IntType, BoolType), output=BoolType())
-def to_bool(col: Expression) -> Expression:
+@transform("to_bool", arity=0, input=(StringType, IntType, BoolType), output=BoolType(), types=True)
+def to_bool(col: Expression, *, input_type: LogicalType) -> Expression:
+    """``CAST(x AS BOOLEAN)``, or ``x <> 0`` when the input is an integer.
+
+    PostgreSQL refuses ``bigint`` → ``boolean`` outright. RFC 0029 D5 left open
+    whether to spell it or refuse it, on the ground that a refusal would be
+    "honest about ``to_bool`` over an arbitrary integer having no agreed
+    meaning" — measured, the meaning *is* agreed: DuckDB and Trino both read
+    every non-zero value as true, including negatives, which is exactly
+    ``x <> 0``. There was nothing to be honest about, so it is spelled
+    (EXECUTION-LOG D-001, D5 settled).
+
+    ``x <> 0`` rather than ``CAST(CAST(x AS INT) AS BOOLEAN)`` because the
+    second overflows for a ``bigint`` outside ``int4``.
+    """
+    if isinstance(input_type, IntType):
+        return exp.NEQ(this=col, expression=exp.Literal.number(0))
     return exp.cast(col, exp.DataType.build("BOOLEAN"))
 
 
@@ -315,10 +370,33 @@ def to_utc(col: Expression, zone: str) -> Expression:
 
 
 @transform(
-    "coalesce", arity=1, arg_kinds=(ArgKind.LITERAL,), input=_ALL_TYPES, output=lambda t, _args: t
+    "coalesce",
+    arity=1,
+    arg_kinds=(ArgKind.LITERAL,),
+    input=_ALL_TYPES,
+    output=lambda t, _args: t,
+    types=True,
 )
-def coalesce(col: Expression, fallback: str | int) -> Expression:
-    return exp.Coalesce(this=col, expressions=[_literal(fallback)])
+def coalesce(col: Expression, fallback: str | int, *, input_type: LogicalType) -> Expression:
+    """``COALESCE(x, <fallback cast to x's type>)``.
+
+    The fallback is cast because the transform declares it produces the *input*
+    type and an uncast literal makes that false in two different ways
+    (RFC 0029 §2.1, §2.4):
+
+    * on Trino the expression does not plan at all — it does not coerce a
+      varchar literal to the column's type, so ``{coalesce: "1970-01-01"}`` over
+      a ``date`` field ran on DuckDB and PostgreSQL and failed here;
+    * on every engine an integer fallback over a decimal column *widened* the
+      result past the declared ``(p, s)``, so the declared type was not the
+      emitted one.
+
+    Casting the literal settles D6 in favour of the spec surface staying as it
+    is: the alternative was rejecting a literal whose type cannot match, which
+    would have made a spec that runs today on two of three engines stop
+    compiling on all three.
+    """
+    return exp.Coalesce(this=col, expressions=[_typed_literal(fallback, input_type)])
 
 
 @transform(
@@ -328,9 +406,16 @@ def coalesce(col: Expression, fallback: str | int) -> Expression:
     input=_ALL_TYPES,
     output=lambda t, _args: t,
     nullifies=True,
+    types=True,
 )
-def nullif(col: Expression, sentinel: str | int) -> Expression:
-    return exp.Nullif(this=col, expression=_literal(sentinel))
+def nullif(col: Expression, sentinel: str | int, *, input_type: LogicalType) -> Expression:
+    """``NULLIF(x, <sentinel cast to x's type>)``.
+
+    Same reason as ``coalesce``: Trino refuses to compare a varchar literal
+    against a non-varchar column (``TYPE_MISMATCH``), so a sentinel that worked
+    on two engines failed on the third (RFC 0029 §2.4).
+    """
+    return exp.Nullif(this=col, expression=_typed_literal(sentinel, input_type))
 
 
 @transform(

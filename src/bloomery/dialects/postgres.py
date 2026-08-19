@@ -121,6 +121,7 @@ class PostgresDialect(SQLGlotDialect):
         for identifier in rewritten.find_all(exp.Identifier):
             if identifier.this.lower() in _RESERVED:
                 identifier.set("quoted", True)
+        rewritten = rewritten.transform(_variant_is_jsonb)
         for extract in rewritten.find_all(exp.JSONExtractScalar):
             path = extract.args.get("expression")
             if not isinstance(path, exp.JSONPath):
@@ -187,6 +188,28 @@ _RUN_DEPENDENT_PATTERN: Final[str] = "^[[:space:]]*(" + "|".join(_RUN_DEPENDENT)
 
 #: The types whose Postgres input parser accepts a run-dependent literal.
 _TEMPORAL: Final[frozenset[str]] = frozenset({"DATE", "TIMESTAMP", "TIMESTAMPTZ"})
+
+
+def _variant_is_jsonb(node: Expression) -> Expression:
+    """A neutral ``CAST(x AS JSON)`` is ``CAST(x AS JSONB)`` on this port.
+
+    ``variant`` maps to ``JSONB`` here, but the *neutral* type for it is
+    ``JSON`` — that is what :func:`bloomery.transforms.neutral_type` names and
+    what every neutral cast in the tree therefore says. Rendering it verbatim
+    made a ``variant`` column's cast disagree with the column's own declared
+    physical type, which PostgreSQL then refuses to mix: ``COALESCE(jsonb,
+    json)`` does not coerce (``42846``) and ``NULLIF(jsonb, json)`` has no
+    operator (``42883``).
+
+    Applied before the ``JSONExtractScalar`` lowering below, which adds a
+    ``CAST(... AS JSON)`` of its own and means it: ``json_extract_path_text``
+    is a ``json`` function, and a bronze path is declared ``string`` rather
+    than ``variant``, so that cast is about reaching the right *function* and
+    not about the column's type.
+    """
+    if isinstance(node, exp.DataType) and node.this is exp.DataType.Type.JSON:
+        return exp.DataType.build("JSONB")
+    return node
 
 
 def _jsonb_extraction(node: Expression) -> Expression:
