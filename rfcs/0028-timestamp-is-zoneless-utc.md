@@ -88,10 +88,12 @@ stripped of its zone at the one step that puts a value into the type — the
 `to_utc` step of a chain, which is the only door.
 
 That step is a *neutral* `AtTimeZone` node, and normalizing it is the **port's**
-job rather than the builder's (D2): the three engines need three different
-spellings for the one meaning, and a builder produces dialect-neutral AST
-(RFC 0004 D7). `dialects/base.py` walks the tree for interpretations and each
-port supplies its own rewrite.
+job rather than the builder's (D2): the one meaning takes two spellings across
+the three engines — DuckDB and PostgreSQL both render `AT TIME ZONE 'UTC'`,
+byte for byte, while Trino needs a function-and-cast form — and a builder
+produces dialect-neutral AST (RFC 0004 D7). One divergence is enough to make it
+the port's job; the table below is what each renders. `dialects/base.py` walks
+the tree for interpretations and each port supplies its own rewrite.
 
 Each port has a spelling, each verified session-independent:
 

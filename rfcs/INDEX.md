@@ -70,7 +70,10 @@ design.
 ## Status legend
 
 - 📝 **Draft** — proposed, not started
-- 🚧 **In progress** — partially shipped
+- 🚧 **In progress** — the document is not finished *here* yet: either partially shipped,
+  or fully shipped and waiting on a retirement commit the mainline can reach (above). The
+  status tracks the document's life in this directory, and that ends at retirement rather
+  than at the last decision implemented; the row says which case it is
 - ✅ **Complete** — fully shipped
 - ❌ **Rejected / withdrawn**
 
