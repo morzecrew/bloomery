@@ -90,9 +90,10 @@ class PostgresDialect(SQLGlotDialect):
         SQLGlot's postgres generator renders extraction as
         ``JSON_EXTRACT_PATH_TEXT(...)``, which exists only for the ``json``
         type — bloomery's ``variant`` is ``JSONB`` (verified live: the
-        engine tier fails without this). Single-key paths render as the
-        polymorphic ``->``/``->>`` operators; deeper paths keep the function
-        form over an explicit ``CAST(... AS JSON)``.
+        engine tier fails without this). A bronze path's ``->>`` extraction is
+        declared ``string`` and stays on the ``json`` functions; the
+        ``json_path`` transform is declared ``variant`` and goes through
+        :func:`_jsonb_extraction` instead.
 
         The ISO-text marker strips to nothing: Postgres' own cast takes both
         ISO spellings, so there is nothing for this port to add (RFC 0027).
@@ -110,7 +111,7 @@ class PostgresDialect(SQLGlotDialect):
         for identifier in rewritten.find_all(exp.Identifier):
             if identifier.this.lower() in _RESERVED:
                 identifier.set("quoted", True)
-        for extract in rewritten.find_all(exp.JSONExtract, exp.JSONExtractScalar):
+        for extract in rewritten.find_all(exp.JSONExtractScalar):
             path = extract.args.get("expression")
             if not isinstance(path, exp.JSONPath):
                 continue
@@ -119,6 +120,7 @@ class PostgresDialect(SQLGlotDialect):
                 extract.set("only_json_types", True)  # ``->``/``->>`` form
             else:
                 extract.set("this", exp.cast(extract.this, exp.DataType.build("JSON")))
+        rewritten = rewritten.transform(_jsonb_extraction)
         return super().render(rewritten)
 
     def text_sha256(self, value: Expression) -> Expression:
@@ -175,6 +177,43 @@ _RUN_DEPENDENT_PATTERN: Final[str] = "^[[:space:]]*(" + "|".join(_RUN_DEPENDENT)
 
 #: The types whose Postgres input parser accepts a run-dependent literal.
 _TEMPORAL: Final[frozenset[str]] = frozenset({"DATE", "TIMESTAMP", "TIMESTAMPTZ"})
+
+
+def _jsonb_extraction(node: Expression) -> Expression:
+    """``json_path`` extraction, kept in ``jsonb`` end to end.
+
+    ``variant`` is ``JSONB`` on this port, so a transform declared to produce
+    one has to produce one. Neither shipped spelling did (RFC 0029 §2.4):
+
+    * a path deeper than one key went through ``CAST(x AS JSON)`` and
+      ``json_extract_path``, which return **json**;
+    * a single-key path over a ``string`` column rendered ``s -> 'a'``, and
+      PostgreSQL has no ``text -> unknown`` operator, so it did not run at all
+      (``42883``). That one was not in the register until this change added the
+      case — the corpus guard asks for one case per (transform, input type),
+      and this transform takes two path shapes per input.
+
+    Casting the operand covers both: ``jsonb -> 'a'`` yields ``jsonb``, and
+    ``jsonb_extract_path`` is the ``jsonb`` twin of the function SQLGlot
+    reaches for. The cast is a no-op on a column that is already ``jsonb``,
+    and is what makes the ``string`` input domain work at all.
+
+    Only :class:`sqlglot.exp.JSONExtract` is rewritten. A bronze path lowers to
+    :class:`sqlglot.exp.JSONExtractScalar`, which is declared ``string``, and
+    ``->>``/``json_extract_path_text`` return text correctly — moving it here
+    would change a column's type to fix nothing.
+    """
+    if not isinstance(node, exp.JSONExtract):
+        return node
+    path = node.args.get("expression")
+    if not isinstance(path, exp.JSONPath):
+        return node
+    operand = exp.cast(node.this, exp.DataType.build("JSONB"))
+    keys = [part for part in path.expressions if isinstance(part, exp.JSONPathKey)]
+    if len(keys) == 1:
+        return exp.JSONExtract(this=operand, expression=path.copy(), only_json_types=True)
+    literals = [exp.Literal.string(key.this) for key in keys]
+    return cast("Expression", exp.func("JSONB_EXTRACT_PATH", operand, *literals))
 
 
 def _zoneless_parse(node: Expression) -> Expression:

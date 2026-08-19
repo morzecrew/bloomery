@@ -156,7 +156,8 @@ CASES: tuple[Case, ...] = (
     Case("nullif", VariantType(), '{"a": {"b": "x"}}', ("{}",)),
     Case("json_path", VariantType(), '{"a": {"b": "x"}}', ("$.a.b",), "deep"),
     Case("json_path", VariantType(), '{"a": {"b": "x"}}', ("$.a",), "shallow"),
-    Case("json_path", StringType(), '{"a": {"b": "x"}}', ("$.a.b",)),
+    Case("json_path", StringType(), '{"a": {"b": "x"}}', ("$.a.b",), "deep"),
+    Case("json_path", StringType(), '{"a": {"b": "x"}}', ("$.a",), "shallow"),
     # ....................... arithmetic
     Case("multiply", DECIMAL, "3.5", (2,)),
     Case("divide", DECIMAL, "3.5", (2,)),
@@ -290,10 +291,6 @@ _PG_TO_TIMESTAMP_TZ = (
     "RFC 0028 closed for `to_utc`, surviving in `parse_ts`'s explicit-format branch, "
     "which no fixture uses"
 )
-_PG_JSON_NOT_JSONB = (
-    "a path deeper than one key goes through `CAST(x AS JSON)` and `json_extract_path`, "
-    "which return `json`; `variant` is declared `JSONB` on this port"
-)
 _TRINO_LITERAL_NOT_COERCED = (
     "Trino does not coerce a varchar literal to the column's type, so a spec-level "
     "sentinel or fallback that runs on DuckDB and PostgreSQL fails to plan here"
@@ -328,8 +325,6 @@ KNOWN: dict[str, dict[str, Divergence]] = {
         "strip_suffix-string": Divergence("error:42883", _PG_NO_FUNCTION),
         "to_int-bool": Divergence("error:42846", _PG_NO_CAST),
         "to_bool-int": Divergence("error:42846", _PG_NO_CAST),
-        "json_path-variant-deep": Divergence("JSON", _PG_JSON_NOT_JSONB),
-        "json_path-string": Divergence("JSON", _PG_JSON_NOT_JSONB),
     },
     "trino": {
         "coalesce-decimal(12,4)": Divergence("DECIMAL(14, 4)", _WIDENS),
