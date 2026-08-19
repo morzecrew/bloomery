@@ -89,3 +89,83 @@ and `CLAUDE.md` states, as non-negotiable, that no float may appear on an emissi
 operation the engine cannot express exactly. Refusing `divide` on DuckDB and emulating it
 with scaled integer arithmetic are both live alternatives and neither is argued in the
 document.
+
+---
+
+# Unit 2 · RFC 0029 · transform types the engine agrees with
+
+Branch `design/rfc-0029-transform-types`. RFC 0029 §2.1–§2.4, decisions D1–D6.
+
+**Drift count: 0.**
+
+Executed after the readiness gate was overridden by the author, who elected to proceed
+with G-1–G-3 decided by the executor rather than amended into the RFC first. D-001–D-003
+are those three decisions, taken under that delegation and recorded before any code was
+written. Each proposes a row back to RFC 0029.
+
+## D-001 — `Builder` gains its input type by a declared flag, not a changed signature
+
+- **Touches:** RFC 0029 D1 (`ASSUMED`), gap [G-1](#g-1)
+- **RFC said:** "`Builder` becomes `(input type, column AST, *args) -> AST` **or** gains it
+  by keyword" — two forms, no choice
+- **Built:** a transform declares `types: True` on its `TransformSpec`, and only those
+  builders are called with `input_type=`. Existing builders and every registered extension
+  keep their current signature.
+- **Because:** `Builder` is exported from `bloomery.__all__` and named in `api.md`'s
+  extension-point table, and `stability.md` binds it — nothing in an `__all__` moves
+  without a version bump and a changelog entry naming the migration. The positional form
+  breaks every third-party builder to serve six built-in ones. A declared flag is also how
+  this codebase already carries per-transform facts (`variadic`, `nullifies`), so the
+  registry gains no new *kind* of thing.
+- **Class:** `spec-gap`
+- **Consequence:** a builder that needs its input type must say so; forgetting the flag is
+  a silent miss rather than a `TypeError`. The conformance battery is what catches it —
+  the declared type stays wrong and the row stays in `KNOWN`.
+- **Proposed row (RFC 0029):** D1 is settled as the keyword form, gated by a `types` flag
+  on `TransformSpec`; the public `Builder` type is unchanged and this is not a breaking
+  release.
+
+## D-002 — an out-of-range `coalesce`/`nullif` literal is refused at compile time
+
+- **Touches:** RFC 0029 D2 (`ASSUMED`), §5 ("the precision algebra is not in question"),
+  gap [G-2](#g-2)
+- **RFC said:** nothing — D2 narrows arithmetic results and is silent on what narrowing
+  does to a literal that does not fit
+- **Built:** `typecheck_chain` refuses a `coalesce`/`nullif` literal outside its declared
+  type, so the narrowing cast D2 adds can never be the thing that fails
+- **Because:** `coalesce`'s declared output is its *input* type, and its literal is not
+  range-checked, so `{coalesce: 99999999999999}` over a `decimal(12,4)` column typechecks
+  today and the engine quietly widens to fit it. Narrowing without the check converts that
+  into a runtime `ConversionException` on the first NULL — measured on DuckDB:
+  `CAST(d * 10000 AS DECIMAL(13,4))` raises where the unnarrowed expression returns
+  `DECIMAL(18,4)`. A compile-time refusal is the same information one stage earlier, and
+  RFC 0008 D3 already says fail loud rather than approximate.
+- **Class:** `spec-gap`
+- **Consequence:** a spec that compiles today stops compiling. It was already outside its
+  declared type; nothing that was correct becomes an error.
+- **Proposed row (RFC 0029):** a literal argument whose value does not fit the transform's
+  declared output type is a `TypeCheckError`, not a runtime cast failure.
+
+## D-003 — DuckDB's `divide` keeps a float behind a narrowing cast, and the invariant says so
+
+- **Touches:** RFC 0029 §4 and D3 (`ASSUMED`), `CLAUDE.md`'s "no floats in IR or emission
+  paths" (RFC 0003 D5), gap [G-3](#g-3)
+- **RFC said:** §4 — a documented port note plus a narrowing cast
+- **Built:** §4 as written, and the carve-out stated in the dialect reference rather than
+  left as a contradiction
+- **Because:** DuckDB's `/` is float division and `//` is integer division; the engine has
+  no exact decimal division to reach for. The alternatives were both worse: refusing
+  `divide` on DuckDB removes a working transform from the default dialect and breaks the
+  flagship example's `unit_price`, and emulating exact division with scaled integer
+  arithmetic is unproven lowering work this RFC does not schedule. The narrowing cast does
+  not remove the float; what it does is bound it to one operation on one port, with the
+  emitted type finally equal to the declared one.
+- **Class:** `spec-gap`
+- **Consequence:** the non-negotiable in `CLAUDE.md` is now inexact as stated. It is left
+  unedited on purpose — that file is the author's — and this entry is the flag.
+- **Proposed row (RFC 0029):** where an engine has no exact operator for a transform, the
+  port emits the engine's operation and narrows the result to the declared type; the
+  divergence is documented per port rather than registered as a permanent row.
+- **Deliberately not applied:** refusal on DuckDB via the D4 capability mechanism. It is
+  the consistent reading of the invariant and was rejected on blast radius, not on
+  principle — if the author prefers it, D-003 is the entry to reverse.
