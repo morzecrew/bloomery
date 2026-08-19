@@ -63,6 +63,30 @@ def strip_iso_text(node: Expression, spelling: Callable[[Expression], Expression
     return node.transform(replace)
 
 
+def utc_from_zone(node: Expression, to_utc: Callable[[Expression], Expression]) -> Expression:
+    """Replace every zone interpretation with ``to_utc(interpretation)``.
+
+    ``to_utc`` is the only door into the ``timestamp`` type, and that type is
+    **always UTC** and zoneless (RFC 0004 §5.1). Every engine's zone
+    interpretation returns a zone-*aware* value instead — the right instant
+    carrying a display rule — and every consumer that derives a date, an hour or
+    a bucket reads the display rule rather than the instant.
+
+    That made a mart's date role depend on something no spec said: the reader's
+    session zone on DuckDB and PostgreSQL, the mapping's own zone on Trino. Two
+    rows at one instant, mapped from two shops in two zones, landed in different
+    days (RFC 0028 §2).
+
+    So each port normalizes to UTC and drops the zone. ``to_utc`` here is the
+    port's spelling of that, applied to the whole interpretation.
+    """
+
+    def replace(child: Expression) -> Expression:
+        return to_utc(child) if isinstance(child, exp.AtTimeZone) else child
+
+    return node.transform(replace)
+
+
 class DialectFeature(StrEnum):
     """Capabilities an emitter may query before lowering (RFC 0008 §5.1)."""
 

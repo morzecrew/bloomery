@@ -8,7 +8,7 @@ from typing import ClassVar, cast
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
-from bloomery.dialects.base import SQLGlotDialect, strip_iso_text
+from bloomery.dialects.base import SQLGlotDialect, strip_iso_text, utc_from_zone
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -53,7 +53,14 @@ class DuckDBDialect(SQLGlotDialect):
         ``2026-01-06T12:00:00`` and the space-separated spelling, so there is
         nothing for this port to add (RFC 0027).
         """
+
+        def utc(interpretation: Expression) -> Expression:
+            # `<tstz> AT TIME ZONE 'UTC'` yields a zoneless TIMESTAMP holding
+            # the UTC wall clock, identically under any session (RFC 0028 §3).
+            return exp.AtTimeZone(this=interpretation, zone=exp.Literal.string("UTC"))
+
         rewritten = strip_iso_text(node.copy(), lambda text: text)
+        rewritten = utc_from_zone(rewritten, utc)
         rewritten = rewritten.transform(_nfc_normalize)
         return super().render(rewritten)
 

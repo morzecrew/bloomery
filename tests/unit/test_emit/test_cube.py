@@ -263,7 +263,42 @@ def test_ratio_requires_both_components_on_the_owning_mart() -> None:
     assert [m["name"] for m in measures] == ["revenue"]
 
 
-def test_stored_non_additive_is_refused_defense_in_depth() -> None:
+def test_a_named_non_additive_metric_is_served_when_its_components_are_stored() -> None:
+    """A mart's `measures:` is "metrics this mart serves", not "numbers it
+    stores" — so naming a ratio there is an ordinary request, served by
+    computing it from components the mart does store.
+
+    This emitter used to refuse it, and only when the author named it: leaving
+    the ratio out of `measures:` produced the very same calculated measure. That
+    made Cube the one target rejecting a project the other three compiled.
+    """
+    metrics = (
+        _metric("revenue", agg="sum", expr="amount"),
+        _metric("order_count", agg="count", expr="order_id"),
+        _metric(
+            "aov",
+            additivity=Additivity.NON_ADDITIVE,
+            agg=None,
+            expr=None,
+            ratio=Ratio(numerator="revenue", denominator="order_count"),
+        ),
+    )
+    artifacts = CubeEmitter().emit(_project(metrics, ("aov", "order_count", "revenue")), _ctx())
+    body = next(a.content for a in artifacts if a.path.endswith("orders.yml"))
+    assert "name: aov" in body
+    # Computed, never stored: a ratio is a `number` over the two measures.
+    assert "{revenue} / NULLIF({order_count}, 0)" in body
+    assert body.count("name: aov") == 1  # named *and* derivable emits it once
+
+
+def test_a_non_additive_metric_whose_components_are_absent_is_simply_absent() -> None:
+    """The companion case, and the one that stays quiet.
+
+    With no `revenue` or `order_count` on the mart there is nothing to compute
+    from, so the metric does not appear — matching what the MetricFlow emitter
+    does with the same spec, where the planner refuses it by name at request
+    time rather than the compiler refusing the project.
+    """
     metrics = (
         _metric(
             "aov",
@@ -273,8 +308,9 @@ def test_stored_non_additive_is_refused_defense_in_depth() -> None:
             ratio=Ratio(numerator="revenue", denominator="order_count"),
         ),
     )
-    with pytest.raises(UnsupportedByTarget, match=r"mart 'orders' stores non-additive.*'aov'"):
-        CubeEmitter().emit(_project(metrics, ("aov",)), _ctx())
+    artifacts = CubeEmitter().emit(_project(metrics, ("aov",)), _ctx())
+    body = next(a.content for a in artifacts if a.path.endswith("orders.yml"))
+    assert "aov" not in body
 
 
 def test_unmappable_aggregation_is_refused() -> None:

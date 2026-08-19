@@ -156,13 +156,6 @@ def _dimensions(mart: MartIR) -> list[object]:
 
 
 def _stored_measure(metric: MetricIR, mart: MartIR) -> dict[str, object]:
-    if metric.additivity is Additivity.NON_ADDITIVE:
-        msg = (
-            f"mart {mart.name!r} stores non-additive metric {metric.name!r} as a measure — "
-            "a non-additive metric is never a stored aggregate (RFC 0006 D5, RFC 0008 §5.4); "
-            "the guardrail stage should have refused this upstream"
-        )
-        raise UnsupportedByTarget(msg)
     measure_type = _MEASURE_TYPES.get(metric.agg) if metric.agg is not None else None
     if measure_type is None:
         msg = (
@@ -187,7 +180,18 @@ def _stored_measure(metric: MetricIR, mart: MartIR) -> dict[str, object]:
 def _measures(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) -> list[object]:
     metrics_by_name = {metric.name: metric for metric in ir.metrics}
     owned = [name for name in mart.measures if owners[name] is mart]  # sorted on MartIR
-    measures: list[object] = [_stored_measure(metrics_by_name[name], mart) for name in owned]
+    # A mart's `measures:` is "metrics this mart serves" (spec reference), not
+    # "numbers this mart stores". A non-additive metric is served by *computing*
+    # it from components the mart does store, so it is skipped here and picked up
+    # by the ratio pass below — which is what MetricFlow already did with the
+    # same spec. Refusing it made Cube the one target that rejected a project the
+    # other three compiled, and only when the author named the metric explicitly:
+    # leaving it out of `measures:` emitted the very same calculated measure.
+    measures: list[object] = [
+        _stored_measure(metrics_by_name[name], mart)
+        for name in owned
+        if metrics_by_name[name].additivity is not Additivity.NON_ADDITIVE
+    ]
     owned_set = frozenset(owned)
     for metric in ir.metrics:  # sorted by name on ProjectIR
         ratio = metric.ratio
