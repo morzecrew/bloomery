@@ -10,7 +10,12 @@ from typing import ClassVar, Final, cast
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
-from bloomery.dialects.base import SQLGlotDialect, strip_iso_text, utc_from_zone
+from bloomery.dialects.base import (
+    SQLGlotDialect,
+    capture_group,
+    strip_iso_text,
+    utc_from_zone,
+)
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -104,9 +109,14 @@ class PostgresDialect(SQLGlotDialect):
             # the UTC wall clock, identically under any session (RFC 0028 §3).
             return exp.AtTimeZone(this=interpretation, zone=exp.Literal.string("UTC"))
 
-        rewritten = strip_iso_text(node.copy(), lambda text: text)
+        # Before `_pg_text_functions`, which has to read the capture group to
+        # spell `regexp_substr` at all; the base render applies it again, and
+        # a tree that already names a group is untouched.
+        rewritten = capture_group(node.copy())
+        rewritten = strip_iso_text(rewritten, lambda text: text)
         rewritten = utc_from_zone(rewritten, utc)
         rewritten = rewritten.transform(_zoneless_parse)
+        rewritten = rewritten.transform(_pg_text_functions)
         rewritten = rewritten.transform(_guarded_try_cast)
         for identifier in rewritten.find_all(exp.Identifier):
             if identifier.this.lower() in _RESERVED:
@@ -214,6 +224,54 @@ def _jsonb_extraction(node: Expression) -> Expression:
         return exp.JSONExtract(this=operand, expression=path.copy(), only_json_types=True)
     literals = [exp.Literal.string(key.this) for key in keys]
     return cast("Expression", exp.func("JSONB_EXTRACT_PATH", operand, *literals))
+
+
+def _pg_text_functions(node: Expression) -> Expression:
+    """Two text functions PostgreSQL does not have, in spellings it does.
+
+    Both were emitted verbatim and failed at plan time with ``42883``
+    (RFC 0029 §2.3) — a whitelisted transform that compiles clean and dies on
+    the first run, on a shipped dialect.
+
+    ``ENDS_WITH(x, s)`` → ``RIGHT(x, LENGTH(s)) = s``. PostgreSQL has
+    ``starts_with`` and no mirror of it, which is why ``strip_prefix`` ran and
+    ``strip_suffix`` did not. ``RIGHT``/``LENGTH`` is an exact equivalent
+    rather than a near one — deliberately not ``LIKE '%' || s``, which would
+    read ``%`` and ``_`` in the suffix as wildcards. Verified against DuckDB on
+    a suffix containing ``%``.
+
+    ``REGEXP_EXTRACT(x, p, n)`` → ``REGEXP_SUBSTR(x, p, 1, 1, '', n)``.
+    PostgreSQL 16 has no ``regexp_extract`` at all; ``regexp_substr``'s sixth
+    argument is the capture group, so the group index survives rather than
+    being dropped the way SQLGlot's duckdb and trino generators dropped it
+    (RFC 0028 D5). Verified equal to DuckDB for group 0 and group 1. A
+    non-match returns NULL here and ``''`` on DuckDB, which is the divergence
+    ``regex_extract`` already declares by carrying ``nullifies=True`` on the
+    portable reading.
+
+    ``regexp_substr`` arrived in PostgreSQL 15 and ``pg_input_is_valid``
+    (RFC 0016 D84) already puts this port's floor at 16, so nothing new is
+    required of the engine.
+    """
+    if isinstance(node, exp.EndsWith):
+        suffix = node.expression
+        tail = exp.func("RIGHT", node.this.copy(), exp.Length(this=suffix.copy()))
+        return exp.EQ(this=cast("Expression", tail), expression=suffix.copy())
+    if isinstance(node, exp.RegexpExtract):
+        group = node.args.get("group") or exp.Literal.number(0)
+        return cast(
+            "Expression",
+            exp.func(
+                "REGEXP_SUBSTR",
+                node.this.copy(),
+                node.expression.copy(),
+                exp.Literal.number(1),  # start position
+                exp.Literal.number(1),  # first match
+                exp.Literal.string(""),  # no flags
+                group.copy(),
+            ),
+        )
+    return node
 
 
 def _zoneless_parse(node: Expression) -> Expression:

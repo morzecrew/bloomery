@@ -33,6 +33,7 @@ __all__ = [
     "DialectFeature",
     "strip_iso_text",
     "utc_from_zone",
+    "capture_group",
     "DialectPort",
     "SQLGlotDialect",
 ]
@@ -88,7 +89,7 @@ def utc_from_zone(node: Expression, to_utc: Callable[[Expression], Expression]) 
     return node.transform(replace)
 
 
-def _capture_group(node: Expression) -> Expression:
+def capture_group(node: Expression) -> Expression:
     """Restore the capture-group argument the canonical round trip demotes.
 
     ``regex_extract`` builds :class:`sqlglot.exp.RegexpExtract` with ``group``
@@ -108,6 +109,12 @@ def _capture_group(node: Expression) -> Expression:
     start position — has no ``regexp_extract`` at all to run either spelling,
     so no engine bloomery emits to takes the demoted meaning. A tree that
     already names a group is left alone.
+
+    :meth:`SQLGlotDialect.render` applies this to every port, but it does so
+    *last* — after a port's own rewrites, which is too late for a port that
+    needs to read the group in order to spell the call at all. Such a port
+    calls this first; the second application is a no-op, because a tree that
+    already names a group is returned untouched.
     """
 
     def replace(child: Expression) -> Expression:
@@ -248,7 +255,7 @@ class SQLGlotDialect:
                 "with an identity spelling if the engine's cast already takes both forms"
             )
             raise UnsupportedByTarget(msg)
-        return _capture_group(node).sql(dialect=self.sqlglot_dialect, pretty=True)
+        return capture_group(node).sql(dialect=self.sqlglot_dialect, pretty=True)
 
     def physical_type(self, t: LogicalType) -> str:
         """The engine type for a logical type (RFC 0004 non-goal: physical

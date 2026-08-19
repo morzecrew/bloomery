@@ -279,12 +279,6 @@ _ROUND_KEEPS_INPUT = (
     "the engine's `round(x, d)` rounds the value and keeps the input type, where "
     "RFC 0004 §5.4 narrows the declared scale to d"
 )
-_PG_NO_FUNCTION = (
-    "the port renders a function PostgreSQL 16 does not define, so the transform does "
-    "not run there at all — loud at plan time, but a shipped dialect refusing a "
-    "whitelisted transform belongs behind a capability flag (RFC 0008 D3), not behind "
-    "the engine's own error"
-)
 _PG_NO_CAST = "PostgreSQL refuses this cast between boolean and bigint; only int4 converts"
 _PG_TO_TIMESTAMP_TZ = (
     "PostgreSQL's `to_timestamp(text, text)` returns `timestamptz` — the same defect "
@@ -321,8 +315,6 @@ KNOWN: dict[str, dict[str, Divergence]] = {
             "unchanged",
         ),
         "divide-decimal(12,4)": Divergence("DOUBLE PRECISION", _FLOAT_DIVISION),
-        "regex_extract-string": Divergence("error:42883", _PG_NO_FUNCTION),
-        "strip_suffix-string": Divergence("error:42883", _PG_NO_FUNCTION),
         "to_int-bool": Divergence("error:42846", _PG_NO_CAST),
         "to_bool-int": Divergence("error:42846", _PG_NO_CAST),
     },
