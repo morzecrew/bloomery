@@ -109,6 +109,59 @@ If you built tables on a version before either fix, the timestamps in them moved
 upgraded, and any date bucket derived from a `to_utc` column moved with them. That is the
 point, and it is worth planning a restatement around.
 
+## Where a transform does not reach every engine
+
+The three ports render one neutral AST, and the sections above are the places
+that rendering differs and the meaning does not. This section is the opposite:
+places where a transform the typechecker accepts either does not run on a
+shipped dialect, or produces a type other than the one it declares.
+
+These are measured, not surveyed. A conformance battery probes every
+(transform, input type) pair against real DuckDB, PostgreSQL and Trino and
+compares the engine's own column type against the transform's declared output,
+so the list below is exact as of the pinned engine versions and cannot fall
+behind the code — a divergence that appears fails the suite, and one that is
+repaired fails it too until its row is deleted.
+
+### Does not run on PostgreSQL
+
+| Transform | Why |
+|---|---|
+| `regex_extract` | `REGEXP_EXTRACT` is not defined on PostgreSQL 16 |
+| `strip_suffix` | PostgreSQL has `starts_with` but no `ends_with`, so `strip_prefix` runs and its mirror does not |
+| `to_int` over a `bool` field | PostgreSQL converts `int4` to boolean and back, but refuses `bigint` |
+| `to_bool` over an `int` field | the same refusal in reverse |
+
+Each fails when the model first runs, with the engine's own message. They
+compile clean today; making them a refusal at compile time — which is what
+this project promises for anything an engine cannot express — is scheduled.
+
+### Does not run on Trino
+
+`coalesce` and `nullif` over a field that is not a `string`. Both take a
+literal, and Trino does not coerce a literal to the column's type the way
+DuckDB and PostgreSQL do, so `{coalesce: "1970-01-01"}` on a `date` field
+plans on two engines and fails on the third.
+
+### Runs, with a type other than the declared one
+
+| Construct | Declared | What the engine produces |
+|---|---|---|
+| `divide` | `decimal(p, s)` | a **binary float** on all three — `DOUBLE` on DuckDB and Trino, `double precision` on PostgreSQL |
+| `multiply`, `round`, `abs`, `coalesce` over a decimal | the tracked `decimal(p, s)` | a wider decimal, differently per engine; unconstrained `numeric` on PostgreSQL, which drops the precision through any expression |
+| `parse_ts` with an explicit format | `timestamp` | `timestamptz` on PostgreSQL — the same zone-aware value the section above describes, in the branch that does not take `ISO8601` |
+| `json_path` deeper than one key | `variant` (`JSONB`) | `json` on PostgreSQL |
+
+The widenings lose no value; what they lose is the meaning of the declaration,
+and with it the 38-digit precision cap, which is computed over the numbers the
+compiler tracks rather than the ones the engine uses.
+
+`divide` is the one to know about. A chain ending in a division is cast back to
+its declared decimal, so the emitted column has the right type — and its value
+has been through a binary float on the way. Prefer an explicit
+`to_decimal(p, s)` after a `divide` until this closes, and treat a divided
+column as approximate where exactness matters.
+
 ## Notes
 
 - **The dialect is not the target.** `--target sqlmesh --dialect postgres` and

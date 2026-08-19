@@ -1,8 +1,11 @@
 # RFC 0028 — `timestamp` is zoneless UTC, on every port
 
-- **Status:** 📝 Draft — the defect is measured on all three engines and the fix
-  is determined by an existing contract rather than chosen. One decision (D5)
-  is open.
+- **Status:** 🚧 In progress — every decision is settled and implemented. It is
+  not retired yet for a mechanical reason worth stating: a retirement row must
+  name a commit the document is readable at *and reachable from mainline*
+  ([`RETIRED.md`](RETIRED.md) argues why), and this document has only ever
+  existed on the branch that introduced it. It retires in the first change
+  after that branch lands.
 - **Scope:** Making `to_utc` produce what `timestamp` is documented to be — a
   **zoneless UTC** value — instead of a zone-aware one whose derived dates
   depend on something the spec never said. Touches
@@ -102,7 +105,7 @@ fix.
 | **D2** | The normalization lives in the **ports**, not in the transform builder. The three spellings are one meaning, and a builder produces dialect-neutral AST (RFC 0004 D7). The neutral tree keeps carrying `AtTimeZone`; each port renders the whole interpretation. | `LOCKED` |
 | **D3** | This is a **restating** change: artifacts change, spec meaning does not, and stored values move. A project that built tables before this has data whose derived dates were wrong; a restatement is the migration. | `LOCKED` |
 | **D4** | No new spec surface. A per-column "keep the zone" escape hatch would reintroduce the ambiguity this removes, and nothing has asked for one. | `LOCKED` |
-| **D5** | Whether an emit-time check should assert that a silver column's rendered type matches its declared physical type. It would have caught this class at the source rather than by measurement, and it is a larger piece of machinery than this fix. | `OPEN` |
+| **D5** | The check exists, and it is a **conformance battery at the engine tiers over the transform registry** — not an emit-time assertion. Emit has no engine to ask and no usable static model of one; and a type-shaped check at emit invites a cast-shaped fix, which would have made this defect's type right and its value no less wrong. §7 has the measurement. | `LOCKED` |
 
 ## 5. What "fixed" looks like
 
@@ -128,3 +131,68 @@ its own name, not a flag on this one.
 
 **`_ingested_at` and other bronze-side casts.** Those are the caller's SQL, not
 bloomery's; the ingestion contract types that column and nothing here changes it.
+
+---
+
+## 7. D5, decided: where a declared-vs-produced check can live
+
+The question was whether emit should assert that a silver column's rendered
+type matches its declared physical type. Three measurements say it cannot, and
+one says where it can.
+
+**Emit has nothing to ask.** Compilation does no I/O (RFC 0003), so the only
+static model of an engine's type rules available is SQLGlot's annotator. Run
+over the constructs the ports actually diverge on, it answers `UNKNOWN` for
+`AtTimeZone` on DuckDB — the exact node this document is about. It would not
+have caught the defect that prompted the question. Where it *does* answer, it
+answers off an explicit `CAST` in the tree, which is bloomery's own claim read
+back to itself.
+
+**A type-shaped check invites a cast-shaped fix.** The obvious way to satisfy
+such an assertion is to wrap the chain terminal in a cast to the declared type
+— and `build.py` already does exactly that when the chain's terminal type
+differs from the field's. But a cast converts; it does not assert. Wrapping the
+old `to_utc` in `CAST(… AS TIMESTAMP)` yields `TIMESTAMP` on all three ports
+while DuckDB and PostgreSQL still convert through the reader's session zone and
+Trino still keeps the value's own zone's wall clock. The check would have gone
+green over unchanged wrong data, and removed the type signal that eventually
+exposed it.
+
+**So the check asks the engine, per transform.** The declaration
+(`TransformSpec.output_type`) and the construction (`TransformSpec.builder`)
+sit next to each other and were never compared. Probing every (transform, input
+type) pair the typechecker admits — over a real column, through the canonical
+text round trip emit uses — gives the whole-column property by induction, and
+covers transforms no fixture exercises.
+
+**Necessary, not sufficient.** A type check could not have distinguished the
+zone-aware value from a cast-repaired one, so §5's two value tests are the other
+half and are now permanent rather than hand-run.
+
+### What it found on its first run
+
+Two defects, one of them fixed here:
+
+- **`regex_extract` ignored its capture group on DuckDB and Trino.** The builder
+  sets `group`; the canonical text round trip re-binds the third argument to
+  `position`, and both generators then drop it, warning to a stderr nothing
+  reads. `{regex_extract: [pattern, 1]}` returned the whole match. No fixture
+  used the transform, so no golden showed it.
+- **`divide` emits a binary float** — `CAST(x AS DOUBLE PRECISION) / n` on
+  PostgreSQL, `CAST(x AS DOUBLE) / n` on Trino, and DOUBLE on DuckDB regardless
+  — which RFC 0003 D5 forbids in an emission path, on the transform whose output
+  is most often money. It is in three checked-in goldens, computing `unit_price`
+  through a double and casting the result back to `DECIMAL(12, 4)`: the declared
+  type right, the value through a float. **Not fixed here** — the flag that
+  fixes it on two ports does not survive the canonical round trip, so it needs a
+  neutral-text marker of the kind RFC 0027 D4 established, which is a design
+  change. RFC 0029 carries it, with the rest of the register.
+
+And 29 registered divergences across the three ports — decimal arithmetic that
+widens past the (p, s) RFC 0004 §5.4 tracks, two functions PostgreSQL does not
+define, two casts it refuses, `parse_ts`'s explicit-format branch returning
+`timestamptz` there, deep JSON extraction returning `json` where `variant` is
+`jsonb`, and eight Trino cases where a `coalesce` or `nullif` literal is not
+coerced to the column's type. Each carries a reason and is asserted *exactly*:
+a fix cannot land without deleting its row, and a regression cannot hide behind
+a row that happens to describe it. RFC 0029 dispositions them.
