@@ -1374,10 +1374,60 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#to_utc-and-the-zone-argument" class="md-nav__link">
+  <a href="#to_utc-the-zone-argument-and-the-zone-that-came-back" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        <code>to_utc</code> and the zone argument
+        <code>to_utc</code>, the zone argument, and the zone that came back
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-a-transform-does-not-reach-every-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Where a transform does not reach every engine
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Where a transform does not reach every engine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#does-not-run-on-postgresql" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Does not run on PostgreSQL
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#does-not-run-on-trino" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Does not run on Trino
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runs-with-a-type-other-than-the-declared-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Runs, with a type other than the declared one
       </span>
     </span>
   </a>
@@ -1594,10 +1644,60 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#to_utc-and-the-zone-argument" class="md-nav__link">
+  <a href="#to_utc-the-zone-argument-and-the-zone-that-came-back" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        <code>to_utc</code> and the zone argument
+        <code>to_utc</code>, the zone argument, and the zone that came back
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-a-transform-does-not-reach-every-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Where a transform does not reach every engine
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Where a transform does not reach every engine">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#does-not-run-on-postgresql" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Does not run on PostgreSQL
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#does-not-run-on-trino" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Does not run on Trino
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runs-with-a-type-other-than-the-declared-one" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Runs, with a type other than the declared one
       </span>
     </span>
   </a>
@@ -1801,9 +1901,9 @@ the reason a spec compiles to different text without meaning anything different.
 <tbody>
 <tr>
 <td>Zone interpretation (<code>to_utc</code>)</td>
-<td><code>x AT TIME ZONE 'Europe/Berlin'</code></td>
-<td><code>x AT TIME ZONE 'Europe/Berlin'</code></td>
-<td><code>WITH_TIMEZONE(x, 'Europe/Berlin')</code></td>
+<td><code>x AT TIME ZONE 'Europe/Berlin' AT TIME ZONE 'UTC'</code></td>
+<td>same as DuckDB</td>
+<td><code>CAST(AT_TIMEZONE(WITH_TIMEZONE(x, 'Europe/Berlin'), 'UTC') AS TIMESTAMP)</code></td>
 </tr>
 <tr>
 <td>Null-on-failure cast (the <code>coercible</code> marker)</td>
@@ -1865,14 +1965,128 @@ entity in the quality system.</p>
 case that would need it — a full timestamp handed to a date parser — is not helped:
 Trino cannot cast <code>2026-01-06 12:00:00</code> to <code>DATE</code> either, so rewriting only turns a NULL
 into a hard <code>INVALID_CAST_ARGUMENT</code>.</p>
-<h3 id="to_utc-and-the-zone-argument"><code>to_utc</code> and the zone argument<a class="headerlink" href="#to_utc-and-the-zone-argument" title="Permanent link">&para;</a></h3>
+<h3 id="to_utc-the-zone-argument-and-the-zone-that-came-back"><code>to_utc</code>, the zone argument, and the zone that came back<a class="headerlink" href="#to_utc-the-zone-argument-and-the-zone-that-came-back" title="Permanent link">&para;</a></h3>
+<p>Two problems, one after the other, both now closed.</p>
 <p>Trino's <code>AT TIME ZONE</code> promotes a zoneless timestamp with the <strong>session</strong> zone before
 converting, leaving the instant unchanged — so the zone argument moved nothing but the
-display, and the same spec produced a different instant than on the other two ports.
-Trino now renders <code>with_timezone</code>, and all three agree that a 12:00 value read as
-<code>Europe/Berlin</code> is the instant 11:00Z.</p>
+display. Trino renders <code>with_timezone</code> instead, and all three ports agree that a 12:00
+value read as <code>Europe/Berlin</code> is the instant 11:00Z.</p>
+<p>Every engine's zone interpretation then returns a zone-<em>aware</em> value, while <code>timestamp</code>
+is defined as always UTC and maps to a zoneless type. The instant was right and
+everything derived from it read the display rule rather than the instant: on DuckDB and
+PostgreSQL <code>date(ordered_at)</code> moved with the <strong>reader's session zone</strong>, and on Trino it
+was the local date in <strong>whatever zone the mapping named</strong> — so two rows at one instant,
+mapped from two shops in two zones, landed in different days. Each port now normalizes
+to UTC and drops the zone, and the emitted column is the zoneless type the entity model
+declared.</p>
 <p>If you built tables on a version before either fix, the timestamps in them moved when you
-upgraded — which is the point, but worth planning a restatement around.</p>
+upgraded, and any date bucket derived from a <code>to_utc</code> column moved with them. That is the
+point, and it needs a restatement.</p>
+<p><strong>Nothing will tell you that.</strong> Both fixes live in port rendering, so the IR is
+byte-identical across the upgrade and so is <code>project_fingerprint</code>; a
+<a href="../../how-to/evolve-a-spec/"><code>plan</code></a> between the two versions is refused outright for
+crossing <code>bloomery_ir_version</code>s, and would report no change even if it were not. The
+emitted SQL is where the difference is.</p>
+<p>So find the affected models yourself and rebuild them:</p>
+<ol>
+<li><code>grep -rl to_utc</code> your mapping specs. Every entity with a <code>to_utc</code> step is affected,
+   and so is every mart reading one of its timestamp columns — including any date role
+   bucketed from one.</li>
+<li>Rebuild those from bronze rather than incrementally: <code>sqlmesh plan --restate-model</code>
+   naming each, or <code>dbt run --full-refresh --select</code> over the same set. An incremental
+   run only rewrites new partitions and leaves the old rows on the old semantics, which
+   is worse than not upgrading — one column, two meanings, no boundary marked.</li>
+<li>Rebuild downstream marts after the silver models, since a mart's date buckets are
+   derived and will not move on their own.</li>
+</ol>
+<p>Diff a sample before and after: a row whose local time is late in the day in a zone east
+of UTC is the one that moves, and it moves by a whole day.</p>
+<h2 id="where-a-transform-does-not-reach-every-engine">Where a transform does not reach every engine<a class="headerlink" href="#where-a-transform-does-not-reach-every-engine" title="Permanent link">&para;</a></h2>
+<p>The three ports render one neutral AST, and the sections above are the places
+that rendering differs and the meaning does not. This section is the opposite:
+places where a transform the typechecker accepts either does not run on a
+shipped dialect, or produces a type other than the one it declares.</p>
+<p>These are measured, not surveyed. A conformance battery probes every
+(transform, input type) pair against real DuckDB, PostgreSQL and Trino and
+compares the engine's own column type against the transform's declared output,
+so the list below is exact as of the pinned engine versions and cannot fall
+behind the code — a divergence that appears fails the suite, and one that is
+repaired fails it too until its row is deleted.</p>
+<h3 id="does-not-run-on-postgresql">Does not run on PostgreSQL<a class="headerlink" href="#does-not-run-on-postgresql" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Transform</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>regex_extract</code></td>
+<td><code>REGEXP_EXTRACT</code> is not defined on PostgreSQL 16</td>
+</tr>
+<tr>
+<td><code>strip_suffix</code></td>
+<td>PostgreSQL has <code>starts_with</code> but no <code>ends_with</code>, so <code>strip_prefix</code> runs and its mirror does not</td>
+</tr>
+<tr>
+<td><code>to_int</code> over a <code>bool</code> field</td>
+<td>PostgreSQL converts <code>int4</code> to boolean and back, but refuses <code>bigint</code></td>
+</tr>
+<tr>
+<td><code>to_bool</code> over an <code>int</code> field</td>
+<td>the same refusal in reverse</td>
+</tr>
+</tbody>
+</table>
+<p>Each fails when the model first runs, with the engine's own message. They
+compile clean today; making them a refusal at compile time — which is what
+this project promises for anything an engine cannot express — is scheduled.</p>
+<h3 id="does-not-run-on-trino">Does not run on Trino<a class="headerlink" href="#does-not-run-on-trino" title="Permanent link">&para;</a></h3>
+<p><code>coalesce</code> and <code>nullif</code> over a field that is not a <code>string</code>. Both take a
+literal, and Trino does not coerce a literal to the column's type the way
+DuckDB and PostgreSQL do, so <code>{coalesce: "1970-01-01"}</code> on a <code>date</code> field
+plans on two engines and fails on the third.</p>
+<h3 id="runs-with-a-type-other-than-the-declared-one">Runs, with a type other than the declared one<a class="headerlink" href="#runs-with-a-type-other-than-the-declared-one" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Construct</th>
+<th>Declared</th>
+<th>What the engine produces</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>divide</code></td>
+<td><code>decimal(p, s)</code></td>
+<td>a <strong>binary float</strong> on all three — <code>DOUBLE</code> on DuckDB and Trino, <code>double precision</code> on PostgreSQL</td>
+</tr>
+<tr>
+<td><code>multiply</code>, <code>round</code>, <code>abs</code>, <code>coalesce</code> over a decimal</td>
+<td>the tracked <code>decimal(p, s)</code></td>
+<td>a wider decimal, differently per engine; unconstrained <code>numeric</code> on PostgreSQL, which drops the precision through any expression</td>
+</tr>
+<tr>
+<td><code>parse_ts</code> with an explicit format</td>
+<td><code>timestamp</code></td>
+<td><code>timestamptz</code> on PostgreSQL — the same zone-aware value the section above describes, in the branch that does not take <code>ISO8601</code></td>
+</tr>
+<tr>
+<td><code>json_path</code> deeper than one key</td>
+<td><code>variant</code> (<code>JSONB</code>)</td>
+<td><code>json</code> on PostgreSQL</td>
+</tr>
+</tbody>
+</table>
+<p>The widenings lose no value; what they lose is the meaning of the declaration,
+and with it the 38-digit precision cap, which is computed over the numbers the
+compiler tracks rather than the ones the engine uses.</p>
+<p><code>divide</code> is the one to know about. A chain ending in a division is cast back to
+its declared decimal, so the emitted column has the right type — and its value
+has been through a binary float on the way. Prefer an explicit
+<code>to_decimal(p, s)</code> after a <code>divide</code> until this closes, and treat a divided
+column as approximate where exactness matters.</p>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>The dialect is not the target.</strong> <code>--target sqlmesh --dialect postgres</code> and
