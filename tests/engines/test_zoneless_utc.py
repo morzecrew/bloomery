@@ -87,6 +87,38 @@ def test_postgres_to_utc_date_does_not_move_with_the_reader(
     assert next(iter(seen.values())) == INSTANT_DATE
 
 
+@pytest.mark.engine("postgres")
+def test_postgres_parse_ts_keeps_the_clock_that_was_written(
+    postgres: psycopg.Connection,
+) -> None:
+    """``parse_ts`` parses a *local* wall clock — ``to_utc`` is the only door
+    into UTC — so the value it produces must be the clock as written, under any
+    session.
+
+    PostgreSQL's ``to_timestamp(text, text)`` returns ``timestamptz``, having
+    attached the session zone, so the same row stored a different instant
+    depending on who ran it: ``+00``, ``+14`` and ``-08`` for one input. The
+    port now casts back to ``timestamp``, which PostgreSQL converts *through*
+    the session zone — undoing the attachment exactly (RFC 0029 §2.4).
+
+    Guarding the value and not only the type, because the tempting wrong fix
+    passes a type check: ``AT TIME ZONE 'UTC'`` also yields a zoneless
+    ``timestamp`` and moves the clock to ``09:30`` under Pacific/Kiritimati.
+    """
+    built = DEFAULT_REGISTRY["parse_ts"].builder(exp.column("written"), "%Y-%m-%d %H:%M:%S")
+    expression = get_dialect("postgres").render(canon(built).ast())
+    local, _ = BERLIN
+    postgres.execute(f"CREATE TABLE p AS SELECT CAST('{local}' AS TEXT) AS written")
+    seen = {}
+    for session in SESSIONS:
+        postgres.execute(f"SET TIME ZONE '{session}'")
+        row = postgres.execute(f"SELECT ({expression})::text FROM p").fetchone()
+        assert row is not None
+        seen[session] = row[0]
+    assert len(set(seen.values())) == 1, f"the parsed clock moved with the session: {seen}"
+    assert next(iter(seen.values())).startswith(local)
+
+
 # ....................... #
 # Trino
 

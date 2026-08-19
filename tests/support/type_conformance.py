@@ -328,7 +328,6 @@ KNOWN: dict[str, dict[str, Divergence]] = {
         "strip_suffix-string": Divergence("error:42883", _PG_NO_FUNCTION),
         "to_int-bool": Divergence("error:42846", _PG_NO_CAST),
         "to_bool-int": Divergence("error:42846", _PG_NO_CAST),
-        "parse_ts-string-format": Divergence("TIMESTAMPTZ", _PG_TO_TIMESTAMP_TZ),
         "json_path-variant-deep": Divergence("JSON", _PG_JSON_NOT_JSONB),
         "json_path-string": Divergence("JSON", _PG_JSON_NOT_JSONB),
     },

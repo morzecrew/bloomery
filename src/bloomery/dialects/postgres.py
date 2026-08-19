@@ -105,6 +105,7 @@ class PostgresDialect(SQLGlotDialect):
 
         rewritten = strip_iso_text(node.copy(), lambda text: text)
         rewritten = utc_from_zone(rewritten, utc)
+        rewritten = rewritten.transform(_zoneless_parse)
         rewritten = rewritten.transform(_guarded_try_cast)
         for identifier in rewritten.find_all(exp.Identifier):
             if identifier.this.lower() in _RESERVED:
@@ -174,6 +175,38 @@ _RUN_DEPENDENT_PATTERN: Final[str] = "^[[:space:]]*(" + "|".join(_RUN_DEPENDENT)
 
 #: The types whose Postgres input parser accepts a run-dependent literal.
 _TEMPORAL: Final[frozenset[str]] = frozenset({"DATE", "TIMESTAMP", "TIMESTAMPTZ"})
+
+
+def _zoneless_parse(node: Expression) -> Expression:
+    """``TO_TIMESTAMP(x, fmt)`` → ``CAST(TO_TIMESTAMP(x, fmt) AS TIMESTAMP)``.
+
+    ``parse_ts`` parses a *local wall clock*; ``to_utc`` is the only door into
+    the always-UTC ``timestamp`` type (RFC 0004 §5.1), so the value this step
+    produces must be the clock that was written, zoneless. PostgreSQL's
+    ``to_timestamp(text, text)`` instead returns ``timestamptz``, having
+    attached the **session** zone to the parsed clock — so the same row stored
+    a different instant depending on who ran it. Measured on postgres 16 for
+    ``2026-01-06 23:30:00``: ``+00`` under UTC, ``+14`` under
+    Pacific/Kiritimati, ``-08`` under America/Los_Angeles.
+
+    The cast is the fix and it is not a formality: PostgreSQL converts
+    ``timestamptz`` to ``timestamp`` *through the session zone*, which is
+    exactly the attachment ``to_timestamp`` just made, so the two cancel and
+    the written clock comes back unchanged under every session.
+
+    ``AT TIME ZONE 'UTC'`` — the spelling that fixed the zone-aware value in
+    RFC 0028 — is the wrong tool here and was measured to prove it: it reads
+    the value in UTC rather than undoing the session attachment, giving
+    ``09:30`` under Pacific/Kiritimati and ``2026-01-07 07:30`` under
+    America/Los_Angeles for the same input. It looks like the neighbouring fix
+    and moves the clock (RFC 0029 §2.4).
+
+    ``parse_date``'s ``TO_DATE`` needs none of this: it returns ``date``, which
+    has no zone to attach.
+    """
+    if not isinstance(node, exp.StrToTime):
+        return node
+    return exp.cast(node, exp.DataType.build("TIMESTAMP"))
 
 
 def _guarded_try_cast(node: Expression) -> Expression:
