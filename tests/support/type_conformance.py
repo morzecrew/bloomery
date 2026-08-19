@@ -265,36 +265,7 @@ class Divergence:
 
 
 # ....................... #
-# The divergences that exist today (RFC 0029)
-
-_WIDENS = (
-    "engine decimal arithmetic widens past the (p, s) RFC 0004 §5.4 tracks; the builder "
-    "is never told the input type, so it cannot narrow the result back"
-)
-_UNCONSTRAINED = (
-    "PostgreSQL drops the typmod through an expression, so the result is unconstrained "
-    "numeric rather than the declared numeric(p, s)"
-)
-_FLOAT_DIVISION = (
-    "DuckDB has no exact decimal division — `/` is float division and `//` is integer "
-    "division — so the float cannot be removed here the way the `BLM_EXACT_DIV` marker "
-    "removed it on PostgreSQL and Trino. It is bounded by the narrowing cast to the "
-    "declared type instead of registered forever (RFC 0029 §4, EXECUTION-LOG D-003)"
-)
-_ROUND_KEEPS_INPUT = (
-    "the engine's `round(x, d)` rounds the value and keeps the input type, where "
-    "RFC 0004 §5.4 narrows the declared scale to d"
-)
-_PG_NO_CAST = "PostgreSQL refuses this cast between boolean and bigint; only int4 converts"
-_PG_TO_TIMESTAMP_TZ = (
-    "PostgreSQL's `to_timestamp(text, text)` returns `timestamptz` — the same defect "
-    "RFC 0028 closed for `to_utc`, surviving in `parse_ts`'s explicit-format branch, "
-    "which no fixture uses"
-)
-_TRINO_LITERAL_NOT_COERCED = (
-    "Trino does not coerce a varchar literal to the column's type, so a spec-level "
-    "sentinel or fallback that runs on DuckDB and PostgreSQL fails to plan here"
-)
+# The divergences that exist today
 
 #: port name → case id → the divergence measured there.
 #:
@@ -303,28 +274,9 @@ _TRINO_LITERAL_NOT_COERCED = (
 #: without deleting its row, and a regression cannot hide behind a row that
 #: happens to describe it. Every entry is scheduled in RFC 0029.
 KNOWN: dict[str, dict[str, Divergence]] = {
-    "duckdb": {
-        "multiply-decimal(12,4)": Divergence("DECIMAL(18, 4)", _WIDENS),
-        "round-decimal(12,4)": Divergence("DECIMAL(12, 2)", _WIDENS),
-        "divide-decimal(12,4)": Divergence("DOUBLE", _FLOAT_DIVISION),
-    },
-    "postgres": {
-        "multiply-decimal(12,4)": Divergence("DECIMAL", _UNCONSTRAINED),
-        "round-decimal(12,4)": Divergence("DECIMAL", _UNCONSTRAINED),
-        "abs-decimal(12,4)": Divergence("DECIMAL", _UNCONSTRAINED),
-        "round-int": Divergence(
-            "DECIMAL",
-            "PostgreSQL has no `round(bigint, int)`, so the argument is promoted to "
-            "numeric and the result is numeric where `round` declares the input type "
-            "unchanged",
-        ),
-        "divide-decimal(12,4)": Divergence("DECIMAL", _UNCONSTRAINED),
-    },
-    "trino": {
-        "multiply-decimal(12,4)": Divergence("DECIMAL(22, 4)", _WIDENS),
-        "round-decimal(12,4)": Divergence("DECIMAL(13, 4)", _ROUND_KEEPS_INPUT),
-        "divide-decimal(12,4)": Divergence("DECIMAL(23, 15)", _WIDENS),
-    },
+    "duckdb": {},
+    "postgres": {},
+    "trino": {},
 }
 
 

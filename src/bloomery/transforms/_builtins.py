@@ -445,15 +445,49 @@ def json_path(col: Expression, path: str) -> Expression:
 DIVIDE_MARKER = "BLM_EXACT_DIV"
 
 
+#: Hoisted so the declaration and the construction call the *same* function
+#: rather than two that agree by inspection (RFC 0029 D2).
+_MULTIPLY_OUTPUT = _arith_output("multiply")
+_DIVIDE_OUTPUT = _arith_output("divide")
+
+
+def _narrowed(node: Expression, declared: LogicalType) -> Expression:
+    """An arithmetic result, cast to the type the transform declares.
+
+    Every engine widens decimal arithmetic past the ``(p, s)`` RFC 0004 §5.4
+    tracks, and each widens differently: ``decimal(12,4) * 2`` is
+    ``decimal(18,4)`` on DuckDB, ``decimal(22,4)`` on Trino and unconstrained
+    ``numeric`` on PostgreSQL, against a declared ``decimal(13,4)``. No value is
+    lost by that — every one of them is a widening — but the declaration stops
+    being true, and with it the 38-digit precision cap, which is computed over
+    the numbers the compiler tracks rather than the ones the engine uses.
+
+    The cast is lossless by construction for these transforms: the algebra
+    ``decimal(p1,s1) x decimal(p2,s2) -> p1+p2`` is exactly what
+    :func:`_arith_output` declares, so the declared width always holds the exact
+    result. It is not lossless for `coalesce`, whose declared type is its
+    *input* type and whose literal is not bounded by it — which is why that one
+    casts the literal instead (EXECUTION-LOG D-002).
+
+    Inside the quality system this cast becomes a ``TRY_CAST`` like any other
+    (``_try_cast_shape``), so an overflow is a coercion failure and a
+    quarantined row rather than an aborted run — the disposition RFC 0016
+    already gives every other bad value.
+    """
+    return exp.cast(node, neutral_type(declared))
+
+
 @transform(
     "multiply",
     arity=1,
     arg_kinds=(ArgKind.NUMBER,),
     input=(DecimalType,),
-    output=_arith_output("multiply"),
+    output=_MULTIPLY_OUTPUT,
+    types=True,
 )
-def multiply(col: Expression, factor: str | int) -> Expression:
-    return exp.Mul(this=col, expression=_number(factor))
+def multiply(col: Expression, factor: str | int, *, input_type: LogicalType) -> Expression:
+    product = exp.Mul(this=col, expression=_number(factor))
+    return _narrowed(product, _MULTIPLY_OUTPUT(input_type, (factor,)))
 
 
 @transform(
@@ -461,9 +495,10 @@ def multiply(col: Expression, factor: str | int) -> Expression:
     arity=1,
     arg_kinds=(ArgKind.NUMBER,),
     input=(DecimalType,),
-    output=_arith_output("divide"),
+    output=_DIVIDE_OUTPUT,
+    types=True,
 )
-def divide(col: Expression, divisor: str | int) -> Expression:
+def divide(col: Expression, divisor: str | int, *, input_type: LogicalType) -> Expression:
     """``x / n``, marked so the ports can keep it in exact arithmetic.
 
     SQLGlot renders a bare division as ``CAST(x AS DOUBLE PRECISION) / n`` on
@@ -486,7 +521,8 @@ def divide(col: Expression, divisor: str | int) -> Expression:
     parse (RFC 0027 D4), and the marker says *this division came from the
     transform* rather than from someone's SQL (RFC 0029 D3).
     """
-    return exp.Anonymous(this=DIVIDE_MARKER, expressions=[col, _number(divisor)])
+    marked = exp.Anonymous(this=DIVIDE_MARKER, expressions=[col, _number(divisor)])
+    return _narrowed(marked, _DIVIDE_OUTPUT(input_type, (divisor,)))
 
 
 def _round_output(t: LogicalType, args: tuple[str | int, ...]) -> LogicalType:
@@ -513,14 +549,16 @@ def _round_output(t: LogicalType, args: tuple[str | int, ...]) -> LogicalType:
     arg_kinds=(ArgKind.INT,),
     input=(IntType, DecimalType),
     output=_round_output,
+    types=True,
 )
-def round_(col: Expression, digits: int) -> Expression:
-    return exp.Round(this=col, decimals=exp.Literal.number(digits))
+def round_(col: Expression, digits: int, *, input_type: LogicalType) -> Expression:
+    rounded = exp.Round(this=col, decimals=exp.Literal.number(digits))
+    return _narrowed(rounded, _round_output(input_type, (digits,)))
 
 
-@transform("abs", arity=0, input=(IntType, DecimalType), output=lambda t, _args: t)
-def abs_(col: Expression) -> Expression:
-    return exp.Abs(this=col)
+@transform("abs", arity=0, input=(IntType, DecimalType), output=lambda t, _args: t, types=True)
+def abs_(col: Expression, *, input_type: LogicalType) -> Expression:
+    return _narrowed(exp.Abs(this=col), input_type)
 
 
 # ....................... #

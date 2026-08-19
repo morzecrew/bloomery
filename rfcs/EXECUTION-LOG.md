@@ -197,3 +197,55 @@ written. Each proposes a row back to RFC 0029.
   trigger than "every `Div` in a recipe".
 
 **Drift count for this unit is now 1** — D-004, against RFC 0029, found while executing it.
+
+## D-005 — the whole starter set had no golden coverage, which is why none of this was caught
+
+- **Touches:** RFC 0029 §2 as a whole; no decision row
+- **RFC said:** nothing about coverage — it presented the divergences as facts about
+  engines
+- **Built:** the fixes, and then this observation: **not one register row moved a golden.**
+  No fixture uses `json_path`, `divide`, `multiply`, `round`, `abs`, `coalesce` or
+  `nullif`, and none writes `parse_ts` with an explicit format. Nine of the twenty-four
+  whitelisted transforms compile in no fixture at all.
+- **Because:** the fixture corpus grew to cover *features* — quality, merges, marts, SCD2 —
+  and the transform whitelist was assumed covered because it is small and each entry is
+  a few lines. Every defect in this unit lived in a transform nothing compiled.
+- **Class:** `discovery`. Knowable in principle, but only by asking a question nobody had:
+  the golden tier answers "does this fixture still emit what it emitted", never "is any
+  transform unexercised".
+- **Consequence:** the conformance battery now covers all 24 by construction, and its
+  completeness guard fails when a transform or an input type arrives without a case. That
+  is a stronger floor than fixtures, and it is *type*-shaped: it would not have caught
+  `regex_extract` dropping its capture group, which is a value defect, nor the
+  `json_path` shallow-path failure, which needed a second case for the same
+  (transform, input type) pair.
+- **Proposed row (RFC 0029):** none. This belongs in the test strategy, not the design.
+
+## Rules distilled
+
+- **A conformance battery keyed by (interface, input type) still has a hole per
+  *branch*.** `json_path` takes two path depths on one input type; the completeness guard
+  demanded one case and got the deep one, so the shallow-path failure on PostgreSQL
+  shipped and was found only by adding the case by hand (D-005, and the `json_path`
+  commit). Enumerate the builder's branches, not just its signature.
+- **A type check and a value check fail apart.** `regexp_substr` had the right type and
+  the wrong group; `AT TIME ZONE 'UTC'` had the right type and the wrong clock; a
+  narrowing cast gives a wrong value the right type. Every port substitution in this unit
+  is asserted against DuckDB value-for-value for that reason.
+- **The fix that resembles the neighbouring fix is the one to measure twice.**
+  `AT TIME ZONE 'UTC'` closed RFC 0028 and *reopens* the same defect in `parse_ts`, where
+  the zone was attached by `to_timestamp` rather than carried by the value.
+- **Evidence found near a defect is not evidence of that defect.** D-004: a float division
+  in a golden was attributed to `divide` without checking which surface emitted it, and
+  `grep divide tests/fixtures/` would have said so before any code was written.
+
+## Carried into the next unit
+
+- **The recipe float is open.** `expr: line_total / quantity` in a catalog recipe still
+  emits `CAST(x AS DOUBLE PRECISION) /` on PostgreSQL and Trino (D-004). Marking it needs
+  operand types and a narrower trigger than "every `Div` in a recipe", since `typed=True`
+  over two integers is truncating division.
+- **`divide` on DuckDB stays inexact** (D-003), documented in the dialect reference rather
+  than registered. `CLAUDE.md`'s float invariant is inexact as stated and was deliberately
+  left for the author; `pages/docs/reference/dialects.md` now carries the exception.
+- ~~RFC 0029's readiness gate~~ — overridden by the author; G-1–G-3 decided as D-001–D-003.

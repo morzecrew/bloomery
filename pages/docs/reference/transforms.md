@@ -96,7 +96,7 @@ That AST is neutral because each [dialect](dialects.md) renders it, and two of t
 transforms here need different SQL per engine — `to_utc` and `parse_ts` both have
 engine-specific behaviour worth reading before you pick a warehouse.
 
-The same page lists the transforms that do **not** reach every engine: four that
-PostgreSQL cannot run, `coalesce` and `nullif` over a non-`string` field on Trino, and
-the decimal constructs — `divide` above all — whose emitted column is not the type they
-declare. Read it alongside this table if a warehouse is already chosen.
+Every transform above produces the type it declares, on all three engines, and the same
+page describes the battery that holds that true. One caveat survives it: `divide` is
+inexact on DuckDB, which has no exact decimal division — prefer `{multiply: "0.01"}` to
+`{divide: 100}` there, as the shipped examples do.
