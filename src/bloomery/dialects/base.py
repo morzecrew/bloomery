@@ -32,6 +32,7 @@ from bloomery.typing import (
 __all__ = [
     "DialectFeature",
     "strip_iso_text",
+    "utc_from_zone",
     "DialectPort",
     "SQLGlotDialect",
 ]
@@ -58,6 +59,65 @@ def strip_iso_text(node: Expression, spelling: Callable[[Expression], Expression
     def replace(child: Expression) -> Expression:
         if isinstance(child, exp.Anonymous) and child.name.upper() == ISO_TEXT_MARKER:
             return spelling(child.expressions[0])
+        return child
+
+    return node.transform(replace)
+
+
+def utc_from_zone(node: Expression, to_utc: Callable[[Expression], Expression]) -> Expression:
+    """Replace every zone interpretation with ``to_utc(interpretation)``.
+
+    ``to_utc`` is the only door into the ``timestamp`` type, and that type is
+    **always UTC** and zoneless (RFC 0004 §5.1). Every engine's zone
+    interpretation returns a zone-*aware* value instead — the right instant
+    carrying a display rule — and every consumer that derives a date, an hour or
+    a bucket reads the display rule rather than the instant.
+
+    That made a mart's date role depend on something no spec said: the reader's
+    session zone on DuckDB and PostgreSQL, the mapping's own zone on Trino. Two
+    rows at one instant, mapped from two shops in two zones, landed in different
+    days (RFC 0028 §2).
+
+    So each port normalizes to UTC and drops the zone. ``to_utc`` here is the
+    port's spelling of that, applied to the whole interpretation.
+    """
+
+    def replace(child: Expression) -> Expression:
+        return to_utc(child) if isinstance(child, exp.AtTimeZone) else child
+
+    return node.transform(replace)
+
+
+def _capture_group(node: Expression) -> Expression:
+    """Restore the capture-group argument the canonical round trip demotes.
+
+    ``regex_extract`` builds :class:`sqlglot.exp.RegexpExtract` with ``group``
+    set, and that renders correctly on every port. The IR does not keep the
+    node: it keeps canonical dialect-neutral **text** and re-parses at emit
+    (RFC 0003 D2), and ``REGEXP_EXTRACT(x, p, 1)`` re-parses with the third
+    argument bound to ``position`` — the Oracle/PostgreSQL reading — after
+    which SQLGlot's duckdb and trino generators **drop it silently**, warning
+    to a stderr nothing reads. So ``{regex_extract: [pattern, 1]}`` returned
+    group 0, the whole match, on both engines that can run it. No fixture used
+    the transform, so no golden showed it; the declared-vs-produced battery is
+    what found it (RFC 0028 D5).
+
+    Reading the third argument as the group is correct rather than merely
+    convenient: DuckDB and Trino both define ``regexp_extract``'s third
+    argument that way, and PostgreSQL — whose ``regexp_substr`` reads it as a
+    start position — has no ``regexp_extract`` at all to run either spelling,
+    so no engine bloomery emits to takes the demoted meaning. A tree that
+    already names a group is left alone.
+    """
+
+    def replace(child: Expression) -> Expression:
+        if not isinstance(child, exp.RegexpExtract):
+            return child
+        position = child.args.get("position")
+        if position is None or child.args.get("group") is not None:
+            return child
+        child.set("position", None)
+        child.set("group", position)
         return child
 
     return node.transform(replace)
@@ -188,7 +248,7 @@ class SQLGlotDialect:
                 "with an identity spelling if the engine's cast already takes both forms"
             )
             raise UnsupportedByTarget(msg)
-        return node.sql(dialect=self.sqlglot_dialect, pretty=True)
+        return _capture_group(node).sql(dialect=self.sqlglot_dialect, pretty=True)
 
     def physical_type(self, t: LogicalType) -> str:
         """The engine type for a logical type (RFC 0004 non-goal: physical

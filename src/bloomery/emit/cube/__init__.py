@@ -35,10 +35,19 @@ Deterministic choices pinned here (each golden/unit-tested):
 - A non-additive ratio is **never a stored aggregate**: it emits as a
   calculated ``number`` measure over its additive components
   (``{num} / NULLIF({den}, 0)`` via Cube's ``{member}`` templating), and only
-  on the mart owning both components. A non-additive metric reaching
-  ``MartIR.measures`` (a would-be stored non-additive) is refused with
-  :class:`~bloomery.errors.UnsupportedByTarget` — the guardrail stage already
-  prevents it (RFC 0006 D5); the emitter re-checks, defense in depth.
+  on the mart owning both components. Naming it in ``MartIR.measures`` is an
+  ordinary request — that field is "metrics this mart serves" — so it is
+  skipped by the stored-measure pass and picked up by the calculated one. A
+  named ratio whose components are *not* on the mart is simply absent, which
+  is what the MetricFlow emitter does with the same spec.
+- A non-additive metric backed by an **additive decomposition rather than a
+  ratio** is refused with :class:`~bloomery.errors.UnsupportedByTarget`. The
+  additivity guardrail accepts either form (RFC 0006 §5.4), and only the ratio
+  has a Cube shape: ``{num} / NULLIF({den}, 0)``. Refusing is not a
+  formality — without it such a metric is dropped from the stored pass and
+  skipped by the calculated one, so it vanishes from the artifact, and a ratio
+  naming it as a component emits ``{member}`` templating against a measure the
+  cube does not define (RFC 0008 D3: fail loud, never approximate).
 - Cube has no SCD/incremental concepts — those capabilities are absent and
   *irrelevant rather than errors*: Cube consumes tables SQLMesh maintains
   (RFC 0008 §5.4).
@@ -156,13 +165,6 @@ def _dimensions(mart: MartIR) -> list[object]:
 
 
 def _stored_measure(metric: MetricIR, mart: MartIR) -> dict[str, object]:
-    if metric.additivity is Additivity.NON_ADDITIVE:
-        msg = (
-            f"mart {mart.name!r} stores non-additive metric {metric.name!r} as a measure — "
-            "a non-additive metric is never a stored aggregate (RFC 0006 D5, RFC 0008 §5.4); "
-            "the guardrail stage should have refused this upstream"
-        )
-        raise UnsupportedByTarget(msg)
     measure_type = _MEASURE_TYPES.get(metric.agg) if metric.agg is not None else None
     if measure_type is None:
         msg = (
@@ -187,7 +189,37 @@ def _stored_measure(metric: MetricIR, mart: MartIR) -> dict[str, object]:
 def _measures(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) -> list[object]:
     metrics_by_name = {metric.name: metric for metric in ir.metrics}
     owned = [name for name in mart.measures if owners[name] is mart]  # sorted on MartIR
-    measures: list[object] = [_stored_measure(metrics_by_name[name], mart) for name in owned]
+    # A mart's `measures:` is "metrics this mart serves" (spec reference), not
+    # "numbers this mart stores". A non-additive metric is served by *computing*
+    # it from components the mart does store, so it is skipped here and picked up
+    # by the ratio pass below — which is what MetricFlow already did with the
+    # same spec. Refusing it made Cube the one target that rejected a project the
+    # other three compiled, and only when the author named the metric explicitly:
+    # leaving it out of `measures:` emitted the very same calculated measure.
+    #
+    # Only the *ratio* form has a calculated shape, so the skip has to be exactly
+    # as wide as the pass that picks it back up. A non-additive metric carrying an
+    # additive decomposition instead — which the additivity guardrail accepts
+    # (RFC 0006 §5.4) — is refused here rather than skipped: skipping it drops it
+    # from the artifact silently, and a ratio naming it as a component then
+    # templates `{member}` against a measure the cube does not define.
+    for name in owned:
+        metric = metrics_by_name[name]
+        if metric.additivity is Additivity.NON_ADDITIVE and metric.ratio is None:
+            msg = (
+                f"metric {name!r} is non_additive and declares an additive decomposition "
+                "rather than a ratio, which Cube has no calculated-measure shape for — "
+                "only ratio: {numerator, denominator} lowers to "
+                "'{num} / NULLIF({den}, 0)' (RFC 0008 §5.4). Fix: give the metric a "
+                f"ratio naming its two additive components, or drop {name!r} from this "
+                "mart's measures: and let a target that can decompose it serve the metric"
+            )
+            raise UnsupportedByTarget(msg)
+    measures: list[object] = [
+        _stored_measure(metrics_by_name[name], mart)
+        for name in owned
+        if metrics_by_name[name].additivity is not Additivity.NON_ADDITIVE
+    ]
     owned_set = frozenset(owned)
     for metric in ir.metrics:  # sorted by name on ProjectIR
         ratio = metric.ratio

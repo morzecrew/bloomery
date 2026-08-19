@@ -9,7 +9,7 @@ from typing import ClassVar, cast
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
-from bloomery.dialects.base import SQLGlotDialect, strip_iso_text
+from bloomery.dialects.base import SQLGlotDialect, strip_iso_text, utc_from_zone
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -91,16 +91,19 @@ class TrinoDialect(SQLGlotDialect):
             replaced = exp.func("replace", text, exp.Literal.string("T"), exp.Literal.string(" "))
             return cast("Expression", replaced)
 
+        def utc(at_zone: Expression) -> Expression:
+            # `with_timezone` states the zone the zoneless text was written in;
+            # `at_timezone(…, 'UTC')` then moves the display to UTC and the cast
+            # drops the zone, leaving a zoneless UTC value that reads the same
+            # under any session (RFC 0028 §3). A bare `CAST(tstz AS TIMESTAMP)`
+            # would keep the value's *own* zone's wall clock instead — the
+            # defect, preserved in a shape that looks like the fix.
+            stated = exp.func("with_timezone", at_zone.this, at_zone.args["zone"])
+            in_utc = exp.func("at_timezone", stated, exp.Literal.string("UTC"))
+            return exp.cast(in_utc, exp.DataType.build("TIMESTAMP"))
+
         rewritten: Expression = strip_iso_text(node.copy(), space_separated)
-        for at_zone in reversed(tuple(rewritten.find_all(exp.AtTimeZone))):
-            interpretation = cast(
-                "Expression", exp.func("with_timezone", at_zone.this, at_zone.args["zone"])
-            )
-            if at_zone is rewritten:
-                rewritten = interpretation
-            else:
-                at_zone.replace(interpretation)
-        return super().render(rewritten)
+        return super().render(utc_from_zone(rewritten, utc))
 
     def text_sha256(self, value: Expression) -> Expression:
         """``LOWER(TO_HEX(SHA256(TO_UTF8(…))))``.

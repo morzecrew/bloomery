@@ -44,7 +44,7 @@ the reason a spec compiles to different text without meaning anything different.
 
 | Construct | `duckdb` | `postgres` | `trino` |
 |---|---|---|---|
-| Zone interpretation (`to_utc`) | `x AT TIME ZONE 'Europe/Berlin'` | `x AT TIME ZONE 'Europe/Berlin'` | `WITH_TIMEZONE(x, 'Europe/Berlin')` |
+| Zone interpretation (`to_utc`) | `x AT TIME ZONE 'Europe/Berlin' AT TIME ZONE 'UTC'` | same as DuckDB | `CAST(AT_TIMEZONE(WITH_TIMEZONE(x, 'Europe/Berlin'), 'UTC') AS TIMESTAMP)` |
 | Null-on-failure cast (the `coercible` marker) | `TRY_CAST(x AS BIGINT)` | `CASE WHEN PG_INPUT_IS_VALID(x, 'BIGINT') THEN CAST(x AS BIGINT) END` | `TRY_CAST(x AS BIGINT)` |
 | Nested read `$.payload.shipping.country` | `payload ->> '$.shipping.country'` | `JSON_EXTRACT_PATH_TEXT(CAST(payload AS JSON), 'shipping', 'country')` | `JSON_EXTRACT_SCALAR(payload, '$.shipping.country')` |
 | `normalize` rule | `NFC_NORMALIZE(x)` | `NORMALIZE(x, NFC)` | `NORMALIZE(x, NFC)` |
@@ -87,16 +87,101 @@ case that would need it — a full timestamp handed to a date parser — is not 
 Trino cannot cast `2026-01-06 12:00:00` to `DATE` either, so rewriting only turns a NULL
 into a hard `INVALID_CAST_ARGUMENT`.
 
-### `to_utc` and the zone argument
+### `to_utc`, the zone argument, and the zone that came back
+
+Two problems, one after the other, both now closed.
 
 Trino's `AT TIME ZONE` promotes a zoneless timestamp with the **session** zone before
 converting, leaving the instant unchanged — so the zone argument moved nothing but the
-display, and the same spec produced a different instant than on the other two ports.
-Trino now renders `with_timezone`, and all three agree that a 12:00 value read as
-`Europe/Berlin` is the instant 11:00Z.
+display. Trino renders `with_timezone` instead, and all three ports agree that a 12:00
+value read as `Europe/Berlin` is the instant 11:00Z.
+
+Every engine's zone interpretation then returns a zone-*aware* value, while `timestamp`
+is defined as always UTC and maps to a zoneless type. The instant was right and
+everything derived from it read the display rule rather than the instant: on DuckDB and
+PostgreSQL `date(ordered_at)` moved with the **reader's session zone**, and on Trino it
+was the local date in **whatever zone the mapping named** — so two rows at one instant,
+mapped from two shops in two zones, landed in different days. Each port now normalizes
+to UTC and drops the zone, and the emitted column is the zoneless type the entity model
+declared.
 
 If you built tables on a version before either fix, the timestamps in them moved when you
-upgraded — which is the point, but worth planning a restatement around.
+upgraded, and any date bucket derived from a `to_utc` column moved with them. That is the
+point, and it needs a restatement.
+
+**Nothing will tell you that.** Both fixes live in port rendering, so the IR is
+byte-identical across the upgrade and so is `project_fingerprint`; a
+[`plan`](../how-to/evolve-a-spec.md) between the two versions is refused outright for
+crossing `bloomery_ir_version`s, and would report no change even if it were not. The
+emitted SQL is where the difference is.
+
+So find the affected models yourself and rebuild them:
+
+1. `grep -rl to_utc` your mapping specs. Every entity with a `to_utc` step is affected,
+   and so is every mart reading one of its timestamp columns — including any date role
+   bucketed from one.
+2. Rebuild those from bronze rather than incrementally: `sqlmesh plan --restate-model`
+   naming each, or `dbt run --full-refresh --select` over the same set. An incremental
+   run only rewrites new partitions and leaves the old rows on the old semantics, which
+   is worse than not upgrading — one column, two meanings, no boundary marked.
+3. Rebuild downstream marts after the silver models, since a mart's date buckets are
+   derived and will not move on their own.
+
+Diff a sample before and after: a row whose local time is late in the day in a zone east
+of UTC is the one that moves, and it moves by a whole day.
+
+## Where a transform does not reach every engine
+
+The three ports render one neutral AST, and the sections above are the places
+that rendering differs and the meaning does not. This section is the opposite:
+places where a transform the typechecker accepts either does not run on a
+shipped dialect, or produces a type other than the one it declares.
+
+These are measured, not surveyed. A conformance battery probes every
+(transform, input type) pair against real DuckDB, PostgreSQL and Trino and
+compares the engine's own column type against the transform's declared output,
+so the list below is exact as of the pinned engine versions and cannot fall
+behind the code — a divergence that appears fails the suite, and one that is
+repaired fails it too until its row is deleted.
+
+### Does not run on PostgreSQL
+
+| Transform | Why |
+|---|---|
+| `regex_extract` | `REGEXP_EXTRACT` is not defined on PostgreSQL 16 |
+| `strip_suffix` | PostgreSQL has `starts_with` but no `ends_with`, so `strip_prefix` runs and its mirror does not |
+| `to_int` over a `bool` field | PostgreSQL converts `int4` to boolean and back, but refuses `bigint` |
+| `to_bool` over an `int` field | the same refusal in reverse |
+
+Each fails when the model first runs, with the engine's own message. They
+compile clean today; making them a refusal at compile time — which is what
+this project promises for anything an engine cannot express — is scheduled.
+
+### Does not run on Trino
+
+`coalesce` and `nullif` over a field that is not a `string`. Both take a
+literal, and Trino does not coerce a literal to the column's type the way
+DuckDB and PostgreSQL do, so `{coalesce: "1970-01-01"}` on a `date` field
+plans on two engines and fails on the third.
+
+### Runs, with a type other than the declared one
+
+| Construct | Declared | What the engine produces |
+|---|---|---|
+| `divide` | `decimal(p, s)` | a **binary float** on all three — `DOUBLE` on DuckDB and Trino, `double precision` on PostgreSQL |
+| `multiply`, `round`, `abs`, `coalesce` over a decimal | the tracked `decimal(p, s)` | a wider decimal, differently per engine; unconstrained `numeric` on PostgreSQL, which drops the precision through any expression |
+| `parse_ts` with an explicit format | `timestamp` | `timestamptz` on PostgreSQL — the same zone-aware value the section above describes, in the branch that does not take `ISO8601` |
+| `json_path` deeper than one key | `variant` (`JSONB`) | `json` on PostgreSQL |
+
+The widenings lose no value; what they lose is the meaning of the declaration,
+and with it the 38-digit precision cap, which is computed over the numbers the
+compiler tracks rather than the ones the engine uses.
+
+`divide` is the one to know about. A chain ending in a division is cast back to
+its declared decimal, so the emitted column has the right type — and its value
+has been through a binary float on the way. Prefer an explicit
+`to_decimal(p, s)` after a `divide` until this closes, and treat a divided
+column as approximate where exactness matters.
 
 ## Notes
 

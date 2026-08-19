@@ -23,7 +23,9 @@ from bloomery.dialects import (
 from bloomery.dialects.base import strip_iso_text
 from bloomery.emit.base import Feature
 from bloomery.errors import EmitError, UnsupportedByTarget
+from bloomery.ir.lower import canon
 from bloomery.quality.pattern import unsupported_dialects
+from bloomery.transforms import DEFAULT_REGISTRY
 from bloomery.typing import DecimalType, StringType
 
 pytestmark = pytest.mark.unit
@@ -179,3 +181,66 @@ def test_a_port_that_strips_the_marker_renders_normally() -> None:
         exp.DataType.build("TIMESTAMP"),
     )
     assert _Careful().render(node) == "CAST(x AS TIMESTAMP)"
+
+
+@pytest.mark.parametrize(
+    "dialect",
+    [DuckDBDialect(), PostgresDialect(), TrinoDialect()],
+    ids=lambda dialect: dialect.name,
+)
+def test_the_capture_group_survives_the_canonical_round_trip(dialect: DialectPort) -> None:
+    """Every port *renders* ``{regex_extract: [pattern, N]}`` with group N.
+
+    ``regex_extract`` builds :class:`sqlglot.exp.RegexpExtract` with ``group``
+    set, which renders correctly — but the IR keeps canonical text and
+    re-parses at emit (RFC 0003 D2), and ``REGEXP_EXTRACT(x, p, 1)`` re-parses
+    with the third argument bound to ``position``. SQLGlot's duckdb and trino
+    generators then **drop it**, warning to a stderr nothing reads, so the
+    transform returned group 0 — the whole match — on both engines that can run
+    it. Measured before the fix: ``REGEXP_EXTRACT('sku-42', 'sku-([0-9]+)')``
+    is ``'sku-42'`` on DuckDB where the three-argument form is ``'42'``.
+
+    This asserts the rendering, not the run, and PostgreSQL is parametrized
+    deliberately even though it cannot execute the result — it defines no
+    ``regexp_extract`` at all, which the conformance register carries as
+    ``error:42883`` and RFC 0029 §2.3 schedules. The fix lives in
+    :meth:`SQLGlotDialect.render`, so it is port-independent by construction,
+    and pinning all three is what keeps it that way: whatever spelling
+    PostgreSQL eventually gets has to carry the group too.
+
+    No fixture used ``regex_extract``, so no golden showed it; the
+    declared-vs-produced battery found it (RFC 0028 D5).
+    """
+    built = DEFAULT_REGISTRY["regex_extract"].builder(exp.column("sku"), "sku-([0-9]+)", 1)
+    assert dialect.render(canon(built).ast()) == "REGEXP_EXTRACT(sku, 'sku-([0-9]+)', 1)"
+
+
+def test_a_capture_group_the_author_set_is_never_overwritten() -> None:
+    """The rewrite fills in a group the round trip lost; it does not decide one
+    for a tree that already carries it."""
+    node = exp.RegexpExtract(
+        this=exp.column("sku"),
+        expression=exp.Literal.string("sku-([0-9]+)"),
+        position=exp.Literal.number(1),
+        group=exp.Literal.number(2),
+    )
+    assert DuckDBDialect().render(node) == "REGEXP_EXTRACT(sku, 'sku-([0-9]+)', 2)"
+
+
+def test_restoring_the_capture_group_does_not_mutate_the_input() -> None:
+    """The port contract shares one neutral AST across every dialect, so a
+    rewrite that edited in place would leave the next dialect rendering the
+    previous one's tree — the trap :mod:`tests.unit.test_dialects.test_trino`
+    already guards for zone interpretation."""
+    node = exp.select(
+        exp.alias_(
+            canon(
+                DEFAULT_REGISTRY["regex_extract"].builder(exp.column("sku"), "sku-([0-9]+)", 1)
+            ).ast(),
+            "n",
+        )
+    )
+    before = node.sql()
+    DuckDBDialect().render(node)
+    assert node.sql() == before
+    assert node.find(exp.RegexpExtract).args.get("group") is None  # still the demoted form

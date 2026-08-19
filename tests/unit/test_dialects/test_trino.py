@@ -79,7 +79,13 @@ def test_zone_interpretation_uses_with_timezone_not_at_timezone() -> None:
         this=exp.cast(exp.column("x"), exp.DataType.build("TIMESTAMP")),
         zone=exp.Literal.string("Europe/Paris"),
     )
-    assert DIALECT.render(node) == "WITH_TIMEZONE(CAST(x AS TIMESTAMP), 'Europe/Paris')"
+    rendered = DIALECT.render(node)
+    assert "WITH_TIMEZONE(CAST(x AS TIMESTAMP), 'Europe/Paris')" in rendered
+    # ... and normalized to a zoneless UTC value, because `timestamp` is always
+    # UTC and a zone-aware value makes every derived date read its display rule
+    # rather than its instant (RFC 0028).
+    assert rendered.startswith("CAST(AT_TIMEZONE(")
+    assert rendered.rstrip().endswith("AS TIMESTAMP)")
 
 
 def test_a_nested_zone_interpretation_is_rewritten_too() -> None:
@@ -97,7 +103,7 @@ def test_a_nested_zone_interpretation_is_rewritten_too() -> None:
     ).from_("bronze.woo")
     rendered = DIALECT.render(node)
     assert "WITH_TIMEZONE(CAST(placed_at AS TIMESTAMP), 'Europe/Berlin')" in rendered
-    assert "AT_TIMEZONE" not in rendered
+    assert "AT TIME ZONE" not in rendered  # the neutral spelling, which Trino reads differently
 
 
 def test_several_zone_interpretations_in_one_tree_are_all_rewritten() -> None:
@@ -111,7 +117,8 @@ def test_several_zone_interpretations_in_one_tree_are_all_rewritten() -> None:
     )
     rendered = DIALECT.render(node)
     assert rendered.count("WITH_TIMEZONE") == 2
-    assert "AT_TIMEZONE" not in rendered
+    assert rendered.count("AT_TIMEZONE") == 2  # each interpretation normalized to UTC
+    assert "AT TIME ZONE" not in rendered
 
 
 @pytest.mark.parametrize("nested", [False, True])
