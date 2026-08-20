@@ -558,6 +558,36 @@ discriminates the construct rather than the fixture — is met either way, and
 `quality_precedence` could not serve for mart assertions because it also carries a
 `reconcile:` block that dbt still refuses.
 
+## D-017 — the path-uniqueness guard is shared, because it stopped being SQLMesh's
+
+- **Touches:** nothing in RFC 0026 — found in review of #43, by both bots
+- **RFC said:** nothing. §9 named "test-name collisions" as a risk of the naming
+  *scheme* and D6 answered it by showing dbt's generic-test names cannot collide with
+  `<entity>_<rule>`. Both were about one family at a time.
+- **Built:** `_assert_unique_paths` moves from the SQLMesh emitter to `emit/base.py` as
+  `assert_unique_paths`, and both SQL targets call it.
+- **Because:** the risk §9 named is real and it is *between* families, not inside one.
+  Reproduced before fixing: a mart `a` asserting `b_c` and a mart `a_b` asserting `c`
+  both lower to the audit name `a_b_c`, and neither declaration is wrong on its own.
+  SQLMesh refuses that project with an `EmitError` naming the path; dbt emitted **two
+  artifacts at `tests/a_b_c.sql`** — 8 artifacts, 7 unique paths — so the caller's
+  path-to-content map kept whichever was written last and a declared quality gate
+  silently did not exist. That is exactly the degradation RFC 0008 D3 refuses, and this
+  branch is what created the exposure: before it, dbt wrote no audit artifacts to
+  collide.
+- **Class:** `spec-gap`. Knowable before code — §9 wrote the risk down, and answering it
+  per-family is what let the cross-family case through. The general guard already existed
+  and was in the wrong module.
+- **Consequence:** a project in that shape now refuses on dbt where it used to emit,
+  which is a changelog entry rather than a silent fix. Cube is deliberately not a caller:
+  its paths are `model/cubes/<mart>.yml` and `model/views/<mart>_view.yml` over mart
+  names already unique by construction, so the map is injective and the guard would have
+  no instance.
+- **Also closes an untested raise.** The SQLMesh guard had shipped since RFC 0017 with
+  **no test that it fires** — line-covered because it runs on every emit, and its refusal
+  branch never exercised. The battery added here drives both targets, so the older half
+  of the contract is proved for the first time too.
+
 ## D-015 — a singular test's filename is the audit's own name, unprefixed
 
 - **Touches:** RFC 0026 D6 (`OPEN`)

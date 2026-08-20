@@ -54,6 +54,7 @@ from bloomery.emit.base import (
     EmittedArtifact,
     Feature,
     TargetCapabilities,
+    assert_unique_paths,
 )
 from bloomery.emit.lower import (
     REJECT_KEY,
@@ -87,7 +88,7 @@ from bloomery.emit.lower import (
     replay_statements,
 )
 from bloomery.emit.steps import step_artifacts
-from bloomery.errors import EmitError, guaranteed
+from bloomery.errors import guaranteed
 from bloomery.ir import (
     AuditIR,
     DateDimensionIR,
@@ -724,30 +725,6 @@ def _replay_artifact(entity: EntityIR, ctx: EmitContext) -> EmittedArtifact:
     )
 
 
-def _assert_unique_paths(artifacts: list[EmittedArtifact]) -> None:
-    """No two artifacts may claim one path.
-
-    A general guard rather than a per-namespace prefix, because the namespaces
-    that can collide are not obvious in advance: RFC 0016 names quality audits
-    ``<entity>_<rule>`` and RFC 0017 names consistency audits after their
-    outputs, both from author-chosen parts, and the emitter otherwise just
-    sorts — so two artifacts at one path compiled clean and the last writer
-    won. That is the two-writers-one-path collision D8/D28 refuse for
-    relations, reached through the audit namespace instead.
-    """
-    seen: dict[str, int] = {}
-    for artifact in artifacts:
-        seen[artifact.path] = seen.get(artifact.path, 0) + 1
-    duplicated = sorted(path for path, count in seen.items() if count > 1)
-    if duplicated:
-        msg = (
-            f"two or more artifacts claim the same path: {', '.join(duplicated)}. "
-            "Emission would write one over the other, so whichever ran last would "
-            "silently win"
-        )
-        raise EmitError(msg)
-
-
 class SQLMeshEmitter:
     """RFC 0008 §5.3: one model artifact per silver entity, plus one custom
     audit artifact per non-builtin ``AuditIR``."""
@@ -834,5 +811,5 @@ class SQLMeshEmitter:
             artifacts.extend(_mart_assert_artifacts(mart, ctx))
         if ir.date_dimension is not None:
             artifacts.append(_dim_date_artifact(ir.date_dimension, ctx))
-        _assert_unique_paths(artifacts)
+        assert_unique_paths(artifacts)
         return tuple(sorted(artifacts, key=lambda a: a.path))

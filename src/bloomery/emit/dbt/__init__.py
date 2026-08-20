@@ -101,6 +101,7 @@ from bloomery.emit.base import (
     EmittedArtifact,
     Feature,
     TargetCapabilities,
+    assert_unique_paths,
 )
 from bloomery.emit.lower import (
     audit_predicate,
@@ -1051,4 +1052,9 @@ class DbtEmitter:
         )
         artifacts.append(_project_artifact(ctx, namespaces))
         artifacts.append(_schema_macro_artifact(ctx))
+        # This target writes `tests/<check>.sql` across five families whose
+        # names come from author-chosen parts (RFC 0026), so it needs the guard
+        # SQLMesh has had since RFC 0017 — before that it emitted no audit
+        # artifacts at all and had nothing to collide.
+        assert_unique_paths(artifacts)
         return tuple(sorted(artifacts, key=lambda a: a.path))

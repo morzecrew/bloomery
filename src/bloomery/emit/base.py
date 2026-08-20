@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Protocol
 
+from bloomery.errors import EmitError
+
 if TYPE_CHECKING:
     from sqlglot import exp
 
@@ -28,6 +30,7 @@ __all__ = [
     "Feature",
     "TargetCapabilities",
     "TargetEmitter",
+    "assert_unique_paths",
 ]
 
 
@@ -103,6 +106,45 @@ class EmittedArtifact:
         """Build an artifact, computing the content checksum."""
         checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
         return cls(path=path, content=content, kind=kind, checksum=checksum)
+
+
+def assert_unique_paths(artifacts: list[EmittedArtifact]) -> None:
+    """No two artifacts may claim one path.
+
+    A general guard rather than a per-namespace prefix, because the namespaces
+    that can collide are not obvious in advance: RFC 0016 names quality audits
+    ``<entity>_<rule>``, RFC 0016 D89 names mart assertions
+    ``<mart>_<assertion>``, and RFC 0017 names consistency audits after their
+    outputs — all from author-chosen parts, and an emitter otherwise just
+    sorts, so two artifacts at one path compiled clean and the last writer won.
+    That is the two-writers-one-path collision D8/D28 refuse for relations,
+    reached through the audit namespace instead.
+
+    **Neither name is checkable alone; only the pair is.** A mart ``a``
+    asserting ``b_c`` and a mart ``a_b`` asserting ``c`` are both legitimate
+    declarations that produce one audit name — which is why this is a guard
+    over the assembled set rather than a rule about any single name.
+
+    Shared rather than SQLMesh's, because it stopped being SQLMesh's problem:
+    until RFC 0026 the dbt emitter wrote no audit artifacts at all, so it had
+    nothing to collide. Now it writes ``tests/<check>.sql`` across five
+    families and needs the same guard — and a second copy of it would be the
+    two-implementations-of-one-rule drift the shared lowering exists to
+    prevent. Cube is not a caller: its paths are ``model/cubes/<mart>.yml`` and
+    ``model/views/<mart>_view.yml`` over mart names that are already unique by
+    construction, so the map is injective and the guard would have no instance.
+    """
+    seen: dict[str, int] = {}
+    for artifact in artifacts:
+        seen[artifact.path] = seen.get(artifact.path, 0) + 1
+    duplicated = sorted(path for path, count in seen.items() if count > 1)
+    if duplicated:
+        msg = (
+            f"two or more artifacts claim the same path: {', '.join(duplicated)}. "
+            "Emission would write one over the other, so whichever ran last would "
+            "silently win"
+        )
+        raise EmitError(msg)
 
 
 @dataclass(frozen=True, slots=True)

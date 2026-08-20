@@ -64,6 +64,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [stability reference](https://morzecrew.github.io/bloomery/reference/stability/) allows
   and bounds: a reserved name can refuse a document but never reinterpret one. This is the
   first reserved name added since a release, and the exception was written down with it.
+- **Two artifacts at one path are refused on dbt, as they already were on SQLMesh.**
+  An audit's name comes from author-chosen parts — a mart `a` asserting `b_c` and a mart
+  `a_b` asserting `c` both lower to `a_b_c` — and neither declaration is wrong on its
+  own, only the pair. SQLMesh has refused this since RFC 0017; the dbt emitter could not,
+  because until now it wrote no audit artifacts to collide. **A project in that shape
+  stops compiling for dbt** and the error names the path, which is the point: it
+  previously emitted both files and left whichever was written last, so a declared
+  quality gate silently did not exist. Rename one of the two.
 - The dbt `reconcile:` refusal no longer claims dbt has no non-blocking test — a
   singular test carrying `severity='warn'` is exactly one. The refusal stands on the
   half of its argument that survives: bloomery writes no comparison model for dbt, and
