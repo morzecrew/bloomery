@@ -1005,13 +1005,21 @@ _CONSERVATION_ALIAS = "_conservation"
 _ENTITY_ALIAS = "_entity"
 
 
-def _this_model(alias: str) -> exp.Table:
-    """``@this_model AS <alias>`` with the macro left unquoted.
+def _this_model(alias: str, relation: str = THIS_MODEL) -> exp.Table:
+    """``<relation> AS <alias>``, with the relation left unquoted.
 
     ``exp.table_`` would quote it — ``@`` is not an identifier character — and
-    a quoted macro is a table named ``@this_model``, which does not exist.
+    a quoted macro is a table named ``@this_model``, which does not exist. A
+    dbt ``{{ ref('…') }}`` needs exactly the same treatment for exactly the
+    same reason, which is why one function spells both.
+
+    The default is SQLMesh's macro because that is the older of the two and
+    every existing caller means it. A target whose audits attach by reference
+    passes its own spelling (RFC 0026 D10), so the body is built with it from
+    the start — the alternative, emitting ``@this_model`` and rewriting the
+    finished file, is the substitution D10 refuses.
     """
-    return exp.Table(this=exp.to_identifier(THIS_MODEL, quoted=False), alias=alias)
+    return exp.Table(this=exp.to_identifier(relation, quoted=False), alias=alias)
 
 
 def _count_of(relation: Expression) -> Expression:
@@ -1043,7 +1051,7 @@ def collision_audit(entity: EntityIR) -> bool:
     return len(entity.sources) > 1
 
 
-def collision_audit_select(entity: EntityIR) -> exp.Select:
+def collision_audit_select(entity: EntityIR, *, relation: str = THIS_MODEL) -> exp.Select:
     """The disjointness law as a **runtime** audit (RFC 0024 §5.4, D5, D13).
 
     The compiler has no data, so it cannot know two sources' key sets are
@@ -1087,7 +1095,7 @@ def collision_audit_select(entity: EntityIR) -> exp.Select:
             *(exp.column(column) for column in entity.key),
             cast("Expression", exp.alias_(distinct_sources, COLLISION_COUNT_COLUMN)),
         )
-        .from_(_this_model(_ENTITY_ALIAS))
+        .from_(_this_model(_ENTITY_ALIAS, relation))
         .group_by(*(exp.column(column) for column in entity.key))
         .having(exp.GT(this=distinct_sources.copy(), expression=exp.Literal.number(1)))
     )
@@ -1202,7 +1210,7 @@ def conservation_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
 
 
 def fail_audits(
-    entity: EntityIR, ctx: EmitContext
+    entity: EntityIR, ctx: EmitContext, *, relation: str = THIS_MODEL
 ) -> tuple[tuple[str, exp.Select | exp.Union], ...]:
     """``(audit name, violating-row query)`` per ``on_fail: fail`` rule.
 
@@ -1269,7 +1277,7 @@ def fail_audits(
         stored = (
             exp.Select()
             .select(*(exp.column(name, table=_ENTITY_ALIAS) for name in columns))
-            .from_(_this_model(_ENTITY_ALIAS))
+            .from_(_this_model(_ENTITY_ALIAS, relation))
             .where(
                 flag_member(exp.column(FLAGS_COLUMN, table=_ENTITY_ALIAS), rule.name, arrays=arrays)
             )

@@ -35,7 +35,7 @@ from bloomery.quality import (
 from bloomery.typing import IntType, LogicalType
 
 from .predicates import _bound_literal  # pyright: ignore[reportPrivateUsage]
-from .silver import _this_model  # pyright: ignore[reportPrivateUsage]
+from .silver import THIS_MODEL, _this_model  # pyright: ignore[reportPrivateUsage]
 
 if TYPE_CHECKING:
     from ..base import EmitContext
@@ -79,7 +79,9 @@ def coverage_owner(check: CoverageIR, ir: ProjectIR) -> RelationshipIR:
     )
 
 
-def coverage_audit_select(check: CoverageIR, ir: ProjectIR, ctx: EmitContext) -> exp.Select:
+def coverage_audit_select(
+    check: CoverageIR, ir: ProjectIR, ctx: EmitContext, *, relation: str = THIS_MODEL
+) -> exp.Select:
     """The audit body: rows of the **referenced** entity with too few
     dependents (RFC 0016 D90).
 
@@ -102,7 +104,7 @@ def coverage_audit_select(check: CoverageIR, ir: ProjectIR, ctx: EmitContext) ->
     # entity's model, and the macro is the one reference SQLMesh *does* rewrite
     # inside an AUDIT body (D29). Naming the relation instead would resolve to
     # the virtual-layer view and put the model in its own ``depends_on``.
-    dependent = _this_model(_COVERAGE_FROM)
+    dependent = _this_model(_COVERAGE_FROM, relation)
     on = conjunction(
         [
             exp.EQ(
@@ -153,7 +155,9 @@ def mart_assert_name(mart: MartIR, clause: MartAssertIR) -> str:
     return f"{mart.name}_{clause.name}"
 
 
-def mart_assert_select(mart: MartIR, clause: MartAssertIR) -> exp.Select:
+def mart_assert_select(
+    mart: MartIR, clause: MartAssertIR, *, relation: str = THIS_MODEL
+) -> exp.Select:
     """The audit body for one mart assertion (RFC 0016 D89).
 
     ``SELECT <by…>, <agg>(<measure>) AS value FROM @this_model [GROUP BY <by…>]
@@ -191,7 +195,7 @@ def mart_assert_select(mart: MartIR, clause: MartAssertIR) -> exp.Select:
     select = (
         exp.Select()
         .select(*[column.copy() for column in grouped_by], exp.alias_(aggregate.copy(), "value"))
-        .from_(_this_model(alias))
+        .from_(_this_model(alias, relation))
     )
     if grouped_by:
         select = select.group_by(*[column.copy() for column in grouped_by])
