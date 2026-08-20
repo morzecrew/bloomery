@@ -1920,11 +1920,17 @@ entity's row population grew, so every metric over it reports differently the da
 second shop lands. Those names show up in <code>downstream_impact</code>, in both directions: adding a
 source and removing one each report the metrics whose values move.</p>
 <h2 id="target-support">Target support<a class="headerlink" href="#target-support" title="Permanent link">&para;</a></h2>
-<p>SQLMesh only, for now. The <code>UNION ALL</code> itself needs nothing dbt lacks — and the dbt emitter
-does declare one <code>source()</code> per mapping — but the collision audit has no honest dbt
-equivalent, and the merge is not correct without it. Compiling a merged entity for dbt
-refuses, naming the audit and pointing at the target that emits it, rather than quietly
-shipping an unguarded union.</p>
+<p>Both SQL targets. The <code>UNION ALL</code> needs nothing dbt lacks — it is the same shared SELECT,
+and the dbt emitter declares one <code>source()</code> per mapping — and the collision audit that
+makes the merge correct is emitted as a
+<a href="../emit-dbt/#singular-tests-and-when-they-run">singular test</a>, <code>tests/&lt;entity&gt;_source_collision.sql</code>,
+carrying <code>severity='error'</code> because that audit is blocking and not configurable to
+anything weaker.</p>
+<p>One thing to know if you build with dbt: a dbt test is a separate node, so the collision
+audit runs under <code>dbt build</code> and <strong>not</strong> under <code>dbt run</code>. Running the project with
+<code>dbt run</code> materializes the union with its correctness condition unevaluated. The
+<a href="../emit-dbt/#the-operator-contract">operator contract</a> states this for every check
+bloomery emits to dbt, not only this one.</p>
 <h2 id="see-also">See also<a class="headerlink" href="#see-also" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../../get-started/examples/">The <code>lakehouse/</code> example</a> — this merge, built into Iceberg

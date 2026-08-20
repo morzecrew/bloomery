@@ -997,6 +997,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#singular-tests-and-when-they-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Singular tests, and when they run
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Singular tests, and when they run">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-operator-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The operator contract
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-dbt-cannot-express" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1554,6 +1582,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#singular-tests-and-when-they-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Singular tests, and when they run
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Singular tests, and when they run">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-operator-contract" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The operator contract
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-dbt-cannot-express" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1658,12 +1714,14 @@
 
 
 <h1 id="emit-dbt-artifacts">Emit dbt artifacts<a class="headerlink" href="#emit-dbt-artifacts" title="Permanent link">&para;</a></h1>
-<p>You want the same compiled project as a dbt project — models, sources, snapshots, and
-schema tests. Be clear-eyed about what this target is: its job in the architecture is
-proving that emission is a real port, not a SQLMesh-shaped hole. It ships minimal but
-honest — every SELECT is byte-identical to what the SQLMesh emitter renders, and
-anything dbt cannot express faithfully is a loud error, never an approximation. Do not
-read it as production-grade dbt scaffolding.</p>
+<p>You want the same compiled project as a dbt project — models, sources, snapshots,
+schema tests and singular tests. Be clear-eyed about what this target is: its job in the
+architecture is proving that emission is a real port, not a SQLMesh-shaped hole. It
+ships minimal but honest — every SELECT is byte-identical to what the SQLMesh emitter
+renders, and anything dbt cannot express faithfully is a loud error, never an
+approximation. Do not read it as production-grade dbt scaffolding, and do not read it as
+reaching parity with SQLMesh: reject tables, replay and reconcile models are still
+SQLMesh's alone.</p>
 <h2 id="compile">Compile<a class="headerlink" href="#compile" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 
@@ -1740,6 +1798,21 @@ read it as production-grade dbt scaffolding.</p>
 <td>config</td>
 <td>Asserts lowered to schema tests</td>
 </tr>
+<tr>
+<td><code>macros/bloomery_expression_is_true.sql</code></td>
+<td>audit</td>
+<td>The generic test the <code>min</code>/<code>max</code>/<code>regex</code> asserts name, emitted only when one does</td>
+</tr>
+<tr>
+<td><code>macros/generate_schema_name.sql</code></td>
+<td>config</td>
+<td>Keeps <code>+schema:</code> meaning the naming policy's namespace, not dbt's <code>&lt;target&gt;_&lt;custom&gt;</code></td>
+</tr>
+<tr>
+<td><code>tests/&lt;check&gt;.sql</code></td>
+<td>audit</td>
+<td>One singular test per check with no schema-test shape — see below</td>
+</tr>
 </tbody>
 </table>
 <p>For the SCD2 project above, the snapshot is dbt's native history mechanism:</p>
@@ -1759,9 +1832,12 @@ and a <code>timestamp</code> strategy would have to invent one.</p>
 <h2 id="schema-tests">Schema tests<a class="headerlink" href="#schema-tests" title="Permanent link">&para;</a></h2>
 <p><code>assert:</code> clauses land in <code>models/schema.yml</code>: <code>not_null</code> and <code>enum</code> map to dbt's
 builtin <code>not_null</code> and <code>accepted_values</code> tests; <code>min</code>, <code>max</code>, <code>regex</code>, and the
-path-conflict <code>reconcile</code> audit become <code>dbt_utils.expression_is_true</code> tests carrying
-the same row-level predicate the SQLMesh audits use. Tests for SCD2 entities attach
-under <code>snapshots:</code> rather than <code>models:</code>:</p>
+path-conflict <code>reconcile</code> audit become <code>bloomery_expression_is_true</code> tests carrying
+the same row-level predicate the SQLMesh audits use. That test is bloomery's own
+macro, emitted into <code>macros/</code> beside the models — not <code>dbt_utils</code>', which would leave
+the project declaring a test no <code>dbt compile</code> can build until someone runs <code>dbt deps</code>
+against the network. Tests for SCD2 entities attach under <code>snapshots:</code> rather than
+<code>models:</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
 <span class="nt">snapshots</span><span class="p">:</span>
 <span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer_snapshot</span>
@@ -1776,11 +1852,84 @@ under <code>snapshots:</code> rather than <code>models:</code>:</p>
 <span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">business</span>
 <span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">consumer</span>
 </code></pre></div>
+<h2 id="singular-tests-and-when-they-run">Singular tests, and when they run<a class="headerlink" href="#singular-tests-and-when-they-run" title="Permanent link">&para;</a></h2>
+<p>A check that groups, joins or aggregates is not a row predicate, so no <code>schema.yml</code>
+entry can carry it. dbt's own artifact for one is a <strong>singular test</strong>: a <code>.sql</code> file
+under <code>tests/</code> whose query returns the rows that fail. bloomery writes one per check
+that needs it —</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>File</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A merged entity's collision audit</td>
+<td><code>tests/&lt;entity&gt;_source_collision.sql</code></td>
+</tr>
+<tr>
+<td>The ingestion-metadata audit (<code>dedupe:</code>)</td>
+<td><code>tests/&lt;entity&gt;_ingestion_metadata.sql</code></td>
+</tr>
+<tr>
+<td>A mart <code>assert:</code> clause</td>
+<td><code>tests/&lt;mart&gt;_&lt;assertion&gt;.sql</code></td>
+</tr>
+<tr>
+<td>A <code>coverage:</code> check</td>
+<td><code>tests/&lt;check&gt;_coverage.sql</code></td>
+</tr>
+<tr>
+<td>A step output's <code>on_fail: fail</code> rules</td>
+<td><code>tests/step_&lt;output&gt;_&lt;rule&gt;.sql</code></td>
+</tr>
+<tr>
+<td>A step output's declared references</td>
+<td><code>tests/step_&lt;child&gt;_&lt;column&gt;_references_&lt;parent&gt;.sql</code></td>
+</tr>
+</tbody>
+</table>
+<p>— each naming its model through <code>ref()</code>, so dbt orders the test after the model it
+judges. <code>on_fail</code> becomes dbt's <code>severity</code>: <code>fail</code> → <code>error</code>, <code>flag</code> → <code>warn</code>.</p>
+<h3 id="the-operator-contract">The operator contract<a class="headerlink" href="#the-operator-contract" title="Permanent link">&para;</a></h3>
+<p>Two sentences, and you need both. A reader given only the first has the wrong model of
+this target.</p>
+<blockquote>
+<p><strong>On dbt, a blocking check blocks under <code>dbt build</code>.</strong> A flagging check does not
+block, unless the run passes <code>--warn-error</code>, which promotes it.</p>
+</blockquote>
+<p><code>dbt run</code> does not run tests at all, so a project built with <code>dbt run</code> materializes its
+models with every bloomery check unevaluated. <strong><code>dbt build</code> is a requirement of this
+target, not a recommendation.</strong> That is the cost of dbt expressing a check as a separate
+node rather than as part of the model's materialization — it is also true of every
+<code>not_null</code> this emitter has shipped since the beginning, which is why the merge is not
+refused for it.</p>
+<p>The mirror case is the one people miss: <code>--warn-error</code> promotes every warning to an
+error, so a <code>flag</code> check — which the disposition vocabulary defines as "record it and
+keep the row" — stops the build under that flag. Neither direction is a mapping error.
+Both are the same fact, that on dbt a test's consequence is chosen by the invocation
+rather than by the artifact. SQLMesh needs neither sentence, because there the audit
+carries <code>blocking false</code> and no flag overrides it.</p>
 <h2 id="what-dbt-cannot-express">What dbt cannot express<a class="headerlink" href="#what-dbt-cannot-express" title="Permanent link">&para;</a></h2>
 <p>Adaptation is loud, never silent (the port rule): where dbt has no faithful equivalent,
-compilation raises <code>UnsupportedByTarget</code> naming the entity and feature. The notable
-case is <strong>composite-key SCD2</strong>: dbt snapshot <code>unique_key</code> takes a single expression,
-and concatenating key parts would be a silent approximation, so:</p>
+compilation raises <code>UnsupportedByTarget</code> naming the entity and feature. <strong>This target is
+still partial, and singular tests did not change that</strong> — what they closed is a gap in
+bloomery's dbt emitter, not a gap in dbt.</p>
+<p>Three constructs are still refused, each for a reason of its own rather than for a
+missing test surface:</p>
+<ul>
+<li><strong><code>quarantine:</code></strong> — the reject table and its replay merge are <em>models</em> and a statement
+  to run, not tests.</li>
+<li><strong><code>reconcile:</code></strong> — a comparison model plus an audit over it. The audit has a home now;
+  the model does not.</li>
+<li><strong>Tier 3 Python steps</strong> — dbt's Python models run only on Snowflake, BigQuery and
+  Databricks, and none of those is a bloomery dialect.</li>
+</ul>
+<p>And the notable adaptation case is <strong>composite-key SCD2</strong>: dbt snapshot <code>unique_key</code>
+takes a single expression, and concatenating key parts would be a silent approximation,
+so:</p>
 <div class="highlight"><pre><span></span><code>UnsupportedByTarget: entity &#39;order_item&#39; is SCD type 2 with composite key
 (order_id, line_no) — dbt snapshot unique_key takes a single expression, and
 concatenating key parts would be a silent approximation (feature: scd_type_2)
@@ -1799,7 +1948,6 @@ share one lowering, so a semantics bug cannot exist in only one target's SQL.</p
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li>The scaffold assumes a profile named <code>bloomery</code>; wire your own <code>profiles.yml</code>.</li>
-<li><code>expression_is_true</code> tests require the <code>dbt_utils</code> package in your dbt project.</li>
 <li>Choose this target when your execution stack is dbt; if you are free to choose,
   <a href="../emit-sqlmesh/">SQLMesh</a> is the primary target and expresses more of the IR.</li>
 <li>The <a href="../../get-started/examples/"><code>targets/</code> example</a> runs <code>dbt build</code> on emitted

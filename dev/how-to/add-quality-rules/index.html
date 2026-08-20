@@ -1998,8 +1998,12 @@ fails it. Widening an <code>enum_map</code> — a new target <em>or</em> a new s
 <ul>
 <li><strong>Targets.</strong> SQLMesh emits the full set. The dbt emitter raises <code>UnsupportedByTarget</code>
   for the reject/replay artifacts and for <code>reconcile</code> — flag-only surfaces still emit,
-  since <code>_quality_flags</code> is the same shared <code>SELECT</code> for both. Cube consumes the quality
-  mart like any other mart.</li>
+  since <code>_quality_flags</code> is the same shared <code>SELECT</code> for both. The checks that are not
+  row predicates — a <code>coverage:</code> check, a mart <code>assert:</code>, and the ingestion-metadata
+  audit an entity with <code>dedupe:</code> carries — emit there as
+  <a href="../emit-dbt/#singular-tests-and-when-they-run">singular tests</a>, which run under
+  <code>dbt build</code> and not under <code>dbt run</code>. Cube consumes the quality mart like any other
+  mart.</li>
 <li><strong>Dialects.</strong> Postgres has no <code>TRY_CAST</code>, so an entity carrying <code>coercible</code> rules —
   which is any entity with a <code>quality:</code> surface — cannot compile for it.
   <code>UnsupportedByTarget</code>, loudly, rather than a <code>CAST</code> that aborts the run where the spec
