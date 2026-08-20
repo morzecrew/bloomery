@@ -91,7 +91,12 @@ class Case:
         bound to a different argument entirely. Probing the builder's output
         directly would measure an expression no artifact contains.
         """
-        built = DEFAULT_REGISTRY[self.transform].builder(exp.column(column), *self.args)
+        spec = DEFAULT_REGISTRY[self.transform]
+        # A spec declaring `types` is handed the type entering the step, which
+        # is this case's source (RFC 0029 D1). Omitting it is a TypeError rather
+        # than a silent default — see the flag's rationale on `TransformSpec`.
+        extra = {"input_type": self.source} if spec.types else {}
+        built = spec.builder(exp.column(column), *self.args, **extra)
         return canon(built).ast()
 
 
@@ -156,7 +161,8 @@ CASES: tuple[Case, ...] = (
     Case("nullif", VariantType(), '{"a": {"b": "x"}}', ("{}",)),
     Case("json_path", VariantType(), '{"a": {"b": "x"}}', ("$.a.b",), "deep"),
     Case("json_path", VariantType(), '{"a": {"b": "x"}}', ("$.a",), "shallow"),
-    Case("json_path", StringType(), '{"a": {"b": "x"}}', ("$.a.b",)),
+    Case("json_path", StringType(), '{"a": {"b": "x"}}', ("$.a.b",), "deep"),
+    Case("json_path", StringType(), '{"a": {"b": "x"}}', ("$.a",), "shallow"),
     # ....................... arithmetic
     Case("multiply", DECIMAL, "3.5", (2,)),
     Case("divide", DECIMAL, "3.5", (2,)),
@@ -259,45 +265,7 @@ class Divergence:
 
 
 # ....................... #
-# The divergences that exist today (RFC 0029)
-
-_WIDENS = (
-    "engine decimal arithmetic widens past the (p, s) RFC 0004 §5.4 tracks; the builder "
-    "is never told the input type, so it cannot narrow the result back"
-)
-_UNCONSTRAINED = (
-    "PostgreSQL drops the typmod through an expression, so the result is unconstrained "
-    "numeric rather than the declared numeric(p, s)"
-)
-_FLOAT_DIVISION = (
-    "`/` yields a binary float, which RFC 0003 D5 forbids in an emission path; "
-    "SQLGlot's `typed` flag fixes it on PostgreSQL and Trino but does not survive the "
-    "canonical-text round trip, and DuckDB has no exact decimal division at all"
-)
-_ROUND_KEEPS_INPUT = (
-    "the engine's `round(x, d)` rounds the value and keeps the input type, where "
-    "RFC 0004 §5.4 narrows the declared scale to d"
-)
-_PG_NO_FUNCTION = (
-    "the port renders a function PostgreSQL 16 does not define, so the transform does "
-    "not run there at all — loud at plan time, but a shipped dialect refusing a "
-    "whitelisted transform belongs behind a capability flag (RFC 0008 D3), not behind "
-    "the engine's own error"
-)
-_PG_NO_CAST = "PostgreSQL refuses this cast between boolean and bigint; only int4 converts"
-_PG_TO_TIMESTAMP_TZ = (
-    "PostgreSQL's `to_timestamp(text, text)` returns `timestamptz` — the same defect "
-    "RFC 0028 closed for `to_utc`, surviving in `parse_ts`'s explicit-format branch, "
-    "which no fixture uses"
-)
-_PG_JSON_NOT_JSONB = (
-    "a path deeper than one key goes through `CAST(x AS JSON)` and `json_extract_path`, "
-    "which return `json`; `variant` is declared `JSONB` on this port"
-)
-_TRINO_LITERAL_NOT_COERCED = (
-    "Trino does not coerce a varchar literal to the column's type, so a spec-level "
-    "sentinel or fallback that runs on DuckDB and PostgreSQL fails to plan here"
-)
+# The divergences that exist today
 
 #: port name → case id → the divergence measured there.
 #:
@@ -306,46 +274,9 @@ _TRINO_LITERAL_NOT_COERCED = (
 #: without deleting its row, and a regression cannot hide behind a row that
 #: happens to describe it. Every entry is scheduled in RFC 0029.
 KNOWN: dict[str, dict[str, Divergence]] = {
-    "duckdb": {
-        "coalesce-decimal(12,4)": Divergence("DECIMAL(14, 4)", _WIDENS),
-        "multiply-decimal(12,4)": Divergence("DECIMAL(18, 4)", _WIDENS),
-        "round-decimal(12,4)": Divergence("DECIMAL(12, 2)", _WIDENS),
-        "divide-decimal(12,4)": Divergence("DOUBLE", _FLOAT_DIVISION),
-    },
-    "postgres": {
-        "coalesce-decimal(12,4)": Divergence("DECIMAL", _UNCONSTRAINED),
-        "multiply-decimal(12,4)": Divergence("DECIMAL", _UNCONSTRAINED),
-        "round-decimal(12,4)": Divergence("DECIMAL", _UNCONSTRAINED),
-        "abs-decimal(12,4)": Divergence("DECIMAL", _UNCONSTRAINED),
-        "round-int": Divergence(
-            "DECIMAL",
-            "PostgreSQL has no `round(bigint, int)`, so the argument is promoted to "
-            "numeric and the result is numeric where `round` declares the input type "
-            "unchanged",
-        ),
-        "divide-decimal(12,4)": Divergence("DOUBLE PRECISION", _FLOAT_DIVISION),
-        "regex_extract-string": Divergence("error:42883", _PG_NO_FUNCTION),
-        "strip_suffix-string": Divergence("error:42883", _PG_NO_FUNCTION),
-        "to_int-bool": Divergence("error:42846", _PG_NO_CAST),
-        "to_bool-int": Divergence("error:42846", _PG_NO_CAST),
-        "parse_ts-string-format": Divergence("TIMESTAMPTZ", _PG_TO_TIMESTAMP_TZ),
-        "json_path-variant-deep": Divergence("JSON", _PG_JSON_NOT_JSONB),
-        "json_path-string": Divergence("JSON", _PG_JSON_NOT_JSONB),
-    },
-    "trino": {
-        "coalesce-decimal(12,4)": Divergence("DECIMAL(14, 4)", _WIDENS),
-        "multiply-decimal(12,4)": Divergence("DECIMAL(22, 4)", _WIDENS),
-        "round-decimal(12,4)": Divergence("DECIMAL(13, 4)", _ROUND_KEEPS_INPUT),
-        "divide-decimal(12,4)": Divergence("DOUBLE", _FLOAT_DIVISION),
-        "coalesce-bool": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
-        "coalesce-date": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
-        "coalesce-timestamp": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
-        "coalesce-variant": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
-        "nullif-bool": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
-        "nullif-date": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
-        "nullif-timestamp": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
-        "nullif-variant": Divergence("error:TYPE_MISMATCH", _TRINO_LITERAL_NOT_COERCED),
-    },
+    "duckdb": {},
+    "postgres": {},
+    "trino": {},
 }
 
 

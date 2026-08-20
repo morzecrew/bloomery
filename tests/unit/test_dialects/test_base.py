@@ -184,11 +184,19 @@ def test_a_port_that_strips_the_marker_renders_normally() -> None:
 
 
 @pytest.mark.parametrize(
-    "dialect",
-    [DuckDBDialect(), PostgresDialect(), TrinoDialect()],
-    ids=lambda dialect: dialect.name,
+    ("dialect", "expected"),
+    [
+        (DuckDBDialect(), "REGEXP_EXTRACT(sku, 'sku-([0-9]+)', 1)"),
+        # PostgreSQL has no `regexp_extract`; `regexp_substr`'s sixth argument
+        # is the capture group (RFC 0029 §2.3).
+        (PostgresDialect(), "REGEXP_SUBSTR(sku, 'sku-([0-9]+)', 1, 1, '', 1)"),
+        (TrinoDialect(), "REGEXP_EXTRACT(sku, 'sku-([0-9]+)', 1)"),
+    ],
+    ids=lambda value: value.name if isinstance(value, SQLGlotDialect) else "sql",
 )
-def test_the_capture_group_survives_the_canonical_round_trip(dialect: DialectPort) -> None:
+def test_the_capture_group_survives_the_canonical_round_trip(
+    dialect: DialectPort, expected: str
+) -> None:
     """Every port *renders* ``{regex_extract: [pattern, N]}`` with group N.
 
     ``regex_extract`` builds :class:`sqlglot.exp.RegexpExtract` with ``group``
@@ -200,19 +208,18 @@ def test_the_capture_group_survives_the_canonical_round_trip(dialect: DialectPor
     it. Measured before the fix: ``REGEXP_EXTRACT('sku-42', 'sku-([0-9]+)')``
     is ``'sku-42'`` on DuckDB where the three-argument form is ``'42'``.
 
-    This asserts the rendering, not the run, and PostgreSQL is parametrized
-    deliberately even though it cannot execute the result — it defines no
-    ``regexp_extract`` at all, which the conformance register carries as
-    ``error:42883`` and RFC 0029 §2.3 schedules. The fix lives in
-    :meth:`SQLGlotDialect.render`, so it is port-independent by construction,
-    and pinning all three is what keeps it that way: whatever spelling
-    PostgreSQL eventually gets has to carry the group too.
+    This asserts the rendering, not the run, and the three expectations are no
+    longer the same string: PostgreSQL defines no ``regexp_extract``, so
+    RFC 0029 §2.3 gave it ``regexp_substr``, whose sixth argument is the group.
+    Pinning all three is what keeps the restoration port-independent — the
+    spelling PostgreSQL got still had to carry the group, and this is the test
+    that said so before it existed.
 
     No fixture used ``regex_extract``, so no golden showed it; the
     declared-vs-produced battery found it (RFC 0028 D5).
     """
     built = DEFAULT_REGISTRY["regex_extract"].builder(exp.column("sku"), "sku-([0-9]+)", 1)
-    assert dialect.render(canon(built).ast()) == "REGEXP_EXTRACT(sku, 'sku-([0-9]+)', 1)"
+    assert dialect.render(canon(built).ast()) == expected
 
 
 def test_a_capture_group_the_author_set_is_never_overwritten() -> None:

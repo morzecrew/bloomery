@@ -33,8 +33,9 @@ The seven logical types, as each port spells them:
 the binary, indexable, canonicalized form — rather than `JSON`, which is a text blob
 preserving key order and duplicates, properties `variant` never promises.
 
-There are no floats. A `decimal` stays exact end to end, and nothing in the IR or on an
-emission path is ever a binary float.
+There are no floats in the type system, and a `decimal` stays exact end to end — with one
+named exception, `divide` on DuckDB, which that engine cannot express exactly. It is
+described below rather than left to be discovered.
 
 ## Where the ports spell things differently
 
@@ -130,58 +131,35 @@ So find the affected models yourself and rebuild them:
 Diff a sample before and after: a row whose local time is late in the day in a zone east
 of UTC is the one that moves, and it moves by a whole day.
 
-## Where a transform does not reach every engine
+## Every transform produces the type it declares
 
-The three ports render one neutral AST, and the sections above are the places
-that rendering differs and the meaning does not. This section is the opposite:
-places where a transform the typechecker accepts either does not run on a
-shipped dialect, or produces a type other than the one it declares.
+A conformance battery probes every (transform, input type) pair the typechecker
+admits against real DuckDB, PostgreSQL and Trino, and compares the engine's own
+column type against the transform's declared output. It asserts set equality per
+port, so a divergence that appears fails the suite and one that is repaired fails
+it too until its row is deleted. **The register is empty**: on all three engines,
+every transform now produces what it says it produces.
 
-These are measured, not surveyed. A conformance battery probes every
-(transform, input type) pair against real DuckDB, PostgreSQL and Trino and
-compares the engine's own column type against the transform's declared output,
-so the list below is exact as of the pinned engine versions and cannot fall
-behind the code — a divergence that appears fails the suite, and one that is
-repaired fails it too until its row is deleted.
+Getting there closed defects on all three ports — four transforms PostgreSQL
+could not run at all, eight Trino cases where a `coalesce` or `nullif` literal
+was not coerced to its column's type, a `parse_ts` format branch that stored a
+different instant depending on who ran it, and decimal arithmetic that widened
+past the tracked `(p, s)` everywhere. None of them had golden coverage: no
+fixture used `json_path`, `divide`, `multiply`, `round` or `abs`, which is why
+they survived.
 
-### Does not run on PostgreSQL
+One divergence remains and cannot be repaired here:
 
-| Transform | Why |
-|---|---|
-| `regex_extract` | `REGEXP_EXTRACT` is not defined on PostgreSQL 16 |
-| `strip_suffix` | PostgreSQL has `starts_with` but no `ends_with`, so `strip_prefix` runs and its mirror does not |
-| `to_int` over a `bool` field | PostgreSQL converts `int4` to boolean and back, but refuses `bigint` |
-| `to_bool` over an `int` field | the same refusal in reverse |
+**`divide` is inexact on DuckDB.** The engine has no exact decimal division —
+`/` is float division and `//` is integer division — so the division itself
+happens in binary floating point, and what the port can do is narrow the result
+back to the declared decimal. PostgreSQL and Trino divide exactly. The emitted
+column has the right type on all three; only DuckDB's *value* has been through a
+float, and only for `divide`.
 
-Each fails when the model first runs, with the engine's own message. They
-compile clean today; making them a refusal at compile time — which is what
-this project promises for anything an engine cannot express — is scheduled.
-
-### Does not run on Trino
-
-`coalesce` and `nullif` over a field that is not a `string`. Both take a
-literal, and Trino does not coerce a literal to the column's type the way
-DuckDB and PostgreSQL do, so `{coalesce: "1970-01-01"}` on a `date` field
-plans on two engines and fails on the third.
-
-### Runs, with a type other than the declared one
-
-| Construct | Declared | What the engine produces |
-|---|---|---|
-| `divide` | `decimal(p, s)` | a **binary float** on all three — `DOUBLE` on DuckDB and Trino, `double precision` on PostgreSQL |
-| `multiply`, `round`, `abs`, `coalesce` over a decimal | the tracked `decimal(p, s)` | a wider decimal, differently per engine; unconstrained `numeric` on PostgreSQL, which drops the precision through any expression |
-| `parse_ts` with an explicit format | `timestamp` | `timestamptz` on PostgreSQL — the same zone-aware value the section above describes, in the branch that does not take `ISO8601` |
-| `json_path` deeper than one key | `variant` (`JSONB`) | `json` on PostgreSQL |
-
-The widenings lose no value; what they lose is the meaning of the declaration,
-and with it the 38-digit precision cap, which is computed over the numbers the
-compiler tracks rather than the ones the engine uses.
-
-`divide` is the one to know about. A chain ending in a division is cast back to
-its declared decimal, so the emitted column has the right type — and its value
-has been through a binary float on the way. Prefer an explicit
-`to_decimal(p, s)` after a `divide` until this closes, and treat a divided
-column as approximate where exactness matters.
+If exactness matters on DuckDB, multiply by the reciprocal instead: `{multiply:
+"0.01"}` rather than `{divide: 100}` stays in decimal arithmetic end to end. The
+shipped examples do exactly that, and say why.
 
 ## Notes
 

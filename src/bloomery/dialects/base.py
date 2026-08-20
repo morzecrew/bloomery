@@ -17,7 +17,7 @@ from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
 from bloomery.errors import UnsupportedByTarget
-from bloomery.transforms import ISO_TEXT_MARKER
+from bloomery.transforms import DIVIDE_MARKER, ISO_TEXT_MARKER
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -33,6 +33,7 @@ __all__ = [
     "DialectFeature",
     "strip_iso_text",
     "utc_from_zone",
+    "capture_group",
     "DialectPort",
     "SQLGlotDialect",
 ]
@@ -88,7 +89,7 @@ def utc_from_zone(node: Expression, to_utc: Callable[[Expression], Expression]) 
     return node.transform(replace)
 
 
-def _capture_group(node: Expression) -> Expression:
+def capture_group(node: Expression) -> Expression:
     """Restore the capture-group argument the canonical round trip demotes.
 
     ``regex_extract`` builds :class:`sqlglot.exp.RegexpExtract` with ``group``
@@ -108,6 +109,12 @@ def _capture_group(node: Expression) -> Expression:
     start position — has no ``regexp_extract`` at all to run either spelling,
     so no engine bloomery emits to takes the demoted meaning. A tree that
     already names a group is left alone.
+
+    :meth:`SQLGlotDialect.render` applies this to every port, but it does so
+    *last* — after a port's own rewrites, which is too late for a port that
+    needs to read the group in order to spell the call at all. Such a port
+    calls this first; the second application is a no-op, because a tree that
+    already names a group is returned untouched.
     """
 
     def replace(child: Expression) -> Expression:
@@ -118,6 +125,38 @@ def _capture_group(node: Expression) -> Expression:
             return child
         child.set("position", None)
         child.set("group", position)
+        return child
+
+    return node.transform(replace)
+
+
+def _exact_division(node: Expression) -> Expression:
+    """Turn the ``divide`` marker into a division the engine keeps exact.
+
+    ``exp.Div(typed=True)`` is what suppresses SQLGlot's
+    ``CAST(x AS DOUBLE PRECISION) /`` on PostgreSQL and ``CAST(x AS DOUBLE) /``
+    on Trino. It cannot be set by the builder, because the IR keeps canonical
+    text and the flag does not survive the re-parse (RFC 0003 D2), and it
+    cannot be set on every ``Div`` at render, because a ratio metric's
+    ``COUNT(a) / COUNT(b)`` would silently become integer division. The marker
+    is the difference, and it is the only thing a port could not have worked
+    out for itself (RFC 0029 D3).
+
+    Applied centrally rather than per port: unlike the ISO-text marker, whose
+    right treatment differs per engine, this one has a single treatment
+    everywhere, so there is no decision for a port to forget and no guard is
+    needed.
+
+    DuckDB is left inexact by this and knowingly. Its ``/`` is float division
+    and ``//`` is integer division; the engine has no exact decimal division to
+    reach for, so the float is bounded by a narrowing cast to the declared type
+    rather than removed (RFC 0029 §4, EXECUTION-LOG D-003).
+    """
+
+    def replace(child: Expression) -> Expression:
+        if isinstance(child, exp.Anonymous) and child.name.upper() == DIVIDE_MARKER:
+            left, right = child.expressions
+            return exp.Div(this=left, expression=right, typed=True)
         return child
 
     return node.transform(replace)
@@ -248,7 +287,7 @@ class SQLGlotDialect:
                 "with an identity spelling if the engine's cast already takes both forms"
             )
             raise UnsupportedByTarget(msg)
-        return _capture_group(node).sql(dialect=self.sqlglot_dialect, pretty=True)
+        return _exact_division(capture_group(node)).sql(dialect=self.sqlglot_dialect, pretty=True)
 
     def physical_type(self, t: LogicalType) -> str:
         """The engine type for a logical type (RFC 0004 non-goal: physical

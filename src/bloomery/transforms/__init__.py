@@ -8,12 +8,13 @@ and :func:`register_transform` the public extension point (spec §8).
 """
 
 from bloomery.transforms import _builtins as _builtins
-from bloomery.transforms._builtins import CONVERT_MARKER, ISO_TEXT_MARKER
+from bloomery.transforms._builtins import CONVERT_MARKER, DIVIDE_MARKER, ISO_TEXT_MARKER
 from bloomery.transforms.registry import (
     Builder,
     OutputType,
     Registry,
     TransformSpec,
+    neutral_type,
     register_transform,
     registry,
     transform,
@@ -21,12 +22,14 @@ from bloomery.transforms.registry import (
 
 __all__ = [
     "CONVERT_MARKER",
+    "DIVIDE_MARKER",
     "ISO_TEXT_MARKER",
     "DEFAULT_REGISTRY",
     "Builder",
     "OutputType",
     "Registry",
     "TransformSpec",
+    "neutral_type",
     "register_transform",
     "registry",
     "transform",
