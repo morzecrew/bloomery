@@ -515,8 +515,16 @@ gap; the author agreed to extend. See D-014 for what that actually bought.
 ## Self-audit — 2026-08-20, unit 3
 
 Scope: 8 commits / 25 files / +1146−306 against `main` @ `d51daf8`, plus this log.
-Patch coverage **100%** (65/65 added lines) on the full local profile
-(unit + golden + property + execution + e2e, 3133 tests). Sabotage sweep below.
+Patch coverage **100.00%** (69/69 added lines) on the full local profile
+(unit + golden + property + execution + e2e, 3137 passed / 5 skipped, 99.12% total).
+`just test` with `--refusal-census` passes, which is the check that deleting three
+refusal functions left no error class unproduced. Sabotage sweep below.
+
+*Written down twice.* The first version of this line claimed 100% before the number was
+measured — a prediction from having just closed the one gap the previous run named. It
+was right about the percentage and wrong about the count, which is the point: a figure
+in a durable document has to be an observation. Recorded rather than quietly overwritten,
+because pass 9's rule is exactly the one it broke.
 
 | # | Finding | Status |
 | --- | --- | --- |
