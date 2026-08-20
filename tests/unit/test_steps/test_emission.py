@@ -203,7 +203,8 @@ def test_a_macro_emits_no_artifact_of_its_own() -> None:
 
     ctx = EmitContext(fingerprint="blm1:t", naming=DefaultNaming(), dialect=get_dialect("duckdb"))
     ir = ProjectIR(steps=(_macro("LOWER(:col)"),))
-    assert step_artifacts(ir, ctx, __import__("jinja2").Template("")) == ()
+    blank = __import__("jinja2").Template("")
+    assert step_artifacts(ir, ctx, blank, blank) == ()
 
 
 def test_a_python_model_never_reaches_a_sql_harness() -> None:

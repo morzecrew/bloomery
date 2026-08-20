@@ -825,7 +825,7 @@ class SQLMeshEmitter:
         # Steps contribute their own models (RFC 0017 §5.8): one generated
         # wrapper per python_model output, one ordinary model per sql_model
         # output, nothing for a sql_macro — that one lives inside a SELECT.
-        artifacts.extend(step_artifacts(ir, ctx, _ENVELOPE))
+        artifacts.extend(step_artifacts(ir, ctx, _ENVELOPE, _SELECT_AUDIT_ENVELOPE))
         for check in ir.reconcile:  # sorted by name on ProjectIR
             artifacts.extend(_reconcile_artifacts(check, ir, ctx))
         artifacts.extend(_coverage_artifacts(ir, ctx))

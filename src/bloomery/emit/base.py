@@ -14,12 +14,15 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
+    from sqlglot import exp
+
     from bloomery.dialects import DialectPort
     from bloomery.ir import ProjectIR
     from bloomery.naming import NamingPolicy
 
 __all__ = [
     "ArtifactKind",
+    "AuditBody",
     "EmitContext",
     "EmittedArtifact",
     "Feature",
@@ -100,6 +103,36 @@ class EmittedArtifact:
         """Build an artifact, computing the content checksum."""
         checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
         return cls(path=path, content=content, kind=kind, checksum=checksum)
+
+
+@dataclass(frozen=True, slots=True)
+class AuditBody:
+    """One audit as the parts a target still has to wrap (RFC 0026 D10).
+
+    A producer in shared code returns this rather than an
+    :class:`EmittedArtifact`, because an artifact carries an envelope and every
+    envelope belongs to a target: SQLMesh writes ``AUDIT (name …);``, dbt writes
+    a ``{{ config(severity=…) }}`` header into a file under ``test-paths``. A
+    shared producer that returned a finished artifact had therefore already
+    chosen a target — which is how :mod:`bloomery.emit.steps` came to be
+    target-neutral by position and SQLMesh-shaped by content, and why one
+    audit body could not reach dbt at all.
+
+    ``select`` is the **unrendered** AST, not SQL text, though RFC 0026 D10
+    says "rendered SELECT". Rendering here would shut the door D5 needs open:
+    the dbt emitter rewrites every relation in a body to a ``ref()`` so the
+    audit becomes a participant in dbt's DAG, and it can only do that to a
+    tree. See ``EXECUTION-LOG.md`` D-012.
+
+    ``owner`` is the relation whose rows the audit judges. SQLMesh needs it to
+    list the audit under that model's ``audits`` — a bare ``AUDIT`` block loads
+    as a model audit and runs nowhere until something names it.
+    """
+
+    owner: str
+    name: str
+    select: exp.Select | exp.Union
+    blocking: bool = True
 
 
 @dataclass(frozen=True, slots=True)
