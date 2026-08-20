@@ -315,26 +315,33 @@ def _refuse_quarantine(entity: EntityIR) -> None:
 
 
 def _refuse_reconcile(ir: ProjectIR) -> None:
-    """dbt lowers no reconcile artifacts in this wave (RFC 0016 D58).
+    """dbt lowers no reconcile *model* (RFC 0016 D58, corrected by RFC 0026 D8).
 
     A second, *separate* claim from ``_refuse_quarantine`` above, and it needed
     its own decision row: §5.4's target-coverage sentence authorized dbt's
     refusal only for the reject/replay artifacts, so refusing ``reconcile:``
-    under the same sentence was scope the RFC never granted. D58 grants it, on
-    this argument — a reconcile check is a model *and* a **non-blocking** audit,
-    and dbt's test surface has no non-blocking equivalent that would not
-    silently turn "report the disagreement" into "fail the build" (RFC 0008 D3:
-    fail loud, never degrade silently). Refusing names the target that does.
+    under the same sentence was scope the RFC never granted. D58 grants it.
+
+    **Half of D58's argument has expired and the message no longer makes it.**
+    D58 reasoned from two things — a reconcile check is a comparison *model*
+    **and** a non-blocking audit, and dbt had no non-blocking test that would
+    not silently turn "report the disagreement" into "fail the build". The
+    second half is now false: a singular test carrying ``severity='warn'`` is
+    exactly a non-blocking check, and RFC 0026 emits several. The first half
+    stands untouched, because this RFC emits no models at all. Leaving the old
+    sentence in the refusal would have it cite a limitation that no longer
+    exists, which is the same defect as a doc page describing behaviour the
+    code dropped.
     """
     if not ir.reconcile:
         return
     names = ", ".join(check.name for check in ir.reconcile)
     msg = (
-        f"project declares reconcile check(s) {names}, which lower to a model plus a "
-        "non-blocking audit (RFC 0016 §5.3); the dbt emitter lowers neither in this wave, "
-        "and has no non-blocking test to approximate the audit with — it is the "
-        "compatibility target, minimal but honest (RFC 0008 §5.5, RFC 0016 D58). Fix: "
-        "compile this project for the sqlmesh target, or drop the reconcile block"
+        f"project declares reconcile check(s) {names}, which lower to a comparison model "
+        "plus an audit over it (RFC 0016 §5.3); the dbt emitter writes no comparison "
+        "model, and the audit has nothing to read without one (RFC 0016 D58, narrowed by "
+        "RFC 0026 D8 — the missing piece is the model, not the test). Fix: compile this "
+        "project for the sqlmesh target, or drop the reconcile block"
     )
     raise UnsupportedByTarget(msg, source_path="entity_model: reconcile")
 

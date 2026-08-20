@@ -382,9 +382,14 @@ def test_reconcile_refusal_names_the_check_and_the_decision_authorizing_it() -> 
     assert "RFC 0016 D58" in message
     # It refuses the *reconcile* surface, not the reject/replay one — naming the
     # wrong thing is how the scope crept in the first place.
-    assert "non-blocking" in message
     assert "__reject" not in message
     assert excinfo.value.source_path == "entity_model: reconcile"
+    # RFC 0026 D8: the surviving half of D58's argument is the comparison
+    # *model*. The other half — "no non-blocking test to approximate the audit
+    # with" — is now false, since a singular test carrying severity='warn' is
+    # exactly one, so the message must not still claim it.
+    assert "comparison model" in message
+    assert "non-blocking" not in message
 
 
 def test_a_merged_entity_emits_the_collision_audit_it_used_to_be_refused_for() -> None:
