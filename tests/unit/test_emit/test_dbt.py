@@ -20,6 +20,7 @@ from bloomery.emit import ArtifactKind, EmitContext, EmittedArtifact
 from bloomery.emit.base import Feature
 from bloomery.emit.dbt import DbtEmitter
 from bloomery.emit.dbt import _reference_map  # pyright: ignore[reportPrivateUsage]
+from bloomery.emit.lower import THIS_MODEL
 from bloomery.emit.sqlmesh import SQLMeshEmitter
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import (
@@ -520,6 +521,81 @@ def test_dbt_and_sqlmesh_emit_identical_selects(dialect: str) -> None:
         assert _erase_namespaces(extract_select(sqlmesh_artifact.content), dialect) == (
             _erase_namespaces(rendered, dialect)
         ), path
+
+
+#: Fixtures whose checks have no ``schema.yml`` shape, with the relation each
+#: check is attached to. The relation is what the comparison below has to
+#: normalize away: SQLMesh writes ``@this_model`` and dbt writes a ``ref()``,
+#: and everything else about the two bodies must be the same query.
+_AUDIT_FIXTURES = {
+    "multi_source": {"order_line_source_collision": "order_line"},
+    "coverage_check": {"every_customer_has_an_order_coverage": "order"},
+}
+
+
+def _normalize_audit(sql: str, dialect: str, self_relation: str) -> str:
+    """One audit body in a form the two targets can be compared in.
+
+    Two substitutions, both named rather than incidental. ``@this_model``
+    becomes the relation it stands for, because that is the *only* thing
+    RFC 0026 D10 lets the targets differ about. Namespaces are then erased on
+    both sides for the reason ``_erase_namespaces`` gives — a ``ref()`` names a
+    model, and a model name carries none.
+
+    The macro is substituted in the **text**, before parsing, because it is not
+    SQL: sqlglot reads ``@this_model`` as a parameter rather than as a table,
+    so there is no table node to rewrite. That is also why the emitter builds
+    the relation in instead of rewriting it afterwards — the same fact seen
+    from the other side.
+    """
+    tree = parse_one(sql.replace(THIS_MODEL, self_relation), dialect=dialect)
+    return _erase_namespaces(tree.sql(dialect=dialect), dialect)
+
+
+@pytest.mark.parametrize("dialect", ["duckdb", "postgres", "trino"])
+@pytest.mark.parametrize("fixture", sorted(_AUDIT_FIXTURES))
+def test_the_two_targets_emit_the_same_audit_body(fixture: str, dialect: str) -> None:
+    """RFC 0026 §6, and the reason the RFC asked for it in those words: "the
+    two targets' audit bodies are compared, not merely both asserted".
+
+    A test that pinned each target's body separately would pass straight
+    through a divergence — both assertions would be about text somebody wrote
+    down, and neither about the two being the same check. This is the
+    ``reading-isnt-proof`` shape: one contract, two implementations, one
+    battery.
+
+    It is also what makes D10's envelope split *provable* rather than merely
+    intended. The split claims the body is shared and only the wrapper is a
+    target's; if a body were ever rebuilt on one side, this is where it shows.
+    """
+    expected = _AUDIT_FIXTURES[fixture]
+    sqlmesh = {
+        a.path.removeprefix("audits/").removesuffix(".sql"): extract_select(a.content)
+        for a in compile_fixture(fixture, dialect=dialect)
+        if a.kind is ArtifactKind.AUDIT and a.path.startswith("audits/")
+    }
+    dbt = {
+        a.path.removeprefix("tests/").removesuffix(".sql"): _dbt_select(a.content)
+        for a in compile_fixture(fixture, target=Target.DBT, dialect=dialect)
+        if a.path.startswith("tests/")
+    }
+    assert set(sqlmesh) == set(dbt) == set(expected), fixture
+    for name, relation in expected.items():
+        assert _normalize_audit(sqlmesh[name], dialect, relation) == _normalize_audit(
+            resolve_dbt_references(dbt[name]), dialect, relation
+        ), name
+
+
+def test_the_comparison_above_can_fail() -> None:
+    """Its control. Both sides go through one normalizer, and a normalizer that
+    collapsed too much would make every comparison pass — so a body that
+    genuinely differs has to come out different."""
+    one = _normalize_audit("SELECT a FROM @this_model", "duckdb", "t")
+    other = _normalize_audit("SELECT b FROM @this_model", "duckdb", "t")
+    assert one != other
+    # ...and the substitution it exists for really happens.
+    assert "@this_model" not in one
+    assert _normalize_audit("SELECT a FROM t", "duckdb", "t") == one
 
 
 def test_a_reference_resolves_to_the_relation_the_naming_policy_names() -> None:
