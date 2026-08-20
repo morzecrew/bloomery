@@ -43,13 +43,21 @@ pytestmark = pytest.mark.e2e
 
 #: Every fixture the dbt target compiles. Enumerated rather than hand-listed
 #: from memory: the refused ones are refused for stated reasons (quality
-#: quarantine surfaces, reconcile blocks, python_model steps, mart assertions),
-#: and a fixture silently dropping off this list is a coverage loss.
+#: quarantine surfaces, reconcile blocks, python_model steps), and a fixture
+#: silently dropping off this list is a coverage loss.
+#:
+#: ``multi_source`` and ``coverage_check`` joined when RFC 0026 gave this
+#: target a test surface — one for the union merge's collision audit, one for a
+#: check that joins two relations and groups. Both are here rather than only in
+#: a golden because a golden proves the bytes and only dbt can say whether dbt
+#: *runs* them.
 FIXTURES = (
+    "coverage_check",
     "ecom_basic",
     "evolution_v1",
     "evolution_v4",
     "minimal",
+    "multi_source",
     "non_additive_aov",
     "path_conflict",
     "role_playing_dates",
@@ -78,11 +86,11 @@ def _write_project(root: pathlib.Path, fixture: str, *, database: str = ":memory
     (root / "profiles.yml").write_text(PROFILES.format(path=database), encoding="utf-8")
 
 
-def _run(root: pathlib.Path, command: str) -> object:
+def _run(root: pathlib.Path, command: str, *flags: str) -> object:
     from dbt.cli.main import dbtRunner
 
     return dbtRunner().invoke(
-        [command, "--project-dir", str(root), "--profiles-dir", str(root)]
+        [command, "--project-dir", str(root), "--profiles-dir", str(root), *flags]
     )
 
 
@@ -296,3 +304,172 @@ def test_a_malformed_config_block_would_be_caught(tmp_path: pathlib.Path) -> Non
         encoding="utf-8",
     )
     assert not _run(tmp_path, "parse").success
+
+
+# ....................... #
+# Singular tests: that dbt *runs* them, and what happens when they fail
+# (RFC 0026 §5.5, §6).
+
+
+#: Two bronze rows sharing the composite key ``(A1, 1)`` across both shops —
+#: the state RFC 0024 D5's collision audit exists to stop. Written against the
+#: fixture's two mappings: each shop reads its own paths, so the same entity key
+#: is spelled differently on each side, which is the merge's whole premise.
+_COLLIDING = (
+    (
+        "shopify__order_lines",
+        {
+            "order": '{"id": "A1"}',
+            "position": 1,
+            "variant": '{"sku": "S"}',
+            "properties": "{}",
+            "quantity": 1,
+        },
+    ),
+    ("woo__order_lines", {"order_number": "A1", "item_index": 1, "product_sku": "S", "qty": 1}),
+)
+
+#: The same two rows with the legacy shop's key moved out of the way. Disjoint
+#: key sets are what the merge *requires*, so this is a project that should
+#: build clean — and it is the control for the pair above, because a build that
+#: failed on both would say nothing about the audit.
+_DISJOINT = (
+    _COLLIDING[0],
+    ("woo__order_lines", {"order_number": "B2", "item_index": 1, "product_sku": "S", "qty": 1}),
+)
+
+
+def _insert(database: pathlib.Path, rows: tuple[tuple[str, dict[str, object]], ...]) -> None:
+    """Put rows in the bronze relations ``_seed_sources`` created empty.
+
+    Separate from that function rather than folded into it, because its "there
+    are deliberately no rows" doctrine is right for what it does: the structural
+    claims it serves fail just as loudly on an empty warehouse, and seeding
+    every fixture would make every build slower to prove nothing extra. What
+    *needs* rows is a check firing, and that is exactly two tests.
+
+    Columns are **named**, not positional. ``_seed_sources`` derives a
+    relation's column set from every column the model mentions, so a merged
+    entity's two bronze tables both carry the union of both branches' columns —
+    a positional insert would silently depend on that, and on its ordering.
+    """
+    import duckdb
+
+    connection = duckdb.connect(str(database))
+    try:
+        for relation, values in rows:
+            columns = ", ".join(f'"{name}"' for name in values)
+            placeholders = ", ".join("?" for _ in values)
+            connection.execute(
+                f'INSERT INTO bronze."{relation}" ({columns}) VALUES ({placeholders})',
+                list(values.values()),
+            )
+    finally:
+        connection.close()
+
+
+def _merged_project(
+    tmp_path: pathlib.Path, rows: tuple[tuple[str, dict[str, object]], ...]
+) -> pathlib.Path:
+    database = tmp_path / "warehouse.duckdb"
+    _write_project(tmp_path, "multi_source", database=str(database))
+    _seed_sources(database, "multi_source")
+    _insert(database, rows)
+    return database
+
+
+def test_a_seeded_collision_fails_dbt_build(tmp_path: pathlib.Path) -> None:
+    """RFC 0026's load-bearing claim, and the only evidence for it.
+
+    Everything else about a singular test can be proved by reading: the golden
+    says the file is emitted, the unit tests say what is in it, and
+    ``dbt compile`` says the SQL renders. None of that distinguishes a test dbt
+    runs from SQL sitting in a directory. A build that goes red on data the
+    check is *about* does.
+
+    This is also the assertion behind lifting RFC 0024 D30. D30 refused a
+    merged entity here because the merge is not correct without the audit;
+    emitting the audit is only an answer if the audit actually stops a run.
+    """
+    _merged_project(tmp_path, _COLLIDING)
+    assert not _run(tmp_path, "build").success
+
+
+def test_the_same_project_builds_clean_on_disjoint_keys(tmp_path: pathlib.Path) -> None:
+    """The control. A build that failed whatever the data said would prove the
+    project broken rather than the check working — and the merge's own
+    precondition is that the key sets are disjoint, so this is the shape a
+    correct project has."""
+    _merged_project(tmp_path, _DISJOINT)
+    assert _run(tmp_path, "build").success
+
+
+def test_dbt_run_does_not_evaluate_the_check_at_all(tmp_path: pathlib.Path) -> None:
+    """The first of the operator contract's two sentences (RFC 0026 §5.5, D2).
+
+    A SQLMesh audit blocks because the framework evaluates it as part of the
+    model's materialization. A dbt test is a separate node, and ``dbt run``
+    does not run tests — so the same data that fails the build above passes
+    here, in silence.
+
+    This is accepted rather than worked around, on consistency: every schema
+    test this emitter has shipped since RFC 0008 has the same property, and a
+    ``not_null`` audit does not block ``dbt run`` either. Refusing the merge for
+    a property shared by every existing check would apply a standard exactly
+    once. What it costs is a sentence in the operator contract, and this is the
+    test that says the sentence is true.
+    """
+    _merged_project(tmp_path, _COLLIDING)
+    assert _run(tmp_path, "run").success
+
+
+def test_warn_error_promotes_a_flagging_check(tmp_path: pathlib.Path) -> None:
+    """The mirror sentence (RFC 0026 D3), and the one a reader given only the
+    first will get wrong.
+
+    ``on_fail: flag`` means "record it and keep going" everywhere else in
+    bloomery, and it maps exactly onto dbt's ``severity='warn'``. But dbt lets
+    the *invocation* choose the consequence in both directions: ``--warn-error``
+    promotes every warning to an error, so a flagging check stops the build
+    under that flag. Neither this nor ``dbt run`` skipping a blocking check is a
+    mapping error; both are the same fact about dbt, that a test's consequence
+    is the invocation's to choose.
+
+    ``coverage_check`` is the fixture because its check is declared
+    ``on_fail: flag`` — the disposition under test — and a customer with no
+    orders is exactly what it looks for.
+    """
+    database = tmp_path / "warehouse.duckdb"
+    _write_project(tmp_path, "coverage_check", database=str(database))
+    _seed_sources(database, "coverage_check")
+    _insert(database, (("crm__customers", {"id": "c1", "name": "Silent"}),))
+    assert _run(tmp_path, "build").success
+    assert not _run(tmp_path, "build", "--warn-error").success
+
+
+def test_a_native_test_names_its_column_where_a_singular_test_names_the_check(
+    tmp_path: pathlib.Path,
+) -> None:
+    """RFC 0026 D4 is graded ``ASSUMED`` and D10 asks whoever builds this to
+    "confirm the readability claim against real ``dbt test`` output rather than
+    take it from here". This is that confirmation.
+
+    The claim is that a native test is the better lowering *where dbt has an
+    equivalent*, because it names its column in test output and a hand-rolled
+    query does not. dbt names a generic test node from its model, column and
+    arguments — ``not_null_customer_email`` — and a singular test from its
+    filename, so a check with a column has its column in the output only if it
+    stayed a schema test.
+
+    So the split survives measurement: keeping ``not_null`` and ``enum`` native
+    is worth the second mechanism, and routing everything through singular
+    tests would have traded that away for uniformity.
+    """
+    _write_project(tmp_path, "scd2_customers", database=str(tmp_path / "warehouse.duckdb"))
+    _seed_sources(tmp_path / "warehouse.duckdb", "scd2_customers")
+    result = _run(tmp_path, "build")
+    assert result.success, getattr(result, "exception", None)
+    names = {node.node.name for node in result.result}
+    # The column is in the node's own name — which is the whole of D4's claim.
+    assert any(name.startswith("not_null_") and "email" in name for name in names), names
+    assert any(name.startswith("accepted_values_") and "segment" in name for name in names), names

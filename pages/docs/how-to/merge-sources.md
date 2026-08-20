@@ -193,11 +193,18 @@ source and removing one each report the metrics whose values move.
 
 ## Target support
 
-SQLMesh only, for now. The `UNION ALL` itself needs nothing dbt lacks — and the dbt emitter
-does declare one `source()` per mapping — but the collision audit has no honest dbt
-equivalent, and the merge is not correct without it. Compiling a merged entity for dbt
-refuses, naming the audit and pointing at the target that emits it, rather than quietly
-shipping an unguarded union.
+Both SQL targets. The `UNION ALL` needs nothing dbt lacks — it is the same shared SELECT,
+and the dbt emitter declares one `source()` per mapping — and the collision audit that
+makes the merge correct is emitted as a
+[singular test](emit-dbt.md#singular-tests-and-when-they-run), `tests/<entity>_source_collision.sql`,
+carrying `severity='error'` because that audit is blocking and not configurable to
+anything weaker.
+
+One thing to know if you build with dbt: a dbt test is a separate node, so the collision
+audit runs under `dbt build` and **not** under `dbt run`. Running the project with
+`dbt run` materializes the union with its correctness condition unevaluated. The
+[operator contract](emit-dbt.md#the-operator-contract) states this for every check
+bloomery emits to dbt, not only this one.
 
 ## See also
 

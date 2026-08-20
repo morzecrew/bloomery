@@ -396,3 +396,227 @@ them together.
 
 **Rule distilled:** a lowering that has to *name* the parts of a structure can only carry
 the parts it knows the names of — prefer the form that passes the structure through.
+
+---
+
+# Unit 3 · RFC 0026 · the dbt singular-test surface
+
+Branch `design/rfc-0026-dbt-singular-tests`. RFC 0026, whole — it is a one-phase
+document — plus the retirement its completion earns.
+
+**Drift count: 0.** Three departures, none of them an implementation that went its own
+way: D-012 is a mechanism the RFC could not have known it needed, D-013 is a refusal the
+RFC counted that does not exist, and D-014 is a reachability limit on work the author
+added past the RFC.
+
+One decision was taken **before** execution and is recorded here because it changes what
+shipped: the author extended the lift past the RFC's five refusals to the two checks dbt
+was *silently* missing — an entity's `on_fail: fail` audits and its ingestion-metadata
+audit. Both were absent under RFC 0016 §5.4's target-coverage sentence, which was written
+when this emitter had no artifact for them. The plan flagged it as the one load-bearing
+gap; the author agreed to extend. See D-014 for what that actually bought.
+
+## D-012 — an audit body crosses targets as a tree, not as rendered SQL
+
+- **Touches:** RFC 0026 D10 (`LOCKED`) — its mechanism, not its decision
+- **RFC said:** "A producer instead returns a *named body* — **rendered SELECT**, name,
+  disposition — and each target wraps it."
+- **Built:** `AuditBody.select` is an unrendered `exp.Select | exp.Union`.
+- **Because:** the dbt emitter rewrites every relation in a body to a `ref()` before
+  rendering it (D5), and it can only do that to a tree. A pre-rendered SELECT arrives as
+  text, and the only thing text supports is the string substitution D10 refuses in its
+  own next sentence. The two halves of D10 are inconsistent as written; the half that
+  carries the argument is the one about substitution.
+- **Class:** `discovery` — visible only once the body had to reach `_render`.
+- **Consequence:** `emit/base.py` gains a public dataclass whose annotation is a sqlglot
+  type. Rendering moves to the two call sites that wrap the body, which is where the
+  envelope already was.
+
+## D-013 — the fifth refusal does not lift, because there is nothing to route
+
+- **Touches:** RFC 0026 §2's table, §5.4's table, and D1's consequence
+- **RFC said:** "An unmapped audit kind" is one of the five refusals a singular test
+  lifts, and D1's consequence is that "'no honest mapping' ceases to be a reachable state
+  for an audit kind".
+- **Built:** the branch stays a refusal, with a corrected message.
+- **Because:** a singular test needs a **body**, and an unmapped audit kind has none. The
+  `assert:` vocabulary is closed at six kinds — `guardrails/asserts.py` and
+  `guardrails/conflict.py` are the only constructors of an `AuditIR` — and
+  `audit_predicate` handles exactly the four custom ones. All six already map to a schema
+  test, so the branch is unreachable from any spec; it is reachable only by
+  hand-building the IR, which is what its test does. Worse, the refusal was **misnamed**:
+  the SQLMesh emitter reaches the same branch and dies on a `KeyError`, so this was never
+  a dbt limitation but the only guard either target had.
+- **Class:** `spec-gap` — knowable before code. The RFC read the five refusal *messages*
+  and did not read the predicate behind the fifth, which is why four of them share a
+  cause and the fifth only shares a sentence.
+- **Consequence:** the lift is four refusals, not five, and the message now says the kind
+  is outside the closed vocabulary rather than that dbt cannot map it. §5.4's row is
+  wrong as written; the corrected claim lives in the test's docstring and here.
+
+## D-014 — half the extension is unreachable on dbt, and stays anyway
+
+- **Touches:** nothing in RFC 0026 — the author's extension past it
+- **Built:** both `fail_audits` and the ingestion-metadata audit lower to singular tests.
+  Only the second can be reached by a spec.
+- **Because:** an `on_fail: fail` rule needs a `quality:` surface; declaring one opts the
+  entity into coercion routing; the implicit `coercible` rules default to `quarantine`;
+  and a **key** column's cannot be overridden, because a key mapping takes no `quality:`
+  block at all. So every entity that could carry a fail audit also carries a quarantine
+  disposition, and `_refuse_quarantine` raises first — measured across four spec shapes,
+  including entity-level `quality:` and an untransformed string key. The metadata audit
+  has no such problem: `dedupe:` alone does not opt an entity in, and that shape compiles
+  on both dialects and both targets.
+- **Class:** `discovery` — the coupling runs through three documents (RFC 0016 §5.2's
+  coercible default, the key mapping's schema, `_refuse_quarantine`) and no reading of
+  RFC 0026 would surface it.
+- **Consequence:** the lowering stays, because it is correct and goes live the day dbt
+  grows the reject model RFC 0016 §5.4 leaves out of scope. It is covered by a test that
+  builds the IR directly, and both the docstring and the changelog say the leg is empty
+  rather than letting a reader infer coverage. **The changelog claims the metadata audit
+  and does not claim entity fail audits** — that asymmetry is deliberate.
+- **Deliberately not applied:** deleting the `fail_audits` leg. Unreachable code is
+  untested code, so it got a test rather than a deletion; removing and re-adding it when
+  the reject lowering lands is churn that loses the measurement above.
+
+## Rules distilled
+
+- **A refusal message is evidence about a message, not about a capability.** Four of
+  RFC 0026's five refusals shared a cause and the fifth shared only a sentence; reading
+  `audit_predicate` rather than the five messages would have separated them before the
+  RFC was written (D-013).
+- **"Silently absent" and "refused" are the same gap seen from two sides, and only one of
+  them is in the refusal list.** The dbt target's missing checks were found by asking
+  what SQLMesh emits that dbt does not, which is a different question from what dbt
+  refuses — and it is the question that found the inconsistency the lift would otherwise
+  have created between a step's `on_fail: fail` audit and an entity's.
+- **A lift is worth measuring for reachability, not just for correctness.** Half of one
+  landed as code no spec can run, and the coupling that makes it so lives in three
+  documents (D-014). Ask "what spec reaches this?" before claiming a gap closed.
+- **Two targets, one body, one comparison.** Asserting each target's audit body
+  separately would pass straight through a divergence; the battery that compares them is
+  what makes D10's envelope split provable rather than merely intended.
+
+## Carried into the next unit
+
+- **Entity `on_fail: fail` audits on dbt are lowered and unreachable** (D-014). They go
+  live with a dbt reject lowering, which is RFC 0016 §5.4's out-of-scope item and has no
+  RFC of its own.
+- **RFC 0026 §5.4's row for "unmapped entity audit kinds" is wrong** (D-013). The
+  document is retired in this unit, so the correction lives here and in the guard's own
+  test; anyone citing that row should read this entry.
+- ~~The dbt consumer's gate~~ — fired, and the work it gated has landed.
+- **`quarantine:` and `reconcile:` on dbt stay refused**, each on its own argument, and
+  both now need *models* rather than tests. `reconcile:`'s message was corrected here to
+  stop citing the test surface (RFC 0026 D8).
+- **The recipe float** (D-004) and **`divide` on DuckDB** (D-003) are still open; nothing
+  in this unit touched them.
+
+## Self-audit — 2026-08-20, unit 3
+
+Scope: 8 commits / 25 files / +1146−306 against `main` @ `d51daf8`, plus this log.
+Patch coverage **100.00%** (69/69 added lines) on the full local profile
+(unit + golden + property + execution + e2e, 3137 passed / 5 skipped, 99.12% total).
+`just test` with `--refusal-census` passes, which is the check that deleting three
+refusal functions left no error class unproduced. Sabotage sweep below.
+
+*Written down twice.* The first version of this line claimed 100% before the number was
+measured — a prediction from having just closed the one gap the previous run named. It
+was right about the percentage and wrong about the count, which is the point: a figure
+in a durable document has to be an observation. Recorded rather than quietly overwritten,
+because pass 9's rule is exactly the one it broke.
+
+| # | Finding | Status |
+| --- | --- | --- |
+| A-1 | **A `LOCKED` row's conflict was resolved in code instead of halted.** RFC 0026 D1's consequence — "`_entity_tests`'s `else` branch stops being a raise and becomes a route" — turned out unbuildable (D-013), and the executor kept the raise and logged it. `flag-dont-flip` says a `LOCKED` conflict halts and waits, precisely because an obviously-correct resolution is the one whose confidence is under test. The code outcome is almost certainly right; the procedure was not. | **Open — the author's call** |
+| A-2 | **Both `OPEN` rows were decided and neither decision reached this log.** D6 (test-file naming) and D7 (fingerprint header) were settled in `_singular_test`'s docstring only. Choosing an option an RFC delegated is not a departure, so conformance looked perfect while the choice and its rationale lived nowhere a reader of the corpus would find them. | Fixed — D-015, D-016 |
+| A-3 | **D4's stated obligation was not discharged.** The row is `ASSUMED` and §10 asks whoever builds this to "confirm the readability claim against real `dbt test` output rather than take it from here". Nothing had. | Fixed — an e2e test reads the built node names and shows a native test carries its column (`not_null_customer_email`) where a singular test carries only the check's own name |
+| A-4 | **The plan promised the operator contract in the emitted project and the diff dropped it.** §5.5 calls that sentence the RFC's cost and "not optional"; §10 argues it belongs *in* `dbt_project.yml`. The docs page had it; the emitted bytes did not — and the reader who runs `dbt run` on a generated project is exactly the one who never saw the page. | Fixed — a comment header on `dbt_project.yml`, pinned by a test rather than by the goldens alone |
+| A-5 | **A latent `KeyError` behind a refusal's ordering.** `_step_test_artifacts` skipped on `is SQL_MACRO`, copied from the SQLMesh producer, while its dbt sibling `_step_artifacts` skips on `is not SQL_MODEL`. A Tier 3 step reaching the relation resolver has no `ref()` in the map, so it would raise `KeyError` rather than the refusal — unreachable only because `refuse_python_models` runs first, which is exactly the dependency a condition should not have. | Fixed |
+| A-6 | **The one body D10 could not unify was the one body nothing watched.** The ingestion-metadata audit keeps two spellings on purpose — SQLMesh's Jinja envelope, and the tree `metadata_audit_select` builds — because §4 rules out changing a correct audit body and a pretty-printed AST is not byte-identical to a template line. Every *shared* body is pinned by the cross-target comparison; this one was pinned by nothing, which is D10's parallel-maintenance failure surviving in the single place D10 does not reach. | Fixed — the two spellings are parsed and compared on all three dialects, verified red |
+| A-7 | One added line uncovered: the Tier 1 skip in `_step_test_artifacts`, whose condition A-5 had just changed. | Fixed — a macro-step case |
+
+**Sabotage sweep**, five mutations, four killed:
+
+- `severity` always `error` → killed by the mart-assert and coverage tests.
+- the self-relation reverts to a literal `silver.<entity>` → killed by three unit tests and the `multi_source` golden.
+- the shared collision predicate `>` → `>=` → killed by four goldens across both targets. **The cross-target comparison survived this one, correctly**: it is a relational check, so a change to the *shared* body moves both sides together. That is the division of labour — the comparison catches divergence, the goldens catch wrongness — and it is why the comparison ships with a control proving it can fail.
+- one target's body diverges (`.limit(100)` on the dbt side only) → killed by the comparison on all three dialects, and by nothing else.
+- singular tests emitted to `checks/` while `test-paths` still says `tests/` → killed by the e2e build tests, which is the evidence that dbt runs the files rather than merely accepting them.
+
+**And the RFC's own §6 warning, confirmed rather than assumed.** §6 says removing the
+`test-paths` declaration would *not* break discovery, because dbt's default is already
+`["tests"]`, and that an earlier draft claiming otherwise was wrong. Measured: with the
+declaration deleted and the files left in place, the seeded collision still fails
+`dbt build`. So the unit test asserts the right thing — that the layout is *stated* — and
+the e2e test is what carries the discovery claim.
+
+**Narrowing recorded, not a finding.** §6 asks for "a fixture per lifted refusal". Two
+lifted refusals (mart assertions, step audits) are exercised by projects built inline in
+their own test modules rather than by corpus fixtures. §6's stated purpose — a test that
+discriminates the construct rather than the fixture — is met either way, and
+`quality_precedence` could not serve for mart assertions because it also carries a
+`reconcile:` block that dbt still refuses.
+
+## D-017 — the path-uniqueness guard is shared, because it stopped being SQLMesh's
+
+- **Touches:** nothing in RFC 0026 — found in review of #43, by both bots
+- **RFC said:** nothing. §9 named "test-name collisions" as a risk of the naming
+  *scheme* and D6 answered it by showing dbt's generic-test names cannot collide with
+  `<entity>_<rule>`. Both were about one family at a time.
+- **Built:** `_assert_unique_paths` moves from the SQLMesh emitter to `emit/base.py` as
+  `assert_unique_paths`, and both SQL targets call it.
+- **Because:** the risk §9 named is real and it is *between* families, not inside one.
+  Reproduced before fixing: a mart `a` asserting `b_c` and a mart `a_b` asserting `c`
+  both lower to the audit name `a_b_c`, and neither declaration is wrong on its own.
+  SQLMesh refuses that project with an `EmitError` naming the path; dbt emitted **two
+  artifacts at `tests/a_b_c.sql`** — 8 artifacts, 7 unique paths — so the caller's
+  path-to-content map kept whichever was written last and a declared quality gate
+  silently did not exist. That is exactly the degradation RFC 0008 D3 refuses, and this
+  branch is what created the exposure: before it, dbt wrote no audit artifacts to
+  collide.
+- **Class:** `spec-gap`. Knowable before code — §9 wrote the risk down, and answering it
+  per-family is what let the cross-family case through. The general guard already existed
+  and was in the wrong module.
+- **Consequence:** a project in that shape now refuses on dbt where it used to emit,
+  which is a changelog entry rather than a silent fix. Cube is deliberately not a caller:
+  its paths are `model/cubes/<mart>.yml` and `model/views/<mart>_view.yml` over mart
+  names already unique by construction, so the map is injective and the guard would have
+  no instance.
+- **Also closes an untested raise.** The SQLMesh guard had shipped since RFC 0017 with
+  **no test that it fires** — line-covered because it runs on every emit, and its refusal
+  branch never exercised. The battery added here drives both targets, so the older half
+  of the contract is proved for the first time too.
+
+## D-015 — a singular test's filename is the audit's own name, unprefixed
+
+- **Touches:** RFC 0026 D6 (`OPEN`)
+- **RFC said:** the executor decides between the raw audit name and a `bloomery_` prefix
+  matching the macro's convention, and logs it.
+- **Built:** `tests/<audit name>.sql`, no prefix.
+- **Because:** audit names are already unique per project and constrained to
+  `[a-z0-9_]+`, and dbt's generic tests are named mechanically from their model, column
+  and arguments (`accepted_values_order_segment__business__consumer`), so nothing dbt
+  generates can collide with `<entity>_<rule>`. A prefix would buy nothing and cost every
+  failure report its readable name. §9's "test-name collisions" risk is answered by the
+  namespace being provably disjoint rather than by decoration.
+- **Class:** `spec-gap` by the log's own definition — the RFC delegated it, so nothing was
+  missed, but the entry exists because an `OPEN` row answered only in code is
+  indistinguishable from a row nobody read.
+- **Consequence:** an audit has one name on both targets, which is what lets the
+  cross-target comparison pair the bodies at all.
+
+## D-016 — every artifact carries the fingerprint header, tests included
+
+- **Touches:** RFC 0026 D7 (`OPEN`)
+- **RFC said:** decide, and the decision is either "yes, uniformly" or an explicit
+  statement of which artifact classes carry one and why.
+- **Built:** yes, uniformly.
+- **Because:** the alternative is not "leave it off a test" but "write down a rule about
+  artifact classes", and no such rule exists today — every emitted file carries the
+  header. Uniformity is the cheaper claim to keep true, and §10's doubt (whether a
+  fingerprint means anything on an artifact nobody diffs) argues against the header's
+  *usefulness* on a test rather than against its cost.
+- **Class:** `spec-gap`, on the same reading as D-015.
+- **Consequence:** `plan()` sees a test's fingerprint move with the project's, like every
+  other artifact.

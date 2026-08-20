@@ -298,8 +298,12 @@ fails it. Widening an `enum_map` — a new target *or* a new spelling for an exi
 
 - **Targets.** SQLMesh emits the full set. The dbt emitter raises `UnsupportedByTarget`
   for the reject/replay artifacts and for `reconcile` — flag-only surfaces still emit,
-  since `_quality_flags` is the same shared `SELECT` for both. Cube consumes the quality
-  mart like any other mart.
+  since `_quality_flags` is the same shared `SELECT` for both. The checks that are not
+  row predicates — a `coverage:` check, a mart `assert:`, and the ingestion-metadata
+  audit an entity with `dedupe:` carries — emit there as
+  [singular tests](emit-dbt.md#singular-tests-and-when-they-run), which run under
+  `dbt build` and not under `dbt run`. Cube consumes the quality mart like any other
+  mart.
 - **Dialects.** Postgres has no `TRY_CAST`, so an entity carrying `coercible` rules —
   which is any entity with a `quality:` surface — cannot compile for it.
   `UnsupportedByTarget`, loudly, rather than a `CAST` that aborts the run where the spec

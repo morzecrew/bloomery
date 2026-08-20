@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING, Final, cast
 import jinja2
 from sqlglot import exp
 
-from bloomery.emit.base import ArtifactKind, EmittedArtifact
+from bloomery.emit.base import ArtifactKind, AuditBody, EmittedArtifact
 from bloomery.emit.lower import THIS_MODEL
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import Layer, OnFail, StepKind
@@ -52,7 +52,7 @@ from bloomery.steps.splice import parameter_literal
 from bloomery.typing import render_type
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
     from sqlglot.expressions.core import Expression
 
@@ -61,10 +61,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "consistency_audits",
-    "refuse_coverage",
-    "refuse_mart_asserts",
     "refuse_python_models",
-    "refuse_step_audits",
     "step_artifacts",
     "step_body",
     "step_output_relation",
@@ -98,37 +95,6 @@ def refuse_python_models(ir: ProjectIR, target: str) -> None:
     raise UnsupportedByTarget(msg)
 
 
-def refuse_step_audits(ir: ProjectIR, ctx: EmitContext, target: str) -> None:
-    """Refuse a step whose outputs carry audits on a target without them.
-
-    A step's audits are whole-query checks — a join between sibling outputs
-    (D40), or an ``on_fail: fail`` rule's blocking body (D39). dbt's schema
-    tests are per-column or per-model *predicates*; neither shape survives the
-    translation, and ``_entity_tests`` already refuses an audit kind with "no
-    honest dbt schema-test mapping" for exactly this reason (RFC 0008 D3).
-
-    Checked by *building* the audits rather than by inspecting the step,
-    because what decides it is whether any were generated — a single-output
-    ``sql_model`` with no ``fail`` rules generates none, and refusing it would
-    withhold the tier for a reason that does not apply to it.
-    """
-    named = sorted(
-        artifact.path.removeprefix("audits/").removesuffix(".sql")
-        for step in ir.steps
-        for _owner, artifact in (*consistency_audits(step, ctx), *quality_audits(step, ir, ctx))
-    )
-    if not named:
-        return
-    msg = (
-        f"step audit(s) {', '.join(named)} are whole-query checks (RFC 0017 D39/D40), "
-        f"which the {target} target cannot express: its schema tests are per-column or "
-        "per-model predicates, and approximating a cross-relation join with one would "
-        "change what the check means. Fix: compile for SQLMesh, or drop the references:/"
-        "on_fail: fail declarations these come from"
-    )
-    raise UnsupportedByTarget(msg)
-
-
 def step_body(step: StepIR) -> Expression:
     """A Tier 2 body with its parameters substituted, for any target.
 
@@ -143,53 +109,6 @@ def step_body(step: StepIR) -> Expression:
 def step_output_relation(output: StepOutputIR, ctx: EmitContext) -> tuple[str, str]:
     """``(namespace, relation)`` for one output, under the naming policy."""
     return ctx.naming.relation(_relation_name(output), Layer.SILVER)
-
-
-def refuse_coverage(ir: ProjectIR, target: str) -> None:
-    """Refuse a cross-entity coverage check on a target without audits.
-
-    Same argument as :func:`refuse_mart_asserts`, one relation further out: the
-    body joins two relations and groups, and dbt's schema tests are per-column
-    or per-model predicates. dbt **builds** the models, so a check it silently
-    does not emit is a check that does not exist (RFC 0008 D3).
-
-    Cube is not a caller: it builds nothing (RFC 0017 D52).
-    """
-    declared = sorted(check.name for check in ir.coverage)
-    if not declared:
-        return
-    msg = (
-        f"coverage check(s) {', '.join(declared)} lower to an audit joining two silver "
-        f"relations (RFC 0016 D90), which the {target} target cannot express: its schema "
-        "tests are per-column or per-model predicates, and there is no grouped "
-        "cross-relation form to approximate one with. Fix: compile for SQLMesh, or drop "
-        "the coverage: block for this target"
-    )
-    raise UnsupportedByTarget(msg, source_path="entity_model: coverage")
-
-
-def refuse_mart_asserts(ir: ProjectIR, target: str) -> None:
-    """Refuse a mart assertion on a target that cannot emit it (RFC 0016 D89).
-
-    An assertion lowers to an audit over a grouped aggregate, and dbt's schema
-    tests are per-column or per-model *predicates* — there is no grouped form to
-    approximate it with. dbt **builds** the mart, so a gate it silently does not
-    emit is a gate that does not exist (RFC 0008 D3).
-
-    Cube is not a caller: it builds nothing, emits no audit for anything, and
-    refusing it here would single out one check among the many this emitter
-    already leaves to whoever maintains the tables (RFC 0017 D52).
-    """
-    declared = [f"{mart.name}.{clause.name}" for mart in ir.marts for clause in mart.asserts]
-    if not declared:
-        return
-    msg = (
-        f"mart assertion(s) {', '.join(sorted(declared))} lower to a SQLMesh audit, which "
-        f"the {target} target cannot emit (RFC 0016 D89). Compiling anyway would ship a "
-        "project whose declared data-quality gate does not exist. Fix: compile for "
-        "SQLMesh, or drop the assert: block for this target"
-    )
-    raise UnsupportedByTarget(msg)
 
 
 # The wrapper is Python, so the envelope interpolates *pre-rendered* strings
@@ -258,23 +177,6 @@ def execute(context: typing.Any, **kwargs: typing.Any) -> typing.Any:
     _blm_assert(_blm_outputs, _blm_manifest)
     return _blm_outputs[{{ output }}]
 ''',
-    autoescape=False,
-)
-
-
-# A whole-query audit body: the SELECT returns violating rows and the audit
-# passes when there are none — the same shape RFC 0016's blocking audits use,
-# and the SQL arrives pre-rendered through the dialect port (RFC 0008 D4).
-_AUDIT = jinja2.Template(  # nosec B701
-    """\
--- Generated by bloomery — do not edit.
--- fingerprint: {{ fingerprint }}
-AUDIT (
-  name {{ name }}
-);
-
-{{ select }}
-""",
     autoescape=False,
 )
 
@@ -587,6 +489,19 @@ def _audit_name(child: StepOutputIR, column: str, parent: StepOutputIR) -> str:
 _OUTPUT_ALIAS = "_output"
 
 
+def _macro_relation(_output: StepOutputIR) -> str:
+    """How SQLMesh spells "the relation this audit is attached to".
+
+    The default rather than the only answer (RFC 0026 D10): a target that
+    attaches an audit by *reference* instead of by macro passes its own
+    resolver, and the body is built with that spelling from the start. dbt is
+    such a target — ``{{ ref('…') }}`` is what makes a singular test order
+    against the model it judges — and the alternative, emitting ``@this_model``
+    and rewriting the file afterwards, is the substitution D10 refuses.
+    """
+    return THIS_MODEL
+
+
 def _quality_audit_name(output: StepOutputIR, rule: QualityRuleIR) -> str:
     """``step_<output>_<rule>`` — under the same ``step_`` namespace the
     consistency audits use, so an authored rule name cannot collide with an
@@ -596,10 +511,14 @@ def _quality_audit_name(output: StepOutputIR, rule: QualityRuleIR) -> str:
 
 
 def quality_audits(
-    step: StepIR, ir: ProjectIR, ctx: EmitContext
-) -> tuple[tuple[str, EmittedArtifact], ...]:
+    step: StepIR,
+    ir: ProjectIR,
+    ctx: EmitContext,
+    *,
+    self_relation: Callable[[StepOutputIR], str] = _macro_relation,
+) -> tuple[AuditBody, ...]:
     """Blocking audits for ``on_fail: fail`` rules on step outputs (D39),
-    returned with the output each is attached to.
+    each naming the output it is attached to.
 
     Only ``fail`` reaches here — lowering refuses ``flag`` and ``quarantine``,
     which compile into a silver SELECT that a step-produced relation does not
@@ -615,15 +534,17 @@ def quality_audits(
     whole of what can be checked, and it is the population that matters: the
     rows the step actually produced.
 
-    The relation is addressed through ``@this_model``, never through the
-    naming policy. That is the doctrine ``lowering.py`` states and D44 had to
-    relearn on the consistency audit: a policy-spelled relation resolves to a
-    virtual-layer view rather than the plan\'s snapshot.
+    The relation is never addressed through the naming policy. On SQLMesh that
+    is the doctrine ``lowering.py`` states and D44 had to relearn on the
+    consistency audit: a policy-spelled relation resolves to a virtual-layer
+    view rather than the plan\'s snapshot. ``self_relation`` is how a target
+    that spells it differently says so (RFC 0026 D10) — it is not an opening
+    for the policy spelling, which no caller passes.
     """
     rules = {
         entity.name: entity.quality for entity in ir.entities if entity.produced_by is not None
     }
-    emitted: list[tuple[str, EmittedArtifact]] = []
+    emitted: list[AuditBody] = []
     for output in step.outputs:
         for rule in rules.get(_relation_name(output), ()):
             if rule.on_fail is not OnFail.FAIL:  # pragma: no cover — lowering refuses these
@@ -634,32 +555,23 @@ def quality_audits(
                 .select(exp.Star())
                 .from_(
                     # Unquoted: `@` is not an identifier character, and a
-                    # quoted macro is a table named `@this_model`.
-                    exp.Table(this=exp.to_identifier(THIS_MODEL, quoted=False), alias=_OUTPUT_ALIAS)
+                    # quoted macro is a table named `@this_model`. A dbt
+                    # `{{ ref(...) }}` needs the same treatment for the same
+                    # reason, which is why one spelling covers both.
+                    exp.Table(
+                        this=exp.to_identifier(self_relation(output), quoted=False),
+                        alias=_OUTPUT_ALIAS,
+                    )
                 )
                 .where(verdict(rule, _OUTPUT_ALIAS))
             )
-            content = _AUDIT.render(
-                fingerprint=ctx.fingerprint,
-                name=name,
-                select=ctx.dialect.render(select),
-            )
-            emitted.append(
-                (
-                    output.name,
-                    EmittedArtifact.create(
-                        path=f"audits/{name}.sql",
-                        content=content.rstrip("\n") + "\n",
-                        kind=ArtifactKind.AUDIT,
-                    ),
-                )
-            )
+            emitted.append(AuditBody(owner=output.name, name=name, select=select))
     return tuple(emitted)
 
 
-def consistency_audits(step: StepIR, ctx: EmitContext) -> tuple[tuple[str, EmittedArtifact], ...]:
+def consistency_audits(step: StepIR, ctx: EmitContext) -> tuple[AuditBody, ...]:
     """Blocking audits that sibling outputs of one step agree (RFC 0017 D16),
-    returned with the **child output** each one must be attached to.
+    each owned by the **child output** it must be attached to.
 
     D16 accepts a real residual risk: each output gets its own wrapper, so the
     step runs N times, and that is only safe for a *correctly declared* step.
@@ -676,60 +588,77 @@ def consistency_audits(step: StepIR, ctx: EmitContext) -> tuple[tuple[str, Emitt
     audits asserting their id sets are identical, failing every run on correct
     data — the failure that teaches people to ignore audits.
 
-    The name is returned beside the artifact because an audit nothing
-    references never runs: SQLMesh loads a bare ``AUDIT`` as a *model* audit,
-    executed only when a model's ``audits`` list names it.
+    The owner travels with the body because an audit nothing references never
+    runs: SQLMesh loads a bare ``AUDIT`` as a *model* audit, executed only when
+    a model's ``audits`` list names it.
+
+    Both sides are addressed through the naming policy rather than through a
+    self-relation (:func:`quality_audits` takes one and this does not): neither
+    side is "the model this audit hangs off" — the body compares two siblings,
+    and D40's ``depends_on`` is what makes them resolvable. So the dbt emitter
+    needs no resolver here either: a namespaced relation is already what its
+    reference map rewrites.
     """
     # No `len(outputs) < 2` shortcut: a single output declares no
     # references (the manifest validator refuses a self-reference), so the
     # loop below is already empty for it. The guard was dead code its own
     # test passed without.
-    emitted: list[tuple[str, EmittedArtifact]] = []
+    emitted: list[AuditBody] = []
     by_name = {output.name: output for output in step.outputs}
     for child in step.outputs:
         for column, target in child.references:
             parent = by_name.get(target)
             if parent is None:  # pragma: no cover — the manifest validator refuses this
                 continue
-            name = _audit_name(child, column, parent)
-            content = _AUDIT.render(
-                fingerprint=ctx.fingerprint,
-                name=name,
-                select=ctx.dialect.render(_consistency_select(parent, child, column, ctx)),
-            )
             emitted.append(
-                (
-                    child.name,
-                    EmittedArtifact.create(
-                        path=f"audits/{name}.sql",
-                        content=content.rstrip("\n") + "\n",
-                        kind=ArtifactKind.AUDIT,
-                    ),
+                AuditBody(
+                    owner=child.name,
+                    name=_audit_name(child, column, parent),
+                    select=_consistency_select(parent, child, column, ctx),
                 )
             )
     return tuple(emitted)
 
 
 def step_artifacts(
-    ir: ProjectIR, ctx: EmitContext, envelope: jinja2.Template
+    ir: ProjectIR,
+    ctx: EmitContext,
+    envelope: jinja2.Template,
+    audit_envelope: jinja2.Template,
 ) -> tuple[EmittedArtifact, ...]:
     """Every artifact the project's steps contribute, sorted by path.
 
     ``sql_macro`` contributes none — it lives inside a consuming model's
     SELECT (§5.1), which is the whole point of the tier.
+
+    **Both envelopes arrive from the caller** (RFC 0026 D10). The model one
+    always did; the audit one used to be a template *here*, which made this
+    module target-neutral by position and SQLMesh-shaped by content — a
+    producer in shared code handing back an ``AUDIT (name …);`` block no other
+    target could use. Only SQLMesh calls this function, and that is the point:
+    it now says so in its signature instead of in its output.
     """
     artifacts: list[EmittedArtifact] = []
     for step in ir.steps:
         if step.kind is StepKind.SQL_MACRO:
             continue
         audits_by_output: dict[str, list[str]] = {}
-        for owner, artifact in (*consistency_audits(step, ctx), *quality_audits(step, ir, ctx)):
-            artifacts.append(artifact)
+        for body in (*consistency_audits(step, ctx), *quality_audits(step, ir, ctx)):
+            content = audit_envelope.render(
+                fingerprint=ctx.fingerprint,
+                name=body.name,
+                select=ctx.dialect.render(body.select),
+            )
+            artifacts.append(
+                EmittedArtifact.create(
+                    path=f"audits/{body.name}.sql",
+                    content=content.rstrip("\n") + "\n",
+                    kind=ArtifactKind.AUDIT,
+                )
+            )
             # The audit is attached to the *child* — the output holding the
             # reference — because that is the model whose rows it judges.
-            audits_by_output.setdefault(owner, []).append(
-                artifact.path.removeprefix("audits/").removesuffix(".sql")
-            )
+            audits_by_output.setdefault(body.owner, []).append(body.name)
         by_name = {output.name: output for output in step.outputs}
         for output in step.outputs:
             attached = tuple(sorted(audits_by_output.get(output.name, ())))

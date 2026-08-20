@@ -181,15 +181,49 @@ def test_the_bound_is_a_literal_of_the_aggregates_own_type() -> None:
     assert "< 1" in _audits()[NON_BLOCKING]
 
 
-def test_dbt_refuses_the_project_rather_than_dropping_the_assertion() -> None:
-    """dbt **builds** the mart, and its schema tests are per-column or
-    per-model predicates with no grouped form. Compiling anyway would ship a
-    project whose declared gate silently does not exist — the failure D83
-    caught in the dialect ports. The message names the assertions, so the
-    author can see which ones to drop."""
+def test_dbt_emits_each_assertion_as_a_singular_test() -> None:
+    """RFC 0026: the refusal was about the *artifact*, not the assertion.
+
+    "dbt's schema tests are per-column or per-model predicates, and there is no
+    grouped form to approximate it with" was true and incomplete — a singular
+    test has no shape constraint at all, and an assertion over a grouped
+    aggregate is exactly what it is for.
+
+    Blocking-ness is the clause's own, as on SQLMesh, and the two are asserted
+    separately because one proves nothing about the other.
+    """
+    project = load_project(
+        {
+            "entity_model": ENTITY_MODEL,
+            "mapping": MAPPING,
+            "marts": marts(
+                GOOD
+                + "      - {name: q_present, measure: quantity, agg: count, "
+                "min: 1, on_fail: flag}\n"
+            ),
+        }
+    )
+    artifacts = compile_project(project, target=Target.DBT, dialect="duckdb")
+    tests = {a.path: a for a in artifacts if a.path.startswith("tests/")}
+    assert set(tests) == {"tests/lines_q_positive.sql", "tests/lines_q_present.sql"}
+    assert "{{ config(severity='error') }}" in tests["tests/lines_q_positive.sql"].content
+    assert "{{ config(severity='warn') }}" in tests["tests/lines_q_present.sql"].content
+    # The mart is reached by reference, which is what orders the test after it.
+    assert "{{ ref('mart_lines') }}" in tests["tests/lines_q_positive.sql"].content
+    # The grouped shape the refusal said had no home, intact.
+    assert "GROUP BY" in tests["tests/lines_q_positive.sql"].content
+
+
+def test_the_fixture_that_still_refuses_does_so_for_its_own_reason() -> None:
+    """``quality_precedence`` carries a ``reconcile:`` block as well as its
+    assertions, and that refusal is untouched by RFC 0026 — it needs a
+    comparison *model*, which this emitter still writes none of. Pinned so a
+    later reader does not read the refusal as the mart assertion's."""
     project, catalog = load_fixture(FIXTURE)
-    with pytest.raises(UnsupportedByTarget, match=f"lines.{BLOCKING.removeprefix('lines_')}"):
+    with pytest.raises(UnsupportedByTarget) as excinfo:
         compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
+    assert "reconcile" in str(excinfo.value)
+    assert BLOCKING not in str(excinfo.value)
 
 
 def test_cube_is_not_asked_about_a_check_it_never_emits() -> None:
