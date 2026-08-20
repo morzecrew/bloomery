@@ -1,11 +1,13 @@
 # Emit dbt artifacts
 
-You want the same compiled project as a dbt project — models, sources, snapshots, and
-schema tests. Be clear-eyed about what this target is: its job in the architecture is
-proving that emission is a real port, not a SQLMesh-shaped hole. It ships minimal but
-honest — every SELECT is byte-identical to what the SQLMesh emitter renders, and
-anything dbt cannot express faithfully is a loud error, never an approximation. Do not
-read it as production-grade dbt scaffolding.
+You want the same compiled project as a dbt project — models, sources, snapshots,
+schema tests and singular tests. Be clear-eyed about what this target is: its job in the
+architecture is proving that emission is a real port, not a SQLMesh-shaped hole. It
+ships minimal but honest — every SELECT is byte-identical to what the SQLMesh emitter
+renders, and anything dbt cannot express faithfully is a loud error, never an
+approximation. Do not read it as production-grade dbt scaffolding, and do not read it as
+reaching parity with SQLMesh: reject tables, replay and reconcile models are still
+SQLMesh's alone.
 
 ## Compile
 
@@ -56,6 +58,9 @@ for artifact in artifacts:
 | `snapshots/<entity>_snapshot.sql` | model | One snapshot per SCD type 2 entity (replaces its silver model) |
 | `models/gold/mart_<name>.sql`, `models/gold/dim_date.sql` | model | The same gold SELECTs SQLMesh emits |
 | `models/schema.yml` | config | Asserts lowered to schema tests |
+| `macros/bloomery_expression_is_true.sql` | audit | The generic test the `min`/`max`/`regex` asserts name, emitted only when one does |
+| `macros/generate_schema_name.sql` | config | Keeps `+schema:` meaning the naming policy's namespace, not dbt's `<target>_<custom>` |
+| `tests/<check>.sql` | audit | One singular test per check with no schema-test shape — see below |
 
 For the SCD2 project above, the snapshot is dbt's native history mechanism:
 
@@ -79,9 +84,12 @@ and a `timestamp` strategy would have to invent one.
 
 `assert:` clauses land in `models/schema.yml`: `not_null` and `enum` map to dbt's
 builtin `not_null` and `accepted_values` tests; `min`, `max`, `regex`, and the
-path-conflict `reconcile` audit become `dbt_utils.expression_is_true` tests carrying
-the same row-level predicate the SQLMesh audits use. Tests for SCD2 entities attach
-under `snapshots:` rather than `models:`:
+path-conflict `reconcile` audit become `bloomery_expression_is_true` tests carrying
+the same row-level predicate the SQLMesh audits use. That test is bloomery's own
+macro, emitted into `macros/` beside the models — not `dbt_utils`', which would leave
+the project declaring a test no `dbt compile` can build until someone runs `dbt deps`
+against the network. Tests for SCD2 entities attach under `snapshots:` rather than
+`models:`:
 
 ```yaml
 version: 2
@@ -99,12 +107,66 @@ snapshots:
         - consumer
 ```
 
+## Singular tests, and when they run
+
+A check that groups, joins or aggregates is not a row predicate, so no `schema.yml`
+entry can carry it. dbt's own artifact for one is a **singular test**: a `.sql` file
+under `tests/` whose query returns the rows that fail. bloomery writes one per check
+that needs it —
+
+| Check | File |
+|---|---|
+| A merged entity's collision audit | `tests/<entity>_source_collision.sql` |
+| The ingestion-metadata audit (`dedupe:`) | `tests/<entity>_ingestion_metadata.sql` |
+| A mart `assert:` clause | `tests/<mart>_<assertion>.sql` |
+| A `coverage:` check | `tests/<check>_coverage.sql` |
+| A step output's audits | `tests/step_<output>_<rule>.sql` |
+
+— each naming its model through `ref()`, so dbt orders the test after the model it
+judges. `on_fail` becomes dbt's `severity`: `fail` → `error`, `flag` → `warn`.
+
+### The operator contract
+
+Two sentences, and you need both. A reader given only the first has the wrong model of
+this target.
+
+> **On dbt, a blocking check blocks under `dbt build`.** A flagging check does not
+> block, unless the run passes `--warn-error`, which promotes it.
+
+`dbt run` does not run tests at all, so a project built with `dbt run` materializes its
+models with every bloomery check unevaluated. **`dbt build` is a requirement of this
+target, not a recommendation.** That is the cost of dbt expressing a check as a separate
+node rather than as part of the model's materialization — it is also true of every
+`not_null` this emitter has shipped since the beginning, which is why the merge is not
+refused for it.
+
+The mirror case is the one people miss: `--warn-error` promotes every warning to an
+error, so a `flag` check — which the disposition vocabulary defines as "record it and
+keep the row" — stops the build under that flag. Neither direction is a mapping error.
+Both are the same fact, that on dbt a test's consequence is chosen by the invocation
+rather than by the artifact. SQLMesh needs neither sentence, because there the audit
+carries `blocking false` and no flag overrides it.
+
 ## What dbt cannot express
 
 Adaptation is loud, never silent (the port rule): where dbt has no faithful equivalent,
-compilation raises `UnsupportedByTarget` naming the entity and feature. The notable
-case is **composite-key SCD2**: dbt snapshot `unique_key` takes a single expression,
-and concatenating key parts would be a silent approximation, so:
+compilation raises `UnsupportedByTarget` naming the entity and feature. **This target is
+still partial, and singular tests did not change that** — what they closed is a gap in
+bloomery's dbt emitter, not a gap in dbt.
+
+Three constructs are still refused, each for a reason of its own rather than for a
+missing test surface:
+
+- **`quarantine:`** — the reject table and its replay merge are *models* and a statement
+  to run, not tests.
+- **`reconcile:`** — a comparison model plus an audit over it. The audit has a home now;
+  the model does not.
+- **Tier 3 Python steps** — dbt's Python models run only on Snowflake, BigQuery and
+  Databricks, and none of those is a bloomery dialect.
+
+And the notable adaptation case is **composite-key SCD2**: dbt snapshot `unique_key`
+takes a single expression, and concatenating key parts would be a silent approximation,
+so:
 
 ```text
 UnsupportedByTarget: entity 'order_item' is SCD type 2 with composite key
@@ -129,7 +191,6 @@ share one lowering, so a semantics bug cannot exist in only one target's SQL.
 ## Notes
 
 - The scaffold assumes a profile named `bloomery`; wire your own `profiles.yml`.
-- `expression_is_true` tests require the `dbt_utils` package in your dbt project.
 - Choose this target when your execution stack is dbt; if you are free to choose,
   [SQLMesh](emit-sqlmesh.md) is the primary target and expresses more of the IR.
 - The [`targets/` example](../get-started/examples.md) runs `dbt build` on emitted

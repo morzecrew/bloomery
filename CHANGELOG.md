@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The dbt target emits singular tests** — `tests/<check>.sql`, a file whose query
+  returns the rows that fail. Five constructs that raised `UnsupportedByTarget` now
+  compile there, and they were one missing artifact rather than five limitations: a
+  **merged entity** (lifting the SQLMesh-only restriction on the union merge), a mart
+  **`assert:`** clause, a **`coverage:`** check, a step output's **audits**, and the
+  **ingestion-metadata** audit an entity with `dedupe:` carries. Each names its model
+  through `ref()`, so dbt orders the test after what it judges, and `on_fail` maps to
+  dbt's `severity` — `fail` → `error`, `flag` → `warn`. No package and no `dbt deps`:
+  a singular test is a file of SQL.
+
+  **Read the operator contract before you run it.** On dbt a check is a separate node,
+  so it runs under `dbt build` and **not** under `dbt run` — a project built with
+  `dbt run` materializes its models with every bloomery check unevaluated. And
+  `--warn-error` promotes a flagging check into a build failure. Both sentences are on
+  the [dbt page](https://morzecrew.github.io/bloomery/how-to/emit-dbt/); a reader who
+  has one and not the other has the wrong model of the target. This is the one place
+  bloomery's three-value disposition model does not survive intact to a target.
+
+  Still refused there, each for a reason of its own: `quarantine:` and `reconcile:` need
+  *models* rather than tests, and Tier 3 Python steps need an adapter bloomery does not
+  ship a dialect for. dbt does not reach parity with SQLMesh, and this did not change
+  that — what it closed was a gap in bloomery's emitter, not one in dbt.
+
 - **Union merge** — several mappings may target one entity, and it is emitted as a
   `UNION ALL` of one projection per source in lexicographic order of source relation. No
   new syntax: two mappings name the same `target:`. Covers one shared key space with
@@ -39,6 +62,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [stability reference](https://morzecrew.github.io/bloomery/reference/stability/) allows
   and bounds: a reserved name can refuse a document but never reinterpret one. This is the
   first reserved name added since a release, and the exception was written down with it.
+- The dbt `reconcile:` refusal no longer claims dbt has no non-blocking test — a
+  singular test carrying `severity='warn'` is exactly one. The refusal stands on the
+  half of its argument that survives: bloomery writes no comparison model for dbt, and
+  the audit has nothing to read without one. The message says so.
+- `emit/steps.py`'s shared audit producers return a body rather than a finished SQLMesh
+  artifact, and each target supplies its own envelope. Internal, but it is what made one
+  audit body reachable from two targets instead of one.
 - `EntityIR.source` is now `EntityIR.sources`, a tuple. `bloomery_ir_version` moves 5 → 6,
   so every fingerprint changes and `plan()` refuses to diff a v5 IR against a v6 one.
   Emitted SQL for single-source entities is unchanged; only the fingerprint header moves.
