@@ -175,19 +175,30 @@ def test_a_neutral_variant_cast_becomes_jsonb() -> None:
         # A single key stays on the operator form, over a jsonb operand.
         ("$.a", "CAST(x AS JSONB) -> 'a'"),
         # Deeper paths take the jsonb twin of the function SQLGlot reaches for.
-        ("$.a.b", "JSONB_EXTRACT_PATH(CAST(x AS JSONB), 'a', 'b')"),
-        # A root-only path is the identity. PostgreSQL's extraction functions
-        # are variadic but not nullary, so this rendered `JSON_EXTRACT_PATH(x)`
-        # — a call the engine does not define — before *and* after RFC 0029's
-        # rewrite. DuckDB and Trino both accept their own spelling of it.
+        ("$.a.b", "CAST(x AS JSONB) -> 'a' -> 'b'"),
+        # Subscripts survive. An earlier version of this fix used
+        # `jsonb_extract_path`, which takes *text* path elements and so had to
+        # pull the keys out — dropping every subscript with them, so `$[0]`
+        # returned the whole document.
+        ("$[0]", "CAST(x AS JSONB) -> 0"),
+        ("$.a[0]", "CAST(x AS JSONB) -> 'a' -> 0"),
+        ("$.a.b[0]", "CAST(x AS JSONB) -> 'a' -> 'b' -> 0"),
+        # A root-only path is the identity, and falls out of the operator form
+        # for free. It rendered `JSON_EXTRACT_PATH(x)` before this branch — a
+        # call PostgreSQL does not define, since its extraction functions are
+        # variadic but not nullary. DuckDB and Trino always accepted theirs.
         ("$", "CAST(x AS JSONB)"),
     ],
 )
-def test_json_path_stays_in_jsonb_at_both_depths(path: str, expected: str) -> None:
-    """Both shapes were broken and only one was registered: the deep path
+def test_json_path_stays_in_jsonb_for_every_path_shape(path: str, expected: str) -> None:
+    """Two shapes were broken and only one was registered: the deep path
     returned `json`, and the single-key path over a `string` column rendered
     `s -> 'a'`, which PostgreSQL has no operator for (`42883`). The conformance
-    guard asks for one case per (transform, input type) and this transform takes
-    two path shapes per input — so the second case is written by hand.
+    guard asks for one case per (transform, input type), and this transform
+    takes several *path* shapes per input — so the rest are written by hand.
+
+    Chaining `->` covers all of them with one branch, which is the point: the
+    function form has to name path elements as text, and anything it cannot
+    name it drops.
     """
     assert _rendered("json_path", path) == expected

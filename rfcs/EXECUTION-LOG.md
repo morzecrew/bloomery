@@ -23,11 +23,14 @@ One question decides the class: **could this have been known before code existed
 | --- | --- | --- |
 | `discovery` | No — only building it revealed this | Healthy. The RFC was right to be silent. |
 | `spec-gap` | Yes — the RFC was silent, or pitched at the wrong altitude | The design process missed something. |
-| `drift` | Yes — the RFC covered it and it was built otherwise anyway | **A defect.** |
+| `drift` | Yes — the RFC covered it and it was built otherwise anyway, **or** the RFC asserted something about reality that execution disproved | **A defect.** |
 | `irreducible` | Neither — no amount of design settles it | Stop and spike; ship the information, not the code. |
 
 **`drift` should be zero.** A non-zero count is a finding against the executor, not against
-the document.
+the document — including the second half of that row, because an RFC's evidence is written
+by the same hand that executes it. The two halves are not the same failure, so an entry
+says which: an implementation that departed, or a claim that was not true when it was
+made.
 
 ---
 
@@ -366,3 +369,30 @@ them together.
 - **Consequence:** the conformance battery still does not probe it. Its completeness guard
   is keyed by (transform, input type), and this is a third *branch* of the same pair — the
   same hole that hid the single-key failure. Covered by a rendering case instead.
+
+## D-011 — `json_path` subscripts were dropped, and the function form is why
+
+- **Touches:** RFC 0029 §2.4; supersedes the lowering D-006/D-010 described
+- **RFC said:** that `json_path` returns `json` where `variant` is `JSONB` — nothing about
+  path shapes
+- **Built, then rebuilt:** the first fix reached for `jsonb_extract_path`, the `jsonb` twin
+  of the function SQLGlot already emitted. That function takes **text** path elements, so
+  it had to pull the keys out of the parsed path — and a subscript is not a key. `$[0]`
+  rendered as the bare operand (the whole document) and `$.a.b[0]` silently lost its
+  `[0]`. Measured against `main`, which rendered `JSON_EXTRACT_PATH(x, 'a', 'b', '0')` and
+  indexed correctly, so this was a **regression introduced by the fix**, caught in review
+  rather than by the audit.
+- **Because:** chaining `->` needs no path-element extraction at all, so nothing can be
+  dropped: `-> 'a' -> 'b'` for keys, `-> 0` for a subscript, and the bare cast for a
+  root-only path, which is the identity D-010 added a branch for. One branch replaces
+  three. Verified against postgres 16 that every shape returns `jsonb` and the right
+  value, arrays included.
+- **Class:** `discovery` for the shape, but the regression itself was avoidable — the
+  self-audit's boundary pass asked what the *empty* path does and got D-010, and never
+  asked what a non-key part does. Enumerating the parts a path can contain is the check
+  that was missing, not a boundary on the count.
+- **Consequence:** `_jsonb_extraction` no longer names path elements, so there is nothing
+  for a future path grammar to fall out of.
+
+**Rule distilled:** a lowering that has to *name* the parts of a structure can only carry
+the parts it knows the names of — prefer the form that passes the structure through.

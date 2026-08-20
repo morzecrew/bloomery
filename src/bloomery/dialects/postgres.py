@@ -213,26 +213,30 @@ def _variant_is_jsonb(node: Expression) -> Expression:
 
 
 def _jsonb_extraction(node: Expression) -> Expression:
-    """``json_path`` extraction, kept in ``jsonb`` end to end.
+    """``json_path`` extraction, kept in ``jsonb`` end to end and whole.
 
     ``variant`` is ``JSONB`` on this port, so a transform declared to produce
-    one has to produce one. Neither shipped spelling did (RFC 0029 §2.4):
+    one has to produce one, and neither shipped spelling did (RFC 0029 §2.4):
+    a path deeper than one key went through ``CAST(x AS JSON)`` and
+    ``json_extract_path``, which return **json**, and a single-key path over a
+    ``string`` column rendered ``s -> 'a'``, for which PostgreSQL has no
+    operator at all (``42883``).
 
-    * a path deeper than one key went through ``CAST(x AS JSON)`` and
-      ``json_extract_path``, which return **json**;
-    * a single-key path over a ``string`` column rendered ``s -> 'a'``, and
-      PostgreSQL has no ``text -> unknown`` operator, so it did not run at all
-      (``42883``). That one was not in the register until this change added the
-      case — the corpus guard asks for one case per (transform, input type),
-      and this transform takes two path shapes per input.
+    Casting the operand and letting SQLGlot chain the ``->`` operators covers
+    every path shape with one branch: ``-> 'a' -> 'b'`` for keys, ``-> 0`` for
+    a subscript, and the bare cast for a root-only path, which is the identity.
+    Verified against postgres 16 that each returns ``jsonb`` and the right
+    value, arrays included.
 
-    Casting the operand covers both: ``jsonb -> 'a'`` yields ``jsonb``, and
-    ``jsonb_extract_path`` is the ``jsonb`` twin of the function SQLGlot
-    reaches for. The cast is a no-op on a column that is already ``jsonb``,
-    and is what makes the ``string`` input domain work at all.
+    **A function form cannot do this.** An earlier version of this fix reached
+    for ``jsonb_extract_path``, which takes text path elements, and so had to
+    pull the keys out of the path — silently dropping every subscript with
+    them, so ``$[0]`` returned the whole document. The operator form has no
+    such step, which is why it is the one to prefer even though the function
+    form reads more like the path it came from.
 
     Only :class:`sqlglot.exp.JSONExtract` is rewritten. A bronze path lowers to
-    :class:`sqlglot.exp.JSONExtractScalar`, which is declared ``string``, and
+    :class:`sqlglot.exp.JSONExtractScalar`, is declared ``string``, and
     ``->>``/``json_extract_path_text`` return text correctly — moving it here
     would change a column's type to fix nothing.
     """
@@ -242,20 +246,7 @@ def _jsonb_extraction(node: Expression) -> Expression:
     if not isinstance(path, exp.JSONPath):
         return node
     operand = exp.cast(node.this, exp.DataType.build("JSONB"))
-    keys = [part for part in path.expressions if isinstance(part, exp.JSONPathKey)]
-    if not keys:
-        # A root-only path is the identity — the whole document, as a variant.
-        # PostgreSQL's extraction functions are variadic but not *nullary*, so
-        # both `json_extract_path(json)` and `jsonb_extract_path(jsonb)` are
-        # undefined and `{json_path: "$"}` rendered a call no engine has. That
-        # predates RFC 0029 and is not in its register; DuckDB (`x -> '$'`) and
-        # Trino (`JSON_EXTRACT(x, '$')`) both accept theirs, so PostgreSQL was
-        # the only port that could not express a path the spec allows.
-        return operand
-    if len(keys) == 1:
-        return exp.JSONExtract(this=operand, expression=path.copy(), only_json_types=True)
-    literals = [exp.Literal.string(key.this) for key in keys]
-    return cast("Expression", exp.func("JSONB_EXTRACT_PATH", operand, *literals))
+    return exp.JSONExtract(this=operand, expression=path.copy(), only_json_types=True)
 
 
 def _pg_text_functions(node: Expression) -> Expression:
