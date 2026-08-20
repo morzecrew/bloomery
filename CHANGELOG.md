@@ -23,8 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so it runs under `dbt build` and **not** under `dbt run` — a project built with
   `dbt run` materializes its models with every bloomery check unevaluated. And
   `--warn-error` promotes a flagging check into a build failure. Both sentences are on
-  the [dbt page](https://morzecrew.github.io/bloomery/how-to/emit-dbt/); a reader who
-  has one and not the other has the wrong model of the target. This is the one place
+  the [dbt page](https://morzecrew.github.io/bloomery/how-to/emit-dbt/) **and in the
+  emitted `dbt_project.yml`**, because the person who runs a generated project need not
+  be the person who compiled it. A reader who has one sentence and not the other has the
+  wrong model of the target. This is the one place
   bloomery's three-value disposition model does not survive intact to a target.
 
   Still refused there, each for a reason of its own: `quarantine:` and `reconcile:` need

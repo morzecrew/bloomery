@@ -445,3 +445,31 @@ def test_warn_error_promotes_a_flagging_check(tmp_path: pathlib.Path) -> None:
     _insert(database, (("crm__customers", {"id": "c1", "name": "Silent"}),))
     assert _run(tmp_path, "build").success
     assert not _run(tmp_path, "build", "--warn-error").success
+
+
+def test_a_native_test_names_its_column_where_a_singular_test_names_the_check(
+    tmp_path: pathlib.Path,
+) -> None:
+    """RFC 0026 D4 is graded ``ASSUMED`` and D10 asks whoever builds this to
+    "confirm the readability claim against real ``dbt test`` output rather than
+    take it from here". This is that confirmation.
+
+    The claim is that a native test is the better lowering *where dbt has an
+    equivalent*, because it names its column in test output and a hand-rolled
+    query does not. dbt names a generic test node from its model, column and
+    arguments — ``not_null_customer_email`` — and a singular test from its
+    filename, so a check with a column has its column in the output only if it
+    stayed a schema test.
+
+    So the split survives measurement: keeping ``not_null`` and ``enum`` native
+    is worth the second mechanism, and routing everything through singular
+    tests would have traded that away for uniformity.
+    """
+    _write_project(tmp_path, "scd2_customers", database=str(tmp_path / "warehouse.duckdb"))
+    _seed_sources(tmp_path / "warehouse.duckdb", "scd2_customers")
+    result = _run(tmp_path, "build")
+    assert result.success, getattr(result, "exception", None)
+    names = {node.node.name for node in result.result}
+    # The column is in the node's own name — which is the whole of D4's claim.
+    assert any(name.startswith("not_null_") and "email" in name for name in names), names
+    assert any(name.startswith("accepted_values_") and "segment" in name for name in names), names

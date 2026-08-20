@@ -676,14 +676,20 @@ def _step_test_artifacts(
     ``consistency_audits`` needs no such resolver — it compares two siblings,
     and both are namespaced relations the reference map already rewrites.
     """
+
+    def output_reference(output: StepOutputIR) -> str:
+        return references[step_output_relation(output, ctx)]
+
     artifacts: list[EmittedArtifact] = []
     for step in ir.steps:
-        if step.kind is StepKind.SQL_MACRO:
+        # `is not SQL_MODEL`, matching `_step_artifacts`, rather than the
+        # `is SQL_MACRO` the SQLMesh side skips on: Tier 3 has no `ref()` in
+        # the reference map, so a Tier 3 step reaching `output_reference`
+        # would be a KeyError rather than a refusal. `refuse_python_models`
+        # runs first today and makes that unreachable — which is exactly why
+        # the condition should not be the one that depends on it.
+        if step.kind is not StepKind.SQL_MODEL:
             continue
-
-        def output_reference(output: StepOutputIR) -> str:
-            return references[step_output_relation(output, ctx)]
-
         for body in (
             *consistency_audits(step, ctx),
             *quality_audits(step, ir, ctx, self_relation=output_reference),
@@ -898,6 +904,25 @@ def _expression_macro_artifact(ctx: EmitContext) -> EmittedArtifact:
     )
 
 
+#: The operator contract, in the emitted project (RFC 0026 §5.5, §10).
+#:
+#: It is on the dbt docs page too, and that is not enough on its own: the page
+#: is read by whoever compiled the project, and this file is read by whoever
+#: *runs* it, who may be neither the same person nor a bloomery user at all.
+#: `dbt run` on a bloomery project materializes every model with every check
+#: unevaluated, and nothing else in the emitted bytes would say so.
+_OPERATOR_CONTRACT = """\
+# Build this project with `dbt build`, not `dbt run`. Every check bloomery
+# generates is a test — schema tests under models/schema.yml and singular tests
+# under tests/ — and `dbt run` does not run tests, so `dbt run` produces models
+# with their data-quality gates unevaluated. Some of those gates are the
+# correctness condition of the model they guard, not an optional report.
+#
+# `--warn-error` promotes the other direction: a check bloomery emitted as
+# `severity=warn` (an `on_fail: flag` rule) fails the build under that flag.
+"""
+
+
 def _project_artifact(ctx: EmitContext, namespaces: tuple[str, ...]) -> EmittedArtifact:
     document: dict[str, object] = {
         "name": "bloomery",
@@ -927,7 +952,7 @@ def _project_artifact(ctx: EmitContext, namespaces: tuple[str, ...]) -> EmittedA
         }
     return EmittedArtifact.create(
         path="dbt_project.yml",
-        content=_header(ctx) + _yaml(document),
+        content=_header(ctx) + _OPERATOR_CONTRACT + _yaml(document),
         kind=ArtifactKind.CONFIG,
     )
 

@@ -27,16 +27,20 @@ from bloomery.ir import (
     AuditIR,
     ColumnIR,
     DedupeIR,
+    Determinism,
     EntityIR,
     Materialization,
     OnFail,
     ProjectIR,
     QualityRuleIR,
     ReconcileIR,
+    Lineage,
     SCDKind,
     SourceColumnIR,
     SourceIR,
     SqlExpr,
+    StepIR,
+    StepKind,
 )
 from bloomery.naming import DefaultNaming, PrefixNaming
 from bloomery.typing import DecimalType, IntType, LogicalType, StringType
@@ -460,6 +464,56 @@ def test_scaffold_and_sources_artifacts() -> None:
     }
 
 
+def test_a_tier_one_macro_step_contributes_no_singular_test() -> None:
+    """Tier 1 is spliced into the consuming SELECT at lowering, so by the time
+    an emitter sees the IR it is already inside whichever model reads it — and
+    it declares no outputs, so there is nothing for an audit to judge.
+
+    The skip is written as ``is not SQL_MODEL`` rather than ``is SQL_MACRO``,
+    which is the same condition ``_step_artifacts`` beside it uses. That is not
+    style: a Tier 3 step has no ``ref()`` in the reference map, so reaching the
+    resolver with one would raise ``KeyError`` instead of the refusal
+    ``refuse_python_models`` gives first. Writing the condition so it does not
+    lean on another function's ordering is what this pins.
+    """
+    macro = StepIR(
+        ref="score",
+        version=1,
+        kind=StepKind.SQL_MACRO,
+        determinism=Determinism.PURE,
+        runtime_lock="sha256:x",
+        lineage=Lineage.COLUMN,
+        outputs=(),
+        body=SqlExpr("LOWER(x)"),
+    )
+    artifacts = DbtEmitter().emit(ProjectIR(entities=(_entity(),), steps=(macro,)), _ctx())
+    assert not [a for a in artifacts if a.path.startswith("tests/")]
+
+
+def test_the_emitted_project_carries_the_operator_contract() -> None:
+    """RFC 0026 §5.5 calls this sentence the RFC's cost and says it is not
+    optional; §10 asks where it lives. It lives in both places, because they
+    have different readers.
+
+    The docs page is read by whoever compiled the project. ``dbt_project.yml``
+    is read by whoever *runs* it, who may be neither the same person nor a
+    bloomery user at all — and for that reader, nothing else in the emitted
+    bytes says that ``dbt run`` produces models with their gates unevaluated.
+
+    Asserted here rather than left to the goldens alone: a golden records
+    whatever the emitter last produced, so it would follow this sentence out of
+    the file without a word.
+    """
+    project = _emit(_entity())["dbt_project.yml"].content
+    assert "`dbt build`, not `dbt run`" in project
+    # Both directions, for the same reason the docs page states both: a reader
+    # given only the first has the wrong model of the target.
+    assert "--warn-error" in project
+    # ...and it is a comment, so the document itself still parses.
+    document = cast("dict[str, object]", yaml.safe_load(project))
+    assert document["name"] == "bloomery"
+
+
 def test_sources_respect_the_naming_policy() -> None:
     artifacts = DbtEmitter().emit(
         ProjectIR(entities=(_entity(),)), _ctx(PrefixNaming(prefix="acme"))
@@ -645,6 +699,43 @@ def test_the_two_targets_emit_the_same_audit_body(fixture: str, dialect: str) ->
         assert _normalize_audit(sqlmesh[name], dialect, relation) == _normalize_audit(
             resolve_dbt_references(dbt[name]), dialect, relation
         ), name
+
+
+@pytest.mark.parametrize("dialect", ["duckdb", "postgres", "trino"])
+def test_the_metadata_audit_is_one_body_in_two_spellings(dialect: str) -> None:
+    """The one body RFC 0026 D10 did *not* unify, held to the same standard.
+
+    Every other audit body is built once in shared lowering and wrapped by each
+    target. The ingestion-metadata audit is not: SQLMesh has spelled its
+    windowed wrap in a Jinja envelope since RFC 0016, and RFC 0026 §4 rules out
+    changing an audit body that is already correct — a pretty-printed AST is
+    not byte-identical to a hand-written template line, so unifying it would
+    re-stamp every SQLMesh golden carrying one.
+
+    So there are two spellings, deliberately, and this is what stops them
+    drifting. Without it the *shared* bodies would be pinned by
+    ``test_the_two_targets_emit_the_same_audit_body`` and the one genuinely
+    duplicated body would be the only one nothing watched — which is the
+    parallel maintenance D10 exists to prevent, surviving in the single place
+    D10 could not reach.
+    """
+    entity = replace(
+        _entity(),
+        dedupe=DedupeIR(keep="latest_by", field="_ingested_at", tie_break=("_load_id",)),
+    )
+    ir = ProjectIR(entities=(entity,))
+    ctx = EmitContext(
+        dialect=get_dialect(dialect), naming=DefaultNaming(), fingerprint="blm1:test"
+    )
+    sqlmesh = next(
+        a for a in SQLMeshEmitter().emit(ir, ctx) if a.path.endswith("_ingestion_metadata.sql")
+    )
+    dbt = next(
+        a for a in DbtEmitter().emit(ir, ctx) if a.path.endswith("_ingestion_metadata.sql")
+    )
+    assert _normalize_audit(extract_select(sqlmesh.content), dialect, "item") == _normalize_audit(
+        resolve_dbt_references(_dbt_select(dbt.content)), dialect, "item"
+    )
 
 
 def test_the_comparison_above_can_fail() -> None:

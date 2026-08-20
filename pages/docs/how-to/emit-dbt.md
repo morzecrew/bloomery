@@ -120,7 +120,8 @@ that needs it —
 | The ingestion-metadata audit (`dedupe:`) | `tests/<entity>_ingestion_metadata.sql` |
 | A mart `assert:` clause | `tests/<mart>_<assertion>.sql` |
 | A `coverage:` check | `tests/<check>_coverage.sql` |
-| A step output's audits | `tests/step_<output>_<rule>.sql` |
+| A step output's `on_fail: fail` rules | `tests/step_<output>_<rule>.sql` |
+| A step output's declared references | `tests/step_<child>_<column>_references_<parent>.sql` |
 
 — each naming its model through `ref()`, so dbt orders the test after the model it
 judges. `on_fail` becomes dbt's `severity`: `fail` → `error`, `flag` → `warn`.
