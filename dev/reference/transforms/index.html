@@ -1905,10 +1905,10 @@ builder that produces a dialect-neutral SQLGlot AST — never string SQL. See th
 <p>That AST is neutral because each <a href="../dialects/">dialect</a> renders it, and two of the
 transforms here need different SQL per engine — <code>to_utc</code> and <code>parse_ts</code> both have
 engine-specific behaviour worth reading before you pick a warehouse.</p>
-<p>The same page lists the transforms that do <strong>not</strong> reach every engine: four that
-PostgreSQL cannot run, <code>coalesce</code> and <code>nullif</code> over a non-<code>string</code> field on Trino, and
-the decimal constructs — <code>divide</code> above all — whose emitted column is not the type they
-declare. Read it alongside this table if a warehouse is already chosen.</p>
+<p>Every transform above produces the type it declares, on all three engines, and the same
+page describes the battery that holds that true. One caveat survives it: <code>divide</code> is
+inexact on DuckDB, which has no exact decimal division — prefer <code>{multiply: "0.01"}</code> to
+<code>{divide: 100}</code> there, as the shipped examples do.</p>
 
 
 

@@ -1390,52 +1390,13 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#where-a-transform-does-not-reach-every-engine" class="md-nav__link">
+  <a href="#every-transform-produces-the-type-it-declares" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Where a transform does not reach every engine
+        Every transform produces the type it declares
       </span>
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Where a transform does not reach every engine">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#does-not-run-on-postgresql" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Does not run on PostgreSQL
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#does-not-run-on-trino" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Does not run on Trino
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#runs-with-a-type-other-than-the-declared-one" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Runs, with a type other than the declared one
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1660,52 +1621,13 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#where-a-transform-does-not-reach-every-engine" class="md-nav__link">
+  <a href="#every-transform-produces-the-type-it-declares" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Where a transform does not reach every engine
+        Every transform produces the type it declares
       </span>
     </span>
   </a>
-  
-    <nav class="md-nav" aria-label="Where a transform does not reach every engine">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#does-not-run-on-postgresql" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Does not run on PostgreSQL
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#does-not-run-on-trino" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Does not run on Trino
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#runs-with-a-type-other-than-the-declared-one" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Runs, with a type other than the declared one
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
@@ -1883,8 +1805,9 @@ below exist so a new one refuses what it cannot express instead of approximating
 <p><code>variant</code> is the only row where the choice carries meaning. Postgres maps to <code>JSONB</code> —
 the binary, indexable, canonicalized form — rather than <code>JSON</code>, which is a text blob
 preserving key order and duplicates, properties <code>variant</code> never promises.</p>
-<p>There are no floats. A <code>decimal</code> stays exact end to end, and nothing in the IR or on an
-emission path is ever a binary float.</p>
+<p>There are no floats in the type system, and a <code>decimal</code> stays exact end to end — with one
+named exception, <code>divide</code> on DuckDB, which that engine cannot express exactly. It is
+described below rather than left to be discovered.</p>
 <h2 id="where-the-ports-spell-things-differently">Where the ports spell things differently<a class="headerlink" href="#where-the-ports-spell-things-differently" title="Permanent link">&para;</a></h2>
 <p>All three declare every capability, so nothing here is a feature gap. These are the
 places one engine needs different SQL for the same meaning, and the port supplies it —
@@ -2001,92 +1924,30 @@ emitted SQL is where the difference is.</p>
 </ol>
 <p>Diff a sample before and after: a row whose local time is late in the day in a zone east
 of UTC is the one that moves, and it moves by a whole day.</p>
-<h2 id="where-a-transform-does-not-reach-every-engine">Where a transform does not reach every engine<a class="headerlink" href="#where-a-transform-does-not-reach-every-engine" title="Permanent link">&para;</a></h2>
-<p>The three ports render one neutral AST, and the sections above are the places
-that rendering differs and the meaning does not. This section is the opposite:
-places where a transform the typechecker accepts either does not run on a
-shipped dialect, or produces a type other than the one it declares.</p>
-<p>These are measured, not surveyed. A conformance battery probes every
-(transform, input type) pair against real DuckDB, PostgreSQL and Trino and
-compares the engine's own column type against the transform's declared output,
-so the list below is exact as of the pinned engine versions and cannot fall
-behind the code — a divergence that appears fails the suite, and one that is
-repaired fails it too until its row is deleted.</p>
-<h3 id="does-not-run-on-postgresql">Does not run on PostgreSQL<a class="headerlink" href="#does-not-run-on-postgresql" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Transform</th>
-<th>Why</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>regex_extract</code></td>
-<td><code>REGEXP_EXTRACT</code> is not defined on PostgreSQL 16</td>
-</tr>
-<tr>
-<td><code>strip_suffix</code></td>
-<td>PostgreSQL has <code>starts_with</code> but no <code>ends_with</code>, so <code>strip_prefix</code> runs and its mirror does not</td>
-</tr>
-<tr>
-<td><code>to_int</code> over a <code>bool</code> field</td>
-<td>PostgreSQL converts <code>int4</code> to boolean and back, but refuses <code>bigint</code></td>
-</tr>
-<tr>
-<td><code>to_bool</code> over an <code>int</code> field</td>
-<td>the same refusal in reverse</td>
-</tr>
-</tbody>
-</table>
-<p>Each fails when the model first runs, with the engine's own message. They
-compile clean today; making them a refusal at compile time — which is what
-this project promises for anything an engine cannot express — is scheduled.</p>
-<h3 id="does-not-run-on-trino">Does not run on Trino<a class="headerlink" href="#does-not-run-on-trino" title="Permanent link">&para;</a></h3>
-<p><code>coalesce</code> and <code>nullif</code> over a field that is not a <code>string</code>. Both take a
-literal, and Trino does not coerce a literal to the column's type the way
-DuckDB and PostgreSQL do, so <code>{coalesce: "1970-01-01"}</code> on a <code>date</code> field
-plans on two engines and fails on the third.</p>
-<h3 id="runs-with-a-type-other-than-the-declared-one">Runs, with a type other than the declared one<a class="headerlink" href="#runs-with-a-type-other-than-the-declared-one" title="Permanent link">&para;</a></h3>
-<table>
-<thead>
-<tr>
-<th>Construct</th>
-<th>Declared</th>
-<th>What the engine produces</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>divide</code></td>
-<td><code>decimal(p, s)</code></td>
-<td>a <strong>binary float</strong> on all three — <code>DOUBLE</code> on DuckDB and Trino, <code>double precision</code> on PostgreSQL</td>
-</tr>
-<tr>
-<td><code>multiply</code>, <code>round</code>, <code>abs</code>, <code>coalesce</code> over a decimal</td>
-<td>the tracked <code>decimal(p, s)</code></td>
-<td>a wider decimal, differently per engine; unconstrained <code>numeric</code> on PostgreSQL, which drops the precision through any expression</td>
-</tr>
-<tr>
-<td><code>parse_ts</code> with an explicit format</td>
-<td><code>timestamp</code></td>
-<td><code>timestamptz</code> on PostgreSQL — the same zone-aware value the section above describes, in the branch that does not take <code>ISO8601</code></td>
-</tr>
-<tr>
-<td><code>json_path</code> deeper than one key</td>
-<td><code>variant</code> (<code>JSONB</code>)</td>
-<td><code>json</code> on PostgreSQL</td>
-</tr>
-</tbody>
-</table>
-<p>The widenings lose no value; what they lose is the meaning of the declaration,
-and with it the 38-digit precision cap, which is computed over the numbers the
-compiler tracks rather than the ones the engine uses.</p>
-<p><code>divide</code> is the one to know about. A chain ending in a division is cast back to
-its declared decimal, so the emitted column has the right type — and its value
-has been through a binary float on the way. Prefer an explicit
-<code>to_decimal(p, s)</code> after a <code>divide</code> until this closes, and treat a divided
-column as approximate where exactness matters.</p>
+<h2 id="every-transform-produces-the-type-it-declares">Every transform produces the type it declares<a class="headerlink" href="#every-transform-produces-the-type-it-declares" title="Permanent link">&para;</a></h2>
+<p>A conformance battery probes every (transform, input type) pair the typechecker
+admits against real DuckDB, PostgreSQL and Trino, and compares the engine's own
+column type against the transform's declared output. It asserts set equality per
+port, so a divergence that appears fails the suite and one that is repaired fails
+it too until its row is deleted. <strong>The register is empty</strong>: on all three engines,
+every transform now produces what it says it produces.</p>
+<p>Getting there closed defects on all three ports — four transforms PostgreSQL
+could not run at all, eight Trino cases where a <code>coalesce</code> or <code>nullif</code> literal
+was not coerced to its column's type, a <code>parse_ts</code> format branch that stored a
+different instant depending on who ran it, and decimal arithmetic that widened
+past the tracked <code>(p, s)</code> everywhere. None of them had golden coverage: no
+fixture used <code>json_path</code>, <code>divide</code>, <code>multiply</code>, <code>round</code> or <code>abs</code>, which is why
+they survived.</p>
+<p>One divergence remains and cannot be repaired here:</p>
+<p><strong><code>divide</code> is inexact on DuckDB.</strong> The engine has no exact decimal division —
+<code>/</code> is float division and <code>//</code> is integer division — so the division itself
+happens in binary floating point, and what the port can do is narrow the result
+back to the declared decimal. PostgreSQL and Trino divide exactly. The emitted
+column has the right type on all three; only DuckDB's <em>value</em> has been through a
+float, and only for <code>divide</code>.</p>
+<p>If exactness matters on DuckDB, multiply by the reciprocal instead: <code>{multiply:
+"0.01"}</code> rather than <code>{divide: 100}</code> stays in decimal arithmetic end to end. The
+shipped examples do exactly that, and say why.</p>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>The dialect is not the target.</strong> <code>--target sqlmesh --dialect postgres</code> and
