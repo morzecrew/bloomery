@@ -38,7 +38,7 @@ Two consequences worth knowing:
 
 ## Allocating a number
 
-The next free number is **0030**. Before creating an RFC, read the number above — do not
+The next free number is **0031**. Before creating an RFC, read the number above — do not
 compute it from `ls`, which no longer sees retired documents. **Numbers are never reused**:
 0001–0022 are retired and permanently spent. Update this section in the same change that
 mints a number.
@@ -66,8 +66,9 @@ above.
 
 | # | Title | Status | One-line routing description |
 |---|---|---|---|
-| [0023](0023-temporal-joins-scd2-flattening-and-currency-conversion.md) | Temporal joins: SCD2 flattening and currency conversion | 🚧 In progress | Two constructs that compile clean and cannot be correct — flattening a historical dimension, and `convert` — both needing a join against a validity interval. **P1 (both refusals) has landed**; the as-of join design is unscheduled. |
-| [0024](0024-deterministic-union-merge.md) | Deterministic union merge | 🚧 In progress | Letting several mappings build one entity when they share a key space but no overlapping keys, so the entity model integrates sources instead of renaming one. Overlap stays a step. **P1 shipped** — the union, its refusals, the collision audit and the `multi_source` fixture. **D30's dbt refusal has since lifted** (RFC 0026, retired): a merged entity emits on both SQL targets, and D30's row stands as the record of why it did not for one release. **P2 (the quality system on a merged entity) is designed and demand-gated**: D31–D35 settle it, and the code waits for a project that needs it. Departures in [0024-DEVIATIONS.md](0024-DEVIATIONS.md). |
+| [0023](0023-temporal-joins-scd2-flattening-and-currency-conversion.md) | Temporal joins: SCD2 flattening and currency conversion | 🚧 In progress | Two constructs that compile clean and cannot be correct — flattening a historical dimension, and `convert` — both needing a join against a validity interval. |
+| [0024](0024-deterministic-union-merge.md) | Deterministic union merge | 🚧 In progress | Letting several mappings build one entity when they share a key space but no overlapping keys, so the entity model integrates sources instead of renaming one. Overlap stays a step. |
+| [0030](0030-the-unresolved-work-report.md) | The unresolved-work report | 📝 Draft | Resolution is a loop and bloomery reports it as a snapshot. What is still open, what edit would close it, and what was already decided — as a value, without the compiler ever choosing. |
 
 ## Status legend
 
