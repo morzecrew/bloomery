@@ -206,13 +206,17 @@ Both default to `()`, so every existing construction keeps working, and both are
 read under the stage-first rule (RFC 0022 D5): empty means "nothing open" only
 at `Stage.COMPLETE`.
 
-`OpenDecision`s are sorted by `canonical`. **`options` is the one collection
-here that is not sorted** — see D2.
+`OpenDecision`s are sorted by `canonical`; `provenance` is sorted by
+`(entity, field)`, which is the order `_field_provenance` already produces and
+which is stated here because an order that is only an implementation's habit is
+one a reimplementation may not keep. **`options` is the one collection here that
+is not sorted** — see D2.
 
 ### 5.2 What "open" means, exactly
 
 An entry exists for each canonical field that is (i) required by some effective
-metric, transitively, and (ii) not available. Both halves already have an
+metric, transitively, (ii) not available, and (iii) actionable in the sense the
+next paragraph fixes. Both halves already have an
 implementation: `compute_reachability` walks the closure and
 `available_canonicals` reads the `canonical`-labelled edges of the one shared
 DAG. This RFC adds no second notion of availability — a report that disagreed
@@ -221,6 +225,17 @@ with reachability about what is missing would be worse than no report.
 A canonical field nothing requires is **not** work. `blocks` is therefore never
 empty, and it is what turns a worklist into a priority the *caller* can set:
 bloomery says which metrics each decision unblocks and stops there.
+
+**Every entry names one edit, and an entry that cannot is omitted** (D9). The
+report's whole promise is "here is the edit that would close this", so an entry
+a caller cannot act on is worse than a gap: it is a worklist item that never
+clears. One shape has that problem today — a canonical whose entity is built by
+**more than one mapping** (RFC 0024). Its columns are per mapping
+(RFC 0024 D26), so a recipe choice has no single mapping to target, and an
+`OpenDecision` keyed on `canonical` cannot say which document to edit. Such
+entries are left out until the report can name the mapping, and nothing is
+hidden by that: the metric blocked on the field is still reported unreachable by
+the machinery that already existed.
 
 ### 5.3 The two gaps, and why the distinction is the point
 
@@ -247,10 +262,30 @@ Let `O` be the set of open canonicals. `O` is a subset of the canonical fields
 the effective metrics require transitively, which is fixed by the catalog and
 the metric set — neither of which a chooser edits. Recording a choice binds a
 recipe's `requires` to **source paths** (§3), never to canonical fields, so no
-recorded choice can add a member to `O`. Each accepted choice removes one. So
-`O` strictly decreases and the loop ends in at most `|O|` rounds, at a fixed
-point that is either "nothing open" or "the open entries have no options and
-need source data that does not exist".
+edit a chooser makes can add a member to `O`.
+
+**Removing one takes up to two edits, and the two are different edits** — this
+is where an earlier draft of this section was wrong, and the distinction §5.3
+draws is exactly what makes it visible. An `UNMAPPED` entry is closed by a
+mapping edit, which is the recipe choice. An `UNLINKED` entry cannot be: there
+is no field to record a recipe on, so an entity-model edit adds the linked field
+and the entry becomes `UNMAPPED`. That is progress without removal — `|O|` is
+unchanged and the entry's `gap` has advanced — and no edit *in the loop* runs
+the transition backwards, because closing an entry never removes a `canonical:`
+link. A caller free to edit the entity model arbitrarily can of course undo its
+own work; the bound is over a chooser that is trying to resolve, not over every
+sequence of edits.
+
+So the measure that decreases is not `|O|` but the pair
+`(|O|, count of UNLINKED entries)` under lexicographic order: an entity-model
+edit leaves the first component alone and decreases the second, a mapping edit
+decreases the first. The loop therefore ends in at most `2|O|` rounds, at a
+fixed point that is either "nothing open" or "the open entries have no options
+and need source data that does not exist".
+
+**A chooser that only writes mappings terminates on the `UNMAPPED` subset and
+leaves every `UNLINKED` entry standing.** That is a correct outcome rather than
+a stall, and it is the honest answer to who does which edit (§10).
 
 **The one way this breaks is a change to `Recipe.requires`.** If a recipe were
 ever allowed to require a *canonical* field rather than an alias slot, recipes
@@ -300,10 +335,13 @@ Genuinely attractive and not taken — see D5, which records both sides.
 
 ## 6. Tests
 
-- **The five states of §3 as a table-driven battery**, asserting the report for
-  each. `(c)`, `(c′)` and `(c″)` are the ones that must now *differ*, and they
-  are the reason the battery is written as one parametrization rather than three
-  tests: a reader has to see that two of them used to be equal.
+- **The seven cases of §3 as a table-driven battery**, asserting the report for
+  each. The claim is not that all three `(c)` cases differ — `(c)` and `(c′)`
+  differ only in `required:`, which constrains the emitted column and not the
+  mapping, so they must produce the **same** report. What must differ is
+  `(c″)`: it is `UNLINKED` where the other two are `UNMAPPED`, and today all
+  three are identical. Written as one parametrization rather than three tests so
+  a reader sees which pair is meant to agree and which one is meant to split.
 - **A loop test, run to a fixed point.** Start from a spec with several open
   decisions, apply each round's first entry mechanically, recompile, and assert
   the open set strictly shrinks and terminates. This is §5.4 as a check rather
@@ -341,10 +379,12 @@ Genuinely attractive and not taken — see D5, which records both sides.
 - **Recipe composition** (a recipe requiring a canonical field). Named in §5.4
   because it is what would break termination, not because it is planned.
 - **Multi-mapping entities.** A merged entity's fields are per mapping
-  (RFC 0024 D26), so an open decision could in principle be per `(entity, field,
-  mapping)`. Deferred until a merged entity meets a chooser; the report keys on
-  `canonical` today, which is correct for the single-mapping case and
-  under-specified for the other.
+  (RFC 0024 D26), so an open decision would have to be per `(entity, field,
+  mapping)` to name an edit. Rather than leave that under-specified, D9 omits
+  such entries from the report entirely — the blocked metric is still reported
+  unreachable, so the gap stays visible and only the un-actionable worklist
+  entry is withheld. Would change when the report carries a mapping identity,
+  which belongs with RFC 0024 P2.
 
 ## 9. Risks
 
@@ -375,11 +415,12 @@ Genuinely attractive and not taken — see D5, which records both sides.
 - **Should `blocks` name metrics only, or metrics and the marts that carry
   them?** Metrics are what reachability speaks in. A mart is what a reader
   recognizes.
-- **Does an `UNLINKED` entry belong in a chooser's worklist at all?** Its fix is
-  an entity-model edit, which is plausibly a human's job rather than an agent's.
-  The report states the distinction either way; whether a caller acts on both is
-  the caller's business — but if the answer is "never", `UNLINKED` may belong in
-  a different collection.
+- **Should `UNLINKED` entries live in a different collection?** D10 settles the
+  mechanics — they close by an entity-model edit and a mapping-only chooser
+  correctly leaves them standing — but not the presentation. One collection with
+  a `gap` field says "same worklist, different edit"; two collections say "these
+  are not yours". The second is a stronger claim about who a caller is, and this
+  document is not ready to make it.
 
 ## 11. Decisions
 
@@ -392,7 +433,9 @@ Genuinely attractive and not taken — see D5, which records both sides.
 | 5 | `ASSUMED` | **The report is a `COMPLETE`-stage product; a refusal empties it.** Recipe validation is in the pipeline's first stage, so a malformed choice costs the round's worklist (§3, cases (d)/(e)). Accepted because the refusal messages already name the fix precisely and the loop still terminates — fix the error, recompile, read the report. Graded `ASSUMED` rather than `LOCKED` because it is a claim about how an agent behaves, and whoever builds this may find the loop needs the partial report; the alternative is computing the options half before validation, which is possible since it needs no DAG. |
 | 6 | `LOCKED` | **Termination rests on `Recipe.requires` naming alias slots, never canonical fields.** Verified in `resolve_recipe`, which matches `requires` against the mapping's `from:` keys. Consequence: recipe *composition* would break the argument in §5.4, not merely complicate it, and would need a cycle check over recipes. Recorded here so the coupling is visible from the feature that would break it. |
 | 7 | `OPEN` | **Whether the human CLI table prints open decisions.** JSON gets them by construction. The table is a summary (RFC 0020 D4), and this is either the most useful line `bloomery resolve` could print or the one that turns a summary into a dump. Whoever builds this decides and logs it. |
-| 8 | `ASSUMED` | **`provenance` returns to `SpecEvidence`.** It is computed on every `resolve()` and discarded, and has been off the CLI since RFC 0022 D8. A loop needs its own memory, and the alternative is a chooser re-deriving its history from the mapping documents it wrote. Graded `ASSUMED` because it is additive and reversible: if it turns out no caller reads it, dropping the field costs nothing but a changelog line. |
+| 8 | `ASSUMED` | **`provenance` returns to `SpecEvidence`.** It is computed on every `resolve()` and discarded, and has been off the CLI since RFC 0022 D8. A loop needs its own memory, and the alternative is a chooser re-deriving its history from the mapping documents it wrote. Graded `ASSUMED` because it is additive and reversible: if it turns out no caller reads it, dropping the field costs nothing but a changelog line. Its order is `(entity, field)`, stated in §5.1 rather than left as the current implementation's habit. |
+| 9 | `LOCKED` | **Every entry names one edit; an entry that cannot is omitted.** The promise is not "here is a gap" but "here is the edit that would close it", and an entry a caller cannot act on is a worklist item that never clears. Consequence, and the only shape affected today: a canonical whose entity is built by more than one mapping is **not reported**, because its columns are per mapping (RFC 0024 D26) and an entry keyed on `canonical` cannot say which document to edit. Nothing is hidden — the blocked metric is still `unreachable` — and the omission lifts when the report can carry a mapping identity, which is RFC 0024 P2's question rather than this one's. |
+| 10 | `LOCKED` | **`UNLINKED` and `UNMAPPED` close by different edits, and termination is measured accordingly.** An `UNLINKED` entry has no field to record a recipe on, so an entity-model edit turns it into `UNMAPPED` — progress without removal. The decreasing measure is therefore `(|O|, count of UNLINKED)` lexicographically and the bound is `2|O|`, not `|O|` (§5.4). Consequence: a chooser that writes only mappings terminates on the `UNMAPPED` subset and correctly leaves `UNLINKED` entries standing, which is the honest answer to half of §10's third question. An earlier draft of §5.4 claimed every accepted choice removes an entry; it does not, and the two-gap distinction D3 draws is what makes the error visible. |
 
 ## 12. Phasing
 
