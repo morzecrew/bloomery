@@ -26,10 +26,12 @@ from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import (
     AuditIR,
     ColumnIR,
+    DedupeIR,
     EntityIR,
     Materialization,
     OnFail,
     ProjectIR,
+    QualityRuleIR,
     ReconcileIR,
     SCDKind,
     SourceColumnIR,
@@ -521,6 +523,65 @@ def test_dbt_and_sqlmesh_emit_identical_selects(dialect: str) -> None:
         assert _erase_namespaces(extract_select(sqlmesh_artifact.content), dialect) == (
             _erase_namespaces(rendered, dialect)
         ), path
+
+
+def test_a_dedupe_entity_gets_its_ingestion_metadata_check() -> None:
+    """RFC 0016 D21 on dbt, which never refused it and never emitted it.
+
+    The duplicate-identity half is a window count, and SQL forbids a window
+    function in ``WHERE`` — so the body wraps the model once and filters over
+    the projected count, which is not a row predicate and so had no
+    ``schema.yml`` home. It was silently absent rather than refused, under
+    RFC 0016 §5.4's target-coverage sentence; that sentence was written when
+    this emitter had no artifact for it.
+
+    ``dedupe:`` with no ``quality:`` surface is the shape that reaches it, and
+    it is an ordinary one: deduping does not opt an entity into coercion
+    routing.
+    """
+    entity = replace(
+        _entity(),
+        dedupe=DedupeIR(keep="latest_by", field="_ingested_at", tie_break=("_load_id",)),
+    )
+    artifacts = {a.path: a for a in DbtEmitter().emit(ProjectIR(entities=(entity,)), _ctx())}
+    test = artifacts["tests/item_ingestion_metadata.sql"]
+    assert "COUNT(*) OVER (PARTITION BY _source_row_id)" in test.content
+    assert "{{ ref('item') }}" in test.content
+    assert "{{ config(severity='error') }}" in test.content
+
+
+def test_an_entity_fail_audit_lowers_even_though_no_spec_reaches_it() -> None:
+    """The other half of the same extension, and the honest note about it.
+
+    An ``on_fail: fail`` rule on an entity is a whole-query check over two
+    populations (RFC 0016 D32/D67), and it lowers here correctly. **No spec can
+    reach it on this target today**: declaring any ``quality:`` surface opts
+    the entity into coercion routing, the implicit ``coercible`` rules default
+    to ``quarantine``, and a *key* column's cannot be overridden because a key
+    mapping takes no ``quality:`` block — so ``_refuse_quarantine`` raises
+    first, every time.
+
+    The lowering stays, because it is the right one and it goes live the day
+    dbt grows a reject model. What it must not do is stay *untested*, which is
+    how an unreachable branch rots — so the IR is built directly here, past the
+    guardrail that would refuse the spec.
+    """
+    entity = replace(
+        _entity(),
+        quality=(
+            QualityRuleIR(
+                name="sku_present",
+                kind="not_null",
+                column="sku",
+                on_fail=OnFail.FAIL,
+            ),
+        ),
+    )
+    artifacts = {a.path: a for a in DbtEmitter().emit(ProjectIR(entities=(entity,)), _ctx())}
+    test = artifacts["tests/item_sku_present.sql"]
+    assert "{{ ref('item') }}" in test.content
+    assert "@this_model" not in test.content
+    assert "{{ config(severity='error') }}" in test.content
 
 
 #: Fixtures whose checks have no ``schema.yml`` shape, with the relation each

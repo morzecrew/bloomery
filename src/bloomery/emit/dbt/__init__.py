@@ -557,6 +557,19 @@ def _entity_test_artifacts(
 
     The conservation audit is not here because it needs a reject table, and
     ``_refuse_quarantine`` has already run.
+
+    **The ``fail_audits`` leg is correct and, today, never non-empty**, and
+    saying so is cheaper than letting a reader infer coverage that is not
+    there. An ``on_fail: fail`` rule needs a ``quality:`` surface; declaring
+    one opts the entity into coercion routing, whose implicit ``coercible``
+    rules default to ``quarantine`` and cannot be overridden on a **key**
+    column (a key mapping takes no ``quality:`` block at all). So every entity
+    that could reach this line carries a quarantine disposition, and
+    ``_refuse_quarantine`` raises first. The lowering stays because it is the
+    right one and it goes live the day dbt grows a reject model — the
+    out-of-scope item RFC 0016 §5.4 names — and it is covered by a test that
+    builds the IR directly rather than left to be discovered then. See
+    EXECUTION-LOG.md D-014.
     """
     relation = references[ctx.naming.relation(entity.name, Layer.SILVER)]
     artifacts: list[EmittedArtifact] = []
