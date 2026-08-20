@@ -9,6 +9,8 @@ snapshot-paths:
 - snapshots
 macro-paths:
 - macros
+test-paths:
+- tests
 models:
   bloomery:
     gold:

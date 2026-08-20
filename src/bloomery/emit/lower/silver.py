@@ -1004,9 +1004,51 @@ _SURVIVORS_CTE = "_survivors"
 _CONSERVATION_ALIAS = "_conservation"
 _ENTITY_ALIAS = "_entity"
 
+#: The alias the metadata audit reads its windowed subquery under.
+_METADATA_ALIAS = "_metadata"
 
-def _this_model(alias: str, relation: str = THIS_MODEL) -> exp.Table:
+
+def metadata_audit_select(
+    entity: EntityIR, ctx: EmitContext, *, relation: str = THIS_MODEL
+) -> exp.Select:
+    """The D21 ingestion-metadata audit as a whole query.
+
+    The duplicate-identity half of :func:`ingestion_audit_predicate` is a
+    window count, and SQL forbids a window function in ``WHERE`` — so the body
+    wraps the model once and filters over the projected count. Same
+    arrangement SQLMesh's envelope has always had, as a tree rather than as
+    template text, for the reason :func:`predicate_audit_select` gives.
+    """
+    counted = (
+        exp.Select()
+        .select(
+            exp.Star(),
+            cast(
+                "Expression",
+                exp.alias_(
+                    exp.Window(
+                        this=exp.Count(this=exp.Star()),
+                        partition_by=[exp.column(ROW_ID_COLUMN)],
+                    ),
+                    ROW_ID_COUNT_COLUMN,
+                ),
+            ),
+        )
+        .from_(_this_model(alias="", relation=relation))
+    )
+    return (
+        exp.Select()
+        .select(exp.Star())
+        .from_(counted.subquery(alias=_METADATA_ALIAS))
+        .where(ingestion_audit_predicate(entity, ctx))
+    )
+
+
+def _this_model(alias: str = "", relation: str = THIS_MODEL) -> exp.Table:
     """``<relation> AS <alias>``, with the relation left unquoted.
+
+    An empty alias means unaliased — the shape a whole-query audit uses, whose
+    predicate names columns without qualifying them.
 
     ``exp.table_`` would quote it — ``@`` is not an identifier character — and
     a quoted macro is a table named ``@this_model``, which does not exist. A

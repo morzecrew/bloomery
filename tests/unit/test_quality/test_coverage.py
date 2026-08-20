@@ -178,10 +178,27 @@ def test_the_count_is_of_a_dependent_column_never_of_rows() -> None:
         assert count.this.table == "_dependent"
 
 
-def test_dbt_refuses_the_project_rather_than_dropping_the_check() -> None:
+def test_dbt_emits_the_check_as_a_singular_test() -> None:
+    """RFC 0026, one relation further out than the mart assertion.
+
+    The body joins two silver relations and groups, so no schema test could
+    carry it. Both relations resolve through the reference map — the dependent
+    side because it is this test's own relation, the referenced side because it
+    is namespaced like any other input — and dbt orders the test after both,
+    which is what SQLMesh needed an explicit ``depends_on`` for.
+    """
     project, catalog = load_fixture(FIXTURE)
-    with pytest.raises(UnsupportedByTarget, match="every_customer_has_an_order"):
-        compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
+    artifacts = compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
+    (test,) = [a for a in artifacts if a.path.startswith("tests/")]
+    assert test.path == "tests/every_customer_has_an_order_coverage.sql"
+    assert "{{ ref('customer') }}" in test.content
+    assert "{{ ref('order') }}" in test.content
+    # No literal relation survives: that is what makes it a DAG participant
+    # rather than a query that happens to name a table.
+    assert "silver." not in test.content
+    # The fixture's check is non-blocking, and that survives the crossing:
+    # `flag` is `warn`, which dbt reports without stopping the build.
+    assert "{{ config(severity='warn') }}" in test.content
 
 
 # ....................... #

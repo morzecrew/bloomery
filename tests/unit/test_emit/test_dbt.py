@@ -333,10 +333,33 @@ def test_scd2_audits_attach_under_snapshots() -> None:
     assert snapshot["name"] == "item_snapshot"
 
 
-def test_unmappable_audit_kind_is_refused() -> None:
+def test_an_audit_kind_outside_the_closed_vocabulary_is_refused() -> None:
+    """RFC 0026 §5.4 counted this among the five refusals a singular test
+    lifts. It is not one, and the reason is worth pinning rather than
+    rediscovering.
+
+    There is nothing to route. The ``assert:`` vocabulary is closed at six
+    kinds — ``guardrails/asserts.py`` and ``guardrails/conflict.py`` are the
+    only places an ``AuditIR`` is built — and ``audit_predicate`` knows exactly
+    the four custom ones, so a seventh kind has no body on *any* target: the
+    SQLMesh emitter reaches the same branch and dies on a ``KeyError``. The
+    kind below is reachable only by hand-building the IR, which is what this
+    test does.
+
+    So the guard stays, and its message now says what is actually wrong. It is
+    an internal-consistency assertion, not a dbt limitation — see
+    ``EXECUTION-LOG.md`` D-013.
+    """
     entity = _entity(audits=(AuditIR(kind="freshness", column="sku"),))
-    with pytest.raises(UnsupportedByTarget, match=r"'item'.*'freshness'.*'sku'"):
+    with pytest.raises(UnsupportedByTarget) as excinfo:
         DbtEmitter().emit(ProjectIR(entities=(entity,)), _ctx())
+    message = str(excinfo.value)
+    assert "'item'" in message
+    assert "'freshness'" in message
+    assert "'sku'" in message
+    # Not "dbt cannot": no target can.
+    assert "closed assert: vocabulary" in message
+    assert "no target" in message
 
 
 def test_reconcile_refusal_names_the_check_and_the_decision_authorizing_it() -> None:
@@ -364,36 +387,41 @@ def test_reconcile_refusal_names_the_check_and_the_decision_authorizing_it() -> 
     assert excinfo.value.source_path == "entity_model: reconcile"
 
 
-def test_a_merged_entity_is_refused_with_the_audit_it_cannot_emit() -> None:
-    """RFC 0024 D5 against RFC 0008 D3, and a departure from D20.
+def test_a_merged_entity_emits_the_collision_audit_it_used_to_be_refused_for() -> None:
+    """RFC 0024 D30 lifted (RFC 0026 D9).
 
-    The ``UNION ALL`` needs no dbt capability — it is the same shared SELECT —
-    but the merge's *correctness condition* is a blocking audit, and this
-    emitter's whole test surface is ``schema.yml`` entries. Emitting the union
-    without it is a model that compiles here, runs anywhere, and double-counts
-    an entity in silence.
+    D30's argument was correct when it was written: the merge's *correctness
+    condition* is a blocking audit, this emitter's whole test surface was
+    ``schema.yml`` entries, and a ``GROUP BY <key> HAVING COUNT(DISTINCT
+    _source) > 1`` is none of those. What changed is the emitter, not the
+    reasoning — so the assertion is that the audit is now **emitted**, not that
+    the refusal was wrong.
+
+    ``severity='error'`` is written out because D5 makes this audit blocking
+    and not configurable to a weaker disposition: a key in two sources is
+    either genuine duplication or a shared key space by accident, and both are
+    refusals.
     """
     merged = replace(
         _entity(),
         sources=(_SOURCE, replace(_SOURCE, relation="src_b")),
     )
-    with pytest.raises(UnsupportedByTarget) as excinfo:
-        DbtEmitter().emit(ProjectIR(entities=(merged,)), _ctx())
-    message = str(excinfo.value)
-    assert "src" in message
-    assert "src_b" in message
-    assert "item_source_collision" in message
-    assert "RFC 0024" in message
-    # It routes rather than merely blocking (D5's own doctrine for the audit).
-    assert "sqlmesh" in message
+    artifacts = DbtEmitter().emit(ProjectIR(entities=(merged,)), _ctx())
+    (test,) = [a for a in artifacts if a.path == "tests/item_source_collision.sql"]
+    assert test.kind is ArtifactKind.AUDIT
+    assert "{{ config(severity='error') }}" in test.content
+    assert "COUNT(DISTINCT _source) > 1" in test.content
+    # The reference, not a literal relation: it is what orders the test after
+    # the model and makes "blocking" mean anything at all (D5).
+    assert "{{ ref('item') }}" in test.content
+    assert "silver.item" not in test.content
 
 
-def test_a_merged_entity_declares_every_source(  # the half of D20 that survives
+def test_a_merged_entity_declares_every_source(  # D20, whole
 ) -> None:
-    """One ``source()`` per mapping. The refusal above fires on the *entity*
-    model, so the sources.yml walk is exercised here on the artifact that is
-    built before it — a merged entity must still name both relations, or the
-    day the refusal lifts dbt cannot resolve the second."""
+    """One ``source()`` per mapping — the prediction RFC 0024 D20 made about
+    the union, which was always true and is now the whole of what dbt needs:
+    the day the refusal lifted, both relations had to resolve."""
     merged = replace(_entity(), sources=(_SOURCE, replace(_SOURCE, relation="src_b")))
     references = _reference_map(ProjectIR(entities=(merged,)), _ctx())
     assert ("bronze", "src") in references
@@ -410,6 +438,11 @@ def test_scaffold_and_sources_artifacts() -> None:
         "model-paths": ["models"],
         "snapshot-paths": ["snapshots"],
         "macro-paths": ["macros"],
+        # Declared though it is dbt's own default, exactly as `macro-paths` is
+        # (RFC 0026 §6): the claim is that the emitted project states its own
+        # layout, *not* that removing the line would stop dbt finding the
+        # tests — it would not, and an earlier draft of this said otherwise.
+        "test-paths": ["tests"],
         "models": {"bloomery": {"silver": {"+schema": "silver"}}},
     }
     sources = cast("dict[str, object]", yaml.safe_load(artifacts["models/sources.yml"].content))

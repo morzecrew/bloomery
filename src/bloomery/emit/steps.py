@@ -61,10 +61,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "consistency_audits",
-    "refuse_coverage",
-    "refuse_mart_asserts",
     "refuse_python_models",
-    "refuse_step_audits",
     "step_artifacts",
     "step_body",
     "step_output_relation",
@@ -98,37 +95,6 @@ def refuse_python_models(ir: ProjectIR, target: str) -> None:
     raise UnsupportedByTarget(msg)
 
 
-def refuse_step_audits(ir: ProjectIR, ctx: EmitContext, target: str) -> None:
-    """Refuse a step whose outputs carry audits on a target without them.
-
-    A step's audits are whole-query checks — a join between sibling outputs
-    (D40), or an ``on_fail: fail`` rule's blocking body (D39). dbt's schema
-    tests are per-column or per-model *predicates*; neither shape survives the
-    translation, and ``_entity_tests`` already refuses an audit kind with "no
-    honest dbt schema-test mapping" for exactly this reason (RFC 0008 D3).
-
-    Checked by *building* the audits rather than by inspecting the step,
-    because what decides it is whether any were generated — a single-output
-    ``sql_model`` with no ``fail`` rules generates none, and refusing it would
-    withhold the tier for a reason that does not apply to it.
-    """
-    named = sorted(
-        body.name
-        for step in ir.steps
-        for body in (*consistency_audits(step, ctx), *quality_audits(step, ir, ctx))
-    )
-    if not named:
-        return
-    msg = (
-        f"step audit(s) {', '.join(named)} are whole-query checks (RFC 0017 D39/D40), "
-        f"which the {target} target cannot express: its schema tests are per-column or "
-        "per-model predicates, and approximating a cross-relation join with one would "
-        "change what the check means. Fix: compile for SQLMesh, or drop the references:/"
-        "on_fail: fail declarations these come from"
-    )
-    raise UnsupportedByTarget(msg)
-
-
 def step_body(step: StepIR) -> Expression:
     """A Tier 2 body with its parameters substituted, for any target.
 
@@ -143,53 +109,6 @@ def step_body(step: StepIR) -> Expression:
 def step_output_relation(output: StepOutputIR, ctx: EmitContext) -> tuple[str, str]:
     """``(namespace, relation)`` for one output, under the naming policy."""
     return ctx.naming.relation(_relation_name(output), Layer.SILVER)
-
-
-def refuse_coverage(ir: ProjectIR, target: str) -> None:
-    """Refuse a cross-entity coverage check on a target without audits.
-
-    Same argument as :func:`refuse_mart_asserts`, one relation further out: the
-    body joins two relations and groups, and dbt's schema tests are per-column
-    or per-model predicates. dbt **builds** the models, so a check it silently
-    does not emit is a check that does not exist (RFC 0008 D3).
-
-    Cube is not a caller: it builds nothing (RFC 0017 D52).
-    """
-    declared = sorted(check.name for check in ir.coverage)
-    if not declared:
-        return
-    msg = (
-        f"coverage check(s) {', '.join(declared)} lower to an audit joining two silver "
-        f"relations (RFC 0016 D90), which the {target} target cannot express: its schema "
-        "tests are per-column or per-model predicates, and there is no grouped "
-        "cross-relation form to approximate one with. Fix: compile for SQLMesh, or drop "
-        "the coverage: block for this target"
-    )
-    raise UnsupportedByTarget(msg, source_path="entity_model: coverage")
-
-
-def refuse_mart_asserts(ir: ProjectIR, target: str) -> None:
-    """Refuse a mart assertion on a target that cannot emit it (RFC 0016 D89).
-
-    An assertion lowers to an audit over a grouped aggregate, and dbt's schema
-    tests are per-column or per-model *predicates* — there is no grouped form to
-    approximate it with. dbt **builds** the mart, so a gate it silently does not
-    emit is a gate that does not exist (RFC 0008 D3).
-
-    Cube is not a caller: it builds nothing, emits no audit for anything, and
-    refusing it here would single out one check among the many this emitter
-    already leaves to whoever maintains the tables (RFC 0017 D52).
-    """
-    declared = [f"{mart.name}.{clause.name}" for mart in ir.marts for clause in mart.asserts]
-    if not declared:
-        return
-    msg = (
-        f"mart assertion(s) {', '.join(sorted(declared))} lower to a SQLMesh audit, which "
-        f"the {target} target cannot emit (RFC 0016 D89). Compiling anyway would ship a "
-        "project whose declared data-quality gate does not exist. Fix: compile for "
-        "SQLMesh, or drop the assert: block for this target"
-    )
-    raise UnsupportedByTarget(msg)
 
 
 # The wrapper is Python, so the envelope interpolates *pre-rendered* strings

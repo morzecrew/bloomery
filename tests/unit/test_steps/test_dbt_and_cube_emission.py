@@ -167,11 +167,15 @@ def test_the_identity_fixture_has_no_dbt_golden_because_dbt_refuses_it() -> None
     assert not (GOLDEN / "identity_resolution" / "dbt").exists()
 
 
-def test_dbt_refuses_a_step_whose_output_carries_an_audit() -> None:
-    """A step audit is a whole-query check — a join between siblings (D40) or a
-    blocking rule body (D39). dbt's schema tests are predicates, and
-    approximating a cross-relation join with one changes what the check
-    means."""
+def test_a_step_whose_output_carries_an_audit_emits_it_as_a_singular_test() -> None:
+    """RFC 0026, the fourth lifted refusal.
+
+    A step audit is a whole-query check — a join between siblings (D40) or a
+    blocking rule body (D39) — and the old refusal was right that no schema
+    test carries either. A singular test carries both, and the body is built
+    with dbt's own spelling of "the relation this audit judges" rather than
+    with ``@this_model`` rewritten afterwards (RFC 0026 D10).
+    """
     wired = (
         "steps_version: 1\nsteps:\n  - use: scored@1\n    outputs: {out: silver.scored}\n"
         "    quality:\n"
@@ -179,14 +183,21 @@ def test_dbt_refuses_a_step_whose_output_carries_an_audit() -> None:
         'expr: "score IS NOT NULL", on_fail: fail}\n'
         "    applies_to: {score_present: out}\n"
     )
-    with pytest.raises(UnsupportedByTarget, match="score_present"):
-        compile_steps(Target.DBT, steps=wired)
+    artifacts = compile_steps(Target.DBT, steps=wired)
+    (test,) = [a for a in artifacts if a.path.startswith("tests/")]
+    assert test.path == "tests/step_scored_score_present.sql"
+    assert "{{ ref('scored') }}" in test.content
+    assert "@this_model" not in test.content
+    assert "{{ config(severity='error') }}" in test.content
 
 
-def test_the_same_step_with_no_audits_is_not_refused() -> None:
-    """The refusal is decided by *building* the audits rather than by the
-    presence of a step, so a Tier 2 step with none keeps the tier."""
-    assert compile_steps(Target.DBT)
+def test_the_same_step_with_no_audits_emits_no_test() -> None:
+    """The audits are *built* rather than inferred from the presence of a
+    step, so a Tier 2 step with none contributes no test — and the model still
+    emits, which is what the refusal used to take away."""
+    artifacts = compile_steps(Target.DBT)
+    assert artifacts
+    assert not [a for a in artifacts if a.path.startswith("tests/")]
 
 
 # ....................... #
