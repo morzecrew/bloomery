@@ -113,9 +113,18 @@ a single step, so every `step_input` edge in the corpus is `entity field → ste
 other two are `step → step` — a binding naming another step's output, which the function's
 own docstring calls "exactly the common case (one step feeding another)", and a
 self-referencing binding, which emits a deliberate self-edge so that cycle detection has
-something to find. A table derived from compiling fixtures would have missed both, which
-is why §5.3 is derived from reading `_step_edges` and §6's guard is keyed on the
-`(label, src kind, dst kind)` triple rather than on the label alone.
+something to find.
+
+Reading `_mapping_edges` the same way turns up an eighth **label**, not merely an eighth
+shape: a field bound to a Tier 1 `sql_macro` is labelled `step:<ref@version>`, the
+non-recipe arm of the same `ALIAS_BOUND` branch that produces `recipe:<id>`. No fixture
+declares one, so it appears in no measurement of the corpus at all.
+
+Both omissions have one cause, and it is the method rather than the reading: a vocabulary
+compiled from fixtures can only contain what some fixture exercises. §5.3 is therefore
+derived from reading the two builders, the corpus is a witness to it rather than its
+source, and §6's guard is keyed on the `(label, src kind, dst kind)` triple rather than on
+the label alone.
 
 **The traversals that exist.** `toposort(graph)` in `resolve/order.py`;
 `available_canonicals(graph)` in `resolve/reach.py`, a single filter over `canonical`
@@ -258,6 +267,7 @@ The traversal does not switch on labels — it follows edges — but it **carrie
 | --- | --- | --- |
 | `direct` | source column → entity field | a mapped field, no recipe |
 | `recipe:<id>` | source column → entity field | a validated catalog recipe, id recorded |
+| `step:<ref@version>` | source column → entity field | a field computed by a Tier 1 `sql_macro` (RFC 0017 D50) — parameterised like `recipe:`, and in no fixture |
 | `canonical` | entity field → canonical field | the field links to a catalog canonical |
 | `requires` | canonical field → metric | a metric's leaf requirement |
 | `requires_metrics` | metric → metric | a metric composed of metrics |
@@ -385,24 +395,27 @@ names it as the follow-up.
   (RFC 0003) and the traversal's visited set is the obvious place to break it.
 - **The label vocabulary is complete, keyed by triple.** Collect
   `{(e.label.split(":")[0], e.src.kind, e.dst.kind) for e in graph.edges}` — the label
-  *families*, in which the parameterised `recipe:<id>` contributes `recipe` — and assert
-  equality with the set of rows in §5.3's table. §5.3 names the wire form; this set names
-  the families, and the two differ only in that row. **The recipe id is asserted
-  separately**: every `recipe:` edge's suffix must name a recipe the catalog defines, which
-  is the half a family comparison cannot see.
+  *families*, in which the parameterised `recipe:<id>` and `step:<ref@version>` contribute
+  `recipe` and `step` — and assert it is a **subset** of the rows in §5.3's table. Subset,
+  not equality: equality fails the moment a shape exists in code that nothing exercises,
+  which is the state this RFC found the tree in twice. **The two suffixes are asserted
+  separately**: a `recipe:` suffix must name a recipe the catalog defines and a `step:`
+  suffix must name a wired macro, which is the half a family comparison cannot see.
 
   **Keyed by the label alone, this guard cannot see a new shape of an existing label** —
   which is how `step_input`'s two `step → step` forms went unlisted in the first draft of
-  §5.3. The triple is the fix, and it moves the corpus from being the source of the table
-  to being one of its witnesses.
+  §5.3. The triple is the fix for that half; reading the builders rather than the corpus is
+  the fix for the other half, which is how `step:<ref@version>` went unlisted. A separate
+  test asserts the table's own rows against the builders, so a row added to `_mapping_edges`
+  or `_step_edges` and not to §5.3 fails even when no fixture reaches it.
 
 - **The shapes the corpus cannot reach get hand-built projects.** `identity_resolution` is
-  the corpus's only step fixture and it wires one step, so `step → step` never occurs.
-  Two projects are built for it: one step consuming another's output, and a
-  self-referencing binding — the second asserted to raise `CircularDerivation` from
-  `toposort` rather than to reach `lineage()` at all, which is the evidence for D5's
-  precondition rather than an assumption of it. Measured today: the seven labels listed, from 22 fixtures. A new label fails this
-  test, which is the intent — the failure names the table that needs a row.
+  the corpus's only step fixture and it wires one step, so `step → step` never occurs, and
+  no fixture declares a `sql_macro` field, so `step:<ref@version>` never occurs either.
+  Three projects are built for them: one step consuming another's output; a
+  self-referencing binding, asserted to raise `CircularDerivation` from `toposort` rather
+  than to reach `lineage()` at all, which is the evidence for D5's precondition rather than
+  an assumption of it; and one macro-bound field.
 - **Graph and `_field_provenance` agree.** For every fixture and every `FieldProvenance`:
   `RECIPE` iff the field's incoming edges include a `recipe:` label, `DIRECT` iff it has an
   outgoing `canonical` edge, `NATIVE` iff it does not. Measured today across the corpus:
@@ -466,10 +479,13 @@ names it as the follow-up.
 - **A new edge label, or a new shape of an existing one, silently outside the table.** The
   §6 completeness test is the mitigation and it fails closed. This is the same hole
   RFC 0029's conformance battery had per-branch (see [`logs/T-0002.md`](../logs/T-0002.md)
-  D-005): a guard keyed by one dimension misses a second — and it recurred here while this
-  RFC was being written, when a label-keyed reading of the corpus listed one of
-  `step_input`'s three source shapes. The key is the `(label, src kind, dst kind)` triple
-  for exactly that reason, and the corpus is a witness rather than the source.
+  D-005): a guard keyed by one dimension misses a second — and it recurred twice while this
+  RFC was being written. A label-keyed reading of the corpus listed one of `step_input`'s
+  three source shapes, and the same reading missed `step:<ref@version>` entirely, because
+  no fixture declares a `sql_macro` field. The triple is the key for the first failure and
+  reading the builders is the answer to the second: **a vocabulary compiled from fixtures
+  can only contain what some fixture exercises**, which makes the corpus a witness to this
+  table and never its source.
 - **`Resolution` grows a field.** It is a frozen dataclass with positional construction in
   tests. Adding `graph` last with no default is a source break for any caller constructing
   one by hand; giving it a default hides a missing graph. Chosen: **no default**, and the
@@ -501,7 +517,7 @@ names it as the follow-up.
 | 3 | `LOCKED` | **`truncated` is set iff `max_depth` cut the walk short, and `max_depth` defaults to `None`.** A partial answer that cannot say it is partial is the failure RFC 0022 D5 names; defaulting to unbounded means the flag can only be `True` when the caller asked for a bound, so no default path can produce a silent partial. |
 | 4 | `OPEN` | **Whether `Direction.BOTH` returns one merged sub-DAG or an upstream/downstream pair — and P1 therefore ships `UPSTREAM` and `DOWNSTREAM` only.** Merged is simpler to type and loses which side a node came from, which the first renderer needs to draw a root. Deferring the *member* rather than guessing its shape is the point: a `BOTH` shipped in P1 and reshaped in P2 is a breaking change to a published `__all__` type, and D2 has just bound `Lineage` to SemVer. Settled by whoever builds that renderer; the executor decides and logs it. |
 | 5 | `ASSUMED` | **`lineage()` requires an acyclic graph and states it as a precondition rather than checking it.** `resolve()` raises on cycles before anything downstream runs, so every graph reaching this is acyclic; a re-check would be a branch no caller can execute — and this project has already shipped one of those knowingly (see [`logs/T-0003.md`](../logs/T-0003.md) D-014). Depart from this if a caller turns up that wants to walk a cyclic graph in order to *see* the cycle. |
-| 6 | `ASSUMED` | **The edge-label vocabulary is closed at seven labels and eight `(label, src kind, dst kind)` triples, read off the builders and pinned by a test keyed on the triple.** The first draft of §5.3 was derived by compiling the 22 fixtures, which reaches one of `_step_edges`' three `step_input` sites and therefore listed `entity field → step` alone; the two `step → step` forms are in the code and in no fixture. Consequence: the corpus is a witness to this table, never its source, and a guard keyed on the label alone is specifically the one that cannot catch a new shape of a label it already knows. Depart if a label turns out to be constructed dynamically anywhere, which would make the closed set a lie rather than a contract. |
+| 6 | `ASSUMED` | **The edge-label vocabulary is closed at eight labels and nine `(label, src kind, dst kind)` triples, read off the builders and pinned by a test keyed on the triple.** The first draft of §5.3 was compiled from the 22 fixtures, and that method cost two entries: `_step_edges` emits `step_input` at three sites and the corpus reaches one, so both `step → step` forms were missing; and `_mapping_edges` labels a Tier 1 `sql_macro` field `step:<ref@version>`, which no fixture declares, so the label itself was missing. Consequence: the corpus is a witness to this table, never its source, and a guard keyed on the label alone is specifically the one that cannot catch a new shape of a label it already knows. Depart if a label turns out to be constructed dynamically anywhere, which would make the closed set a lie rather than a contract. |
 | 7 | `ASSUMED` | **`_field_provenance` stays as it is, and a test pins that it agrees with the graph.** Measured: 146 entries, 0 mismatches. Unifying them is right and re-decides RFC 0030 D8 from inside this document, which the corpus's amendment rules forbid. Consequence: two accounts of one fact ship deliberately, with the check that makes the eventual unification a refactor instead of a rediscovery. |
 | 8 | `OPEN` | **Whether `lineage()` accepts a node name as well as a `Node`.** The CLI must resolve a string either way; the question is whether that resolution is a library function or stays a CLI concern. The risk of the library form is a second, looser way to name a node. |
 
