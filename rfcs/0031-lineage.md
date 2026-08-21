@@ -5,8 +5,8 @@
   column": an impact check before a source migration, a debugging session over a wrong
   metric, or a catalogue UI. Nothing in the compiler needs it.
 - **Scope:** A **traversal** over the dependency DAG `resolve()` already builds, exposed
-  as a value. New module `resolve/lineage.py`, three new names on `bloomery.__all__`
-  (`Graph`, `Edge`, `Lineage`), one new field on
+  as a value. New module `resolve/lineage.py`, four new names on `bloomery.__all__`
+  (`Graph`, `Edge`, `Lineage`, `Direction`), one new field on
   [`Resolution`](../src/bloomery/resolve/resolution.py), and one new CLI subcommand. **No
   change to how the graph is built**, no new node kinds, no new edges, no change to
   reachability, ordering, refusals or emitted artifacts. The blast radius is additive: the
@@ -86,9 +86,11 @@ Verified against the tree, not from memory.
 **The graph.** `build_graph(project, catalog, metrics) -> Graph` in
 [`resolve/graph.py`](../src/bloomery/resolve/graph.py). `Graph` is
 `(nodes: tuple[Node, ...], edges: tuple[Edge, ...])`, both explicitly sorted. `Node` is
-`(kind: NodeKind, name: str)` where `name` is a kind-prefixed dotted id pinned by tests
-because it reaches `CircularDerivation` messages. Five kinds: `SOURCE_COLUMN`,
-`ENTITY_FIELD`, `CANONICAL_FIELD`, `METRIC`, `STEP`. `Edge` is `(src, dst, label)`,
+`(kind: NodeKind, name: str)` where `name` is a dotted id pinned by tests because it
+reaches `CircularDerivation` messages. Four of the five kinds prefix it with the kind —
+`source.`, `canonical.`, `metric.`, `step.` — and `ENTITY_FIELD` does not: its id is
+`<entity>.<field>`, so `order_item.unit_price` is a whole node name and not a suffix.
+Five kinds: `SOURCE_COLUMN`, `ENTITY_FIELD`, `CANONICAL_FIELD`, `METRIC`, `STEP`. `Edge` is `(src, dst, label)`,
 pointing **dependency → dependent**.
 
 **The edge-label vocabulary is wider than the code says.** `Edge.label`'s comment reads
@@ -271,8 +273,9 @@ bloomery lineage <node-id> [--direction upstream|downstream|both] [--max-depth N
                            [--format text|json] [-d DIR] [--catalog PATH]
 ```
 
-`<node-id>` is the canonical dotted id — `metric.gross_revenue`,
-`source.shopify__order_lines.$.total`, `order_item.unit_price`. These ids are already
+`<node-id>` is the node's own `name` — `metric.gross_revenue`,
+`source.shopify__order_lines.$.total`, and, unprefixed because entity fields are the one
+kind that carries no prefix (§3), `order_item.unit_price`. These ids are already
 pinned by tests because they appear in `CircularDerivation` messages, so the CLI is
 naming things the user has already seen in an error.
 
@@ -322,8 +325,13 @@ names it as the follow-up.
   varied: byte-identical `nodes` and `edges` order. This is the standing corpus rule
   (RFC 0003) and the traversal's visited set is the obvious place to break it.
 - **The label vocabulary is complete.** Compile every loadable fixture, collect
-  `{e.label.split(":")[0] for e in graph.edges}`, assert equality with the closed set in
-  §5.3. Measured today: the seven labels listed, from 22 fixtures. A new label fails this
+  `{e.label.split(":")[0] for e in graph.edges}` — the label *families*, in which the
+  parameterised `recipe:<id>` contributes `recipe` — and assert equality with
+  `{"canonical", "direct", "recipe", "requires", "requires_metrics", "step_input",
+  "step_output"}`. §5.3's table names the wire form; this set names the families, and the
+  two differ only in that row. **The recipe id is asserted separately**: every `recipe:`
+  edge's suffix must name a recipe the catalog defines, which is the half a family
+  comparison cannot see. Measured today: the seven labels listed, from 22 fixtures. A new label fails this
   test, which is the intent — the failure names the table that needs a row.
 - **Graph and `_field_provenance` agree.** For every fixture and every `FieldProvenance`:
   `RECIPE` iff the field's incoming edges include a `recipe:` label, `DIRECT` iff it has an
