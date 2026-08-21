@@ -150,7 +150,7 @@ def _exact_division(node: Expression) -> Expression:
     DuckDB is left inexact by this and knowingly. Its ``/`` is float division
     and ``//`` is integer division; the engine has no exact decimal division to
     reach for, so the float is bounded by a narrowing cast to the declared type
-    rather than removed (RFC 0029 §4, EXECUTION-LOG D-003).
+    rather than removed (RFC 0029 §4, logs/T-0002.md D-003).
     """
 
     def replace(child: Expression) -> Expression:

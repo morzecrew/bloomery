@@ -164,7 +164,7 @@ def test_a_builder_is_told_its_input_type_only_when_it_declares_types() -> None:
 
     The flag is what keeps the public ``Builder`` signature intact: passing
     ``input_type=`` to every builder would break each registered extension
-    (EXECUTION-LOG D-001), so only a spec that asks for it is given it.
+    (logs/T-0002.md D-001), so only a spec that asks for it is given it.
     """
     seen: list[object] = []
 

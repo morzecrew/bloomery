@@ -518,8 +518,8 @@ def _entity_tests(
             # `AuditIR` is built — and `audit_predicate` knows exactly the four
             # custom ones, so a seventh kind has no body on *any* target. The
             # guard therefore stays, saying what is actually wrong, and the
-            # kind it guards is unreachable from any spec. See EXECUTION-LOG.md
-            # D-013.
+            # kind it guards is unreachable from any spec. See
+            # logs/T-0003.md D-013.
             msg = (
                 f"entity {entity.name!r} audit kind {audit.kind!r} on column "
                 f"{audit.column!r} is outside the closed assert: vocabulary "
@@ -570,7 +570,7 @@ def _entity_test_artifacts(
     right one and it goes live the day dbt grows a reject model — the
     out-of-scope item RFC 0016 §5.4 names — and it is covered by a test that
     builds the IR directly rather than left to be discovered then. See
-    EXECUTION-LOG.md D-014.
+    logs/T-0003.md D-014.
     """
     relation = references[ctx.naming.relation(entity.name, Layer.SILVER)]
     artifacts: list[EmittedArtifact] = []
