@@ -214,6 +214,17 @@ the sub-DAG under its own budget, which is where a budget belongs.
 and a partial answer that does not say so is the failure RFC 0022 D5 is about: an empty
 result must never be readable as "nothing found" when it means "we stopped looking".
 
+**The depth boundary, stated so two implementations cannot disagree.** The root is at
+depth **0**. `max_depth=N` includes every node at distance ≤ N from the root, and every
+edge whose *both* endpoints are included — an edge to a node at depth N+1 is not in
+`edges`, because a `Lineage` whose edges name nodes it does not carry is not a sub-DAG.
+`max_depth=0` therefore returns `nodes=(root,)` and `edges=()`. `truncated` is `True` iff
+at least one edge was dropped for depth, so `max_depth=0` on a root with no lineage in
+that direction is `truncated=False` — the same empty result the unbounded call gives, and
+honestly not a truncation. A **negative** `max_depth` is a `ValueError`, not an empty
+result: there is no depth below the root, so the caller has asked for something with no
+answer rather than for nothing.
+
 **Termination is free and stated anyway.** Cycles raise in `toposort` before this can run,
 so the walk terminates on graph structure alone; the visited set is there for complexity,
 not correctness. Stating it matters because a future caller may want lineage on a graph
@@ -271,8 +282,21 @@ class Resolution:
     unreachable_metrics: tuple[UnreachableMetric, ...]
     provenance: tuple[FieldProvenance, ...]
     topo_order: tuple[Node, ...]
-    graph: Graph                          # new
+    graph: Graph                          # new, no default (D2)
 ```
+
+`resolve()` passes it from the build it already does, rather than calling `build_graph`
+a second time:
+
+```python
+    graph = build_graph(project, catalog, metrics)
+    ...
+    return Resolution(..., topo_order=topo_order, graph=graph)
+```
+
+That the field has no default makes this construction mandatory rather than optional,
+which is the point of D2: a `Resolution` carrying a graph that disagrees with the one its
+reachability came from is not a state worth being able to represent.
 
 The graph is built on every `resolve()` today and discarded. Keeping it is a field
 assignment, not a computation, and it is what makes `lineage()` reachable from the public
@@ -349,9 +373,13 @@ names it as the follow-up.
   that is a leaf. **No `BOTH` case in P1** — a test for a return shape D4 has not chosen
   would pin whichever one the implementation happened to pick, which is the opposite of
   what a test is for.
-- **`max_depth` and `truncated`.** Every truncated result sets the flag; an untruncated one
-  never does. Asserted red first — a `truncated` that is always `False` passes a weak test
-  and is exactly the degradation this flag exists to prevent.
+- **`max_depth` and `truncated`, at the boundary.** `max_depth=0` returns the root alone
+  with no edges; `N` and `N+1` over a chain of known depth differ by exactly one node and
+  one edge; the depth that first reaches a leaf is `truncated=False` while `depth-1` is
+  `True`; `max_depth=0` on a root with no lineage is `truncated=False`, which is the case
+  that separates "bounded to nothing" from "nothing there"; a negative value raises
+  `ValueError`. Asserted red first — a `truncated` that is always `False` passes a weak
+  test and is exactly the degradation this flag exists to prevent.
 - **Determinism.** Same graph, repeated calls, and across processes with `PYTHONHASHSEED`
   varied: byte-identical `nodes` and `edges` order. This is the standing corpus rule
   (RFC 0003) and the traversal's visited set is the obvious place to break it.
