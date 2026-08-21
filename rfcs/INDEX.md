@@ -38,7 +38,7 @@ Two consequences worth knowing:
 
 ## Allocating a number
 
-The next free number is **0031**. Before creating an RFC, read the number above — do not
+The next free number is **0032**. Before creating an RFC, read the number above — do not
 compute it from `ls`, which no longer sees retired documents. **Numbers are never reused**:
 0001–0022 are retired and permanently spent. Update this section in the same change that
 mints a number.
@@ -61,14 +61,16 @@ later exactly as this says; 0029 needed no such wait, because it reached `main` 
 branch that executed it.
 
 Departures taken while executing these documents are recorded in
-[`EXECUTION-LOG.md`](EXECUTION-LOG.md) — not an RFC, carries no number, never in the table
-above.
+[`logs/`](../logs/) — one file per task, outside this directory. They are not RFCs: no
+number, no status, no row in the table below. A reader deciding which RFC to trust should
+know it has a companion recording where it turned out to be wrong.
 
 | # | Title | Status | One-line routing description |
 |---|---|---|---|
 | [0023](0023-temporal-joins-scd2-flattening-and-currency-conversion.md) | Temporal joins: SCD2 flattening and currency conversion | 🚧 In progress | Two constructs that compile clean and cannot be correct — flattening a historical dimension, and `convert` — both needing a join against a validity interval. |
 | [0024](0024-deterministic-union-merge.md) | Deterministic union merge | 🚧 In progress | Letting several mappings build one entity when they share a key space but no overlapping keys, so the entity model integrates sources instead of renaming one. Overlap stays a step. |
 | [0030](0030-the-unresolved-work-report.md) | The unresolved-work report | 📝 Draft | Resolution is a loop and bloomery reports it as a snapshot. What is still open, what edit would close it, and what was already decided — as a value, without the compiler ever choosing. |
+| [0031](0031-lineage.md) | Lineage | 📝 Draft | The dependency graph is built on every resolve and thrown away except its order. A traversal over it, as a value: what a metric comes from, and what a column change would reach. |
 
 ## Status legend
 

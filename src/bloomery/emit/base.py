@@ -164,7 +164,7 @@ class AuditBody:
     says "rendered SELECT". Rendering here would shut the door D5 needs open:
     the dbt emitter rewrites every relation in a body to a ``ref()`` so the
     audit becomes a participant in dbt's DAG, and it can only do that to a
-    tree. See ``EXECUTION-LOG.md`` D-012.
+    tree. See ``logs/T-0003.md`` D-012.
 
     ``owner`` is the relation whose rows the audit judges. SQLMesh needs it to
     list the audit under that model's ``audits`` — a bare ``AUDIT`` block loads

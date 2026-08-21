@@ -298,7 +298,7 @@ def to_bool(col: Expression, *, input_type: LogicalType) -> Expression:
     meaning" — measured, the meaning *is* agreed: DuckDB and Trino both read
     every non-zero value as true, including negatives, which is exactly
     ``x <> 0``. There was nothing to be honest about, so it is spelled
-    (EXECUTION-LOG D-001, D5 settled).
+    (logs/T-0002.md D-001, D5 settled).
 
     ``x <> 0`` rather than ``CAST(CAST(x AS INT) AS BOOLEAN)`` because the
     second overflows for a ``bigint`` outside ``int4``.
@@ -467,7 +467,7 @@ def _narrowed(node: Expression, declared: LogicalType) -> Expression:
     :func:`_arith_output` declares, so the declared width always holds the exact
     result. It is not lossless for `coalesce`, whose declared type is its
     *input* type and whose literal is not bounded by it — which is why that one
-    casts the literal instead (EXECUTION-LOG D-002).
+    casts the literal instead (logs/T-0002.md D-002).
 
     Inside the quality system this cast becomes a ``TRY_CAST`` like any other
     (``_try_cast_shape``), so an overflow is a coercion failure and a
@@ -511,7 +511,7 @@ def divide(col: Expression, divisor: str | int, *, input_type: LogicalType) -> E
     4))`` in the ``ecom_basic`` goldens comes from a *catalog recipe* —
     ``expr: line_total / quantity`` — whose SQL is parsed rather than built,
     so it carries no marker and is untouched here. That float is real and still
-    ships; it is recorded in EXECUTION-LOG D-004, not fixed by this.
+    ships; it is recorded in logs/T-0002.md D-004, not fixed by this.
 
     ``exp.Div(typed=True)`` suppresses that cast and **does not survive the
     canonical round trip** — the IR keeps text and ``x / 2`` carries no flag

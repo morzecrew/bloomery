@@ -355,7 +355,7 @@ def test_an_audit_kind_outside_the_closed_vocabulary_is_refused() -> None:
 
     So the guard stays, and its message now says what is actually wrong. It is
     an internal-consistency assertion, not a dbt limitation — see
-    ``EXECUTION-LOG.md`` D-013.
+    ``logs/T-0003.md`` D-013.
     """
     entity = _entity(audits=(AuditIR(kind="freshness", column="sku"),))
     with pytest.raises(UnsupportedByTarget) as excinfo:

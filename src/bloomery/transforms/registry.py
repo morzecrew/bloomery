@@ -62,7 +62,7 @@ type OutputType = Callable[[LogicalType, tuple[str | int, ...]], LogicalType]
 #: to take it positionally: this alias is exported from ``bloomery.__all__`` and
 #: named in the API reference as an extension point, and moving it would break
 #: every registered third-party builder to serve the handful of built-ins that
-#: need the type (RFC 0029 D1, EXECUTION-LOG D-001).
+#: need the type (RFC 0029 D1, logs/T-0002.md D-001).
 type Builder = Callable[..., "Expression"]
 
 #: The read surface every consumer sees: an immutable name → spec mapping.
