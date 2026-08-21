@@ -284,8 +284,20 @@ with "not found": the ids are long, dotted and easy to mistype, and the graph is
 there to search. An id naming a node with no lineage in the requested direction is an
 empty result and **not** an error — a source column has no upstream, and that is an answer.
 
-Text format renders the sub-DAG as an indented tree from the root, with each child's edge
-label. JSON emits the `Lineage` value through `serialize.as_json_value`, like every other
+**Text format is a deterministic edge list, not a tree.** One line per edge, in
+`Lineage.edges` order, spelled `<src>  --<label>-->  <dst>`. A tree cannot render a DAG:
+a node reachable by two paths is either repeated — which re-creates exactly the
+exponential output D1 exists to avoid — or shown once and its second edge silently
+dropped, which loses the fact that two things feed it. The diamond in §6 is the case that
+forces this, and it is a fixture of the text format's test rather than only the
+traversal's.
+
+An indented tree stays available as a *second* format precisely because it is lossy in a
+bounded, statable way: it may be added only if a revisited node is marked as a reference
+(`↪ order_item.unit_price (above)`) instead of re-expanded, so every edge is still
+accounted for and no subtree is drawn twice. That is a P2 question, alongside D4.
+
+JSON emits the `Lineage` value through `serialize.as_json_value`, like every other
 command.
 
 ### Alternatives considered
