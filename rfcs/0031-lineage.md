@@ -103,8 +103,19 @@ canonical, direct, recipe:<id>, requires, requires_metrics, step_input, step_out
 
 `step_input` and `step_output` arrived with RFC 0017's `STEP` node and the comment was not
 extended. This is a stale comment rather than a defect — no code switches on the list — but
-lineage **is** the first reader that must handle every label, so §5.3 enumerates them and
-§6 pins the enumeration against the corpus. Fixing the comment is part of this change.
+lineage **is** the first reader that must handle every label. Fixing the comment is part of
+this change.
+
+**The corpus does not enumerate the shapes, and §5.3's table is read off the builder
+instead.** `_step_edges` emits `step_input` at *three* sites, and the fixture corpus
+reaches one of them: `identity_resolution` is the only project wiring a step, and it wires
+a single step, so every `step_input` edge in the corpus is `entity field → step`. The
+other two are `step → step` — a binding naming another step's output, which the function's
+own docstring calls "exactly the common case (one step feeding another)", and a
+self-referencing binding, which emits a deliberate self-edge so that cycle detection has
+something to find. A table derived from compiling fixtures would have missed both, which
+is why §5.3 is derived from reading `_step_edges` and §6's guard is keyed on the
+`(label, src kind, dst kind)` triple rather than on the label alone.
 
 **The traversals that exist.** `toposort(graph)` in `resolve/order.py`;
 `available_canonicals(graph)` in `resolve/reach.py`, a single filter over `canonical`
@@ -239,11 +250,17 @@ The traversal does not switch on labels — it follows edges — but it **carrie
 | `canonical` | entity field → canonical field | the field links to a catalog canonical |
 | `requires` | canonical field → metric | a metric's leaf requirement |
 | `requires_metrics` | metric → metric | a metric composed of metrics |
-| `step_input` | entity field → step | a step's declared input |
+| `step_input` | entity field → step | a step reading a mapped entity, whole |
+| `step_input` | step → step | a step reading another step's output — or, as a self-edge, a self-referencing binding |
 | `step_output` | step → entity field | a step's declared output |
 
-`Edge.label`'s comment is corrected to match, and §6 pins the list against the fixture
-corpus so the next label to arrive fails a test instead of a reader.
+`Edge.label`'s comment is corrected to match, and §6 pins the *triples* so the next label
+— or the next shape of an existing label — fails a test instead of a reader.
+
+The `step → step` self-edge is a cycle, so `toposort` raises on any project that produces
+one and `lineage()` never sees it (D5). It is in the table because the table describes what
+`_step_edges` builds, and a reader who meets one while debugging a `CircularDerivation`
+should find it named here.
 
 ### 5.4 `Resolution` carries the graph
 
@@ -338,14 +355,25 @@ names it as the follow-up.
 - **Determinism.** Same graph, repeated calls, and across processes with `PYTHONHASHSEED`
   varied: byte-identical `nodes` and `edges` order. This is the standing corpus rule
   (RFC 0003) and the traversal's visited set is the obvious place to break it.
-- **The label vocabulary is complete.** Compile every loadable fixture, collect
-  `{e.label.split(":")[0] for e in graph.edges}` — the label *families*, in which the
-  parameterised `recipe:<id>` contributes `recipe` — and assert equality with
-  `{"canonical", "direct", "recipe", "requires", "requires_metrics", "step_input",
-  "step_output"}`. §5.3's table names the wire form; this set names the families, and the
-  two differ only in that row. **The recipe id is asserted separately**: every `recipe:`
-  edge's suffix must name a recipe the catalog defines, which is the half a family
-  comparison cannot see. Measured today: the seven labels listed, from 22 fixtures. A new label fails this
+- **The label vocabulary is complete, keyed by triple.** Collect
+  `{(e.label.split(":")[0], e.src.kind, e.dst.kind) for e in graph.edges}` — the label
+  *families*, in which the parameterised `recipe:<id>` contributes `recipe` — and assert
+  equality with the set of rows in §5.3's table. §5.3 names the wire form; this set names
+  the families, and the two differ only in that row. **The recipe id is asserted
+  separately**: every `recipe:` edge's suffix must name a recipe the catalog defines, which
+  is the half a family comparison cannot see.
+
+  **Keyed by the label alone, this guard cannot see a new shape of an existing label** —
+  which is how `step_input`'s two `step → step` forms went unlisted in the first draft of
+  §5.3. The triple is the fix, and it moves the corpus from being the source of the table
+  to being one of its witnesses.
+
+- **The shapes the corpus cannot reach get hand-built projects.** `identity_resolution` is
+  the corpus's only step fixture and it wires one step, so `step → step` never occurs.
+  Two projects are built for it: one step consuming another's output, and a
+  self-referencing binding — the second asserted to raise `CircularDerivation` from
+  `toposort` rather than to reach `lineage()` at all, which is the evidence for D5's
+  precondition rather than an assumption of it. Measured today: the seven labels listed, from 22 fixtures. A new label fails this
   test, which is the intent — the failure names the table that needs a row.
 - **Graph and `_field_provenance` agree.** For every fixture and every `FieldProvenance`:
   `RECIPE` iff the field's incoming edges include a `recipe:` label, `DIRECT` iff it has an
@@ -407,10 +435,13 @@ names it as the follow-up.
 - **The `truncated` flag ignored.** `max_depth` is a convenience and a truncated sub-DAG
   read as complete is a wrong answer that looks right. Mitigated by defaulting `max_depth`
   to `None`, so the flag can only be `True` if the caller asked for a bound.
-- **A new edge label silently outside the table.** The §6 completeness test is the mitigation
-  and it fails closed. This is the same hole RFC 0029's conformance battery had per-branch
-  (see [`logs/T-0002.md`](../logs/T-0002.md) D-005): a guard keyed by one dimension misses a
-  second. Here the key is the label itself, which is the dimension that matters.
+- **A new edge label, or a new shape of an existing one, silently outside the table.** The
+  §6 completeness test is the mitigation and it fails closed. This is the same hole
+  RFC 0029's conformance battery had per-branch (see [`logs/T-0002.md`](../logs/T-0002.md)
+  D-005): a guard keyed by one dimension misses a second — and it recurred here while this
+  RFC was being written, when a label-keyed reading of the corpus listed one of
+  `step_input`'s three source shapes. The key is the `(label, src kind, dst kind)` triple
+  for exactly that reason, and the corpus is a witness rather than the source.
 - **`Resolution` grows a field.** It is a frozen dataclass with positional construction in
   tests. Adding `graph` last with no default is a source break for any caller constructing
   one by hand; giving it a default hides a missing graph. Chosen: **no default**, and the
@@ -442,7 +473,7 @@ names it as the follow-up.
 | 3 | `LOCKED` | **`truncated` is set iff `max_depth` cut the walk short, and `max_depth` defaults to `None`.** A partial answer that cannot say it is partial is the failure RFC 0022 D5 names; defaulting to unbounded means the flag can only be `True` when the caller asked for a bound, so no default path can produce a silent partial. |
 | 4 | `OPEN` | **Whether `Direction.BOTH` returns one merged sub-DAG or an upstream/downstream pair — and P1 therefore ships `UPSTREAM` and `DOWNSTREAM` only.** Merged is simpler to type and loses which side a node came from, which the first renderer needs to draw a root. Deferring the *member* rather than guessing its shape is the point: a `BOTH` shipped in P1 and reshaped in P2 is a breaking change to a published `__all__` type, and D2 has just bound `Lineage` to SemVer. Settled by whoever builds that renderer; the executor decides and logs it. |
 | 5 | `ASSUMED` | **`lineage()` requires an acyclic graph and states it as a precondition rather than checking it.** `resolve()` raises on cycles before anything downstream runs, so every graph reaching this is acyclic; a re-check would be a branch no caller can execute — and this project has already shipped one of those knowingly (see [`logs/T-0003.md`](../logs/T-0003.md) D-014). Depart from this if a caller turns up that wants to walk a cyclic graph in order to *see* the cycle. |
-| 6 | `ASSUMED` | **The edge-label vocabulary is closed at seven and pinned by a corpus test.** Measured across 22 fixtures. `Edge.label`'s comment is corrected in the same change, since it is short by the two labels RFC 0017 added. Depart if a label turns out to be constructed dynamically anywhere, which would make the closed set a lie rather than a contract. |
+| 6 | `ASSUMED` | **The edge-label vocabulary is closed at seven labels and eight `(label, src kind, dst kind)` triples, read off the builders and pinned by a test keyed on the triple.** The first draft of §5.3 was derived by compiling the 22 fixtures, which reaches one of `_step_edges`' three `step_input` sites and therefore listed `entity field → step` alone; the two `step → step` forms are in the code and in no fixture. Consequence: the corpus is a witness to this table, never its source, and a guard keyed on the label alone is specifically the one that cannot catch a new shape of a label it already knows. Depart if a label turns out to be constructed dynamically anywhere, which would make the closed set a lie rather than a contract. |
 | 7 | `ASSUMED` | **`_field_provenance` stays as it is, and a test pins that it agrees with the graph.** Measured: 146 entries, 0 mismatches. Unifying them is right and re-decides RFC 0030 D8 from inside this document, which the corpus's amendment rules forbid. Consequence: two accounts of one fact ship deliberately, with the check that makes the eventual unification a refactor instead of a rediscovery. |
 | 8 | `OPEN` | **Whether `lineage()` accepts a node name as well as a `Node`.** The CLI must resolve a string either way; the question is whether that resolution is a library function or stays a CLI concern. The risk of the library form is a second, looser way to name a node. |
 
