@@ -168,7 +168,7 @@ edge.
 class Direction(StrEnum):
     UPSTREAM = "upstream"      # follow edges dependent -> dependency
     DOWNSTREAM = "downstream"  # follow edges dependency -> dependent
-    BOTH = "both"
+    BOTH = "both"          # P2 — its return shape is D4, still open
 
 
 @dataclass(frozen=True, slots=True)
@@ -329,7 +329,9 @@ names it as the follow-up.
 
 - **Traversal correctness, unit.** Hand-built graphs: a diamond (one node reachable by two
   paths appears once in `nodes`, twice in `edges`), a chain, a disconnected node, a root
-  that is a leaf, `BOTH` over a node with lineage on each side.
+  that is a leaf. **No `BOTH` case in P1** — a test for a return shape D4 has not chosen
+  would pin whichever one the implementation happened to pick, which is the opposite of
+  what a test is for.
 - **`max_depth` and `truncated`.** Every truncated result sets the flag; an untruncated one
   never does. Asserted red first — a `truncated` that is always `False` passes a weak test
   and is exactly the degradation this flag exists to prevent.
@@ -365,7 +367,7 @@ names it as the follow-up.
   the three §2 questions, since every one of them is a task rather than a concept.
 - A **reference** entry for `lineage()`, `Lineage`, `Direction`, and the closed label table
   from §5.3. The label table is the part a reader will come back to.
-- `stability.md` gains the three new `__all__` names. `Graph` and `Edge` becoming public is
+- `stability.md` gains the four new `__all__` names. `Graph` and `Edge` becoming public is
   an **additive** surface change and a changelog entry: they exist today and move from
   private to published, which binds their shape to SemVer from that point on. That is the
   real cost of this RFC and it should be stated as a cost, not buried as a convenience.
@@ -420,7 +422,8 @@ names it as the follow-up.
 - **Does `BOTH` return one sub-DAG or two?** A single merged sub-DAG is simpler to type and
   loses the fact that a node was reached upstream rather than downstream — which matters
   for rendering, since a tree drawn from a merged DAG has no root direction. Settled by the
-  first renderer; D4 delegates it.
+  first renderer; D4 delegates it, and P1 ships without the member rather than shipping a
+  shape that would have to change.
 - **Should `lineage()` accept a node *name* as well as a `Node`?** The CLI must accept a
   string and the library takes a `Node`. Whether the string form belongs in the library or
   stays a CLI concern is genuinely open; the risk of putting it in the library is a second,
@@ -435,9 +438,9 @@ names it as the follow-up.
 | # | Grade | Decision |
 | --- | --- | --- |
 | 1 | `LOCKED` | **`lineage()` returns the reachable sub-DAG, never enumerated paths.** Path count is exponential in graph width; sub-DAG size is bounded by the graph, which is what makes the return type's size predictable from an input the caller already holds. A caller wanting paths enumerates them from the sub-DAG under its own budget. Consequence: the common "show me the chain" rendering is the caller's fold over the sub-DAG rather than a library product, and any future path API must carry a budget parameter rather than inheriting this one's silence. |
-| 2 | `LOCKED` | **`Graph` and `Edge` join `bloomery.__all__`, and `Resolution` gains `graph` with no default.** A traversal returning a sub-DAG is unusable if its return type is private, and `Node`/`NodeKind` are already public — the surface is being completed. No default on the field because a `Resolution` without its graph is not a state this design wants representable. Consequence: both types are bound by `stability.md`'s SemVer rule from this point, and hand-constructed `Resolution`s in tests break loudly rather than silently carrying an empty graph. |
+| 2 | `LOCKED` | **`Graph`, `Edge`, `Lineage` and `Direction` join `bloomery.__all__`, and `Resolution` gains `graph` with no default.** A traversal returning a sub-DAG is unusable if its return type is private, and `Node`/`NodeKind` are already public — the surface is being completed. No default on the field because a `Resolution` without its graph is not a state this design wants representable. Consequence: both types are bound by `stability.md`'s SemVer rule from this point, and hand-constructed `Resolution`s in tests break loudly rather than silently carrying an empty graph. |
 | 3 | `LOCKED` | **`truncated` is set iff `max_depth` cut the walk short, and `max_depth` defaults to `None`.** A partial answer that cannot say it is partial is the failure RFC 0022 D5 names; defaulting to unbounded means the flag can only be `True` when the caller asked for a bound, so no default path can produce a silent partial. |
-| 4 | `OPEN` | **Whether `Direction.BOTH` returns one merged sub-DAG or an upstream/downstream pair.** Merged is simpler to type and loses which side a node came from, which the first renderer will need to draw a root. Settled by whoever builds that renderer; the executor decides and logs it. |
+| 4 | `OPEN` | **Whether `Direction.BOTH` returns one merged sub-DAG or an upstream/downstream pair — and P1 therefore ships `UPSTREAM` and `DOWNSTREAM` only.** Merged is simpler to type and loses which side a node came from, which the first renderer needs to draw a root. Deferring the *member* rather than guessing its shape is the point: a `BOTH` shipped in P1 and reshaped in P2 is a breaking change to a published `__all__` type, and D2 has just bound `Lineage` to SemVer. Settled by whoever builds that renderer; the executor decides and logs it. |
 | 5 | `ASSUMED` | **`lineage()` requires an acyclic graph and states it as a precondition rather than checking it.** `resolve()` raises on cycles before anything downstream runs, so every graph reaching this is acyclic; a re-check would be a branch no caller can execute — and this project has already shipped one of those knowingly (see [`logs/T-0003.md`](../logs/T-0003.md) D-014). Depart from this if a caller turns up that wants to walk a cyclic graph in order to *see* the cycle. |
 | 6 | `ASSUMED` | **The edge-label vocabulary is closed at seven and pinned by a corpus test.** Measured across 22 fixtures. `Edge.label`'s comment is corrected in the same change, since it is short by the two labels RFC 0017 added. Depart if a label turns out to be constructed dynamically anywhere, which would make the closed set a lie rather than a contract. |
 | 7 | `ASSUMED` | **`_field_provenance` stays as it is, and a test pins that it agrees with the graph.** Measured: 146 entries, 0 mismatches. Unifying them is right and re-decides RFC 0030 D8 from inside this document, which the corpus's amendment rules forbid. Consequence: two accounts of one fact ship deliberately, with the check that makes the eventual unification a refactor instead of a rediscovery. |
@@ -445,14 +448,17 @@ names it as the follow-up.
 
 ## 12. Phasing
 
-**P1 — the value and the traversal.** `resolve/lineage.py`, `Lineage`, `Direction`,
-`Resolution.graph`, the three `__all__` additions, the corrected label comment, and every
-§6 test except the CLI ones. This is the whole design; it is one PR.
+**P1 — the value and the traversal.** `resolve/lineage.py`, `Lineage`, `Direction` with
+`UPSTREAM` and `DOWNSTREAM`, `Resolution.graph`, the four `__all__` additions, the
+corrected label comment, and every §6 test except the CLI ones. One PR.
 
-**P2 — the CLI and the docs.** `bloomery lineage`, its near-miss refusal, the text
-renderer, the how-to and the reference entry. Separable because P1 is a complete, testable
-library capability and the renderer is where D4's open question gets answered — splitting
-them means the answer is informed by a real consumer rather than guessed at design time.
+**P2 — the CLI, `BOTH`, and the docs.** `bloomery lineage`, its near-miss refusal, the
+edge-list renderer, `Direction.BOTH` in whatever shape D4 settles on, the how-to and the
+reference entry. Separable because P1 is a complete, testable library capability without
+`BOTH`, and the renderer is what forces D4's answer — splitting them means the answer is
+informed by a real consumer rather than guessed at design time. What P1 must **not** do is
+ship a `BOTH` whose shape P2 then changes: `Lineage` is public from P1 (D2), so that would
+be a breaking change to a published type rather than an addition to it.
 
 Neither phase is demand-gated: the trigger named in the status line is the whole
 justification, and if no such consumer exists the RFC should stay Draft rather than ship a
