@@ -2,8 +2,9 @@
 
 - **Status:** 🚧 In progress — **P1 landed; P2 designed and demand-gated (D31).** The union,
   its compile-time checks, the collision audit, `_source`, the plan-classifier rows, the
-  `multi_source` fixture and the docs pair are shipped — six departures recorded in
-  [`logs/T-0004.md`](../logs/T-0004.md), drift count zero. This document stays for
+  `multi_source` fixture and the docs pair are shipped — five departures and one prose
+  note recorded in [`logs/T-0004.md`](../logs/T-0004.md), drift count zero. This document
+  stays for
   **P2** (§12): the quality system on a merged entity. P2's design is now settled rather
   than sketched — D32/D33 fix rule lowering, D34/D35 fix `dedupe:` — and its *code* waits
   for a project that needs it, on the same test RFC 0023 D6 applies to its own P2.
