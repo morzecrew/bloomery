@@ -17,7 +17,7 @@
       "source": "morzecrew/agent-skills",
       "sourceType": "github",
       "skillPath": "skills/flag-dont-flip/SKILL.md",
-      "computedHash": "59fcc223a73e5cef2d7ac1c1a175527c6e2c2e83d30ba836a6c32cf4c7128f89"
+      "computedHash": "f5cc642d27b72eef7a6acd7edd3408c98c90b8665b262741abcad10dd1a236e3"
     },
     "gitmoji-conventional": {
       "source": "morzecrew/agent-skills",
