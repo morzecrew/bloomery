@@ -237,7 +237,7 @@ The traversal does not switch on labels — it follows edges — but it **carrie
 | `canonical` | entity field → canonical field | the field links to a catalog canonical |
 | `requires` | canonical field → metric | a metric's leaf requirement |
 | `requires_metrics` | metric → metric | a metric composed of metrics |
-| `step_input` | source column → step | a step's declared input |
+| `step_input` | entity field → step | a step's declared input |
 | `step_output` | step → entity field | a step's declared output |
 
 `Edge.label`'s comment is corrected to match, and §6 pins the list against the fixture
