@@ -280,8 +280,17 @@ So the measure that decreases is not `|O|` but the pair
 `(|O|, count of UNLINKED entries)` under lexicographic order: an entity-model
 edit leaves the first component alone and decreases the second, a mapping edit
 decreases the first. The loop therefore ends in at most `2|O|` rounds, at a
-fixed point that is either "nothing open" or "the open entries have no options
-and need source data that does not exist".
+fixed point that is either "nothing open" or "no available option closes what
+is left".
+
+**Why an entry survives the fixed point is a question this report cannot
+answer**, and an earlier draft of this paragraph answered it anyway — it said
+the survivors "need source data that does not exist". An empty `options` is a
+fact about the **catalog**: it says the catalog declares no derivation for that
+field, not that the data is absent. A non-empty one that a chooser cannot use
+says even less. bloomery does no I/O (§8), so which of "the catalog is missing a
+recipe", "the source lacks the paths" and "nobody has written the mapping yet"
+holds is exactly what a caller that *can* read the source is for.
 
 **A chooser that only writes mappings terminates on the `UNMAPPED` subset and
 leaves every `UNLINKED` entry standing.** That is a correct outcome rather than
@@ -435,7 +444,7 @@ Genuinely attractive and not taken — see D5, which records both sides.
 | 7 | `OPEN` | **Whether the human CLI table prints open decisions.** JSON gets them by construction. The table is a summary (RFC 0020 D4), and this is either the most useful line `bloomery resolve` could print or the one that turns a summary into a dump. Whoever builds this decides and logs it. |
 | 8 | `ASSUMED` | **`provenance` returns to `SpecEvidence`.** It is computed on every `resolve()` and discarded, and has been off the CLI since RFC 0022 D8. A loop needs its own memory, and the alternative is a chooser re-deriving its history from the mapping documents it wrote. Graded `ASSUMED` because it is additive and reversible: if it turns out no caller reads it, dropping the field costs nothing but a changelog line. Its order is `(entity, field)`, stated in §5.1 rather than left as the current implementation's habit. |
 | 9 | `LOCKED` | **Every entry names one edit; an entry that cannot is omitted.** The promise is not "here is a gap" but "here is the edit that would close it", and an entry a caller cannot act on is a worklist item that never clears. Consequence, and the only shape affected today: a canonical whose entity is built by more than one mapping is **not reported**, because its columns are per mapping (RFC 0024 D26) and an entry keyed on `canonical` cannot say which document to edit. Nothing is hidden — the blocked metric is still `unreachable` — and the omission lifts when the report can carry a mapping identity, which is RFC 0024 P2's question rather than this one's. |
-| 10 | `LOCKED` | **`UNLINKED` and `UNMAPPED` close by different edits, and termination is measured accordingly.** An `UNLINKED` entry has no field to record a recipe on, so an entity-model edit turns it into `UNMAPPED` — progress without removal. The decreasing measure is therefore `(|O|, count of UNLINKED)` lexicographically and the bound is `2|O|`, not `|O|` (§5.4). Consequence: a chooser that writes only mappings terminates on the `UNMAPPED` subset and correctly leaves `UNLINKED` entries standing, which is the honest answer to half of §10's third question. An earlier draft of §5.4 claimed every accepted choice removes an entry; it does not, and the two-gap distinction D3 draws is what makes the error visible. |
+| 10 | `LOCKED` | **`UNLINKED` and `UNMAPPED` close by different edits, and termination is measured accordingly.** An `UNLINKED` entry has no field to record a recipe on, so an entity-model edit turns it into `UNMAPPED` — progress without removal. The decreasing measure is therefore the pair (open canonicals, `UNLINKED` among them) under lexicographic order, and the bound is twice the number of open canonicals rather than that number (§5.4 carries the notation, which does not survive a table cell). Consequence: a chooser that writes only mappings terminates on the `UNMAPPED` subset and correctly leaves `UNLINKED` entries standing, which is the honest answer to half of §10's third question. An earlier draft of §5.4 claimed every accepted choice removes an entry; it does not, and the two-gap distinction D3 draws is what makes the error visible. |
 
 ## 12. Phasing
 
