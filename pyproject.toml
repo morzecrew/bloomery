@@ -39,7 +39,7 @@ keywords = [
 
 dependencies = [
     "jinja2>=3.1",
-    "metricflow==0.211.*",
+    "metricflow>=0.211,<0.213",
     "pydantic>=2.9",
     "pyyaml>=6",
     # Exact-pinned in uv.lock; the metadata bound tracks one major so a sqlglot
