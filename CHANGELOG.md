@@ -54,6 +54,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **MetricFlow moves to 0.212**, and the emitted MetricFlow manifest changes with it:
+  `minor_version` reads `"212"` where it read `"211"`. That field is part of every emitted
+  manifest, so the artifact bytes move for every project even where nothing else did —
+  and the hydration cache key carries the MetricFlow version (RFC 0014 D2), so the first
+  planning call after upgrading is a miss by construction rather than a stale hit. No
+  emitted SQL and no output-column order changed. The dependency stays pinned to one
+  minor (`==0.212.*`): 0.212 renamed the output-column-order parameter with no overlap,
+  so a range spanning 0.211 and 0.212 would admit a version the planner cannot call.
 - **`_source` is a reserved member name**, unconditionally — a field, dimension or role
   may not be called `_source` even in a project that merges nothing, because a name that
   is legal until a second mapping arrives is a trap laid for the change that adds one.

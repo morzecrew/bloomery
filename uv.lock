@@ -190,7 +190,7 @@ engines = [
 [package.metadata]
 requires-dist = [
     { name = "jinja2", specifier = ">=3.1" },
-    { name = "metricflow", specifier = ">=0.211,<0.213" },
+    { name = "metricflow", specifier = "==0.212.*" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pyyaml", specifier = ">=6" },
     { name = "sqlglot", specifier = ">=30.8.0,<31" },

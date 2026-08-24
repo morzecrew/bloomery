@@ -23,7 +23,11 @@ from __future__ import annotations
 import hashlib
 from typing import TYPE_CHECKING
 
-from metricflow.engine.metricflow_engine import MetricFlowEngine, MetricFlowQueryRequest
+from metricflow.engine.metricflow_engine import (
+    MetricFlowEngine,
+    MetricFlowQueryRequest,
+    OutputColumnOrderMode,
+)
 from metricflow_semantics.errors.error_classes import (
     InvalidQueryException,
     InvalidQuerySyntax,
@@ -168,7 +172,15 @@ class MetricFlowPlanner:
             )
             or None,
             limit=limit,
-            order_output_columns_by_input_order=True,
+            # metricflow 0.212 replaced the boolean
+            # `order_output_columns_by_input_order=True` with this enum. The
+            # successor value is `INPUT_ORDER`; the parameter's own default is
+            # `LEGACY_TYPE_GROUPED`, which orders columns within each spec group
+            # "in an arbitrary order that depends on how MF generates the SQL"
+            # — so dropping the argument rather than porting it would trade a
+            # deterministic column order for an engine-internal one, and RFC 0003
+            # forbids that (`sql` is fingerprinted, and `columns` is a contract).
+            output_column_order_mode=OutputColumnOrderMode.INPUT_ORDER,
         )
         lookup = self._hydrator.get(ir)
         engine = MetricFlowEngine(
