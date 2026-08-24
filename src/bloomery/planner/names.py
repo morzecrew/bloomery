@@ -101,7 +101,7 @@ def group_by_name(dimension: ResolvedDimension, *, entity: str) -> str:
 def to_mf_group_by(dimensions: Sequence[ResolvedDimension], *, entity: str) -> tuple[str, ...]:
     """Every requested dimension as a MetricFlow group-by name, in request
     order (output column order follows it — the planner passes
-    ``order_output_columns_by_input_order``)."""
+    ``output_column_order_mode=INPUT_ORDER``)."""
     return tuple(group_by_name(dimension, entity=entity) for dimension in dimensions)
 
 

@@ -5,6 +5,8 @@ flag."""
 
 from __future__ import annotations
 
+import importlib.metadata
+
 import pytest
 from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifestLookup
 
@@ -44,7 +46,11 @@ def test_key_carries_all_three_components() -> None:
     key = hydration_key(ir)
     assert key.spec_fingerprint == project_fingerprint(ir)
     assert key.bloomery_version
-    assert key.metricflow_version.startswith("0.211.")
+    # The installed version, not a literal: the contract is that the key
+    # carries MetricFlow's version (RFC 0014 D2 — a bump must miss the
+    # cache), and a hard-coded prefix asserts the pin instead, which the
+    # goldens' `minor_version` and the pyproject bound already do.
+    assert key.metricflow_version == importlib.metadata.version("metricflow")
 
 
 def test_any_component_change_is_a_different_key() -> None:
