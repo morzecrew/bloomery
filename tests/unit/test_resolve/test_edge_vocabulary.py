@@ -36,6 +36,7 @@ from bloomery.resolve.graph import (
     build_graph,
 )
 from bloomery.resolve.metrics import effective_metrics
+from support.compiling import spec_fixture_names
 
 pytestmark = pytest.mark.unit
 
@@ -71,23 +72,24 @@ def test_every_named_constructor_exists_and_returns_its_kind() -> None:
 
 
 def loadable_projects() -> list[tuple[str, object, object]]:
+    """Every spec fixture, loaded — with **no exception handling**.
+
+    An earlier version swallowed load failures and moved on, guarded by a
+    "at least 20 fixtures" floor. That floor cannot tell twenty-two from
+    twenty, so a resolver regression would have shrunk this sweep silently and
+    left the guard green over the survivors.
+    """
     projects = []
-    for directory in sorted(FIXTURES.iterdir()):
-        if not directory.is_dir():
-            continue
-        try:
-            sources, catalog_text = io.read_spec_directory(str(directory))
-            project = load_project(sources)
-            catalog = load_catalog(catalog_text) if catalog_text else None
-        except Exception:  # noqa: BLE001 — a fixture that cannot load is not this test's subject
-            continue
-        projects.append((directory.name, project, catalog))
+    for name in spec_fixture_names():
+        sources, catalog_text = io.read_spec_directory(str(FIXTURES / name))
+        catalog = load_catalog(catalog_text) if catalog_text else None
+        projects.append((name, load_project(sources), catalog))
     return projects
 
 
 def test_the_corpus_emits_only_declared_shapes() -> None:
     projects = loadable_projects()
-    assert len(projects) >= 20, "the corpus shrank; this guard is only as wide as what loads"
+    assert [name for name, _p, _c in projects] == list(spec_fixture_names())
 
     emitted: set[tuple[str, NodeKind, NodeKind]] = set()
     for _name, project, catalog in projects:

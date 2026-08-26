@@ -78,12 +78,14 @@ class Lineage:
     #: The direction walked, carried so a caller holding the value alone can
     #: tell "what this is built from" from "what this feeds".
     direction: Direction
-    #: Sorted by ``(name, kind)`` (RFC 0003 §5.3). ``Graph.nodes`` sorts by
-    #: ``name`` alone; the kind is a tiebreak here because two kinds may
-    #: share a name — an entity field carries no kind prefix (§3), so
-    #: ``source.x`` could be either an entity's field or a source column.
+    #: Sorted by ``(name, kind)``, matching ``Graph.nodes`` (RFC 0003 §5.3).
+    #: The kind is a tiebreak rather than decoration: an entity field carries
+    #: no kind prefix (§3), so ``metric.revenue`` may name either an entity's
+    #: field or a metric, and sorting on the name alone leaves two such nodes
+    #: in set-iteration order. See ``logs/T-0005.md`` D-025.
     nodes: tuple[Node, ...]
-    #: Sorted by ``(src.name, dst.name, label)``, matching ``Graph.edges``.
+    #: Sorted as ``Graph.edges`` is — by ``(src, dst, label)`` with each
+    #: endpoint's kind as a tiebreak, for the same reason.
     edges: tuple[Edge, ...]
     #: ``True`` iff ``max_depth`` stopped the walk at an edge it would
     #: otherwise have followed (D3). Never ``True`` for an unbounded call, so

@@ -26,6 +26,7 @@ from bloomery.cli import io
 from bloomery.resolve.graph import NodeKind, entity_field_node, metric_node
 from bloomery.resolve.reach import available_canonicals
 from bloomery.resolve.resolution import Provenance
+from support.compiling import spec_fixture_names
 
 pytestmark = pytest.mark.unit
 
@@ -41,16 +42,10 @@ def resolved_fixtures() -> list[tuple[str, object]]:
     might differ.
     """
     out = []
-    for directory in sorted(FIXTURES.iterdir()):
-        if not directory.is_dir():
-            continue
-        try:
-            sources, catalog_text = io.read_spec_directory(str(directory))
-            project = load_project(sources)
-            catalog = load_catalog(catalog_text) if catalog_text else None
-            out.append((directory.name, resolve(project, catalog)))
-        except Exception:  # noqa: BLE001 — a fixture that cannot resolve is not the subject
-            continue
+    for name in spec_fixture_names():
+        sources, catalog_text = io.read_spec_directory(str(FIXTURES / name))
+        catalog = load_catalog(catalog_text) if catalog_text else None
+        out.append((name, resolve(load_project(sources), catalog)))
     return out
 
 
@@ -71,8 +66,11 @@ def unavailable_in(walk: Lineage, available: frozenset[str]) -> set[str]:
     }
 
 
-def test_the_corpus_resolves_widely_enough_to_prove_anything() -> None:
-    assert len(resolved_fixtures()) >= 15
+def test_every_spec_fixture_resolves() -> None:
+    """Named rather than counted. A floor cannot tell a fixture that stopped
+    resolving from one that never existed, and both batteries below are only as
+    wide as this sweep."""
+    assert [name for name, _r in resolved_fixtures()] == list(spec_fixture_names())
 
 
 def test_graph_edges_and_field_provenance_agree() -> None:

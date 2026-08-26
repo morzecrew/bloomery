@@ -297,7 +297,27 @@ def build_graph(
         nodes.add(edge.src)
         nodes.add(edge.dst)
 
+    # Both keys carry the node *kind* as a tiebreak, and both are collected
+    # from a `set`. An entity-field id has no kind prefix (`<entity>.<field>`),
+    # so it can collide with every other kind's: an entity named `metric` with
+    # a field `revenue` produces `metric.revenue`, and so does a metric named
+    # `revenue`. Sorted by name alone those two keep whatever relative order set
+    # iteration gave, which varies with `PYTHONHASHSEED` — the same specs then
+    # produce different `Graph.nodes` in different processes, and `topo_order`
+    # derives from this order, so it reaches emitted output. RFC 0003 forbids
+    # exactly that; see `logs/T-0005.md` D-025.
     return Graph(
-        nodes=tuple(sorted(nodes, key=lambda n: n.name)),
-        edges=tuple(sorted(set(edges), key=lambda e: (e.src.name, e.dst.name, e.label))),
+        nodes=tuple(sorted(nodes, key=lambda n: (n.name, n.kind.value))),
+        edges=tuple(
+            sorted(
+                set(edges),
+                key=lambda e: (
+                    e.src.name,
+                    e.src.kind.value,
+                    e.dst.name,
+                    e.dst.kind.value,
+                    e.label,
+                ),
+            )
+        ),
     )
