@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Lineage** — `lineage(graph, root, direction)` walks the dependency graph
+  `resolve()` has always built and returns the **reachable sub-DAG**: the nodes and the
+  labelled edges that say where a metric comes from, or what a source column change would
+  reach. `Resolution` now carries that `graph`, which it previously computed and threw
+  away, keeping only its topological order — every node in dependency order with no edges,
+  which could not answer the question the structure exists for.
+
+  Five names bind under SemVer: `Graph`, `Edge`, `Lineage`, `Direction`, and `lineage`.
+  `Resolution.graph` has **no default**, so any code constructing a `Resolution` by hand
+  must pass it — a `Resolution` whose graph disagrees with the one its reachability came
+  from is not a state worth being able to represent.
+
+  Sub-DAG rather than paths, deliberately: a DAG's path count is exponential in its width,
+  so paths make the output size unpredictable from an input the caller holds. A caller
+  wanting paths enumerates them from the sub-DAG under its own budget. `max_depth` bounds
+  the walk and `truncated` says when it did — a root with no lineage returns one node and
+  `truncated=False`, because bounding to nothing and finding nothing are different facts.
+
+  Not shipped yet: the `bloomery lineage` CLI and `Direction.BOTH`, whose return shape is
+  still open (RFC 0031 D4). It arrives with the renderer that forces the answer, rather
+  than shipping now as a published shape that would then have to change.
+
 - **The dbt target emits singular tests** — `tests/<check>.sql`, a file whose query
   returns the rows that fail. Five constructs that raised `UnsupportedByTarget` now
   compile there, and they were one missing artifact rather than five limitations: a

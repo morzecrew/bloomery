@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from bloomery.ir import UnreachableMetric
-from bloomery.resolve.graph import Node, build_graph
+from bloomery.resolve.graph import Graph, Node, build_graph
 from bloomery.resolve.metrics import effective_metrics
 from bloomery.resolve.order import toposort
 from bloomery.resolve.reach import available_canonicals, compute_reachability
@@ -65,6 +65,15 @@ class Resolution:
     unreachable_metrics: tuple[UnreachableMetric, ...]
     provenance: tuple[FieldProvenance, ...]
     topo_order: tuple[Node, ...]
+    #: The DAG the three fields above were computed from (RFC 0031 D2).
+    #:
+    #: Carried rather than rebuilt, and with **no default**: a ``Resolution``
+    #: holding a graph that disagrees with the one its reachability came from
+    #: is not a state worth being able to represent, and a caller rebuilding it
+    #: with a different ``catalog`` would get exactly that. ``topo_order`` stays
+    #: even though it is derivable from this — it is a published field with
+    #: callers and RFC 0005 D6 names it as part of the stage's product.
+    graph: Graph
 
 
 def _field_provenance(project: Project) -> tuple[FieldProvenance, ...]:
@@ -113,4 +122,5 @@ def resolve(project: Project, catalog: Catalog | None = None) -> Resolution:
         unreachable_metrics=unreachable,
         provenance=_field_provenance(project),
         topo_order=topo_order,
+        graph=graph,
     )

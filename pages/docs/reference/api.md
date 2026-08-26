@@ -52,7 +52,24 @@ enum, so `target="sqlmesh"` also works.
 Run reference validation, recipe validation, and reachability without emitting
 anything. The `Resolution` carries `reachable_metrics`, `unreachable_metrics` (each
 with its specific missing leaves), per-field `provenance` (direct / recipe / native),
-and the deterministic topological order.
+the deterministic topological order, and the dependency `graph` those three were
+computed from.
+
+### `lineage(graph, root, direction=Direction.UPSTREAM, *, max_depth=None) -> Lineage`
+
+Walk a `Resolution.graph` from one node and return the **reachable sub-DAG** — the
+nodes and the labelled edges, never enumerated paths, whose count is exponential in
+the graph's width. `Direction.UPSTREAM` answers "what is this built from" and
+`Direction.DOWNSTREAM` answers "what would break if this moved".
+
+The root is at depth 0, so `max_depth=N` carries every node within distance `N` and
+only edges whose both endpoints are carried; `truncated` says whether the bound cut
+the walk short. A root with no lineage in that direction is a one-node result rather
+than an error — a source column has no upstream, and that is an answer. A negative
+`max_depth` raises `ValueError`.
+
+Requires an acyclic graph, which `resolve()` guarantees: it raises `CircularDerivation`
+before returning.
 
 ### `build_project_ir(project, catalog=None, *, steps=EMPTY_REGISTRY) -> ProjectIR`
 
@@ -329,7 +346,7 @@ a deep import:
 | --- | --- |
 | Specs and IR | `Project`, `Catalog`, `ProjectIR`, `UnreachableMetric` |
 | Compilation | `EmittedArtifact`, `ArtifactKind`, `TargetEmitter`, `NamingPolicy`, `DefaultNaming` |
-| Analysis | `Resolution`, `FieldProvenance`, `Provenance`, `Node`, `NodeKind` |
+| Analysis | `Resolution`, `FieldProvenance`, `Provenance`, `Node`, `NodeKind`, `Graph`, `Edge`, `Lineage`, `Direction` |
 | Planner | `Clause`, `Scalar`, `Explanation`, `MeasureExplanation`, `ColumnRole`, `OrderDirection` |
 | Steps | `StepRegistry`, `StepManifest`, `EMPTY_REGISTRY` |
 | Transforms and types | `TransformSpec`, `ArgKind`, `Builder`, `OutputType`, `LogicalType` |
