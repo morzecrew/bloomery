@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from bloomery import Direction, lineage, load_catalog, load_project, resolve
+from bloomery import Direction, Lineage, lineage, load_catalog, load_project, resolve
 from bloomery.cli import io
 from bloomery.resolve.graph import NodeKind, entity_field_node, metric_node
 from bloomery.resolve.reach import available_canonicals
@@ -52,6 +52,23 @@ def resolved_fixtures() -> list[tuple[str, object]]:
         except Exception:  # noqa: BLE001 — a fixture that cannot resolve is not the subject
             continue
     return out
+
+
+def unavailable_in(walk: Lineage, available: frozenset[str]) -> set[str]:
+    """The canonical fields in a walk that are not available.
+
+    Extracted because both batteries below need it and a copy that drifts would
+    make two implementations agree about the wrong fact — precisely the failure
+    a two-implementation battery exists to catch. It takes the walk rather than
+    performing one, so a caller needing both the set and the walk pays for one
+    traversal.
+    """
+    return {
+        node.name.removeprefix(CANONICAL_PREFIX)
+        for node in walk.nodes
+        if node.kind is NodeKind.CANONICAL_FIELD
+        and node.name.removeprefix(CANONICAL_PREFIX) not in available
+    }
 
 
 def test_the_corpus_resolves_widely_enough_to_prove_anything() -> None:
@@ -111,12 +128,7 @@ def test_unreachable_missing_leaves_are_the_unavailable_canonicals_upstream() ->
         available = available_canonicals(graph)
         for unreachable in resolution.unreachable_metrics:  # type: ignore[attr-defined]
             walk = lineage(graph, metric_node(unreachable.name), Direction.UPSTREAM)
-            upstream_unavailable = {
-                node.name.removeprefix(CANONICAL_PREFIX)
-                for node in walk.nodes
-                if node.kind is NodeKind.CANONICAL_FIELD
-                and node.name.removeprefix(CANONICAL_PREFIX) not in available
-            }
+            upstream_unavailable = unavailable_in(walk, available)
             assert upstream_unavailable == set(unreachable.missing), (
                 f"{name}: {unreachable.name} is blocked on {sorted(unreachable.missing)} "
                 f"but its upstream lineage says {sorted(upstream_unavailable)}"
@@ -138,12 +150,7 @@ def test_reachable_metrics_have_no_unavailable_canonical_upstream() -> None:
         available = available_canonicals(graph)
         for metric_name in resolution.reachable_metrics:  # type: ignore[attr-defined]
             walk = lineage(graph, metric_node(metric_name), Direction.UPSTREAM)
-            unavailable = {
-                node.name.removeprefix(CANONICAL_PREFIX)
-                for node in walk.nodes
-                if node.kind is NodeKind.CANONICAL_FIELD
-                and node.name.removeprefix(CANONICAL_PREFIX) not in available
-            }
+            unavailable = unavailable_in(walk, available)
             assert not unavailable, f"{name}: {metric_name} is reachable but {unavailable} is not"
             compared += 1
             reached_something += len(walk.nodes) > 1

@@ -266,3 +266,42 @@ def test_recipe_suffixes_name_a_recipe_the_catalog_defines() -> None:
                 assert suffix in declared, f"{name}: recipe {suffix!r} is not in the catalog"
                 checked[name] += 1
     assert sum(checked.values()) > 0, "no recipe edge in the corpus — this guard proved nothing"
+
+
+def test_step_suffixes_name_a_macro_with_a_ref_and_a_version() -> None:
+    """The other half of §6's suffix rule.
+
+    No fixture declares a `sql_macro` field, so the corpus proves nothing here —
+    which is the point, and why the shape is asserted against a project built
+    for it. The suffix is a `StepUse`, `ref@version`, and a bare ref would make
+    the label ambiguous across two versions of one macro.
+    """
+    from bloomery import load_project  # noqa: PLC0415 — local to keep the module's imports about the corpus
+
+    from tests.unit.test_resolve.test_edge_shapes_offcorpus import (  # noqa: PLC0415
+        ENTITY_MODEL,
+        MACRO_MAPPING,
+    )
+
+    project = load_project({"entity_model": ENTITY_MODEL, "mapping_c": MACRO_MAPPING})
+    built = build_graph(project, None, ())
+
+    suffixes = {
+        edge.label.split(":", 1)[1] for edge in built.edges if edge.label.startswith("step:")
+    }
+    assert suffixes, "the macro project emitted no step: edge"
+    for suffix in suffixes:
+        ref, sep, version = suffix.partition("@")
+        assert sep and ref and version, f"step suffix {suffix!r} is not ref@version"
+
+
+def test_no_corpus_edge_carries_a_step_suffix() -> None:
+    """The premise the test above rests on, asserted rather than assumed.
+
+    If a fixture ever declares a macro field this becomes false, and the corpus
+    guard should then be the one validating suffixes.
+    """
+    for _name, project, catalog in loadable_projects():
+        built = build_graph(project, catalog, effective_metrics(project, catalog))  # type: ignore[arg-type]
+        assert not [e for e in built.edges if e.label.startswith("step:")]
+

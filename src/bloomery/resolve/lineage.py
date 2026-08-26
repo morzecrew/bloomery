@@ -10,8 +10,10 @@ the graph itself.
 
 The walk needs no correctness argument of its own. ``toposort`` raises on a
 cycle before anything downstream of it runs, so every graph reaching here is
-acyclic and the visited set is an optimisation rather than a termination
-guard (D5).
+acyclic (D5) and the visited set is there to keep the walk linear rather than
+to bound it. It *would* bound it: a caller that violates the precondition and
+passes a cyclic graph gets a terminating, if meaningless, answer rather than a
+hang. That is a property of the implementation, not a promise of the contract.
 """
 
 from __future__ import annotations
@@ -76,7 +78,10 @@ class Lineage:
     #: The direction walked, carried so a caller holding the value alone can
     #: tell "what this is built from" from "what this feeds".
     direction: Direction
-    #: Sorted by ``(name, kind)``, matching ``Graph.nodes`` (RFC 0003 §5.3).
+    #: Sorted by ``(name, kind)`` (RFC 0003 §5.3). ``Graph.nodes`` sorts by
+    #: ``name`` alone; the kind is a tiebreak here because two kinds may
+    #: share a name — an entity field carries no kind prefix (§3), so
+    #: ``source.x`` could be either an entity's field or a source column.
     nodes: tuple[Node, ...]
     #: Sorted by ``(src.name, dst.name, label)``, matching ``Graph.edges``.
     edges: tuple[Edge, ...]
@@ -114,6 +119,13 @@ def lineage(
     Requires an acyclic ``graph`` and does not verify it (D5) — ``resolve()``
     raises on a cycle before this can run.
     """
+    # Coerced, not compared. `Direction` is a `StrEnum`, so
+    # `Direction.UPSTREAM == "upstream"` and the API invites a caller — or a CLI
+    # parsing argv — to pass the string. An `is` comparison against the member
+    # would take the *other* branch for one and record the requested direction
+    # on the result, so the value would misreport the walk it describes. This
+    # also refuses `"both"`, which is D4's P2 member and has no behaviour yet.
+    direction = Direction(direction)
     if max_depth is not None and max_depth < 0:
         msg = f"max_depth must be >= 0 or None, got {max_depth}"
         raise ValueError(msg)

@@ -223,6 +223,50 @@ def test_order_does_not_depend_on_the_hash_seed() -> None:
     assert len(runs) == 1, f"hash seed changed the output: {runs}"
 
 
+def test_a_direction_given_as_a_plain_string_walks_that_direction() -> None:
+    """`Direction` is a `StrEnum`, so `Direction.UPSTREAM == "upstream"` and the
+    API invites a caller — or a CLI parsing argv — to pass the string.
+
+    Compared by identity it would silently walk the *other* way and record the
+    requested direction on the value, so the result would misreport itself.
+    """
+    for spelling in (Direction.UPSTREAM, "upstream"):
+        walked = lineage(CHAIN, node("d"), spelling)  # type: ignore[arg-type]
+        assert [n.name for n in walked.nodes] == ["a", "b", "c", "d"]
+        assert walked.direction is Direction.UPSTREAM
+
+    for spelling in (Direction.DOWNSTREAM, "downstream"):
+        walked = lineage(CHAIN, node("a"), spelling)  # type: ignore[arg-type]
+        assert [n.name for n in walked.nodes] == ["a", "b", "c", "d"]
+        assert walked.direction is Direction.DOWNSTREAM
+
+
+def test_an_unknown_direction_is_refused_including_the_deferred_both() -> None:
+    """`both` is the P2 member D4 has not shaped yet. A caller spelling it must
+    get a refusal rather than a silent downstream walk."""
+    for spelling in ("both", "sideways", ""):
+        with pytest.raises(ValueError, match="is not a valid Direction"):
+            lineage(CHAIN, node("d"), spelling)  # type: ignore[arg-type]
+
+
+def test_a_disconnected_node_in_the_graph_has_an_empty_lineage() -> None:
+    """§6's "disconnected node": present in `nodes`, named by no edge. Distinct
+    from a node absent from the graph, and from a node with edges on one side
+    only — all three must answer, and none may raise."""
+    isolated = Graph(nodes=(node("lonely"), node("a")), edges=())
+    for direction in (Direction.UPSTREAM, Direction.DOWNSTREAM):
+        walked = lineage(isolated, node("lonely"), direction)
+        assert walked.nodes == (node("lonely"),)
+        assert walked.edges == ()
+        assert walked.truncated is False
+
+
+def test_an_empty_graph_answers_rather_than_raising() -> None:
+    walked = lineage(Graph(nodes=(), edges=()), node("x"), Direction.UPSTREAM)
+    assert walked.nodes == (node("x"),)
+    assert walked.edges == ()
+
+
 def test_lineage_is_a_frozen_value() -> None:
     result = lineage(CHAIN, node("d"), Direction.UPSTREAM)
     assert isinstance(result, Lineage)
