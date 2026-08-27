@@ -22,7 +22,7 @@ def test_extraction_of_nested_segments_is_json_extraction() -> None:
     )
 
 
-def test_generic_type_computes_decimal_and_maps_scalars() -> None:
+def test_neutral_type_computes_decimal_and_maps_scalars() -> None:
     assert neutral_type(DecimalType(12, 4)).sql() == "DECIMAL(12, 4)"
     assert neutral_type(StringType()).sql() == "TEXT"
     assert neutral_type(TimestampType()).sql() == "TIMESTAMP"

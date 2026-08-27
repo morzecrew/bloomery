@@ -126,9 +126,11 @@ def neutral_type(t: LogicalType) -> exp.DataType:
 
     It lives in this layer rather than in ``ir`` because a builder that
     declares ``types`` needs it — to cast a literal argument to the column's
-    type, say — and ``transforms`` sits below ``ir``. Kept as one definition
-    with :func:`bloomery.ir.generic_type` delegating here, because two maps of
-    seven rows are two maps that can disagree about one.
+    type, say — and ``transforms`` sits below ``ir``. Every caller imports it
+    from here, the IR builder and the emit-side lowering included: two maps of
+    seven rows are two maps that can disagree about one, and a re-export under
+    a second name is the same hazard wearing a wrapper. ``bloomery.ir`` used to
+    carry one, spelled ``generic_type``.
     """
     if isinstance(t, DecimalType):
         return exp.DataType.build(f"DECIMAL({t.precision}, {t.scale})")

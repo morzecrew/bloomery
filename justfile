@@ -67,8 +67,15 @@ snapshot-update:
 
     uv run pytest tests/golden --snapshot-update
 
-# Run the default tiers with coverage, then the three floors: the global one
-# from pyproject.toml, and a scoped report for each package that is not at it.
+# Run the default tiers with coverage, then the three floors: the global one and
+# a scoped report for each package that is not at it.
+#
+# The unscoped `--fail-under=98` restates `[tool.coverage.report] fail_under`,
+# which the pytest run above already enforces — deliberately, and not because
+# one of them is redundant. It is the same three commands CI's coverage job
+# runs, in the same order, so a floor failure reads identically in both places;
+# a recipe that left the global floor implicit in pytest's exit code read, to
+# more than one reviewer, as a recipe that had stopped checking it.
 #
 # `guardrails/` at 100% is the oldest floor and the reason the rest exist — an
 # untested guardrail branch is an unshipped guardrail (RFC 0009 D9). `steps/` is
@@ -85,6 +92,7 @@ coverage *args='':
 
     uv run pytest -m "not engine and not e2e and not chaos and not perf" \
         --refusal-census --cov=src --cov-report=term {{ args }}
+    uv run coverage report --fail-under=98
     uv run coverage report --include='src/bloomery/guardrails/*' --fail-under=100
     uv run coverage report --include='src/bloomery/steps/*' --fail-under=92
 
