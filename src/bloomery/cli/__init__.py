@@ -253,10 +253,18 @@ def _find_node(graph: Graph, wanted: str) -> Node:
             return node
     names = [node.name for node in graph.nodes]
     close = difflib.get_close_matches(wanted, names, n=5, cutoff=0.6)
+    kinds = sorted({node.kind.value for node in graph.nodes})
     if close:
         hint = "did you mean: " + ", ".join(close)
+    elif not kinds:
+        # A draft spec — an entity model with no mappings loads, resolves, and
+        # has no nodes at all. Joining an empty kind list printed "of kinds  —",
+        # which reads as a bug in bloomery rather than a fact about the project.
+        hint = (
+            "this project's dependency graph is empty — nothing maps a source"
+            " into an entity yet, so there is no lineage to walk"
+        )
     else:
-        kinds = sorted({node.kind.value for node in graph.nodes})
         hint = (
             f"this project has no node by that name; its ids are of kinds {', '.join(kinds)}"
             " — an entity field is spelled '<entity>.<field>' with no prefix, and every"
@@ -398,6 +406,28 @@ def _fingerprint(arguments: argparse.Namespace) -> int:
 # Parser
 
 
+def _depth(spelling: str) -> int:
+    """``--max-depth`` as a non-negative int, refused by argparse if it is not.
+
+    The library raises :class:`ValueError` for a negative depth, which is right
+    for a Python caller and wrong to let reach a shell: ``main`` catches
+    :class:`~bloomery.BloomeryError`, so a bare ``ValueError`` would escape as a
+    traceback — neither the ``1`` that means the spec was refused nor the ``2``
+    that means the invocation was wrong. Validating here makes it the second,
+    which is what a bad flag *value* is, exactly as ``--direction up`` already is.
+    """
+    try:
+        depth = int(spelling)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"--max-depth must be an integer, got {spelling!r}"
+        ) from None
+    if depth < 0:
+        msg = f"--max-depth must be >= 0, got {depth}"
+        raise argparse.ArgumentTypeError(msg)
+    return depth
+
+
 def _add_spec_directory(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("directory", help="directory of spec documents")
     parser.add_argument(
@@ -481,7 +511,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="upstream: what it is built from; downstream: what it feeds",
     )
     lineage_parser.add_argument(
-        "--max-depth", type=int, help="stop the walk this many edges from the node"
+        "--max-depth",
+        type=_depth,
+        help="stop the walk this many edges from the node (0 is the node alone)",
     )
     _add_format(lineage_parser)
     lineage_parser.set_defaults(run=_lineage)

@@ -76,6 +76,23 @@ than an error — a source column has no upstream, and that is an answer. A nega
 Requires an acyclic graph, which `resolve()` guarantees: it raises `CircularDerivation`
 before returning.
 
+Each edge carries a **label** saying how one node feeds the next. The vocabulary is closed:
+
+| Label | From → To | Means |
+| --- | --- | --- |
+| `direct` | source column → entity field | a mapped field, no recipe |
+| `recipe:<id>` | source column → entity field | a validated catalog recipe, id recorded |
+| `step:<ref@version>` | source column → entity field | a field computed by a Tier 1 `sql_macro` |
+| `canonical` | entity field → canonical field | the field links to a catalog canonical |
+| `requires` | canonical field → metric | a metric's leaf requirement |
+| `requires_metrics` | metric → metric | a metric composed of metrics |
+| `step_input` | entity field → step | a step reading a mapped entity, whole |
+| `step_input` | step → step | a step reading another step's output |
+| `step_output` | step → entity field | a step's declared output |
+
+The two parameterised labels carry a suffix after the `:` — a recipe id, or a macro's
+`ref@version`. Split on the colon to compare *families*.
+
 ### `build_project_ir(project, catalog=None, *, steps=EMPTY_REGISTRY) -> ProjectIR`
 
 Compile specs into the frozen intermediate representation without emitting — the

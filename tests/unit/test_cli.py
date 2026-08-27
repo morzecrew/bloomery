@@ -1003,3 +1003,57 @@ def test_lineage_rejects_a_bad_direction_as_a_usage_error(
 
     assert code == EXIT_USAGE
 
+
+def test_lineage_rejects_a_negative_max_depth_as_a_usage_error(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A wrong flag *value* is `2`, exactly as `--direction up` is.
+
+    The library raises `ValueError` for a negative depth, which is right for a
+    caller in Python and wrong to let reach a shell: `main` catches
+    `BloomeryError`, so a bare `ValueError` escaped as a traceback — neither
+    the `1` that means refused nor the `2` that means the invocation was wrong.
+    """
+    code, _out, err = run(
+        capsys, "lineage", ECOM, "--node", "metric.margin", "--max-depth", "-1"
+    )
+
+    assert code == EXIT_USAGE
+    assert "max-depth" in err
+
+
+def test_lineage_max_depth_zero_is_accepted(capsys: pytest.CaptureFixture[str]) -> None:
+    """Zero is a bound, not an error — the root alone, truncated."""
+    code, out, err = run(
+        capsys, "lineage", ECOM, "--node", "metric.margin", "--max-depth", "0"
+    )
+
+    assert code == EXIT_OK, err
+    assert "truncated:" in out
+
+
+def test_a_project_with_an_empty_graph_refuses_readably(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An entity model with no mappings loads, resolves, and has no nodes.
+
+    That is a draft spec — exactly the state someone runs `lineage` in to
+    explore — and the kinds fallback then joined an empty set, printing
+    "its ids are of kinds  — an entity field is spelled...".
+    """
+    (tmp_path / "entity_model.yaml").write_text(
+        "spec_version: 1\n"
+        "entities:\n"
+        "  customer:\n"
+        "    grain: one row per customer\n"
+        "    key: [customer_id]\n"
+        "    fields:\n"
+        "      customer_id: {type: string}\n"
+    )
+    code, _out, err = run(capsys, "lineage", str(tmp_path), "--node", "customer.customer_id")
+
+    assert code == EXIT_REFUSED
+    assert "kinds  —" not in err, "the kind list was empty and joined into a gap"
+    assert "dependency graph is empty" in err
+    assert "nothing maps a source into an entity yet" in err
+

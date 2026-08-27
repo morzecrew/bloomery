@@ -69,10 +69,17 @@ class Lineage:
     one-node value rather than an empty one — a source column has no upstream,
     and that is an answer rather than a miss.
 
-    :attr:`edges` is the sub-DAG **induced** on :attr:`nodes`: every edge of the
-    graph whose two endpoints are both present. An edge leaving the set is not
-    carried, because a value whose edges name nodes it does not hold is not a
-    sub-DAG — and dropping one is exactly what :attr:`truncated` reports.
+    :attr:`edges` is every edge **some walk traversed**. An edge leaving the
+    carried set is not there, because a value whose edges name nodes it does not
+    hold is not a sub-DAG — and dropping one is exactly what :attr:`truncated`
+    reports.
+
+    For :attr:`Direction.UPSTREAM` and :attr:`Direction.DOWNSTREAM` that is the
+    same set as the subgraph *induced* on :attr:`nodes`: every edge between two
+    ancestors of the root lies on a path to it, so the walk reaches it. For
+    :attr:`Direction.BOTH` the two differ, and the walked set is the one meant —
+    inducing would carry an edge from an ancestor straight to a descendant,
+    bypassing the root entirely. See ``logs/T-0006.md`` D-026.
     """
 
     #: The node the walk started from; always a member of :attr:`nodes`.
