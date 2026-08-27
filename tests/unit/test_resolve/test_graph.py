@@ -135,3 +135,102 @@ def test_a_step_with_no_wired_inputs_still_appears() -> None:
     )
     graph = build_graph(project, None, ())
     assert step_node("resolve_customers") in graph.nodes
+
+
+# ....................... #
+# Determinism when two kinds share a name (RFC 0003; logs/T-0005.md D-025)
+
+
+#: An entity literally named `metric` with a field `revenue` produces the node
+#: name `metric.revenue` — the same string `metric_node("revenue")` produces.
+#: Entity-field ids carry no kind prefix, so they can collide with every other
+#: kind's prefix: `metric.`, `canonical.`, `step.`, `source.`.
+COLLIDING_ENTITY = """
+spec_version: 1
+entities:
+  metric:
+    grain: one row per thing
+    key: [revenue]
+    fields:
+      revenue: {type: string}
+"""
+COLLIDING_MAPPING = """
+mapping_version: 1
+source: raw__things
+target: metric
+key:
+  revenue: {from: "$.r", transform: [to_string]}
+"""
+COLLIDING_METRICS = """
+metrics_version: 1
+metrics:
+  revenue:
+    grain: thing
+    additivity: additive
+    agg: count
+    expr: "revenue"
+"""
+
+
+def colliding_graph() -> object:
+    project = load_project(
+        {
+            "entity_model": COLLIDING_ENTITY,
+            "mapping_c": COLLIDING_MAPPING,
+            "metrics": COLLIDING_METRICS,
+        }
+    )
+    return build_graph(project, None, effective_metrics(project, None))
+
+
+def test_two_kinds_can_share_a_node_name() -> None:
+    """The premise. If this ever stops being true the ordering test below is
+    vacuous, so it is asserted rather than assumed."""
+    shared = [node for node in colliding_graph().nodes if node.name == "metric.revenue"]  # type: ignore[attr-defined]
+
+    assert len(shared) == 2
+    assert {node.kind for node in shared} == {NodeKind.ENTITY_FIELD, NodeKind.METRIC}
+
+
+def test_nodes_sharing_a_name_are_ordered_by_kind_not_by_hash() -> None:
+    """`build_graph` collects nodes in a `set` and sorts them.
+
+    Sorted by `name` alone, two nodes sharing a name keep whatever relative
+    order the set iteration gave — which varies with `PYTHONHASHSEED`, so the
+    same specs produced different `Graph.nodes` in different processes. That is
+    the invariant CLAUDE.md states as non-negotiable, and `topo_order` derives
+    from this order, so it reaches emitted output.
+    """
+    graph = colliding_graph()
+    shared = [node for node in graph.nodes if node.name == "metric.revenue"]  # type: ignore[attr-defined]
+
+    # Deterministic and stated: ties break on the kind's value, ascending.
+    assert [node.kind.value for node in shared] == sorted(node.kind.value for node in shared)
+
+
+def test_node_order_is_identical_across_hash_seeds() -> None:
+    """The cross-process form of the test above — the one that actually caught
+    it, since a single process can produce the right order by luck."""
+    import subprocess  # noqa: PLC0415
+    import sys  # noqa: PLC0415
+
+    program = (
+        "from bloomery import load_project;"
+        "from bloomery.resolve.graph import build_graph;"
+        "from bloomery.resolve.metrics import effective_metrics;"
+        f"p = load_project({{'entity_model': {COLLIDING_ENTITY!r},"
+        f" 'mapping_c': {COLLIDING_MAPPING!r}, 'metrics': {COLLIDING_METRICS!r}}});"
+        "g = build_graph(p, None, effective_metrics(p, None));"
+        "print([(n.kind.value, n.name) for n in g.nodes])"
+    )
+    outputs = {
+        subprocess.run(  # noqa: S603
+            [sys.executable, "-c", program],
+            capture_output=True,
+            text=True,
+            check=True,
+            env={"PYTHONHASHSEED": seed, "PATH": "/usr/bin:/bin"},
+        ).stdout
+        for seed in ("0", "1", "42", "7", "12345", "999", "31337")
+    }
+    assert len(outputs) == 1, f"node order varied with the hash seed: {outputs}"

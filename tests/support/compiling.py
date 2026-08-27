@@ -22,6 +22,31 @@ _DBT_REF = re.compile(r"\{\{ ref\('(?P<relation>[^']+)'\) \}\}")
 _DBT_SOURCE = re.compile(r"\{\{ source\('(?P<namespace>[^']+)', '(?P<relation>[^']+)'\) \}\}")
 
 
+#: Fixture directories that hold no spec project. `dirty` is the CSV seed-data
+#: corpus the quality tiers read; it has no `*.yaml` and `read_spec_directory`
+#: refuses it. Named rather than discovered, so a *spec* fixture that stops
+#: loading fails its caller by name instead of quietly leaving the sweep.
+NON_SPEC_FIXTURES = frozenset({"dirty"})
+
+
+def spec_fixture_names() -> tuple[str, ...]:
+    """Every fixture directory holding a spec project, sorted.
+
+    Callers that sweep the corpus iterate this and load **without** catching:
+    a broad `except: continue` turns a resolver regression into a smaller sweep
+    that still passes, because a floor like "at least 20 fixtures" cannot tell
+    twenty-two from twenty. Anything here that fails to load is a failure of
+    whoever is sweeping, which is the point.
+    """
+    return tuple(
+        sorted(
+            entry.name
+            for entry in FIXTURES.iterdir()
+            if entry.is_dir() and entry.name not in NON_SPEC_FIXTURES
+        )
+    )
+
+
 def fixture_sources(name: str) -> dict[str, str]:
     """The fixture's project documents (the catalog is loaded separately)."""
     return {

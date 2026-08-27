@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from bloomery.spec.mapping import ALIAS_BOUND, RecipeFieldMapping
 
@@ -60,7 +60,47 @@ class Edge:
 
     src: Node
     dst: Node
-    label: str  # "direct" | "recipe:<id>" | "requires" | "requires_metrics" | "canonical"
+    #: The label *family* is the part before any ``:`` — see
+    #: :data:`_EDGE_SHAPES` for the closed set of
+    #: ``(family, src kind, dst kind)`` triples and what each one means.
+    #: Two families are parameterised: ``recipe:<id>`` and ``step:<ref@version>``.
+    label: str
+
+
+#: Every ``(label family, src kind, dst kind)`` the two builders below can
+#: emit (RFC 0031 §5.3, D6). The label family is the part before any ``:``, so
+#: the parameterised ``recipe:<id>`` and ``step:<ref@version>`` contribute
+#: ``recipe`` and ``step``.
+#:
+#: **Read off the builders, never off the corpus.** A vocabulary compiled from
+#: fixtures can only contain what some fixture exercises, and that method cost
+#: RFC 0031's first draft two entries: ``identity_resolution`` is the only
+#: project wiring a step and wires exactly one, so neither ``step → step`` form
+#: occurs; and no fixture declares a ``sql_macro`` field, so ``step:`` occurs
+#: nowhere at all. ``tests/unit/test_resolve/test_graph.py`` guards this from
+#: both sides — the corpus is a subset of it, and so is an AST walk over every
+#: ``Edge(...)`` construction in this module.
+_EDGE_SHAPES: Final[frozenset[tuple[str, NodeKind, NodeKind]]] = frozenset(
+    {
+        # A mapped field: straight from a source column, via a catalog recipe,
+        # or via a Tier 1 `sql_macro` (RFC 0017 D50).
+        ("direct", NodeKind.SOURCE_COLUMN, NodeKind.ENTITY_FIELD),
+        ("recipe", NodeKind.SOURCE_COLUMN, NodeKind.ENTITY_FIELD),
+        ("step", NodeKind.SOURCE_COLUMN, NodeKind.ENTITY_FIELD),
+        # The field links to a catalog canonical, which is what makes it
+        # available to a metric.
+        ("canonical", NodeKind.ENTITY_FIELD, NodeKind.CANONICAL_FIELD),
+        ("requires", NodeKind.CANONICAL_FIELD, NodeKind.METRIC),
+        ("requires_metrics", NodeKind.METRIC, NodeKind.METRIC),
+        # A step reads a mapped entity whole, or another step's output. The
+        # second form includes the self-edge a self-referencing binding emits
+        # so that cycle detection has something to find — which means it is a
+        # shape `toposort` always raises on, never one `lineage()` sees.
+        ("step_input", NodeKind.ENTITY_FIELD, NodeKind.STEP),
+        ("step_input", NodeKind.STEP, NodeKind.STEP),
+        ("step_output", NodeKind.STEP, NodeKind.ENTITY_FIELD),
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -257,7 +297,27 @@ def build_graph(
         nodes.add(edge.src)
         nodes.add(edge.dst)
 
+    # Both keys carry the node *kind* as a tiebreak, and both are collected
+    # from a `set`. An entity-field id has no kind prefix (`<entity>.<field>`),
+    # so it can collide with every other kind's: an entity named `metric` with
+    # a field `revenue` produces `metric.revenue`, and so does a metric named
+    # `revenue`. Sorted by name alone those two keep whatever relative order set
+    # iteration gave, which varies with `PYTHONHASHSEED` — the same specs then
+    # produce different `Graph.nodes` in different processes, and `topo_order`
+    # derives from this order, so it reaches emitted output. RFC 0003 forbids
+    # exactly that; see `logs/T-0005.md` D-025.
     return Graph(
-        nodes=tuple(sorted(nodes, key=lambda n: n.name)),
-        edges=tuple(sorted(set(edges), key=lambda e: (e.src.name, e.dst.name, e.label))),
+        nodes=tuple(sorted(nodes, key=lambda n: (n.name, n.kind.value))),
+        edges=tuple(
+            sorted(
+                set(edges),
+                key=lambda e: (
+                    e.src.name,
+                    e.src.kind.value,
+                    e.dst.name,
+                    e.dst.kind.value,
+                    e.label,
+                ),
+            )
+        ),
     )
