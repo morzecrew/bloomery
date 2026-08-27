@@ -175,7 +175,12 @@ class LruManifestHydrator:
         sets immediately before this call and nothing else reads.
         """
         data = self._fetch_l2(key) if self._fetch_l2 is not None else None
-        if data is None:
+        # `not data`, not `is None`: an L2 that answers with zero bytes has
+        # answered with no manifest. Reading that as a payload sent `b""` into
+        # `parse_raw` and raised a pydantic ValidationError out of a cache
+        # lookup — a partially-written key is a miss, which is what the
+        # docstring above has always claimed.
+        if not data:
             data = build_manifest_bytes(self._ir_for_next_miss, naming=self.naming)
         return hydrate_manifest(data, prewarm=self._prewarm)
 

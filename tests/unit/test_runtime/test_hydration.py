@@ -170,6 +170,21 @@ def test_fetch_l2_none_falls_back_to_a_fresh_build() -> None:
     assert (hydrator.hits, hydrator.misses) == (0, 1)
 
 
+def test_fetch_l2_empty_bytes_falls_back_to_a_fresh_build() -> None:
+    """An L2 that answers with **no bytes** is a miss, not a payload.
+
+    The docstring has always said "when absent or empty it rebuilds", but the
+    check read ``data is None``, so a partially-written cache entry — a Redis
+    key created and not yet filled, which is exactly the shape an L2 produces
+    under a crash — reached ``parse_raw`` and raised a pydantic
+    ``ValidationError`` out of a cache lookup. Empty is a miss.
+    """
+    ir = fixture_ir("non_additive_aov")
+    hydrator = LruManifestHydrator(NAMING, fetch_l2=lambda _key: b"")
+    assert isinstance(hydrator.get(ir), SemanticManifestLookup)
+    assert (hydrator.hits, hydrator.misses) == (0, 1)
+
+
 def test_lru_prewarm_flag_reaches_hydration() -> None:
     hydrator = LruManifestHydrator(NAMING, prewarm=True)
     assert isinstance(hydrator.get(fixture_ir("non_additive_aov")), SemanticManifestLookup)
