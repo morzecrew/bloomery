@@ -1089,6 +1089,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/trace-lineage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Trace where a metric comes from
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/use-the-cli/" class="md-nav__link">
         
   
@@ -2808,8 +2835,13 @@ computed from.</p>
 <h3 id="lineagegraph-root-directiondirectionupstream-max_depthnone-lineage"><code>lineage(graph, root, direction=Direction.UPSTREAM, *, max_depth=None) -&gt; Lineage</code><a class="headerlink" href="#lineagegraph-root-directiondirectionupstream-max_depthnone-lineage" title="Permanent link">&para;</a></h3>
 <p>Walk a <code>Resolution.graph</code> from one node and return the <strong>reachable sub-DAG</strong> — the
 nodes and the labelled edges, never enumerated paths, whose count is exponential in
-the graph's width. <code>Direction.UPSTREAM</code> answers "what is this built from" and
-<code>Direction.DOWNSTREAM</code> answers "what would break if this moved".</p>
+the graph's width. <code>Direction.UPSTREAM</code> answers "what is this built from",
+<code>Direction.DOWNSTREAM</code> answers "what would break if this moved", and
+<code>Direction.BOTH</code> merges the two — its <code>nodes</code> and <code>edges</code> are the union of what the two
+walks reached, so every edge carried is one a walk actually traversed. That matters where
+an ancestor of the root also connects directly to a descendant of it: the bypass edge is
+real lineage, but it is not the root's, and inducing over the merged node set would carry
+it.</p>
 <p>The root is at depth 0, so <code>max_depth=N</code> carries every node within distance <code>N</code> and
 only edges whose both endpoints are carried; <code>truncated</code> says whether the bound cut
 the walk short. A root with no lineage in that direction is a one-node result rather
@@ -2817,6 +2849,65 @@ than an error — a source column has no upstream, and that is an answer. A nega
 <code>max_depth</code> raises <code>ValueError</code>.</p>
 <p>Requires an acyclic graph, which <code>resolve()</code> guarantees: it raises <code>CircularDerivation</code>
 before returning.</p>
+<p>Each edge carries a <strong>label</strong> saying how one node feeds the next. The vocabulary is closed:</p>
+<table>
+<thead>
+<tr>
+<th>Label</th>
+<th>From → To</th>
+<th>Means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>direct</code></td>
+<td>source column → entity field</td>
+<td>a mapped field, no recipe</td>
+</tr>
+<tr>
+<td><code>recipe:&lt;id&gt;</code></td>
+<td>source column → entity field</td>
+<td>a validated catalog recipe, id recorded</td>
+</tr>
+<tr>
+<td><code>step:&lt;ref@version&gt;</code></td>
+<td>source column → entity field</td>
+<td>a field computed by a Tier 1 <code>sql_macro</code></td>
+</tr>
+<tr>
+<td><code>canonical</code></td>
+<td>entity field → canonical field</td>
+<td>the field links to a catalog canonical</td>
+</tr>
+<tr>
+<td><code>requires</code></td>
+<td>canonical field → metric</td>
+<td>a metric's leaf requirement</td>
+</tr>
+<tr>
+<td><code>requires_metrics</code></td>
+<td>metric → metric</td>
+<td>a metric composed of metrics</td>
+</tr>
+<tr>
+<td><code>step_input</code></td>
+<td>entity field → step</td>
+<td>a step reading a mapped entity, whole</td>
+</tr>
+<tr>
+<td><code>step_input</code></td>
+<td>step → step</td>
+<td>a step reading another step's output</td>
+</tr>
+<tr>
+<td><code>step_output</code></td>
+<td>step → entity field</td>
+<td>a step's declared output</td>
+</tr>
+</tbody>
+</table>
+<p>The two parameterised labels carry a suffix after the <code>:</code> — a recipe id, or a macro's
+<code>ref@version</code>. Split on the colon to compare <em>families</em>.</p>
 <h3 id="build_project_irproject-catalognone-stepsempty_registry-projectir"><code>build_project_ir(project, catalog=None, *, steps=EMPTY_REGISTRY) -&gt; ProjectIR</code><a class="headerlink" href="#build_project_irproject-catalognone-stepsempty_registry-projectir" title="Permanent link">&para;</a></h3>
 <p>Compile specs into the frozen intermediate representation without emitting — the
 input to <code>project_fingerprint</code>, <code>plan</code>, and <code>MetricFlowPlanner.plan</code>. Runs the same

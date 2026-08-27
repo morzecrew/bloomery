@@ -12,34 +12,36 @@
         <meta name="author" content="Lev Litvinov">
       
       
-        <link rel="canonical" href="https://morzecrew.github.io/bloomery/dev/">
+        <link rel="canonical" href="https://morzecrew.github.io/bloomery/dev/how-to/trace-lineage/">
       
       
+        <link rel="prev" href="../resolve-identities/">
       
-        <link rel="next" href="./get-started/introduction/">
+      
+        <link rel="next" href="../use-the-cli/">
       
       
         
       
       
-      <link rel="icon" href="./assets/favicon.svg">
+      <link rel="icon" href="../../assets/favicon.svg">
       <meta name="generator" content="zensical-0.0.55">
     
     
       
-        <title>Bloomery - Bloomery</title>
+        <title>Trace where a metric comes from - Bloomery</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.20815dad.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.20815dad.min.css">
       
         
           
         
-        <link rel="stylesheet" href="./assets/stylesheets/modern/palette.dfe2e883.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.dfe2e883.min.css">
       
       
 
@@ -58,9 +60,9 @@
       
     
     
-      <link rel="stylesheet" href="./assets/palette.css">
+      <link rel="stylesheet" href="../../assets/palette.css">
     
-    <script>__md_scope=new URL(".",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
     
       
 
@@ -85,7 +87,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#bloomery" class="md-skip">
+        <a href="#trace-where-a-metric-comes-from" class="md-skip">
           Skip to content
         </a>
       
@@ -103,9 +105,9 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="" title="Bloomery" class="md-header__button md-logo" aria-label="Bloomery" data-md-component="logo">
+    <a href="../.." title="Bloomery" class="md-header__button md-logo" aria-label="Bloomery" data-md-component="logo">
       
-  <img src="./assets/logo.svg" alt="Bloomery">
+  <img src="../../assets/logo.svg" alt="Bloomery">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
@@ -122,7 +124,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Bloomery
+              Trace where a metric comes from
             
           </span>
         </div>
@@ -204,11 +206,9 @@
   
   
   
-    
   
-  
-    <li class="md-tabs__item md-tabs__item--active">
-      <a href="" class="md-tabs__link">
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
         
   
   Home
@@ -229,7 +229,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="./get-started/introduction/" class="md-tabs__link">
+        <a href="../../get-started/introduction/" class="md-tabs__link">
           
   
   Get Started
@@ -251,7 +251,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="./concepts/specs-and-catalog/" class="md-tabs__link">
+        <a href="../../concepts/specs-and-catalog/" class="md-tabs__link">
           
   
   Concepts
@@ -266,14 +266,16 @@
   
   
   
+    
+  
   
     
       
     
     
     
-      <li class="md-tabs__item">
-        <a href="./how-to/emit-sqlmesh/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../emit-sqlmesh/" class="md-tabs__link">
           
   
   How-to
@@ -295,7 +297,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="./reference/spec-schemas/" class="md-tabs__link">
+        <a href="../../reference/spec-schemas/" class="md-tabs__link">
           
   
   Reference
@@ -328,9 +330,9 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="" title="Bloomery" class="md-nav__button md-logo" aria-label="Bloomery" data-md-component="logo">
+    <a href="../.." title="Bloomery" class="md-nav__button md-logo" aria-label="Bloomery" data-md-component="logo">
       
-  <img src="./assets/logo.svg" alt="Bloomery">
+  <img src="../../assets/logo.svg" alt="Bloomery">
 
     </a>
     Bloomery
@@ -354,36 +356,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  Home
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -398,38 +374,6 @@
   
 
       </a>
-      
-        
-
-
-<nav class="md-nav md-nav--secondary" aria-label="On this page">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      On this page
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#where-to-start" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Where to start
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -491,7 +435,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./get-started/introduction/" class="md-nav__link">
+      <a href="../../get-started/introduction/" class="md-nav__link">
         
   
   
@@ -518,7 +462,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./get-started/installation/" class="md-nav__link">
+      <a href="../../get-started/installation/" class="md-nav__link">
         
   
   
@@ -545,7 +489,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./get-started/quickstart/" class="md-nav__link">
+      <a href="../../get-started/quickstart/" class="md-nav__link">
         
   
   
@@ -572,7 +516,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./get-started/examples/" class="md-nav__link">
+      <a href="../../get-started/examples/" class="md-nav__link">
         
   
   
@@ -656,7 +600,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./concepts/specs-and-catalog/" class="md-nav__link">
+      <a href="../../concepts/specs-and-catalog/" class="md-nav__link">
         
   
   
@@ -683,7 +627,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./concepts/compile-pipeline/" class="md-nav__link">
+      <a href="../../concepts/compile-pipeline/" class="md-nav__link">
         
   
   
@@ -710,7 +654,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./concepts/determinism/" class="md-nav__link">
+      <a href="../../concepts/determinism/" class="md-nav__link">
         
   
   
@@ -737,7 +681,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./concepts/guardrails/" class="md-nav__link">
+      <a href="../../concepts/guardrails/" class="md-nav__link">
         
   
   
@@ -764,7 +708,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./concepts/data-quality/" class="md-nav__link">
+      <a href="../../concepts/data-quality/" class="md-nav__link">
         
   
   
@@ -791,7 +735,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./concepts/wide-marts/" class="md-nav__link">
+      <a href="../../concepts/wide-marts/" class="md-nav__link">
         
   
   
@@ -818,7 +762,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./concepts/step-registry/" class="md-nav__link">
+      <a href="../../concepts/step-registry/" class="md-nav__link">
         
   
   
@@ -849,26 +793,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
@@ -885,7 +834,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -902,7 +851,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/emit-sqlmesh/" class="md-nav__link">
+      <a href="../emit-sqlmesh/" class="md-nav__link">
         
   
   
@@ -929,7 +878,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/emit-cube/" class="md-nav__link">
+      <a href="../emit-cube/" class="md-nav__link">
         
   
   
@@ -956,7 +905,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/emit-dbt/" class="md-nav__link">
+      <a href="../emit-dbt/" class="md-nav__link">
         
   
   
@@ -983,7 +932,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/add-quality-rules/" class="md-nav__link">
+      <a href="../add-quality-rules/" class="md-nav__link">
         
   
   
@@ -1010,7 +959,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/plan-a-metric-request/" class="md-nav__link">
+      <a href="../plan-a-metric-request/" class="md-nav__link">
         
   
   
@@ -1037,7 +986,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/evolve-a-spec/" class="md-nav__link">
+      <a href="../evolve-a-spec/" class="md-nav__link">
         
   
   
@@ -1064,7 +1013,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/evaluate-a-spec/" class="md-nav__link">
+      <a href="../evaluate-a-spec/" class="md-nav__link">
         
   
   
@@ -1091,7 +1040,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/merge-sources/" class="md-nav__link">
+      <a href="../merge-sources/" class="md-nav__link">
         
   
   
@@ -1118,7 +1067,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/resolve-identities/" class="md-nav__link">
+      <a href="../resolve-identities/" class="md-nav__link">
         
   
   
@@ -1142,10 +1091,36 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="./how-to/trace-lineage/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Trace where a metric comes from
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1160,6 +1135,104 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-three-questions-it-answers" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The three questions it answers
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#from-the-command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        From the command line
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#naming-a-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Naming a node
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#it-returns-a-sub-dag-not-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        It returns a sub-DAG, not paths
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#an-empty-answer-is-an-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        An empty answer is an answer
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bounding-the-walk" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Bounding the walk
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-it-does-not-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What it does not do
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1172,7 +1245,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/use-the-cli/" class="md-nav__link">
+      <a href="../use-the-cli/" class="md-nav__link">
         
   
   
@@ -1256,7 +1329,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./reference/spec-schemas/" class="md-nav__link">
+      <a href="../../reference/spec-schemas/" class="md-nav__link">
         
   
   
@@ -1283,7 +1356,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./reference/json-schema/" class="md-nav__link">
+      <a href="../../reference/json-schema/" class="md-nav__link">
         
   
   
@@ -1310,7 +1383,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./reference/transforms/" class="md-nav__link">
+      <a href="../../reference/transforms/" class="md-nav__link">
         
   
   
@@ -1337,7 +1410,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./reference/dialects/" class="md-nav__link">
+      <a href="../../reference/dialects/" class="md-nav__link">
         
   
   
@@ -1364,7 +1437,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./reference/errors/" class="md-nav__link">
+      <a href="../../reference/errors/" class="md-nav__link">
         
   
   
@@ -1391,7 +1464,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./reference/api/" class="md-nav__link">
+      <a href="../../reference/api/" class="md-nav__link">
         
   
   
@@ -1418,7 +1491,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./reference/stability/" class="md-nav__link">
+      <a href="../../reference/stability/" class="md-nav__link">
         
   
   
@@ -1486,10 +1559,76 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#where-to-start" class="md-nav__link">
+  <a href="#the-three-questions-it-answers" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Where to start
+        The three questions it answers
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#from-the-command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        From the command line
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#naming-a-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Naming a node
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#it-returns-a-sub-dag-not-paths" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        It returns a sub-DAG, not paths
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#an-empty-answer-is-an-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        An empty answer is an answer
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bounding-the-walk" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Bounding the walk
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-it-does-not-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What it does not do
       </span>
     </span>
   </a>
@@ -1514,6 +1653,51 @@
   
 
 
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+    
+    
+    
+      <li class="md-path__item">
+        <a href="../emit-sqlmesh/" class="md-path__link">
+          
+  
+  <span class="md-ellipsis">
+    How-to
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
               
               <article class="md-content__inner md-typeset">
                 
@@ -1522,50 +1706,138 @@
   
 
 
-<h1 id="bloomery">Bloomery<a class="headerlink" href="#bloomery" title="Permanent link">&para;</a></h1>
-<p>The worst failure in a config-driven data platform is not a crash. It is a number that
-looks right and is wrong — an order-level shipping cost joined to line items and summed
-three times over, a net price subtracted from a gross cost, an average stored and then
-re-averaged. Every one of those passes syntax checks, type checks and code review,
-because nothing in the stack knows what the columns <em>mean</em>.</p>
-<p>Bloomery is an entity-first spec compiler that does know, and refuses. Declarative specs
-carry grains, units, tax bases and additivity classes; anything that would produce a
-plausible-but-wrong number is a compile error with a source path, not a warning. It is a
-pure function library — specs in, byte-reproducible SQL artifacts and query plans out,
-with no clock, no randomness, and no filesystem anywhere in the compile path.</p>
-<p>It does four things:</p>
-<ul>
-<li><strong>Compiles specs into artifacts</strong> — Catalog, EntityModel, Mapping, MetricSet, Marts
-  and StepSet documents become SQLMesh, dbt, and Cube models, audits, and MetricFlow
-  semantic manifests, with <a href="concepts/data-quality/">declarative data quality</a> —
-  cleansing, dedupe, quarantine and replay — lowered into the same pipeline.</li>
-<li><strong>Plans metric queries</strong> — a <code>MetricRequest</code> becomes SQL over a wide, pre-joined
-  mart, with no query-time joins and no execution. Behind the stable request/plan
-  contract sits an embedded, render-only MetricFlow — pinned, driven entirely
-  in-process, never connected to a database.</li>
-<li><strong>Diffs spec versions</strong> — two compiled versions produce a plan in which every change
-  is classified (additive, widening, rename, restating, breaking), with backfill scope
-  and downstream impact computed from the dependency graph.</li>
-<li><strong>Assesses a spec</strong> — <code>evaluate()</code> returns everything knowable without touching data:
-  what is reachable, what is not and which leaf is missing, and every refusal with its
-  source path. Refusals come back as a <em>value</em>, so a draft mid-edit still reports what
-  it would give you.</li>
-</ul>
-<p>All four are reachable from a shell as well as from Python — see
-<a href="how-to/use-the-cli/">Use the CLI</a>.</p>
-<h2 id="where-to-start">Where to start<a class="headerlink" href="#where-to-start" title="Permanent link">&para;</a></h2>
-<p>New here? Read the <a href="get-started/introduction/">Introduction</a> for the problem bloomery
-removes, how the spec kinds fit together, and — just as important — what it deliberately
-does not do. Then work through the <a href="get-started/quickstart/">Quickstart</a>, which takes
-one small project from YAML to compiled artifacts to a planned query.</p>
-<p>If you would rather see it run than read about it, the four
-<a href="get-started/examples/">examples</a> are self-contained and execute everything they claim
-— including one that builds the same mart with SQLMesh and with dbt and compares the two
-row for row.</p>
-<p>For the model underneath, the <a href="concepts/specs-and-catalog/">Concepts</a> pages cover the
-domain model, the <a href="concepts/compile-pipeline/">compile pipeline</a>, the
-<a href="concepts/wide-marts/">wide-mart gold layer</a>, and the
-<a href="concepts/guardrails/">guardrails</a> that make fail-closed concrete.</p>
+<h1 id="trace-where-a-metric-comes-from">Trace where a metric comes from<a class="headerlink" href="#trace-where-a-metric-comes-from" title="Permanent link">&para;</a></h1>
+<p><code>lineage()</code> walks the dependency graph <code>resolve()</code> already builds and hands back the part
+of it your node touches — the source columns that feed a metric, or everything a column
+change would reach.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">Direction</span><span class="p">,</span> <span class="n">Node</span><span class="p">,</span> <span class="n">NodeKind</span><span class="p">,</span> <span class="n">lineage</span><span class="p">,</span> <span class="n">load_catalog</span><span class="p">,</span> <span class="n">load_project</span><span class="p">,</span> <span class="n">resolve</span>
+
+<span class="n">resolution</span> <span class="o">=</span> <span class="n">resolve</span><span class="p">(</span><span class="n">load_project</span><span class="p">(</span><span class="n">sources</span><span class="p">),</span> <span class="n">load_catalog</span><span class="p">(</span><span class="n">catalog_text</span><span class="p">))</span>
+
+<span class="n">walk</span> <span class="o">=</span> <span class="n">lineage</span><span class="p">(</span>
+    <span class="n">resolution</span><span class="o">.</span><span class="n">graph</span><span class="p">,</span>
+    <span class="n">Node</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="n">NodeKind</span><span class="o">.</span><span class="n">METRIC</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"metric.gross_revenue"</span><span class="p">),</span>
+    <span class="n">Direction</span><span class="o">.</span><span class="n">UPSTREAM</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="k">for</span> <span class="n">edge</span> <span class="ow">in</span> <span class="n">walk</span><span class="o">.</span><span class="n">edges</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">edge</span><span class="o">.</span><span class="n">src</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> --</span><span class="si">{</span><span class="n">edge</span><span class="o">.</span><span class="n">label</span><span class="si">}</span><span class="s2">--&gt; </span><span class="si">{</span><span class="n">edge</span><span class="o">.</span><span class="n">dst</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</code></pre></div>
+<p>It reads no data, opens no connection, and touches no warehouse. This is lineage of the
+<strong>spec</strong> — what your documents connect to what.</p>
+<h2 id="the-three-questions-it-answers">The three questions it answers<a class="headerlink" href="#the-three-questions-it-answers" title="Permanent link">&para;</a></h2>
+<p><strong>Where does this number come from?</strong> Walk <code>UPSTREAM</code> from a metric and you get the chain
+back to the source columns, with the label on each edge saying <em>how</em> — a direct mapping, a
+catalog recipe by id, a macro by ref and version.</p>
+<p><strong>What breaks if I change this column?</strong> Walk <code>DOWNSTREAM</code> from a source column before a
+migration and you have the blast radius. <code>plan()</code> tells you what changed <em>after</em> an edit;
+this tells you what an edit would reach.</p>
+<p><strong>Why is this metric unreachable, in full?</strong> <code>SpecEvidence.unreachable</code> names the missing
+leaves. The upstream walk shows the whole structure they sit in.</p>
+<h2 id="from-the-command-line">From the command line<a class="headerlink" href="#from-the-command-line" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="gp">$ </span>bloomery<span class="w"> </span>lineage<span class="w"> </span>specs/<span class="w"> </span>--node<span class="w"> </span>metric.average_order_value
+<span class="go">metric.average_order_value  (upstream)</span>
+<span class="go">  canonical.quantity                   --requires--&gt;           metric.gross_revenue</span>
+<span class="go">  canonical.unit_price                 --requires--&gt;           metric.gross_revenue</span>
+<span class="go">  metric.gross_revenue                 --requires_metrics--&gt;   metric.average_order_value</span>
+<span class="go">  metric.order_count                   --requires_metrics--&gt;   metric.average_order_value</span>
+<span class="go">  order_item.quantity                  --canonical--&gt;          canonical.quantity</span>
+<span class="go">  order_item.unit_price                --canonical--&gt;          canonical.unit_price</span>
+<span class="go">  source.shopify__order_lines.$.qty    --direct--&gt;             order_item.quantity</span>
+<span class="go">  source.shopify__order_lines.$.qty    --recipe:from_total--&gt;  order_item.unit_price</span>
+<span class="go">  source.shopify__order_lines.$.total  --recipe:from_total--&gt;  order_item.unit_price</span>
+</code></pre></div>
+<p><code>--direction downstream</code> walks the other way, <code>--direction both</code> merges the two, and
+<code>--format json</code> emits the same value the Python call returns.</p>
+<h2 id="naming-a-node">Naming a node<a class="headerlink" href="#naming-a-node" title="Permanent link">&para;</a></h2>
+<p>A node id is the name you have already seen in a <code>CircularDerivation</code> message. Four of the
+five kinds carry their kind as a prefix:</p>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Spelled</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source column</td>
+<td><code>source.&lt;relation&gt;.&lt;json-path&gt;</code></td>
+</tr>
+<tr>
+<td>Canonical field</td>
+<td><code>canonical.&lt;field&gt;</code></td>
+</tr>
+<tr>
+<td>Metric</td>
+<td><code>metric.&lt;name&gt;</code></td>
+</tr>
+<tr>
+<td>Step</td>
+<td><code>step.&lt;ref&gt;</code></td>
+</tr>
+<tr>
+<td>Entity field</td>
+<td><code>&lt;entity&gt;.&lt;field&gt;</code> — <strong>no prefix</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Entity fields are the exception, so <code>order_item.unit_price</code> is a whole id rather than a
+suffix. Mistype one and the refusal suggests the spelling it thinks you meant:</p>
+<div class="highlight"><pre><span></span><code><span class="gp">$ </span>bloomery<span class="w"> </span>lineage<span class="w"> </span>specs/<span class="w"> </span>--node<span class="w"> </span>metric.gross_revenu
+<span class="go">no node named 'metric.gross_revenu' in this project's dependency graph. did you mean: metric.gross_revenue</span>
+</code></pre></div>
+<h2 id="it-returns-a-sub-dag-not-paths">It returns a sub-DAG, not paths<a class="headerlink" href="#it-returns-a-sub-dag-not-paths" title="Permanent link">&para;</a></h2>
+<p><code>Lineage.nodes</code> carries each node <strong>once</strong>, however many ways it is reachable, and
+<code>Lineage.edges</code> carries every connection between them. A node fed by two sources appears
+once in <code>nodes</code> and twice in <code>edges</code>.</p>
+<p>That is deliberate. Enumerating root-to-leaf <em>paths</em> is exponential in the graph's width —
+a metric over three canonical fields, each mapped from four sources, has 64 paths through
+twelve edges — so the size of the answer would not be something you could predict from the
+size of your project. The sub-DAG is bounded by the graph. If you want paths, walk the
+sub-DAG yourself, where you can put a budget on it.</p>
+<p>The command line prints an edge list for the same reason: a tree cannot draw a DAG without
+either repeating a shared node or dropping one of its edges.</p>
+<h2 id="an-empty-answer-is-an-answer">An empty answer is an answer<a class="headerlink" href="#an-empty-answer-is-an-answer" title="Permanent link">&para;</a></h2>
+<p>A source column has no upstream. A metric nobody composes has no downstream. Neither is an
+error, and both come back as a one-node <code>Lineage</code> rather than a raise — <code>nodes</code> always
+contains the root.</p>
+<div class="highlight"><pre><span></span><code><span class="gp">$ </span>bloomery<span class="w"> </span>lineage<span class="w"> </span>specs/<span class="w"> </span>--node<span class="w"> </span>metric.order_count
+<span class="go">metric.order_count  (upstream)</span>
+<span class="go">  no upstream lineage — this node is a leaf in that direction</span>
+</code></pre></div>
+<p><code>metric.order_count</code> is <code>agg: count</code> with no <code>requires:</code>, so it genuinely depends on no
+canonical field. Nothing is missing.</p>
+<h2 id="bounding-the-walk">Bounding the walk<a class="headerlink" href="#bounding-the-walk" title="Permanent link">&para;</a></h2>
+<p><code>--max-depth N</code> stops the walk <code>N</code> edges out; the root is depth 0. A bounded result sets
+<code>truncated</code> and the command line says so, because a partial answer that cannot say it is
+partial is worse than no answer:</p>
+<div class="highlight"><pre><span></span><code><span class="gp">$ </span>bloomery<span class="w"> </span>lineage<span class="w"> </span>specs/<span class="w"> </span>--node<span class="w"> </span>metric.average_order_value<span class="w"> </span>--max-depth<span class="w"> </span><span class="m">1</span>
+<span class="go">metric.average_order_value  (upstream)</span>
+<span class="go">  metric.gross_revenue  --requires_metrics--&gt;  metric.average_order_value</span>
+<span class="go">  metric.order_count    --requires_metrics--&gt;  metric.average_order_value</span>
+
+<span class="go">  truncated: --max-depth stopped the walk; there is more beyond this</span>
+</code></pre></div>
+<p>Bounding to nothing and finding nothing are different facts, and each says so in its own
+words. <code>--max-depth 0</code> on a node that <em>has</em> lineage shows none of it and says why:</p>
+<div class="highlight"><pre><span></span><code><span class="gp">$ </span>bloomery<span class="w"> </span>lineage<span class="w"> </span>specs/<span class="w"> </span>--node<span class="w"> </span>metric.average_order_value<span class="w"> </span>--max-depth<span class="w"> </span><span class="m">0</span>
+<span class="go">metric.average_order_value  (upstream)</span>
+<span class="go">  --max-depth stopped the walk before its first edge — this node has upstream lineage, and none of it is shown</span>
+</code></pre></div>
+<p>That is not the leaf message above, and it must not be: "this node is a leaf" is the half
+a reader acts on, and here it would be false. <code>--max-depth 0</code> on a genuine leaf is <strong>not</strong>
+truncated, because there was nothing to cut.</p>
+<h2 id="what-it-does-not-do">What it does not do<a class="headerlink" href="#what-it-does-not-do" title="Permanent link">&para;</a></h2>
+<p><strong>It is not column-level lineage through SQL.</strong> A catalog recipe's body is arbitrary SQL
+and a step is an opaque implementation. The edge says <code>recipe:from_total</code> fed
+<code>order_item.unit_price</code>; it does not say which expression inside that recipe used which
+input. bloomery does not parse recipe bodies for this, and a page that implied otherwise
+would be promising an analysis it does not run.</p>
+<p><strong>It is not runtime lineage.</strong> This is what your specs connect, not what actually ran.
+SQLMesh and dbt both keep their own record of that.</p>
+<p><strong>It is not a claim about correctness.</strong> A clean chain from source to metric says the
+spec is wired the way you wrote it. Whether the source column holds what it claims is the
+<a href="../add-quality-rules/">quality system</a>'s question.</p>
 
 
 
@@ -1602,15 +1874,31 @@ domain model, the <a href="concepts/compile-pipeline/">compile pipeline</a>, the
       
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
+          
+          <a href="../resolve-identities/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Resolve identities across systems">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Resolve identities across systems
+              </div>
+            </div>
+          </a>
+        
         
           
-          <a href="./get-started/introduction/" class="md-footer__link md-footer__link--next" aria-label="Next: Introduction">
+          <a href="../use-the-cli/" class="md-footer__link md-footer__link--next" aria-label="Next: Use the CLI">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Introduction
+                Use the CLI
               </div>
             </div>
             <div class="md-footer__button md-icon">
@@ -1653,10 +1941,10 @@ domain model, the <a href="concepts/compile-pipeline/">compile pipeline</a>, the
     
       
       
-      <script id="__config" type="application/json">{"annotate":null,"base":".","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"./assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="./assets/javascripts/bundle.e886cdf1.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>

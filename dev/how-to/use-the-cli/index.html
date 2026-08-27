@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://morzecrew.github.io/bloomery/dev/how-to/use-the-cli/">
       
       
-        <link rel="prev" href="../resolve-identities/">
+        <link rel="prev" href="../trace-lineage/">
       
       
         <link rel="next" href="../../reference/spec-schemas/">
@@ -1091,6 +1091,33 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../trace-lineage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Trace where a metric comes from
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -1153,10 +1180,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-six-commands" class="md-nav__link">
+  <a href="#the-seven-commands" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The six commands
+        The seven commands
       </span>
     </span>
   </a>
@@ -1554,10 +1581,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-six-commands" class="md-nav__link">
+  <a href="#the-seven-commands" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The six commands
+        The seven commands
       </span>
     </span>
   </a>
@@ -1771,10 +1798,12 @@ than "nothing unreachable".</p>
 <p>A project that wires a <code>steps:</code> document reports the unwired step here, because the CLI
 passes no registry — see <a href="#compiling">Steps are the one thing the CLI cannot wire</a> below.
 <code>bloomery compile</code> on the same project refuses for the same reason.</p>
-<h2 id="the-six-commands">The six commands<a class="headerlink" href="#the-six-commands" title="Permanent link">&para;</a></h2>
+<h2 id="the-seven-commands">The seven commands<a class="headerlink" href="#the-seven-commands" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>bloomery compile     &lt;dir&gt; [--target sqlmesh] [--dialect duckdb] [--catalog F] [--out DIR]
 bloomery plan        &lt;old-dir&gt; &lt;new-dir&gt; [--catalog F] [--format table|json]
 bloomery resolve     &lt;dir&gt; [--catalog F] [--format table|json]
+bloomery lineage     &lt;dir&gt; --node ID [--direction upstream|downstream|both] [--max-depth N]
+                           [--catalog F] [--format table|json]
 bloomery explain     &lt;dir&gt; --metrics a,b [--by x,y] [--where JSON] [--grain month]
                            [--limit N] [--policy 'dim op value'] [--dialect duckdb]
                            [--format table|json]
@@ -1784,7 +1813,7 @@ bloomery fingerprint &lt;dir&gt; [--catalog F]
 <p>Every command reads files, calls the public API, and writes stdout or a directory.
 Nothing is executed, nothing is cached, and there is no state anywhere.</p>
 <p>One flag needs no command: <code>bloomery --version</code> prints the installed release and exits
-<code>0</code>. It is a flag rather than a seventh command because the moment you most need it is
+<code>0</code>. It is a flag rather than a command of its own because the moment you most need it is
 when something is wrong enough that you do not trust the rest of the surface.</p>
 <h2 id="the-spec-directory">The spec directory<a class="headerlink" href="#the-spec-directory" title="Permanent link">&para;</a></h2>
 <p><code>&lt;dir&gt;</code> is a directory of <code>.yaml</code> / <code>.yml</code> documents. Each is keyed by its filename stem,
@@ -1955,7 +1984,7 @@ as a small, reasonable-looking patch.</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../resolve-identities/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Resolve identities across systems">
+          <a href="../trace-lineage/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Trace where a metric comes from">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
@@ -1965,7 +1994,7 @@ as a small, reasonable-looking patch.</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                Resolve identities across systems
+                Trace where a metric comes from
               </div>
             </div>
           </a>
