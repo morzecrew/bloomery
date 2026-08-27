@@ -119,8 +119,18 @@ metric.average_order_value  (upstream)
   truncated: --max-depth stopped the walk; there is more beyond this
 ```
 
-Bounding to nothing and finding nothing are different facts: `--max-depth 0` on a leaf is
-**not** truncated, because there was nothing to cut.
+Bounding to nothing and finding nothing are different facts, and each says so in its own
+words. `--max-depth 0` on a node that *has* lineage shows none of it and says why:
+
+```console
+$ bloomery lineage specs/ --node metric.average_order_value --max-depth 0
+metric.average_order_value  (upstream)
+  --max-depth stopped the walk before its first edge — this node has upstream lineage, and none of it is shown
+```
+
+That is not the leaf message above, and it must not be: "this node is a leaf" is the half
+a reader acts on, and here it would be false. `--max-depth 0` on a genuine leaf is **not**
+truncated, because there was nothing to cut.
 
 ## What it does not do
 

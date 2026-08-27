@@ -182,15 +182,34 @@ def render_lineage(walk: Lineage) -> str:
     see the question was asked and came back empty — an empty stdout reads as a
     command that failed.
 
+    **Empty and bounded-to-empty are different answers, and each gets its own
+    line.** ``--max-depth 0`` on a node that has lineage returns no edges *and*
+    sets ``truncated``: calling that a leaf and then adding "there is more
+    beyond this" states both halves of a contradiction, and the half a reader
+    acts on — "leaf" — is the false one. Only a walk that was not cut may call
+    its root a leaf.
+
     ``truncated`` is stated whenever it is set, because a bounded answer that
     does not say it is bounded is the failure RFC 0022 D5 names.
     """
     heading = f"{walk.root.name}  ({walk.direction.value})"
     if not walk.edges:
-        body = [f"  no {walk.direction.value} lineage — this node is a leaf in that direction"]
-    else:
-        body = _table([(edge.src.name, f"--{edge.label}-->", edge.dst.name) for edge in walk.edges])
-    lines = [heading, *body]
+        if walk.truncated:
+            cut = (
+                "  --max-depth stopped the walk before its first edge — this node has"
+                f" {walk.direction.value} lineage, and none of it is shown"
+            )
+            return "\n".join([heading, cut])
+        return "\n".join(
+            [
+                heading,
+                f"  no {walk.direction.value} lineage — this node is a leaf in that direction",
+            ]
+        )
+    lines = [
+        heading,
+        *_table([(edge.src.name, f"--{edge.label}-->", edge.dst.name) for edge in walk.edges]),
+    ]
     if walk.truncated:
         lines.append("")
         lines.append("  truncated: --max-depth stopped the walk; there is more beyond this")

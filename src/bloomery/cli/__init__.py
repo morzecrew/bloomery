@@ -508,7 +508,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--direction",
         choices=tuple(d.value for d in Direction),
         default=Direction.UPSTREAM.value,
-        help="upstream: what it is built from; downstream: what it feeds",
+        help=(
+            "upstream: what it is built from; downstream: what it feeds;"
+            " both: the two walks merged into one sub-DAG"
+        ),
     )
     lineage_parser.add_argument(
         "--max-depth",

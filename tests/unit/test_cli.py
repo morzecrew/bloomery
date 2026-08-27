@@ -1041,13 +1041,49 @@ def test_lineage_rejects_a_non_integer_max_depth_with_its_own_message(
 
 
 def test_lineage_max_depth_zero_is_accepted(capsys: pytest.CaptureFixture[str]) -> None:
-    """Zero is a bound, not an error — the root alone, truncated."""
+    """Zero is a bound, not an error — the root alone, and the walk says it was cut."""
     code, out, err = run(
         capsys, "lineage", ECOM, "--node", "metric.margin", "--max-depth", "0"
     )
 
     assert code == EXIT_OK, err
-    assert "truncated:" in out
+    assert "stopped the walk before its first edge" in out
+
+
+def test_a_walk_bounded_to_nothing_never_calls_its_root_a_leaf(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`--max-depth 0` on a node with lineage returns no edges *and* truncated.
+
+    Rendering the two independently printed "this node is a leaf in that
+    direction" and then "there is more beyond this" — both halves of a
+    contradiction, and the half a reader acts on is the false one. The how-to
+    states the distinction the output collapsed: bounding to nothing and
+    finding nothing are different facts.
+    """
+    code, bounded, err = run(
+        capsys, "lineage", ECOM, "--node", "metric.average_order_value", "--max-depth", "0"
+    )
+
+    assert code == EXIT_OK, err
+    assert "leaf" not in bounded
+    assert "--max-depth stopped the walk before its first edge" in bounded
+
+    # The genuine leaf is still called one — the fix must not cost the other case.
+    code, leaf, err = run(capsys, "lineage", ECOM, "--node", "metric.order_count")
+    assert code == EXIT_OK, err
+    assert "leaf in that direction" in leaf
+    assert "--max-depth" not in leaf
+
+
+def test_lineage_help_explains_every_direction_it_accepts(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`both` is offered in `choices` and was the one the help text did not gloss."""
+    _code, out, _err = run(capsys, "lineage", "--help")
+
+    for direction in ("upstream:", "downstream:", "both:"):
+        assert direction in out, out
 
 
 def test_a_project_with_an_empty_graph_refuses_readably(
