@@ -182,8 +182,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-**These change the values your models produce.** Every item below altered emitted SQL on
-at least one engine; rebuild the affected models from bronze rather than incrementally, or
+**These change the values your models produce.** Every item in the first group below
+altered emitted SQL on at least one engine; rebuild the affected models from bronze rather than incrementally, or
 one column carries two meanings with no boundary marked. Nothing announces the need —
 these are port-level fixes, so the IR and `project_fingerprint` are byte-identical across
 the upgrade and a `plan` reports nothing.
@@ -212,6 +212,16 @@ the upgrade and a `plan` reports nothing.
   not coerce a literal to the column's type the way DuckDB and PostgreSQL do.
 - **`json_path` on PostgreSQL** returned `json` where `variant` is `JSONB` for a nested
   path, and did not run at all for a single-key path over a `string` field.
+
+**This one changes no emitted SQL** — it is the planner's cache, not a port.
+
+- **An empty L2 payload is a cache miss, not a manifest.**
+  `LruManifestHydrator`'s documented contract has always been that it rebuilds from the
+  IR "when absent or empty", but the check read `data is None`. An injected `fetch_l2`
+  answering `b""` — a cache key created and not yet filled, which is the shape an L2
+  produces under a crash — therefore reached `parse_raw` and raised a pydantic
+  `ValidationError` out of what the caller had every reason to treat as a cache lookup.
+  Callers with no `fetch_l2`, which is the default, were never affected.
 
 ### Limitations
 
