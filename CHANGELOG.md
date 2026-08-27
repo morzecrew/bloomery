@@ -215,6 +215,16 @@ the upgrade and a `plan` reports nothing.
 
 **This one changes no emitted SQL** — it is the planner's cache, not a port.
 
+- **`LruManifestHydrator` is safe to share across threads again.** While this release's
+  rewrite of its LRU was in review, the IR reached the rebuild path through an instance
+  attribute rather than an argument. Two threads calling `get()` with different specs
+  could interleave between that write and its read, and the manifest built from one
+  thread's IR was then cached under the other thread's key — where, since nothing evicts
+  a poisoned entry, every later hit returned it. The cache is now keyed on the
+  `(HydrationKey, ProjectIR)` pair, so a hydration is a function of its arguments and
+  holds no state between calls. Shipped versions are unaffected: this never reached a
+  release.
+
 - **An empty L2 payload is a cache miss, not a manifest.**
   `LruManifestHydrator`'s documented contract has always been that it rebuilds from the
   IR "when absent or empty", but the check read `data is None`. An injected `fetch_l2`

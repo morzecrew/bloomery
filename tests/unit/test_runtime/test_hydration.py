@@ -6,13 +6,15 @@ flag."""
 from __future__ import annotations
 
 import importlib.metadata
+import threading
+from unittest import mock
 
 import pytest
 from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifestLookup
 
 from bloomery.emit.metricflow import emit_manifest, manifest_json
 from bloomery.ir import DateDimensionIR, ProjectIR, project_fingerprint
-from bloomery.naming import DefaultNaming, PrefixNaming
+from bloomery.naming import DefaultNaming, NamingPolicy, PrefixNaming
 from bloomery.runtime import (
     HydrationKey,
     LruManifestHydrator,
@@ -183,6 +185,62 @@ def test_fetch_l2_empty_bytes_falls_back_to_a_fresh_build() -> None:
     hydrator = LruManifestHydrator(NAMING, fetch_l2=lambda _key: b"")
     assert isinstance(hydrator.get(ir), SemanticManifestLookup)
     assert (hydrator.hits, hydrator.misses) == (0, 1)
+
+
+def test_concurrent_gets_never_cache_one_ir_under_another_s_key() -> None:
+    """Two threads, two specs, one hydrator: each key gets its own manifest.
+
+    An earlier form of this cache keyed on :class:`HydrationKey` and passed the
+    IR to the miss path through an instance attribute. Two ``get`` calls could
+    interleave between that write and its read, so the manifest built from one
+    thread's IR was stored under the other thread's key — and, because nothing
+    evicts a poisoned entry, every later hit on that key returned it.
+
+    The barrier is what makes this deterministic rather than lucky: both threads
+    are held inside the build until each has entered it, which is exactly the
+    window the attribute version lost the IR in.
+    """
+    first = fixture_ir("non_additive_aov")
+    second = fixture_ir("semi_additive_inventory")
+    assert hydration_key(first) != hydration_key(second)
+
+    barrier = threading.Barrier(2, timeout=30)
+    built: dict[HydrationKey, ProjectIR] = {}
+    lock = threading.Lock()
+    real_build = hydration_module.build_manifest_bytes
+
+    def recording_build(ir: ProjectIR, *, naming: NamingPolicy) -> bytes:
+        barrier.wait()  # both threads inside the miss path at once
+        with lock:
+            built[hydration_key(ir)] = ir
+        return real_build(ir, naming=naming)
+
+    hydrator = LruManifestHydrator(NAMING)
+    results: dict[str, SemanticManifestLookup] = {}
+
+    def run(name: str, ir: ProjectIR) -> None:
+        results[name] = hydrator.get(ir)
+
+    with mock.patch.object(hydration_module, "build_manifest_bytes", recording_build):
+        threads = [
+            threading.Thread(target=run, args=("first", first)),
+            threading.Thread(target=run, args=("second", second)),
+        ]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=60)
+
+    # Every rebuild used the IR whose key it was stored under — the property the
+    # attribute version could not hold.
+    assert {key: hydration_key(ir) for key, ir in built.items()} == {
+        hydration_key(first): hydration_key(first),
+        hydration_key(second): hydration_key(second),
+    }
+    # ...and each key still answers with its own manifest afterwards.
+    assert hydrator.get(first) is results["first"]
+    assert hydrator.get(second) is results["second"]
+    assert results["first"] is not results["second"]
 
 
 def test_lru_prewarm_flag_reaches_hydration() -> None:

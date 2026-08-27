@@ -44,7 +44,6 @@ from metricflow.engine.metricflow_engine import MetricFlowEngine, MetricFlowQuer
 from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifestLookup
 
 from bloomery.emit.metricflow import emit_manifest, manifest_json
-from bloomery.errors import InvariantViolated
 from bloomery.ir import project_fingerprint
 from bloomery.runtime.sql_client import sql_client_for_dialect
 
@@ -145,9 +144,6 @@ class LruManifestHydrator:
         self.naming = naming
         self._fetch_l2 = fetch_l2
         self._prewarm = prewarm
-        # Declared here so the attribute always exists; `get` overwrites it
-        # immediately before each cache call, and only a miss ever reads it.
-        self._ir_for_next_miss: ProjectIR | None = None
         # Bound to `self`, so the cache and its counters die with the hydrator.
         self._cached = lru_cache(maxsize=max_entries)(self._hydrate)
 
@@ -168,27 +164,32 @@ class LruManifestHydrator:
         total = info.hits + info.misses
         return info.hits / total if total else 0.0
 
-    def _hydrate(self, key: HydrationKey) -> SemanticManifestLookup:
+    def _hydrate(self, key: HydrationKey, ir: ProjectIR) -> SemanticManifestLookup:
         """One miss: L2 bytes when the caller supplies them, else a fresh build.
 
-        Takes the key rather than the IR because the key is what the cache is
-        keyed on — two IRs with the same fingerprint at the same versions are
-        the same manifest, and making ``lru_cache`` hash a whole ``ProjectIR``
-        to rediscover that would cost more than the hydration it saves. The IR
-        reaches the rebuild through ``_ir_for_next_miss``, which :meth:`get`
-        sets immediately before this call and nothing else reads.
+        Both the key and the IR are *arguments*, so the result is a function of
+        what it was called with and nothing else — the property
+        :func:`functools.lru_cache` is built on. An earlier version passed only
+        the key and handed the IR over through an instance attribute; two
+        threads calling :meth:`get` with different IRs could interleave between
+        that write and its read, and the manifest built from one thread's IR was
+        then cached under the other thread's key, where every later hit returned
+        it. Nothing evicts a poisoned entry, so it stayed wrong.
+
+        Caching on the pair costs one extra ``hash(ir)`` (~4.8 us against the
+        ~229 us :func:`hydration_key` already spends on the same fixture) and
+        partitions exactly as the key alone did: equal IRs hash and compare
+        equal, unequal IRs already have unequal fingerprints. The pair is not
+        redundant, though — it is what keeps the version axes in the key
+        (RFC 0014 D2/D7), which an IR-only cache would have quietly dropped.
         """
         data = self._fetch_l2(key) if self._fetch_l2 is not None else None
         # `not data`, not `is None`: an L2 that answers with zero bytes has
         # answered with no manifest. Reading that as a payload sent `b""` into
         # `parse_raw` and raised a pydantic ValidationError out of a cache
         # lookup — a partially-written key is a miss, which is what the
-        # docstring above has always claimed.
+        # class docstring has always claimed.
         if not data:
-            ir = self._ir_for_next_miss
-            if ir is None:  # pragma: no cover — `get` is the only way in, and it always sets this
-                msg = "hydration reached a rebuild with no IR: _hydrate was called outside get()"
-                raise InvariantViolated(msg)
             data = build_manifest_bytes(ir, naming=self.naming)
         return hydrate_manifest(data, prewarm=self._prewarm)
 
@@ -196,13 +197,8 @@ class LruManifestHydrator:
         """The hydrated lookup for ``ir`` — an L1 hit is a dict lookup; a miss
         hydrates and evicts least-recently-used entries past ``max_entries``.
 
-        ponytail: the IR is handed to the miss path through instance state, so
-        two threads calling ``get`` with *different* IRs can race and rebuild
-        one manifest from the other's IR — both would then be evicted and
-        rebuilt correctly on the next lookup, since the key still describes the
-        right spec. The ``OrderedDict`` this replaced raced the same way
-        (nothing here was ever locked). Add a lock around ``get`` if a caller
-        ever shares one hydrator across threads.
+        Safe to share across threads: nothing here writes instance state, so the
+        worst a race costs is two threads building one manifest and one of the
+        two results being discarded.
         """
-        self._ir_for_next_miss = ir
-        return self._cached(hydration_key(ir))
+        return self._cached(hydration_key(ir), ir)
