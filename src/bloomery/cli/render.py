@@ -200,10 +200,10 @@ def render_lineage(walk: Lineage) -> str:
     heading = f"{walk.root.name}  ({walk.direction.value})"
     if not walk.edges:
         if walk.direction is Direction.BOTH:
-            # "both" is not a direction the sentences above can name: "no both
-            # lineage" and "a leaf in that direction" are ungrammatical, and the
-            # second is also false — a merged walk has two directions, so there
-            # is no "that direction" to be a leaf in.
+            # "both" is not a direction the other branch's sentences can name:
+            # they read "no both lineage" and "this node has both lineage", and
+            # the leaf line is false as well as ungrammatical — a merged walk
+            # has two directions, so there is no "that direction" to be a leaf in.
             absent = (
                 "  no lineage in either direction — nothing feeds this node and"
                 " nothing derives from it"
