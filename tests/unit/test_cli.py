@@ -674,6 +674,51 @@ def test_a_decimal_serializes_as_a_string_never_a_float() -> None:
     assert json.dumps(Decimal("0.01"), cls=SpecEncoder) == '"0.01"'
 
 
+def test_every_public_enum_is_a_strenum() -> None:
+    """What lets :class:`SpecEncoder` carry no enum branch at all.
+
+    ``json`` serializes a ``StrEnum`` as its own string without consulting
+    ``default`` — in a value position and as a mapping key — so the branch a
+    hand-rolled walker needed is unreachable here. That holds only while every
+    enum the API can return is a ``StrEnum``. This walks the package and fails
+    if one is not, which turns "add a plain ``Enum``" from a ``TypeError`` at
+    the command line into a failing test that says what to do about it.
+    """
+    import enum
+    import importlib
+    import pkgutil
+
+    import bloomery
+
+    plain: list[str] = []
+    for info in pkgutil.walk_packages(bloomery.__path__, "bloomery."):
+        module = importlib.import_module(info.name)
+        for name, value in vars(module).items():
+            if (
+                isinstance(value, type)
+                and issubclass(value, enum.Enum)
+                and value.__module__ == info.name
+                and not issubclass(value, str)
+            ):
+                plain.append(f"{info.name}.{name}")
+    assert plain == [], (
+        f"not a StrEnum: {plain}. Either make it one, or restore the enum branch in "
+        "bloomery.cli.serialize.SpecEncoder.default — as written the encoder would let "
+        "`--format json` raise TypeError on any value carrying it."
+    )
+
+
+def test_an_unserializable_value_is_refused_not_silently_dropped() -> None:
+    """The terminal branch: a type the encoder does not know raises, loudly.
+
+    `SpecEncoder` deliberately has no catch-all that stringifies whatever it was
+    handed. A `--format json` consumer parsing a field that had silently become
+    `"<object at 0x…>"` is worse off than one whose command failed.
+    """
+    with pytest.raises(TypeError):
+        json.dumps(object(), cls=SpecEncoder)
+
+
 def test_a_mapping_serializes_with_string_keys() -> None:
     """JSON objects are keyed by strings; a returned mapping keyed by an enum
     would otherwise reach `json.dumps` and fail there instead of here."""

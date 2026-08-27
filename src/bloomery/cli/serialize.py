@@ -11,9 +11,18 @@ It is a :class:`json.JSONEncoder`, not a walker of its own: ``default`` is asked
 only about the types :mod:`json` does not already know, so lists, tuples, dicts
 and every ``StrEnum`` recurse through the encoder that was going to run anyway.
 The conversion is structural and total — a frozen dataclass becomes an object of
-its fields, an enum becomes its value, a ``Decimal`` becomes a string (never a
-float: RFC 0003 D5 rules those out of the package, and JSON's number type is a
-float in most readers).
+its fields, a ``Decimal`` becomes a string (never a float: RFC 0003 D5 rules
+those out of the package, and JSON's number type is a float in most readers).
+
+There is deliberately **no enum branch**. Every enum on the public surface is a
+:class:`~enum.StrEnum` — all twenty-five of them, which
+``test_every_public_enum_is_a_strenum`` pins — so :mod:`json` serializes one as
+its own string without ever consulting ``default``, in a value position or as a
+mapping key. A branch for the non-str enum this package does not have would be
+unreachable today and a silent success for a type nobody decided to support; the
+``TypeError`` from ``super().default`` is the louder and more useful answer, and
+the guard test is what makes adding such an enum a decision rather than a
+surprise at the command line.
 
 Two values are not converted structurally.
 
@@ -38,7 +47,6 @@ from __future__ import annotations
 import dataclasses
 import json
 from decimal import Decimal
-from enum import Enum
 from typing import Any
 
 from bloomery.errors import BloomeryError
@@ -84,8 +92,6 @@ class SpecEncoder(json.JSONEncoder):
             return render_type(o)
         if isinstance(o, BloomeryError):
             return _error_as_json(o)
-        if isinstance(o, Enum):
-            return o.value
         if isinstance(o, Decimal):
             return str(o)
         if dataclasses.is_dataclass(o) and not isinstance(o, type):
