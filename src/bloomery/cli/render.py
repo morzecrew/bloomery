@@ -19,16 +19,17 @@ from typing import TYPE_CHECKING
 # At run time because :func:`render_evidence` compares against ``COMPLETE``:
 # the stage decides whether the counts below it are totals or a prefix, which
 # is the one thing this module must not get wrong (RFC 0022 D5).
-from bloomery import Stage
+from bloomery import Direction, Stage
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from bloomery import Plan, SpecEvidence, UnreachableMetric
+    from bloomery import Lineage, Plan, SpecEvidence, UnreachableMetric
     from bloomery.errors import BloomeryError
 
 __all__ = [
     "render_evidence",
+    "render_lineage",
     "render_plan",
 ]
 
@@ -164,4 +165,65 @@ def render_plan(plan: Plan) -> str:
         lines.append("")
         lines.append("Downstream metrics")
         lines.extend(_table([(name,) for name in plan.downstream_impact]))
+    return "\n".join(lines)
+
+
+def render_lineage(walk: Lineage) -> str:
+    """``bloomery lineage``'s human output: a deterministic **edge list**.
+
+    One line per edge, in :attr:`Lineage.edges` order, aligned on the widest
+    source. Not a tree — RFC 0031 D1 returns a sub-DAG, and a tree cannot draw
+    one: a node reachable two ways is either repeated, which re-creates the
+    exponential output D1 exists to avoid, or drawn once with its second edge
+    dropped, which loses the fact that two things feed it.
+
+    An empty walk prints the root and says so rather than printing nothing. A
+    source column has no upstream and that is an answer, so the reader needs to
+    see the question was asked and came back empty — an empty stdout reads as a
+    command that failed.
+
+    Every one of these sentences names its direction, so
+    :attr:`Direction.BOTH` needs its own pair: a merged walk has two
+    directions, and a node with nothing on either side is not "a leaf in that
+    direction".
+
+    **Empty and bounded-to-empty are different answers, and each gets its own
+    line.** ``--max-depth 0`` on a node that has lineage returns no edges *and*
+    sets ``truncated``: calling that a leaf and then adding "there is more
+    beyond this" states both halves of a contradiction, and the half a reader
+    acts on — "leaf" — is the false one. Only a walk that was not cut may call
+    its root a leaf.
+
+    ``truncated`` is stated whenever it is set, because a bounded answer that
+    does not say it is bounded is the failure RFC 0022 D5 names.
+    """
+    heading = f"{walk.root.name}  ({walk.direction.value})"
+    if not walk.edges:
+        if walk.direction is Direction.BOTH:
+            # "both" is not a direction the other branch's sentences can name:
+            # they read "no both lineage" and "this node has both lineage", and
+            # the leaf line is false as well as ungrammatical — a merged walk
+            # has two directions, so there is no "that direction" to be a leaf in.
+            absent = (
+                "  no lineage in either direction — nothing feeds this node and"
+                " nothing derives from it"
+            )
+            cut = (
+                "  --max-depth stopped the walk before its first edge —"
+                " this node has lineage, and none of it is shown"
+            )
+        else:
+            absent = f"  no {walk.direction.value} lineage — this node is a leaf in that direction"
+            cut = (
+                "  --max-depth stopped the walk before its first edge — this node has"
+                f" {walk.direction.value} lineage, and none of it is shown"
+            )
+        return "\n".join([heading, cut if walk.truncated else absent])
+    lines = [
+        heading,
+        *_table([(edge.src.name, f"--{edge.label}-->", edge.dst.name) for edge in walk.edges]),
+    ]
+    if walk.truncated:
+        lines.append("")
+        lines.append("  truncated: --max-depth stopped the walk; there is more beyond this")
     return "\n".join(lines)

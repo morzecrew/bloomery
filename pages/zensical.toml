@@ -45,6 +45,7 @@ nav = [
         "how-to/evaluate-a-spec.md",
         "how-to/merge-sources.md",
         "how-to/resolve-identities.md",
+        "how-to/trace-lineage.md",
         "how-to/use-the-cli.md",
     ] },
     { "Reference" = [

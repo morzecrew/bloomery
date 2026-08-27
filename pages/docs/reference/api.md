@@ -59,8 +59,13 @@ computed from.
 
 Walk a `Resolution.graph` from one node and return the **reachable sub-DAG** — the
 nodes and the labelled edges, never enumerated paths, whose count is exponential in
-the graph's width. `Direction.UPSTREAM` answers "what is this built from" and
-`Direction.DOWNSTREAM` answers "what would break if this moved".
+the graph's width. `Direction.UPSTREAM` answers "what is this built from",
+`Direction.DOWNSTREAM` answers "what would break if this moved", and
+`Direction.BOTH` merges the two — its `nodes` and `edges` are the union of what the two
+walks reached, so every edge carried is one a walk actually traversed. That matters where
+an ancestor of the root also connects directly to a descendant of it: the bypass edge is
+real lineage, but it is not the root's, and inducing over the merged node set would carry
+it.
 
 The root is at depth 0, so `max_depth=N` carries every node within distance `N` and
 only edges whose both endpoints are carried; `truncated` says whether the bound cut
@@ -70,6 +75,23 @@ than an error — a source column has no upstream, and that is an answer. A nega
 
 Requires an acyclic graph, which `resolve()` guarantees: it raises `CircularDerivation`
 before returning.
+
+Each edge carries a **label** saying how one node feeds the next. The vocabulary is closed:
+
+| Label | From → To | Means |
+| --- | --- | --- |
+| `direct` | source column → entity field | a mapped field, no recipe |
+| `recipe:<id>` | source column → entity field | a validated catalog recipe, id recorded |
+| `step:<ref@version>` | source column → entity field | a field computed by a Tier 1 `sql_macro` |
+| `canonical` | entity field → canonical field | the field links to a catalog canonical |
+| `requires` | canonical field → metric | a metric's leaf requirement |
+| `requires_metrics` | metric → metric | a metric composed of metrics |
+| `step_input` | entity field → step | a step reading a mapped entity, whole |
+| `step_input` | step → step | a step reading another step's output |
+| `step_output` | step → entity field | a step's declared output |
+
+The two parameterised labels carry a suffix after the `:` — a recipe id, or a macro's
+`ref@version`. Split on the colon to compare *families*.
 
 ### `build_project_ir(project, catalog=None, *, steps=EMPTY_REGISTRY) -> ProjectIR`
 
