@@ -125,7 +125,11 @@ def _emit(payload: object, *, as_json: bool) -> None:
     JSON is indented and sorted: a CLI's JSON is read by people at least as
     often as by programs, and a sorted document diffs.
     """
-    text = json.dumps(payload, indent=2, sort_keys=True) if as_json else str(payload)
+    text = (
+        json.dumps(payload, indent=2, sort_keys=True, cls=serialize.SpecEncoder)
+        if as_json
+        else str(payload)
+    )
     sys.stdout.write(text + "\n")
 
 
@@ -168,7 +172,7 @@ def _compile(arguments: argparse.Namespace) -> int:
         for path in written:
             sys.stdout.write(f"{path}\n")
         return EXIT_OK
-    _emit(serialize.artifacts_as_json(artifacts), as_json=True)
+    _emit(artifacts, as_json=True)
     return EXIT_OK
 
 
@@ -177,7 +181,7 @@ def _plan(arguments: argparse.Namespace) -> int:
     new = _load_ir(arguments.new, arguments.catalog)
     result = plan(old, new)
     if arguments.format == "json":
-        _emit(serialize.as_json_value(result), as_json=True)
+        _emit(result, as_json=True)
     else:
         _emit(render.render_plan(result), as_json=False)
     return EXIT_OK
@@ -206,7 +210,7 @@ def _resolve(arguments: argparse.Namespace) -> int:
     project, catalog = _load(arguments.directory, arguments.catalog)
     evidence = evaluate(project, catalog=catalog)
     if arguments.format == "json":
-        _emit(serialize.as_json_value(evidence), as_json=True)
+        _emit(evidence, as_json=True)
     else:
         _emit(render.render_evidence(evidence), as_json=False)
     return EXIT_OK if evidence.stage_reached is Stage.COMPLETE else EXIT_REFUSED
@@ -228,7 +232,7 @@ def _lineage(arguments: argparse.Namespace) -> int:
         max_depth=arguments.max_depth,
     )
     if arguments.format == "json":
-        _emit(serialize.as_json_value(walk), as_json=True)
+        _emit(walk, as_json=True)
     else:
         _emit(render.render_lineage(walk), as_json=False)
     return EXIT_OK
@@ -364,7 +368,7 @@ def _explain(arguments: argparse.Namespace) -> int:
     planner = MetricFlowPlanner(LruManifestHydrator(naming), naming=naming)
     query = planner.plan(ir, request, dialect=arguments.dialect, policy=policy)
     if arguments.format == "json":
-        _emit(serialize.as_json_value(query), as_json=True)
+        _emit(query, as_json=True)
     else:
         _emit(query.sql + "\n\n" + query.explanation.render(), as_json=False)
     return EXIT_OK

@@ -2,18 +2,23 @@
 
 Gate for RFC 0013 (pivot doc §7). Run on 2026-08-07.
 
-**Spike environment** (kept outside the repo so the repo `.venv`/`uv.lock` stay untouched):
+**The scripts have been retired.** They were exploratory code no gate ran and
+nothing imported, and the one piece of logic that outlived them — the row-policy
+AST audit — was copied into `tests/support/planning.py`, where a tier runs it.
+This document is the record; `git log --diff-filter=D -- spikes/` finds the
+commit that retired them and `git show <commit>^:spikes/metricflow/spike.py`
+prints one back. Same doctrine as a landed RFC.
+
+They ran against an environment kept outside the repo, so the repo
+`.venv`/`uv.lock` stayed untouched:
 
 ```sh
 uv init --bare --python 3.14 mf-spike && cd mf-spike
 # requires-python widened to ">=3.12,<3.15" to mirror the repo
 uv add --editable /path/to/bloomery
 uv add "metricflow==0.211.*" duckdb "sqlmesh>=0.150" "pydantic>=2.9"
-uv run python /path/to/bloomery/spikes/metricflow/spike.py            # etc.
+uv run --project <mf-spike-dir> python spikes/metricflow/spike.py     # etc.
 ```
-
-Scripts in this directory run with `uv run --project <mf-spike-dir> python <script>.py`
-from this directory (`v2`/`v4` import `spike.py` / each other by module name).
 
 ---
 

@@ -2,12 +2,16 @@
 the mart flattener (RFC 0010), and the guardrail stage's path-conflict
 amendment (RFC 0006 D7).
 
-Four tiny pure functions: JSONPath-lite extraction against the bronze
-relation, the dialect-neutral SQLGlot type for a logical type, the
-canonical-text wrap into :class:`~bloomery.ir.nodes.SqlExpr`, and the
-spec-string → :class:`~bloomery.ir.nodes.PartitionSpec` parse. They live in
-the IR layer because every consumer sits above it and the results are IR
-values — physical DDL types remain the dialect port's job (RFC 0008).
+Three tiny pure functions: JSONPath-lite extraction against the bronze
+relation, the canonical-text wrap into :class:`~bloomery.ir.nodes.SqlExpr`,
+and the spec-string → :class:`~bloomery.ir.nodes.PartitionSpec` parse. They
+live in the IR layer because every consumer sits above it and the results are
+IR values — physical DDL types remain the dialect port's job (RFC 0008).
+
+The neutral SQLGlot type for a logical type is **not** here. It is
+:func:`bloomery.transforms.neutral_type`, which a builder declaring ``types``
+needs as well; this module used to re-export it under a second name, which is
+one definition and two spellings for callers to disagree over.
 """
 
 from __future__ import annotations
@@ -19,31 +23,14 @@ from sqlglot.expressions.core import Expression
 
 from bloomery.ir.nodes import PartitionSpec, SqlExpr
 from bloomery.spec.common import PARTITION_SPEC_PATTERN
-from bloomery.transforms import neutral_type
-from bloomery.typing import (
-    LogicalType,
-)
 
 __all__ = [
     "canon",
     "extraction",
-    "generic_type",
     "partition_specs",
 ]
 
 _PARTITION_RE = re.compile(PARTITION_SPEC_PATTERN)
-
-
-def generic_type(t: LogicalType) -> exp.DataType:
-    """The dialect-neutral SQLGlot type for a logical type. Physical DDL
-    types are the dialect port's job (RFC 0008); this cast is rendered per
-    dialect at emit from the neutral AST.
-
-    The mapping itself lives in :func:`bloomery.transforms.neutral_type`: a
-    builder declaring ``types`` needs it too, and ``transforms`` is the lower
-    layer, so one definition serves both rather than two that can drift.
-    """
-    return neutral_type(t)
 
 
 def canon(node: Expression) -> SqlExpr:

@@ -19,7 +19,8 @@ from typing import TYPE_CHECKING
 from sqlglot import exp
 
 from bloomery.errors import guaranteed
-from bloomery.ir import AuditIR, ColumnIR, SourceColumnIR, canon, extraction, generic_type
+from bloomery.ir import AuditIR, ColumnIR, SourceColumnIR, canon, extraction
+from bloomery.transforms import neutral_type
 
 if TYPE_CHECKING:
     from bloomery.guardrails.operands import Derivation
@@ -57,7 +58,7 @@ def _shadow(derived: ColumnIR, direct: str) -> tuple[ColumnIR, SourceColumnIR]:
         ),
         SourceColumnIR(
             name=f"{derived.name}__direct",
-            expr=canon(exp.cast(extraction(direct), generic_type(derived.type))),
+            expr=canon(exp.cast(extraction(direct), neutral_type(derived.type))),
         ),
     )
 

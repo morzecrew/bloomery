@@ -1,74 +1,89 @@
 """The purity gate is tested, not merely present (RFC 0019 §6).
 
 A guard that has never failed is indistinguishable from one that is
-misconfigured. These plant each banned construct in a throwaway tree and assert
-the checker reports it — and, just as important, plant the two shapes that look
+misconfigured — and a guard spelled as *configuration* is the shape where that
+is easiest to believe, because there is no code to read. These plant each
+banned construct in a throwaway tree, run the gate's own ruff settings over it,
+and assert it is reported; and, just as important, plant the shapes that look
 banned and are not.
+
+The gate is ``TID251`` with the ``banned-api`` table in ``pyproject.toml``. It
+replaced a hand-rolled AST checker whose one irreplaceable trick — resolving a
+dotted name through the import that bound it, so ``dt.now()`` reads as
+``datetime.datetime.now`` — ruff turned out to do already; the aliased cases
+below are what pins that.
 """
 
 from __future__ import annotations
 
-import importlib.util
 import pathlib
+import subprocess
 import sys
 
 import pytest
 
 pytestmark = pytest.mark.unit
 
-TOOL = pathlib.Path(__file__).resolve().parents[2] / "tools" / "check_purity.py"
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
-def load_checker() -> object:
-    """Import the gate by path — `tools/` is not a package, deliberately: it is
-    developer tooling rather than shipped code."""
-    spec = importlib.util.spec_from_file_location("check_purity", TOOL)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["check_purity"] = module
-    spec.loader.exec_module(module)
-    return module
+def findings_for(source: str) -> str:
+    """Ruff's output for one planted module, under the repo's real settings.
 
-
-def findings_for(tmp_path: pathlib.Path, source: str) -> list[str]:
-    checker = load_checker()
-    module = tmp_path / "planted.py"
-    module.write_text(source)
-    return [f.message for f in checker.inspect_module(module, tmp_path)]  # type: ignore[attr-defined]
+    ``--config`` is not passed and ``--isolated`` is not either: the claim under
+    test is that *the table the gate actually runs* refuses this, so the source
+    goes in on stdin under a ``src/bloomery/`` filename and ``pyproject.toml``
+    resolves from the repo root exactly as ``just quality`` resolves it.
+    """
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "ruff",
+            "check",
+            "--select=TID251",
+            "--no-cache",
+            "--output-format=concise",
+            "--stdin-filename=src/bloomery/planted.py",
+            "-",
+        ],
+        input=source,
+        capture_output=True,
+        text=True,
+        cwd=ROOT,
+        check=False,
+    )
+    return completed.stdout
 
 
 @pytest.mark.parametrize(
     ("source", "expected"),
     [
-        ("import os\n", "imports 'os'"),
-        ("import pathlib\n", "imports 'pathlib'"),
-        ("from tempfile import mkdtemp\n", "imports 'tempfile'"),
-        ("import requests\n", "imports 'requests'"),
-        ("import duckdb\n", "imports 'duckdb'"),
-        ("x = datetime.now()\n", "calls datetime.now()"),
-        ("x = datetime.datetime.now()\n", "calls datetime.datetime.now()"),
-        ("x = time.time()\n", "calls time.time()"),
-        ("x = uuid.uuid4()\n", "calls uuid.uuid4()"),
-        ("x = random.random()\n", "calls random.random()"),
-        # The attribute rule alone misses this: the call is spelled
-        # `choice(...)` and names no module, so the import ban is what
-        # catches it. Found by auditing the guard rather than by using it.
-        ("from random import choice\n", "imports 'random'"),
-        ("import secrets\n", "imports 'secrets'"),
-        # Aliased imports: `dotted()` reports the alias, which matches no
-        # banned suffix, so the root has to be resolved through the import
-        # that bound it. Review found this one.
-        ("from datetime import datetime as dt\nx = dt.now()\n", "calls dt.now()"),
-        ("import time as t\nx = t.time()\n", "calls t.time()"),
-        ("import uuid as u\nx = u.uuid4()\n", "calls u.uuid4()"),
-        ("import os as o\nx = o.environ\n", "reads o.environ"),
-        ("x = os.environ['HOME']\n", "reads os.environ"),
+        ("import os\n", "`os` is banned"),
+        ("import pathlib\n", "`pathlib` is banned"),
+        ("from tempfile import mkdtemp\n", "`tempfile` is banned"),
+        ("import requests\n", "`requests` is banned"),
+        ("import duckdb\n", "`duckdb` is banned"),
+        ("from datetime import datetime\nx = datetime.now()\n", "`datetime.datetime.now`"),
+        ("import datetime\nx = datetime.datetime.now()\n", "`datetime.datetime.now`"),
+        ("import time\nx = time.time()\n", "`time` is banned"),
+        ("import uuid\nx = uuid.uuid4()\n", "`uuid.uuid4` is banned"),
+        ("import random\nx = random.random()\n", "`random` is banned"),
+        # The member rule alone misses this: the call is spelled `choice(...)`
+        # and names no module, so the module ban is what catches it. Found by
+        # auditing the guard rather than by using it.
+        ("from random import choice\n", "`random` is banned"),
+        ("import secrets\n", "`secrets` is banned"),
+        # Aliased imports: the local name matches no banned entry on its own, so
+        # the root has to be resolved through the import that bound it.
+        ("from datetime import datetime as dt\nx = dt.now()\n", "`datetime.datetime.now`"),
+        ("import time as t\nx = t.time()\n", "`time` is banned"),
+        ("from uuid import uuid4 as u\nx = u()\n", "`uuid.uuid4` is banned"),
+        ("import os as o\nx = o.environ\n", "`os` is banned"),
     ],
 )
-def test_a_planted_violation_is_caught(
-    tmp_path: pathlib.Path, source: str, expected: str
-) -> None:
-    assert any(expected in message for message in findings_for(tmp_path, source)), (
+def test_a_planted_violation_is_caught(source: str, expected: str) -> None:
+    assert expected in findings_for(source), (
         f"the guard did not report {expected!r} for {source!r}"
     )
 
@@ -84,76 +99,65 @@ def test_a_planted_violation_is_caught(
         # A method of one's own that happens to be spelled like a clock.
         "x = self.now()\n",
         "x = context.time()\n",
+        # The types, which the planner's literal grammar needs, as opposed to
+        # the clock and id calls that live on them.
+        "from datetime import date, datetime\n",
+        "from uuid import UUID\n",
     ],
 )
-def test_what_only_looks_banned_is_not_reported(tmp_path: pathlib.Path, source: str) -> None:
-    assert findings_for(tmp_path, source) == [], f"false positive on {source!r}"
+def test_what_only_looks_banned_is_not_reported(source: str) -> None:
+    assert "TID251" not in findings_for(source), f"false positive on {source!r}"
 
 
-def test_the_allowlist_exempts_the_run_time_contract(tmp_path: pathlib.Path) -> None:
-    """`steps/contract.py` runs inside a generated wrapper in a warehouse, not
-    during compilation (RFC 0017), so the import ban does not apply to it."""
-    checker = load_checker()
-    assert "steps/contract.py" in checker.ALLOWLIST  # type: ignore[attr-defined]
-    exempt = tmp_path / "steps" / "contract.py"
-    exempt.parent.mkdir()
-    exempt.write_text("import os\n")
-    assert checker.inspect_module(exempt, tmp_path) == []  # type: ignore[attr-defined]
+def test_the_filesystem_carve_out_is_one_line_not_the_cli_package() -> None:
+    """RFC 0020 D12. ``cli/io.py`` may open a file; nothing else under ``cli/``
+    may, and not even ``io.py`` may read a clock.
 
-    ordinary = tmp_path / "steps" / "other.py"
-    ordinary.write_text("import os\n")
-    assert checker.inspect_module(ordinary, tmp_path)  # type: ignore[attr-defined]
-
-
-def test_the_filesystem_carve_out_is_one_file_not_the_cli_package(
-    tmp_path: pathlib.Path,
-) -> None:
-    """RFC 0020 D12. ``cli/io.py`` may open a file; nothing else under
-    ``cli/`` may.
-
-    A package-wide exemption would pass every test that only checks
-    ``cli/io.py`` is exempt, while letting the argument parser or the renderer
-    reach a disk — the tree claiming one door and the guard enforcing none.
-    So the second half is the assertion that matters.
+    A per-file ignore would pass every test that only checks ``cli/io.py`` may
+    import ``pathlib``, while also exempting a ``datetime.now()`` in the same
+    file — the tree claiming one door and the guard enforcing none. A
+    line-scoped ``# noqa`` cannot do that, which is why the exemption is spelled
+    as one, and the assertion that matters is that no file-scoped one exists.
     """
-    checker = load_checker()
-    assert "cli/io.py" in checker.ALLOWLIST  # type: ignore[attr-defined]
-    assert not any(  # type: ignore[attr-defined]
-        entry.rstrip("/") == "cli" for entry in checker.ALLOWLIST
+    config = (ROOT / "pyproject.toml").read_text()
+    assert "[tool.ruff.lint.per-file-ignores]" not in config, (
+        "a per-file ignore would exempt a clock in the same file as the door"
     )
 
-    (tmp_path / "cli").mkdir()
-    door = tmp_path / "cli" / "io.py"
-    door.write_text("from pathlib import Path\n")
-    assert checker.inspect_module(door, tmp_path) == []  # type: ignore[attr-defined]
+    package = ROOT / "src" / "bloomery"
+    exempted = [
+        (path.relative_to(package).as_posix(), line.strip())
+        for path in sorted(package.rglob("*.py"))
+        for line in path.read_text().splitlines()
+        if "# noqa: TID251" in line
+    ]
+    assert [path for path, _ in exempted] == ["cli/io.py"], exempted
+    assert exempted[0][1].startswith("from pathlib import Path"), exempted
 
-    for sibling in ("__init__.py", "render.py", "serialize.py"):
-        neighbour = tmp_path / "cli" / sibling
-        neighbour.write_text("from pathlib import Path\n")
-        assert checker.inspect_module(neighbour, tmp_path), sibling  # type: ignore[attr-defined]
 
-
-def test_the_carve_out_does_not_exempt_a_clock(tmp_path: pathlib.Path) -> None:
-    """The allowlist covers *imports*, which is all a filesystem needs. A CLI
-    that read a clock would still make output depend on when it ran, and
-    nothing about reaching a disk justifies that."""
-    checker = load_checker()
-    (tmp_path / "cli").mkdir()
-    door = tmp_path / "cli" / "io.py"
-    door.write_text("from datetime import datetime\nstamp = datetime.now()\n")
-    assert checker.inspect_module(door, tmp_path)  # type: ignore[attr-defined]
+def test_the_carve_out_does_not_exempt_a_clock() -> None:
+    """The exemption covers one *import*, which is all a filesystem needs. A CLI
+    that read a clock would still make output depend on when it ran, and nothing
+    about reaching a disk justifies that."""
+    source = "from pathlib import Path  # noqa: TID251\nfrom datetime import datetime\nstamp = datetime.now()\n"
+    assert "`datetime.datetime.now`" in findings_for(source)
 
 
 def test_the_pygrep_hook_it_replaces_is_gone() -> None:
-    """Two guards over one invariant drift apart (RFC 0019 D6). The AST check is
-    a superset of the hook's four spellings, so the hook is removed in the same
-    change — this pins that it stays removed."""
-    config = (pathlib.Path(__file__).resolve().parents[2] / ".pre-commit-config.yaml").read_text()
+    """Two guards over one invariant drift apart (RFC 0019 D6). The banned-api
+    table is a superset of the hook's four spellings, so the hook is removed —
+    this pins that it stays removed."""
+    config = (ROOT / ".pre-commit-config.yaml").read_text()
     assert "no-nondeterminism-sources" not in config
     assert "pygrep" not in config
 
 
 def test_the_gate_runs_it() -> None:
-    """A guard CI does not run is a convention, which is the defect D6 names."""
-    justfile = (pathlib.Path(__file__).resolve().parents[2] / "justfile").read_text()
-    assert "tools/check_purity.py" in justfile
+    """A guard CI does not run is a convention, which is the defect D6 names.
+
+    ``ruff check src`` is the gate's first line, and ``TID251`` is in ``select``
+    — so unlike the standalone script this replaces, purity now rides the check
+    that was always going to run anyway.
+    """
+    assert '"TID251",' in (ROOT / "pyproject.toml").read_text()
+    assert 'ruff check "src"' in (ROOT / "justfile").read_text()

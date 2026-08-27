@@ -1,4 +1,4 @@
-"""``--format json``: the values the Python API returns, as JSON (RFC 0020 D4).
+""":mod:`json` for the values the Python API returns (RFC 0020 D4).
 
 The promise is that the CLI is not a second, lossier surface — so this converts
 *whole* returned values rather than picking the fields a table happens to show.
@@ -7,10 +7,22 @@ even though :mod:`bloomery.cli.render` prints neither, because a script reading
 ``--format json`` should not have to drop to Python for a field the function
 already returned.
 
-The conversion is structural and total: a frozen dataclass becomes an object of
-its fields, an enum becomes its value, a tuple becomes an array, a ``Decimal``
-becomes a string (never a float — RFC 0003 D5 rules those out of the package,
-and JSON's number type is a float in most readers).
+It is a :class:`json.JSONEncoder`, not a walker of its own: ``default`` is asked
+only about the types :mod:`json` does not already know, so lists, tuples, dicts
+and every ``StrEnum`` recurse through the encoder that was going to run anyway.
+The conversion is structural and total — a frozen dataclass becomes an object of
+its fields, a ``Decimal`` becomes a string (never a float: RFC 0003 D5 rules
+those out of the package, and JSON's number type is a float in most readers).
+
+There is deliberately **no enum branch**. Every enum on the public surface is a
+:class:`~enum.StrEnum` — all twenty-five of them, which
+``test_every_public_enum_is_a_strenum`` pins — so :mod:`json` serializes one as
+its own string without ever consulting ``default``, in a value position or as a
+mapping key. A branch for the non-str enum this package does not have would be
+unreachable today and a silent success for a type nobody decided to support; the
+``TypeError`` from ``super().default`` is the louder and more useful answer, and
+the guard test is what makes adding such an enum a decision rather than a
+surprise at the command line.
 
 Two values are not converted structurally.
 
@@ -18,11 +30,12 @@ A :class:`~bloomery.LogicalType` is a frozen dataclass whose *identity is its
 class*: ``StringType()`` has no fields at all, so a field dump renders it ``{}``
 and loses the type entirely. It is rendered with the type layer's own
 ``render_type``, which produces the exact string a spec writes and
-``parse_type`` reads back — the canonical form, not a lossy summary.
+``parse_type`` reads back — the canonical form, not a lossy summary. It is
+tested before the dataclass branch for that reason.
 
 A :class:`~bloomery.BloomeryError` is not a dataclass at all, and since
 :class:`~bloomery.SpecEvidence` carries refusals as *values* (RFC 0022 D2) the
-converter has to know what one looks like or ``bloomery resolve --format json``
+encoder has to know what one looks like or ``bloomery resolve --format json``
 fails on exactly the specs it exists to describe. It becomes its class name,
 its message, and every attribute the error carries — which is where
 ``source_path`` lives, and where RFC 0020's structured fix suggestions do, so
@@ -32,19 +45,15 @@ they reach a JSON consumer without this module naming a single one of them.
 from __future__ import annotations
 
 import dataclasses
+import json
 from decimal import Decimal
-from enum import Enum
-from typing import TYPE_CHECKING, cast
+from typing import Any
 
 from bloomery.errors import BloomeryError
 from bloomery.typing import LogicalType, render_type
 
-if TYPE_CHECKING:
-    from bloomery import EmittedArtifact
-
 __all__ = [
-    "artifacts_as_json",
-    "as_json_value",
+    "SpecEncoder",
 ]
 
 
@@ -66,46 +75,25 @@ def _error_as_json(error: BloomeryError) -> dict[str, object]:
     "GrainViolation"`` silently stopped matching. Losing an attribute to a name
     collision is a small harm; corrupting the discriminator is not, because
     nothing downstream can detect it.
-
-    Attributes are sorted for the same reason every other collection here is.
     """
-    return {
-        **{name: as_json_value(attribute) for name, attribute in sorted(vars(error).items())},
-        "type": type(error).__name__,
-        "message": str(error),
-    }
+    return {**vars(error), "type": type(error).__name__, "message": str(error)}
 
 
-def as_json_value(value: object) -> object:
-    """Any value the public API returns, as JSON-serializable data."""
-    if isinstance(value, LogicalType):
-        return render_type(value)
-    if isinstance(value, BloomeryError):
-        return _error_as_json(value)
-    if isinstance(value, Enum):
-        return as_json_value(value.value)
-    if isinstance(value, Decimal):
-        return str(value)
-    if dataclasses.is_dataclass(value) and not isinstance(value, type):
-        return {
-            field.name: as_json_value(getattr(value, field.name))
-            for field in dataclasses.fields(value)
-        }
-    if isinstance(value, (list, tuple)):
-        entries = cast("list[object] | tuple[object, ...]", value)
-        return [as_json_value(item) for item in entries]
-    if isinstance(value, dict):
-        entries_map = cast("dict[object, object]", value)
-        return {str(key): as_json_value(item) for key, item in entries_map.items()}
-    return value
+class SpecEncoder(json.JSONEncoder):
+    """The encoder every ``--format json`` command dumps through."""
 
-
-def artifacts_as_json(artifacts: tuple[EmittedArtifact, ...]) -> list[object]:
-    """Compiled artifacts as JSON — content included.
-
-    ``bloomery compile --out`` writes files; ``--format json`` is for a caller
-    that wants to place them itself, which is the same position the library
-    puts a Python caller in. Dropping ``content`` would make the JSON a
-    manifest of files nobody received.
-    """
-    return [as_json_value(artifact) for artifact in artifacts]
+    # `o: Any` is `json.JSONEncoder.default`'s own signature. The encoder is
+    # asked about whatever `json` could not serialize, which is by definition
+    # not a set of types this module can name in advance.
+    def default(self, o: Any) -> object:
+        # LogicalType before the dataclass branch: it is a frozen dataclass
+        # too, and a field dump would render `StringType()` as `{}`.
+        if isinstance(o, LogicalType):
+            return render_type(o)
+        if isinstance(o, BloomeryError):
+            return _error_as_json(o)
+        if isinstance(o, Decimal):
+            return str(o)
+        if dataclasses.is_dataclass(o) and not isinstance(o, type):
+            return {field.name: getattr(o, field.name) for field in dataclasses.fields(o)}
+        return super().default(o)

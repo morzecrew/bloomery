@@ -5,7 +5,8 @@ from __future__ import annotations
 
 import pytest
 
-from bloomery.ir import PartitionSpec, SqlExpr, canon, extraction, generic_type, partition_specs
+from bloomery.ir import PartitionSpec, SqlExpr, canon, extraction, partition_specs
+from bloomery.transforms import neutral_type
 from bloomery.typing import DecimalType, StringType, TimestampType
 
 pytestmark = pytest.mark.unit
@@ -21,10 +22,10 @@ def test_extraction_of_nested_segments_is_json_extraction() -> None:
     )
 
 
-def test_generic_type_computes_decimal_and_maps_scalars() -> None:
-    assert generic_type(DecimalType(12, 4)).sql() == "DECIMAL(12, 4)"
-    assert generic_type(StringType()).sql() == "TEXT"
-    assert generic_type(TimestampType()).sql() == "TIMESTAMP"
+def test_neutral_type_computes_decimal_and_maps_scalars() -> None:
+    assert neutral_type(DecimalType(12, 4)).sql() == "DECIMAL(12, 4)"
+    assert neutral_type(StringType()).sql() == "TEXT"
+    assert neutral_type(TimestampType()).sql() == "TIMESTAMP"
 
 
 def test_canon_wraps_compact_dialect_neutral_text() -> None:

@@ -1,7 +1,7 @@
 """Hydration and caching of the planner artifact (RFC 0014): the
 :class:`HydrationKey`, the pure L2 codec (:func:`build_manifest_bytes` /
-:func:`hydrate_manifest`), the :class:`ManifestHydrator` protocol, and the
-default in-process :class:`LruManifestHydrator`.
+:func:`hydrate_manifest`), and the in-process :class:`LruManifestHydrator`
+the planner takes.
 
 The planner artifact is MetricFlow's own **post-transform** manifest
 (RFC 0014 D1, superseding RFC 0012's ``CompiledSemantic``): L2 is its JSON
@@ -28,9 +28,9 @@ path by the import-linter contract — only ``planner/`` may reach it.
 from __future__ import annotations
 
 import importlib.metadata
-from collections import OrderedDict
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Final, Protocol
+from functools import lru_cache
+from typing import TYPE_CHECKING, Final
 
 # RFC 0013 §5.9a: keep a module that finishes
 # ``metricflow_semantic_interfaces.protocols`` the first MSI import — see
@@ -56,7 +56,6 @@ if TYPE_CHECKING:
 __all__ = [
     "HydrationKey",
     "LruManifestHydrator",
-    "ManifestHydrator",
     "build_manifest_bytes",
     "hydrate_manifest",
     "hydration_key",
@@ -116,23 +115,22 @@ def hydrate_manifest(data: bytes, *, prewarm: bool = False) -> SemanticManifestL
     return lookup
 
 
-class ManifestHydrator(Protocol):
-    """The hydration seam the planner consumes (RFC 0013 §5.3, RFC 0014
-    §5.2): project IR in, hydrated lookup out — caching behind it is the
-    implementation's business."""
-
-    def get(self, ir: ProjectIR) -> SemanticManifestLookup: ...
-
-
 class LruManifestHydrator:
-    """The default in-process L1 (RFC 0014 D3/D6): an LRU of hydrated
-    lookups keyed by :class:`HydrationKey`.
+    """The default in-process L1 (RFC 0014 D3/D6): an LRU of hydrated lookups
+    keyed by :class:`HydrationKey`.
 
-    A miss first consults the caller-injected ``fetch_l2`` (the caller's
-    I/O — bloomery performs none); when absent or empty it rebuilds from the
-    IR via :func:`build_manifest_bytes`. ``hits``/``misses`` are plain
-    counters the caller polls into its own metrics system — no observability
-    dependency (RFC 0014 D6).
+    A miss first consults the caller-injected ``fetch_l2`` (the caller's I/O —
+    bloomery performs none); when absent or empty it rebuilds from the IR via
+    :func:`build_manifest_bytes`. ``hits``/``misses`` are plain counters the
+    caller polls into its own metrics system — no observability dependency
+    (RFC 0014 D6).
+
+    The LRU itself is :func:`functools.lru_cache`, per instance: the eviction
+    order, the bound, and the hit/miss counters are all what it already ships,
+    and a hand-rolled ``OrderedDict`` of the three was the same policy written
+    out longhand. Per instance rather than per class because ``fetch_l2``,
+    ``prewarm`` and the naming policy are constructor state — a shared cache
+    would serve one hydrator's entries to another configured differently.
     """
 
     def __init__(
@@ -144,35 +142,63 @@ class LruManifestHydrator:
         prewarm: bool = False,
     ) -> None:
         self.naming = naming
-        self.hits = 0
-        self.misses = 0
-        self._max_entries = max_entries
         self._fetch_l2 = fetch_l2
         self._prewarm = prewarm
-        self._entries: OrderedDict[HydrationKey, SemanticManifestLookup] = OrderedDict()
+        # Bound to `self`, so the cache and its counters die with the hydrator.
+        self._cached = lru_cache(maxsize=max_entries)(self._hydrate)
+
+    @property
+    def hits(self) -> int:
+        """L1 hits since construction."""
+        return self._cached.cache_info().hits
+
+    @property
+    def misses(self) -> int:
+        """L1 misses since construction — each one hydrated a manifest."""
+        return self._cached.cache_info().misses
 
     @property
     def hit_rate(self) -> float:
         """Hits over total lookups (0.0 before any lookup)."""
-        total = self.hits + self.misses
-        return self.hits / total if total else 0.0
+        info = self._cached.cache_info()
+        total = info.hits + info.misses
+        return info.hits / total if total else 0.0
+
+    def _hydrate(self, key: HydrationKey, ir: ProjectIR) -> SemanticManifestLookup:
+        """One miss: L2 bytes when the caller supplies them, else a fresh build.
+
+        Both the key and the IR are *arguments*, so the result is a function of
+        what it was called with and nothing else — the property
+        :func:`functools.lru_cache` is built on. An earlier version passed only
+        the key and handed the IR over through an instance attribute; two
+        threads calling :meth:`get` with different IRs could interleave between
+        that write and its read, and the manifest built from one thread's IR was
+        then cached under the other thread's key, where every later hit returned
+        it. Nothing evicts a poisoned entry, so it stayed wrong.
+
+        Caching on the pair costs one extra ``hash(ir)`` (~4.8 us against the
+        ~229 us :func:`hydration_key` already spends on the same fixture) and
+        partitions exactly as the key alone did: equal IRs hash and compare
+        equal, unequal IRs already have unequal fingerprints. The pair is not
+        redundant, though — it is what keeps the version axes in the key
+        (RFC 0014 D2/D7), which an IR-only cache would have quietly dropped.
+        """
+        data = self._fetch_l2(key) if self._fetch_l2 is not None else None
+        # `not data`, not `is None`: an L2 that answers with zero bytes has
+        # answered with no manifest. Reading that as a payload sent `b""` into
+        # `parse_raw` and raised a pydantic ValidationError out of a cache
+        # lookup — a partially-written key is a miss, which is what the
+        # class docstring has always claimed.
+        if not data:
+            data = build_manifest_bytes(ir, naming=self.naming)
+        return hydrate_manifest(data, prewarm=self._prewarm)
 
     def get(self, ir: ProjectIR) -> SemanticManifestLookup:
-        """The hydrated lookup for ``ir`` — an L1 hit is a dict lookup; a
-        miss hydrates (L2 bytes when the caller supplies them, else a fresh
-        build) and evicts least-recently-used entries past ``max_entries``."""
-        key = hydration_key(ir)
-        cached = self._entries.get(key)
-        if cached is not None:
-            self._entries.move_to_end(key)
-            self.hits += 1
-            return cached
-        self.misses += 1
-        data = self._fetch_l2(key) if self._fetch_l2 is not None else None
-        if data is None:
-            data = build_manifest_bytes(ir, naming=self.naming)
-        lookup = hydrate_manifest(data, prewarm=self._prewarm)
-        self._entries[key] = lookup
-        while len(self._entries) > self._max_entries:
-            self._entries.popitem(last=False)
-        return lookup
+        """The hydrated lookup for ``ir`` — an L1 hit is a dict lookup; a miss
+        hydrates and evicts least-recently-used entries past ``max_entries``.
+
+        Safe to share across threads: nothing here writes instance state, so the
+        worst a race costs is two threads building one manifest and one of the
+        two results being discarded.
+        """
+        return self._cached(hydration_key(ir), ir)

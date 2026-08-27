@@ -277,7 +277,7 @@ def load_yaml_mapping(text: str, *, document: str) -> dict[str, object]:
     """
     try:
         # SafeLoader subclass: only plain YAML types construct (RFC 0002 §5.6).
-        data = yaml.load(text, Loader=_StrictSafeLoader)  # nosec B506
+        data = yaml.load(text, Loader=_StrictSafeLoader)  # noqa: S506 — a SafeLoader subclass, see above
     except yaml.YAMLError as exc:
         raise SpecParseError(f"invalid YAML: {exc}", source_path=document) from exc
     if not isinstance(data, dict):

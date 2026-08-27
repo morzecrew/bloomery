@@ -68,7 +68,6 @@ from bloomery.ir import (
     Unit,
     canon,
     extraction,
-    generic_type,
     partition_specs,
 )
 from bloomery.marts import lower_marts
@@ -92,7 +91,7 @@ from bloomery.spec.mapping import ALIAS_BOUND, MacroFieldMapping, RecipeFieldMap
 from bloomery.spec.project import Project
 from bloomery.steps import EMPTY_REGISTRY, StepRegistry
 from bloomery.steps.splice import parameter_literal, placeholders, splice
-from bloomery.transforms import registry
+from bloomery.transforms import neutral_type, registry
 from bloomery.typing import (
     ChainCheck,
     LogicalType,
@@ -264,7 +263,7 @@ def _lower_chain(
 ) -> Expression:
     node = extraction(path)
     if not steps:
-        return exp.cast(node, generic_type(declared))
+        return exp.cast(node, neutral_type(declared))
     # The running logical type, threaded so a builder that declares `types` can
     # construct against the same fact its `output_type` declares (RFC 0029 D1).
     # Bronze lands as text, which is where `chain_segments` starts too; after a
@@ -287,7 +286,7 @@ def _lower_chain(
         current = spec.output_type(current, step.args)
     terminal = _chain_terminal(steps, declared, reg, macros, source_path=source_path)
     if terminal != declared:
-        node = exp.cast(node, generic_type(declared))
+        node = exp.cast(node, neutral_type(declared))
     return node
 
 
@@ -476,7 +475,7 @@ def _recipe_expr(
             return node
 
         body = parsed.transform(substitute)
-    return exp.cast(body, generic_type(declared)), recipe.id
+    return exp.cast(body, neutral_type(declared)), recipe.id
 
 
 def _macro_parts(
@@ -580,7 +579,7 @@ def _macro_expr(
         alias: extraction(path) for alias, path in field_mapping.from_.items()
     }
     arguments.update(_macro_parameters(manifest, dict(field_mapping.parameters)))
-    return exp.cast(splice(body, arguments), generic_type(declared))
+    return exp.cast(splice(body, arguments), neutral_type(declared))
 
 
 def _refuse_body_disagreement(
@@ -712,7 +711,7 @@ def _repair_bodies(
                 ): exp.column(column),
                 **_macro_parameters(manifest, dict(rule.repair.parameters)),
             }
-            bodies[column] = canon(exp.cast(splice(body, arguments), generic_type(declared))).sql
+            bodies[column] = canon(exp.cast(splice(body, arguments), neutral_type(declared))).sql
     return bodies
 
 
@@ -907,7 +906,7 @@ def _filled(source: SourceIR, columns: tuple[ColumnIR, ...]) -> SourceIR:
                     *(
                         SourceColumnIR(
                             name=column.name,
-                            expr=canon(exp.cast(exp.null(), generic_type(column.type))),
+                            expr=canon(exp.cast(exp.null(), neutral_type(column.type))),
                         )
                         for column in missing
                     ),

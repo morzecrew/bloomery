@@ -18,7 +18,6 @@ from bloomery.dialects import (
     TrinoDialect,
     get_dialect,
     register_dialect,
-    registered_dialects,
 )
 from bloomery.dialects.base import strip_iso_text
 from bloomery.emit.base import Feature
@@ -64,20 +63,6 @@ def test_register_dialect_collision_is_an_error() -> None:
         register_dialect(DuckDBDialect())
 
 
-def test_registered_dialects_is_sorted_and_includes_the_overlay() -> None:
-    """The public registry enumeration (RFC 0008 D8) — the D56 escape hatch
-    builds an explicit dialect set for ``unsupported_dialects`` from it, so it
-    must see extension registrations and stay sorted."""
-    assert tuple(d.name for d in registered_dialects()) == ("duckdb", "postgres", "trino")
-    register_dialect(_Custom())
-    assert tuple(d.name for d in registered_dialects()) == (
-        "custom",
-        "duckdb",
-        "postgres",
-        "trino",
-    )
-
-
 def test_pattern_check_does_not_consult_the_mutable_registry() -> None:
     """RFC 0016 D56: registering a dialect must not change any verdict the
     compile stage reaches. A port that refuses every regex would flip
@@ -93,8 +78,10 @@ def test_pattern_check_does_not_consult_the_mutable_registry() -> None:
     before = unsupported_dialects("^ok$")
     register_dialect(_NoRegex())
     assert unsupported_dialects("^ok$") == before == ()
-    # ...and the explicit-argument hatch is what *does* see it.
-    assert unsupported_dialects("^ok$", dialects=registered_dialects()) == ("noregex",)
+    # ...and the explicit-argument hatch is what *does* see it. The caller
+    # names its own port rather than enumerating the registry, which is the
+    # only shape D56 offers — see `bloomery.dialects`.
+    assert unsupported_dialects("^ok$", dialects=(_NoRegex(),)) == ("noregex",)
 
 
 def test_base_render_is_deterministic() -> None:

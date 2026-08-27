@@ -67,16 +67,34 @@ snapshot-update:
 
     uv run pytest tests/golden --snapshot-update
 
-# Run the default tiers with coverage, enforce the global fail_under floor,
-# then every per-package floor declared in pyproject.toml (RFC 0025 §5.2).
-# `guardrails/` at 100% is the oldest of those and the reason for the rest —
-# an untested guardrail branch is an unshipped guardrail (RFC 0009 D9).
+# Run the default tiers with coverage, then the three floors: the global one and
+# a scoped report for each package that is not at it.
+#
+# The unscoped `--fail-under=98` restates `[tool.coverage.report] fail_under`,
+# which the pytest run above already enforces — deliberately, and not because
+# one of them is redundant. It is the same three commands CI's coverage job
+# runs, in the same order, so a floor failure reads identically in both places;
+# a recipe that left the global floor implicit in pytest's exit code read, to
+# more than one reviewer, as a recipe that had stopped checking it.
+#
+# `guardrails/` at 100% is the oldest floor and the reason the rest exist — an
+# untested guardrail branch is an unshipped guardrail (RFC 0009 D9). `steps/` is
+# the newest package and carries the run-time contract, so it is named rather
+# than rounded into the global number.
+#
+# ponytail: the global floor cannot see one package rotting while another
+# covers for it. A per-package table can, and this repo had one — 15 rows, 13 of
+# them 98 or 99, behind a 116-line reader and a 271-line test of the reader. If
+# a package ever does rot behind the total, add a fourth scoped line here for
+# it, not the table back.
 coverage *args='':
     {{ _uv_sync }}
 
     uv run pytest -m "not engine and not e2e and not chaos and not perf" \
         --refusal-census --cov=src --cov-report=term {{ args }}
-    uv run python tools/check_coverage_floors.py .
+    uv run coverage report --fail-under=98
+    uv run coverage report --include='src/bloomery/guardrails/*' --fail-under=100
+    uv run coverage report --include='src/bloomery/steps/*' --fail-under=92
 
 # The single quality authority, byte-for-byte the same locally and in CI (RFC 0001 D4; CI runs `-s`)
 # Run all quality checks
@@ -90,8 +108,6 @@ quality strict="false":
     just _uv_cmd "Imports" {{ strict }} lint-imports
     just _uv_cmd "Dead code" {{ strict }} vulture
     just _uv_cmd "Dependencies" {{ strict }} deptry .
-    just _uv_cmd "Security" {{ strict }} bandit -c pyproject.toml -r "src"
-    just _uv_cmd "Purity" {{ strict }} python tools/check_purity.py "src/bloomery"
     just _uv_cmd "RFC corpus" {{ strict }} python tools/check_rfc_corpus.py .
     just _uv_cmd "Workflows" {{ strict }} zizmor --collect=default .github/
     just _uv_cmd "Secrets" {{ strict }} pre-commit run gitleaks --all-files

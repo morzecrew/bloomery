@@ -57,10 +57,22 @@ from bloomery import (
 from bloomery.cli import EXIT_OK, EXIT_REFUSED, EXIT_USAGE, build_parser, main
 from bloomery.cli.io import CliIoError, read_spec_directory, write_files
 from bloomery.cli.render import render_evidence, render_plan
-from bloomery.cli.serialize import as_json_value
+from bloomery.cli.serialize import SpecEncoder
 from bloomery.errors import BloomeryError
 from bloomery.naming import DefaultNaming
 from support.compiling import load_fixture
+
+
+def as_json_value(value: object) -> object:
+    """The value a ``--format json`` consumer receives, as Python data.
+
+    Round-tripping through :class:`~bloomery.cli.serialize.SpecEncoder` is the
+    point: the encoder is what the CLI dumps through, so a test comparing
+    against it compares against what actually reaches stdout rather than
+    against a second conversion written to agree with it.
+    """
+    return json.loads(json.dumps(value, cls=SpecEncoder, sort_keys=True))
+
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -659,7 +671,52 @@ def test_a_decimal_serializes_as_a_string_never_a_float() -> None:
     """
     assert as_json_value(Decimal("0.01")) == "0.01"
     assert as_json_value((Decimal("1.10"),)) == ["1.10"]
-    assert json.dumps(as_json_value(Decimal("0.01"))) == '"0.01"'
+    assert json.dumps(Decimal("0.01"), cls=SpecEncoder) == '"0.01"'
+
+
+def test_every_public_enum_is_a_strenum() -> None:
+    """What lets :class:`SpecEncoder` carry no enum branch at all.
+
+    ``json`` serializes a ``StrEnum`` as its own string without consulting
+    ``default`` — in a value position and as a mapping key — so the branch a
+    hand-rolled walker needed is unreachable here. That holds only while every
+    enum the API can return is a ``StrEnum``. This walks the package and fails
+    if one is not, which turns "add a plain ``Enum``" from a ``TypeError`` at
+    the command line into a failing test that says what to do about it.
+    """
+    import enum
+    import importlib
+    import pkgutil
+
+    import bloomery
+
+    plain: list[str] = []
+    for info in pkgutil.walk_packages(bloomery.__path__, "bloomery."):
+        module = importlib.import_module(info.name)
+        for name, value in vars(module).items():
+            if (
+                isinstance(value, type)
+                and issubclass(value, enum.Enum)
+                and value.__module__ == info.name
+                and not issubclass(value, str)
+            ):
+                plain.append(f"{info.name}.{name}")
+    assert plain == [], (
+        f"not a StrEnum: {plain}. Either make it one, or restore the enum branch in "
+        "bloomery.cli.serialize.SpecEncoder.default — as written the encoder would let "
+        "`--format json` raise TypeError on any value carrying it."
+    )
+
+
+def test_an_unserializable_value_is_refused_not_silently_dropped() -> None:
+    """The terminal branch: a type the encoder does not know raises, loudly.
+
+    `SpecEncoder` deliberately has no catch-all that stringifies whatever it was
+    handed. A `--format json` consumer parsing a field that had silently become
+    `"<object at 0x…>"` is worse off than one whose command failed.
+    """
+    with pytest.raises(TypeError):
+        json.dumps(object(), cls=SpecEncoder)
 
 
 def test_a_mapping_serializes_with_string_keys() -> None:
@@ -1154,4 +1211,3 @@ def test_a_project_with_an_empty_graph_refuses_readably(
     assert "kinds  —" not in err, "the kind list was empty and joined into a gap"
     assert "dependency graph is empty" in err
     assert "nothing maps a source into an entity yet" in err
-

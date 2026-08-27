@@ -10,11 +10,8 @@ from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
 from bloomery.errors import guaranteed
-from bloomery.ir import (
-    AuditIR,
-    EntityIR,
-    generic_type,
-)
+from bloomery.ir import AuditIR, EntityIR
+from bloomery.transforms import neutral_type
 from bloomery.typing import DecimalType, IntType, LogicalType
 
 # ....................... #
@@ -36,7 +33,7 @@ def _bound_literal(value: str, bound_type: LogicalType) -> Expression:
     temporal comparisons never rely on engine coercion)."""
     if isinstance(bound_type, (IntType, DecimalType)):
         return exp.Literal.number(value)
-    return exp.cast(exp.Literal.string(value), generic_type(bound_type))
+    return exp.cast(exp.Literal.string(value), neutral_type(bound_type))
 
 
 def enum_literal(value: str, member_type: LogicalType) -> Expression:

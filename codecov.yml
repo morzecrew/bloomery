@@ -47,6 +47,5 @@ comment:
 # code that is executed by definition.
 ignore:
   - "tests/**"
-  - "spikes/**"
   - "examples/**"
   - "**/_version.py"

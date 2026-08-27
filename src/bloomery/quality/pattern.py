@@ -45,11 +45,12 @@ __all__ = [
 
 #: The dialects a `pattern` rule is checked against by default: the ports
 #: bloomery ships, named as a constant rather than read from the registry
-#: (RFC 0016 D56). ``registered_dialects()`` is process-global and mutable —
-#: an extension dialect registered by an unrelated import could decide
-#: whether an existing project compiles, which is precisely the ambient
-#: dependency RFC 0003 forbids. A caller that targets an extension dialect
-#: passes it explicitly to :func:`unsupported_dialects`.
+#: (RFC 0016 D56). The registry is process-global and mutable — an extension
+#: dialect registered by an unrelated import could decide whether an existing
+#: project compiles, which is precisely the ambient dependency RFC 0003
+#: forbids, and it is why :mod:`bloomery.dialects` offers no enumeration at
+#: all. A caller that targets an extension dialect passes it explicitly to
+#: :func:`unsupported_dialects`, alongside these.
 PATTERN_TARGET_DIALECTS: Final[tuple[str, ...]] = ("duckdb", "postgres", "trino")
 
 

@@ -1,15 +1,17 @@
 """The only module in the package that reads or writes files (RFC 0020 D5, D12).
 
 Everything else under ``src/bloomery/`` takes strings and returns values, and
-``tools/check_purity.py`` enforces that by refusing ``os``, ``pathlib`` and
-friends outright. This file is the single named exception on that allowlist,
-with the reason stated there and here: a command line has to reach a disk, and
-the honest place for that is one module a reader can hold in their head.
+ruff's ``TID251`` enforces that by refusing ``os``, ``pathlib`` and friends
+outright. The ``noqa`` marker on the import below is the tree's single
+exemption from that rule, with the reason stated there and here: a command
+line has to reach a disk, and the honest place for that is one module a reader
+can hold in their head.
 
-The carve-out is one **file**, not the ``bloomery/cli/`` package. A
-package-wide exemption would let the argument parser or the renderer open a
-file while this module's docstring still claimed one did — the guard and the
-document disagreeing, which is worse than no guard.
+The carve-out is one **line**, not this file and not the ``bloomery/cli/``
+package. A file-scoped ignore would exempt a ``datetime.now()`` here too, and a
+package-wide one would let the argument parser or the renderer open a file while
+this module's docstring still claimed one did — the guard and the document
+disagreeing, which is worse than no guard.
 
 The direction is enforced separately and mechanically: ``bloomery.cli`` is the
 top layer of the import contract, so it may read the library and no library
@@ -22,7 +24,7 @@ Everything here returns ``str``. The library never sees a path.
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path  # noqa: TID251 — the CLI's one door to a disk (RFC 0020 D5, D12)
 
 __all__ = [
     "CliIoError",
