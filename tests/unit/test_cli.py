@@ -1022,6 +1022,24 @@ def test_lineage_rejects_a_negative_max_depth_as_a_usage_error(
     assert "max-depth" in err
 
 
+def test_lineage_rejects_a_non_integer_max_depth_with_its_own_message(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The detection branch inside the `--max-depth` type.
+
+    Without it argparse still refuses — but with "invalid _depth value", naming
+    a private function the reader cannot act on. It exists for the message, so
+    the message is what is asserted.
+    """
+    code, _out, err = run(
+        capsys, "lineage", ECOM, "--node", "metric.margin", "--max-depth", "abc"
+    )
+
+    assert code == EXIT_USAGE
+    assert "--max-depth must be an integer, got 'abc'" in err
+    assert "_depth" not in err
+
+
 def test_lineage_max_depth_zero_is_accepted(capsys: pytest.CaptureFixture[str]) -> None:
     """Zero is a bound, not an error — the root alone, truncated."""
     code, out, err = run(
