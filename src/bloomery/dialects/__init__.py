@@ -1,7 +1,18 @@
 """SQL dialect ports (RFC 0008): the registry mirrors the transform registry
-— immutable default + explicit overlay, collision is an error, iteration
-sorted (RFC 0008 D8). Lookup by unknown name raises
-:class:`~bloomery.errors.EmitError` listing known names."""
+— immutable default + explicit overlay, collision is an error (RFC 0008 D8).
+Lookup by unknown name raises :class:`~bloomery.errors.EmitError` listing known
+names.
+
+There is deliberately no way to *enumerate* the registry. A compile that read
+one would not be a pure function of its specs — an extension dialect registered
+by an unrelated import could decide whether an existing project compiles, the
+ambient dependency RFC 0003 forbids (RFC 0016 D56) — so nothing inside bloomery
+ever asks. Nor does an extension author need to: D56's escape hatch is passing
+the dialect set *explicitly* to
+:func:`~bloomery.quality.pattern.unsupported_dialects`, and a caller who
+registered a port already holds it —
+``unsupported_dialects(pattern, dialects=(*shipped, MyDialect()))``, where
+``shipped`` is ``get_dialect(name) for name in PATTERN_TARGET_DIALECTS``."""
 
 from __future__ import annotations
 
@@ -26,7 +37,6 @@ __all__ = [
     "TrinoDialect",
     "get_dialect",
     "register_dialect",
-    "registered_dialects",
 ]
 
 _defaults: dict[str, DialectPort] = {
@@ -45,29 +55,6 @@ def register_dialect(dialect: DialectPort) -> None:
         msg = f"dialect {dialect.name!r} is already registered; shadowing is not allowed"
         raise EmitError(msg)
     _overlay[dialect.name] = dialect
-
-
-def registered_dialects() -> tuple[DialectPort, ...]:
-    """Every dialect the process knows — defaults plus overlay — sorted by
-    name.
-
-    Read what this is **not**: it is not what the compile stage checks
-    ``pattern`` quality rules against. That set is the immutable constant
-    :data:`~bloomery.quality.pattern.PATTERN_TARGET_DIALECTS`, precisely
-    because this function is process-global and mutable — an extension
-    dialect registered by an unrelated import could otherwise decide whether
-    an existing project compiles, the ambient dependency RFC 0003 forbids
-    (RFC 0016 D56).
-
-    Its use is the other side of that decision: D56's escape hatch is that a
-    caller targeting an extension dialect passes the set *explicitly* to
-    :func:`~bloomery.quality.pattern.unsupported_dialects`, and this is how
-    such a caller enumerates one that includes its own registration. Nothing
-    inside bloomery calls it, by design — a compile that consulted it would
-    not be a pure function of the specs.
-    """
-    merged = dict(_DEFAULT_DIALECTS) | _overlay
-    return tuple(merged[name] for name in sorted(merged))
 
 
 def get_dialect(name: str) -> DialectPort:

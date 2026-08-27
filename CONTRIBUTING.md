@@ -124,8 +124,9 @@ Compilation is a pure function: same specs in, byte-identical artifacts out. Con
 (RFC 0003):
 
 - no `datetime.now()`, `time.time()`, `uuid4()`, `random`, `os.environ`, filesystem, or
-  network access anywhere under `src/bloomery/` — `tools/check_purity.py` bans the lot as
-  a step of `just quality`, so CI enforces it rather than only a local commit hook
+  network access anywhere under `src/bloomery/` — ruff's `TID251` bans the lot, from the
+  `banned-api` table in `pyproject.toml`, as part of the `ruff check "src"` step of
+  `just quality`, so CI enforces it rather than only a local commit hook
 - never iterate a `set` where order can reach output; IR collections are sorted tuples
 - no floats in the IR or emission paths — `Decimal` or int only
 
@@ -175,17 +176,20 @@ it in that layer list, and re-exporting its public names from
 `bloomery/emit/lower/__init__.py` — the surface emitters import. If a new stage needs
 something from a stage above it, the layering is wrong rather than the contract.
 
-`just quality` also runs `tools/check_purity.py`, which walks `src/bloomery/` and refuses
-imports that make I/O possible (`os`, `pathlib`, `requests`, …) and calls that read a
-clock or a random source. Compilation takes its inputs as arguments; a clock read in the
-package breaks byte-identical recompilation. `tests/` is out of scope — a test
-legitimately touches the filesystem.
+The **purity** half of the gate is the `[tool.ruff.lint.flake8-tidy-imports.banned-api]`
+table in `pyproject.toml`, enforced by `TID251` inside the `ruff check "src"` step. It
+refuses imports that make I/O possible (`os`, `pathlib`, `requests`, …) and calls that
+read a clock or a random source, resolving each name through the import that bound it —
+so `from datetime import datetime as dt` followed by `dt.now()` is caught by the entry
+that names `datetime.datetime.now`. Compilation takes its inputs as arguments; a clock
+read in the package breaks byte-identical recompilation. `tests/` is out of scope — ruff
+excludes it, and a test legitimately touches the filesystem.
 
-Two paths are allowlisted, each by **file** and each with its reason stated at the entry:
-`steps/contract.py` (run-time, inside a generated wrapper) and `cli/io.py` (the command
-line's single door to a disk — RFC 0020 D12). Allowlisting `cli/` as a package would let
-the argument parser or the renderer open a file while `io.py`'s own docstring still
-claimed one module could, so the exemption stays one filename.
+An exemption is a `# noqa: TID251` on the **one line** that needs it, never a per-file
+ignore. `cli/io.py` carries the only one in the tree, on its `pathlib` import — the
+command line's single door to a disk (RFC 0020 D12). A file-scoped carve-out would also
+exempt a `datetime.now()` in that same file, and reaching a disk justifies nothing about
+reading a clock; `RUF100` fails an exemption that has stopped being needed.
 
 ## Commit Messages
 

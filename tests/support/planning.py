@@ -1,8 +1,8 @@
 """Shared planner-path helpers (RFC 0009 §5.1 ``tests/support/``): fixture
 IR construction, a process-wide planner over one LRU hydrator (hydration is
 ~10 ms per fixture — one shared L1 keeps the suites fast), and the
-row-policy AST audit adapted from ``spikes/metricflow/v4_row_policy.py``
-(RFC 0013 §5.9d: assert the predicate in EVERY scan, never a substring)."""
+row-policy AST audit the M4.5 verification spike arrived at (RFC 0013
+§5.9d: assert the predicate in EVERY scan, never a substring)."""
 
 from __future__ import annotations
 
@@ -68,7 +68,8 @@ def quantized(value: object) -> Decimal:
 
 
 # ....................... #
-# Row-policy AST audit (spikes/metricflow/v4_row_policy.py, verbatim logic)
+# Row-policy AST audit (M4.5 spike V4's logic, verbatim — spikes/metricflow/
+# VERIFICATION.md §V4 is the finding; the script itself is retired)
 
 
 def _where_has_policy(select: exp.Select, column: str, value: str) -> bool:

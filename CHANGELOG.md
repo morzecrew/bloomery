@@ -128,6 +128,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so every fingerprint changes and `plan()` refuses to diff a v5 IR against a v6 one.
   Emitted SQL for single-source entities is unchanged; only the fingerprint header moves.
 
+- **Two names leave the public surface, one of them a `Protocol`.**
+  `bloomery.dialects.registered_dialects()` enumerated the process-global dialect registry.
+  Nothing inside bloomery ever called it — a compile that read the registry would not be a
+  pure function of its specs (RFC 0016 D56) — and D56's escape hatch does not need it: a
+  caller that registered a port already holds it, so
+  `unsupported_dialects(pattern, dialects=(*shipped, MyDialect()))` says the same thing
+  more precisely than merging a registry it does not control.
+  `bloomery.runtime.ManifestHydrator` was a `Protocol` with one implementation, used only
+  to annotate `MetricFlowPlanner`'s first parameter; that parameter now names
+  `LruManifestHydrator` directly. The caching seam callers actually use is the
+  `fetch_l2` hook, which is unchanged.
+
+- **`bloomery.ir.generic_type` is gone** — it was `return neutral_type(t)` and nothing
+  else. Import `bloomery.transforms.neutral_type`, which is where the map has always
+  lived and what a builder declaring `types` already called. One definition had two
+  spellings; now it has one.
+
+- **`bloomery.cli.serialize` is a `json.JSONEncoder`.** `as_json_value` and
+  `artifacts_as_json` are replaced by `SpecEncoder`, which the CLI dumps through.
+  `--format json` output is byte-identical — lists, tuples, dicts and every `StrEnum`
+  now recurse through the encoder that was going to run anyway, rather than through a
+  parallel walker maintained to agree with it.
+
+- **The purity gate is ruff configuration, not a program.** `tools/check_purity.py`
+  walked every module's AST to refuse `os`, `pathlib`, a clock or a random source under
+  `src/bloomery/`. Ruff's `TID251` does all of it from the `banned-api` table in
+  `pyproject.toml` — including the one trick the script existed for, resolving a dotted
+  name through the import that bound it, so `from datetime import datetime as dt`
+  followed by `dt.now()` is caught by the entry naming `datetime.datetime.now`. Purity
+  now rides `ruff check "src"`, which was always going to run. The filesystem carve-out
+  for `cli/io.py` is a line-scoped `# noqa: TID251` rather than a file-scoped allowlist
+  entry, which is strictly narrower: a clock call in that same file is still refused.
+
+- **The coverage gate is three `coverage report` calls.** The per-package floor table
+  (fifteen rows, thirteen of them 98 or 99) and the tool that read it are replaced by the
+  global floor — raised from 80 to **98**, which is what the tree has measured for a long
+  time — plus one scoped report each for the two packages that are not at it:
+  `guardrails/` at 100 (RFC 0009 D9) and `steps/` at 92.
+
+- **`bandit` and `radon` are no longer dev dependencies.** Ruff's `S` rules are
+  flake8-bandit, and they find the one thing bandit found here; the thirteen
+  `# nosec B701` markers on `jinja2.Template` calls were suppressing nothing (B701 only
+  inspects `Environment`), so they are gone and the prose above each template still says
+  why autoescaping is wrong for SQL. `radon` was a dependency and a config block that no
+  gate had ever read.
+
+- **The M4.5 MetricFlow verification spikes are retired.** `spikes/metricflow/*.py` was
+  exploratory code no gate ran and nothing imported; its one surviving piece of logic, the
+  row-policy AST audit, already lives in `tests/support/planning.py` where a tier runs it.
+  `spikes/metricflow/VERIFICATION.md` keeps the findings, and `git show` prints the scripts
+  back — the same doctrine that retires a landed RFC.
+
 ### Fixed
 
 **These change the values your models produce.** Every item below altered emitted SQL on

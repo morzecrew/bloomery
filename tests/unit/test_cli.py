@@ -57,10 +57,22 @@ from bloomery import (
 from bloomery.cli import EXIT_OK, EXIT_REFUSED, EXIT_USAGE, build_parser, main
 from bloomery.cli.io import CliIoError, read_spec_directory, write_files
 from bloomery.cli.render import render_evidence, render_plan
-from bloomery.cli.serialize import as_json_value
+from bloomery.cli.serialize import SpecEncoder
 from bloomery.errors import BloomeryError
 from bloomery.naming import DefaultNaming
 from support.compiling import load_fixture
+
+
+def as_json_value(value: object) -> object:
+    """The value a ``--format json`` consumer receives, as Python data.
+
+    Round-tripping through :class:`~bloomery.cli.serialize.SpecEncoder` is the
+    point: the encoder is what the CLI dumps through, so a test comparing
+    against it compares against what actually reaches stdout rather than
+    against a second conversion written to agree with it.
+    """
+    return json.loads(json.dumps(value, cls=SpecEncoder, sort_keys=True))
+
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -659,7 +671,7 @@ def test_a_decimal_serializes_as_a_string_never_a_float() -> None:
     """
     assert as_json_value(Decimal("0.01")) == "0.01"
     assert as_json_value((Decimal("1.10"),)) == ["1.10"]
-    assert json.dumps(as_json_value(Decimal("0.01"))) == '"0.01"'
+    assert json.dumps(Decimal("0.01"), cls=SpecEncoder) == '"0.01"'
 
 
 def test_a_mapping_serializes_with_string_keys() -> None:
@@ -1154,4 +1166,3 @@ def test_a_project_with_an_empty_graph_refuses_readably(
     assert "kinds  —" not in err, "the kind list was empty and joined into a gap"
     assert "dependency graph is empty" in err
     assert "nothing maps a source into an entity yet" in err
-

@@ -1,7 +1,7 @@
 """The MetricFlow planner adapter (RFC 0013 §5.3, R2): the shipped backend
 behind RFC 0011's ``Planner`` port. ``plan()`` validates, runs the coverage
 precheck (refusal before delegation — RFC 0013 D6), hydrates the manifest
-lookup through the injected :class:`~bloomery.runtime.ManifestHydrator`,
+lookup through the injected :class:`~bloomery.runtime.LruManifestHydrator`,
 drives ``MetricFlowEngine.explain()`` — which renders SQL and **never
 executes** (the render-only client raises on every execution member) — and
 translates the result back into a :class:`~bloomery.planner.result.QueryPlan`
@@ -56,7 +56,7 @@ if TYPE_CHECKING:
     from bloomery.naming import NamingPolicy
     from bloomery.planner.policy import RowPolicy
     from bloomery.planner.request import MetricRequest
-    from bloomery.runtime import ManifestHydrator
+    from bloomery.runtime import LruManifestHydrator
 
 __all__ = [
     "MetricFlowPlanner",
@@ -101,7 +101,7 @@ class MetricFlowPlanner:
 
     def __init__(
         self,
-        hydrator: ManifestHydrator,
+        hydrator: LruManifestHydrator,
         max_limit: int = 50_000,
         default_limit: int | None = None,
         *,

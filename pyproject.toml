@@ -57,7 +57,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "bandit>=1.8",
     # The range the emitted dbt project is claimed to work across (RFC 0008
     # D22), not merely what the e2e tier happens to resolve. The floor is
     # 1.10.8 because that is where generic-test `arguments` nesting stops
@@ -95,7 +94,6 @@ dev = [
     "pytest-snapshot>=0.9",
     "pytest-timeout>=2.3",
     "pytest-xdist>=3.6",
-    "radon>=6.0.1",
     "ruff>=0.11",
     "sqlmesh>=0.150",
     "types-pyyaml>=6.0.12",
@@ -240,11 +238,14 @@ show_missing = true
 skip_covered = true
 sort = "cover"
 precision = 1
-# Global floor: enforced in CI (see .github/workflows/ci.yml). The 100% branch
-# floor for bloomery/guardrails/ (RFC 0009 D9) is enforced by `just coverage`
-# (a scoped `coverage report --fail-under=100` over src/bloomery/guardrails/) —
-# a thin new module must not hide behind the well-covered core.
-fail_under = 80
+# Global floor, enforced by `just coverage` and in CI (see
+# .github/workflows/ci.yml). 98 rather than 80 because 80 stopped describing
+# this tree a long time ago — every package measures between 98.3 and 100, bar
+# `steps/` at 92.5 — and a floor eighteen points under the real number gates
+# nothing. The two packages that are not 98 get their own scoped
+# `coverage report --fail-under` in the same recipe: `guardrails/` at 100
+# (RFC 0009 D9) and `steps/` at 92.
+fail_under = 98
 exclude_lines = [
     "pragma: no cover",
     "if __name__ == .__main__.",
@@ -285,46 +286,6 @@ exclude = ["^tests/"]
 # consume IR, never specs; the spec layer knows nothing internal but errors.
 # Every layer is optional (parenthesised) until its module lands — the contract
 # is authored before the code so the code arrives through the gate.
-
-# ....................... #
-# Per-package coverage floors (RFC 0025 §5.2, D3/D5)
-#
-# The global `fail_under = 80` above cannot see a package regressing: the
-# project sits near 99%, so one package falling to 60 disappears into the
-# total. These are enforced by `tools/check_coverage_floors.py`, which
-# `just coverage` and CI's coverage job both run — one authority, as with
-# `just quality`.
-#
-# **Every number is measured, then dropped one notch** (D5). A floor above
-# current coverage fails on day one; a floor far below it ratchets nothing.
-# Raise one when the measurement moves up — never lower one to make a red
-# build green, which is the failure mode a ratchet exists to prevent.
-[tool.bloomery.coverage-floors]
-# RFC 0009 D9, and the one floor that predates this table: an untested
-# guardrail branch is an unshipped guardrail. Exact, not one notch below (D3).
-"src/bloomery/guardrails/*" = 100
-# The modules that are not in a package — `compile.py`, `errors.py`,
-# `evidence.py`, `naming.py`, `schema.py` and `__init__.py`. Every other row
-# here is a directory, and a table of directories cannot see these at all:
-# `errors.py` alone is the root of the whole refusal hierarchy. A `*` glob does
-# not cross a `/`, so this matches the top level and only the top level.
-"src/bloomery/*.py"         = 98   # measured 99.0
-"src/bloomery/cli/*"        = 99   # measured 99.5
-"src/bloomery/dialects/*"   = 98   # measured 98.4
-"src/bloomery/emit/*"       = 98   # measured 98.3
-"src/bloomery/ir/*"         = 99   # measured 100.0
-"src/bloomery/marts/*"      = 99   # measured 100.0
-"src/bloomery/plan/*"       = 99   # measured 100.0
-"src/bloomery/planner/*"    = 99   # measured 99.8
-"src/bloomery/quality/*"    = 99   # measured 99.7
-"src/bloomery/resolve/*"    = 98   # measured 98.6
-"src/bloomery/runtime/*"    = 99   # measured 100.0
-"src/bloomery/spec/*"       = 99   # measured 99.5
-"src/bloomery/steps/*"      = 92   # measured 92.5 — the lowest, and the one
-                                   # worth watching: `steps` is the newest
-                                   # package and carries the run-time contract.
-"src/bloomery/transforms/*" = 99   # measured 100.0
-"src/bloomery/typing/*"     = 98   # measured 99.0
 
 [tool.importlinter]
 root_packages = ["bloomery"]
@@ -479,29 +440,11 @@ sort_by_size = true
 min_confidence = 80
 
 # ....................... #
-# Maintainability and complexity
-
-[tool.radon]
-exclude = ["tests/**"]
-cc_min = "C"
-mi_min = "B"
-
-# ....................... #
-# Security
-
-[tool.bandit]
-exclude_dirs = ["tests", ".venv"]
-
-# ....................... #
 # Dependency analysis
 
 [tool.deptry]
 known_first_party = ["bloomery"]
 ignore_notebooks = true
-# The M4.5 verification spikes (spikes/, pivot §8) import MetricFlow from a
-# throwaway environment by design — exploratory code outside the package, not
-# a dependency surface. Excluded so the quality gate tracks src/ only.
-extend_exclude = ["spikes"]
 
 # `examples/` is documentation that runs. The two container-backed examples
 # drive the warehouse they build — `duckdb` to seed and read it back — and that
@@ -548,11 +491,22 @@ select = [
     "UP",  # pyupgrade
     "B",   # flake8-bugbear
     "RUF", # ruff-specific rules
+    "S",   # flake8-bandit — the whole of bandit's rule set, in the linter that
+    # already runs, so the gate is one tool rather than two disagreeing about
+    # which lines are suppressed
     "C4",  # flake8-comprehensions
     "ISC", # flake8-implicit-str-concat
     "PIE", # flake8-pie
     "T20", # flake8-print
     "SIM", # flake8-simplify
+    # Purity (RFC 0003 §5.5), as configuration rather than as a program. The
+    # banned-api table below is the whole vocabulary: the modules that make I/O
+    # or an ambient read possible, and the clock and id calls that do it without
+    # one. TID251 resolves a qualified name through the import that bound it, so
+    # `from datetime import datetime as dt` followed by `dt.now()` is caught by
+    # the same entry as `datetime.datetime.now()` — which is what the hand-rolled
+    # AST checker this replaces existed to do (RFC 0019 D6).
+    "TID251",
 ]
 ignore = [
     "E501", # line length is owned by `ruff format` (code is wrapped at 100); the remaining long
@@ -564,6 +518,51 @@ ignore = [
     "RUF003", # see RUF001
     "RUF022", # __all__ is deliberately grouped by category (mirrors export tables), not sorted
 ]
+
+# Compilation is a pure function — enforced structurally, in the gate that
+# already runs (RFC 0003 §5.5, RFC 0001 D6). Inputs are strings, outputs are
+# artifacts, and the same specs produce byte-identical bytes across processes
+# and hash seeds.
+#
+# This is not a substitute for the behavioural tests. A step could still reach a
+# clock through an import named nowhere here, which is why the cross-hash-seed
+# determinism tests exist. What it moves is the *common* failure — from a test
+# run to a line number on every pull request.
+#
+# An exemption is a `# noqa: TID251` on the one line that needs it, never a
+# per-file ignore: `cli/io.py` is the command line's single door to a filesystem
+# (RFC 0020 D5, D12) and carries one such marker on its `pathlib` import, but a
+# clock call in that same file is still refused. A file-wide carve-out would
+# exempt both, and reaching a disk justifies nothing about reading a clock.
+# `RUF100` fails an exemption that has stopped being needed.
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# Top-level modules that make I/O or an ambient read possible. Matched on the
+# import, so `bloomery.dialects.duckdb` — a dialect module sharing a name with
+# the engine driver — is untouched.
+"boto3".msg = "compilation does no I/O (RFC 0003 §5.5)"
+"duckdb".msg = "compilation does no I/O (RFC 0003 §5.5)"
+"httpx".msg = "compilation does no I/O (RFC 0003 §5.5)"
+"os".msg = "compilation does no I/O and reads no ambient state (RFC 0003 §5.5)"
+"pathlib".msg = "compilation does no I/O (RFC 0003 §5.5)"
+"requests".msg = "compilation does no I/O (RFC 0003 §5.5)"
+"socket".msg = "compilation does no I/O (RFC 0003 §5.5)"
+"sqlalchemy".msg = "compilation does no I/O (RFC 0003 §5.5)"
+"tempfile".msg = "compilation does no I/O (RFC 0003 §5.5)"
+# Banned whole rather than per-call: nothing under `src/bloomery` has a use for
+# either module, so the module ban covers every attribute at once — including
+# `from random import choice`, where the call names no module and an
+# attribute rule would see nothing.
+"random".msg = "no ambient randomness under src/bloomery (RFC 0003 §5.5)"
+"secrets".msg = "no ambient randomness under src/bloomery (RFC 0003 §5.5)"
+"time".msg = "no ambient clock under src/bloomery (RFC 0003 §5.5)"
+# `datetime` and `uuid` are imported for their *types* (`datetime`, `date`,
+# `UUID` all appear in the planner's literal grammar), so the ban is per member.
+"datetime.date.today".msg = "no ambient clock under src/bloomery (RFC 0003 §5.5)"
+"datetime.datetime.now".msg = "no ambient clock under src/bloomery (RFC 0003 §5.5)"
+"datetime.datetime.today".msg = "no ambient clock under src/bloomery (RFC 0003 §5.5)"
+"datetime.datetime.utcnow".msg = "no ambient clock under src/bloomery (RFC 0003 §5.5)"
+"uuid.uuid1".msg = "no ambient ids under src/bloomery (RFC 0003 §5.5)"
+"uuid.uuid4".msg = "no ambient ids under src/bloomery (RFC 0003 §5.5)"
 
 [[tool.importlinter.contracts]]
 # RFC 0019 D4, contract 2 — as layers rather than independence, which is what

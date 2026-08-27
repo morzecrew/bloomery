@@ -7,7 +7,6 @@ an independent sibling of ``compile``; only ``planner`` sits above it."""
 from bloomery.runtime.hydration import (
     HydrationKey,
     LruManifestHydrator,
-    ManifestHydrator,
     build_manifest_bytes,
     hydrate_manifest,
     hydration_key,
@@ -17,7 +16,6 @@ from bloomery.runtime.sql_client import RenderOnlySqlClient, sql_client_for_dial
 __all__ = [
     "HydrationKey",
     "LruManifestHydrator",
-    "ManifestHydrator",
     "RenderOnlySqlClient",
     "build_manifest_bytes",
     "hydrate_manifest",

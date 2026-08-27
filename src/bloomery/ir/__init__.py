@@ -2,7 +2,7 @@
 normalized IR nodes plus the ``blm1:`` content fingerprint."""
 
 from bloomery.ir.fingerprint import project_fingerprint
-from bloomery.ir.lower import canon, extraction, generic_type, partition_specs
+from bloomery.ir.lower import canon, extraction, partition_specs
 from bloomery.ir.nodes import (
     FLAGS_COLUMN,
     OK_COLUMN,
@@ -108,7 +108,6 @@ __all__ = [
     "UnreachableMetric",
     "canon",
     "extraction",
-    "generic_type",
     "partition_specs",
     "project_fingerprint",
     "quality_sort_key",

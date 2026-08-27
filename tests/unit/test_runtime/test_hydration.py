@@ -16,7 +16,6 @@ from bloomery.naming import DefaultNaming, PrefixNaming
 from bloomery.runtime import (
     HydrationKey,
     LruManifestHydrator,
-    ManifestHydrator,
     build_manifest_bytes,
     hydrate_manifest,
     hydration_key,
@@ -115,11 +114,6 @@ def test_hit_and_miss_counters() -> None:
     assert first is second  # a hit returns the cached lookup, not a rebuild
     assert (hydrator.hits, hydrator.misses) == (1, 1)
     assert hydrator.hit_rate == 0.5
-
-
-def test_satisfies_the_protocol() -> None:
-    hydrator: ManifestHydrator = LruManifestHydrator(NAMING)
-    assert isinstance(hydrator, LruManifestHydrator)
 
 
 def test_eviction_is_least_recently_used() -> None:

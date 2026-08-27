@@ -351,16 +351,19 @@ jobs:
       # The gate. `combine-coverage.sh` deliberately swallows its own failures,
       # so an empty or missing report surfaces here as a floor failure rather
       # than as a green job that measured nothing.
+      #
+      # These are the three lines `just coverage` runs, over the *combined*
+      # data — which is what makes a version-gated line honest, since a per-leg
+      # check would fail a package for lines another interpreter covers.
+      # Separate steps so the log says which floor failed.
       - name: Enforce the global coverage threshold
-        run: uv run coverage report --fail-under=80
+        run: uv run coverage report --fail-under=98
 
-      # And the per-package floors (RFC 0025 §5.2). Separate step so the log
-      # says which of the two floors failed; same script `just coverage` runs,
-      # so the numbers have one authority. It runs over the *combined* data,
-      # which is what makes a version-gated line honest — a per-leg check would
-      # fail a package for lines another interpreter covers.
-      - name: Enforce the per-package coverage floors
-        run: uv run python tools/check_coverage_floors.py .
+      - name: Enforce the guardrails floor (RFC 0009 D9)
+        run: uv run coverage report --include='src/bloomery/guardrails/*' --fail-under=100
+
+      - name: Enforce the steps floor
+        run: uv run coverage report --include='src/bloomery/steps/*' --fail-under=92
 
   # The sole branch-protection check. Kept INLINE on purpose (no checkout): its
   # pass/fail must not depend on a file pulled from the PR-head checkout.
