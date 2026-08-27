@@ -69,6 +69,7 @@ pytestmark = pytest.mark.unit
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 ECOM = str(FIXTURES / "ecom_basic")
+ROLE_PLAYING = str(FIXTURES / "role_playing_dates")
 
 
 def run(
@@ -1074,6 +1075,49 @@ def test_a_walk_bounded_to_nothing_never_calls_its_root_a_leaf(
     assert code == EXIT_OK, err
     assert "leaf in that direction" in leaf
     assert "--max-depth" not in leaf
+
+
+def test_both_never_describes_itself_as_a_direction(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Every empty-walk sentence names its direction, and "both" is not one.
+
+    Interpolated, they read "no both lineage" and "this node has both
+    lineage" — ungrammatical, and the leaf line is also *false*: a merged walk
+    has two directions, so there is no "that direction" to be a leaf in.
+    `role_playing_dates` carries a metric nothing feeds and nothing composes,
+    which is the only shape that reaches the first sentence under `both`.
+    """
+    code, isolated, err = run(
+        capsys, "lineage", ROLE_PLAYING, "--node", "metric.revenue", "--direction", "both"
+    )
+    assert code == EXIT_OK, err
+    assert "no lineage in either direction" in isolated
+    assert "both lineage" not in isolated
+    assert "that direction" not in isolated
+
+    code, bounded, err = run(
+        capsys,
+        "lineage",
+        ECOM,
+        "--node",
+        "metric.average_order_value",
+        "--direction",
+        "both",
+        "--max-depth",
+        "0",
+    )
+    assert code == EXIT_OK, err
+    assert "stopped the walk before its first edge" in bounded
+    assert "both lineage" not in bounded
+
+    # The single-direction wording is unchanged — it was already grammatical.
+    code, one_way, err = run(
+        capsys, "lineage", ROLE_PLAYING, "--node", "metric.revenue", "--direction", "upstream"
+    )
+    assert code == EXIT_OK, err
+    assert "no upstream lineage" in one_way
+    assert "leaf in that direction" in one_way
 
 
 def test_lineage_help_explains_every_direction_it_accepts(

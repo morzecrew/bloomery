@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 # At run time because :func:`render_evidence` compares against ``COMPLETE``:
 # the stage decides whether the counts below it are totals or a prefix, which
 # is the one thing this module must not get wrong (RFC 0022 D5).
-from bloomery import Stage
+from bloomery import Direction, Stage
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -182,6 +182,11 @@ def render_lineage(walk: Lineage) -> str:
     see the question was asked and came back empty — an empty stdout reads as a
     command that failed.
 
+    Every one of these sentences names its direction, so
+    :attr:`Direction.BOTH` needs its own pair: a merged walk has two
+    directions, and a node with nothing on either side is not "a leaf in that
+    direction".
+
     **Empty and bounded-to-empty are different answers, and each gets its own
     line.** ``--max-depth 0`` on a node that has lineage returns no edges *and*
     sets ``truncated``: calling that a leaf and then adding "there is more
@@ -194,18 +199,26 @@ def render_lineage(walk: Lineage) -> str:
     """
     heading = f"{walk.root.name}  ({walk.direction.value})"
     if not walk.edges:
-        if walk.truncated:
+        if walk.direction is Direction.BOTH:
+            # "both" is not a direction the sentences above can name: "no both
+            # lineage" and "a leaf in that direction" are ungrammatical, and the
+            # second is also false — a merged walk has two directions, so there
+            # is no "that direction" to be a leaf in.
+            absent = (
+                "  no lineage in either direction — nothing feeds this node and"
+                " nothing derives from it"
+            )
+            cut = (
+                "  --max-depth stopped the walk before its first edge —"
+                " this node has lineage, and none of it is shown"
+            )
+        else:
+            absent = f"  no {walk.direction.value} lineage — this node is a leaf in that direction"
             cut = (
                 "  --max-depth stopped the walk before its first edge — this node has"
                 f" {walk.direction.value} lineage, and none of it is shown"
             )
-            return "\n".join([heading, cut])
-        return "\n".join(
-            [
-                heading,
-                f"  no {walk.direction.value} lineage — this node is a leaf in that direction",
-            ]
-        )
+        return "\n".join([heading, cut if walk.truncated else absent])
     lines = [
         heading,
         *_table([(edge.src.name, f"--{edge.label}-->", edge.dst.name) for edge in walk.edges]),
