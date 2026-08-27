@@ -44,6 +44,7 @@ from metricflow.engine.metricflow_engine import MetricFlowEngine, MetricFlowQuer
 from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifestLookup
 
 from bloomery.emit.metricflow import emit_manifest, manifest_json
+from bloomery.errors import InvariantViolated
 from bloomery.ir import project_fingerprint
 from bloomery.runtime.sql_client import sql_client_for_dialect
 
@@ -144,6 +145,9 @@ class LruManifestHydrator:
         self.naming = naming
         self._fetch_l2 = fetch_l2
         self._prewarm = prewarm
+        # Declared here so the attribute always exists; `get` overwrites it
+        # immediately before each cache call, and only a miss ever reads it.
+        self._ir_for_next_miss: ProjectIR | None = None
         # Bound to `self`, so the cache and its counters die with the hydrator.
         self._cached = lru_cache(maxsize=max_entries)(self._hydrate)
 
@@ -181,7 +185,11 @@ class LruManifestHydrator:
         # lookup — a partially-written key is a miss, which is what the
         # docstring above has always claimed.
         if not data:
-            data = build_manifest_bytes(self._ir_for_next_miss, naming=self.naming)
+            ir = self._ir_for_next_miss
+            if ir is None:  # pragma: no cover — `get` is the only way in, and it always sets this
+                msg = "hydration reached a rebuild with no IR: _hydrate was called outside get()"
+                raise InvariantViolated(msg)
+            data = build_manifest_bytes(ir, naming=self.naming)
         return hydrate_manifest(data, prewarm=self._prewarm)
 
     def get(self, ir: ProjectIR) -> SemanticManifestLookup:
