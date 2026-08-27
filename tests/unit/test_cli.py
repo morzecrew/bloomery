@@ -2,7 +2,7 @@
 
 Three properties carry the section.
 
-**Every command works on a real fixture.** Six commands over the corpus, exit
+**Every command works on a real fixture.** Seven commands over the corpus, exit
 code and output checked — the CLI is a shell, so the way it breaks is a wiring
 mistake (a flag never read, a loader called with the wrong argument), and only
 running it finds those.
@@ -782,7 +782,15 @@ def test_there_is_no_execution_command() -> None:
         action for action in parser._subparsers._group_actions  # type: ignore[union-attr] # noqa: SLF001
     ]
     commands = set(actions[0].choices)  # type: ignore[arg-type]
-    assert commands == {"compile", "plan", "resolve", "explain", "schema", "fingerprint"}
+    assert commands == {
+        "compile",
+        "plan",
+        "resolve",
+        "lineage",
+        "explain",
+        "schema",
+        "fingerprint",
+    }
     for forbidden in ("run", "init", "new", "watch", "serve"):
         assert forbidden not in commands
 
@@ -850,3 +858,148 @@ def test_fingerprint_prints_the_projects_own_fingerprint(
     code, out, err = run(capsys, "fingerprint", ECOM)
     assert code == EXIT_OK, err
     assert out.strip() == expected
+
+
+# ....................... #
+# `lineage` (RFC 0031 §5.5, P2)
+
+
+def test_lineage_walks_upstream_by_default(capsys: pytest.CaptureFixture[str]) -> None:
+    code, out, err = run(capsys, "lineage", ECOM, "--node", "metric.gross_revenue")
+
+    assert code == EXIT_OK, err
+    assert "metric.gross_revenue  (upstream)" in out
+    # The whole chain, source column through recipe to metric — the §2 question.
+    assert "source.shopify__order_lines.$.total  --recipe:from_total-->" in out
+    assert "canonical.unit_price                 --requires-->" in out
+
+
+def test_lineage_downstream_answers_what_a_change_would_reach(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code, out, err = run(
+        capsys,
+        "lineage",
+        ECOM,
+        "--node",
+        "source.shopify__order_lines.$.total",
+        "--direction",
+        "downstream",
+    )
+
+    assert code == EXIT_OK, err
+    for reached in ("metric.gross_revenue", "metric.margin", "metric.average_order_value"):
+        assert reached in out
+
+
+def test_lineage_both_merges_the_two_walks(capsys: pytest.CaptureFixture[str]) -> None:
+    code, out, err = run(
+        capsys, "lineage", ECOM, "--node", "order_item.unit_price", "--direction", "both"
+    )
+
+    assert code == EXIT_OK, err
+    assert "(both)" in out
+    assert "source.shopify__order_lines.$.total" in out  # upstream side
+    assert "metric.gross_revenue" in out  # downstream side
+
+
+def test_lineage_json_matches_the_python_call(capsys: pytest.CaptureFixture[str]) -> None:
+    """The JSON surface is the value, not a rendering of it."""
+    project, catalog = load_fixture("ecom_basic")
+    resolution = bloomery.resolve(project, catalog)
+    expected = as_json_value(
+        bloomery.lineage(
+            resolution.graph,
+            bloomery.Node(kind=bloomery.NodeKind.METRIC, name="metric.gross_revenue"),
+            bloomery.Direction.UPSTREAM,
+        )
+    )
+    assert (
+        _json(capsys, "lineage", ECOM, "--node", "metric.gross_revenue", "--format", "json")
+        == expected
+    )
+
+
+def test_lineage_of_a_leaf_says_so_rather_than_printing_nothing(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`order_count` is `agg: count` with no `requires`, so it has no upstream.
+
+    An empty stdout reads as a command that failed. The reader asked a question
+    and needs to see it came back empty — which is an answer, not a miss.
+    """
+    code, out, err = run(capsys, "lineage", ECOM, "--node", "metric.order_count")
+
+    assert code == EXIT_OK, err
+    assert "no upstream lineage" in out
+    assert "leaf in that direction" in out
+
+
+def test_lineage_says_when_max_depth_truncated_the_walk(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A bounded answer that does not say it is bounded is the failure
+    RFC 0022 D5 names."""
+    code, bounded, err = run(
+        capsys, "lineage", ECOM, "--node", "metric.average_order_value", "--max-depth", "1"
+    )
+    assert code == EXIT_OK, err
+    assert "truncated:" in bounded
+
+    code, whole, err = run(capsys, "lineage", ECOM, "--node", "metric.average_order_value")
+    assert code == EXIT_OK, err
+    assert "truncated:" not in whole
+
+
+def test_a_mistyped_node_is_refused_with_the_spelling_it_meant(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The ids are long and dotted, and the graph holds the right spelling —
+    so "not found" alone would be withholding the answer (RFC 0031 §5.5)."""
+    code, _out, err = run(capsys, "lineage", ECOM, "--node", "metric.gross_revenu")
+
+    assert code == EXIT_REFUSED
+    assert "did you mean: metric.gross_revenue" in err
+
+
+def test_a_node_with_no_near_miss_is_taught_the_id_scheme(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The branch a happy-path check never reaches.
+
+    `difflib` has a cutoff, so "no suggestions" is reachable — and a bare "not
+    found" there is exactly the message §5.5 argues against. The fallback names
+    the kinds, so a reader who mistyped the *scheme* learns the scheme.
+    """
+    code, _out, err = run(capsys, "lineage", ECOM, "--node", "zzzzzzzz")
+
+    assert code == EXIT_REFUSED
+    assert "did you mean" not in err
+    assert "entity field is spelled '<entity>.<field>' with no prefix" in err
+    for kind in ("metric", "canonical_field", "source_column", "entity_field"):
+        assert kind in err
+
+
+def test_lineage_suggestions_are_bounded_and_deterministic(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Bounded because a large graph must not print a guess per node; identical
+    across runs because the message reaches stdout and RFC 0003 binds it."""
+    first = run(capsys, "lineage", ECOM, "--node", "metric.")[2]
+    again = run(capsys, "lineage", ECOM, "--node", "metric.")[2]
+
+    assert first == again
+    assert first.count("did you mean") <= 1
+    suggestions = first.split("did you mean: ")[-1]
+    assert len(suggestions.split(", ")) <= 5
+
+
+def test_lineage_rejects_a_bad_direction_as_a_usage_error(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A wrong flag value is `2`, not `1` — the invocation was wrong, and a
+    pipeline must not treat it as a spec that was refused."""
+    code, _out, _err = run(capsys, "lineage", ECOM, "--node", "metric.margin", "--direction", "up")
+
+    assert code == EXIT_USAGE
+

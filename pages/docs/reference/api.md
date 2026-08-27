@@ -59,8 +59,13 @@ computed from.
 
 Walk a `Resolution.graph` from one node and return the **reachable sub-DAG** — the
 nodes and the labelled edges, never enumerated paths, whose count is exponential in
-the graph's width. `Direction.UPSTREAM` answers "what is this built from" and
-`Direction.DOWNSTREAM` answers "what would break if this moved".
+the graph's width. `Direction.UPSTREAM` answers "what is this built from",
+`Direction.DOWNSTREAM` answers "what would break if this moved", and
+`Direction.BOTH` merges the two — its `nodes` and `edges` are the union of what the two
+walks reached, so every edge carried is one a walk actually traversed. That matters where
+an ancestor of the root also connects directly to a descendant of it: the bypass edge is
+real lineage, but it is not the root's, and inducing over the merged node set would carry
+it.
 
 The root is at depth 0, so `max_depth=N` carries every node within distance `N` and
 only edges whose both endpoints are carried; `truncated` says whether the bound cut

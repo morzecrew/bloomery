@@ -241,10 +241,10 @@ def test_a_direction_given_as_a_plain_string_walks_that_direction() -> None:
         assert walked.direction is Direction.DOWNSTREAM
 
 
-def test_an_unknown_direction_is_refused_including_the_deferred_both() -> None:
-    """`both` is the P2 member D4 has not shaped yet. A caller spelling it must
-    get a refusal rather than a silent downstream walk."""
-    for spelling in ("both", "sideways", ""):
+def test_an_unknown_direction_is_refused() -> None:
+    """`both` was refused in P1, when D4 had not shaped it; it is a member now
+    (D-026), so only genuinely unknown spellings refuse."""
+    for spelling in ("sideways", "", "up"):
         with pytest.raises(ValueError, match="is not a valid Direction"):
             lineage(CHAIN, node("d"), spelling)  # type: ignore[arg-type]
 
@@ -272,3 +272,113 @@ def test_lineage_is_a_frozen_value() -> None:
     assert isinstance(result, Lineage)
     with pytest.raises(AttributeError):
         result.truncated = True  # type: ignore[misc]
+
+
+# ....................... #
+# BOTH (D4, settled in P2 — logs/T-0006.md D-026)
+
+
+#: `base` feeds `mid` and `top`; `mid` feeds `top`. Walking BOTH from `mid`
+#: reaches every node, but `base -> top` touches neither `mid` nor either walk.
+#: `requires_metrics` is metric -> metric, so a composed metric requiring both
+#: an intermediate and what that intermediate requires produces this shape.
+BYPASS = graph_of(
+    ("base", "mid", "requires_metrics"),
+    ("mid", "top", "requires_metrics"),
+    ("base", "top", "requires_metrics"),
+)
+
+
+def test_both_is_the_union_of_the_two_walks() -> None:
+    walked = lineage(BYPASS, node("mid"), Direction.BOTH)
+    upstream = lineage(BYPASS, node("mid"), Direction.UPSTREAM)
+    downstream = lineage(BYPASS, node("mid"), Direction.DOWNSTREAM)
+
+    assert set(walked.nodes) == set(upstream.nodes) | set(downstream.nodes)
+    assert set(walked.edges) == set(upstream.edges) | set(downstream.edges)
+    assert walked.direction is Direction.BOTH
+    assert walked.root == node("mid")
+
+
+def test_both_omits_an_edge_that_bypasses_the_root() -> None:
+    """The claim that decides D4's shape.
+
+    Inducing over the union would carry `base -> top` — a real edge between two
+    carried nodes that touches neither the root nor either walk. A caller asking
+    what `mid` connects to would be handed a connection that is not `mid`'s.
+    """
+    walked = lineage(BYPASS, node("mid"), Direction.BOTH)
+
+    assert [n.name for n in walked.nodes] == ["base", "mid", "top"]
+    assert sorted((e.src.name, e.dst.name) for e in walked.edges) == [
+        ("base", "mid"),
+        ("mid", "top"),
+    ]
+    induced = {e for e in BYPASS.edges if e.src in set(walked.nodes) and e.dst in set(walked.nodes)}
+    assert len(induced) == 3, "the bypass edge must exist in the graph, or this proves nothing"
+
+
+def test_one_direction_still_equals_the_induced_subgraph() -> None:
+    """P1's rule and this one coincide for a single direction, which is why
+    D-026 changes no P1 behaviour.
+
+    Every edge between two ancestors of X lies on some path to X, so the walk
+    reaches it — asserted over every node of three graphs rather than argued.
+    """
+    for graph in (DIAMOND, CHAIN, BYPASS):
+        for root in graph.nodes:
+            for direction in (Direction.UPSTREAM, Direction.DOWNSTREAM):
+                walked = lineage(graph, root, direction)
+                carried = set(walked.nodes)
+                induced = {e for e in graph.edges if e.src in carried and e.dst in carried}
+                assert set(walked.edges) == induced, f"{root.name} {direction.value}"
+
+
+def test_both_truncates_if_either_side_was_cut() -> None:
+    """One flag over two walks: a bound that stopped only the upstream side
+    still means the value is partial."""
+    # From `mid`: upstream reaches `base` at depth 1, downstream `top` at 1.
+    assert lineage(BYPASS, node("mid"), Direction.BOTH, max_depth=1).truncated is False
+    assert lineage(BYPASS, node("mid"), Direction.BOTH, max_depth=0).truncated is True
+    # A chain is longer on one side only, so depth 1 cuts exactly one walk.
+    assert lineage(CHAIN, node("b"), Direction.BOTH, max_depth=1).truncated is True
+
+
+def test_both_on_an_isolated_root_is_one_node() -> None:
+    isolated = Graph(nodes=(node("lonely"),), edges=())
+    walked = lineage(isolated, node("lonely"), Direction.BOTH)
+
+    assert walked.nodes == (node("lonely"),)
+    assert walked.edges == ()
+    assert walked.truncated is False
+
+
+#: `a` and `b` are both depth 1 from `x`; `a -> b` joins two carried nodes, and
+#: `z -> a` escapes past the boundary. `a` sorts first, so the escaping edge is
+#: examined before the internal one.
+BOUNDARY = graph_of(
+    ("a", "x", "direct"),
+    ("b", "x", "direct"),
+    ("a", "b", "direct"),
+    ("z", "a", "direct"),
+)
+
+
+def test_a_bounded_walk_keeps_every_edge_between_carried_nodes() -> None:
+    """At the depth boundary, an edge joining two carried nodes is part of the
+    answer — the bound cut the walk short, it did not cut the sub-DAG.
+
+    Order-dependence is the tell: dropping the edge only when the *escaping*
+    edge happens to be examined first means the same shape gives different
+    answers under different node names.
+    """
+    walk = lineage(BOUNDARY, node("x"), Direction.UPSTREAM, max_depth=1)
+    carried = set(walk.nodes)
+    induced = {e for e in BOUNDARY.edges if e.src in carried and e.dst in carried}
+
+    assert [n.name for n in walk.nodes] == ["a", "b", "x"]
+    assert set(walk.edges) == induced
+    assert ("a", "b") in {(e.src.name, e.dst.name) for e in walk.edges}
+    # Still truncated: `z` is past the bound and was genuinely not reached.
+    assert walk.truncated is True
+

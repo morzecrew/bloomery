@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`bloomery lineage`** — the lineage walk on the command line, as a deterministic edge
+  list. `bloomery lineage <dir> --node metric.gross_revenue` prints the chain back to the
+  source columns with the label on each edge saying how; `--direction downstream` gives
+  the blast radius of a column change, and `--format json` emits the same value the Python
+  call returns. A mistyped id is refused with the spelling it thinks you meant rather than
+  a bare "not found", and where nothing is close it names the id kinds instead. See
+  [Trace where a metric comes from](https://morzecrew.github.io/bloomery/how-to/trace-lineage/).
+
+- **`Direction.BOTH`** — deferred from the first release because its return shape was open.
+  It merges the two walks: `nodes` and `edges` are the union of what each reached, **not**
+  the subgraph induced on that union. Where an ancestor of the root also feeds a descendant
+  of it directly, that bypass edge is real lineage but is not the root's, and inducing
+  would carry it. For a single direction the two rules coincide, so nothing about
+  `UPSTREAM` or `DOWNSTREAM` changed.
+
 - **Lineage** — `lineage(graph, root, direction)` walks the dependency graph
   `resolve()` has always built and returns the **reachable sub-DAG**: the nodes and the
   labelled edges that say where a metric comes from, or what a source column change would

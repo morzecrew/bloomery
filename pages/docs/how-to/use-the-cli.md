@@ -58,12 +58,14 @@ A project that wires a `steps:` document reports the unwired step here, because 
 passes no registry — see [Steps are the one thing the CLI cannot wire](#compiling) below.
 `bloomery compile` on the same project refuses for the same reason.
 
-## The six commands
+## The seven commands
 
 ```text
 bloomery compile     <dir> [--target sqlmesh] [--dialect duckdb] [--catalog F] [--out DIR]
 bloomery plan        <old-dir> <new-dir> [--catalog F] [--format table|json]
 bloomery resolve     <dir> [--catalog F] [--format table|json]
+bloomery lineage     <dir> --node ID [--direction upstream|downstream|both] [--max-depth N]
+                           [--catalog F] [--format table|json]
 bloomery explain     <dir> --metrics a,b [--by x,y] [--where JSON] [--grain month]
                            [--limit N] [--policy 'dim op value'] [--dialect duckdb]
                            [--format table|json]
@@ -75,7 +77,7 @@ Every command reads files, calls the public API, and writes stdout or a director
 Nothing is executed, nothing is cached, and there is no state anywhere.
 
 One flag needs no command: `bloomery --version` prints the installed release and exits
-`0`. It is a flag rather than a seventh command because the moment you most need it is
+`0`. It is a flag rather than a command of its own because the moment you most need it is
 when something is wrong enough that you do not trust the rest of the surface.
 
 ## The spec directory

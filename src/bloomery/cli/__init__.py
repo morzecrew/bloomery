@@ -34,15 +34,19 @@ library module can import any of this.
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import sys
 from typing import TYPE_CHECKING, cast
 
 from bloomery import (
     BloomeryError,
+    Direction,
+    Graph,
     LruManifestHydrator,
     MetricFlowPlanner,
     MetricRequest,
+    Node,
     Op,
     RowPolicy,
     SpecKind,
@@ -54,16 +58,18 @@ from bloomery import (
     build_project_ir,
     compile_project,
     evaluate,
+    lineage,
     load_catalog,
     load_project,
     plan,
     project_fingerprint,
+    resolve,
     spec_json_schema,
 )
 from bloomery.cli import io, render, serialize
 from bloomery.dialects import get_dialect
 from bloomery.emit import get_emitter
-from bloomery.errors import EmitError
+from bloomery.errors import EmitError, UnknownMember
 from bloomery.naming import DefaultNaming
 from bloomery.planner import parse_filter_json
 
@@ -204,6 +210,60 @@ def _resolve(arguments: argparse.Namespace) -> int:
     else:
         _emit(render.render_evidence(evidence), as_json=False)
     return EXIT_OK if evidence.stage_reached is Stage.COMPLETE else EXIT_REFUSED
+
+
+def _lineage(arguments: argparse.Namespace) -> int:
+    """``bloomery lineage`` — where a node comes from, or what it feeds.
+
+    Reads the graph off the `Resolution` rather than rebuilding it (RFC 0031
+    D2), so the answer describes the same graph the reachability report did.
+    """
+    project, catalog = _load(arguments.directory, arguments.catalog)
+    resolution = resolve(project, catalog)
+    root = _find_node(resolution.graph, arguments.node)
+    walk = lineage(
+        resolution.graph,
+        root,
+        Direction(arguments.direction),
+        max_depth=arguments.max_depth,
+    )
+    if arguments.format == "json":
+        _emit(serialize.as_json_value(walk), as_json=True)
+    else:
+        _emit(render.render_lineage(walk), as_json=False)
+    return EXIT_OK
+
+
+def _find_node(graph: Graph, wanted: str) -> Node:
+    """The node named ``wanted``, or a refusal that helps the reader retype it.
+
+    Node ids are long, dotted and easy to mistype, and the graph holding the
+    right spelling is already in hand — so "not found" alone would be withholding
+    the answer (RFC 0031 §5.5). Suggestions come from ``difflib`` at a fixed
+    cutoff and are capped, which keeps the message both useful and *bounded*: a
+    two-thousand-node graph must not print two thousand guesses, and the same
+    spec must print the same bytes (RFC 0003). See ``logs/T-0006.md`` D-028.
+
+    Where nothing is close enough, the fallback names the id *kinds* present.
+    A reader who mistyped the scheme rather than the name learns the scheme —
+    entity fields carry no prefix, everything else does.
+    """
+    for node in graph.nodes:
+        if node.name == wanted:
+            return node
+    names = [node.name for node in graph.nodes]
+    close = difflib.get_close_matches(wanted, names, n=5, cutoff=0.6)
+    if close:
+        hint = "did you mean: " + ", ".join(close)
+    else:
+        kinds = sorted({node.kind.value for node in graph.nodes})
+        hint = (
+            f"this project has no node by that name; its ids are of kinds {', '.join(kinds)}"
+            " — an entity field is spelled '<entity>.<field>' with no prefix, and every"
+            " other kind carries one"
+        )
+    msg = f"no node named {wanted!r} in this project's dependency graph. {hint}"
+    raise UnknownMember(msg)
 
 
 def _parse_policy(spelling: str | None) -> RowPolicy | None:
@@ -404,6 +464,27 @@ def build_parser() -> argparse.ArgumentParser:
     _add_spec_directory(resolve_parser)
     _add_format(resolve_parser)
     resolve_parser.set_defaults(run=_resolve)
+
+    lineage_parser = commands.add_parser(
+        "lineage", help="where a node comes from, or what a change to it would reach"
+    )
+    _add_spec_directory(lineage_parser)
+    lineage_parser.add_argument(
+        "--node",
+        required=True,
+        help="node id, e.g. metric.gross_revenue or order_item.unit_price",
+    )
+    lineage_parser.add_argument(
+        "--direction",
+        choices=tuple(d.value for d in Direction),
+        default=Direction.UPSTREAM.value,
+        help="upstream: what it is built from; downstream: what it feeds",
+    )
+    lineage_parser.add_argument(
+        "--max-depth", type=int, help="stop the walk this many edges from the node"
+    )
+    _add_format(lineage_parser)
+    lineage_parser.set_defaults(run=_lineage)
 
     explain_parser = commands.add_parser("explain", help="plan one metric request; print SQL")
     _add_spec_directory(explain_parser)

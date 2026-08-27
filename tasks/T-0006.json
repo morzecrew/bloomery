@@ -1,0 +1,21 @@
+{
+  "id": "T-0006",
+  "spec": "rfcs/0031-lineage.md",
+  "phase": "P2 — the CLI, Direction.BOTH, and the docs",
+  "decisions": [
+    {"id": "RFC 0031 D1", "grade": "LOCKED",
+     "paths": ["src/bloomery/cli/render.py", "src/bloomery/resolve/lineage.py"]},
+    {"id": "RFC 0031 D2", "grade": "LOCKED",
+     "paths": ["src/bloomery/resolve/lineage.py", "src/bloomery/__init__.py",
+               "src/bloomery/resolve/__init__.py"]},
+    {"id": "RFC 0031 D3", "grade": "LOCKED",
+     "paths": ["src/bloomery/cli/render.py", "src/bloomery/cli/__init__.py"]},
+    {"id": "RFC 0031 D4", "grade": "OPEN"},
+    {"id": "RFC 0031 D5", "grade": "ASSUMED",
+     "paths": ["src/bloomery/resolve/lineage.py"]},
+    {"id": "RFC 0031 D6", "grade": "ASSUMED",
+     "paths": ["src/bloomery/resolve/graph.py"]},
+    {"id": "RFC 0031 D7", "grade": "ASSUMED"},
+    {"id": "RFC 0031 D8", "grade": "OPEN"}
+  ]
+}

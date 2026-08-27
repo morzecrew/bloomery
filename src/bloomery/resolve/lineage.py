@@ -44,19 +44,21 @@ class Direction(StrEnum):
     ``Edge`` points **dependency → dependent**, so upstream reads an edge
     backwards and downstream reads it forwards.
 
-    There is deliberately no ``BOTH`` member in P1. RFC 0031 D4 leaves its
-    return shape open — one merged sub-DAG, or an upstream/downstream pair —
-    and defers *the member*, not only the shape: this enum is public under
-    SemVer (D2), so a ``BOTH`` shipped now and reshaped later would be a
-    breaking change to a published type rather than an addition to one. It
-    arrives with P2, when the renderer that needs it forces D4's answer.
-    See ``logs/T-0005.md`` D-019.
+    ``BOTH`` arrived in P2 rather than P1, deliberately: D4 left its return
+    shape open, and this enum is public under SemVer (D2), so shipping the
+    member before its shape was settled would have made the settling a breaking
+    change rather than an addition. See ``logs/T-0005.md`` D-019 for the
+    deferral and ``logs/T-0006.md`` D-026 for what settled it.
     """
 
     #: Follow edges dependent → dependency: what the root is built from.
     UPSTREAM = "upstream"
     #: Follow edges dependency → dependent: what would break if the root moved.
     DOWNSTREAM = "downstream"
+    #: Both walks, merged into one value (D4, settled in P2). ``nodes`` and
+    #: ``edges`` are the **union of what the two walks reached**, not the
+    #: subgraph induced on that union — see :func:`lineage`.
+    BOTH = "both"
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,41 +143,79 @@ def lineage(
     for edge in graph.edges:
         outgoing.setdefault(edge.src, []).append(edge)
         incoming.setdefault(edge.dst, []).append(edge)
-    # Upstream reads an edge backwards, so the step from a node is its incoming
-    # edges and the node reached is their `src`.
-    step: dict[Node, list[Edge]]
-    reached: Callable[[Edge], Node]
-    if direction is Direction.UPSTREAM:
-        step, reached = incoming, lambda edge: edge.src
-    else:
-        step, reached = outgoing, lambda edge: edge.dst
 
-    seen: set[Node] = {root}
-    frontier: list[Node] = [root]
-    truncated = False
-    depth = 0
-    while frontier:
-        if max_depth is not None and depth >= max_depth:
-            # Every edge leaving the frontier is one the walk would have
-            # followed. It is dropped for depth *unless* its far end is already
-            # carried by a shorter path, in which case the induced sub-DAG keeps
-            # the edge and nothing was lost.
-            truncated = any(
-                reached(edge) not in seen for node in frontier for edge in step.get(node, ())
-            )
-            break
-        following: list[Node] = []
-        for node in frontier:
-            for edge in step.get(node, ()):
-                far = reached(edge)
-                if far not in seen:
-                    seen.add(far)
-                    following.append(far)
-        frontier = following
-        depth += 1
+    def walk(one_way: Direction) -> tuple[set[Node], set[Edge], bool]:
+        """One direction: the nodes reached, the edges *traversed*, and whether
+        depth stopped it."""
+        # Upstream reads an edge backwards, so the step from a node is its
+        # incoming edges and the node reached is their `src`.
+        step: dict[Node, list[Edge]]
+        reached: Callable[[Edge], Node]
+        if one_way is Direction.UPSTREAM:
+            step, reached = incoming, lambda edge: edge.src
+        else:
+            step, reached = outgoing, lambda edge: edge.dst
+
+        seen: set[Node] = {root}
+        crossed: set[Edge] = set()
+        frontier: list[Node] = [root]
+        depth = 0
+        while frontier:
+            if max_depth is not None and depth >= max_depth:
+                # Every edge leaving the frontier is one the walk would have
+                # followed. It is dropped for depth *unless* its far end is
+                # already carried by a shorter path — in which case the edge
+                # joins two carried nodes and belongs in the answer.
+                #
+                # **Every** boundary edge is examined, never stopping at the
+                # first that escapes: returning early kept whichever internal
+                # edges happened to be visited before it, so the same shape
+                # answered differently under different node names.
+                cut = False
+                for node in frontier:
+                    for edge in step.get(node, ()):
+                        if reached(edge) in seen:
+                            crossed.add(edge)
+                        else:
+                            cut = True
+                return seen, crossed, cut
+            following: list[Node] = []
+            for node in frontier:
+                for edge in step.get(node, ()):
+                    crossed.add(edge)
+                    far = reached(edge)
+                    if far not in seen:
+                        seen.add(far)
+                        following.append(far)
+            frontier = following
+            depth += 1
+        return seen, crossed, False
+
+    if direction is Direction.BOTH:
+        # The union of what the two walks reached — **not** the subgraph induced
+        # on that union, which would add edges neither walk traversed: with
+        # `base -> mid`, `mid -> top` and `base -> top`, inducing over `mid`'s
+        # neighbourhood carries `base -> top`, an edge that does not touch the
+        # root. For one direction the two rules coincide (every edge between two
+        # ancestors of X lies on a path to X, so the walk reaches it), which is
+        # why P1 could implement this as a filter. See `logs/T-0006.md` D-026.
+        up_nodes, up_edges, up_cut = walk(Direction.UPSTREAM)
+        down_nodes, down_edges, down_cut = walk(Direction.DOWNSTREAM)
+        seen, crossed, truncated = (
+            up_nodes | down_nodes,
+            up_edges | down_edges,
+            up_cut or down_cut,
+        )
+    else:
+        seen, crossed, truncated = walk(direction)
 
     nodes = tuple(sorted(seen, key=lambda node: (node.name, node.kind.value)))
-    edges = tuple(edge for edge in graph.edges if edge.src in seen and edge.dst in seen)
+    edges = tuple(
+        sorted(
+            crossed,
+            key=lambda e: (e.src.name, e.src.kind.value, e.dst.name, e.dst.kind.value, e.label),
+        )
+    )
     return Lineage(
         root=root,
         direction=direction,

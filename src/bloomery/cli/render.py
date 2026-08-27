@@ -24,11 +24,12 @@ from bloomery import Stage
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from bloomery import Plan, SpecEvidence, UnreachableMetric
+    from bloomery import Lineage, Plan, SpecEvidence, UnreachableMetric
     from bloomery.errors import BloomeryError
 
 __all__ = [
     "render_evidence",
+    "render_lineage",
     "render_plan",
 ]
 
@@ -164,4 +165,33 @@ def render_plan(plan: Plan) -> str:
         lines.append("")
         lines.append("Downstream metrics")
         lines.extend(_table([(name,) for name in plan.downstream_impact]))
+    return "\n".join(lines)
+
+
+def render_lineage(walk: Lineage) -> str:
+    """``bloomery lineage``'s human output: a deterministic **edge list**.
+
+    One line per edge, in :attr:`Lineage.edges` order, aligned on the widest
+    source. Not a tree — RFC 0031 D1 returns a sub-DAG, and a tree cannot draw
+    one: a node reachable two ways is either repeated, which re-creates the
+    exponential output D1 exists to avoid, or drawn once with its second edge
+    dropped, which loses the fact that two things feed it.
+
+    An empty walk prints the root and says so rather than printing nothing. A
+    source column has no upstream and that is an answer, so the reader needs to
+    see the question was asked and came back empty — an empty stdout reads as a
+    command that failed.
+
+    ``truncated`` is stated whenever it is set, because a bounded answer that
+    does not say it is bounded is the failure RFC 0022 D5 names.
+    """
+    heading = f"{walk.root.name}  ({walk.direction.value})"
+    if not walk.edges:
+        body = [f"  no {walk.direction.value} lineage — this node is a leaf in that direction"]
+    else:
+        body = _table([(edge.src.name, f"--{edge.label}-->", edge.dst.name) for edge in walk.edges])
+    lines = [heading, *body]
+    if walk.truncated:
+        lines.append("")
+        lines.append("  truncated: --max-depth stopped the walk; there is more beyond this")
     return "\n".join(lines)
