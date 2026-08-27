@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.53">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -1720,7 +1720,7 @@ the caller decides. Only two situations raise instead (below).</p>
 <p>Run against a version that widens a type, adds a column, and renames another, the diff
 reads:</p>
 <div class="highlight"><pre><span></span><code>additive   field:discount    field added  (None -&gt; decimal(12,4), optional)
-rename     field:qty         renamed from &#39;quantity&#39;  (quantity -&gt; qty)
+rename     field:qty         renamed from 'quantity'  (quantity -&gt; qty)
 widening   field:unit_price  type widened  (decimal(10,2), optional -&gt; decimal(12,4), optional)
 </code></pre></div>
 <h2 id="rename-with-renamed_from">Rename with <code>renamed_from</code><a class="headerlink" href="#rename-with-renamed_from" title="Permanent link">&para;</a></h2>
@@ -1737,8 +1737,8 @@ version. A stale annotation — one whose old name never existed in the old IR �
 something still reads the contracted surface</strong>. Dropping or narrowing a field that a
 reachable metric still references raises <code>ContractViolation</code>:</p>
 <div class="highlight"><pre><span></span><code>ContractViolation: expand/contract violation (RFC 0007 D5):
-  - field &#39;order_item.unit_price&#39; is dropped but still referenced by metric(s)
-    gross_revenue — expand/contract: land the metric&#39;s removal (deprecation) in a
+  - field 'order_item.unit_price' is dropped but still referenced by metric(s)
+    gross_revenue — expand/contract: land the metric's removal (deprecation) in a
     prior version, then drop or narrow the field
 </code></pre></div>
 <p>The workflow it enforces is the standard three-step:</p>
@@ -1881,7 +1881,7 @@ classes give you the vocabulary; the policy is yours.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.69c251d7.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>

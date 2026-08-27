@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.53">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -1808,7 +1808,7 @@ independent of any tenant's data.</p>
 <span class="w">    </span><span class="nt">tax_basis</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">net</span>
 <span class="w">    </span><span class="nt">recipes</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="nv">direct</span><span class="p p-Indicator">,</span><span class="nt">     requires</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">unit_price</span><span class="p p-Indicator">]}</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="nv">from_total</span><span class="p p-Indicator">,</span><span class="nt"> requires</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">line_total</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">quantity</span><span class="p p-Indicator">],</span><span class="nt"> expr</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;line_total</span><span class="nv"> </span><span class="s">/</span><span class="nv"> </span><span class="s">quantity&quot;</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="nv">from_total</span><span class="p p-Indicator">,</span><span class="nt"> requires</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">line_total</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">quantity</span><span class="p p-Indicator">],</span><span class="nt"> expr</span><span class="p">:</span><span class="w"> </span><span class="s">"line_total</span><span class="nv"> </span><span class="s">/</span><span class="nv"> </span><span class="s">quantity"</span><span class="p p-Indicator">}</span>
 </code></pre></div>
 <h3 id="entitymodel">EntityModel<a class="headerlink" href="#entitymodel" title="Permanent link">&para;</a></h3>
 <p>What one tenant's data means: entities with grains, keys, and typed fields. A field with
@@ -1831,10 +1831,10 @@ upstream; the compiler validates the recorded decision and never re-makes it.</p
 <span class="nt">fields</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">unit_price</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">recipe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">from_total</span>
-<span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">line_total</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.total&quot;</span><span class="p p-Indicator">,</span><span class="nt"> quantity</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.qty&quot;</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">line_total</span><span class="p">:</span><span class="w"> </span><span class="s">"$.total"</span><span class="p p-Indicator">,</span><span class="nt"> quantity</span><span class="p">:</span><span class="w"> </span><span class="s">"$.qty"</span><span class="p p-Indicator">}</span>
 <span class="w">  </span><span class="nt">order_date</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.created_at&quot;</span>
-<span class="w">    </span><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">parse_ts</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ISO8601&quot;</span><span class="p p-Indicator">},</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">to_utc</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Europe/Paris&quot;</span><span class="p p-Indicator">}]</span>
+<span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.created_at"</span>
+<span class="w">    </span><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">parse_ts</span><span class="p">:</span><span class="w"> </span><span class="s">"ISO8601"</span><span class="p p-Indicator">},</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">to_utc</span><span class="p">:</span><span class="w"> </span><span class="s">"Europe/Paris"</span><span class="p p-Indicator">}]</span>
 </code></pre></div>
 <h3 id="metricset">MetricSet<a class="headerlink" href="#metricset" title="Permanent link">&para;</a></h3>
 <p>The tenant's measures, each carrying grain and an additivity class — <code>additive</code>,
@@ -1846,7 +1846,7 @@ or stored.</p>
 <span class="w">    </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_item</span>
 <span class="w">    </span><span class="nt">additivity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">additive</span>
 <span class="w">    </span><span class="nt">agg</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sum</span>
-<span class="w">    </span><span class="nt">expr</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;unit_price</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">quantity&quot;</span>
+<span class="w">    </span><span class="nt">expr</span><span class="p">:</span><span class="w"> </span><span class="s">"unit_price</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">quantity"</span>
 </code></pre></div>
 <h3 id="marts">Marts<a class="headerlink" href="#marts" title="Permanent link">&para;</a></h3>
 <p>The gold layer: one wide, pre-joined mart per (grain × subject area), with dimensions
@@ -1992,7 +1992,7 @@ the <a href="../quickstart/">Quickstart</a>, run one of the <a href="../examples
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.69c251d7.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>

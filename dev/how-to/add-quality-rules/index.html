@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.53">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -1761,16 +1761,16 @@ where a reader asks "and what if this does not cast?".</p>
 <span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">wms__stock_levels</span>
 <span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inventory_level</span>
 <span class="nt">key</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">warehouse_id</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.warehouse&quot;</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">to_string</span><span class="p p-Indicator">]}</span>
-<span class="w">  </span><span class="nt">stock_date</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.day&quot;</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">parse_date</span><span class="p">:</span><span class="w"> </span><span class="nv">ISO8601</span><span class="p p-Indicator">}]}</span>
+<span class="w">  </span><span class="nt">warehouse_id</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.warehouse"</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">to_string</span><span class="p p-Indicator">]}</span>
+<span class="w">  </span><span class="nt">stock_date</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.day"</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">parse_date</span><span class="p">:</span><span class="w"> </span><span class="nv">ISO8601</span><span class="p p-Indicator">}]}</span>
 <span class="nt">fields</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">stock_level</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.on_hand&quot;</span>
+<span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.on_hand"</span>
 <span class="w">    </span><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">to_int</span><span class="p p-Indicator">]</span>
 <span class="w">    </span><span class="nt">quality</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">rule</span><span class="p">:</span><span class="w"> </span><span class="nv">not_null</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">fail</span><span class="p p-Indicator">}</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">rule</span><span class="p">:</span><span class="w"> </span><span class="nv">range</span><span class="p p-Indicator">,</span><span class="nt"> min</span><span class="p">:</span><span class="w"> </span><span class="nv">0</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">quarantine</span><span class="p p-Indicator">}</span>
-<span class="nt">unmapped</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;$._ingested_at&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;$._load_id&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;$._source_row_id&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;$.operator_note&quot;</span><span class="p p-Indicator">]</span>
+<span class="nt">unmapped</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"$._ingested_at"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"$._load_id"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"$._source_row_id"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"$.operator_note"</span><span class="p p-Indicator">]</span>
 </code></pre></div>
 <p>The catalogue is closed — <code>coercible</code>, <code>not_null</code>, <code>range</code>, <code>length</code>, <code>pattern</code>,
 <code>in_enum</code>, <code>in_set</code>, <code>unique</code> — and every entry is listed with its parameters in the
@@ -1837,10 +1837,10 @@ the routing.</p>
 <span class="w">      </span><span class="nt">stock_date</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="nv">date</span><span class="p p-Indicator">,</span><span class="nt"> required</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="p p-Indicator">}</span>
 <span class="w">      </span><span class="nt">stock_level</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="nv">int</span><span class="p p-Indicator">}</span>
 <span class="w">    </span><span class="nt">dedupe</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">keep</span><span class="p">:</span><span class="w"> </span><span class="nv">latest_by</span><span class="p p-Indicator">,</span><span class="nt"> field</span><span class="p">:</span><span class="w"> </span><span class="nv">_ingested_at</span><span class="p p-Indicator">,</span><span class="nt"> tie_break</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">_load_id</span><span class="p p-Indicator">]}</span>
-<span class="w">    </span><span class="nt">quarantine</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">retention</span><span class="p">:</span><span class="w"> </span><span class="nv">90d</span><span class="p p-Indicator">,</span><span class="nt"> redact</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;$.operator_note&quot;</span><span class="p p-Indicator">]}</span>
+<span class="w">    </span><span class="nt">quarantine</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">retention</span><span class="p">:</span><span class="w"> </span><span class="nv">90d</span><span class="p p-Indicator">,</span><span class="nt"> redact</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"$.operator_note"</span><span class="p p-Indicator">]}</span>
 <span class="w">    </span><span class="nt">quality</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">rule</span><span class="p">:</span><span class="w"> </span><span class="nv">expression</span><span class="p p-Indicator">,</span><span class="nt"> name</span><span class="p">:</span><span class="w"> </span><span class="nv">stock_level_not_negative</span><span class="p p-Indicator">,</span>
-<span class="nt">         expr</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;stock_level</span><span class="nv"> </span><span class="s">&gt;=</span><span class="nv"> </span><span class="s">0&quot;</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">flag</span><span class="p p-Indicator">}</span>
+<span class="nt">         expr</span><span class="p">:</span><span class="w"> </span><span class="s">"stock_level</span><span class="nv"> </span><span class="s">&gt;=</span><span class="nv"> </span><span class="s">0"</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">flag</span><span class="p p-Indicator">}</span>
 </code></pre></div>
 <p><code>expression</code> takes a boolean predicate over the entity's own columns plus an authored
 <code>name</code>, because that name reaches <code>_quality_flags</code> and the quality mart where a
@@ -1873,7 +1873,7 @@ any field named by <code>dedupe.field</code> or <code>tie_break</code>. Declarin
 <h2 id="set-retention-and-redact-what-you-must-not-keep">Set retention, and redact what you must not keep<a class="headerlink" href="#set-retention-and-redact-what-you-must-not-keep" title="Permanent link">&para;</a></h2>
 <p>Retention is required the moment anything can quarantine, because reject rows hold raw
 source payloads:</p>
-<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="nt">quarantine</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">retention</span><span class="p">:</span><span class="w"> </span><span class="nv">90d</span><span class="p p-Indicator">,</span><span class="nt"> redact</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;$.operator_note&quot;</span><span class="p p-Indicator">]}</span>
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="nt">quarantine</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">retention</span><span class="p">:</span><span class="w"> </span><span class="nv">90d</span><span class="p p-Indicator">,</span><span class="nt"> redact</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"$.operator_note"</span><span class="p p-Indicator">]}</span>
 </code></pre></div>
 <p><code>retention:</code> is a positive integer with one unit suffix — <code>h</code>, <code>d</code>, or <code>w</code>. Months and
 years are absent on purpose: they are not fixed durations, and a retention window that
@@ -1881,7 +1881,7 @@ means something different in February is a legal problem rather than a convenien
 <p>Leave the block off and compilation tells you precisely why, naming the rules that made
 it necessary:</p>
 <div class="highlight"><pre><span></span><code>GuardrailError: 1 error(s):
-  - entity_model: entities.inventory_level.quarantine: entity &#39;inventory_level&#39; has
+  - entity_model: entities.inventory_level.quarantine: entity 'inventory_level' has
     quarantine dispositions (stock_date_coercible, stock_level_coercible,
     stock_level_range_min, warehouse_id_coercible) but no quarantine: block — reject
     rows hold raw source payloads, and therefore PII, so retention is required and
@@ -1902,9 +1902,9 @@ sides and reports the disagreement. It sits at the document root, beside <code>e
 because it belongs to no single entity.</p>
 <div class="highlight"><pre><span></span><code><span class="nt">reconcile</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">stock_level_matches_snapshot</span><span class="p p-Indicator">,</span>
-<span class="nt">     left</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;sum(inventory_level.stock_level)</span><span class="nv"> </span><span class="s">by</span><span class="nv"> </span><span class="s">warehouse_id,</span><span class="nv"> </span><span class="s">stock_date&quot;</span><span class="p p-Indicator">,</span>
-<span class="nt">     right</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;inventory_level.stock_level&quot;</span><span class="p p-Indicator">,</span>
-<span class="nt">     tolerance</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.01&quot;</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">flag</span><span class="p p-Indicator">}</span>
+<span class="nt">     left</span><span class="p">:</span><span class="w"> </span><span class="s">"sum(inventory_level.stock_level)</span><span class="nv"> </span><span class="s">by</span><span class="nv"> </span><span class="s">warehouse_id,</span><span class="nv"> </span><span class="s">stock_date"</span><span class="p p-Indicator">,</span>
+<span class="nt">     right</span><span class="p">:</span><span class="w"> </span><span class="s">"inventory_level.stock_level"</span><span class="p p-Indicator">,</span>
+<span class="nt">     tolerance</span><span class="p">:</span><span class="w"> </span><span class="s">"0.01"</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">flag</span><span class="p p-Indicator">}</span>
 </code></pre></div>
 <p><code>on_fail</code> decides whether the check's audit stops the run. <code>flag</code> reports and carries on
 — which is usually what you want, since a disagreement is exactly when someone needs to
@@ -1919,19 +1919,19 @@ row survives per (warehouse, day), so the per-key sum must equal the per-key val
 <h2 id="compile-and-see-what-you-got">Compile and see what you got<a class="headerlink" href="#compile-and-see-what-you-got" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">Target</span><span class="p">,</span> <span class="n">compile_project</span><span class="p">,</span> <span class="n">load_project</span>
 
-<span class="n">project</span> <span class="o">=</span> <span class="n">load_project</span><span class="p">({</span><span class="s2">&quot;entity_model&quot;</span><span class="p">:</span> <span class="n">ENTITY_MODEL</span><span class="p">,</span> <span class="s2">&quot;mapping&quot;</span><span class="p">:</span> <span class="n">MAPPING</span><span class="p">})</span>
-<span class="n">artifacts</span> <span class="o">=</span> <span class="n">compile_project</span><span class="p">(</span><span class="n">project</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">Target</span><span class="o">.</span><span class="n">SQLMESH</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s2">&quot;duckdb&quot;</span><span class="p">)</span>
+<span class="n">project</span> <span class="o">=</span> <span class="n">load_project</span><span class="p">({</span><span class="s2">"entity_model"</span><span class="p">:</span> <span class="n">ENTITY_MODEL</span><span class="p">,</span> <span class="s2">"mapping"</span><span class="p">:</span> <span class="n">MAPPING</span><span class="p">})</span>
+<span class="n">artifacts</span> <span class="o">=</span> <span class="n">compile_project</span><span class="p">(</span><span class="n">project</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">Target</span><span class="o">.</span><span class="n">SQLMESH</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s2">"duckdb"</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">artifact</span><span class="o">.</span><span class="n">path</span> <span class="k">for</span> <span class="n">artifact</span> <span class="ow">in</span> <span class="n">artifacts</span><span class="p">))</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>[&#39;audits/inventory_level_conservation.sql&#39;,
- &#39;audits/inventory_level_ingestion_metadata.sql&#39;,
- &#39;audits/inventory_level_stock_level_not_null.sql&#39;,
- &#39;audits/stock_level_matches_snapshot_reconcile.sql&#39;,
- &#39;models/gold/mart_data_quality.sql&#39;,
- &#39;models/silver/inventory_level.sql&#39;,
- &#39;models/silver/inventory_level__reject.sql&#39;,
- &#39;models/silver/stock_level_matches_snapshot__reconcile.sql&#39;,
- &#39;replay/inventory_level.sql&#39;]
+<div class="highlight"><pre><span></span><code>['audits/inventory_level_conservation.sql',
+ 'audits/inventory_level_ingestion_metadata.sql',
+ 'audits/inventory_level_stock_level_not_null.sql',
+ 'audits/stock_level_matches_snapshot_reconcile.sql',
+ 'models/gold/mart_data_quality.sql',
+ 'models/silver/inventory_level.sql',
+ 'models/silver/inventory_level__reject.sql',
+ 'models/silver/stock_level_matches_snapshot__reconcile.sql',
+ 'replay/inventory_level.sql']
 </code></pre></div>
 <p>Four of those are new because of the quality surface: the reject model, the blocking
 audit on the ingestion-metadata contract (a null metadata column, a repeated
@@ -1956,14 +1956,14 @@ it the same way you ask anything else:</p>
 <span class="n">query</span> <span class="o">=</span> <span class="n">planner</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span>
     <span class="n">ir</span><span class="p">,</span>
     <span class="n">MetricRequest</span><span class="p">(</span>
-        <span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;quality_quarantine_rate&quot;</span><span class="p">,</span> <span class="s2">&quot;quality_rows_quarantined&quot;</span><span class="p">),</span>
-        <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;entity&quot;</span><span class="p">,</span> <span class="s2">&quot;run_month&quot;</span><span class="p">),</span>
+        <span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">"quality_quarantine_rate"</span><span class="p">,</span> <span class="s2">"quality_rows_quarantined"</span><span class="p">),</span>
+        <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">"entity"</span><span class="p">,</span> <span class="s2">"run_month"</span><span class="p">),</span>
     <span class="p">),</span>
-    <span class="n">dialect</span><span class="o">=</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span>
+    <span class="n">dialect</span><span class="o">=</span><span class="s2">"duckdb"</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">query</span><span class="o">.</span><span class="n">mart</span><span class="p">,</span> <span class="p">[</span><span class="n">column</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">query</span><span class="o">.</span><span class="n">columns</span><span class="p">])</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code>data_quality [&#39;entity&#39;, &#39;run_month&#39;, &#39;quality_quarantine_rate&#39;, &#39;quality_rows_quarantined&#39;]
+<div class="highlight"><pre><span></span><code>data_quality ['entity', 'run_month', 'quality_quarantine_rate', 'quality_rows_quarantined']
 </code></pre></div>
 <p>Five metric names are reserved for it — <code>quality_rows_evaluated</code>,
 <code>quality_rows_failed</code>, <code>quality_rows_quarantined</code>, <code>quality_rows_deduped</code>, and the
@@ -1983,10 +1983,10 @@ not in bronze's incremental window:</p>
 <span class="n">migration</span> <span class="o">=</span> <span class="n">plan</span><span class="p">(</span><span class="n">old_ir</span><span class="p">,</span> <span class="n">new_ir</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">change</span> <span class="ow">in</span> <span class="n">migration</span><span class="o">.</span><span class="n">changes</span><span class="p">:</span>
     <span class="nb">print</span><span class="p">(</span><span class="n">change</span><span class="o">.</span><span class="n">change_class</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">change</span><span class="o">.</span><span class="n">subject</span><span class="p">,</span> <span class="n">change</span><span class="o">.</span><span class="n">detail</span><span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;replay:&quot;</span><span class="p">,</span> <span class="n">migration</span><span class="o">.</span><span class="n">replay_scope</span><span class="o">.</span><span class="n">entities</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"replay:"</span><span class="p">,</span> <span class="n">migration</span><span class="o">.</span><span class="n">replay_scope</span><span class="o">.</span><span class="n">entities</span><span class="p">)</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>restating quality:stock_level_range_min quality rule changed (disposition)
-replay: (&#39;inventory_level&#39;,)
+replay: ('inventory_level',)
 </code></pre></div>
 <p>Backfilling without replaying would leave those rows quarantined forever. Feed
 <code>replay_scope.entities</code> to whatever applies the <code>replay/&lt;entity&gt;.sql</code> artifacts.</p>
@@ -2135,7 +2135,7 @@ a spec edit can produce.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.69c251d7.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>

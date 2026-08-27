@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.53">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -1730,7 +1730,7 @@ in through declared relationships, and expands date roles:</p>
 <div class="highlight"><pre><span></span><code><span class="nt">marts_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
 <span class="nt">marts</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">order_items</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_item</span><span class="w">            </span><span class="c1"># must equal the base entity&#39;s grain</span>
+<span class="w">    </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_item</span><span class="w">            </span><span class="c1"># must equal the base entity's grain</span>
 <span class="w">    </span><span class="nt">base</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_item</span>
 <span class="w">    </span><span class="nt">flatten</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">via</span><span class="p">:</span><span class="w"> </span><span class="nv">item_of_order</span><span class="p p-Indicator">,</span><span class="nt">     prefix</span><span class="p">:</span><span class="w"> </span><span class="nv">order_</span><span class="p p-Indicator">}</span>
@@ -1783,7 +1783,7 @@ columns and gives two different, correct answers, with no join and no aliasing a
 near the query.</p>
 <p>An unqualified reference to a dimension with multiple roles is refused with the roles
 named:</p>
-<div class="highlight"><pre><span></span><code>AmbiguousDimension: &#39;date&#39; has roles [ordered, shipped]. Use &#39;ordered_date&#39; or &#39;shipped_date&#39;.
+<div class="highlight"><pre><span></span><code>AmbiguousDimension: 'date' has roles [ordered, shipped]. Use 'ordered_date' or 'shipped_date'.
 </code></pre></div>
 <h2 id="one-definition-two-consumers">One definition, two consumers<a class="headerlink" href="#one-definition-two-consumers" title="Permanent link">&para;</a></h2>
 <p>A mart definition is compiled once into the IR and read by two consumers that must
@@ -1934,7 +1934,7 @@ carry are explained in <a href="../specs-and-catalog/">Specs and the catalog</a>
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.69c251d7.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>

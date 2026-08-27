@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.53">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -1473,6 +1473,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#lineagegraph-root-directiondirectionupstream-max_depthnone-lineage" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>lineage(graph, root, direction=Direction.UPSTREAM, *, max_depth=None) -&gt; Lineage</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#build_project_irproject-catalognone-stepsempty_registry-projectir" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2165,6 +2176,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#lineagegraph-root-directiondirectionupstream-max_depthnone-lineage" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>lineage(graph, root, direction=Direction.UPSTREAM, *, max_depth=None) -&gt; Lineage</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#build_project_irproject-catalognone-stepsempty_registry-projectir" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2781,7 +2803,20 @@ enum, so <code>target="sqlmesh"</code> also works.</p>
 <p>Run reference validation, recipe validation, and reachability without emitting
 anything. The <code>Resolution</code> carries <code>reachable_metrics</code>, <code>unreachable_metrics</code> (each
 with its specific missing leaves), per-field <code>provenance</code> (direct / recipe / native),
-and the deterministic topological order.</p>
+the deterministic topological order, and the dependency <code>graph</code> those three were
+computed from.</p>
+<h3 id="lineagegraph-root-directiondirectionupstream-max_depthnone-lineage"><code>lineage(graph, root, direction=Direction.UPSTREAM, *, max_depth=None) -&gt; Lineage</code><a class="headerlink" href="#lineagegraph-root-directiondirectionupstream-max_depthnone-lineage" title="Permanent link">&para;</a></h3>
+<p>Walk a <code>Resolution.graph</code> from one node and return the <strong>reachable sub-DAG</strong> — the
+nodes and the labelled edges, never enumerated paths, whose count is exponential in
+the graph's width. <code>Direction.UPSTREAM</code> answers "what is this built from" and
+<code>Direction.DOWNSTREAM</code> answers "what would break if this moved".</p>
+<p>The root is at depth 0, so <code>max_depth=N</code> carries every node within distance <code>N</code> and
+only edges whose both endpoints are carried; <code>truncated</code> says whether the bound cut
+the walk short. A root with no lineage in that direction is a one-node result rather
+than an error — a source column has no upstream, and that is an answer. A negative
+<code>max_depth</code> raises <code>ValueError</code>.</p>
+<p>Requires an acyclic graph, which <code>resolve()</code> guarantees: it raises <code>CircularDerivation</code>
+before returning.</p>
 <h3 id="build_project_irproject-catalognone-stepsempty_registry-projectir"><code>build_project_ir(project, catalog=None, *, steps=EMPTY_REGISTRY) -&gt; ProjectIR</code><a class="headerlink" href="#build_project_irproject-catalognone-stepsempty_registry-projectir" title="Permanent link">&para;</a></h3>
 <p>Compile specs into the frozen intermediate representation without emitting — the
 input to <code>project_fingerprint</code>, <code>plan</code>, and <code>MetricFlowPlanner.plan</code>. Runs the same
@@ -2991,7 +3026,7 @@ a deep import:</p>
 </tr>
 <tr>
 <td>Analysis</td>
-<td><code>Resolution</code>, <code>FieldProvenance</code>, <code>Provenance</code>, <code>Node</code>, <code>NodeKind</code></td>
+<td><code>Resolution</code>, <code>FieldProvenance</code>, <code>Provenance</code>, <code>Node</code>, <code>NodeKind</code>, <code>Graph</code>, <code>Edge</code>, <code>Lineage</code>, <code>Direction</code></td>
 </tr>
 <tr>
 <td>Planner</td>
@@ -3139,7 +3174,7 @@ part of the package that touches a filesystem, and nothing in the library import
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.69c251d7.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>

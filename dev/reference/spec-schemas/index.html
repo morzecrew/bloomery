@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.53">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -2971,8 +2971,8 @@ neither.</p>
 </tbody>
 </table>
 <p>A side is one of two closed shapes:</p>
-<div class="highlight"><pre><span></span><code><span class="nt">left</span><span class="p">:</span><span class="w">  </span><span class="s">&quot;sum(order_item.line_total)</span><span class="nv"> </span><span class="s">by</span><span class="nv"> </span><span class="s">order_id&quot;</span><span class="w">   </span><span class="c1"># &lt;agg&gt;(&lt;entity&gt;.&lt;column&gt;) by &lt;columns&gt;</span>
-<span class="nt">right</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;order.total_amount&quot;</span><span class="w">                       </span><span class="c1"># &lt;entity&gt;.&lt;column&gt;, keyed by that entity&#39;s key</span>
+<div class="highlight"><pre><span></span><code><span class="nt">left</span><span class="p">:</span><span class="w">  </span><span class="s">"sum(order_item.line_total)</span><span class="nv"> </span><span class="s">by</span><span class="nv"> </span><span class="s">order_id"</span><span class="w">   </span><span class="c1"># &lt;agg&gt;(&lt;entity&gt;.&lt;column&gt;) by &lt;columns&gt;</span>
+<span class="nt">right</span><span class="p">:</span><span class="w"> </span><span class="s">"order.total_amount"</span><span class="w">                       </span><span class="c1"># &lt;entity&gt;.&lt;column&gt;, keyed by that entity's key</span>
 </code></pre></div>
 <p>Both sides must key on the same columns, since they join on their keys. Anything outside
 the grammar is a <code>GuardrailError</code> — a reconcile side is a declared shape, not SQL.</p>
@@ -3075,12 +3075,12 @@ dialects with <code>TRY_CAST</code>; on the others the entity is <code>Unsupport
 <h3 id="fieldmapping-two-forms">FieldMapping — two forms<a class="headerlink" href="#fieldmapping-two-forms" title="Permanent link">&para;</a></h3>
 <p>A field mapping is <strong>simple</strong> or <strong>recipe</strong>, discriminated on the presence of <code>recipe</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># simple: one source path plus a transform chain</span>
-<span class="nt">quantity</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.qty&quot;</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">to_int</span><span class="p p-Indicator">]}</span>
+<span class="nt">quantity</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.qty"</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">to_int</span><span class="p p-Indicator">]}</span>
 
 <span class="c1"># recipe: a recorded catalog recipe id plus alias → path bindings</span>
 <span class="nt">unit_price</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">recipe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">from_total</span>
-<span class="w">  </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">line_total</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.total&quot;</span><span class="p p-Indicator">,</span><span class="nt"> quantity</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.qty&quot;</span><span class="p p-Indicator">}</span>
+<span class="w">  </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">line_total</span><span class="p">:</span><span class="w"> </span><span class="s">"$.total"</span><span class="p p-Indicator">,</span><span class="nt"> quantity</span><span class="p">:</span><span class="w"> </span><span class="s">"$.qty"</span><span class="p p-Indicator">}</span>
 </code></pre></div>
 <table>
 <thead>
@@ -3684,7 +3684,7 @@ source, so the grammar is the second of two locks.</p>
 <span class="w">    </span><span class="nt">canonical</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">customer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">customer_id</span><span class="p">:</span><span class="w"> </span><span class="nv">customer_id</span><span class="p p-Indicator">}</span>
 <span class="w">    </span><span class="nt">quality</span><span class="p">:</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">confidence_is_sane</span><span class="p p-Indicator">,</span><span class="nt"> rule</span><span class="p">:</span><span class="w"> </span><span class="nv">expression</span><span class="p p-Indicator">,</span><span class="nt"> expr</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;confidence</span><span class="nv"> </span><span class="s">BETWEEN</span><span class="nv"> </span><span class="s">0</span><span class="nv"> </span><span class="s">AND</span><span class="nv"> </span><span class="s">1&quot;</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">fail</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">confidence_is_sane</span><span class="p p-Indicator">,</span><span class="nt"> rule</span><span class="p">:</span><span class="w"> </span><span class="nv">expression</span><span class="p p-Indicator">,</span><span class="nt"> expr</span><span class="p">:</span><span class="w"> </span><span class="s">"confidence</span><span class="nv"> </span><span class="s">BETWEEN</span><span class="nv"> </span><span class="s">0</span><span class="nv"> </span><span class="s">AND</span><span class="nv"> </span><span class="s">1"</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">fail</span><span class="p p-Indicator">}</span>
 <span class="w">    </span><span class="nt">applies_to</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">confidence_is_sane</span><span class="p">:</span><span class="w"> </span><span class="nv">links</span><span class="p p-Indicator">}</span>
 </code></pre></div>
 <p><strong>Shape versus resolution.</strong> Parse checks that <code>canonical</code> and <code>applies_to</code> name outputs
@@ -3797,7 +3797,7 @@ question — the spec layer has never seen a manifest.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.69c251d7.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>

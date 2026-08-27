@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.53">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -1762,7 +1762,7 @@ a reusable <code>revenue</code> template, and the date dimension bloomery owns:<
 <span class="w">    </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order</span>
 <span class="w">    </span><span class="nt">additivity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">additive</span>
 <span class="w">    </span><span class="nt">agg</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sum</span>
-<span class="w">    </span><span class="nt">expr</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;amount&quot;</span>
+<span class="w">    </span><span class="nt">expr</span><span class="p">:</span><span class="w"> </span><span class="s">"amount"</span>
 
 <span class="nt">date_dimension</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dim_date</span>
@@ -1772,7 +1772,7 @@ a reusable <code>revenue</code> template, and the date dimension bloomery owns:<
 </code></pre></div>
 <p>Then the entity model. <code>canonical: amount</code> links the field to the catalog, which is what
 makes the <code>revenue</code> template reachable for this project:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># The tenant&#39;s entity model: one order entity. `canonical: amount` links the</span>
+<div class="highlight"><pre><span></span><code><span class="c1"># The tenant's entity model: one order entity. `canonical: amount` links the</span>
 <span class="c1"># field back to the catalog, which is what makes the `revenue` template</span>
 <span class="c1"># reachable for this project.</span>
 <span class="nt">spec_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
@@ -1783,7 +1783,7 @@ makes the <code>revenue</code> template reachable for this project:</p>
 <span class="w">    </span><span class="nt">fields</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">order_id</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="nv">string</span><span class="p p-Indicator">,</span><span class="nt"> required</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="p p-Indicator">}</span>
 <span class="w">      </span><span class="nt">customer_id</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="nv">string</span><span class="p p-Indicator">}</span>
-<span class="w">      </span><span class="nt">amount</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;decimal(12,2)&quot;</span><span class="p p-Indicator">,</span><span class="nt"> canonical</span><span class="p">:</span><span class="w"> </span><span class="nv">amount</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="nt">amount</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">"decimal(12,2)"</span><span class="p p-Indicator">,</span><span class="nt"> canonical</span><span class="p">:</span><span class="w"> </span><span class="nv">amount</span><span class="p p-Indicator">}</span>
 <span class="w">      </span><span class="nt">order_date</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="nv">date</span><span class="p p-Indicator">,</span><span class="nt"> assert</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">not_null</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="p p-Indicator">}}</span>
 </code></pre></div>
 <p>The mapping says how the bronze source becomes the entity — key lowering plus one
@@ -1794,14 +1794,14 @@ transform chain per field:</p>
 <span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">shop__orders</span>
 <span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order</span>
 <span class="nt">key</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">order_id</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.id&quot;</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">to_string</span><span class="p p-Indicator">]}</span>
+<span class="w">  </span><span class="nt">order_id</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.id"</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">to_string</span><span class="p p-Indicator">]}</span>
 <span class="nt">fields</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">customer_id</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.customer_id&quot;</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">to_string</span><span class="p p-Indicator">]}</span>
-<span class="w">  </span><span class="nt">amount</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.amount&quot;</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">to_decimal</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">12</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]}]}</span>
-<span class="w">  </span><span class="nt">order_date</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.created_at&quot;</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">parse_date</span><span class="p">:</span><span class="w"> </span><span class="nv">ISO8601</span><span class="p p-Indicator">}]}</span>
+<span class="w">  </span><span class="nt">customer_id</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.customer_id"</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">to_string</span><span class="p p-Indicator">]}</span>
+<span class="w">  </span><span class="nt">amount</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.amount"</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">to_decimal</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">12</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]}]}</span>
+<span class="w">  </span><span class="nt">order_date</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.created_at"</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">parse_date</span><span class="p">:</span><span class="w"> </span><span class="nv">ISO8601</span><span class="p p-Indicator">}]}</span>
 </code></pre></div>
 <p>The metrics — one instantiated from the catalog template, one inline:</p>
-<div class="highlight"><pre><span></span><code><span class="c1"># The project&#39;s metrics: one instantiated from the catalog template, one</span>
+<div class="highlight"><pre><span></span><code><span class="c1"># The project's metrics: one instantiated from the catalog template, one</span>
 <span class="c1"># fully inline. Every metric declares grain and additivity.</span>
 <span class="nt">metrics_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
 <span class="nt">metrics</span><span class="p">:</span>
@@ -1811,7 +1811,7 @@ transform chain per field:</p>
 <span class="w">    </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order</span>
 <span class="w">    </span><span class="nt">additivity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">additive</span>
 <span class="w">    </span><span class="nt">agg</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">count</span>
-<span class="w">    </span><span class="nt">expr</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;order_id&quot;</span>
+<span class="w">    </span><span class="nt">expr</span><span class="p">:</span><span class="w"> </span><span class="s">"order_id"</span>
 </code></pre></div>
 <p>And the mart — the wide gold table the planner will serve requests from. The date role
 expands <code>order_date</code> into <code>ordered_day</code> … <code>ordered_year</code> bucket columns:</p>
@@ -1835,14 +1835,14 @@ lines, because the library performs no I/O:</p>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_catalog</span><span class="p">,</span> <span class="n">load_project</span>
 
-<span class="n">HERE</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;examples/quickstart&quot;</span><span class="p">)</span>
+<span class="n">HERE</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">"examples/quickstart"</span><span class="p">)</span>
 
-<span class="n">catalog</span> <span class="o">=</span> <span class="n">load_catalog</span><span class="p">((</span><span class="n">HERE</span> <span class="o">/</span> <span class="s2">&quot;catalog.yaml&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">read_text</span><span class="p">())</span>
+<span class="n">catalog</span> <span class="o">=</span> <span class="n">load_catalog</span><span class="p">((</span><span class="n">HERE</span> <span class="o">/</span> <span class="s2">"catalog.yaml"</span><span class="p">)</span><span class="o">.</span><span class="n">read_text</span><span class="p">())</span>
 <span class="n">project</span> <span class="o">=</span> <span class="n">load_project</span><span class="p">(</span>
     <span class="p">{</span>
         <span class="n">path</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">path</span><span class="o">.</span><span class="n">read_text</span><span class="p">()</span>
-        <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">HERE</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;*.yaml&quot;</span><span class="p">))</span>
-        <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="s2">&quot;catalog.yaml&quot;</span>
+        <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">HERE</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">"*.yaml"</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">name</span> <span class="o">!=</span> <span class="s2">"catalog.yaml"</span>
     <span class="p">}</span>
 <span class="p">)</span>
 </code></pre></div>
@@ -1855,12 +1855,12 @@ source path into the offending YAML node.</p>
 out. Writing them to disk is again the caller's job:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">Target</span><span class="p">,</span> <span class="n">compile_project</span>
 
-<span class="n">artifacts</span> <span class="o">=</span> <span class="n">compile_project</span><span class="p">(</span><span class="n">project</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">Target</span><span class="o">.</span><span class="n">SQLMESH</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span> <span class="n">catalog</span><span class="o">=</span><span class="n">catalog</span><span class="p">)</span>
+<span class="n">artifacts</span> <span class="o">=</span> <span class="n">compile_project</span><span class="p">(</span><span class="n">project</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">Target</span><span class="o">.</span><span class="n">SQLMESH</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s2">"duckdb"</span><span class="p">,</span> <span class="n">catalog</span><span class="o">=</span><span class="n">catalog</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">artifact</span> <span class="ow">in</span> <span class="n">artifacts</span><span class="p">:</span>
-    <span class="n">destination</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;out&quot;</span><span class="p">)</span> <span class="o">/</span> <span class="n">artifact</span><span class="o">.</span><span class="n">path</span>
+    <span class="n">destination</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">"out"</span><span class="p">)</span> <span class="o">/</span> <span class="n">artifact</span><span class="o">.</span><span class="n">path</span>
     <span class="n">destination</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">destination</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">artifact</span><span class="o">.</span><span class="n">content</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;wrote </span><span class="si">{</span><span class="n">destination</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"wrote </span><span class="si">{</span><span class="n">destination</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>wrote out/models/gold/dim_date.sql
 wrote out/models/gold/mart_orders.sql
@@ -1903,11 +1903,11 @@ that is simply ill-formed raises <code>InvalidRequest</code>, which never carrie
 
 <span class="n">filters</span> <span class="o">=</span> <span class="n">parse_filter_json</span><span class="p">(</span>
     <span class="p">{</span>
-        <span class="s2">&quot;customer_id&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$neq&quot;</span><span class="p">:</span> <span class="s2">&quot;internal&quot;</span><span class="p">},</span>
-        <span class="s2">&quot;$or&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;ordered_month&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$gte&quot;</span><span class="p">:</span> <span class="s2">&quot;2024-01-01&quot;</span><span class="p">}},</span> <span class="p">{</span><span class="s2">&quot;ordered_month&quot;</span><span class="p">:</span> <span class="s2">&quot;2023-12-01&quot;</span><span class="p">}],</span>
+        <span class="s2">"customer_id"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"$neq"</span><span class="p">:</span> <span class="s2">"internal"</span><span class="p">},</span>
+        <span class="s2">"$or"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"ordered_month"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"$gte"</span><span class="p">:</span> <span class="s2">"2024-01-01"</span><span class="p">}},</span> <span class="p">{</span><span class="s2">"ordered_month"</span><span class="p">:</span> <span class="s2">"2023-12-01"</span><span class="p">}],</span>
     <span class="p">}</span>
 <span class="p">)</span>
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;parsed </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">filters</span><span class="p">)</span><span class="si">}</span><span class="s2"> filter clause(s) from JSON&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"parsed </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">filters</span><span class="p">)</span><span class="si">}</span><span class="s2"> filter clause(s) from JSON"</span><span class="p">)</span>
 </code></pre></div>
 <div class="highlight"><pre><span></span><code>parsed 2 filter clause(s) from JSON
 </code></pre></div>
@@ -1920,8 +1920,8 @@ into the request:</p>
 <span class="n">planner</span> <span class="o">=</span> <span class="n">MetricFlowPlanner</span><span class="p">(</span><span class="n">LruManifestHydrator</span><span class="p">(</span><span class="n">naming</span><span class="p">),</span> <span class="n">naming</span><span class="o">=</span><span class="n">naming</span><span class="p">)</span>
 <span class="n">plan</span> <span class="o">=</span> <span class="n">planner</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span>
     <span class="n">build_project_ir</span><span class="p">(</span><span class="n">project</span><span class="p">,</span> <span class="n">catalog</span><span class="o">=</span><span class="n">catalog</span><span class="p">),</span>
-    <span class="n">MetricRequest</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;revenue&quot;</span><span class="p">,),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;ordered_month&quot;</span><span class="p">,),</span> <span class="n">filters</span><span class="o">=</span><span class="n">filters</span><span class="p">),</span>
-    <span class="n">dialect</span><span class="o">=</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span>
+    <span class="n">MetricRequest</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">"revenue"</span><span class="p">,),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">"ordered_month"</span><span class="p">,),</span> <span class="n">filters</span><span class="o">=</span><span class="n">filters</span><span class="p">),</span>
+    <span class="n">dialect</span><span class="o">=</span><span class="s2">"duckdb"</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">plan</span><span class="o">.</span><span class="n">sql</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">plan</span><span class="o">.</span><span class="n">explanation</span><span class="o">.</span><span class="n">render</span><span class="p">())</span>
@@ -1932,7 +1932,7 @@ explained from the clause objects, never scraped back out of the SQL:</p>
   mart:     gold.mart_orders (grain: order)
   measure:  revenue = SUM(amount)
             [additive — SUM]
-  filters:  customer_id != &#39;internal&#39;; ordered_month &gt;= &#39;2024-01-01&#39; OR ordered_month = &#39;2023-12-01&#39;
+  filters:  customer_id != 'internal'; ordered_month &gt;= '2024-01-01' OR ordered_month = '2023-12-01'
   policy:   not applied
 </code></pre></div>
 <h2 id="the-same-run-without-python">The same run, without Python<a class="headerlink" href="#the-same-run-without-python" title="Permanent link">&para;</a></h2>
@@ -1941,7 +1941,7 @@ over it, so the two agree by construction rather than by maintenance:</p>
 <div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>compile<span class="w"> </span>examples/quickstart<span class="w"> </span>--target<span class="w"> </span>sqlmesh<span class="w"> </span>--dialect<span class="w"> </span>duckdb<span class="w"> </span>--out<span class="w"> </span>out/
 bloomery<span class="w"> </span>resolve<span class="w"> </span>examples/quickstart
 bloomery<span class="w"> </span>explain<span class="w"> </span>examples/quickstart<span class="w"> </span>--metrics<span class="w"> </span>revenue<span class="w"> </span>--by<span class="w"> </span>ordered_month<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--where<span class="w"> </span><span class="s1">&#39;{&quot;customer_id&quot;: {&quot;$neq&quot;: &quot;internal&quot;}}&#39;</span>
+<span class="w">  </span>--where<span class="w"> </span><span class="s1">'{"customer_id": {"$neq": "internal"}}'</span>
 bloomery<span class="w"> </span>fingerprint<span class="w"> </span>examples/quickstart
 </code></pre></div>
 <p>The catalog is picked up from <code>catalog.yaml</code> in the directory and loaded separately, the
@@ -2081,7 +2081,7 @@ page names each stage you just ran.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.69c251d7.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>

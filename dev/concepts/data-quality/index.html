@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.53">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -1817,7 +1817,7 @@ warehouse and decides, row by row.</p>
 the value, and to an entity, where a rule can read more than one column.</p>
 <div class="highlight"><pre><span></span><code><span class="nt">fields</span><span class="p">:</span><span class="w">                                </span><span class="c1"># on the mapping, beside the transform</span>
 <span class="w">  </span><span class="nt">unit_price</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;$.Price&quot;</span>
+<span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.Price"</span>
 <span class="w">    </span><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">to_decimal</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">12</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]}]</span>
 <span class="w">    </span><span class="nt">quality</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">rule</span><span class="p">:</span><span class="w"> </span><span class="nv">range</span><span class="p p-Indicator">,</span><span class="nt"> min</span><span class="p">:</span><span class="w"> </span><span class="nv">0</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">quarantine</span><span class="p p-Indicator">}</span>
@@ -1831,7 +1831,7 @@ the value, and to an entity, where a rule can read more than one column.</p>
 <span class="w">    </span><span class="nt">quarantine</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">retention</span><span class="p">:</span><span class="w"> </span><span class="nv">90d</span><span class="p p-Indicator">}</span>
 <span class="w">    </span><span class="nt">quality</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">rule</span><span class="p">:</span><span class="w"> </span><span class="nv">expression</span><span class="p p-Indicator">,</span><span class="nt"> name</span><span class="p">:</span><span class="w"> </span><span class="nv">discount_not_exceeding_gross</span><span class="p p-Indicator">,</span>
-<span class="nt">         expr</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;discount</span><span class="nv"> </span><span class="s">&lt;=</span><span class="nv"> </span><span class="s">unit_price</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">quantity&quot;</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">flag</span><span class="p p-Indicator">}</span>
+<span class="nt">         expr</span><span class="p">:</span><span class="w"> </span><span class="s">"discount</span><span class="nv"> </span><span class="s">&lt;=</span><span class="nv"> </span><span class="s">unit_price</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">quantity"</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">flag</span><span class="p p-Indicator">}</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">rule</span><span class="p">:</span><span class="w"> </span><span class="nv">referential</span><span class="p p-Indicator">,</span><span class="nt"> via</span><span class="p">:</span><span class="w"> </span><span class="nv">item_of_order</span><span class="p p-Indicator">,</span><span class="nt"> on_missing</span><span class="p">:</span><span class="w"> </span><span class="nv">unknown_member</span><span class="p p-Indicator">}</span>
 </code></pre></div>
 <p>Everything a rule can say is in that shape: which rule, its parameters, and what happens
@@ -2244,7 +2244,7 @@ disposition change produces.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.69c251d7.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>

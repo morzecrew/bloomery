@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.53">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -1688,11 +1688,11 @@ compile" but <strong>"what would this give me."</strong></p>
 
 <span class="k">if</span> <span class="n">evidence</span><span class="o">.</span><span class="n">stage_reached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">Stage</span><span class="o">.</span><span class="n">COMPLETE</span><span class="p">:</span>
     <span class="k">for</span> <span class="n">refusal</span> <span class="ow">in</span> <span class="n">evidence</span><span class="o">.</span><span class="n">refusals</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">refusal</span><span class="o">.</span><span class="n">source_path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">refusal</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">refusal</span><span class="o">.</span><span class="n">source_path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">refusal</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
-<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">evidence</span><span class="o">.</span><span class="n">reachable</span><span class="p">)</span><span class="si">}</span><span class="s2"> metrics reachable&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">evidence</span><span class="o">.</span><span class="n">reachable</span><span class="p">)</span><span class="si">}</span><span class="s2"> metrics reachable"</span><span class="p">)</span>
 <span class="k">for</span> <span class="n">metric</span> <span class="ow">in</span> <span class="n">evidence</span><span class="o">.</span><span class="n">unreachable</span><span class="p">:</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;  </span><span class="si">{</span><span class="n">metric</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> blocked on </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">metric</span><span class="o">.</span><span class="n">missing</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  </span><span class="si">{</span><span class="n">metric</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2"> blocked on </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">metric</span><span class="o">.</span><span class="n">missing</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </code></pre></div>
 <p>It never raises for a refusal. It runs no SQL, opens no connection, and reads no data.</p>
 <h2 id="read-stage_reached-first">Read <code>stage_reached</code> first<a class="headerlink" href="#read-stage_reached-first" title="Permanent link">&para;</a></h2>
@@ -1761,7 +1761,7 @@ computed two stages earlier:</p>
 <div class="highlight"><pre><span></span><code><span class="n">evidence</span> <span class="o">=</span> <span class="n">evaluate</span><span class="p">(</span><span class="n">draft</span><span class="p">,</span> <span class="n">catalog</span><span class="o">=</span><span class="n">catalog</span><span class="p">)</span>
 
 <span class="n">evidence</span><span class="o">.</span><span class="n">stage_reached</span>      <span class="c1"># Stage.GUARDRAILS</span>
-<span class="n">evidence</span><span class="o">.</span><span class="n">reachable</span>          <span class="c1"># (&#39;landed_revenue&#39;, &#39;shipping_cost&#39;) — still known</span>
+<span class="n">evidence</span><span class="o">.</span><span class="n">reachable</span>          <span class="c1"># ('landed_revenue', 'shipping_cost') — still known</span>
 <span class="n">evidence</span><span class="o">.</span><span class="n">refusals</span>           <span class="c1"># the batch, each with its own source_path</span>
 <span class="n">evidence</span><span class="o">.</span><span class="n">fingerprint</span>        <span class="c1"># None — a draft is not a project</span>
 </code></pre></div>
@@ -1773,8 +1773,8 @@ spec it will not compile.</p>
 <p>Each refusal is the individual failure, not the batch aggregate — so <code>source_path</code> points
 at a spec node rather than at a paragraph you have to parse:</p>
 <div class="highlight"><pre><span></span><code><span class="k">for</span> <span class="n">refusal</span> <span class="ow">in</span> <span class="n">evidence</span><span class="o">.</span><span class="n">refusals</span><span class="p">:</span>
-    <span class="n">refusal</span><span class="o">.</span><span class="n">source_path</span>     <span class="c1"># &#39;marts: marts.order_items.measures.shipping_cost&#39;</span>
-    <span class="nb">type</span><span class="p">(</span><span class="n">refusal</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span>  <span class="c1"># &#39;GrainViolation&#39;</span>
+    <span class="n">refusal</span><span class="o">.</span><span class="n">source_path</span>     <span class="c1"># 'marts: marts.order_items.measures.shipping_cost'</span>
+    <span class="nb">type</span><span class="p">(</span><span class="n">refusal</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span>  <span class="c1"># 'GrainViolation'</span>
     <span class="nb">str</span><span class="p">(</span><span class="n">refusal</span><span class="p">)</span>            <span class="c1"># the claim, why it is wrong, and the fix</span>
 </code></pre></div>
 <p>Structured fix suggestions ride along on the errors that carry them —
@@ -1784,7 +1784,7 @@ at a spec node rather than at a paragraph you have to parse:</p>
 <p><code>missing</code> names the specific <strong>leaves</strong> — the canonical fields nothing maps — because the
 fix is always a mapping, never a metric. When a metric is blocked <em>through</em> another one,
 <code>via</code> names the chain:</p>
-<div class="highlight"><pre><span></span><code><span class="n">UnreachableMetric</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">&#39;margin_rate&#39;</span><span class="p">,</span> <span class="n">missing</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;cogs&#39;</span><span class="p">,),</span> <span class="n">via</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;margin&#39;</span><span class="p">,))</span>
+<div class="highlight"><pre><span></span><code><span class="n">UnreachableMetric</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s1">'margin_rate'</span><span class="p">,</span> <span class="n">missing</span><span class="o">=</span><span class="p">(</span><span class="s1">'cogs'</span><span class="p">,),</span> <span class="n">via</span><span class="o">=</span><span class="p">(</span><span class="s1">'margin'</span><span class="p">,))</span>
 </code></pre></div>
 <p>Read that as: map <code>cogs</code>, and both <code>margin</code> and <code>margin_rate</code> unblock. Only blocked
 requirements appear in <code>via</code> — a required metric that is perfectly reachable is not on the
@@ -1817,8 +1817,8 @@ compilation is not.</p>
 
 <span class="go">Refusals (1)</span>
 <span class="go">  marts: marts.order_items.measures.shipping_cost</span>
-<span class="go">    GrainViolation: measure &#39;shipping_cost&#39; has grain &#39;order&#39; (one row per</span>
-<span class="go">      order), not the mart&#39;s grain &#39;order_item&#39; …</span>
+<span class="go">    GrainViolation: measure 'shipping_cost' has grain 'order' (one row per</span>
+<span class="go">      order), not the mart's grain 'order_item' …</span>
 </code></pre></div>
 <p>Exit code <code>1</code>, because the spec is still refused. <code>--format json</code> emits the whole
 <code>SpecEvidence</code> including every refusal's full message. See
@@ -1929,7 +1929,7 @@ compilation is not.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.69c251d7.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>

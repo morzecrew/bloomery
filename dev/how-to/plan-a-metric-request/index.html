@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.53">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -1770,14 +1770,14 @@ ordering, a limit. There is no SQL string anywhere a caller could inject into:</
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">MetricRequest</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">OrderSpec</span><span class="p">,</span> <span class="n">Predicate</span><span class="p">,</span> <span class="n">TimeGrain</span>
 
 <span class="n">request</span> <span class="o">=</span> <span class="n">MetricRequest</span><span class="p">(</span>
-    <span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;revenue&quot;</span><span class="p">,),</span>
-    <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;country&quot;</span><span class="p">,</span> <span class="s2">&quot;ordered_day&quot;</span><span class="p">),</span>
-    <span class="n">filters</span><span class="o">=</span><span class="p">(</span><span class="n">Predicate</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="s2">&quot;country&quot;</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="n">Op</span><span class="o">.</span><span class="n">IN</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;FR&quot;</span><span class="p">,</span> <span class="s2">&quot;DE&quot;</span><span class="p">)),),</span>
+    <span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">"revenue"</span><span class="p">,),</span>
+    <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">"country"</span><span class="p">,</span> <span class="s2">"ordered_day"</span><span class="p">),</span>
+    <span class="n">filters</span><span class="o">=</span><span class="p">(</span><span class="n">Predicate</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="s2">"country"</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="n">Op</span><span class="o">.</span><span class="n">IN</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="p">(</span><span class="s2">"FR"</span><span class="p">,</span> <span class="s2">"DE"</span><span class="p">)),),</span>
     <span class="n">time_grain</span><span class="o">=</span><span class="n">TimeGrain</span><span class="o">.</span><span class="n">MONTH</span><span class="p">,</span>
-    <span class="n">order_by</span><span class="o">=</span><span class="p">(</span><span class="n">OrderSpec</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="s2">&quot;revenue&quot;</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="s2">&quot;desc&quot;</span><span class="p">),),</span>
+    <span class="n">order_by</span><span class="o">=</span><span class="p">(</span><span class="n">OrderSpec</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="s2">"revenue"</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="s2">"desc"</span><span class="p">),),</span>
     <span class="n">limit</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="n">plan</span> <span class="o">=</span> <span class="n">planner</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span><span class="n">ir</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s2">&quot;duckdb&quot;</span><span class="p">)</span>
+<span class="n">plan</span> <span class="o">=</span> <span class="n">planner</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span><span class="n">ir</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s2">"duckdb"</span><span class="p">)</span>
 </code></pre></div>
 <p>Structural rules, enforced at construction with <code>InvalidRequest</code>: at least one metric,
 no duplicates, <code>order_by</code> only over requested members, <code>limit &gt;= 1</code>, and filter
@@ -1793,8 +1793,8 @@ builds ("carrier in [DHL, UPS] <strong>and</strong> (region = EU <strong>or</str
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">AnyOf</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">Predicate</span>
 
 <span class="n">filters</span> <span class="o">=</span> <span class="p">(</span>
-    <span class="n">Predicate</span><span class="p">(</span><span class="s2">&quot;carrier&quot;</span><span class="p">,</span> <span class="n">Op</span><span class="o">.</span><span class="n">IN</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;DHL&quot;</span><span class="p">,</span> <span class="s2">&quot;UPS&quot;</span><span class="p">)),</span>
-    <span class="n">AnyOf</span><span class="p">((</span><span class="n">Predicate</span><span class="p">(</span><span class="s2">&quot;region&quot;</span><span class="p">,</span> <span class="n">Op</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;EU&quot;</span><span class="p">,)),</span> <span class="n">Predicate</span><span class="p">(</span><span class="s2">&quot;region&quot;</span><span class="p">,</span> <span class="n">Op</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="p">(</span><span class="s2">&quot;UK&quot;</span><span class="p">,)))),</span>
+    <span class="n">Predicate</span><span class="p">(</span><span class="s2">"carrier"</span><span class="p">,</span> <span class="n">Op</span><span class="o">.</span><span class="n">IN</span><span class="p">,</span> <span class="p">(</span><span class="s2">"DHL"</span><span class="p">,</span> <span class="s2">"UPS"</span><span class="p">)),</span>
+    <span class="n">AnyOf</span><span class="p">((</span><span class="n">Predicate</span><span class="p">(</span><span class="s2">"region"</span><span class="p">,</span> <span class="n">Op</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="p">(</span><span class="s2">"EU"</span><span class="p">,)),</span> <span class="n">Predicate</span><span class="p">(</span><span class="s2">"region"</span><span class="p">,</span> <span class="n">Op</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="p">(</span><span class="s2">"UK"</span><span class="p">,)))),</span>
 <span class="p">)</span>
 </code></pre></div>
 <p>The operators are <code>eq</code>, <code>ne</code>, <code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code>, <code>in</code>, <code>not_in</code>, <code>is_null</code>,
@@ -1819,9 +1819,9 @@ distribution with a clause cap:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery.planner</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_filter_json</span>
 
 <span class="n">clauses</span> <span class="o">=</span> <span class="n">parse_filter_json</span><span class="p">(</span>
-    <span class="p">{</span><span class="s2">&quot;carrier&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$in&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;DHL&quot;</span><span class="p">,</span> <span class="s2">&quot;UPS&quot;</span><span class="p">]},</span> <span class="s2">&quot;$or&quot;</span><span class="p">:</span> <span class="p">[{</span><span class="s2">&quot;region&quot;</span><span class="p">:</span> <span class="s2">&quot;EU&quot;</span><span class="p">},</span> <span class="p">{</span><span class="s2">&quot;region&quot;</span><span class="p">:</span> <span class="s2">&quot;UK&quot;</span><span class="p">}]}</span>
+    <span class="p">{</span><span class="s2">"carrier"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"$in"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"DHL"</span><span class="p">,</span> <span class="s2">"UPS"</span><span class="p">]},</span> <span class="s2">"$or"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"region"</span><span class="p">:</span> <span class="s2">"EU"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"region"</span><span class="p">:</span> <span class="s2">"UK"</span><span class="p">}]}</span>
 <span class="p">)</span>
-<span class="n">request</span> <span class="o">=</span> <span class="n">MetricRequest</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;revenue&quot;</span><span class="p">,),</span> <span class="n">filters</span><span class="o">=</span><span class="n">clauses</span><span class="p">)</span>
+<span class="n">request</span> <span class="o">=</span> <span class="n">MetricRequest</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">"revenue"</span><span class="p">,),</span> <span class="n">filters</span><span class="o">=</span><span class="n">clauses</span><span class="p">)</span>
 </code></pre></div>
 <p>Scalars are the <code>$eq</code> shortcut, arrays the <code>$in</code> shortcut, and <code>null</code> means
 <code>is_null: true</code>. What cannot cross is refused <em>after normalization</em> with a typed
@@ -1876,7 +1876,7 @@ with how it was computed:</p>
   mart:     gold.mart_orders (grain: order)
   measure:  revenue = SUM(amount)
             [additive — SUM]
-  filters:  country in (&#39;FR&#39;, &#39;DE&#39;)
+  filters:  country in ('FR', 'DE')
   policy:   not applied
 </code></pre></div>
 <h2 id="refusals">Refusals<a class="headerlink" href="#refusals" title="Permanent link">&para;</a></h2>
@@ -1884,15 +1884,15 @@ with how it was computed:</p>
 planner errors subclass <code>PlannerError</code>; the first failure wins (they are not batched).
 The three you will design UX around:</p>
 <p><code>UnknownMember</code> — a name that does not exist, with a closest match:</p>
-<div class="highlight"><pre><span></span><code>unknown metric &#39;revenu&#39;; did you mean &#39;revenue&#39;?
+<div class="highlight"><pre><span></span><code>unknown metric 'revenu'; did you mean 'revenue'?
 </code></pre></div>
 <p><code>UnreachableAtGrain</code> — no single mart can serve the request. Summing across grains
 would double-count, so the planner refuses rather than join at plan time:</p>
-<div class="highlight"><pre><span></span><code>metric &#39;order_count&#39; (grain: order) is served by no mart — no mart lists it as a measure.
-  Define a mart at grain &#39;order&#39; carrying it.
+<div class="highlight"><pre><span></span><code>metric 'order_count' (grain: order) is served by no mart — no mart lists it as a measure.
+  Define a mart at grain 'order' carrying it.
 </code></pre></div>
 <p><code>AmbiguousDimension</code> — an unqualified bucket where the mart has several date roles:</p>
-<div class="highlight"><pre><span></span><code>&#39;month&#39; has roles [&#39;ordered&#39;, &#39;shipped&#39;]. Use &#39;ordered_month&#39; or &#39;shipped_month&#39;.
+<div class="highlight"><pre><span></span><code>'month' has roles ['ordered', 'shipped']. Use 'ordered_month' or 'shipped_month'.
 </code></pre></div>
 <p>The remaining refusals: <code>InvalidRequest</code> (structural problems, raised at request
 construction or planning), <code>FilterTypeMismatch</code> (a filter value whose type contradicts
@@ -1910,9 +1910,9 @@ the same escaping pipeline as every other filter, prepended to the user's filter
 
 <span class="n">plan</span> <span class="o">=</span> <span class="n">planner</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span>
     <span class="n">ir</span><span class="p">,</span>
-    <span class="n">MetricRequest</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;revenue&quot;</span><span class="p">,),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;ordered_month&quot;</span><span class="p">,)),</span>
-    <span class="n">dialect</span><span class="o">=</span><span class="s2">&quot;duckdb&quot;</span><span class="p">,</span>
-    <span class="n">policy</span><span class="o">=</span><span class="n">RowPolicy</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="s2">&quot;country&quot;</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="n">Op</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="s2">&quot;FR&quot;</span><span class="p">),</span>
+    <span class="n">MetricRequest</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">"revenue"</span><span class="p">,),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">"ordered_month"</span><span class="p">,)),</span>
+    <span class="n">dialect</span><span class="o">=</span><span class="s2">"duckdb"</span><span class="p">,</span>
+    <span class="n">policy</span><span class="o">=</span><span class="n">RowPolicy</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="s2">"country"</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="n">Op</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="s2">"FR"</span><span class="p">),</span>
 <span class="p">)</span>
 </code></pre></div>
 <p>The rendered predicate reaches every scan of the mart relation, and
@@ -1925,15 +1925,15 @@ the emitted SQLMesh models in real life, by hand here):</p>
 <div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">duckdb</span>
 
 <span class="n">con</span> <span class="o">=</span> <span class="n">duckdb</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
-<span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;CREATE SCHEMA gold&quot;</span><span class="p">)</span>
-<span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"CREATE SCHEMA gold"</span><span class="p">)</span>
+<span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"""</span>
 <span class="s2">    CREATE TABLE gold.mart_orders AS</span>
 <span class="s2">    SELECT * FROM (VALUES</span>
-<span class="s2">        (&#39;FR&#39;, DECIMAL &#39;10.00&#39;, DATE &#39;2024-01-05&#39;),</span>
-<span class="s2">        (&#39;DE&#39;, DECIMAL &#39;20.00&#39;, DATE &#39;2024-01-20&#39;),</span>
-<span class="s2">        (&#39;FR&#39;, DECIMAL &#39;5.00&#39;,  DATE &#39;2024-02-01&#39;)</span>
+<span class="s2">        ('FR', DECIMAL '10.00', DATE '2024-01-05'),</span>
+<span class="s2">        ('DE', DECIMAL '20.00', DATE '2024-01-20'),</span>
+<span class="s2">        ('FR', DECIMAL '5.00',  DATE '2024-02-01')</span>
 <span class="s2">    ) AS t(country, amount, ordered_day)</span>
-<span class="s2">&quot;&quot;&quot;</span><span class="p">)</span>
+<span class="s2">"""</span><span class="p">)</span>
 <span class="n">rows</span> <span class="o">=</span> <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">plan</span><span class="o">.</span><span class="n">sql</span><span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
 </code></pre></div>
 <p>Pair the rows with <code>plan.columns</code> for names and types, and cache results under
@@ -2057,7 +2057,7 @@ so the fingerprint is a sound cache key.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.69c251d7.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>

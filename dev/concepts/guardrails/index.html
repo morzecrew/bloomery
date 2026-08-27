@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.53">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -1731,10 +1731,10 @@ currency × count is how extensive quantities work. Violation: <code>UnitMismatc
 is equally refused. A margin computed as <code>unit_price - supplier_cost</code>, where
 <code>supplier_cost</code> has no catalog link:</p>
 <div class="highlight"><pre><span></span><code>TaxBasisMismatch at entity_model: entities.order_item.fields.margin
-  &#39;-&#39; combines &#39;unit_price&#39; (tax_basis: net) with &#39;supplier_cost&#39;
+  '-' combines 'unit_price' (tax_basis: net) with 'supplier_cost'
   (tax_basis: unknown — the field has no canonical: link, so no metadata
   propagates). Arithmetic combining unknown with any basis is refused.
-  Fix: link &#39;supplier_cost&#39; to a catalog canonical field carrying tax_basis,
+  Fix: link 'supplier_cost' to a catalog canonical field carrying tax_basis,
   or add the field to the catalog.
 </code></pre></div>
 <p>The frustration of an early <code>unknown</code> refusal is deliberate: it forces catalog linkage
@@ -1759,22 +1759,22 @@ to line grain without aggregation is duplicated once per line, and every downstr
 modeling decision the author must write out. The derivation-level violation is
 <code>GrainMismatch</code>:</p>
 <div class="highlight"><pre><span></span><code>GrainMismatch at entity_model: entities.order_item.fields.landed_cost
-  &#39;+&#39; combines &#39;unit_price&#39; (grain: one row per line on an order) with
-  &#39;shipping_cost&#39; from entity &#39;order&#39; (grain: one row per order), reached via
-  relationship &#39;item_of_order&#39; (many_to_one) with no aggregation step.
+  '+' combines 'unit_price' (grain: one row per line on an order) with
+  'shipping_cost' from entity 'order' (grain: one row per order), reached via
+  relationship 'item_of_order' (many_to_one) with no aggregation step.
   Joined to line grain, shipping_cost is duplicated once per line; any SUM over
   landed_cost overstates shipping by the line count.
-  Fix: add an explicit aggregation/allocation over &#39;order_item&#39;, or declare the
-  derivation on entity &#39;order&#39;.
+  Fix: add an explicit aggregation/allocation over 'order_item', or declare the
+  derivation on entity 'order'.
 </code></pre></div>
 <p>The same guard also runs where fan-out would actually be <em>built</em>: over each mart
 definition, at compile time. A measure whose grain differs from the mart's grain is a
 <code>GrainViolation</code> at the declaration site —</p>
 <div class="highlight"><pre><span></span><code>GrainViolation at entity_model: marts.order_items.measures.shipping_cost
-  measure &#39;shipping_cost&#39; has grain &#39;order&#39; (one row per order), coarser than the
-  mart&#39;s grain &#39;order_item&#39; (one row per line on an order). Flattened into the mart
+  measure 'shipping_cost' has grain 'order' (one row per order), coarser than the
+  mart's grain 'order_item' (one row per line on an order). Flattened into the mart
   it is duplicated once per line; any SUM overstates shipping by the line count.
-  Fix: remove it from this mart&#39;s measures, or serve it from an order-grain mart
+  Fix: remove it from this mart's measures, or serve it from an order-grain mart
   (e.g. marts.orders).
 </code></pre></div>
 <p>— and a <code>flatten:</code> step whose relationship is not <code>many_to_one</code> or <code>one_to_one</code> is
@@ -2004,7 +2004,7 @@ every one of these refusals is exactly reproducible.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.69c251d7.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>

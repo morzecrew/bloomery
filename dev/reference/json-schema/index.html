@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.53">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -1693,13 +1693,13 @@ in the two places JSON Schema cannot express — both measured, both listed belo
 <h2 id="editor-setup">Editor setup<a class="headerlink" href="#editor-setup" title="Permanent link">&para;</a></h2>
 <p>VS Code, with the YAML extension:</p>
 <div class="highlight"><pre><span></span><code><span class="p">{</span>
-<span class="w">  </span><span class="nt">&quot;yaml.schemas&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/entity_model.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/entity_model.yaml&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/mapping.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/mapping*.yaml&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/metrics.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/metrics.yaml&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/marts.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/marts.yaml&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/steps.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/steps.yaml&quot;</span><span class="p">,</span>
-<span class="w">    </span><span class="nt">&quot;https://morzecrew.github.io/bloomery/schemas/v1/catalog.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;**/catalog.yaml&quot;</span>
+<span class="w">  </span><span class="nt">"yaml.schemas"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"https://morzecrew.github.io/bloomery/schemas/v1/entity_model.json"</span><span class="p">:</span><span class="w"> </span><span class="s2">"**/entity_model.yaml"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"https://morzecrew.github.io/bloomery/schemas/v1/mapping.json"</span><span class="p">:</span><span class="w"> </span><span class="s2">"**/mapping*.yaml"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"https://morzecrew.github.io/bloomery/schemas/v1/metrics.json"</span><span class="p">:</span><span class="w"> </span><span class="s2">"**/metrics.yaml"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"https://morzecrew.github.io/bloomery/schemas/v1/marts.json"</span><span class="p">:</span><span class="w"> </span><span class="s2">"**/marts.yaml"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"https://morzecrew.github.io/bloomery/schemas/v1/steps.json"</span><span class="p">:</span><span class="w"> </span><span class="s2">"**/steps.yaml"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"https://morzecrew.github.io/bloomery/schemas/v1/catalog.json"</span><span class="p">:</span><span class="w"> </span><span class="s2">"**/catalog.yaml"</span>
 <span class="w">  </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
@@ -1720,7 +1720,7 @@ are the same fact. See <a href="../stability/">stability</a> for what a version 
 version key itself.</p>
 <p>The transform whitelist is included, in all three authored spellings:</p>
 <div class="highlight"><pre><span></span><code><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">to_string</span><span class="p p-Indicator">]</span><span class="w">                    </span><span class="c1"># bare name</span>
-<span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">parse_ts</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ISO8601&quot;</span><span class="p p-Indicator">}]</span><span class="w">        </span><span class="c1"># single-key mapping</span>
+<span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">parse_ts</span><span class="p">:</span><span class="w"> </span><span class="s">"ISO8601"</span><span class="p p-Indicator">}]</span><span class="w">        </span><span class="c1"># single-key mapping</span>
 <span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">to_string</span><span class="p p-Indicator">,</span><span class="nt"> args</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]}]</span><span class="w">  </span><span class="c1"># normalized form</span>
 </code></pre></div>
 <p>The whitelist is read from the <strong>live</strong> registry, so a process that called
@@ -1892,7 +1892,7 @@ upgrade that renders a constraint differently, and a transform added to the regi
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.69c251d7.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>

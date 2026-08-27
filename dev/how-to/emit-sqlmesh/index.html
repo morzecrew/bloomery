@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.53">
+      <meta name="generator" content="zensical-0.0.55">
     
     
       
@@ -1712,7 +1712,7 @@ this page uses a deliberately small inline project so every step is visible.</p>
 database row) is your concern, not the library's:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_project</span>
 
-<span class="n">entity_model</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="n">entity_model</span> <span class="o">=</span> <span class="s2">"""</span>
 <span class="s2">spec_version: 1</span>
 <span class="s2">entities:</span>
 <span class="s2">  payment:</span>
@@ -1722,21 +1722,21 @@ database row) is your concern, not the library's:</p>
 <span class="s2">    fields:</span>
 <span class="s2">      payment_id: {type: string, required: true}</span>
 <span class="s2">      order_id: {type: string, required: true}</span>
-<span class="s2">      amount: {type: &quot;decimal(12,2)&quot;, assert: </span><span class="si">{min: 0}</span><span class="s2">}</span>
-<span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">      amount: {type: "decimal(12,2)", assert: </span><span class="si">{min: 0}</span><span class="s2">}</span>
+<span class="s2">"""</span>
 
-<span class="n">mapping</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="n">mapping</span> <span class="o">=</span> <span class="s2">"""</span>
 <span class="s2">mapping_version: 1</span>
 <span class="s2">source: psp__payments</span>
 <span class="s2">target: payment</span>
 <span class="s2">key:</span>
-<span class="s2">  payment_id: {from: &quot;$.id&quot;, transform: [to_string]}</span>
+<span class="s2">  payment_id: {from: "$.id", transform: [to_string]}</span>
 <span class="s2">fields:</span>
-<span class="s2">  order_id: {from: &quot;$.order_id&quot;, transform: [to_string]}</span>
-<span class="s2">  amount: {from: &quot;$.amount&quot;, transform: [{to_decimal: [12, 2]}]}</span>
-<span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">  order_id: {from: "$.order_id", transform: [to_string]}</span>
+<span class="s2">  amount: {from: "$.amount", transform: [{to_decimal: [12, 2]}]}</span>
+<span class="s2">"""</span>
 
-<span class="n">project</span> <span class="o">=</span> <span class="n">load_project</span><span class="p">({</span><span class="s2">&quot;entity_model.yaml&quot;</span><span class="p">:</span> <span class="n">entity_model</span><span class="p">,</span> <span class="s2">&quot;mapping.yaml&quot;</span><span class="p">:</span> <span class="n">mapping</span><span class="p">})</span>
+<span class="n">project</span> <span class="o">=</span> <span class="n">load_project</span><span class="p">({</span><span class="s2">"entity_model.yaml"</span><span class="p">:</span> <span class="n">entity_model</span><span class="p">,</span> <span class="s2">"mapping.yaml"</span><span class="p">:</span> <span class="n">mapping</span><span class="p">})</span>
 </code></pre></div>
 <p>If your project has a catalog, load it with <code>load_catalog(text)</code> and pass it as
 <code>catalog=</code> below — it is deliberately not part of <code>Project</code>
@@ -1744,7 +1744,7 @@ database row) is your concern, not the library's:</p>
 <h2 id="compile">Compile<a class="headerlink" href="#compile" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">Target</span><span class="p">,</span> <span class="n">compile_project</span>
 
-<span class="n">artifacts</span> <span class="o">=</span> <span class="n">compile_project</span><span class="p">(</span><span class="n">project</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">Target</span><span class="o">.</span><span class="n">SQLMESH</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s2">&quot;duckdb&quot;</span><span class="p">)</span>
+<span class="n">artifacts</span> <span class="o">=</span> <span class="n">compile_project</span><span class="p">(</span><span class="n">project</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">Target</span><span class="o">.</span><span class="n">SQLMESH</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s2">"duckdb"</span><span class="p">)</span>
 </code></pre></div>
 <p><code>dialect</code> selects the SQL rendering: <code>"duckdb"</code>, <code>"trino"</code>, or <code>"postgres"</code> ship in
 core. The choice changes only how expressions render (quoting, functions, type names) —
@@ -1756,7 +1756,7 @@ never touches the filesystem, so writing is your loop:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 
 <span class="k">for</span> <span class="n">artifact</span> <span class="ow">in</span> <span class="n">artifacts</span><span class="p">:</span>
-    <span class="n">destination</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;my_sqlmesh_repo&quot;</span><span class="p">)</span> <span class="o">/</span> <span class="n">artifact</span><span class="o">.</span><span class="n">path</span>
+    <span class="n">destination</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">"my_sqlmesh_repo"</span><span class="p">)</span> <span class="o">/</span> <span class="n">artifact</span><span class="o">.</span><span class="n">path</span>
     <span class="n">destination</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">destination</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">artifact</span><span class="o">.</span><span class="n">content</span><span class="p">)</span>
 </code></pre></div>
@@ -1957,7 +1957,7 @@ marker, and inventing one would silently degrade history. Composite keys work he
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.69c251d7.min.js"></script>
+      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
       
     
   </body>
