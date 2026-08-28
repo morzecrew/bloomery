@@ -33,12 +33,14 @@ see :class:`SpecEvidence`.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from bloomery.errors import BloomeryError, InvariantViolated
 from bloomery.ir import Materialization, UnreachableMetric, project_fingerprint
-from bloomery.resolve import Resolution, Stage, StageProgress, pipeline
+from bloomery.resolve import FieldProvenance, Resolution, Stage, StageProgress, pipeline
 
 # Imported at run time rather than under ``TYPE_CHECKING``: both appear in
 # ``evaluate``'s signature, and the signature-closure test resolves every
@@ -50,7 +52,10 @@ if TYPE_CHECKING:
     from bloomery.ir import MartIR, ProjectIR
 
 __all__ = [
+    "Gap",
     "MartSummary",
+    "OpenDecision",
+    "RecipeOption",
     "SpecEvidence",
     "evaluate",
 ]
@@ -80,6 +85,83 @@ class MartSummary:
     materialization: Materialization
 
 
+class Gap(StrEnum):
+    """Why a canonical field is unavailable — which decides the edit
+    (RFC 0030 D3).
+
+    The distinction is the report's reason to exist: both states arrive as the
+    same :class:`~bloomery.UnreachableMetric` today, and they are closed by
+    edits to two different documents.
+    """
+
+    #: No entity field carries ``canonical: <name>``. The edit is an
+    #: entity-model one — declare the field and link it — and it does not close
+    #: the decision, it turns it into :attr:`UNMAPPED` (RFC 0030 D10).
+    UNLINKED = "unlinked"
+    #: A field carries the link and no mapping produces it. The edit is a
+    #: mapping field, and it is where the recipe choice is.
+    UNMAPPED = "unmapped"
+
+
+@dataclass(frozen=True, slots=True)
+class RecipeOption:
+    """One derivation the catalog declares, as a chooser needs it.
+
+    A projection of :class:`~bloomery.spec.catalog.Recipe`, never an opinion
+    about it: the report enumerates and does not rank (RFC 0030 D2). What it
+    adds is proximity — ``requires`` names the alias slots a mapping's ``from:``
+    must bind, which lives in the catalog under a different key from the
+    canonical field a metric names, and a chooser that gets that join wrong
+    records a ``recipe:`` the compiler refuses.
+    """
+
+    id: str
+    #: The alias slots the mapping's ``from:`` must bind — **source paths**,
+    #: never canonical fields, which is what makes the loop terminate
+    #: (RFC 0030 D6).
+    requires: tuple[str, ...]
+    #: The recipe's expression; ``None`` is identity over a single requirement.
+    expr: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OpenDecision:
+    """One decision a spec leaves open, and the edit that would close it.
+
+    **Not a recommendation.** :attr:`options` is what the catalog declares, in
+    the order the catalog declares it, and bloomery neither ranks nor picks —
+    not even when there is exactly one (RFC 0005 D2, RFC 0030 D2/D4). A caller
+    that reads ``options[0]`` as advice has moved the compiler's refusal to
+    choose into its own code without noticing.
+
+    **Every entry names one edit** (RFC 0030 D9). An entry a caller cannot act
+    on is worse than a gap — it is a worklist item that never clears — so a
+    canonical whose entity is built by more than one mapping is left out
+    entirely: its columns are per mapping (RFC 0024 D26), and an entry keyed on
+    the canonical cannot say which document to edit. Nothing is hidden by that;
+    the metric blocked on it is still in
+    :attr:`~bloomery.SpecEvidence.unreachable`.
+    """
+
+    #: The unavailable canonical field, unprefixed (``net_revenue``).
+    canonical: str
+    gap: Gap
+    #: The entity to edit: the one carrying the link, or — when nothing carries
+    #: it — the one the catalog declares the canonical field for.
+    entity: str
+    #: The linked field, set iff :attr:`gap` is :attr:`Gap.UNMAPPED`.
+    field: str | None
+    #: The catalog's recipes for :attr:`canonical`, **in catalog order**
+    #: (RFC 0030 D2) — the one collection on this type that is not sorted.
+    #: May be empty, which says the catalog declares no derivation, and never
+    #: that the data is absent: bloomery does no I/O and cannot know that.
+    options: tuple[RecipeOption, ...]
+    #: The metrics blocked on this decision, sorted. Never empty — a canonical
+    #: nothing requires is not work — and it is what lets a caller set a
+    #: priority bloomery deliberately does not.
+    blocks: tuple[str, ...]
+
+
 @dataclass(frozen=True, slots=True)
 class SpecEvidence:
     """Everything knowable about a spec without touching data (RFC 0022 D1).
@@ -104,7 +186,14 @@ class SpecEvidence:
     :attr:`unreachable`                     ``(name, missing, via)``
     :attr:`marts`                           ``(name, grain)``
     :attr:`refusals`                        ``(source_path or "", class, str)``
+    :attr:`unresolved`                      ``canonical``
+    :attr:`provenance`                      ``(entity, field)``
     ======================================  ==================================
+
+    One collection escapes that rule, deliberately and in one place:
+    :attr:`OpenDecision.options` is in **catalog order**, because the catalog's
+    order is authored — recipes are "ordered by reliability" — and sorting it
+    would destroy information rather than normalize it (RFC 0030 D2).
 
     ``source_path`` is optional on a refusal, so the empty string stands in for
     ``None``: a refusal with no source path sorts first, deterministically,
@@ -149,6 +238,30 @@ class SpecEvidence:
     #: since a fingerprint over a draft would name a project that does not
     #: exist.
     fingerprint: str | None = None
+    # The two fields below are **appended after** ``fingerprint`` rather than
+    # grouped with the analysis tuples they belong with, and that is a
+    # compatibility decision rather than an ordering preference. Every field
+    # here has a default, so inserting one mid-list does not raise for a
+    # positional caller — it silently rebinds: `SpecEvidence(stage, reachable,
+    # unreachable, refusals, marts, entities, fingerprint)` would land the
+    # fingerprint in `unresolved` and leave `fingerprint` at `None`, producing
+    # an evidence value that is wrong in two places and refuses nothing.
+    # Appending is what keeps this addition additive (RFC 0018 D1); the
+    # docstring's table above is the reading order, and this is the wire order.
+    #: Every decision the spec leaves open, sorted by canonical field
+    #: (RFC 0030). Read :attr:`stage_reached` first, as for every tuple here:
+    #: empty means "nothing open" only where the resolve stage got far enough
+    #: to compute it.
+    unresolved: tuple[OpenDecision, ...] = ()
+    #: How each mapped entity field is produced — the loop's memory of what it
+    #: has already decided, and the recipe id it decided on (RFC 0030 D8).
+    #: Computed on every ``resolve()``; carried here rather than discarded.
+    #:
+    #: One entry per ``(entity, field)``, so a **merged entity's** field appears
+    #: once however many mappings build it — see
+    #: :class:`~bloomery.FieldProvenance`, which carries the limit and where it
+    #: is answered.
+    provenance: tuple[FieldProvenance, ...] = ()
 
 
 def _mart_summary(mart: MartIR) -> MartSummary:
@@ -190,8 +303,72 @@ def _refusal_key(refusal: BloomeryError) -> tuple[str, str, str]:
     return (refusal.source_path or "", type(refusal).__name__, str(refusal))
 
 
+def _unresolved(
+    project: Project, catalog: Catalog | None, resolution: Resolution
+) -> tuple[OpenDecision, ...]:
+    """Every open decision, joined from the resolution, the entity model and
+    the catalog (RFC 0030 §5.2).
+
+    **The open set is read off reachability, never recomputed.** An entry
+    exists for each canonical field some unreachable metric names as a missing
+    leaf — which is exactly "required by an effective metric, transitively, and
+    not available", already computed by ``compute_reachability`` over the one
+    shared DAG. A second notion of availability here is the drift §9's last
+    risk names, and it is avoided by not having one rather than by testing for
+    it.
+
+    The rest is the three-document join a chooser would otherwise write: the
+    entity model says whether anything links the canonical (the two gaps,
+    RFC 0030 D3), and the catalog says what may be recorded once something
+    does.
+    """
+    blocked_by: dict[str, list[str]] = {}
+    for metric in resolution.unreachable_metrics:
+        for canonical in metric.missing:
+            blocked_by.setdefault(canonical, []).append(metric.name)
+    if catalog is None:  # no canonical fields, so nothing requires one
+        return ()
+
+    # First in sort order where an entity carries the link twice: each of them
+    # closes the gap when mapped, so naming one is naming the edit rather than
+    # choosing between unequal options (`logs/T-0007.md` D-032).
+    linked: dict[str, tuple[str, str]] = {}
+    for entity_name, declared_entity in sorted(project.entity_model.entities.items()):
+        for field_name, field in sorted(declared_entity.fields.items()):
+            if field.canonical is not None:
+                linked.setdefault(field.canonical, (entity_name, field_name))
+    mappings_per_entity = Counter(mapping.target for mapping in project.mappings)
+
+    decisions: list[OpenDecision] = []
+    for canonical in sorted(blocked_by):
+        declared = catalog.canonical_fields[canonical]
+        link = linked.get(canonical)
+        entity = link[0] if link is not None else declared.entity
+        if mappings_per_entity[entity] > 1:
+            # RFC 0030 D9: a merged entity's columns are per mapping, so no
+            # single document is the edit. The blocked metric stays visible in
+            # `unreachable`; only the un-actionable worklist entry is withheld.
+            continue
+        decisions.append(
+            OpenDecision(
+                canonical=canonical,
+                gap=Gap.UNMAPPED if link is not None else Gap.UNLINKED,
+                entity=entity,
+                field=link[1] if link is not None else None,
+                options=tuple(
+                    RecipeOption(id=recipe.id, requires=recipe.requires, expr=recipe.expr)
+                    for recipe in declared.recipes
+                ),
+                blocks=tuple(sorted(blocked_by[canonical])),
+            )
+        )
+    return tuple(decisions)
+
+
 def _from_ir(
     stage: Stage,
+    project: Project,
+    catalog: Catalog | None,
     ir: ProjectIR,
     resolution: Resolution,
     refusals: tuple[BloomeryError, ...],
@@ -220,6 +397,8 @@ def _from_ir(
         reachable=reachable,
         unreachable=unreachable,
         refusals=refusals,
+        unresolved=_unresolved(project, catalog, resolution),
+        provenance=resolution.provenance,
         marts=tuple(
             sorted(
                 (_mart_summary(mart) for mart in ir.marts),
@@ -257,7 +436,13 @@ def _unreachable_key(metric: UnreachableMetric) -> tuple[str, tuple[str, ...], t
     return (metric.name, metric.missing, metric.via)
 
 
-def _partial(stage: Stage, progress: StageProgress, raised: BloomeryError) -> SpecEvidence:
+def _partial(
+    stage: Stage,
+    project: Project,
+    catalog: Catalog | None,
+    progress: StageProgress,
+    raised: BloomeryError,
+) -> SpecEvidence:
     """The prefix that survived a refusal at ``stage`` (RFC 0022 D3).
 
     Three widths, one per how far the pipeline got: a draft IR carries
@@ -265,19 +450,30 @@ def _partial(stage: Stage, progress: StageProgress, raised: BloomeryError) -> Sp
     refusal at the first stage carries nothing but itself. Each is what was
     genuinely computed — an empty tuple here means "not computed", which is why
     :attr:`SpecEvidence.stage_reached` has to be read first.
+
+    **The unresolved-work report travels with the resolution**, not with
+    ``COMPLETE``. RFC 0030 D5 says a refusal empties it, and its argument is
+    about a refusal *inside* the resolve stage — a malformed recipe id, where
+    there is no graph and so nothing to project. A spec that resolved cleanly
+    and was refused two stages later on a transform chain has open decisions
+    that are computed and correct, and withholding them would make ``unresolved``
+    the one field here that is empty for a reason ``stage_reached`` cannot
+    explain (`logs/T-0007.md` D-031).
     """
     refusals = _refusals(raised)
     resolution = progress.resolution
     if resolution is None:
         return SpecEvidence(stage_reached=stage, refusals=refusals)
     if progress.ir is not None:
-        return _from_ir(stage, progress.ir, resolution, refusals)
+        return _from_ir(stage, project, catalog, progress.ir, resolution, refusals)
     reachable, unreachable = _reachability(resolution)
     return SpecEvidence(
         stage_reached=stage,
         reachable=reachable,
         unreachable=unreachable,
         refusals=refusals,
+        unresolved=_unresolved(project, catalog, resolution),
+        provenance=resolution.provenance,
     )
 
 
@@ -328,9 +524,9 @@ def evaluate(
     except InvariantViolated:
         raise
     except BloomeryError as refusal:
-        return _partial(stage, progress, refusal)
+        return _partial(stage, project, catalog, progress, refusal)
     ir, resolution = progress.ir, progress.resolution
     if ir is None or resolution is None:  # pragma: no cover — COMPLETE carries both
         msg = "the pipeline reached COMPLETE without an IR"
         raise InvariantViolated(msg)
-    return _from_ir(Stage.COMPLETE, ir, resolution, (), project_fingerprint(ir))
+    return _from_ir(Stage.COMPLETE, project, catalog, ir, resolution, (), project_fingerprint(ir))

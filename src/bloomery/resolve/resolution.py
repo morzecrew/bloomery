@@ -47,7 +47,21 @@ class Provenance(StrEnum):
 @dataclass(frozen=True, slots=True)
 class FieldProvenance:
     """Provenance of one mapped entity field; ``recipe_id`` is set iff
-    ``provenance`` is :attr:`Provenance.RECIPE`."""
+    ``provenance`` is :attr:`Provenance.RECIPE`.
+
+    **One entry per ``(entity, field)``, which a merged entity can outgrow.**
+    Where several mappings build one entity (RFC 0024) they may implement the
+    same field differently — one straight from a column, another through a
+    recipe — and this collection keys on the field alone, so it reports the
+    last mapping in document order and no others. The field is still produced
+    the way each mapping says; what is not representable here is *that there
+    were two*.
+
+    Stated rather than fixed, because the fix is a shape change to a published
+    field: an entry would have to name its mapping, which is the same identity
+    RFC 0030 D9 withholds an open decision for want of, and belongs with
+    RFC 0024's merged-entity work rather than beside either reader.
+    """
 
     entity: str
     field: str

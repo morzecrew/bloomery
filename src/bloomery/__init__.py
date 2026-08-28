@@ -12,6 +12,8 @@ JSON Schema export (``spec_json_schema`` / ``all_spec_schemas`` with
 ``SpecKind`` and ``JsonDict`` — RFC 0020), spec assessment as one value
 (``evaluate`` with ``SpecEvidence`` / ``MartSummary`` / ``Stage`` — RFC 0022;
 ``Materialization`` comes with it, reached through ``MartSummary``), the
+unresolved-work report a chooser iterates on (``OpenDecision`` / ``Gap`` /
+``RecipeOption``, reached through ``SpecEvidence`` — RFC 0030), the
 extension points (``register_transform``, ``register_emitter``), and the
 total error hierarchy rooted at ``BloomeryError`` (import leaves from
 :mod:`bloomery.errors`) — whose structured fix suggestions carry the two
@@ -35,7 +37,14 @@ stay behind their own declared ``__all__`` (D2).
 from bloomery.compile import Target, compile_project
 from bloomery.emit import ArtifactKind, EmittedArtifact, TargetEmitter, register_emitter
 from bloomery.errors import BloomeryError, MartCoverage, MeasureRef
-from bloomery.evidence import MartSummary, SpecEvidence, evaluate
+from bloomery.evidence import (
+    Gap,
+    MartSummary,
+    OpenDecision,
+    RecipeOption,
+    SpecEvidence,
+    evaluate,
+)
 from bloomery.ir import Materialization, ProjectIR, UnreachableMetric, project_fingerprint
 from bloomery.naming import DefaultNaming, NamingPolicy
 from bloomery.plan import BackfillScope, Change, ChangeClass, Plan, ReplayScope, plan
@@ -118,6 +127,7 @@ __all__ = [
     "EmittedArtifact",
     "Explanation",
     "FieldProvenance",
+    "Gap",
     "Graph",
     "HydrationKey",
     "JsonDict",
@@ -135,6 +145,7 @@ __all__ = [
     "Node",
     "NodeKind",
     "Op",
+    "OpenDecision",
     "OrderDirection",
     "OrderSpec",
     "OutputType",
@@ -144,6 +155,7 @@ __all__ = [
     "ProjectIR",
     "Provenance",
     "QueryPlan",
+    "RecipeOption",
     "ReplayScope",
     "Resolution",
     "RowPolicy",

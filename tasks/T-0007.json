@@ -1,0 +1,27 @@
+{
+  "id": "T-0007",
+  "spec": "rfcs/0030-the-unresolved-work-report.md",
+  "phase": "One phase — the projection, the two fields, and the tests",
+  "decisions": [
+    {"id": "RFC 0030 D1", "grade": "LOCKED",
+     "paths": ["src/bloomery/spec/mapping.py", "src/bloomery/spec/entity.py",
+               "src/bloomery/spec/catalog.py"]},
+    {"id": "RFC 0030 D2", "grade": "LOCKED",
+     "paths": ["src/bloomery/evidence.py"]},
+    {"id": "RFC 0030 D3", "grade": "LOCKED",
+     "paths": ["src/bloomery/evidence.py"]},
+    {"id": "RFC 0030 D4", "grade": "LOCKED",
+     "paths": ["src/bloomery/evidence.py", "src/bloomery/resolve/recipes.py"]},
+    {"id": "RFC 0030 D5", "grade": "ASSUMED",
+     "paths": ["src/bloomery/evidence.py"]},
+    {"id": "RFC 0030 D6", "grade": "LOCKED",
+     "paths": ["src/bloomery/resolve/recipes.py", "src/bloomery/spec/catalog.py"]},
+    {"id": "RFC 0030 D7", "grade": "OPEN"},
+    {"id": "RFC 0030 D8", "grade": "ASSUMED",
+     "paths": ["src/bloomery/evidence.py"]},
+    {"id": "RFC 0030 D9", "grade": "LOCKED",
+     "paths": ["src/bloomery/evidence.py"]},
+    {"id": "RFC 0030 D10", "grade": "LOCKED",
+     "paths": ["src/bloomery/evidence.py"]}
+  ]
+}
