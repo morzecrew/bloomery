@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The unresolved-work report** — `SpecEvidence.unresolved` states every decision a spec
+  leaves open: the unavailable canonical field, **which of two edits would close it**, the
+  recipes the catalog declares for it, and the metrics waiting on it. Until now a metric
+  blocked because nothing carries `canonical: cogs` and one blocked because a field
+  carries it and no mapping produces it came back identically, and they need edits to two
+  different documents. `Gap.UNLINKED` is an entity-model edit; `Gap.UNMAPPED` is a mapping
+  field, and it is where a recipe id is recorded.
+
+  `options` is what the catalog declares, in catalog order — never ranked, never scored,
+  and never chosen, including where there is exactly one. Catalog order is authored
+  information (recipes are ordered by reliability), so it is the one collection on this
+  surface that is not sorted. An entry appears only where it names **one** edit: a
+  canonical field belonging to an entity that several mappings build is left out, because
+  such an entity's columns are per mapping; the metric blocked on it is still reported
+  unreachable.
+
+  `SpecEvidence.provenance` returns alongside it — direct, recipe (with the id), or native,
+  per mapped field. It was computed on every `resolve()` and discarded, and it is what a
+  loop reads to know what it has already decided. `bloomery resolve` prints the open
+  decisions with the ids the catalog offers; `--format json` carries each recipe's alias
+  slots too. Three names bind under SemVer: `OpenDecision`, `Gap`, `RecipeOption`. See
+  [Close an open decision](https://morzecrew.github.io/bloomery/how-to/close-an-open-decision/).
+
 - **`bloomery lineage`** — the lineage walk on the command line, as a deterministic edge
   list. `bloomery lineage <dir> --node metric.gross_revenue` prints the chain back to the
   source columns with the label on each edge saying how; `--direction downstream` gives

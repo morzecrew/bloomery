@@ -43,6 +43,7 @@ nav = [
         "how-to/plan-a-metric-request.md",
         "how-to/evolve-a-spec.md",
         "how-to/evaluate-a-spec.md",
+        "how-to/close-an-open-decision.md",
         "how-to/merge-sources.md",
         "how-to/resolve-identities.md",
         "how-to/trace-lineage.md",

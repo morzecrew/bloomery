@@ -104,6 +104,10 @@ Read that as: map `cogs`, and both `margin` and `margin_rate` unblock. Only bloc
 requirements appear in `via` — a required metric that is perfectly reachable is not on the
 path to anything missing.
 
+`unreachable` says what is blocked; `unresolved` says what edit would unblock it, and
+which recipes the catalog offers for the job. See
+[Close an open decision](close-an-open-decision.md).
+
 ## What it does not do
 
 **No data-dependent evidence, ever.** Coercion failure rates, null deltas, sample rows and

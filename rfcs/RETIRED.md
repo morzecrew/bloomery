@@ -73,6 +73,7 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0027 | ISO 8601 timestamps across dialects | `f4ca53d` |
 | 0028 | `timestamp` is zoneless UTC, on every port | `558b31c` |
 | 0029 | Transform types the engine agrees with | `558b31c` |
+| 0030 | The unresolved-work report | `bcae31d` |
 | 0031 | Lineage | `bcae31d` |
 
 ## Not in the table

@@ -307,6 +307,31 @@ def test_resolve_json_carries_fields_the_table_does_not_print(
     assert all(mart["measures"] and mart["dimensions"] for mart in marts)
 
 
+def test_resolve_prints_the_open_decisions_with_their_recipe_ids(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """RFC 0030 D7, settled in ``logs/T-0007.md`` D-033.
+
+    The table prints the canonical, its gap, where the edit goes and the ids the
+    catalog offers — and never a recipe's alias slots, which are bound against
+    source paths a reader has not got in front of them. Those are in the JSON,
+    which is what keeps the table a summary rather than a second, poorer API.
+    """
+    code, out, err = run(capsys, "resolve", ECOM)
+    assert code == EXIT_OK, err
+    assert "Open decisions (1)" in out
+    row = next(line for line in out.splitlines() if line.strip().startswith("cogs"))
+    assert row.split() == ["cogs", "unlinked", "order_item", "direct", "blocks:", "margin"]
+    payload = _json(capsys, "resolve", ECOM, "--format", "json")
+    assert isinstance(payload, dict)
+    decisions = payload["unresolved"]
+    assert isinstance(decisions, list)
+    assert decisions[0]["options"][0]["requires"] == ["cogs"], (
+        "the alias slots are the half the table withholds; JSON must carry them"
+    )
+    assert payload["provenance"], "the loop's memory is on the value and in the JSON"
+
+
 def test_a_logical_type_serializes_as_the_string_a_spec_writes(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

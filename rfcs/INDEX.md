@@ -69,7 +69,7 @@ know it has a companion recording where it turned out to be wrong.
 |---|---|---|---|
 | [0023](0023-temporal-joins-scd2-flattening-and-currency-conversion.md) | Temporal joins: SCD2 flattening and currency conversion | 🚧 In progress | Two constructs that compile clean and cannot be correct — flattening a historical dimension, and `convert` — both needing a join against a validity interval. |
 | [0024](0024-deterministic-union-merge.md) | Deterministic union merge | 🚧 In progress | Letting several mappings build one entity when they share a key space but no overlapping keys, so the entity model integrates sources instead of renaming one. Overlap stays a step. |
-| [0030](0030-the-unresolved-work-report.md) | The unresolved-work report | 📝 Draft | Resolution is a loop and bloomery reports it as a snapshot. What is still open, what edit would close it, and what was already decided — as a value, without the compiler ever choosing. |
+
 ## Status legend
 
 - 📝 **Draft** — proposed, not started

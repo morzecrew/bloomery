@@ -24,7 +24,7 @@ from bloomery import Direction, Stage
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from bloomery import Lineage, Plan, SpecEvidence, UnreachableMetric
+    from bloomery import Lineage, OpenDecision, Plan, SpecEvidence, UnreachableMetric
     from bloomery.errors import BloomeryError
 
 __all__ = [
@@ -65,6 +65,19 @@ def render_evidence(evidence: SpecEvidence) -> str:
     re-point: before this, `resolve` either printed reachability *or* raised,
     and a spec mid-draft is exactly when an author wants both.
 
+    **Open decisions print here** (RFC 0030 D7, settled in ``logs/T-0007.md``
+    D-033). The table already prints one row per unreachable metric; an open
+    decision is that same fact with the edit attached, and it is bounded by the
+    same set — a decision exists only for a canonical some metric requires. What
+    it prints of each option is the id, never the alias slots: see
+    :func:`_decision_row`.
+
+    :attr:`~bloomery.SpecEvidence.provenance` is **not** printed, for the reason
+    :attr:`~bloomery.SpecEvidence.entities` is not: it is a per-field enumeration
+    of what a spec already says, and it is on the value and in ``--format json``
+    for the loop that reads it. A worklist is what a person reads; a memory is
+    what an agent reads.
+
     :attr:`~bloomery.SpecEvidence.entities` is deliberately **not** printed, and
     is stated here so a later reader does not read the omission as an oversight.
     The command answers "which metrics are computable, and what is missing for
@@ -91,6 +104,9 @@ def render_evidence(evidence: SpecEvidence) -> str:
             ]
         )
     )
+    if evidence.unresolved:
+        lines.extend(("", f"Open decisions ({len(evidence.unresolved)})"))
+        lines.extend(_table([_decision_row(decision) for decision in evidence.unresolved]))
     if evidence.marts:
         lines.extend(("", f"Marts ({len(evidence.marts)})"))
         lines.extend(_table([(mart.name, f"grain: {mart.grain}") for mart in evidence.marts]))
@@ -116,6 +132,34 @@ def _via(metric: UnreachableMetric) -> str:
     unreachable list wants one row per metric, and most rows have no chain.
     """
     return ("via: " + ", ".join(metric.via)) if metric.via else ""
+
+
+def _decision_row(decision: OpenDecision) -> tuple[str, ...]:
+    """One open decision: what is missing, where the edit goes, what may be
+    recorded there (RFC 0030 D7; ``logs/T-0007.md`` D-033).
+
+    **Ids only, and never a recipe's ``requires``.** The alias slots are the
+    half of the join that a reader cannot act on from a terminal — they are
+    bound in a mapping's ``from:``, against source paths the CLI has not read —
+    and printing them is what would turn this from the most actionable line
+    ``bloomery resolve`` prints into the dump RFC 0030 D7 weighs it against.
+    ``--format json`` carries them, which is where the lossless surface lives
+    (RFC 0020 D4).
+
+    The order of the ids is the **catalog's** and is never re-sorted here
+    (RFC 0030 D2). It is authored information — recipes are ordered by
+    reliability — and a renderer that alphabetized it would be destroying it at
+    the last possible moment.
+    """
+    target = f"{decision.entity}.{decision.field}" if decision.field else decision.entity
+    options = ", ".join(option.id for option in decision.options) or "(no recipes)"
+    return (
+        decision.canonical,
+        decision.gap.value,
+        target,
+        options,
+        "blocks: " + ", ".join(decision.blocks),
+    )
 
 
 def _refusal(refusal: BloomeryError) -> list[str]:

@@ -121,6 +121,17 @@ for evidence_fixture in ("ecom_basic", "fanout_trap"):
     print([(u.name, u.missing) for u in evidence.unreachable])
     print([(m.name, m.grain, m.measures, m.dimensions, m.materialization) for m in evidence.marts])
     print([(r.source_path, type(r).__name__, str(r)) for r in evidence.refusals])
+    # The unresolved-work report (RFC 0030 §6). Its open set is keyed by a dict
+    # built while walking `unreachable_metrics`, its gap is decided by a walk
+    # over the entity model's dicts, and `options` is deliberately *not* sorted
+    # — catalog order is authored (D2), so this is the one collection here whose
+    # determinism rests on the parser preserving order rather than on a sort.
+    print([
+        (d.canonical, d.gap, d.entity, d.field, [(o.id, o.requires, o.expr) for o in d.options],
+         d.blocks)
+        for d in evidence.unresolved
+    ])
+    print([(p.entity, p.field, p.provenance, p.recipe_id) for p in evidence.provenance])
 """
 
 

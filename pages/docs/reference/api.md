@@ -115,14 +115,54 @@ shape of every mart. **Never raises for a spec-level refusal** — refusals are 
 return value, and whatever analysis completed before them comes back alongside.
 
 `InvariantViolated` and every programming error still propagate. See
-[Assess a spec](../how-to/evaluate-a-spec.md).
+[Assess a spec](../how-to/evaluate-a-spec.md) and
+[Close an open decision](../how-to/close-an-open-decision.md).
 
 ### `SpecEvidence`
 
 `stage_reached`, `reachable`, `unreachable`, `refusals`, `marts`, `entities`,
-`fingerprint`. **Read `stage_reached` first**: every tuple is empty both when there was
-nothing to find and when the stage that finds it never ran, and those mean opposite
-things. `fingerprint` is `None` unless `stage_reached is Stage.COMPLETE`.
+`unresolved`, `provenance`, `fingerprint`. **Read `stage_reached` first**: every tuple is
+empty both when there was nothing to find and when the stage that finds it never ran, and
+those mean opposite things. `fingerprint` is `None` unless `stage_reached is
+Stage.COMPLETE`.
+
+### `OpenDecision`
+
+`canonical`, `gap`, `entity`, `field`, `options`, `blocks` — one decision the spec leaves
+open, and the edit that would close it. `blocks` names the metrics waiting on it and is
+never empty: a canonical field nothing requires is not work. See
+[Close an open decision](../how-to/close-an-open-decision.md).
+
+`options` are **the recipes the catalog declares** for that field, in the order the
+catalog declares them. They are not suggestions, not candidates, and not ranked — bloomery
+validates a recorded choice and never makes one, including where there is exactly one
+option. Catalog order is authored information (recipes are ordered by reliability), so
+re-sorting it destroys something rather than normalizing it.
+
+An entry appears only where it can name **one** edit. A canonical field belonging to an
+entity that several mappings build is left out, because such an entity's columns are per
+mapping and no single document is the edit; the metric blocked on it is still in
+`unreachable`.
+
+### `Gap`
+
+`UNLINKED` — no entity field carries `canonical: <name>`, so the edit is an entity-model
+one. `UNMAPPED` — a field carries the link and no mapping produces it, so the edit is a
+mapping field and it is where a recipe id is recorded. The two report identically without
+this field, and they are the two different edits.
+
+### `RecipeOption`
+
+`id`, `requires`, `expr`. `requires` names the **alias slots** a mapping's `from:` must
+bind to source paths — never canonical fields — so recipes do not compose and a chooser's
+loop cannot grow work by doing it. `expr` is `None` for an identity over a single
+requirement.
+
+### `FieldProvenance`
+
+`entity`, `field`, `provenance` (`DIRECT` / `RECIPE` / `NATIVE`), `recipe_id` — set iff
+the provenance is `RECIPE`. On `SpecEvidence.provenance` and on `Resolution.provenance`:
+what a spec has already decided, and what it decided.
 
 ### `Stage`
 
@@ -368,7 +408,7 @@ a deep import:
 | --- | --- |
 | Specs and IR | `Project`, `Catalog`, `ProjectIR`, `UnreachableMetric` |
 | Compilation | `EmittedArtifact`, `ArtifactKind`, `TargetEmitter`, `NamingPolicy`, `DefaultNaming` |
-| Analysis | `Resolution`, `FieldProvenance`, `Provenance`, `Node`, `NodeKind`, `Graph`, `Edge`, `Lineage`, `Direction` |
+| Analysis | `Resolution`, `FieldProvenance`, `Provenance`, `Node`, `NodeKind`, `Graph`, `Edge`, `Lineage`, `Direction`, `OpenDecision`, `Gap`, `RecipeOption` |
 | Planner | `Clause`, `Scalar`, `Explanation`, `MeasureExplanation`, `ColumnRole`, `OrderDirection` |
 | Steps | `StepRegistry`, `StepManifest`, `EMPTY_REGISTRY` |
 | Transforms and types | `TransformSpec`, `ArgKind`, `Builder`, `OutputType`, `LogicalType` |

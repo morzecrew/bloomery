@@ -388,6 +388,15 @@ def test_every_tuple_is_sorted(name: str) -> None:
     assert [(m.name, m.grain) for m in evidence.marts] == sorted(
         (m.name, m.grain) for m in evidence.marts
     )
+    # RFC 0030's two fields sort by their own declared keys. `options` inside a
+    # decision deliberately does not — catalog order is authored (D2) — and
+    # `tests/unit/test_unresolved.py` is where that exception is asserted.
+    assert [d.canonical for d in evidence.unresolved] == sorted(
+        d.canonical for d in evidence.unresolved
+    )
+    assert [(p.entity, p.field) for p in evidence.provenance] == sorted(
+        (p.entity, p.field) for p in evidence.provenance
+    )
 
 
 def test_the_fixture_corpus_is_actually_being_walked() -> None:
