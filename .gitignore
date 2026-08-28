@@ -244,3 +244,4 @@ coverage-data/
 *.duckdb
 *.duckdb.wal
 
+.repowise/
