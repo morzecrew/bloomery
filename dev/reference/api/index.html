@@ -1035,6 +1035,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/close-an-open-decision/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Close an open decision
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/merge-sources/" class="md-nav__link">
         
   
@@ -1548,6 +1575,50 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         <code>SpecEvidence</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#opendecision" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>OpenDecision</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gap" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Gap</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recipeoption" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>RecipeOption</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fieldprovenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>FieldProvenance</code>
       </span>
     </span>
   </a>
@@ -2258,6 +2329,50 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#opendecision" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>OpenDecision</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gap" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>Gap</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#recipeoption" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>RecipeOption</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fieldprovenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>FieldProvenance</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#stage" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2924,12 +3039,42 @@ reachable, what is not and which leaf is missing, what was refused and where, an
 shape of every mart. <strong>Never raises for a spec-level refusal</strong> — refusals are the
 return value, and whatever analysis completed before them comes back alongside.</p>
 <p><code>InvariantViolated</code> and every programming error still propagate. See
-<a href="../../how-to/evaluate-a-spec/">Assess a spec</a>.</p>
+<a href="../../how-to/evaluate-a-spec/">Assess a spec</a> and
+<a href="../../how-to/close-an-open-decision/">Close an open decision</a>.</p>
 <h3 id="specevidence"><code>SpecEvidence</code><a class="headerlink" href="#specevidence" title="Permanent link">&para;</a></h3>
 <p><code>stage_reached</code>, <code>reachable</code>, <code>unreachable</code>, <code>refusals</code>, <code>marts</code>, <code>entities</code>,
-<code>fingerprint</code>. <strong>Read <code>stage_reached</code> first</strong>: every tuple is empty both when there was
-nothing to find and when the stage that finds it never ran, and those mean opposite
-things. <code>fingerprint</code> is <code>None</code> unless <code>stage_reached is Stage.COMPLETE</code>.</p>
+<code>unresolved</code>, <code>provenance</code>, <code>fingerprint</code>. <strong>Read <code>stage_reached</code> first</strong>: every tuple is
+empty both when there was nothing to find and when the stage that finds it never ran, and
+those mean opposite things. <code>fingerprint</code> is <code>None</code> unless <code>stage_reached is
+Stage.COMPLETE</code>.</p>
+<h3 id="opendecision"><code>OpenDecision</code><a class="headerlink" href="#opendecision" title="Permanent link">&para;</a></h3>
+<p><code>canonical</code>, <code>gap</code>, <code>entity</code>, <code>field</code>, <code>options</code>, <code>blocks</code> — one decision the spec leaves
+open, and the edit that would close it. <code>blocks</code> names the metrics waiting on it and is
+never empty: a canonical field nothing requires is not work. See
+<a href="../../how-to/close-an-open-decision/">Close an open decision</a>.</p>
+<p><code>options</code> are <strong>the recipes the catalog declares</strong> for that field, in the order the
+catalog declares them. They are not suggestions, not candidates, and not ranked — bloomery
+validates a recorded choice and never makes one, including where there is exactly one
+option. Catalog order is authored information (recipes are ordered by reliability), so
+re-sorting it destroys something rather than normalizing it.</p>
+<p>An entry appears only where it can name <strong>one</strong> edit. A canonical field belonging to an
+entity that several mappings build is left out, because such an entity's columns are per
+mapping and no single document is the edit; the metric blocked on it is still in
+<code>unreachable</code>.</p>
+<h3 id="gap"><code>Gap</code><a class="headerlink" href="#gap" title="Permanent link">&para;</a></h3>
+<p><code>UNLINKED</code> — no entity field carries <code>canonical: &lt;name&gt;</code>, so the edit is an entity-model
+one. <code>UNMAPPED</code> — a field carries the link and no mapping produces it, so the edit is a
+mapping field and it is where a recipe id is recorded. The two report identically without
+this field, and they are the two different edits.</p>
+<h3 id="recipeoption"><code>RecipeOption</code><a class="headerlink" href="#recipeoption" title="Permanent link">&para;</a></h3>
+<p><code>id</code>, <code>requires</code>, <code>expr</code>. <code>requires</code> names the <strong>alias slots</strong> a mapping's <code>from:</code> must
+bind to source paths — never canonical fields — so recipes do not compose and a chooser's
+loop cannot grow work by doing it. <code>expr</code> is <code>None</code> for an identity over a single
+requirement.</p>
+<h3 id="fieldprovenance"><code>FieldProvenance</code><a class="headerlink" href="#fieldprovenance" title="Permanent link">&para;</a></h3>
+<p><code>entity</code>, <code>field</code>, <code>provenance</code> (<code>DIRECT</code> / <code>RECIPE</code> / <code>NATIVE</code>), <code>recipe_id</code> — set iff
+the provenance is <code>RECIPE</code>. On <code>SpecEvidence.provenance</code> and on <code>Resolution.provenance</code>:
+what a spec has already decided, and what it decided.</p>
 <h3 id="stage"><code>Stage</code><a class="headerlink" href="#stage" title="Permanent link">&para;</a></h3>
 <p><code>RESOLVE</code>, <code>TYPECHECK</code>, <code>LOWER</code>, <code>GUARDRAILS</code>, <code>COMPLETE</code> — the stage analysis stopped
 at. Treat it as an <strong>open</strong> enum: compare against <code>COMPLETE</code> and read everything else
@@ -3117,7 +3262,7 @@ a deep import:</p>
 </tr>
 <tr>
 <td>Analysis</td>
-<td><code>Resolution</code>, <code>FieldProvenance</code>, <code>Provenance</code>, <code>Node</code>, <code>NodeKind</code>, <code>Graph</code>, <code>Edge</code>, <code>Lineage</code>, <code>Direction</code></td>
+<td><code>Resolution</code>, <code>FieldProvenance</code>, <code>Provenance</code>, <code>Node</code>, <code>NodeKind</code>, <code>Graph</code>, <code>Edge</code>, <code>Lineage</code>, <code>Direction</code>, <code>OpenDecision</code>, <code>Gap</code>, <code>RecipeOption</code></td>
 </tr>
 <tr>
 <td>Planner</td>

@@ -18,7 +18,7 @@
         <link rel="prev" href="../evolve-a-spec/">
       
       
-        <link rel="next" href="../merge-sources/">
+        <link rel="next" href="../close-an-open-decision/">
       
       
         
@@ -1164,6 +1164,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../close-an-open-decision/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Close an open decision
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../merge-sources/" class="md-nav__link">
         
   
@@ -1816,6 +1843,9 @@ fix is always a mapping, never a metric. When a metric is blocked <em>through</e
 <p>Read that as: map <code>cogs</code>, and both <code>margin</code> and <code>margin_rate</code> unblock. Only blocked
 requirements appear in <code>via</code> — a required metric that is perfectly reachable is not on the
 path to anything missing.</p>
+<p><code>unreachable</code> says what is blocked; <code>unresolved</code> says what edit would unblock it, and
+which recipes the catalog offers for the job. See
+<a href="../close-an-open-decision/">Close an open decision</a>.</p>
 <h2 id="what-it-does-not-do">What it does not do<a class="headerlink" href="#what-it-does-not-do" title="Permanent link">&para;</a></h2>
 <p><strong>No data-dependent evidence, ever.</strong> Coercion failure rates, null deltas, sample rows and
 row counts all require running the emitted SQL. That is outside the library by design: a
@@ -1904,13 +1934,13 @@ compilation is not.</p>
         
         
           
-          <a href="../merge-sources/" class="md-footer__link md-footer__link--next" aria-label="Next: Merge sources into one entity">
+          <a href="../close-an-open-decision/" class="md-footer__link md-footer__link--next" aria-label="Next: Close an open decision">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Merge sources into one entity
+                Close an open decision
               </div>
             </div>
             <div class="md-footer__button md-icon">
