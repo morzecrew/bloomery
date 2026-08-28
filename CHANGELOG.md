@@ -42,10 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the walk and `truncated` says when it did — a root with no lineage returns one node and
   `truncated=False`, because bounding to nothing and finding nothing are different facts.
 
-  Not shipped yet: the `bloomery lineage` CLI and `Direction.BOTH`, whose return shape is
-  still open (RFC 0031 D4). It arrives with the renderer that forces the answer, rather
-  than shipping now as a published shape that would then have to change.
-
 - **The dbt target emits singular tests** — `tests/<check>.sql`, a file whose query
   returns the rows that fail. Five constructs that raised `UnsupportedByTarget` now
   compile there, and they were one missing artifact rather than five limitations: a
