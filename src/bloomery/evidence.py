@@ -233,6 +233,21 @@ class SpecEvidence:
     marts: tuple[MartSummary, ...] = ()
     #: Entity names in the IR, including step-produced ones, sorted.
     entities: tuple[str, ...] = ()
+    #: The project fingerprint, or ``None`` when the IR never finished
+    #: building — which is every stage before :attr:`~bloomery.Stage.COMPLETE`,
+    #: since a fingerprint over a draft would name a project that does not
+    #: exist.
+    fingerprint: str | None = None
+    # The two fields below are **appended after** ``fingerprint`` rather than
+    # grouped with the analysis tuples they belong with, and that is a
+    # compatibility decision rather than an ordering preference. Every field
+    # here has a default, so inserting one mid-list does not raise for a
+    # positional caller — it silently rebinds: `SpecEvidence(stage, reachable,
+    # unreachable, refusals, marts, entities, fingerprint)` would land the
+    # fingerprint in `unresolved` and leave `fingerprint` at `None`, producing
+    # an evidence value that is wrong in two places and refuses nothing.
+    # Appending is what keeps this addition additive (RFC 0018 D1); the
+    # docstring's table above is the reading order, and this is the wire order.
     #: Every decision the spec leaves open, sorted by canonical field
     #: (RFC 0030). Read :attr:`stage_reached` first, as for every tuple here:
     #: empty means "nothing open" only where the resolve stage got far enough
@@ -241,12 +256,12 @@ class SpecEvidence:
     #: How each mapped entity field is produced — the loop's memory of what it
     #: has already decided, and the recipe id it decided on (RFC 0030 D8).
     #: Computed on every ``resolve()``; carried here rather than discarded.
+    #:
+    #: One entry per ``(entity, field)``, so a **merged entity's** field appears
+    #: once however many mappings build it — see
+    #: :class:`~bloomery.FieldProvenance`, which carries the limit and where it
+    #: is answered.
     provenance: tuple[FieldProvenance, ...] = ()
-    #: The project fingerprint, or ``None`` when the IR never finished
-    #: building — which is every stage before :attr:`~bloomery.Stage.COMPLETE`,
-    #: since a fingerprint over a draft would name a project that does not
-    #: exist.
-    fingerprint: str | None = None
 
 
 def _mart_summary(mart: MartIR) -> MartSummary:

@@ -30,6 +30,7 @@ from support.steps import registry_for
 from bloomery import (
     Catalog,
     MartSummary,
+    Provenance,
     SpecEvidence,
     Stage,
     build_project_ir,
@@ -396,6 +397,55 @@ def test_every_tuple_is_sorted(name: str) -> None:
     )
     assert [(p.entity, p.field) for p in evidence.provenance] == sorted(
         (p.entity, p.field) for p in evidence.provenance
+    )
+
+
+def test_a_field_added_to_the_value_does_not_rebind_a_positional_caller() -> None:
+    """Every field but the first has a default, so a **new** one inserted
+    mid-list rebinds silently rather than raising.
+
+    A caller written against the seven-field value —
+    ``SpecEvidence(stage, reachable, unreachable, refusals, marts, entities,
+    fingerprint)`` — would land its fingerprint in whatever now sits seventh and
+    leave ``fingerprint`` at ``None``: an evidence value wrong in two places
+    that refuses nothing and typechecks nowhere. Appending is what keeps an
+    addition additive, and this is the test that fails if the next field is
+    inserted instead.
+    """
+    evidence = SpecEvidence(
+        Stage.COMPLETE, ("gross_revenue",), (), (), (), ("order_item",), "blm1:deadbeef"
+    )
+    assert evidence.fingerprint == "blm1:deadbeef"
+    assert evidence.unresolved == ()
+    assert evidence.provenance == ()
+
+
+def test_a_merged_entitys_field_reports_one_provenance() -> None:
+    """The limit `FieldProvenance` states, pinned rather than left to prose.
+
+    Two mappings building one entity may implement one field two ways, and this
+    collection keys on ``(entity, field)`` — so it reports the last in document
+    order. That is the documented shape, not a bug this test is waiting on: an
+    entry would have to name its mapping to say more, which is the identity
+    RFC 0030 D9 also withholds an open decision for want of.
+    """
+    sources = fixture_sources("ecom_basic")
+    legacy = sources["mapping_order_items"].replace(
+        "source: shopify__order_lines", "source: legacy__order_lines"
+    )
+    legacy = legacy.replace(
+        'quantity: {from: "$.qty", transform: [to_int]}',
+        'quantity: {recipe: direct, from: {quantity: "$.units"}}',
+    )
+    sources["mapping_legacy"] = legacy
+    evidence = evaluate(load_project(sources), catalog=_ecom_catalog())
+    assert evidence.stage_reached is Stage.COMPLETE, evidence.refusals
+    quantity = [entry for entry in evidence.provenance if entry.field == "quantity"]
+    assert len(quantity) == 1, "one entry per (entity, field) — the documented limit"
+    # `mapping_legacy` sorts first, so the recipe it records is the one lost.
+    assert quantity[0].provenance is Provenance.DIRECT
+    assert "recipe: direct" in sources["mapping_legacy"], (
+        "the fixture must actually disagree with the other mapping, or this proves nothing"
     )
 
 
