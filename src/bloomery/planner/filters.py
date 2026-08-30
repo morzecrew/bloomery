@@ -73,6 +73,8 @@ if TYPE_CHECKING:
     from bloomery.planner.request import Clause, Predicate, Scalar
     from bloomery.typing import LogicalType
 
+# ----------------------- #
+
 __all__ = [
     "to_where",
 ]
@@ -104,13 +106,20 @@ def _mismatch(
     return FilterTypeMismatch(msg)
 
 
+# ....................... #
+
+
 def _quoted(text: str, *, dimension: str) -> str:
     if "\x00" in text:
         msg = f"filter value for {dimension!r} contains a NUL byte — refused"
         raise InvalidRequest(msg)
+
     escaped = text.replace("'", "''")
     neutral = "".join(_BRACES.get(char, char) for char in escaped)
     return f"'{neutral}'"
+
+
+# ....................... #
 
 
 def _decimal_carrier(value: str, declared: LogicalType, *, dimension: str) -> Decimal:
@@ -118,22 +127,29 @@ def _decimal_carrier(value: str, declared: LogicalType, *, dimension: str) -> De
     cannot express, parsed here — never cast in SQL. Non-finite forms
     (``NaN``/``Infinity``/``-Infinity``) are ``InvalidLiteral``: ``lt
     'NaN'`` fails open on Postgres and matches every row."""
+
     try:
         parsed = Decimal(value)
     except InvalidOperation as error:
         raise _mismatch(dimension, declared, value, "a decimal number") from error
+
     if not parsed.is_finite():
         msg = (
             f"filter value {value!r} for dimension {dimension!r} is non-finite — "
             "NaN/Infinity comparisons fail open, refused (RFC 0015 D5)"
         )
         raise InvalidLiteral(msg)
+
     return parsed
+
+
+# ....................... #
 
 
 def _literal(value: Scalar, declared: LogicalType, *, dimension: str) -> str:
     """One typed SQL literal (rules 1, 3, 5). Exhaustive over the closed
     ``LogicalType`` set; ``variant`` columns cannot be filtered."""
+
     match declared:
         case StringType():
             if isinstance(value, UUID):
@@ -191,23 +207,35 @@ def _literal(value: Scalar, declared: LogicalType, *, dimension: str) -> str:
             raise FilterTypeMismatch(msg)
 
 
+# ....................... #
+
+
 def _pattern_literal(value: Scalar, declared: LogicalType, *, dimension: str) -> str:
     """One ``like``/``ilike`` pattern (rule 4): the caller-owned pattern as a
     quoted literal with the fixed ``ESCAPE`` clause appended by the caller —
     nothing escaped here beyond injection safety (quote doubling, NUL,
     Jinja neutralization)."""
+
     if not isinstance(declared, StringType) or not isinstance(value, str):
         raise _mismatch(dimension, declared, value, "a string dimension and pattern")
+
     return _quoted(value, dimension=dimension)
+
+
+# ....................... #
 
 
 def _column_type(mart: MartIR, column: str) -> LogicalType:
     for mart_column in mart.columns:
         if mart_column.name == column:
             return mart_column.type
+
     raise PlannerError(  # pragma: no cover — coverage resolution guarantees it
         f"resolved dimension {column!r} is not a column of mart {mart.name!r}"
     )
+
+
+# ....................... #
 
 
 def _predicate(
@@ -225,13 +253,16 @@ def _predicate(
     dimension = resolved.name
     op = predicate.op
     values = predicate.values
+
     if op in COMPARISON_OPS:
         literal = _literal(values[0], declared, dimension=dimension)
         return f"{reference} {_COMPARISONS[op]} {literal}"
+
     if op in (Op.IN, Op.NOT_IN):
         rendered = ", ".join(_literal(v, declared, dimension=dimension) for v in values)
         keyword = "IN" if op is Op.IN else "NOT IN"
         return f"{reference} {keyword} ({rendered})"
+
     if op in (Op.LIKE, Op.ILIKE):
         subject = reference if op is Op.LIKE else f"LOWER({reference})"
         matches: list[str] = []
@@ -242,11 +273,16 @@ def _predicate(
         if len(matches) == 1:
             return matches[0]
         return f"({' OR '.join(matches)})"  # multi-pattern OR semantics (RFC 0015 §5.1)
+
     if op is Op.IS_NULL:
         keyword = "IS NULL" if values[0] else "IS NOT NULL"
         return f"{reference} {keyword}"
+
     msg = f"unknown filter operator {op!r}"  # pragma: no cover — request validation
     raise InvalidRequest(msg)  # pragma: no cover
+
+
+# ....................... #
 
 
 def _clause(
@@ -265,9 +301,14 @@ def _clause(
         _predicate(predicate, resolved, mart=mart, entity=entity)
         for predicate, resolved in zip(predicates, resolutions, strict=True)
     )
+
     if isinstance(clause, AnyOf):
         return f"({' OR '.join(rendered)})"
+
     return rendered[0]  # a bare Predicate clause renders unwrapped
+
+
+# ....................... #
 
 
 def to_where(
@@ -288,6 +329,7 @@ def to_where(
     both come from :func:`bloomery.planner.coverage.resolve_request`.
     """
     constraints: list[str] = []
+
     if policy is not None:
         if policy_dimension is None:  # pragma: no cover — the planner resolves it
             msg = "a row policy requires its resolved dimension"
@@ -295,8 +337,10 @@ def to_where(
         constraints.append(
             _predicate(policy.as_clause(), policy_dimension, mart=mart, entity=entity)
         )
+
     constraints.extend(
         _clause(clause, resolutions, mart=mart, entity=entity)
         for clause, resolutions in zip(filters, filter_dimensions, strict=True)
     )
+
     return tuple(constraints)

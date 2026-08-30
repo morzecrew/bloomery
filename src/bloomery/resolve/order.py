@@ -20,6 +20,8 @@ from bloomery.errors import CircularDerivation
 if TYPE_CHECKING:
     from bloomery.resolve.graph import Graph, Node
 
+# ----------------------- #
+
 __all__ = [
     "toposort",
 ]
@@ -59,6 +61,9 @@ def _key(node: Node) -> _NodeKey:
     return (node.name, node.kind.value)
 
 
+# ....................... #
+
+
 def _find_cycle(
     remaining: set[_NodeKey], predecessors: dict[_NodeKey, list[_NodeKey]]
 ) -> list[_NodeKey]:
@@ -72,6 +77,7 @@ def _find_cycle(
     path = [start]
     seen = {start: 0}
     current = start
+
     while True:
         current = min(key for key in predecessors[current] if key in remaining)
         if current in seen:
@@ -83,12 +89,16 @@ def _find_cycle(
         path.append(current)
 
 
+# ....................... #
+
+
 def toposort(graph: Graph) -> tuple[Node, ...]:
     """The deterministic topological order of the DAG (RFC 0005 D5)."""
     by_key = {_key(node): node for node in graph.nodes}
     indegree = dict.fromkeys(by_key, 0)
     successors: dict[_NodeKey, list[_NodeKey]] = {key: [] for key in by_key}
     predecessors: dict[_NodeKey, list[_NodeKey]] = {key: [] for key in by_key}
+
     for edge in graph.edges:
         indegree[_key(edge.dst)] += 1
         successors[_key(edge.src)].append(_key(edge.dst))
@@ -99,6 +109,7 @@ def toposort(graph: Graph) -> tuple[Node, ...]:
     # disagree with it.
     ready = sorted(key for key, degree in indegree.items() if degree == 0)
     order: list[Node] = []
+
     while ready:
         key = heapq.heappop(ready)
         order.append(by_key[key])
@@ -117,4 +128,5 @@ def toposort(graph: Graph) -> tuple[Node, ...]:
         rendered = " → ".join([name for name, _kind in [*cycle, cycle[0]]])
         msg = f"circular derivation: {rendered}"
         raise CircularDerivation(msg)
+
     return tuple(order)

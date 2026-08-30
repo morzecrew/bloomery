@@ -27,6 +27,8 @@ if TYPE_CHECKING:
     from bloomery import Lineage, OpenDecision, Plan, SpecEvidence, UnreachableMetric
     from bloomery.errors import BloomeryError
 
+# ----------------------- #
+
 __all__ = [
     "render_evidence",
     "render_lineage",
@@ -40,14 +42,21 @@ def _table(rows: Sequence[tuple[str, ...]], *, indent: str = "  ") -> list[str]:
     Unpadded because trailing whitespace on the last column is invisible in a
     terminal and very visible in a diff of captured output.
     """
+
     if not rows:
         return []
+
     widths = [max(len(row[index]) for row in rows) for index in range(len(rows[0]))]
     lines: list[str] = []
+
     for row in rows:
         cells = [cell.ljust(widths[index]) for index, cell in enumerate(row[:-1])]
         lines.append((indent + "  ".join([*cells, row[-1]])).rstrip())
+
     return lines
+
+
+# ....................... #
 
 
 def render_evidence(evidence: SpecEvidence) -> str:
@@ -88,8 +97,10 @@ def render_evidence(evidence: SpecEvidence) -> str:
     been a summary, as ``render_plan`` is of a ``Plan``.
     """
     lines = [f"Stage: {evidence.stage_reached.value}"]
+
     if evidence.stage_reached is not Stage.COMPLETE:
         lines.append("  analysis stopped here — every count below is a prefix, not a total")
+
     if evidence.fingerprint is not None:
         lines.append(f"Fingerprint: {evidence.fingerprint}")
 
@@ -104,17 +115,24 @@ def render_evidence(evidence: SpecEvidence) -> str:
             ]
         )
     )
+
     if evidence.unresolved:
         lines.extend(("", f"Open decisions ({len(evidence.unresolved)})"))
         lines.extend(_table([_decision_row(decision) for decision in evidence.unresolved]))
+
     if evidence.marts:
         lines.extend(("", f"Marts ({len(evidence.marts)})"))
         lines.extend(_table([(mart.name, f"grain: {mart.grain}") for mart in evidence.marts]))
+
     if evidence.refusals:
         lines.extend(("", f"Refusals ({len(evidence.refusals)})"))
         for refusal in evidence.refusals:
             lines.extend(_refusal(refusal))
+
     return "\n".join(lines)
+
+
+# ....................... #
 
 
 #: Where a wrapped refusal message breaks. A constant rather than the terminal's
@@ -131,7 +149,11 @@ def _via(metric: UnreachableMetric) -> str:
     An empty third column rather than a second table: a reader scanning the
     unreachable list wants one row per metric, and most rows have no chain.
     """
+
     return ("via: " + ", ".join(metric.via)) if metric.via else ""
+
+
+# ....................... #
 
 
 def _decision_row(decision: OpenDecision) -> tuple[str, ...]:
@@ -162,6 +184,9 @@ def _decision_row(decision: OpenDecision) -> tuple[str, ...]:
     )
 
 
+# ....................... #
+
+
 def _refusal(refusal: BloomeryError) -> list[str]:
     """One refusal as a source path and its wrapped message.
 
@@ -181,6 +206,9 @@ def _refusal(refusal: BloomeryError) -> list[str]:
     return [head, *body]
 
 
+# ....................... #
+
+
 def render_plan(plan: Plan) -> str:
     """``bloomery plan``'s human output: every classified change, then scope.
 
@@ -188,8 +216,10 @@ def render_plan(plan: Plan) -> str:
     reader decides on — RFC 0007's expand/contract rule makes the rest
     informational and that one blocking.
     """
+
     if not plan.has_changes:
         return "No changes."
+
     lines = [f"Changes ({len(plan.changes)}, {len(plan.breaking)} breaking)"]
     lines.extend(
         _table(
@@ -201,15 +231,21 @@ def render_plan(plan: Plan) -> str:
     entities = plan.backfill_scope.entities
     lines.extend(_table([(name,) for name in entities]) if entities else ["  (none)"])
     replay = plan.replay_scope.entities
+
     if replay:
         lines.append("")
         lines.append("Quarantine replay scope")
         lines.extend(_table([(name,) for name in replay]))
+
     if plan.downstream_impact:
         lines.append("")
         lines.append("Downstream metrics")
         lines.extend(_table([(name,) for name in plan.downstream_impact]))
+
     return "\n".join(lines)
+
+
+# ....................... #
 
 
 def render_lineage(walk: Lineage) -> str:
@@ -242,6 +278,7 @@ def render_lineage(walk: Lineage) -> str:
     does not say it is bounded is the failure RFC 0022 D5 names.
     """
     heading = f"{walk.root.name}  ({walk.direction.value})"
+
     if not walk.edges:
         if walk.direction is Direction.BOTH:
             # "both" is not a direction the other branch's sentences can name:
@@ -263,11 +300,14 @@ def render_lineage(walk: Lineage) -> str:
                 f" {walk.direction.value} lineage, and none of it is shown"
             )
         return "\n".join([heading, cut if walk.truncated else absent])
+
     lines = [
         heading,
         *_table([(edge.src.name, f"--{edge.label}-->", edge.dst.name) for edge in walk.edges]),
     ]
+
     if walk.truncated:
         lines.append("")
         lines.append("  truncated: --max-depth stopped the walk; there is more beyond this")
+
     return "\n".join(lines)

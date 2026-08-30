@@ -24,6 +24,8 @@ from bloomery.spec.common import (
     SpecModel,
 )
 
+# ----------------------- #
+
 __all__ = [
     "CumulativeSpec",
     "Metric",
@@ -38,12 +40,18 @@ class CumulativeSpec(SpecModel):
     window: str | None = None
     grain_to_date: str | None = None
 
+    # ....................... #
+
     @model_validator(mode="after")
     def _exactly_one(self) -> CumulativeSpec:
         if (self.window is None) == (self.grain_to_date is None):
             msg = "cumulative requires exactly one of 'window' or 'grain_to_date'"
             raise ValueError(msg)
+
         return self
+
+
+# ....................... #
 
 
 class Metric(SpecModel):
@@ -65,6 +73,9 @@ class Metric(SpecModel):
     ratio: RatioSpec | None = None
     semi_additive: SemiAdditivePolicy | None = None
     cumulative: CumulativeSpec | None = None
+
+
+# ....................... #
 
 
 class MetricSet(SpecModel):

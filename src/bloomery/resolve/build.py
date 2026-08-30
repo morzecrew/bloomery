@@ -109,6 +109,8 @@ if TYPE_CHECKING:
     from bloomery.steps import StepManifest
     from bloomery.transforms import Registry
 
+# ----------------------- #
+
 __all__ = [
     "Stage",
     "StageProgress",
@@ -157,6 +159,9 @@ class Stage(StrEnum):
     COMPLETE = "complete"
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class StageProgress:
     """What analysis had produced *before* the stage it is yielded with ran.
@@ -168,6 +173,9 @@ class StageProgress:
 
     resolution: Resolution | None = None
     ir: ProjectIR | None = None
+
+
+# ....................... #
 
 
 def pipeline(
@@ -218,14 +226,24 @@ def pipeline(
     yield Stage.COMPLETE, StageProgress(resolution=resolution, ir=finished)
 
 
+# ....................... #
+
+
 def _field_type(entity_name: str, field_name: str, field: Field) -> LogicalType:
     path = f"entity_model: entities.{entity_name}.fields.{field_name}.type"
     return parse_type(field.type, source_path=path)
 
 
+# ....................... #
+
+
 def _identity_shape(node: Expression) -> Expression:
     """The shipped produce-or-raise lowering: no marker, nothing rewritten."""
+
     return node
+
+
+# ....................... #
 
 
 def _try_cast_shape(node: Expression) -> Expression:
@@ -247,9 +265,13 @@ def _try_cast_shape(node: Expression) -> Expression:
     def shaped(child: Expression) -> Expression:
         if type(child) is exp.Cast:
             return exp.TryCast(this=child.this, to=child.to)
+
         return child
 
     return node.transform(shaped)
+
+
+# ....................... #
 
 
 def _lower_chain(
@@ -262,8 +284,10 @@ def _lower_chain(
     source_path: str,
 ) -> Expression:
     node = extraction(path)
+
     if not steps:
         return exp.cast(node, neutral_type(declared))
+
     # The running logical type, threaded so a builder that declares `types` can
     # construct against the same fact its `output_type` declares (RFC 0029 D1).
     # Bronze lands as text, which is where `chain_segments` starts too; after a
@@ -273,6 +297,7 @@ def _lower_chain(
     # over every chain before Stage.LOWER, so a chain reaching this loop has
     # already been proven, with the per-step source paths that stage attaches.
     current: LogicalType = StringType()
+
     for step in steps:
         if step.step is not None:
             node, current = _splice_link(step.step, node, macros, source_path=source_path)
@@ -284,10 +309,16 @@ def _lower_chain(
             else spec.builder(node, *step.args)
         )
         current = spec.output_type(current, step.args)
+
     terminal = _chain_terminal(steps, declared, reg, macros, source_path=source_path)
+
     if terminal != declared:
         node = exp.cast(node, neutral_type(declared))
+
     return node
+
+
+# ....................... #
 
 
 def _splice_link(
@@ -316,6 +347,9 @@ def _splice_link(
     return splice(body, arguments), parse_type(produced.type, source_path=source_path)
 
 
+# ....................... #
+
+
 def chain_segments(
     steps: tuple[TransformStep, ...],
     declared: LogicalType,
@@ -340,6 +374,7 @@ def chain_segments(
     segments: list[tuple[LogicalType, tuple[TransformStep, ...], LogicalType]] = []
     current: LogicalType = StringType()
     run: list[TransformStep] = []
+
     for step in steps:
         if step.step is None:
             run.append(step)
@@ -352,8 +387,13 @@ def chain_segments(
         (output,) = manifest.outputs.values()
         (produced,) = output.produces.values()
         current = parse_type(produced.type, source_path=source_path)
+
     segments.append((current, tuple(run), declared))
+
     return tuple(segments)
+
+
+# ....................... #
 
 
 def _chain_terminal(
@@ -365,17 +405,23 @@ def _chain_terminal(
     source_path: str,
 ) -> LogicalType:
     terminal = declared
+
     for input_type, run, expected in chain_segments(
         steps, declared, macros, source_path=source_path
     ):
         terminal = typecheck_chain(input_type, run, expected, registry=reg, source_path=source_path)
+
     return terminal
+
+
+# ....................... #
 
 
 def _typecheck_project(project: Project, reg: Registry, macros: StepRegistry) -> None:
     """Batch-check every non-empty transform chain (RFC 0004 §5.4). Empty
     chains are declared-type casts at extraction and carry no chain to check."""
     checks: list[ChainCheck] = []
+
     for mapping in project.mappings:
         doc = mapping_doc(mapping)
         entity = project.entity_model.entities[mapping.target]
@@ -402,7 +448,11 @@ def _typecheck_project(project: Project, reg: Registry, macros: StepRegistry) ->
                     field_mapping.transform, declared, macros, source_path=path
                 )
             )
+
     typecheck_chains(checks, registry=reg)
+
+
+# ....................... #
 
 
 def _catalog_metadata(
@@ -410,10 +460,14 @@ def _catalog_metadata(
 ) -> tuple[Unit | None, TaxBasis | None, str | None]:
     if field.canonical is None or catalog is None:
         return None, None, None
+
     canonical_field = catalog.canonical_fields[field.canonical]
     unit = Unit(canonical_field.unit) if canonical_field.unit is not None else None
     tax = TaxBasis(canonical_field.tax_basis) if canonical_field.tax_basis is not None else None
     return unit, tax, canonical_field.description
+
+
+# ....................... #
 
 
 def _column_pair(
@@ -454,6 +508,9 @@ def _column_pair(
     )
 
 
+# ....................... #
+
+
 def _recipe_expr(
     field_mapping: RecipeFieldMapping,
     declared: LogicalType,
@@ -463,6 +520,7 @@ def _recipe_expr(
     catalog: Catalog | None,
 ) -> tuple[Expression, str]:
     recipe = resolve_recipe(mapping, field_name, field_mapping, project, catalog)
+
     if recipe.expr is None:
         # Identity recipe: the single required alias, cast to the declared type.
         body = extraction(field_mapping.from_[recipe.requires[0]])
@@ -472,10 +530,15 @@ def _recipe_expr(
         def substitute(node: Expression) -> Expression:
             if isinstance(node, exp.Column) and not node.table and node.name in field_mapping.from_:
                 return extraction(field_mapping.from_[node.name])
+
             return node
 
         body = parsed.transform(substitute)
+
     return exp.cast(body, neutral_type(declared)), recipe.id
+
+
+# ....................... #
 
 
 def _macro_parts(
@@ -485,6 +548,7 @@ def _macro_parts(
     refusal about *which steps may be spliced at all* applied once."""
     ref, version = use.split("@", 1)
     manifest = macros.resolve(ref, int(version), source_path=source_path)
+
     if manifest.kind != "sql_macro":
         msg = (
             f"field references step {use!r}, which is a {manifest.kind} and cannot be "
@@ -493,6 +557,7 @@ def _macro_parts(
             "relation belongs"
         )
         raise StepError(msg, source_path=source_path)
+
     if manifest.determinism != "pure":
         msg = (
             f"field references step {use!r}, which declares determinism: "
@@ -501,22 +566,30 @@ def _macro_parts(
             "makes a restatement disagree with the run it replaces"
         )
         raise StepDeterminismError(msg, source_path=source_path)
+
     body = macros.macro_body(ref, int(version))
+
     if body is None:
         msg = (
             f"field references step {use!r} but the registry carries no macro body for it "
             "(RFC 0017 §5.3); with none there the column would lower to nothing at all"
         )
         raise StepError(msg, source_path=source_path)
+
     parsed = cast("Expression", parse_one(body))
     _refuse_body_disagreement(use, manifest, parsed, source_path=source_path)
+
     return manifest, parsed
+
+
+# ....................... #
 
 
 def _refuse_unchainable(use: str, manifest: StepManifest, *, source_path: str) -> None:
     """A chain carries exactly one running value, so a link must accept
     exactly one column — checked rather than assumed, because a two-column
     macro reached this way would silently drop an argument."""
+
     if len(manifest.accepts) != 1:
         expected = ", ".join(sorted(manifest.accepts)) or "(nothing)"
         msg = (
@@ -526,7 +599,9 @@ def _refuse_unchainable(use: str, manifest: StepManifest, *, source_path: str) -
             "is bound to its own source path"
         )
         raise StepError(msg, source_path=source_path)
+
     undefaulted = sorted(name for name, spec in manifest.parameters.items() if spec.default is None)
+
     if undefaulted:
         # A chain link has nowhere to put parameter values — the `{step: ref@v}`
         # form is a bare reference, unlike the `step:`/`from:` field shape which
@@ -543,6 +618,9 @@ def _refuse_unchainable(use: str, manifest: StepManifest, *, source_path: str) -
         raise StepError(msg, source_path=source_path)
 
 
+# ....................... #
+
+
 def _macro_parameters(
     manifest: StepManifest, overrides: dict[str, object]
 ) -> dict[str, Expression]:
@@ -553,10 +631,14 @@ def _macro_parameters(
         if spec.default is not None
     }
     resolved.update({name: str(value) for name, value in overrides.items()})
+
     return {
         name: parameter_literal(value, manifest.parameters[name].type)
         for name, value in resolved.items()
     }
+
+
+# ....................... #
 
 
 def _macro_expr(
@@ -579,7 +661,11 @@ def _macro_expr(
         alias: extraction(path) for alias, path in field_mapping.from_.items()
     }
     arguments.update(_macro_parameters(manifest, dict(field_mapping.parameters)))
+
     return exp.cast(splice(body, arguments), neutral_type(declared))
+
+
+# ....................... #
 
 
 def _refuse_body_disagreement(
@@ -596,6 +682,7 @@ def _refuse_body_disagreement(
     """
     declared = set(manifest.accepts) | set(manifest.parameters)
     used = placeholders(parsed)
+
     if undeclared := sorted(used - declared):
         msg = (
             f"step {use!r} has a body referring to :{', :'.join(undeclared)}, which its "
@@ -603,12 +690,16 @@ def _refuse_body_disagreement(
             "is declared, never read off its body (RFC 0017 D51)"
         )
         raise StepError(msg, source_path=source_path)
+
     if unused := sorted(declared - used):
         msg = (
             f"step {use!r} declares {', '.join(unused)}, which its body never refers to. "
             f"A call site would be required to supply :{unused[0]} for nothing"
         )
         raise StepError(msg, source_path=source_path)
+
+
+# ....................... #
 
 
 def _refuse_macro_disagreement(
@@ -625,6 +716,7 @@ def _refuse_macro_disagreement(
     puzzle handed to whoever wired it.
     """
     supplied = set(field_mapping.from_)
+
     if missing := sorted(set(manifest.accepts) - supplied):
         msg = (
             f"field does not bind {', '.join(missing)}, which step {field_mapping.step!r} "
@@ -632,6 +724,7 @@ def _refuse_macro_disagreement(
             f"{', '.join(f'{n}: {t}' for n, t in sorted(manifest.accepts.items()))}"
         )
         raise StepError(msg, source_path=source_path)
+
     if spare := sorted(supplied - set(manifest.accepts)):
         msg = (
             f"field binds {', '.join(spare)}, which step {field_mapping.step!r} does not "
@@ -639,6 +732,7 @@ def _refuse_macro_disagreement(
             "The path would be read for nothing — and a typo here is otherwise silent"
         )
         raise StepError(msg, source_path=source_path)
+
     if unknown := sorted(set(field_mapping.parameters) - set(manifest.parameters)):
         msg = (
             f"field sets parameter(s) {', '.join(unknown)} that step "
@@ -646,6 +740,9 @@ def _refuse_macro_disagreement(
             f"{', '.join(sorted(manifest.parameters)) or '(none)'}"
         )
         raise StepError(msg, source_path=source_path)
+
+
+# ....................... #
 
 
 def _repair_bodies(
@@ -676,6 +773,7 @@ def _repair_bodies(
         else frozenset({entity.dedupe.field, *entity.dedupe.tie_break})
     )
     bodies: dict[str, str] = {}
+
     for column, field_mapping in mapped_fields(mapping):
         if field_mapping is None:
             continue
@@ -712,7 +810,11 @@ def _repair_bodies(
                 **_macro_parameters(manifest, dict(rule.repair.parameters)),
             }
             bodies[column] = canon(exp.cast(splice(body, arguments), neutral_type(declared))).sql
+
     return bodies
+
+
+# ....................... #
 
 
 def _refuse_unrepairing(use: str, manifest: StepManifest, column: str, *, where: str) -> None:
@@ -723,6 +825,7 @@ def _refuse_unrepairing(use: str, manifest: StepManifest, column: str, *, where:
     Tier 1 field shape uses has no counterpart on a quality rule, and inventing
     one would make a rule a second mapping surface.
     """
+
     if len(manifest.accepts) != 1:
         accepted = ", ".join(sorted(manifest.accepts)) or "(nothing)"
         msg = (
@@ -734,13 +837,22 @@ def _refuse_unrepairing(use: str, manifest: StepManifest, column: str, *, where:
         raise StepError(msg, source_path=where)
 
 
+# ....................... #
+
+
 def _materialization(entity: Entity) -> Materialization:
     """RFC 0002 D7: declared wins; the derived default is only the default."""
+
     if entity.materialization is not None:
         return Materialization(entity.materialization)
+
     if entity.partition_by:
         return Materialization.INCREMENTAL_BY_PARTITION
+
     return Materialization.FULL
+
+
+# ....................... #
 
 
 def _build_source(
@@ -876,6 +988,9 @@ def _build_source(
     )
 
 
+# ....................... #
+
+
 def _filled(source: SourceIR, columns: tuple[ColumnIR, ...]) -> SourceIR:
     """``source`` with a typed ``NULL`` projection for every entity column it
     does not map (RFC 0024 §5.2 rule 3).
@@ -895,8 +1010,10 @@ def _filled(source: SourceIR, columns: tuple[ColumnIR, ...]) -> SourceIR:
     """
     projected = {column.name for column in source.columns}
     missing = [column for column in columns if column.name not in projected]
+
     if not missing:
         return source
+
     return replace(
         source,
         columns=tuple(
@@ -915,6 +1032,9 @@ def _filled(source: SourceIR, columns: tuple[ColumnIR, ...]) -> SourceIR:
             )
         ),
     )
+
+
+# ....................... #
 
 
 def _build_entity(
@@ -984,6 +1104,9 @@ def _build_entity(
     )
 
 
+# ....................... #
+
+
 def _merge_refusals(
     entity_name: str, entity: Entity, mappings: tuple[Mapping, ...]
 ) -> list[ResolutionError]:
@@ -1002,13 +1125,17 @@ def _merge_refusals(
     disagree about a column's type without both failing first (§5.7).
     """
     errors: list[ResolutionError] = []
+
     if len(mappings) < 2:
         return errors
+
     count = len(mappings)
 
     by_source: dict[str, list[Mapping]] = {}
+
     for mapping in mappings:
         by_source.setdefault(mapping.source, []).append(mapping)
+
     for relation in sorted(by_source):
         tied = by_source[relation]
         if len(tied) < 2:
@@ -1071,7 +1198,11 @@ def _merge_refusals(
                 "'direct:' while the entity is merged"
             )
             errors.append(ResolutionError(msg, source_path=f"{doc}: fields.{field_name}.direct"))
+
     return errors
+
+
+# ....................... #
 
 
 def _quality_refusals(
@@ -1102,6 +1233,7 @@ def _quality_refusals(
     """
     count = len(mappings)
     errors: list[ResolutionError] = []
+
     # One reason, two destinations: D14 refuses both blocks for the same row
     # identity, but §12 restores them in different phases — `dedupe:` in P2b,
     # `quarantine:` in P2c behind the N-way replay RFC D16 defers. A shared
@@ -1122,6 +1254,7 @@ def _quality_refusals(
         errors.append(
             ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.{block}")
         )
+
     if entity.quality:
         errors.append(
             ResolutionError(
@@ -1129,6 +1262,7 @@ def _quality_refusals(
                 source_path=f"entity_model: entities.{entity_name}.quality",
             )
         )
+
     for mapping in mappings:
         doc = mapping_doc(mapping)
         for field_name, field_mapping in mapped_fields(mapping):
@@ -1142,7 +1276,11 @@ def _quality_refusals(
                     source_path=f"{doc}: fields.{field_name}.quality",
                 )
             )
+
     return errors
+
+
+# ....................... #
 
 
 #: One sentence per reason, shared by the two sites D29's refusal fires from —
@@ -1170,8 +1308,10 @@ def _build_entities(
     refusal was sitting on.
     """
     by_target: dict[str, list[Mapping]] = {}
+
     for mapping in project.mappings:
         by_target.setdefault(mapping.target, []).append(mapping)
+
     # Sorted by source relation: this is D3's branch order, established once
     # here so that everything downstream — `EntityIR.sources`, the UNION ALL,
     # the `_source` literals — inherits it rather than re-deriving it.
@@ -1186,11 +1326,13 @@ def _build_entities(
             entity_name, project.entity_model.entities[entity_name], grouped[entity_name]
         )
     ]
+
     if refusals:
         ordered = tuple(sorted(refusals, key=lambda error: (error.source_path or "", str(error))))
         if len(ordered) == 1:
             raise ordered[0]
         raise ResolutionError.from_collected(ordered)
+
     entities = [
         _build_entity(
             entity_name,
@@ -1206,11 +1348,15 @@ def _build_entities(
     return tuple(entities)  # sorted: `grouped` iterated in sorted order
 
 
+# ....................... #
+
+
 def _build_metrics(
     project: Project, catalog: Catalog | None, reachable: tuple[str, ...]
 ) -> tuple[MetricIR, ...]:
     reachable_set = set(reachable)
     built: list[MetricIR] = []
+
     for metric in effective_metrics(project, catalog):  # sorted by name
         if metric.name not in reachable_set:
             continue
@@ -1243,7 +1389,11 @@ def _build_metrics(
                 depends_on=tuple(sorted({*metric.requires, *metric.requires_metrics})),
             )
         )
+
     return tuple(built)
+
+
+# ....................... #
 
 
 def _build_relationships(project: Project) -> tuple[RelationshipIR, ...]:
@@ -1264,11 +1414,16 @@ def _build_relationships(project: Project) -> tuple[RelationshipIR, ...]:
     )
 
 
+# ....................... #
+
+
 def _build_date_dimension(catalog: Catalog | None) -> DateDimensionIR | None:
     """Lower the catalog's date dimension (RFC 0008 D13): one definition
     drives the gold ``dim_date`` model and, at M6, the MetricFlow time spine."""
+
     if catalog is None or catalog.date_dimension is None:
         return None
+
     dim = catalog.date_dimension
     return DateDimensionIR(
         name=dim.name,
@@ -1276,6 +1431,9 @@ def _build_date_dimension(catalog: Catalog | None) -> DateDimensionIR | None:
         start_year=dim.start_year,
         end_year=dim.end_year,
     )
+
+
+# ....................... #
 
 
 def build_project_ir(
@@ -1298,12 +1456,18 @@ def build_project_ir(
     all-or-nothing by design, and it is ``evaluate`` that keeps the prefix.
     """
     progress = StageProgress()
+
     for _stage, reached in pipeline(project, catalog, steps=steps):
         progress = reached
+
     if progress.ir is None:  # pragma: no cover — COMPLETE always carries the IR
         msg = "the pipeline reached COMPLETE without an IR"
         raise InvariantViolated(msg)
+
     return progress.ir
+
+
+# ....................... #
 
 
 def _lower_draft(

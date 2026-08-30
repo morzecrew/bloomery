@@ -22,6 +22,8 @@ if TYPE_CHECKING:
     from bloomery.resolve.graph import Graph
     from bloomery.resolve.metrics import EffectiveMetric
 
+# ----------------------- #
+
 __all__ = [
     "available_canonicals",
     "compute_reachability",
@@ -33,11 +35,15 @@ _CANONICAL_PREFIX = "canonical."
 def available_canonicals(graph: Graph) -> frozenset[str]:
     """Canonical fields with at least one incoming ``canonical`` edge — read
     from the one shared DAG (RFC 0005 D1), never recomputed from specs."""
+
     return frozenset(
         edge.dst.name.removeprefix(_CANONICAL_PREFIX)
         for edge in graph.edges
         if edge.label == "canonical"
     )
+
+
+# ....................... #
 
 
 def compute_reachability(
@@ -67,11 +73,14 @@ def compute_reachability(
         failure.
         """
         cached = memo.get(name)
+
         if cached is not None:
             return cached
+
         metric = by_name[name]
         missing = frozenset(leaf for leaf in metric.requires if leaf not in available)
         via: frozenset[str] = frozenset()
+
         for required in metric.requires_metrics:
             required_missing, required_via = blockage(required)
             if required_missing:
@@ -80,11 +89,13 @@ def compute_reachability(
                 # send the reader to a metric that is fine.
                 missing |= required_missing
                 via |= {required, *required_via}
+
         memo[name] = (missing, via)
         return memo[name]
 
     reachable: list[str] = []
     unreachable: list[UnreachableMetric] = []
+
     for metric in metrics:  # already sorted by name (effective_metrics)
         missing, via = blockage(metric.name)
         if missing:
@@ -95,4 +106,5 @@ def compute_reachability(
             )
         else:
             reachable.append(metric.name)
+
     return tuple(reachable), tuple(unreachable)

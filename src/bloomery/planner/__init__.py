@@ -45,6 +45,8 @@ from bloomery.planner.result import (
     QueryPlan,
 )
 
+# ----------------------- #
+
 __all__ = [
     "KNOWN_UNSUPPORTED",
     "AnyOf",

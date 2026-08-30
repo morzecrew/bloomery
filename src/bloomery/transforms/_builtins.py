@@ -31,6 +31,8 @@ from bloomery.typing import (
     VariantType,
 )
 
+# ----------------------- #
+
 __all__: list[str] = []
 
 _ALL_TYPES: tuple[type[LogicalType], ...] = (
@@ -52,14 +54,23 @@ _PRECISION_CAP = 38
 
 def _literal(value: str | int) -> Expression:
     """A spec-level literal arg as a SQLGlot literal node."""
+
     if isinstance(value, int):
         return exp.Literal.number(value)
+
     return exp.Literal.string(value)
+
+
+# ....................... #
 
 
 def _number(value: str | int) -> Expression:
     """A NUMBER-kind arg as a SQLGlot numeric literal node."""
+
     return exp.Literal.number(value)
+
+
+# ....................... #
 
 
 def _typed_literal(value: str | int, input_type: LogicalType) -> Expression:
@@ -79,9 +90,14 @@ def _typed_literal(value: str | int, input_type: LogicalType) -> Expression:
     over a string column still casts, because ``COALESCE(text, 0)`` does not plan
     on Trino.
     """
+
     if isinstance(input_type, StringType) and isinstance(value, str):
         return _literal(value)
+
     return exp.cast(_literal(value), neutral_type(input_type))
+
+
+# ....................... #
 
 
 def _literal_shape(value: str | int) -> tuple[int, int]:
@@ -93,11 +109,18 @@ def _literal_shape(value: str | int) -> tuple[int, int]:
     return max(len(parsed.as_tuple().digits), scale, 1), scale
 
 
+# ....................... #
+
+
 def _require_decimal(t: LogicalType, name: str) -> DecimalType:
     if not isinstance(t, DecimalType):  # pragma: no cover — input domain enforces
         msg = f"{name!r} requires a decimal input, got {t!r}"
         raise TypeCheckError(msg)
+
     return t
+
+
+# ....................... #
 
 
 def _arith_output(name: str) -> OutputType:
@@ -108,6 +131,7 @@ def _arith_output(name: str) -> OutputType:
         current = _require_decimal(t, name)
         p2, s2 = _literal_shape(args[0])
         precision, scale = current.precision + p2, current.scale + s2
+
         if precision > _PRECISION_CAP:
             msg = (
                 f"{name!r} widens decimal({current.precision}, {current.scale}) to "
@@ -115,6 +139,7 @@ def _arith_output(name: str) -> OutputType:
                 "precision cap; narrow the operands with an explicit to_decimal(p, s) step"
             )
             raise TypeCheckError(msg)
+
         return DecimalType(precision=precision, scale=scale)
 
     return output
@@ -124,9 +149,15 @@ def _arith_output(name: str) -> OutputType:
 # String transforms
 
 
+# ....................... #
+
+
 @transform("trim", arity=0, input=(StringType,), output=StringType())
 def trim(col: Expression) -> Expression:
     return exp.Trim(this=col)
+
+
+# ....................... #
 
 
 @transform("upper", arity=0, input=(StringType,), output=StringType())
@@ -134,9 +165,15 @@ def upper(col: Expression) -> Expression:
     return exp.Upper(this=col)
 
 
+# ....................... #
+
+
 @transform("lower", arity=0, input=(StringType,), output=StringType())
 def lower(col: Expression) -> Expression:
     return exp.Lower(this=col)
+
+
+# ....................... #
 
 
 @transform(
@@ -158,6 +195,9 @@ def split_part(col: Expression, delimiter: str, index: int) -> Expression:
     )
 
 
+# ....................... #
+
+
 @transform(
     "regex_extract",
     arity=2,
@@ -176,6 +216,9 @@ def regex_extract(col: Expression, pattern: str, group: int) -> Expression:
     )
 
 
+# ....................... #
+
+
 @transform(
     "strip_prefix", arity=1, arg_kinds=(ArgKind.STR,), input=(StringType,), output=StringType()
 )
@@ -189,6 +232,9 @@ def strip_prefix(col: Expression, prefix: str) -> Expression:
         ],
         default=col,
     )
+
+
+# ....................... #
 
 
 @transform(
@@ -210,9 +256,15 @@ def strip_suffix(col: Expression, suffix: str) -> Expression:
     )
 
 
+# ....................... #
+
+
 @transform("concat", arity=1, arg_kinds=(ArgKind.STR,), input=(StringType,), output=StringType())
 def concat(col: Expression, text: str) -> Expression:
     return exp.DPipe(this=col, expression=exp.Literal.string(text))
+
+
+# ....................... #
 
 
 @transform(
@@ -238,9 +290,15 @@ def enum_map(col: Expression, *pairs: str) -> Expression:
 # Casts and parses
 
 
+# ....................... #
+
+
 @transform("to_string", arity=0, input=_ALL_TYPES, output=StringType())
 def to_string(col: Expression) -> Expression:
     return exp.cast(col, exp.DataType.build("TEXT"))
+
+
+# ....................... #
 
 
 @transform(
@@ -260,21 +318,32 @@ def to_int(col: Expression, *, input_type: LogicalType) -> Expression:
     DuckDB and Trino render and evaluate it identically, so the fix stays in the
     builder and no port learns about booleans.
     """
+
     if isinstance(input_type, BoolType):
         through_int = exp.cast(col, exp.DataType.build("INT"))
         return exp.cast(through_int, exp.DataType.build("BIGINT"))
+
     return exp.cast(col, exp.DataType.build("BIGINT"))
+
+
+# ....................... #
 
 
 def _to_decimal_output(_t: LogicalType, args: tuple[str | int, ...]) -> LogicalType:
     precision, scale = int(args[0]), int(args[1])
+
     if not 1 <= precision <= _PRECISION_CAP:
         msg = f"to_decimal precision must be between 1 and {_PRECISION_CAP}, got {precision}"
         raise TypeCheckError(msg)
+
     if not 0 <= scale <= precision:
         msg = f"to_decimal scale ({scale}) must be between 0 and precision ({precision})"
         raise TypeCheckError(msg)
+
     return DecimalType(precision=precision, scale=scale)
+
+
+# ....................... #
 
 
 @transform(
@@ -286,6 +355,9 @@ def _to_decimal_output(_t: LogicalType, args: tuple[str | int, ...]) -> LogicalT
 )
 def to_decimal(col: Expression, precision: int, scale: int) -> Expression:
     return exp.cast(col, exp.DataType.build(f"DECIMAL({precision}, {scale})"))
+
+
+# ....................... #
 
 
 @transform("to_bool", arity=0, input=(StringType, IntType, BoolType), output=BoolType(), types=True)
@@ -303,9 +375,14 @@ def to_bool(col: Expression, *, input_type: LogicalType) -> Expression:
     ``x <> 0`` rather than ``CAST(CAST(x AS INT) AS BOOLEAN)`` because the
     second overflows for a ``bigint`` outside ``int4``.
     """
+
     if isinstance(input_type, IntType):
         return exp.NEQ(this=col, expression=exp.Literal.number(0))
+
     return exp.cast(col, exp.DataType.build("BOOLEAN"))
+
+
+# ....................... #
 
 
 #: The marker wrapping the *text* an ISO 8601 parse is about to cast
@@ -332,13 +409,20 @@ def _iso_text(col: Expression) -> Expression:
     return exp.Anonymous(this=ISO_TEXT_MARKER, expressions=[col])
 
 
+# ....................... #
+
+
 @transform(
     "parse_ts", arity=1, arg_kinds=(ArgKind.STR,), input=(StringType,), output=TimestampType()
 )
 def parse_ts(col: Expression, fmt: str) -> Expression:
     if fmt == _ISO8601:
         return exp.cast(_iso_text(col), exp.DataType.build("TIMESTAMP"))
+
     return exp.StrToTime(this=col, format=exp.Literal.string(fmt))
+
+
+# ....................... #
 
 
 @transform("parse_date", arity=1, arg_kinds=(ArgKind.STR,), input=(StringType,), output=DateType())
@@ -353,7 +437,11 @@ def parse_date(col: Expression, fmt: str) -> Expression:
         # would trade a silent wrong answer for a louder wrong answer while
         # moving every date golden on every dialect for nothing.
         return exp.cast(col, exp.DataType.build("DATE"))
+
     return exp.StrToDate(this=col, format=exp.Literal.string(fmt))
+
+
+# ....................... #
 
 
 @transform(
@@ -362,11 +450,15 @@ def parse_date(col: Expression, fmt: str) -> Expression:
 def to_utc(col: Expression, zone: str) -> Expression:
     """Interpret a zoneless local timestamp in ``zone`` — the only door into
     the always-UTC ``timestamp`` type (RFC 0004 §5.1)."""
+
     return exp.AtTimeZone(this=col, zone=exp.Literal.string(zone))
 
 
 # ....................... #
 # Null handling and JSON
+
+
+# ....................... #
 
 
 @transform(
@@ -396,7 +488,11 @@ def coalesce(col: Expression, fallback: str | int, *, input_type: LogicalType) -
     would have made a spec that runs today on two of three engines stop
     compiling on all three.
     """
+
     return exp.Coalesce(this=col, expressions=[_typed_literal(fallback, input_type)])
+
+
+# ....................... #
 
 
 @transform(
@@ -415,7 +511,11 @@ def nullif(col: Expression, sentinel: str | int, *, input_type: LogicalType) -> 
     against a non-varchar column (``TYPE_MISMATCH``), so a sentinel that worked
     on two engines failed on the third (RFC 0029 §2.4).
     """
+
     return exp.Nullif(this=col, expression=_typed_literal(sentinel, input_type))
+
+
+# ....................... #
 
 
 @transform(
@@ -432,6 +532,9 @@ def json_path(col: Expression, path: str) -> Expression:
 
 # ....................... #
 # Arithmetic (decimal precision/scale tracked — RFC 0004 §5.4)
+
+
+# ....................... #
 
 
 #: The marker wrapping a ``divide``'s two operands (RFC 0029 D3).
@@ -474,7 +577,11 @@ def _narrowed(node: Expression, declared: LogicalType) -> Expression:
     quarantined row rather than an aborted run — the disposition RFC 0016
     already gives every other bad value.
     """
+
     return exp.cast(node, neutral_type(declared))
+
+
+# ....................... #
 
 
 @transform(
@@ -488,6 +595,9 @@ def _narrowed(node: Expression, declared: LogicalType) -> Expression:
 def multiply(col: Expression, factor: str | int, *, input_type: LogicalType) -> Expression:
     product = exp.Mul(this=col, expression=_number(factor))
     return _narrowed(product, _MULTIPLY_OUTPUT(input_type, (factor,)))
+
+
+# ....................... #
 
 
 @transform(
@@ -525,22 +635,33 @@ def divide(col: Expression, divisor: str | int, *, input_type: LogicalType) -> E
     return _narrowed(marked, _DIVIDE_OUTPUT(input_type, (divisor,)))
 
 
+# ....................... #
+
+
 def _round_output(t: LogicalType, args: tuple[str | int, ...]) -> LogicalType:
     if isinstance(t, IntType):
         return t
+
     current = _require_decimal(t, "round")
     digits = int(args[0])
+
     if digits < 0:
         msg = f"round digits must be >= 0, got {digits}"
         raise TypeCheckError(msg)
+
     precision = max(current.precision - current.scale + digits, digits, 1)
+
     if precision > _PRECISION_CAP:
         msg = (
             f"round(...) widens decimal({current.precision}, {current.scale}) past the "
             f"{_PRECISION_CAP}-digit precision cap"
         )
         raise TypeCheckError(msg)
+
     return DecimalType(precision=precision, scale=digits)
+
+
+# ....................... #
 
 
 @transform(
@@ -556,6 +677,9 @@ def round_(col: Expression, digits: int, *, input_type: LogicalType) -> Expressi
     return _narrowed(rounded, _round_output(input_type, (digits,)))
 
 
+# ....................... #
+
+
 @transform("abs", arity=0, input=(IntType, DecimalType), output=lambda t, _args: t, types=True)
 def abs_(col: Expression, *, input_type: LogicalType) -> Expression:
     return _narrowed(exp.Abs(this=col), input_type)
@@ -563,6 +687,10 @@ def abs_(col: Expression, *, input_type: LogicalType) -> Expression:
 
 # ....................... #
 # Currency-conversion marker (RFC 0004 D3) — refused at emit (RFC 0023 D4)
+
+
+# ....................... #
+
 
 #: The call :func:`convert` builds, and the token the emit side refuses on
 #: (RFC 0023 D4). Shared rather than spelled twice: a marker whose producer
@@ -590,4 +718,5 @@ def convert(col: Expression, currency: str) -> Expression:
     conversion eventually looks like, it names an anchor and this spelling does
     not (RFC 0023 §5.4).
     """
+
     return exp.Anonymous(this=CONVERT_MARKER, expressions=[col, exp.Literal.string(currency)])

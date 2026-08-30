@@ -34,12 +34,14 @@ def _column_owner(mart: MartIR, column: MartColumnIR) -> str:
     """The join alias owning a flattened column: the base entity for its own
     (and date-role, and ``has_quality_flags``) columns, else the prefix of the
     join that flattened it."""
+
     if column.source_entity == mart.base and (
         column.ref is not None
         or column.name == column.source_column
         or column.name == HAS_QUALITY_FLAGS
     ):
         return mart.base
+
     return guaranteed(
         (
             join.prefix
@@ -52,18 +54,24 @@ def _column_owner(mart: MartIR, column: MartColumnIR) -> str:
     )
 
 
+# ....................... #
+
+
 def _mart_projection(mart: MartIR, column: MartColumnIR) -> Expression:
     source = exp.column(column.source_column, table=_column_owner(mart, column))
+
     if column.name == HAS_QUALITY_FLAGS:
         # RFC 0016 §5.5: an ordinary dimension, *derived* from the base's
         # generated ``_quality_ok`` (D23) rather than re-evaluated. ``NOT`` is
         # two-valued here by construction — ``_quality_ok`` is generated from
         # a never-NULL flag collection, so it is never NULL either.
         return cast("Expression", exp.alias_(exp.Not(this=source), column.name))
+
     if column.ref is None:
         # ``alias_`` is annotated with the ``Expr`` base, but always returns
         # an ``Expression`` here (cf. ir.nodes on ``parse_one``).
         return cast("Expression", exp.alias_(source, column.name))
+
     # Date-role bucket (RFC 0010 D4): DATE_TRUNC over the base source column,
     # cast to DATE so the emitted column has the declared IR type everywhere.
     # Built via ``exp.func`` — ``exp.DateTrunc``'s custom ``__init__`` is
@@ -72,6 +80,9 @@ def _mart_projection(mart: MartIR, column: MartColumnIR) -> Expression:
     return cast(
         "Expression", exp.alias_(exp.cast(bucketed, exp.DataType.build("DATE")), column.name)
     )
+
+
+# ....................... #
 
 
 def mart_select(mart: MartIR, ctx: EmitContext) -> exp.Select:
@@ -88,6 +99,7 @@ def mart_select(mart: MartIR, ctx: EmitContext) -> exp.Select:
         .select(*[_mart_projection(mart, column) for column in mart.columns])
         .from_(exp.table_(base_relation, db=base_namespace, alias=mart.base))
     )
+
     for join in mart.joins:
         namespace, relation = ctx.naming.relation(join.entity, Layer.SILVER)
         conditions = [
@@ -102,11 +114,16 @@ def mart_select(mart: MartIR, ctx: EmitContext) -> exp.Select:
             on=exp.and_(*conditions),
             join_type="LEFT",
         )
+
     return select
 
 
 # ....................... #
 # Date dimension (RFC 0008 D13, RFC 0013 R1 rule 4)
+
+
+# ....................... #
+
 
 # Canonical dialect-neutral calendar body, re-parsed at emit like any SqlExpr
 # (RFC 0003 D2). Bounds interpolate as spec-validated integers only — the SQL
@@ -151,6 +168,9 @@ def dim_date_select(dim: DateDimensionIR) -> Expression:
 # on the tree it was written against.
 
 
+# ....................... #
+
+
 def measure_owners(ir: ProjectIR) -> dict[str, MartIR]:
     """Metric name → the single mart its measure is emitted on: cheapest
     ``cost_hint``, ties lexicographic by mart name (RFC 0010 D8).
@@ -159,6 +179,7 @@ def measure_owners(ir: ProjectIR) -> dict[str, MartIR]:
     this exact function, so the emitter's measure placement and the planner's
     mart selection cannot disagree."""
     owners: dict[str, MartIR] = {}
+
     for mart in ir.marts:
         for name in mart.measures:
             current = owners.get(name)
@@ -167,4 +188,5 @@ def measure_owners(ir: ProjectIR) -> dict[str, MartIR]:
                 current.name,
             ):
                 owners[name] = mart
+
     return owners

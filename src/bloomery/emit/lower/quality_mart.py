@@ -81,7 +81,11 @@ def _mapping_identity(entity: EntityIR) -> str:
     branches — and it is spelled as one so that the day P2 restores the rules,
     this raises instead of naming one source for all of them.
     """
+
     return f"{_sole_source(entity, 'the quality mart').relation}->{entity.name}"
+
+
+# ....................... #
 
 
 def _quality_rows_cte(entity: EntityIR, ctx: EmitContext) -> exp.Select | exp.Union:
@@ -102,8 +106,10 @@ def _quality_rows_cte(entity: EntityIR, ctx: EmitContext) -> exp.Select | exp.Un
         )
         .from_(exp.table_(relation, db=namespace))
     )
+
     if entity.quarantine is None:
         return kept
+
     reject_namespace, reject_rel = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
     diverted = (
         exp.Select()
@@ -115,6 +121,9 @@ def _quality_rows_cte(entity: EntityIR, ctx: EmitContext) -> exp.Select | exp.Un
         .where(exp.Is(this=exp.column("resolved_at"), expression=exp.null()))
     )
     return exp.union(kept, diverted, distinct=False)
+
+
+# ....................... #
 
 
 def _counted(predicate: Expression) -> Expression:
@@ -132,6 +141,7 @@ def _counted(predicate: Expression) -> Expression:
     ``quality_quarantine_rate``, so the rate answers over a population smaller
     than the one it names.
     """
+
     return exp.Coalesce(
         this=exp.Sum(
             this=exp.Case(
@@ -141,6 +151,9 @@ def _counted(predicate: Expression) -> Expression:
         ),
         expressions=[exp.Literal.number(0)],
     )
+
+
+# ....................... #
 
 
 def _rows_deduped(entity: EntityIR, ctx: EmitContext) -> Expression:
@@ -165,8 +178,10 @@ def _rows_deduped(entity: EntityIR, ctx: EmitContext) -> Expression:
     a bronze scan), and an SCD type 2 entity stores version history rather than
     one row per source row, so the difference would not be a dedupe count.
     """
+
     if entity.dedupe is None or entity.scd is SCDKind.TYPE2:
         return exp.Literal.number(0)
+
     origin = _sole_source(entity, "the quality mart's deduped count")
     namespace, relation = ctx.naming.relation(origin.relation, Layer.BRONZE)
     bronze = (
@@ -182,6 +197,9 @@ def _rows_deduped(entity: EntityIR, ctx: EmitContext) -> Expression:
         .subquery()
     )
     return exp.Sub(this=bronze, expression=survivors)
+
+
+# ....................... #
 
 
 def _branch(entity: EntityIR, rule: str, verdict: str, counts: list[Expression]) -> exp.Select:
@@ -205,6 +223,9 @@ def _branch(entity: EntityIR, rule: str, verdict: str, counts: list[Expression])
     )
 
 
+# ....................... #
+
+
 def _entity_branch(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     """The entity's **accounting row**: the counts that belong to the entity
     rather than to any one rule (RFC 0016 §5.8, resolved per D12 — see
@@ -221,6 +242,7 @@ def _entity_branch(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     measure of this mart additive, which is the only property that lets §5.8's
     "a plain ``MetricRequest``" be true at *any* group-by.
     """
+
     return _branch(
         entity,
         ENTITY_GRAIN_ROW,
@@ -232,6 +254,9 @@ def _entity_branch(entity: EntityIR, ctx: EmitContext) -> exp.Select:
             _rows_deduped(entity, ctx),
         ],
     )
+
+
+# ....................... #
 
 
 def _rule_branch(entity: EntityIR, rule: QualityRuleIR, *, arrays: bool) -> exp.Select:
@@ -262,6 +287,9 @@ def _rule_branch(entity: EntityIR, rule: QualityRuleIR, *, arrays: bool) -> exp.
             exp.Literal.number(0),
         ],
     )
+
+
+# ....................... #
 
 
 def _reconcile_branch(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> exp.Select:
@@ -302,6 +330,9 @@ def _reconcile_branch(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> ex
     )
 
 
+# ....................... #
+
+
 def _run_column(macro: str | None, name: str, type_name: str) -> Expression:
     """One run-context column: the engine's expression, or declared-but-NULL.
 
@@ -311,8 +342,10 @@ def _run_column(macro: str | None, name: str, type_name: str) -> Expression:
     carrying an inline comment naming what the caller supplies — the schema
     §5.8 promises, with no pretence that a value is present.
     """
+
     if macro is not None:
         return cast("Expression", exp.alias_(exp.cast(exp.var(macro), type_name), name))
+
     column = cast(
         "Expression", exp.alias_(exp.cast(exp.null(), exp.DataType.build(type_name)), name)
     )
@@ -323,6 +356,9 @@ def _run_column(macro: str | None, name: str, type_name: str) -> Expression:
         )
     ]
     return column
+
+
+# ....................... #
 
 
 def quality_mart_select(ir: ProjectIR, ctx: EmitContext, run: RunContext) -> exp.Select:
@@ -340,11 +376,14 @@ def quality_mart_select(ir: ProjectIR, ctx: EmitContext, run: RunContext) -> exp
     # `counted_entities`, not a second filter: this loop and `carries_quality`
     # must agree exactly, or the mart is emitted with no branches to union.
     entities = counted_entities(ir)
+
     for entity in entities:  # sorted on ProjectIR; rules sorted on EntityIR
         branches.append(_entity_branch(entity, ctx))
         branches.extend(_rule_branch(entity, rule, arrays=arrays) for rule in entity.quality)
+
     branches.extend(_reconcile_branch(check, ir, ctx) for check in ir.reconcile)
     evaluations: exp.Select | exp.Union = branches[0]
+
     for branch in branches[1:]:
         evaluations = exp.union(evaluations, branch, distinct=False)
 
@@ -362,6 +401,7 @@ def quality_mart_select(ir: ProjectIR, ctx: EmitContext, run: RunContext) -> exp
         name: exp.column(name, table=_STAMPED_ALIAS)
         for name in (*_BRANCH_COLUMNS, "run_id", "run_date")
     }
+
     for bucket in DATE_BUCKETS:
         bucketed = exp.func("DATE_TRUNC", exp.Literal.string(bucket), run_date.copy())
         projections[f"{QUALITY_RUN_ROLE}_{bucket}"] = cast(
@@ -370,6 +410,7 @@ def quality_mart_select(ir: ProjectIR, ctx: EmitContext, run: RunContext) -> exp
                 exp.cast(bucketed, exp.DataType.build("DATE")), f"{QUALITY_RUN_ROLE}_{bucket}"
             ),
         )
+
     select = (
         exp.Select()
         # Sorted by column name, exactly as ``mart_select`` projects a mart's
@@ -378,8 +419,10 @@ def quality_mart_select(ir: ProjectIR, ctx: EmitContext, run: RunContext) -> exp
         .select(*(projections[name] for name in sorted(projections)))
         .from_(stamped.subquery(alias=_STAMPED_ALIAS))
     )
+
     for entity in entities:
         select = select.with_(
             f"{_QUALITY_CTE_PREFIX}{entity.name}", as_=_quality_rows_cte(entity, ctx)
         )
+
     return select

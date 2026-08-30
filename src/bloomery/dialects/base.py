@@ -29,6 +29,8 @@ from bloomery.typing import (
     VariantType,
 )
 
+# ----------------------- #
+
 __all__ = [
     "DialectFeature",
     "strip_iso_text",
@@ -60,9 +62,13 @@ def strip_iso_text(node: Expression, spelling: Callable[[Expression], Expression
     def replace(child: Expression) -> Expression:
         if isinstance(child, exp.Anonymous) and child.name.upper() == ISO_TEXT_MARKER:
             return spelling(child.expressions[0])
+
         return child
 
     return node.transform(replace)
+
+
+# ....................... #
 
 
 def utc_from_zone(node: Expression, to_utc: Callable[[Expression], Expression]) -> Expression:
@@ -87,6 +93,9 @@ def utc_from_zone(node: Expression, to_utc: Callable[[Expression], Expression]) 
         return to_utc(child) if isinstance(child, exp.AtTimeZone) else child
 
     return node.transform(replace)
+
+
+# ....................... #
 
 
 def capture_group(node: Expression) -> Expression:
@@ -120,14 +129,21 @@ def capture_group(node: Expression) -> Expression:
     def replace(child: Expression) -> Expression:
         if not isinstance(child, exp.RegexpExtract):
             return child
+
         position = child.args.get("position")
+
         if position is None or child.args.get("group") is not None:
             return child
+
         child.set("position", None)
         child.set("group", position)
+
         return child
 
     return node.transform(replace)
+
+
+# ....................... #
 
 
 def _exact_division(node: Expression) -> Expression:
@@ -157,9 +173,13 @@ def _exact_division(node: Expression) -> Expression:
         if isinstance(child, exp.Anonymous) and child.name.upper() == DIVIDE_MARKER:
             left, right = child.expressions
             return exp.Div(this=left, expression=right, typed=True)
+
         return child
 
     return node.transform(replace)
+
+
+# ....................... #
 
 
 class DialectFeature(StrEnum):
@@ -217,10 +237,15 @@ class DialectFeature(StrEnum):
     JSON_OBJECT_POSITIONAL = "json_object_positional"
 
 
+# ....................... #
+
+
 class DialectPort(Protocol):
     """SQL rendering + physical type mapping (RFC 0008 D1)."""
 
     name: str
+
+    # ....................... #
 
     def render(self, node: Expression) -> str: ...
 
@@ -231,6 +256,9 @@ class DialectPort(Protocol):
     def text_sha256(self, value: Expression) -> Expression: ...
 
     def json_object(self, pairs: Sequence[tuple[str, Expression]]) -> Expression: ...
+
+
+# ....................... #
 
 
 class SQLGlotDialect:
@@ -251,6 +279,8 @@ class SQLGlotDialect:
         TimestampType: "TIMESTAMP",
         VariantType: "JSON",
     }
+
+    # ....................... #
 
     def render(self, node: Expression) -> str:
         """Render a dialect-neutral AST as this dialect's SQL text.
@@ -276,6 +306,7 @@ class SQLGlotDialect:
             ),
             None,
         )
+
         if surviving is not None:
             msg = (
                 f"dialect {self.name!r} rendered an ISO 8601 parse without deciding what "
@@ -287,17 +318,26 @@ class SQLGlotDialect:
                 "with an identity spelling if the engine's cast already takes both forms"
             )
             raise UnsupportedByTarget(msg)
+
         return _exact_division(capture_group(node)).sql(dialect=self.sqlglot_dialect, pretty=True)
+
+    # ....................... #
 
     def physical_type(self, t: LogicalType) -> str:
         """The engine type for a logical type (RFC 0004 non-goal: physical
         mapping lives here, not in the type layer)."""
+
         if isinstance(t, DecimalType):
             return f"DECIMAL({t.precision}, {t.scale})"
+
         return self.scalar_types[type(t)]
+
+    # ....................... #
 
     def supports(self, feature: DialectFeature) -> bool:
         return feature in self.features
+
+    # ....................... #
 
     def text_sha256(self, value: Expression) -> Expression:
         """A SHA-256 hex *string* over a text value (RFC 0016 D21).
@@ -310,12 +350,17 @@ class SQLGlotDialect:
         the engine (RFC 0008 D1), not to a lowering that is supposed to be
         dialect-neutral.
         """
+
         return exp.SHA2(this=value, length=exp.Literal.number(256))
+
+    # ....................... #
 
     def json_object(self, pairs: Sequence[tuple[str, Expression]]) -> Expression:
         """``JSON_OBJECT('k', v, …)`` — the positional form, keys in the
         caller's order."""
         arguments: list[Expression] = []
+
         for key, value in pairs:
             arguments.extend((exp.Literal.string(key), value))
+
         return cast("Expression", exp.func("JSON_OBJECT", *arguments))

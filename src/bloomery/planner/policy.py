@@ -26,6 +26,8 @@ from dataclasses import dataclass
 
 from bloomery.planner.request import Op, Predicate, Scalar
 
+# ----------------------- #
+
 __all__ = [
     "RowPolicy",
 ]
@@ -45,8 +47,12 @@ class RowPolicy:
     op: Op
     value: Scalar | tuple[Scalar, ...]
 
+    # ....................... #
+
     def __post_init__(self) -> None:
         self.as_clause()  # structural validation rides Predicate's
+
+    # ....................... #
 
     def as_clause(self) -> Predicate:
         """The policy as the :class:`Predicate` the filter pipeline renders

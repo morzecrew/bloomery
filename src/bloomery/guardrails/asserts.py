@@ -41,6 +41,8 @@ if TYPE_CHECKING:
     from bloomery.spec.entity import AssertClause, Field
     from bloomery.spec.project import Project
 
+# ----------------------- #
+
 __all__ = [
     "lower_asserts",
 ]
@@ -62,6 +64,7 @@ def _range_audit(
             )
             return AssertLoweringError(msg, source_path=path)
         return AuditIR(kind=kind, column=column, params=(("value", str(value)),))
+
     if isinstance(declared, (DateType, TimestampType)):
         if isinstance(value, str):
             return AuditIR(kind=kind, column=column, params=(("value", value),))
@@ -70,12 +73,16 @@ def _range_audit(
             f"field takes an ISO literal. Fix: write {kind}: as a quoted date/timestamp"
         )
         return AssertLoweringError(msg, source_path=path)
+
     msg = (
         f"{kind}: requires a numeric or temporal field, but the field is {type_string!r} "
         f"— the bound can never run (RFC 0006 §5.6). Fix: drop the clause or retype the "
         "field"
     )
     return AssertLoweringError(msg, source_path=path)
+
+
+# ....................... #
 
 
 def _enum_audit(
@@ -86,6 +93,7 @@ def _enum_audit(
     path: str,
 ) -> AuditIR | GuardrailError:
     member_type: type[str] | type[int]
+
     if isinstance(declared, StringType):
         member_type = str
     elif isinstance(declared, IntType):
@@ -96,15 +104,21 @@ def _enum_audit(
             "Fix: drop the clause or retype the field"
         )
         return AssertLoweringError(msg, source_path=path)
+
     bad = [member for member in members if not isinstance(member, member_type)]
+
     if bad:
         msg = (
             f"enum member {bad[0]!r} is not castable to the field type {type_string!r}. "
             f"Fix: write every member as a {member_type.__name__}"
         )
         return AssertLoweringError(msg, source_path=path)
+
     params = tuple((f"value_{i:04d}", str(member)) for i, member in enumerate(members))
     return AuditIR(kind="enum", column=column, params=params)
+
+
+# ....................... #
 
 
 def _regex_audit(
@@ -116,12 +130,17 @@ def _regex_audit(
             "Fix: drop the clause or map the field as a string"
         )
         return AssertLoweringError(msg, source_path=path)
+
     try:
         re.compile(pattern)
     except re.error as exc:
         msg = f"regex: {pattern!r} does not compile ({exc}) — the audit can never run"
         return AssertLoweringError(msg, source_path=path)
+
     return AuditIR(kind="regex", column=column, params=(("pattern", pattern),))
+
+
+# ....................... #
 
 
 def _lower_clause(
@@ -129,17 +148,26 @@ def _lower_clause(
 ) -> list[AuditIR | GuardrailError]:
     declared = parse_type(field.type, source_path=f"{path[: path.rfind('.')]}.type")
     lowered: list[AuditIR | GuardrailError] = []
+
     if clause.not_null:
         lowered.append(AuditIR(kind="not_null", column=field_name))
+
     if clause.min is not None:
         lowered.append(_range_audit("min", clause.min, declared, field.type, field_name, path))
+
     if clause.max is not None:
         lowered.append(_range_audit("max", clause.max, declared, field.type, field_name, path))
+
     if clause.enum is not None:
         lowered.append(_enum_audit(clause.enum, declared, field.type, field_name, path))
+
     if clause.regex is not None:
         lowered.append(_regex_audit(clause.regex, declared, field.type, field_name, path))
+
     return lowered
+
+
+# ....................... #
 
 
 def lower_asserts(
@@ -153,6 +181,7 @@ def lower_asserts(
     columns = {entity.name: {column.name for column in entity.columns} for entity in draft.entities}
     errors: list[GuardrailError] = []
     audits: dict[str, list[AuditIR]] = {}
+
     for entity_name in sorted(project.entity_model.entities):
         entity = project.entity_model.entities[entity_name]
         for field_name in sorted(entity.fields):
@@ -174,4 +203,5 @@ def lower_asserts(
                     audits.setdefault(entity_name, []).append(lowered)
                 else:
                     errors.append(lowered)
+
     return errors, audits

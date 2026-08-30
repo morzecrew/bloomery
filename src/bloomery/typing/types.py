@@ -20,6 +20,8 @@ from enum import StrEnum
 from bloomery.errors import TypeCheckError
 from bloomery.spec.common import TYPE_STRING_PATTERN
 
+# ----------------------- #
+
 __all__ = [
     "ArgKind",
     "BoolType",
@@ -53,14 +55,23 @@ class ArgKind(StrEnum):
     LITERAL = "literal"
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class StringType:
     """Arbitrary-length UTF-8 text."""
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class IntType:
     """64-bit signed integer."""
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,14 +82,23 @@ class DecimalType:
     scale: int
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class BoolType:
     """Boolean."""
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class DateType:
     """Calendar date, no time component."""
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,9 +107,15 @@ class TimestampType:
     is how a local timestamp gets here. No zone parameter by design."""
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class VariantType:
     """Semi-structured escape hatch for the unmapped tail."""
+
+
+# ....................... #
 
 
 LogicalType = StringType | IntType | DecimalType | BoolType | DateType | TimestampType | VariantType
@@ -114,28 +140,38 @@ def parse_type(text: str, *, source_path: str) -> LogicalType:
     rejects (``precision >= 1``, ``scale <= precision``).
     """
     match = _TYPE_RE.match(text)
+
     if match is None:
         raise TypeCheckError(
             f"unknown type {text!r}: expected one of string, int, bool, date, "
             "timestamp, variant, decimal(p, s)",
             source_path=source_path,
         )
+
     scalar = _SCALARS.get(text)
+
     if scalar is not None:
         return scalar
+
     precision, scale = int(match.group(1)), int(match.group(2))
+
     if precision < 1:
         raise TypeCheckError(
             f"invalid type {text!r}: decimal precision must be >= 1",
             source_path=source_path,
         )
+
     if scale > precision:
         raise TypeCheckError(
             f"invalid type {text!r}: decimal scale ({scale}) must not exceed "
             f"precision ({precision})",
             source_path=source_path,
         )
+
     return DecimalType(precision=precision, scale=scale)
+
+
+# ....................... #
 
 
 def assignable(actual: LogicalType, declared: LogicalType) -> bool:
@@ -146,14 +182,20 @@ def assignable(actual: LogicalType, declared: LogicalType) -> bool:
     ``precision - scale`` and ``scale`` non-decreasing). Narrowing is never
     implicit (RFC 0004 §5.1).
     """
+
     if isinstance(declared, VariantType):
         return True
+
     if isinstance(actual, DecimalType) and isinstance(declared, DecimalType):
         return (
             declared.scale >= actual.scale
             and declared.precision - declared.scale >= actual.precision - actual.scale
         )
+
     return actual == declared
+
+
+# ....................... #
 
 
 #: The spec-layer spelling of each scalar logical type — the inverse of
@@ -179,6 +221,8 @@ def render_type(logical: LogicalType) -> str:
     in a table, so a repr like ``StringType()`` silently matches nothing and
     turns a mandatory check into a no-op.
     """
+
     if isinstance(logical, DecimalType):
         return f"decimal({logical.precision},{logical.scale})"
+
     return _SCALAR_NAMES[type(logical)]

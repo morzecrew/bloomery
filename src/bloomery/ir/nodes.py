@@ -23,6 +23,8 @@ from sqlglot.expressions.core import Expression
 
 from bloomery.typing import LogicalType
 
+# ----------------------- #
+
 __all__ = [
     "StepParameterIR",
     "step_sort_key",
@@ -127,12 +129,18 @@ class SCDKind(StrEnum):
     TYPE2 = "type2"
 
 
+# ....................... #
+
+
 class Materialization(StrEnum):
     """Resolved materialization strategy (RFC 0002 D7 — explicit or derived)."""
 
     FULL = "full"
     INCREMENTAL_BY_KEY = "incremental_by_key"
     INCREMENTAL_BY_PARTITION = "incremental_by_partition"
+
+
+# ....................... #
 
 
 class StepKind(StrEnum):
@@ -143,6 +151,9 @@ class StepKind(StrEnum):
     SQL_MACRO = "sql_macro"
     SQL_MODEL = "sql_model"
     PYTHON_MODEL = "python_model"
+
+
+# ....................... #
 
 
 class Determinism(StrEnum):
@@ -156,6 +167,9 @@ class Determinism(StrEnum):
     NONDETERMINISTIC = "nondeterministic"
 
 
+# ....................... #
+
+
 class Lineage(StrEnum):
     """Whether a step's outputs can be traced column by column (RFC 0017
     §5.1). Tier 3 loses it, and says so rather than letting a consumer infer
@@ -165,12 +179,18 @@ class Lineage(StrEnum):
     COLUMN = "column"
 
 
+# ....................... #
+
+
 class Layer(StrEnum):
     """Warehouse layer, consumed by naming policies (RFC 0008)."""
 
     BRONZE = "bronze"
     SILVER = "silver"
     GOLD = "gold"
+
+
+# ....................... #
 
 
 class Unit(StrEnum):
@@ -182,6 +202,9 @@ class Unit(StrEnum):
     UNKNOWN = "unknown"
 
 
+# ....................... #
+
+
 class TaxBasis(StrEnum):
     """Tax-basis metadata (RFC 0006 §5.2): ``net`` and ``gross`` never meet
     in additive arithmetic; ``UNKNOWN`` poisons it."""
@@ -189,6 +212,9 @@ class TaxBasis(StrEnum):
     NET = "net"
     GROSS = "gross"
     UNKNOWN = "unknown"
+
+
+# ....................... #
 
 
 class Additivity(StrEnum):
@@ -199,12 +225,18 @@ class Additivity(StrEnum):
     NON_ADDITIVE = "non_additive"
 
 
+# ....................... #
+
+
 class Cardinality(StrEnum):
     """Relationship cardinality (original spec §3.2)."""
 
     MANY_TO_ONE = "many_to_one"
     ONE_TO_ONE = "one_to_one"
     ONE_TO_MANY = "one_to_many"
+
+
+# ....................... #
 
 
 class OnFail(StrEnum):
@@ -234,6 +266,9 @@ class OnFail(StrEnum):
     REPAIR = "repair"  # recipe rewrites the value; resolves to `fallback`
 
 
+# ....................... #
+
+
 class SemiAdditiveRule(StrEnum):
     """Rule applied along a semi-additive metric's ``over`` dimension
     (RFC 0011 D5)."""
@@ -249,6 +284,9 @@ class SemiAdditiveRule(StrEnum):
 # SQL expressions (RFC 0003 §5.2)
 
 
+# ....................... #
+
+
 @lru_cache(maxsize=512)
 def _parse_sql(sql: str) -> Expression:
     """Parse canonical dialect-neutral SQL once per distinct string.
@@ -256,9 +294,13 @@ def _parse_sql(sql: str) -> Expression:
     The cached AST is never handed out directly — :meth:`SqlExpr.ast` returns
     a copy, so the cache can never be mutated through a caller.
     """
+
     # ``parse_one`` is annotated with the ``Expr`` base, but every node it can
     # return (including multi-statement ``Block``) is an ``Expression``.
     return cast("Expression", parse_one(sql))
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -269,14 +311,20 @@ class SqlExpr:
 
     sql: str
 
+    # ....................... #
+
     def ast(self) -> Expression:
         """A fresh SQLGlot AST for this expression — always a copy; mutating
         the returned tree never affects other callers."""
+
         return _parse_sql(self.sql).copy()
 
 
 # ....................... #
 # Silver: entities (RFC 0003 §5.1)
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -286,6 +334,9 @@ class PartitionSpec:
 
     transform: str | None
     column: str
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -298,12 +349,18 @@ class AuditIR:
     params: tuple[tuple[str, str], ...] = ()
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class TransformStepIR:
     """One resolved transform-chain step (authored order is semantic)."""
 
     name: str
     args: tuple[str | int, ...] = ()
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -333,6 +390,9 @@ class SourceColumnIR:
     recipe_id: str | None = None
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class SourceFieldIR:
     """One lowered (target field ← source path) entry with its chain."""
@@ -340,6 +400,9 @@ class SourceFieldIR:
     target_field: str
     source_path: str
     transform: tuple[TransformStepIR, ...] = ()
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -370,6 +433,9 @@ class SourceIR:
     columns: tuple[SourceColumnIR, ...] = ()
     mapping_version: int = 1
     unmapped: tuple[str, ...] = ()
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -406,6 +472,9 @@ class ColumnIR:
 # Silver: data quality (RFC 0016 §5.3–§5.6)
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class QualityRuleIR:
     """One lowered quality rule — field rule or row rule, one node either way
@@ -432,6 +501,9 @@ class QualityRuleIR:
     params: tuple[tuple[str, str], ...] = ()
 
 
+# ....................... #
+
+
 def quality_sort_key(
     rule: QualityRuleIR,
 ) -> tuple[str, str, str, tuple[tuple[str, str], ...], str]:
@@ -446,7 +518,11 @@ def quality_sort_key(
     spec to two different IRs. It sorts last so it only ever breaks a tie
     nothing else could break.
     """
+
     return (rule.kind, rule.column or "", rule.name, rule.params, str(rule.on_fail or ""))
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -467,6 +543,9 @@ class DedupeIR:
     tie_break: tuple[str, ...] = ()
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class QuarantineIR:
     """The per-entity ``<entity>__reject`` policy (RFC 0016 §5.6, D10).
@@ -482,6 +561,9 @@ class QuarantineIR:
     redact: tuple[str, ...] = ()
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class ReconcileIR:
     """One cross-entity reconciliation check (RFC 0016 §5.3) — the check that
@@ -493,6 +575,9 @@ class ReconcileIR:
     right: str
     tolerance: Decimal
     on_fail: OnFail
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -510,6 +595,9 @@ class CoverageIR:
     relationship: str
     minimum: int
     blocking: bool
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -566,6 +654,9 @@ class EntityIR:
 # Metrics (RFC 0003 §5.1; policies per RFC 0011 D5)
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class DimensionRef:
     """The single role-playing dimension model (RFC 0010 §5.3), lowered per
@@ -574,10 +665,16 @@ class DimensionRef:
     dimension: str
     role: str | None = None
 
+    # ....................... #
+
     @property
     def qualified(self) -> str:
         """``<role>_<dimension>`` when role-qualified, else the bare name."""
+
         return f"{self.role}_{self.dimension}" if self.role else self.dimension
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -589,12 +686,18 @@ class SemiAdditivePolicy:
     rule: SemiAdditiveRule
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class Ratio:
     """Additive decomposition of a non-additive metric (RFC 0011 D5)."""
 
     numerator: str
     denominator: str
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -613,6 +716,9 @@ class MetricIR:
     semi_additive: SemiAdditivePolicy | None
     description: str | None = None
     depends_on: tuple[str, ...] = ()
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -638,6 +744,9 @@ class UnreachableMetric:
     via: tuple[str, ...] = ()
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class RelationshipIR:
     """A declared relationship; ``via`` is (from-column, to-column) pairs
@@ -654,6 +763,9 @@ class RelationshipIR:
 # Gold: marts (RFC 0010 §5.4)
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class MartColumnIR:
     """One flattened wide-schema column, traced to exactly one source entity
@@ -666,12 +778,18 @@ class MartColumnIR:
     ref: DimensionRef | None = None
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class MartDimensionIR:
     """A requestable dimension of a mart and the flattened column serving it."""
 
     ref: DimensionRef
     column: str
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -686,6 +804,9 @@ class MartJoinIR:
     entity: str
     prefix: str
     on: tuple[tuple[str, str], ...]
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -708,6 +829,9 @@ class MartAssertIR:
     by: tuple[str, ...]
     params: tuple[tuple[str, str], ...]
     blocking: bool
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -733,6 +857,9 @@ class MartIR:
     cost_hint: int = 1
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class DateDimensionIR:
     """The vertical-owned date dimension (RFC 0008 D13, RFC 0013 R1 rule 4):
@@ -754,6 +881,9 @@ class DateDimensionIR:
 # Steps — RFC 0017 §5.6, D11/D15
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class StepColumnIR:
     """One column a step output declares it produces (RFC 0017 §5.2).
@@ -768,6 +898,9 @@ class StepColumnIR:
     name: str
     type: LogicalType
     required: bool = False
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -790,6 +923,9 @@ class StepOutputIR:
     references: tuple[tuple[str, str], ...] = ()
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class StepParameterIR:
     """One resolved parameter: its name, its value as text, and the logical
@@ -805,6 +941,9 @@ class StepParameterIR:
     name: str
     value: str
     type: str
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -846,12 +985,19 @@ class StepIR:
     body: SqlExpr | None = None
 
 
+# ....................... #
+
+
 def step_sort_key(step: StepIR) -> tuple[str, int]:
     """The canonical order of :attr:`ProjectIR.steps` — one function so no
     consumer invents a second one. ``(ref, version)`` is total over the
     collection because a spec may wire one ``ref@version`` at most once
     (RFC 0017 §5.2)."""
+
     return (step.ref, step.version)
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)

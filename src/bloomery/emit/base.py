@@ -22,6 +22,8 @@ if TYPE_CHECKING:
     from bloomery.ir import ProjectIR
     from bloomery.naming import NamingPolicy
 
+# ----------------------- #
+
 __all__ = [
     "ArtifactKind",
     "AuditBody",
@@ -59,6 +61,9 @@ class Feature(StrEnum):
     AUDITS = "audits"
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class TargetCapabilities:
     """A target's declared support: membership-checked; any output-reaching
@@ -66,8 +71,13 @@ class TargetCapabilities:
 
     supported: frozenset[Feature]
 
+    # ....................... #
+
     def supports(self, feature: Feature) -> bool:
         return feature in self.supported
+
+
+# ....................... #
 
 
 class ArtifactKind(StrEnum):
@@ -90,6 +100,9 @@ class ArtifactKind(StrEnum):
     REPLAY = "replay"
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class EmittedArtifact:
     """One file-shaped artifact as data (RFC 0008 D2): a relative ``path``,
@@ -101,11 +114,16 @@ class EmittedArtifact:
     kind: ArtifactKind
     checksum: str
 
+    # ....................... #
+
     @classmethod
     def create(cls, *, path: str, content: str, kind: ArtifactKind) -> EmittedArtifact:
         """Build an artifact, computing the content checksum."""
         checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
         return cls(path=path, content=content, kind=kind, checksum=checksum)
+
+
+# ....................... #
 
 
 def assert_unique_paths(artifacts: list[EmittedArtifact]) -> None:
@@ -135,9 +153,12 @@ def assert_unique_paths(artifacts: list[EmittedArtifact]) -> None:
     construction, so the map is injective and the guard would have no instance.
     """
     seen: dict[str, int] = {}
+
     for artifact in artifacts:
         seen[artifact.path] = seen.get(artifact.path, 0) + 1
+
     duplicated = sorted(path for path, count in seen.items() if count > 1)
+
     if duplicated:
         msg = (
             f"two or more artifacts claim the same path: {', '.join(duplicated)}. "
@@ -145,6 +166,9 @@ def assert_unique_paths(artifacts: list[EmittedArtifact]) -> None:
             "silently win"
         )
         raise EmitError(msg)
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,6 +201,9 @@ class AuditBody:
     blocking: bool = True
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class EmitContext:
     """Everything an emitter needs beyond the IR: the dialect port, the
@@ -188,12 +215,17 @@ class EmitContext:
     fingerprint: str
 
 
+# ....................... #
+
+
 class TargetEmitter(Protocol):
     """IR → framework artifacts. Knows nothing about SQL dialects (RFC 0008
     D1) — SQL arrives pre-neutral in the IR and renders through
     ``ctx.dialect``."""
 
     name: str
+
+    # ....................... #
 
     def capabilities(self) -> TargetCapabilities: ...
 

@@ -50,6 +50,8 @@ if TYPE_CHECKING:
     from bloomery.planner.policy import RowPolicy
     from bloomery.planner.request import MetricRequest
 
+# ----------------------- #
+
 __all__ = [
     "Coverage",
     "check",
@@ -78,10 +80,16 @@ class Coverage:
     policy_dimension: ResolvedDimension | None
 
 
+# ....................... #
+
+
 def _closest(name: str, known: list[str]) -> str | None:
     """The one known name close enough to be worth suggesting, or ``None``."""
     matches = difflib.get_close_matches(name, known, n=1)
     return matches[0] if matches else None
+
+
+# ....................... #
 
 
 def _did_you_mean(closest: str | None, known: list[str]) -> str:
@@ -91,7 +99,11 @@ def _did_you_mean(closest: str | None, known: list[str]) -> str:
     :attr:`~bloomery.errors.UnknownMember.did_you_mean` are one computation
     read twice (RFC 0020 §5.4) rather than two searches that happen to agree.
     """
+
     return f"; did you mean {closest!r}?" if closest else f"; known: {known}"
+
+
+# ....................... #
 
 
 def _gold_relation(mart: MartIR, naming: NamingPolicy) -> str:
@@ -99,10 +111,14 @@ def _gold_relation(mart: MartIR, naming: NamingPolicy) -> str:
     return f"{namespace}.{relation}"
 
 
+# ....................... #
+
+
 def _required_measures(ir: ProjectIR, name: str) -> tuple[MetricIR, tuple[str, ...]]:
     """The metric named in the request and the measure names a mart must
     carry to serve it (a ratio needs both components — RFC 0011 D5)."""
     metric = next((m for m in ir.metrics if m.name == name), None)
+
     if metric is None:
         unreachable = next((u for u in ir.unreachable if u.name == name), None)
         if unreachable is not None:
@@ -116,6 +132,7 @@ def _required_measures(ir: ProjectIR, name: str) -> tuple[MetricIR, tuple[str, .
         raise UnknownMember(
             f"unknown metric {name!r}{_did_you_mean(closest, known)}", did_you_mean=closest
         )
+
     if metric.additivity is Additivity.NON_ADDITIVE:
         if metric.ratio is None:  # pragma: no cover — guardrails refuse this at compile
             msg = (
@@ -124,7 +141,11 @@ def _required_measures(ir: ProjectIR, name: str) -> tuple[MetricIR, tuple[str, .
             )
             raise PlannerError(msg)
         return metric, (metric.ratio.numerator, metric.ratio.denominator)
+
     return metric, (name,)
+
+
+# ....................... #
 
 
 def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) -> MartIR:
@@ -133,6 +154,7 @@ def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) 
     owners = measure_owners(ir)
     metrics_by_name = {m.name: m for m in ir.metrics}
     entries: dict[str, tuple[str, MartIR]] = {}  # measure -> (grain, owner)
+
     for requested in request.metrics:
         _metric, required = _required_measures(ir, requested)
         for measure in required:
@@ -151,7 +173,9 @@ def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) 
                 )
                 raise UnreachableAtGrain(msg)
             entries[measure] = (metrics_by_name[measure].grain, owner)
+
     marts = {owner.name for _grain, owner in entries.values()}
+
     if len(marts) > 1:
         listed = sorted(entries.items())
         width = max(len(measure) for measure, _ in listed)
@@ -174,11 +198,15 @@ def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) 
                 for measure, (grain, owner) in listed
             ),
         )
+
     return guaranteed(
         iter(entries.values()),
         expected="at least one covering mart",
         by="MetricRequest.__post_init__, which refuses a request with no metrics",
     )[1]
+
+
+# ....................... #
 
 
 def _resolve_dimension(
@@ -188,6 +216,7 @@ def _resolve_dimension(
     (RFC 0011 D6 — role-playing needs no planner logic beyond naming)."""
     refs = {dimension.column: dimension.ref for dimension in mart.dimensions}
     ref = refs.get(name)
+
     if ref is None:
         if name in DATE_BUCKETS:
             roles = sorted({r.role for r in refs.values() if r.role is not None})
@@ -201,9 +230,12 @@ def _resolve_dimension(
         closest = _closest(name, known)
         msg = f"unknown dimension {name!r} on mart {mart.name!r}{_did_you_mean(closest, known)}"
         raise UnknownMember(msg, did_you_mean=closest)
+
     if ref.role is None:
         return ResolvedDimension(name=name)
+
     grain = TimeGrain(ref.dimension)
+
     if apply_grain is not None and apply_grain is not grain:
         rebucketed = f"{ref.role}_{apply_grain.value}"
         if rebucketed not in refs:
@@ -213,7 +245,11 @@ def _resolve_dimension(
             )
             raise InvalidRequest(msg)
         return ResolvedDimension(name=rebucketed, role=ref.role, grain=apply_grain)
+
     return ResolvedDimension(name=name, role=ref.role, grain=grain)
+
+
+# ....................... #
 
 
 def resolve_request(
@@ -253,7 +289,11 @@ def resolve_request(
     )
 
 
+# ....................... #
+
+
 def check(ir: ProjectIR, request: MetricRequest, *, naming: NamingPolicy) -> str:
     """The R3 entry point: the name of the single mart able to answer
     ``request``, or a typed refusal (RFC 0013 D6 — refuse before delegating)."""
+
     return resolve_request(ir, request, naming=naming).mart.name

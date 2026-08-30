@@ -85,6 +85,8 @@ if TYPE_CHECKING:
     from bloomery.spec.mapping import Mapping
     from bloomery.spec.project import Project
 
+# ----------------------- #
+
 __all__ = [
     "check_quality",
 ]
@@ -92,6 +94,9 @@ __all__ = [
 
 def _entity_path(entity_name: str, suffix: str) -> str:
     return f"entity_model: entities.{entity_name}.{suffix}"
+
+
+# ....................... #
 
 
 def _read_paths(mapping: Mapping) -> tuple[str, ...]:
@@ -106,6 +111,7 @@ def _read_paths(mapping: Mapping) -> tuple[str, ...]:
     removed.
     """
     paths: set[str] = {key_field.from_ for key_field in mapping.key.values()}
+
     for field_mapping in mapping.fields.values():
         if isinstance(field_mapping, ALIAS_BOUND):
             paths.update(field_mapping.from_.values())
@@ -113,12 +119,17 @@ def _read_paths(mapping: Mapping) -> tuple[str, ...]:
                 paths.add(field_mapping.direct)
         else:
             paths.add(field_mapping.from_)
+
     return tuple(sorted(paths))
+
+
+# ....................... #
 
 
 def _declared_paths(mapping: Mapping) -> frozenset[str]:
     """Every bronze path the mapping states exists — read paths plus the
     acknowledged ``unmapped:`` tail."""
+
     return frozenset({*_read_paths(mapping), *mapping.unmapped})
 
 
@@ -126,9 +137,13 @@ def _declared_paths(mapping: Mapping) -> frozenset[str]:
 # The checks
 
 
+# ....................... #
+
+
 def _check_dedupe(entity_name: str, entity: Entity) -> list[GuardrailError]:
     if entity.dedupe is None or entity.dedupe.tie_break:
         return []
+
     msg = (
         f"entity {entity_name!r} declares dedupe.keep: {entity.dedupe.keep} on "
         f"{entity.dedupe.field!r} without tie_break — two rows sharing a "
@@ -136,6 +151,9 @@ def _check_dedupe(entity_name: str, entity: Entity) -> list[GuardrailError]:
         "model violates the core invariant (RFC 0003). Fix: add tie_break: [<column>, …]"
     )
     return [DedupeTieBreakMissing(msg, source_path=_entity_path(entity_name, "dedupe"))]
+
+
+# ....................... #
 
 
 def _check_dedupe_columns(entity_name: str, entity: Entity) -> list[GuardrailError]:
@@ -149,14 +167,17 @@ def _check_dedupe_columns(entity_name: str, entity: Entity) -> list[GuardrailErr
     usual ``dedupe.field`` and no mapping declares it as a field, because it is
     the D21 contract rather than mapped data.
     """
+
     if entity.dedupe is None:
         return []
+
     declared = {*entity.fields, *entity.key, *INGESTION_METADATA}
     ordering = [
         (entity.dedupe.field, "dedupe.field"),
         *((column, "dedupe.tie_break") for column in entity.dedupe.tie_break),
     ]
     errors: list[GuardrailError] = []
+
     for column, clause in ordering:
         if column in declared:
             continue
@@ -167,7 +188,11 @@ def _check_dedupe_columns(entity_name: str, entity: Entity) -> list[GuardrailErr
             f"{', '.join(sorted(declared))}"
         )
         errors.append(GuardrailError(msg, source_path=_entity_path(entity_name, "dedupe")))
+
     return errors
+
+
+# ....................... #
 
 
 def _check_dedupe_disposition(
@@ -177,12 +202,15 @@ def _check_dedupe_disposition(
     (§5.4): an uncastable recency field leaves dedupe ordering undefined, so a
     weaker declared disposition on such a field is a contradiction, not a
     preference."""
+
     if entity.dedupe is None:
         return []
+
     ordering = {entity.dedupe.field: "dedupe.field"} | dict.fromkeys(
         entity.dedupe.tie_break, "dedupe.tie_break"
     )
     errors: list[GuardrailError] = []
+
     for column, field_mapping in mapped_fields(mapping):
         if column not in ordering or field_mapping is None:
             continue
@@ -201,7 +229,11 @@ def _check_dedupe_disposition(
                         msg, source_path=f"{mapping_doc(mapping)}: fields.{column}.quality"
                     )
                 )
+
     return errors
+
+
+# ....................... #
 
 
 def _check_retention(
@@ -209,13 +241,16 @@ def _check_retention(
 ) -> list[GuardrailError]:
     if entity.quarantine is not None:
         return []
+
     quarantining = [
         rule
         for rule in lower_quality(entity, mapping, relationships)
         if disposition(rule) is OnFail.QUARANTINE
     ]
+
     if not quarantining:
         return []
+
     names = ", ".join(sorted(rule.name for rule in quarantining))
     msg = (
         f"entity {entity_name!r} has quarantine dispositions ({names}) but no quarantine: "
@@ -225,6 +260,9 @@ def _check_retention(
         "has one even when nothing spells it. Fix: add quarantine: {retention: 90d}"
     )
     return [QuarantineRetentionMissing(msg, source_path=_entity_path(entity_name, "quarantine"))]
+
+
+# ....................... #
 
 
 def _check_ingestion_metadata(
@@ -241,12 +279,16 @@ def _check_ingestion_metadata(
     a recipe alias binding, or the acknowledged tail. That keeps the check
     decidable from the spec alone, which is what makes it a guardrail at all.
     """
+
     if entity.quarantine is None and entity.dedupe is None:
         return []
+
     declared = _declared_paths(mapping)
     missing = [column for column in INGESTION_METADATA if f"$.{column}" not in declared]
+
     if not missing:
         return []
+
     using = "quarantine" if entity.quarantine is not None else "dedupe"
     msg = (
         f"entity {entity_name!r} uses {using}, so its bronze source "
@@ -258,17 +300,23 @@ def _check_ingestion_metadata(
     return [IngestionMetadataMissing(msg, source_path=f"{mapping_doc(mapping)}: unmapped")]
 
 
+# ....................... #
+
+
 def _check_redaction(entity_name: str, entity: Entity, mapping: Mapping) -> list[GuardrailError]:
     if entity.quarantine is None:
         return []
+
     # Column granularity, matching what ``raw`` can express: ``raw`` is the
     # bronze *row*, so redaction removes a whole column. Refusing at the same
     # granularity means a ``redact: $.a.b`` alongside a mapped ``$.a.c`` is a
     # compile error rather than a silent over-removal that breaks replay.
     read = {payload_key(path) for path in _read_paths(mapping)}
     clashing = sorted(path for path in entity.quarantine.redact if payload_key(path) in read)
+
     if not clashing:
         return []
+
     msg = (
         f"quarantine.redact on entity {entity_name!r} lists {', '.join(clashing)}, whose "
         f"bronze column mapping {mapping_doc(mapping)} reads — you cannot both require a "
@@ -277,6 +325,9 @@ def _check_redaction(entity_name: str, entity: Entity, mapping: Mapping) -> list
         "and a redacted path is gone by then. Fix: stop mapping the path, or stop redacting it"
     )
     return [RedactionConflict(msg, source_path=_entity_path(entity_name, "quarantine.redact"))]
+
+
+# ....................... #
 
 
 def _check_rule_names(
@@ -304,6 +355,7 @@ def _check_rule_names(
     """
     reserved = generated_rule_names(entity, mapping, relationships)
     errors: list[GuardrailError] = []
+
     for rule in entity.quality:
         if isinstance(rule, ReferentialRule) or rule.name not in reserved:
             continue
@@ -317,11 +369,16 @@ def _check_rule_names(
             f"rule (the generated names on this entity are {', '.join(sorted(reserved))})"
         )
         errors.append(GuardrailError(msg, source_path=_entity_path(entity_name, "quality")))
+
     return errors
+
+
+# ....................... #
 
 
 def _check_patterns(entity_name: str, mapping: Mapping) -> list[GuardrailError]:
     errors: list[GuardrailError] = []
+
     for column, field_mapping in mapped_fields(mapping):
         if field_mapping is None:
             continue
@@ -342,7 +399,11 @@ def _check_patterns(entity_name: str, mapping: Mapping) -> list[GuardrailError]:
                         msg, source_path=f"{mapping_doc(mapping)}: fields.{column}.quality"
                     )
                 )
+
     return errors
+
+
+# ....................... #
 
 
 #: Steps that may follow an ``enum_map`` without moving the column's value off
@@ -388,6 +449,7 @@ def _check_chain_derived_rules(
     dedupe_columns = (
         {entity.dedupe.field, *entity.dedupe.tie_break} if entity.dedupe else set[str]()
     )
+
     for column, field_mapping in mapped_fields(mapping):
         if field_mapping is None or isinstance(field_mapping, ALIAS_BOUND):
             continue
@@ -432,7 +494,11 @@ def _check_chain_derived_rules(
                 "move the nulling step to a field that carries no coercible rule"
             )
             errors.append(GuardrailError(msg, source_path=f"{path}.quality"))
+
     return errors
+
+
+# ....................... #
 
 
 def _unknown_via(entity_name: str, rule: ReferentialRule, declared: list[str]) -> GuardrailError:
@@ -452,6 +518,9 @@ def _unknown_via(entity_name: str, rule: ReferentialRule, declared: list[str]) -
     return GuardrailError(msg, source_path=_entity_path(entity_name, "quality"))
 
 
+# ....................... #
+
+
 def _wrong_side(entity_name: str, rule: ReferentialRule, relationship: Relationship) -> str:
     """The rule's relationship is declared, but its ``from`` side is another
     entity (RFC 0016 D46).
@@ -463,6 +532,7 @@ def _wrong_side(entity_name: str, rule: ReferentialRule, relationship: Relations
     the ``to`` side, so a ``cust → cust`` self relationship borrowed by an
     unrelated entity slipped past the very refusal (D27) written for it.
     """
+
     return (
         f"referential rule via {rule.via!r} on entity {entity_name!r}: relationship "
         f"{relationship.name!r} runs from {relationship.from_!r} to {relationship.to!r}, "
@@ -471,6 +541,9 @@ def _wrong_side(entity_name: str, rule: ReferentialRule, relationship: Relations
         "§5.4), and this entity does not project them. Fix: name a relationship declared "
         f"from {entity_name!r}, or express the check as a reconcile: block"
     )
+
+
+# ....................... #
 
 
 def _self_referential(entity_name: str, rule: ReferentialRule) -> str:
@@ -482,6 +555,7 @@ def _self_referential(entity_name: str, rule: ReferentialRule) -> str:
     fails at run time or, worse, resolves against a stale previous version of
     the table and silently answers the wrong question.
     """
+
     return (
         f"referential rule via {rule.via!r} on entity {entity_name!r} references "
         f"{entity_name!r} itself — the rule lowers to a LEFT JOIN inside that entity's "
@@ -490,6 +564,9 @@ def _self_referential(entity_name: str, rule: ReferentialRule) -> str:
         "source, or express the check as a reconcile: block, which runs silver→mart "
         "against finished tables"
     )
+
+
+# ....................... #
 
 
 def _check_unknown_member(
@@ -508,9 +585,12 @@ def _check_unknown_member(
     outright is also what makes the type check total: an accepted rule has
     exactly one via column, and it is checked.
     """
+
     if rule.on_missing != "unknown_member":
         return []
+
     via = sorted(relationship.via)
+
     if len(via) > 1:
         msg = (
             f"referential rule via {rule.via!r} on entity {entity_name!r} declares "
@@ -521,6 +601,7 @@ def _check_unknown_member(
             "quarantine or flag, or relate the entities by a single column"
         )
         return [GuardrailError(msg, source_path=_entity_path(entity_name, "quality"))]
+
     from_column = via[0]
     # Resolution (RFC 0005) refuses a relationship whose ``via`` names a column
     # neither side declares, and the ``from`` side is this entity by the check
@@ -529,8 +610,10 @@ def _check_unknown_member(
     declared = parse_type(
         field.type, source_path=_entity_path(entity_name, f"fields.{from_column}.type")
     )
+
     if isinstance(declared, StringType):
         return []
+
     msg = (
         f"referential rule via {relationship.name!r} on entity {entity_name!r} "
         f"declares on_missing: unknown_member, but the fk {from_column!r} is "
@@ -540,6 +623,9 @@ def _check_unknown_member(
         "value). Fix: use on_missing: quarantine or flag, or map the key to string"
     )
     return [GuardrailError(msg, source_path=_entity_path(entity_name, "quality"))]
+
+
+# ....................... #
 
 
 def _check_referential(
@@ -567,6 +653,7 @@ def _check_referential(
     by_name = {relationship.name: relationship for relationship in relationships}
     errors: list[GuardrailError] = []
     seen_via: set[str] = set()
+
     for rule in entity.quality:
         if isinstance(rule, ReferentialRule) and rule.via in by_name:
             if rule.via in seen_via:
@@ -579,6 +666,7 @@ def _check_referential(
                 )
                 errors.append(GuardrailError(msg, source_path=_entity_path(entity_name, "quality")))
             seen_via.add(rule.via)
+
     for rule in entity.quality:
         if not isinstance(rule, ReferentialRule):
             continue
@@ -601,7 +689,11 @@ def _check_referential(
             )
         else:
             errors.extend(_check_unknown_member(entity_name, entity, rule, relationship))
+
     return errors
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -625,6 +717,9 @@ class _SideEntity:
     sources: tuple[str, ...] = ()
 
 
+# ....................... #
+
+
 def _side_entities(project: Project, draft: ProjectIR) -> dict[str, _SideEntity]:
     """Every relation a reconcile side may read: mapped entities, and the
     entities a step writes.
@@ -637,8 +732,10 @@ def _side_entities(project: Project, draft: ProjectIR) -> dict[str, _SideEntity]
     exists.
     """
     sources: dict[str, tuple[str, ...]] = {}
+
     for mapping in project.mappings:
         sources[mapping.target] = (*sources.get(mapping.target, ()), mapping.source)
+
     view = {
         name: _SideEntity(
             fields=frozenset(entity.fields),
@@ -658,11 +755,18 @@ def _side_entities(project: Project, draft: ProjectIR) -> dict[str, _SideEntity]
             if entity.produced_by is not None
         }
     )
+
     return view
+
+
+# ....................... #
 
 
 def _reconcile_path(check_name: str, suffix: str) -> str:
     return f"entity_model: reconcile.{check_name}.{suffix}"
+
+
+# ....................... #
 
 
 def _resolve_side(
@@ -689,6 +793,7 @@ def _resolve_side(
     """
     path = _reconcile_path(check_name, side)
     parsed = parse_side(text)
+
     if parsed is None:
         msg = (
             f"reconcile check {check_name!r} has an unparseable {side} side {text!r} "
@@ -696,7 +801,9 @@ def _resolve_side(
             "not SQL — specs describe, specs never contain implementations (D1)"
         )
         return None, [GuardrailError(msg, source_path=path)]
+
     entity = entities.get(parsed.entity)
+
     if entity is None:
         msg = (
             f"reconcile check {check_name!r} {side} side names entity {parsed.entity!r}, "
@@ -706,6 +813,7 @@ def _resolve_side(
             "wire a step that writes it, or drop the check"
         )
         return None, [GuardrailError(msg, source_path=path)]
+
     if len(entity.sources) > 1:
         msg = (
             f"reconcile check {check_name!r} {side} side names entity {parsed.entity!r}, "
@@ -718,7 +826,9 @@ def _resolve_side(
             "the aggregate rather than the mapping"
         )
         return None, [GuardrailError(msg, source_path=path)]
+
     repeated = sorted({name for name in parsed.by if parsed.by.count(name) > 1})
+
     if repeated:
         msg = (
             f"reconcile check {check_name!r} {side} side repeats {', '.join(repeated)} in its "
@@ -728,11 +838,13 @@ def _resolve_side(
             "(verified on PostgreSQL). Fix: name each by column once"
         )
         return None, [GuardrailError(msg, source_path=path)]
+
     # One set for both the test and the message: reporting only `fields` while
     # accepting `fields | key` pointed a user who mistyped a key column at a
     # list that could not contain it.
     readable = entity.fields | set(entity.key)
     missing = sorted({parsed.column, *parsed.by} - readable)
+
     if missing:
         msg = (
             f"reconcile check {check_name!r} {side} side reads {', '.join(missing)} on entity "
@@ -740,11 +852,16 @@ def _resolve_side(
             f"{sorted(readable)}"
         )
         return None, [GuardrailError(msg, source_path=path)]
+
     if parsed.aggregated:
         return parsed, []
+
     # The plain-column shape compares one value per key, and the entity says
     # which columns that is (see ``bloomery.quality.reconcile``).
     return replace(parsed, by=tuple(entity.key)), []
+
+
+# ....................... #
 
 
 def _check_reconcile(project: Project, draft: ProjectIR) -> list[GuardrailError]:
@@ -761,6 +878,7 @@ def _check_reconcile(project: Project, draft: ProjectIR) -> list[GuardrailError]
     entities = _side_entities(project, draft)
     errors: list[GuardrailError] = []
     seen: set[str] = set()
+
     for check in project.entity_model.reconcile:
         if check.name in seen:
             msg = (
@@ -785,7 +903,11 @@ def _check_reconcile(project: Project, draft: ProjectIR) -> list[GuardrailError]
                 "the 'by' columns to match, or reconcile against an entity keyed that way"
             )
             errors.append(GuardrailError(msg, source_path=_reconcile_path(check.name, "left")))
+
     return errors
+
+
+# ....................... #
 
 
 def _check_reserved_metric_names(project: Project) -> list[GuardrailError]:
@@ -796,11 +918,15 @@ def _check_reserved_metric_names(project: Project) -> list[GuardrailError]:
     name that is reserved sometimes is a name nobody can rely on, and adding a
     single ``quality:`` block later must not break an unrelated metric.
     """
+
     if project.metric_set is None:
         return []
+
     clashing = sorted(set(project.metric_set.metrics) & set(QUALITY_METRICS))
+
     if not clashing:
         return []
+
     msg = (
         f"metric(s) {', '.join(clashing)} collide with the reserved names of the quality "
         f"mart's own metrics (RFC 0016 §5.8, D12): {', '.join(QUALITY_METRICS)}. They are "
@@ -808,6 +934,9 @@ def _check_reserved_metric_names(project: Project) -> list[GuardrailError]:
         "not a merge but a silent winner. Fix: rename the project metric"
     )
     return [GuardrailError(msg, source_path="metrics: metrics")]
+
+
+# ....................... #
 
 
 def _check_reserved_mart_name(project: Project) -> list[GuardrailError]:
@@ -822,8 +951,10 @@ def _check_reserved_mart_name(project: Project) -> list[GuardrailError]:
     diagnostic at all, while Cube writes two different files to one path and
     the last writer wins.
     """
+
     if project.marts is None or QUALITY_MART not in project.marts.marts:
         return []
+
     msg = (
         f"mart {QUALITY_MART!r} collides with the name of the quality mart bloomery "
         f"synthesizes for any project that carries quality rules (RFC 0016 §5.8, D12). "
@@ -832,6 +963,9 @@ def _check_reserved_mart_name(project: Project) -> list[GuardrailError]:
         "the authored mart"
     )
     return [GuardrailError(msg, source_path=f"marts: marts.{QUALITY_MART}")]
+
+
+# ....................... #
 
 
 #: Top-level shapes that are *definitely* not a boolean predicate. A denylist
@@ -853,12 +987,18 @@ def _is_boolean_shaped(node: Expression, entity: EntityIR) -> bool:
     ``is_active`` is a perfectly good row rule when the field is ``bool``, and
     ``amt`` never is.
     """
+
     while isinstance(node, exp.Paren):
         node = node.this
+
     if isinstance(node, exp.Column):
         declared = {column.name.casefold(): column.type for column in entity.columns}
         return isinstance(declared.get(node.name.casefold()), BoolType)
+
     return not isinstance(node, _NOT_BOOLEAN)
+
+
+# ....................... #
 
 
 def _check_expression_rules(
@@ -892,8 +1032,10 @@ def _check_expression_rules(
     **A qualified reference.** ``other.amt`` names a relation this predicate
     cannot read, and the qualifier the extract binds is bloomery's own.
     """
+
     if not entity.quality:
         return []
+
     # Stated as an invariant rather than swallowed. This used to be
     # ``if lowered is None: return []``, which read as caution and was
     # unreachable: the caller skips every entity no mapping targets, and
@@ -916,6 +1058,7 @@ def _check_expression_rules(
     readable = {column.name.casefold() for column in lowered.columns}
     readable.update(name.casefold() for name in INGESTION_METADATA)
     errors: list[GuardrailError] = []
+
     for index, rule in enumerate(entity.quality):
         if not isinstance(rule, ExpressionRule):
             continue
@@ -985,7 +1128,11 @@ def _check_expression_rules(
                 f"run time on a model that compiled clean. Known columns: {sorted(readable)}"
             )
             errors.append(GuardrailError(msg, source_path=where))
+
     return errors
+
+
+# ....................... #
 
 
 def _check_coverage(project: Project, draft: ProjectIR) -> list[GuardrailError]:
@@ -1013,6 +1160,7 @@ def _check_coverage(project: Project, draft: ProjectIR) -> list[GuardrailError]:
     mapped = frozenset(mapping.target for mapping in project.mappings)
     errors: list[GuardrailError] = []
     seen: set[str] = set()
+
     for index, check in enumerate(project.entity_model.coverage):
         where = f"entity_model: coverage[{index}]"
         if check.name in seen:
@@ -1048,7 +1196,11 @@ def _check_coverage(project: Project, draft: ProjectIR) -> list[GuardrailError]:
                 "a mapped dependent entity, or drop the check"
             )
             errors.append(GuardrailError(msg, source_path=f"{where}.relationship"))
+
     return errors
+
+
+# ....................... #
 
 
 def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
@@ -1072,9 +1224,12 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
     # the silent-wrong-answer shape, not a narrower check. Sorted by source so
     # the batched errors come out in branch order (D3).
     by_target: dict[str, list[Mapping]] = {}
+
     for mapping in sorted(project.mappings, key=lambda m: m.source):
         by_target.setdefault(mapping.target, []).append(mapping)
+
     errors: list[GuardrailError] = []
+
     for entity_name in sorted(project.entity_model.entities):
         entity = project.entity_model.entities[entity_name]
         mappings = by_target.get(entity_name)
@@ -1095,10 +1250,12 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
             # ``lower_quality`` is empty for an entity that never joined the
             # quality system, so it is silently satisfied there.
             errors.extend(_check_retention(entity_name, entity, mapping, relationships))
+
     # Project-level, not per entity: a reconcile check relates two entities and
     # belongs to neither, and the reserved metric names are one flat namespace.
     errors.extend(_check_reconcile(project, draft))
     errors.extend(_check_coverage(project, draft))
     errors.extend(_check_reserved_metric_names(project))
     errors.extend(_check_reserved_mart_name(project))
+
     return errors

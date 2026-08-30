@@ -52,6 +52,8 @@ from typing import Any
 from bloomery.errors import BloomeryError
 from bloomery.typing import LogicalType, render_type
 
+# ----------------------- #
+
 __all__ = [
     "SpecEncoder",
 ]
@@ -76,7 +78,11 @@ def _error_as_json(error: BloomeryError) -> dict[str, object]:
     collision is a small harm; corrupting the discriminator is not, because
     nothing downstream can detect it.
     """
+
     return {**vars(error), "type": type(error).__name__, "message": str(error)}
+
+
+# ....................... #
 
 
 class SpecEncoder(json.JSONEncoder):
@@ -90,10 +96,14 @@ class SpecEncoder(json.JSONEncoder):
         # too, and a field dump would render `StringType()` as `{}`.
         if isinstance(o, LogicalType):
             return render_type(o)
+
         if isinstance(o, BloomeryError):
             return _error_as_json(o)
+
         if isinstance(o, Decimal):
             return str(o)
+
         if dataclasses.is_dataclass(o) and not isinstance(o, type):
             return {field.name: getattr(o, field.name) for field in dataclasses.fields(o)}
+
         return super().default(o)

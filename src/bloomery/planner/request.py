@@ -48,6 +48,8 @@ from uuid import UUID
 
 from bloomery.errors import InvalidLiteral, InvalidRequest
 
+# ----------------------- #
+
 __all__ = [
     "AnyOf",
     "Clause",
@@ -87,6 +89,9 @@ class Op(StrEnum):
     ILIKE = "ilike"
 
 
+# ....................... #
+
+
 class TimeGrain(StrEnum):
     """Requestable time grains (RFC 0011 D2). ``HOUR`` is accepted here for
     contract stability but marts expand date roles to day..year buckets only
@@ -98,6 +103,9 @@ class TimeGrain(StrEnum):
     MONTH = "month"
     QUARTER = "quarter"
     YEAR = "year"
+
+
+# ....................... #
 
 
 #: The six exactly-one-value comparison operators (RFC 0015 D5 calls them
@@ -117,19 +125,26 @@ def _normalize_scalar(value: object, *, where: str) -> Scalar:
     """One value at the request boundary (RFC 0015 D5): floats normalize to
     ``Decimal(str(value))`` so no float survives construction; non-finite
     numerics (float or ``Decimal``) are :class:`InvalidLiteral`."""
+
     if isinstance(value, float):
         candidate = Decimal(str(value))
         if not candidate.is_finite():
             raise InvalidLiteral(f"{where} value {value!r} {_NON_FINITE_MSG}")
         return candidate
+
     if isinstance(value, Decimal):
         if not value.is_finite():
             raise InvalidLiteral(f"{where} value {value!r} {_NON_FINITE_MSG}")
         return value
+
     if not isinstance(value, (str, int, bool, date, datetime, UUID)):
         msg = f"{where} carries a non-scalar value of type {type(value).__name__!r}"
         raise InvalidRequest(msg)
+
     return value
+
+
+# ....................... #
 
 
 def _check_pattern(pattern: object, *, where: str) -> str:
@@ -137,12 +152,16 @@ def _check_pattern(pattern: object, *, where: str) -> str:
     pattern in the ``\\`` escape language. An unpaired trailing ``\\`` is
     invalid SQL on several dialects and a NUL byte can truncate — both are
     :class:`InvalidLiteral`, refusal beating engine-dependent behavior."""
+
     if not isinstance(pattern, str):
         msg = f"{where} takes string LIKE patterns, got {type(pattern).__name__!r}"
         raise InvalidRequest(msg)
+
     if "\x00" in pattern:
         raise InvalidLiteral(f"{where} pattern contains a NUL byte — refused")
+
     index = 0
+
     while index < len(pattern):
         if pattern[index] == "\\":
             if index + 1 >= len(pattern):
@@ -155,7 +174,11 @@ def _check_pattern(pattern: object, *, where: str) -> str:
             index += 2
         else:
             index += 1
+
     return pattern
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,21 +196,27 @@ class Predicate:
     op: Op
     values: tuple[Scalar, ...] = ()
 
+    # ....................... #
+
     def __post_init__(self) -> None:
         # The annotation is a promise untyped callers may break — validate
         # at runtime (the same discipline OrderSpec applies to `field`).
         dimension = cast("object", self.dimension)
+
         if not isinstance(dimension, str) or not dimension:
             msg = f"a filter needs a non-empty string dimension name, got {dimension!r}"
             raise InvalidRequest(msg)
+
         try:
             op = Op(self.op)
         except ValueError:
             known = sorted(member.value for member in Op)
             msg = f"unknown filter operator {self.op!r}; known: {known}"
             raise InvalidRequest(msg) from None
+
         object.__setattr__(self, "op", op)
         where = f"filter on {self.dimension!r} ({op.value})"
+
         if op in COMPARISON_OPS:
             if len(self.values) != 1:
                 msg = f"{where} takes exactly 1 value(s), got {len(self.values)}"
@@ -201,6 +230,7 @@ class Predicate:
                 raise InvalidRequest(msg)
         elif not self.values:
             raise InvalidRequest(f"{where} needs at least one value")
+
         if op in PATTERN_OPS:
             patterns = tuple(_check_pattern(value, where=where) for value in self.values)
             object.__setattr__(self, "values", patterns)
@@ -209,8 +239,12 @@ class Predicate:
             object.__setattr__(self, "values", normalized)
 
 
+# ....................... #
+
+
 def _check_member(member: object) -> None:
     """Defensive runtime check — untyped callers exist (RFC 0015 D-Q3)."""
+
     if not isinstance(member, Predicate):
         msg = (
             "an any_of group holds Predicate members only — nesting is "
@@ -219,14 +253,21 @@ def _check_member(member: object) -> None:
         raise InvalidRequest(msg)
 
 
+# ....................... #
+
+
 def _check_clause(clause: object) -> None:
     """Defensive runtime check — untyped callers exist (RFC 0015 D-Q3)."""
+
     if not isinstance(clause, (Predicate, AnyOf)):
         msg = (
             "filters hold Predicate or AnyOf clauses only (RFC 0015 "
             f"D-Q3), got {type(clause).__name__!r}"
         )
         raise InvalidRequest(msg)
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -238,21 +279,29 @@ class AnyOf:
 
     predicates: tuple[Predicate, ...]
 
+    # ....................... #
+
     def __post_init__(self) -> None:
         # The container itself is validated first: a list passes an
         # emptiness check but stays mutable after construction, which a
         # frozen value object may not be (RFC 0015 D-Q3).
         predicates = cast("object", self.predicates)
+
         if not isinstance(predicates, tuple):
             msg = (
                 "an any_of group needs tuple predicate members — a mutable "
                 f"container is not a frozen value object, got {type(predicates).__name__!r}"
             )
             raise InvalidRequest(msg)
+
         if not self.predicates:
             raise InvalidRequest("an any_of group needs at least one predicate")
+
         for member in self.predicates:
             _check_member(member)
+
+
+# ....................... #
 
 
 #: One filter clause (RFC 0015 D-Q3): a predicate, or one disjunction group.
@@ -262,7 +311,11 @@ type Clause = Predicate | AnyOf
 def clause_predicates(clause: Clause) -> tuple[Predicate, ...]:
     """The predicates of one clause — a 1-tuple for a bare predicate, the
     member tuple for an :class:`AnyOf` group."""
+
     return clause.predicates if isinstance(clause, AnyOf) else (clause,)
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -275,16 +328,23 @@ class OrderSpec:
     field: str
     direction: OrderDirection = "asc"
 
+    # ....................... #
+
     def __post_init__(self) -> None:
         # The annotation is a promise untyped callers may break — validate
         # at runtime (the same discipline Predicate applies to `dimension`).
         field = cast("object", self.field)
+
         if not isinstance(field, str) or not field:
             msg = f"an order term needs a non-empty string field, got {field!r}"
             raise InvalidRequest(msg)
+
         if self.direction not in ("asc", "desc"):
             msg = f"order direction must be 'asc' or 'desc', got {self.direction!r}"
             raise InvalidRequest(msg)
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -304,18 +364,25 @@ class MetricRequest:
     order_by: tuple[OrderSpec, ...] = ()
     limit: int | None = None
 
+    # ....................... #
+
     def __post_init__(self) -> None:
         if not self.metrics:
             raise InvalidRequest("a request needs at least one metric")
+
         for kind, names in (("metric", self.metrics), ("dimension", self.dimensions)):
             duplicates = sorted({n for n in names if names.count(n) > 1})
             if duplicates:
                 raise InvalidRequest(f"duplicate {kind}(s) in request: {duplicates}")
+
         for clause in self.filters:
             _check_clause(clause)
+
         if self.limit is not None and self.limit < 1:
             raise InvalidRequest(f"limit must be >= 1, got {self.limit}")
+
         allowed = set(self.metrics) | set(self.dimensions)
+
         for spec in self.order_by:
             if spec.field not in allowed:
                 msg = (

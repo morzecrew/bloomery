@@ -23,6 +23,8 @@ from pydantic import Field, StringConstraints, model_validator
 from bloomery.spec.common import USE_PATTERN, ParameterValue, SpecModel, StepUse
 from bloomery.spec.quality import ExpressionRule
 
+# ----------------------- #
+
 __all__ = [
     "RELATION_PATTERN",
     "USE_PATTERN",
@@ -87,15 +89,23 @@ class StepWiring(SpecModel):
     #: because the guess is cheap (the same argument D43 made for references).
     canonical: dict[str, dict[str, str]] = Field(default_factory=dict[str, dict[str, str]])
 
+    # ....................... #
+
     @property
     def ref(self) -> str:
         """The step ref half of ``use``."""
+
         return self.use.split("@", 1)[0]
+
+    # ....................... #
 
     @property
     def version(self) -> int:
         """The version half of ``use``."""
+
         return int(self.use.split("@", 1)[1])
+
+    # ....................... #
 
     @model_validator(mode="after")
     def _canonical_names_a_bound_output(self) -> Self:
@@ -103,12 +113,14 @@ class StepWiring(SpecModel):
         Whether the column exists is the manifest's business, and the spec
         layer has never seen a manifest — that check waits for lowering."""
         unbound = sorted(set(self.canonical) - set(self.outputs))
+
         if unbound:
             msg = (
                 f"canonical names output(s) {', '.join(unbound)} this step does not bind; "
                 f"bound outputs: {', '.join(sorted(self.outputs))}"
             )
             raise ValueError(msg)
+
         for output, links in sorted(self.canonical.items()):
             bad = sorted(name for pair in links.items() for name in pair if not name.isidentifier())
             if bad:
@@ -117,7 +129,10 @@ class StepWiring(SpecModel):
                     "both a produced column and a canonical field are plain names"
                 )
                 raise ValueError(msg)
+
         return self
+
+    # ....................... #
 
     @model_validator(mode="after")
     def _rules_name_a_bound_output(self) -> Self:
@@ -126,27 +141,36 @@ class StepWiring(SpecModel):
         resolution question and waits for the guardrail stage."""
         declared = {rule.name for rule in self.quality}
         unknown_rules = sorted(set(self.applies_to) - declared)
+
         if unknown_rules:
             msg = (
                 f"applies_to names rule(s) {', '.join(unknown_rules)} this step does not "
                 f"declare; declared: {', '.join(sorted(declared)) or '(none)'}"
             )
             raise ValueError(msg)
+
         unassigned = sorted(declared - set(self.applies_to))
+
         if unassigned:
             msg = (
                 f"quality rule(s) {', '.join(unassigned)} do not say which output they "
                 "apply to; a step has several, so add applies_to: {<rule>: <output>}"
             )
             raise ValueError(msg)
+
         unbound = sorted(set(self.applies_to.values()) - set(self.outputs))
+
         if unbound:
             msg = (
                 f"applies_to points at output(s) {', '.join(unbound)} this step does not "
                 f"bind; bound outputs: {', '.join(sorted(self.outputs))}"
             )
             raise ValueError(msg)
+
         return self
+
+
+# ....................... #
 
 
 class StepSet(SpecModel):
@@ -160,6 +184,8 @@ class StepSet(SpecModel):
 
     steps_version: Literal[1]
     steps: tuple[StepWiring, ...] = ()
+
+    # ....................... #
 
     @model_validator(mode="after")
     def _refs_are_unique(self) -> Self:
@@ -175,6 +201,7 @@ class StepSet(SpecModel):
         version bump is a step *changing*, not a second step appearing.
         """
         seen: set[str] = set()
+
         for wiring in self.steps:
             if wiring.ref in seen:
                 msg = (
@@ -184,4 +211,5 @@ class StepSet(SpecModel):
                 )
                 raise ValueError(msg)
             seen.add(wiring.ref)
+
         return self

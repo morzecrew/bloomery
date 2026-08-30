@@ -19,6 +19,8 @@ from bloomery.spec.common import JsonPath, MemberName, SpecModel
 from bloomery.spec.quality import FieldQualityRule
 from bloomery.spec.steps import ParameterValue, StepUse
 
+# ----------------------- #
+
 __all__ = [
     "ALIAS_BOUND",
     "FieldMapping",
@@ -49,18 +51,24 @@ class TransformStep(SpecModel):
     args: tuple[str | int, ...] = ()
     step: StepUse | None = None
 
+    # ....................... #
+
     @model_validator(mode="after")
     def _is_one_kind_of_link(self) -> Self:
         if bool(self.name) == (self.step is not None):
             msg = "a chain step is either a transform name or a step: reference, never both"
             raise ValueError(msg)
+
         return self
+
+    # ....................... #
 
     @model_validator(mode="before")
     @classmethod
     def _normalize(cls, value: object) -> object:
         if isinstance(value, str):
             return {"name": value}
+
         if isinstance(value, AbcMapping):
             mapping = cast("AbcMapping[object, object]", value)
             if "step" in mapping:
@@ -80,8 +88,12 @@ class TransformStep(SpecModel):
                 f"({{name: arg}}), got {len(mapping)} keys: {sorted(map(str, mapping.keys()))}"
             )
             raise ValueError(msg)
+
         msg = f"a transform step is a bare name or a single-key mapping, got {type(value).__name__}"
         raise ValueError(msg)
+
+
+# ....................... #
 
 
 class KeyField(SpecModel):
@@ -91,6 +103,9 @@ class KeyField(SpecModel):
     transform: tuple[TransformStep, ...] = ()
 
 
+# ....................... #
+
+
 class SimpleFieldMapping(SpecModel):
     """Direct field mapping: one source path plus a transform chain, and the
     field's ``quality:`` rules (RFC 0016 §5.3)."""
@@ -98,6 +113,9 @@ class SimpleFieldMapping(SpecModel):
     from_: JsonPath = Field(alias="from")
     transform: tuple[TransformStep, ...] = ()
     quality: tuple[FieldQualityRule, ...] = ()
+
+
+# ....................... #
 
 
 class RecipeFieldMapping(SpecModel):
@@ -116,6 +134,9 @@ class RecipeFieldMapping(SpecModel):
     from_: dict[str, JsonPath] = Field(alias="from")
     direct: JsonPath | None = None
     quality: tuple[FieldQualityRule, ...] = ()
+
+
+# ....................... #
 
 
 class MacroFieldMapping(SpecModel):
@@ -145,17 +166,26 @@ class MacroFieldMapping(SpecModel):
     quality: tuple[FieldQualityRule, ...] = ()
 
 
+# ....................... #
+
+
 def _field_mapping_tag(value: object) -> str:
     if isinstance(value, AbcMapping):
         if "recipe" in value:
             return "recipe"
         if "step" in value:
             return "macro"
+
     if isinstance(value, RecipeFieldMapping):
         return "recipe"
+
     if isinstance(value, MacroFieldMapping):
         return "macro"
+
     return "simple"
+
+
+# ....................... #
 
 
 FieldMapping = Annotated[
@@ -197,8 +227,12 @@ class Mapping(SpecModel):
     # disposition, through one mechanism and one reject table.
 
 
+# ....................... #
+
+
 def mapping_doc(mapping: Mapping) -> str:
     """The deterministic source-path label for one mapping document — parsed
     models do not retain their document names (RFC 0002 §5.3), so both the
     resolve and guardrail stages address a mapping by this label."""
+
     return f"mapping[{mapping.source}->{mapping.target}]"

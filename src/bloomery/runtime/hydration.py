@@ -53,6 +53,8 @@ if TYPE_CHECKING:
     from bloomery.ir import ProjectIR
     from bloomery.naming import NamingPolicy
 
+# ----------------------- #
+
 __all__ = [
     "HydrationKey",
     "LruManifestHydrator",
@@ -78,8 +80,12 @@ class HydrationKey:
     metricflow_version: str
 
 
+# ....................... #
+
+
 def hydration_key(ir: ProjectIR) -> HydrationKey:
     """The :class:`HydrationKey` for a project at the running versions."""
+
     return HydrationKey(
         spec_fingerprint=project_fingerprint(ir),
         bloomery_version=_BLOOMERY_VERSION,
@@ -87,12 +93,19 @@ def hydration_key(ir: ProjectIR) -> HydrationKey:
     )
 
 
+# ....................... #
+
+
 def build_manifest_bytes(ir: ProjectIR, *, naming: NamingPolicy) -> bytes:
     """The L2 payload: the **post-transform** manifest's sorted-keys JSON
     (``emit_manifest`` returns transformed — RFC 0013 R1), UTF-8 encoded.
     Pure and deterministic; byte determinism is the emitter's golden-tested
     contract (RFC 0014 §6)."""
+
     return manifest_json(emit_manifest(ir, naming=naming)).encode("utf-8")
+
+
+# ....................... #
 
 
 def hydrate_manifest(data: bytes, *, prewarm: bool = False) -> SemanticManifestLookup:
@@ -106,13 +119,18 @@ def hydrate_manifest(data: bytes, *, prewarm: bool = False) -> SemanticManifestL
     """
     manifest = PydanticSemanticManifest.parse_raw(data)
     lookup = SemanticManifestLookup(manifest)
+
     if prewarm and manifest.metrics:
         engine = MetricFlowEngine(
             semantic_manifest_lookup=lookup,
             sql_client=sql_client_for_dialect("duckdb"),
         )
         engine.explain(MetricFlowQueryRequest.create(metric_names=[manifest.metrics[0].name]))
+
     return lookup
+
+
+# ....................... #
 
 
 class LruManifestHydrator:
@@ -147,15 +165,23 @@ class LruManifestHydrator:
         # Bound to `self`, so the cache and its counters die with the hydrator.
         self._cached = lru_cache(maxsize=max_entries)(self._hydrate)
 
+    # ....................... #
+
     @property
     def hits(self) -> int:
         """L1 hits since construction."""
+
         return self._cached.cache_info().hits
+
+    # ....................... #
 
     @property
     def misses(self) -> int:
         """L1 misses since construction — each one hydrated a manifest."""
+
         return self._cached.cache_info().misses
+
+    # ....................... #
 
     @property
     def hit_rate(self) -> float:
@@ -163,6 +189,8 @@ class LruManifestHydrator:
         info = self._cached.cache_info()
         total = info.hits + info.misses
         return info.hits / total if total else 0.0
+
+    # ....................... #
 
     def _hydrate(self, key: HydrationKey, ir: ProjectIR) -> SemanticManifestLookup:
         """One miss: L2 bytes when the caller supplies them, else a fresh build.
@@ -184,6 +212,7 @@ class LruManifestHydrator:
         (RFC 0014 D2/D7), which an IR-only cache would have quietly dropped.
         """
         data = self._fetch_l2(key) if self._fetch_l2 is not None else None
+
         # `not data`, not `is None`: an L2 that answers with zero bytes has
         # answered with no manifest. Reading that as a payload sent `b""` into
         # `parse_raw` and raised a pydantic ValidationError out of a cache
@@ -191,7 +220,10 @@ class LruManifestHydrator:
         # class docstring has always claimed.
         if not data:
             data = build_manifest_bytes(ir, naming=self.naming)
+
         return hydrate_manifest(data, prewarm=self._prewarm)
+
+    # ....................... #
 
     def get(self, ir: ProjectIR) -> SemanticManifestLookup:
         """The hydrated lookup for ``ir`` — an L1 hit is a dict lookup; a miss
@@ -201,4 +233,5 @@ class LruManifestHydrator:
         worst a race costs is two threads building one manifest and one of the
         two results being discarded.
         """
+
         return self._cached(hydration_key(ir), ir)

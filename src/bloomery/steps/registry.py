@@ -33,6 +33,8 @@ from bloomery.steps.manifest import StepManifest
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+# ----------------------- #
+
 __all__ = [
     "EMPTY_REGISTRY",
     "StepRegistry",
@@ -49,9 +51,14 @@ def _snapshot(source: Mapping[StepKey, object] | None) -> tuple[tuple[StepKey, o
     function whose output must not depend on how the caller happened to build
     a dict (RFC 0003: no ambient nondeterminism, tuples not sets).
     """
+
     if source is None:
         return ()
+
     return tuple(sorted(source.items()))
+
+
+# ....................... #
 
 
 def _refuse_key_disagreement(steps: tuple[tuple[StepKey, StepManifest], ...]) -> None:
@@ -69,6 +76,7 @@ def _refuse_key_disagreement(steps: tuple[tuple[StepKey, StepManifest], ...]) ->
     which is the same argument that makes collision an error in the transform
     registry (RFC 0004 D6).
     """
+
     for (ref, version), manifest in steps:
         if manifest.ref == ref and manifest.version == version:
             continue
@@ -80,6 +88,9 @@ def _refuse_key_disagreement(steps: tuple[tuple[StepKey, StepManifest], ...]) ->
             "Fix: key each manifest by its own ref and version"
         )
         raise StepError(msg)
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -96,6 +107,8 @@ class StepRegistry:
     _macro_bodies: tuple[tuple[StepKey, str], ...]
     _sql_bodies: tuple[tuple[StepKey, str], ...]
 
+    # ....................... #
+
     def __init__(
         self,
         steps: Mapping[StepKey, StepManifest] | None = None,
@@ -108,22 +121,34 @@ class StepRegistry:
         object.__setattr__(self, "_sql_bodies", _snapshot(sql_bodies))
         _refuse_key_disagreement(self._steps)
 
+    # ....................... #
+
     @property
     def steps(self) -> tuple[tuple[StepKey, StepManifest], ...]:
         """Every ``((ref, version), manifest)`` pair, sorted."""
+
         return self._steps
+
+    # ....................... #
 
     def get(self, ref: str, version: int) -> StepManifest | None:
         """The manifest for one ``ref@version``, or ``None``. Callers that
         want the refusal want :meth:`resolve`."""
+
         for (key_ref, key_version), manifest in self._steps:
             if key_ref == ref and key_version == version:
                 return manifest
+
         return None
+
+    # ....................... #
 
     def versions_of(self, ref: str) -> tuple[int, ...]:
         """Every version of ``ref`` this registry holds, ascending."""
+
         return tuple(sorted(version for (key_ref, version), _ in self._steps if key_ref == ref))
+
+    # ....................... #
 
     def resolve(self, ref: str, version: int, *, source_path: str | None = None) -> StepManifest:
         """The manifest for ``ref@version``, or :class:`UnknownStep`.
@@ -134,9 +159,12 @@ class StepRegistry:
         "unknown step" and going to ask someone.
         """
         manifest = self.get(ref, version)
+
         if manifest is not None:
             return manifest
+
         available = self.versions_of(ref)
+
         if available:
             detail = f"step {ref!r} has no version {version}; available: " + ", ".join(
                 f"@{candidate}" for candidate in available
@@ -149,24 +177,36 @@ class StepRegistry:
                 f"no step {ref!r} is registered, and the registry is empty — "
                 "pass one to compile_project(steps=…)"
             )
+
         msg = f"{detail} (RFC 0017 §5.3)"
         # ``available`` is the same list the message renders (RFC 0020 §5.4):
         # the suggestion exposes a value already computed here, never a
         # second search that could disagree with the sentence beside it.
         raise UnknownStep(msg, source_path=source_path, available_versions=available)
 
+    # ....................... #
+
     def macro_body(self, ref: str, version: int) -> str | None:
         return _lookup(self._macro_bodies, ref, version)
 
+    # ....................... #
+
     def sql_body(self, ref: str, version: int) -> str | None:
         return _lookup(self._sql_bodies, ref, version)
+
+
+# ....................... #
 
 
 def _lookup(pairs: tuple[tuple[StepKey, str], ...], ref: str, version: int) -> str | None:
     for (key_ref, key_version), body in pairs:
         if key_ref == ref and key_version == version:
             return body
+
     return None
+
+
+# ....................... #
 
 
 #: The default for :func:`~bloomery.compile.compile_project`: a project that

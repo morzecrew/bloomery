@@ -42,6 +42,8 @@ if TYPE_CHECKING:  # pragma: no cover — import-time typing only
     )
     from bloomery.steps.registry import EMPTY_REGISTRY, StepRegistry
 
+# ----------------------- #
+
 #: Which submodule each public name lives in — the table :func:`__getattr__`
 #: resolves against.
 _LAZY: dict[str, str] = {
@@ -62,7 +64,11 @@ _LAZY: dict[str, str] = {
 def __dir__() -> list[str]:
     """Include the lazily-resolved names, which :func:`__getattr__` alone
     hides from ``dir()`` and every tool built on it."""
+
     return sorted({*globals(), *_LAZY})
+
+
+# ....................... #
 
 
 def __getattr__(name: str) -> Any:
@@ -86,12 +92,17 @@ def __getattr__(name: str) -> Any:
     (extracting ``contract`` into a micro-package) as the remaining route.
     """
     module = _LAZY.get(name)
+
     if module is None:
         msg = f"module {__name__!r} has no attribute {name!r}"
         raise AttributeError(msg)
+
     import importlib
 
     return getattr(importlib.import_module(f"bloomery.steps.{module}"), name)
+
+
+# ....................... #
 
 
 __all__ = [

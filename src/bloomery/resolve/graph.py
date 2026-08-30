@@ -21,6 +21,8 @@ if TYPE_CHECKING:
     from bloomery.spec.mapping import Mapping
     from bloomery.spec.project import Project
 
+# ----------------------- #
+
 __all__ = [
     "Edge",
     "Graph",
@@ -46,12 +48,18 @@ class NodeKind(StrEnum):
     STEP = "step"
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class Node:
     """One DAG node; ``name`` is the canonical kind-prefixed dotted id."""
 
     kind: NodeKind
     name: str
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +73,9 @@ class Edge:
     #: ``(family, src kind, dst kind)`` triples and what each one means.
     #: Two families are parameterised: ``recipe:<id>`` and ``step:<ref@version>``.
     label: str
+
+
+# ....................... #
 
 
 #: Every ``(label family, src kind, dst kind)`` the two builders below can
@@ -112,24 +123,43 @@ class Graph:
     edges: tuple[Edge, ...]
 
 
+# ....................... #
+
+
 def source_column_node(relation: str, path: str) -> Node:
     """A bronze extraction, e.g. ``source.shopify__order_lines.$.total``."""
+
     return Node(kind=NodeKind.SOURCE_COLUMN, name=f"source.{relation}.{path}")
+
+
+# ....................... #
 
 
 def entity_field_node(entity: str, field: str) -> Node:
     """A mapped entity field, e.g. ``order_item.unit_price``."""
+
     return Node(kind=NodeKind.ENTITY_FIELD, name=f"{entity}.{field}")
+
+
+# ....................... #
 
 
 def canonical_field_node(name: str) -> Node:
     """A catalog canonical field, e.g. ``canonical.unit_price``."""
+
     return Node(kind=NodeKind.CANONICAL_FIELD, name=f"canonical.{name}")
+
+
+# ....................... #
 
 
 def metric_node(name: str) -> Node:
     """A metric, e.g. ``metric.gross_revenue``."""
+
     return Node(kind=NodeKind.METRIC, name=f"metric.{name}")
+
+
+# ....................... #
 
 
 def step_node(ref: str) -> Node:
@@ -143,11 +173,16 @@ def step_node(ref: str) -> Node:
     node removed and a different one added, breaking the very lineage this
     node exists to preserve.
     """
+
     return Node(kind=NodeKind.STEP, name=f"step.{ref}")
+
+
+# ....................... #
 
 
 def _mapping_edges(mapping: Mapping, canonical_by_field: dict[str, str | None]) -> list[Edge]:
     edges: list[Edge] = []
+
     for field_name, key_field in mapping.key.items():
         edges.append(
             Edge(
@@ -156,6 +191,7 @@ def _mapping_edges(mapping: Mapping, canonical_by_field: dict[str, str | None]) 
                 label="direct",
             )
         )
+
     for field_name, field_mapping in mapping.fields.items():
         dst = entity_field_node(mapping.target, field_name)
         if isinstance(field_mapping, ALIAS_BOUND):
@@ -176,6 +212,7 @@ def _mapping_edges(mapping: Mapping, canonical_by_field: dict[str, str | None]) 
                     label="direct",
                 )
             )
+
     for field_name in sorted({*mapping.key, *mapping.fields}):
         canonical = canonical_by_field.get(field_name)
         if canonical is not None:
@@ -186,7 +223,11 @@ def _mapping_edges(mapping: Mapping, canonical_by_field: dict[str, str | None]) 
                     label="canonical",
                 )
             )
+
     return edges
+
+
+# ....................... #
 
 
 def _step_edges(project: Project) -> list[Edge]:
@@ -209,8 +250,10 @@ def _step_edges(project: Project) -> list[Edge]:
     is exactly the common case (one step feeding another) and exactly where
     cycle detection was lost.
     """
+
     if project.steps is None:
         return []
+
     entities = project.entity_model.entities
     producer_of: dict[str, str] = {
         relation.rsplit(".", 1)[-1]: wiring.ref
@@ -218,6 +261,7 @@ def _step_edges(project: Project) -> list[Edge]:
         for relation in wiring.outputs.values()
     }
     edges: list[Edge] = []
+
     for wiring in project.steps.steps:
         node = step_node(wiring.ref)
         for _name, bound in sorted(wiring.inputs.items()):
@@ -253,7 +297,11 @@ def _step_edges(project: Project) -> list[Edge]:
                 edges.append(
                     Edge(src=field, dst=canonical_field_node(canonical), label="canonical")
                 )
+
     return edges
+
+
+# ....................... #
 
 
 def build_graph(
@@ -270,10 +318,12 @@ def build_graph(
     """
     edges: list[Edge] = []
     edges.extend(_step_edges(project))
+
     for mapping in project.mappings:
         entity = project.entity_model.entities[mapping.target]
         canonical_by_field = {name: field.canonical for name, field in entity.fields.items()}
         edges.extend(_mapping_edges(mapping, canonical_by_field))
+
     for metric in metrics:
         dst = metric_node(metric.name)
         edges.extend(
@@ -286,13 +336,17 @@ def build_graph(
         )
 
     nodes: set[Node] = set()
+
     if catalog is not None:
         nodes.update(canonical_field_node(name) for name in catalog.canonical_fields)
+
     nodes.update(metric_node(metric.name) for metric in metrics)
+
     if project.steps is not None:
         # A step with no wired inputs still exists in the lineage; without
         # this it would vanish from the topological order entirely.
         nodes.update(step_node(wiring.ref) for wiring in project.steps.steps)
+
     # A mapped field with no edge at all, for the same reason and with the same
     # fix. Both alias-bound shapes can bind **zero** source paths: a
     # `sql_macro` whose `from` is empty — the schema's default, because a macro
@@ -310,6 +364,7 @@ def build_graph(
         for mapping in project.mappings
         for field_name in (*mapping.key, *mapping.fields)
     )
+
     for edge in edges:
         nodes.add(edge.src)
         nodes.add(edge.dst)

@@ -32,6 +32,8 @@ from bloomery.quality.catalogue import INGESTION_METADATA
 if TYPE_CHECKING:
     from bloomery.ir import DedupeIR
 
+# ----------------------- #
+
 __all__ = [
     "ROW_ID_COLUMN",
     "dedupe_order",
@@ -52,15 +54,23 @@ ROW_ID_COLUMN = guaranteed(
 def dedupe_sort_columns(dedupe: DedupeIR) -> tuple[str, ...]:
     """The total order's columns, in order: recency field, tie-breaks
     (authored order — a sort order is semantic, RFC 0003 D4), row identity."""
+
     return (dedupe.field, *dedupe.tie_break, ROW_ID_COLUMN)
+
+
+# ....................... #
 
 
 def dedupe_order(dedupe: DedupeIR, *, table: str | None = None) -> tuple[exp.Ordered, ...]:
     """One ``DESC NULLS LAST`` term per sort column (D20)."""
+
     return tuple(
         exp.Ordered(this=exp.column(name, table=table), desc=True, nulls_first=False)
         for name in dedupe_sort_columns(dedupe)
     )
+
+
+# ....................... #
 
 
 def dedupe_row_number(
@@ -71,11 +81,15 @@ def dedupe_row_number(
     Partitioning is by the **entity key** — dedupe keeps one row per key, and
     replay merges by the same key (RFC 0016 §5.3).
     """
+
     return exp.Window(
         this=exp.RowNumber(),
         partition_by=[exp.column(name, table=table) for name in key],
         order=exp.Order(expressions=list(dedupe_order(dedupe, table=table))),
     )
+
+
+# ....................... #
 
 
 def with_dedupe_qualify(select: exp.Select, dedupe: DedupeIR, key: tuple[str, ...]) -> exp.Select:
@@ -84,4 +98,5 @@ def with_dedupe_qualify(select: exp.Select, dedupe: DedupeIR, key: tuple[str, ..
     winner = exp.EQ(this=dedupe_row_number(dedupe, key), expression=exp.Literal.number(1))
     qualified = select.copy()
     qualified.set("qualify", exp.Qualify(this=winner))
+
     return qualified

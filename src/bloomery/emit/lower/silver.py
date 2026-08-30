@@ -109,13 +109,18 @@ def _schema_column(name: str, schema: tuple[str, ...], role: str) -> str:
     bare ``StopIteration`` at *import time* naming neither the column nor the
     schema. A module that cannot be imported deserves a sentence saying why.
     """
+
     if name not in schema:
         msg = (
             f"{role} is spelled {name!r}, which is no longer one of {', '.join(schema)} — "
             "the schema tuple moved and this constant did not follow it"
         )
         raise EmitError(msg)
+
     return name
+
+
+# ....................... #
 
 
 #: The recency column of the ingestion-metadata contract — drawn from the
@@ -130,7 +135,11 @@ def reject_relation(entity: EntityIR) -> str:
     """``<entity>__reject`` — one per entity, never per mapping (RFC 0016
     §5.6, D10): per-mapping tables multiply into the small-file problem and
     make replay N-way."""
+
     return f"{entity.name}{REJECT_SUFFIX}"
+
+
+# ....................... #
 
 
 def _sole_source(entity: EntityIR, feature: str) -> SourceIR:
@@ -156,6 +165,7 @@ def _sole_source(entity: EntityIR, feature: str) -> SourceIR:
     reads as a choice among N and would quietly become one on the day P2
     lifts D14.
     """
+
     if len(entity.sources) != 1:
         msg = (
             f"{feature} on entity {entity.name!r} was built from "
@@ -164,16 +174,27 @@ def _sole_source(entity: EntityIR, feature: str) -> SourceIR:
             "invariant that has stopped holding)"
         )
         raise EmitError(msg)
+
     return entity.sources[0]
+
+
+# ....................... #
 
 
 def _arrays(ctx: EmitContext) -> bool:
     return ctx.dialect.supports(DialectFeature.ARRAY)
 
 
+# ....................... #
+
+
 def _rules(entity: EntityIR, *dispositions: OnFail) -> tuple[QualityRuleIR, ...]:
     """The entity's rules with one of ``dispositions``, in canonical order."""
+
     return tuple(rule for rule in entity.quality if disposition(rule) in dispositions)
+
+
+# ....................... #
 
 
 def _recorded_rules(entity: EntityIR) -> tuple[QualityRuleIR, ...]:
@@ -184,13 +205,21 @@ def _recorded_rules(entity: EntityIR) -> tuple[QualityRuleIR, ...]:
     blocking ones. Excluding ``fail`` rules left the account silent about the
     most serious thing that happened to the row.
     """
+
     return _rules(entity, OnFail.FLAG, OnFail.QUARANTINE, OnFail.FAIL)
+
+
+# ....................... #
 
 
 def _windowed_rules(entity: EntityIR) -> tuple[QualityRuleIR, ...]:
     """The entity's rules whose predicate is a window function, in canonical
     order (:data:`~bloomery.quality.WINDOWED_KINDS`)."""
+
     return tuple(rule for rule in entity.quality if windowed(rule))
+
+
+# ....................... #
 
 
 def _stage(select: exp.Select | exp.Union, entity: EntityIR) -> exp.Select | exp.Union:
@@ -206,8 +235,10 @@ def _stage(select: exp.Select | exp.Union, entity: EntityIR) -> exp.Select | exp
     form evaluated at compile.
     """
     rules = _windowed_rules(entity)
+
     if not rules:
         return select
+
     return (
         exp.Select()
         .select(
@@ -223,8 +254,14 @@ def _stage(select: exp.Select | exp.Union, entity: EntityIR) -> exp.Select | exp
     )
 
 
+# ....................... #
+
+
 def _flag_pairs(rules: tuple[QualityRuleIR, ...], table: str) -> list[tuple[str, Expression]]:
     return [(rule.name, verdict(rule, table)) for rule in rules]
+
+
+# ....................... #
 
 
 def _carries_metadata(entity: EntityIR) -> bool:
@@ -235,11 +272,18 @@ def _carries_metadata(entity: EntityIR) -> bool:
     table's identity is built from it, replay compares incumbents by it, and
     the D21 blocking audit reads all three off the model.
     """
+
     return entity.dedupe is not None or entity.quarantine is not None
+
+
+# ....................... #
 
 
 def _referential_rules(entity: EntityIR) -> tuple[QualityRuleIR, ...]:
     return tuple(rule for rule in entity.quality if rule.kind == "referential")
+
+
+# ....................... #
 
 
 def _with_probes(select: exp.Select, entity: EntityIR, ctx: EmitContext) -> exp.Select:
@@ -250,6 +294,7 @@ def _with_probes(select: exp.Select, entity: EntityIR, ctx: EmitContext) -> exp.
     cross-layer read.
     """
     joined = select
+
     for rule in _referential_rules(entity):
         params = params_of(rule)
         alias = ref_alias(params["relationship"])
@@ -267,7 +312,11 @@ def _with_probes(select: exp.Select, entity: EntityIR, ctx: EmitContext) -> exp.
             on=conjunction(conditions),
             join_type="LEFT",
         )
+
     return joined
+
+
+# ....................... #
 
 
 def _payload_columns(entity: EntityIR) -> tuple[str, ...]:
@@ -294,6 +343,9 @@ def _payload_columns(entity: EntityIR) -> tuple[str, ...]:
     return tuple(sorted({payload_key(path) for path in paths} - redacted))
 
 
+# ....................... #
+
+
 def _json_object(pairs: list[tuple[str, Expression]], ctx: EmitContext) -> Expression:
     """A JSON object from sorted key/value pairs, spelled by the dialect port.
 
@@ -303,7 +355,11 @@ def _json_object(pairs: list[tuple[str, Expression]], ctx: EmitContext) -> Expre
     and Trino parses only the SQL-standard keyword form. The claim that it was
     portable held because only DuckDB ever executed it.
     """
+
     return ctx.dialect.json_object(pairs)
+
+
+# ....................... #
 
 
 def _require_no_currency_conversion(entity: EntityIR) -> None:
@@ -326,6 +382,7 @@ def _require_no_currency_conversion(entity: EntityIR) -> None:
     lowerings, so one may apply the transform where another does not, and a
     check over one branch would pass the compile that emits the call.
     """
+
     for column in (column for source in entity.sources for column in source.columns):
         if not any(
             str(call.this).upper() == CONVERT_MARKER
@@ -344,6 +401,9 @@ def _require_no_currency_conversion(entity: EntityIR) -> None:
         raise UnsupportedByTarget(
             msg, source_path=f"entity_model: entities.{entity.name}.fields.{column.name}"
         )
+
+
+# ....................... #
 
 
 def _branch_select(
@@ -370,6 +430,7 @@ def _branch_select(
     two sources — replay cannot drift from the pipeline because it *is* the
     pipeline (RFC 0016 §5.6).
     """
+
     if from_payload:
         namespace, relation = ctx.naming.relation(reject_relation(entity), Layer.SILVER)
     else:
@@ -380,6 +441,7 @@ def _branch_select(
 
     repaired = {rule.column: rule for rule in entity.quality if repairs(rule)}
     projections: list[Expression] = []
+
     # The lowering, not the schema (RFC 0024 D26): what this SELECT projects is
     # one source's expression per column, and `SourceIR.columns` is sorted by
     # name exactly as `EntityIR.columns` is — and covers it exactly, since the
@@ -414,8 +476,10 @@ def _branch_select(
         # the rewrite the verdict alone cannot tell "never violated" from
         # "violated and fixed" (RFC 0016 D87).
         projections.append(cast("Expression", exp.alias_(fired.copy(), repair_alias(rule))))
+
     if _carries_metadata(entity):
         projections.extend(exp.column(name) for name in INGESTION_METADATA)
+
     # The coercion-failure marker compares the produced column against the raw
     # source paths it reads — which only exist at *this* level, before the
     # subquery hides them. Project them under the shared alias convention.
@@ -429,11 +493,13 @@ def _branch_select(
             )
             for index, value in enumerate(indexed_params(rule, "source"))
         )
+
     if include_raw:
         payload = _json_object(
             [(column, exp.column(column)) for column in _payload_columns(entity)], ctx
         )
         projections.append(cast("Expression", exp.alias_(payload, "_raw")))
+
     if len(entity.sources) > 1:
         # Provenance, and only where it means something (RFC 0024 D7): the
         # collision audit reports *which* sources shared a key, and on a
@@ -442,10 +508,16 @@ def _branch_select(
         projections.append(
             cast("Expression", exp.alias_(exp.Literal.string(origin.relation), SOURCE_COLUMN))
         )
+
     select = exp.Select().select(*projections).from_(exp.table_(relation, db=namespace))
+
     if from_payload:
         return select.where(exp.Is(this=exp.column("resolved_at"), expression=exp.null()))
+
     return select
+
+
+# ....................... #
 
 
 def _extract_select(
@@ -473,6 +545,7 @@ def _extract_select(
         _branch_select(entity, origin, ctx, include_raw=include_raw, from_payload=from_payload)
         for origin in entity.sources
     ]
+
     if len(branches) > 1:
         # `dedupe:` and every quality rule are refused on a merged entity
         # (D14/D29), so nothing is owed to the levels below — the union *is*
@@ -480,14 +553,21 @@ def _extract_select(
         # rules, and writing it as one keeps the pipeline order readable here
         # rather than only in the branch that happens to exercise it.
         return _stage(_union_all(branches), entity)
+
     select = branches[0]
+
     if from_payload:
         # No `QUALIFY` on replay: the reject table already holds one row per
         # source-row identity.
         return _stage(select, entity)
+
     if entity.dedupe is not None:
         select = with_dedupe_qualify(select, entity.dedupe, entity.key)
+
     return _stage(select, entity)
+
+
+# ....................... #
 
 
 def _union_all(branches: list[exp.Select]) -> exp.Union:
@@ -499,9 +579,14 @@ def _union_all(branches: list[exp.Select]) -> exp.Union:
     should see. It is also an expensive way to be silent on a wide relation.
     """
     folded: exp.Select | exp.Union = branches[0]
+
     for branch in branches[1:]:
         folded = exp.Union(this=folded, expression=branch, distinct=False)
+
     return cast("exp.Union", folded)
+
+
+# ....................... #
 
 
 def _over(node: Expression, column: str, value: Expression) -> Expression:
@@ -523,9 +608,13 @@ def _over(node: Expression, column: str, value: Expression) -> Expression:
     def substitute(child: Expression) -> Expression:
         if isinstance(child, exp.Column) and not child.table and child.name == column:
             return value.copy()
+
         return child
 
     return node.transform(substitute)
+
+
+# ....................... #
 
 
 def _from_payload(node: Expression) -> Expression:
@@ -536,9 +625,13 @@ def _from_payload(node: Expression) -> Expression:
             return exp.JSONExtractScalar(
                 this=exp.column("raw"), expression=exp.Literal.string(f"$.{child.name}")
             )
+
         return child
 
     return node.transform(rewritten)
+
+
+# ....................... #
 
 
 def _entity_projections(entity: EntityIR, table: str) -> list[Expression]:
@@ -550,6 +643,7 @@ def _entity_projections(entity: EntityIR, table: str) -> list[Expression]:
         if params_of(rule)["on_missing"] == "unknown_member"
     }
     projections: list[Expression] = []
+
     for column in entity.columns:
         rule = rewrites.get(column.name)
         if rule is None:
@@ -561,7 +655,11 @@ def _entity_projections(entity: EntityIR, table: str) -> list[Expression]:
                     exp.alias_(unknown_member_case(rule, table=table), column.name),
                 )
             )
+
     return projections
+
+
+# ....................... #
 
 
 def _route_predicate(entity: EntityIR, table: str, *, quarantined: bool) -> Expression | None:
@@ -577,9 +675,14 @@ def _route_predicate(entity: EntityIR, table: str, *, quarantined: bool) -> Expr
     function emits rather than a restatement of it.
     """
     rules = _rules(entity, OnFail.QUARANTINE)
+
     if not rules:
         return None
+
     return routing_predicate(rules, table, quarantined=quarantined)
+
+
+# ....................... #
 
 
 def _require_try_cast(entity: EntityIR, ctx: EmitContext) -> None:
@@ -590,10 +693,13 @@ def _require_try_cast(entity: EntityIR, ctx: EmitContext) -> None:
     plain ``CAST``, which would silently turn "quarantine this row" into
     "abort this run". RFC 0008 D3: fail loud, never approximate.
     """
+
     if not any(rule.kind == "coercible" for rule in entity.quality):
         return
+
     if ctx.dialect.supports(DialectFeature.TRY_CAST):
         return
+
     msg = (
         f"entity {entity.name!r} carries coercible quality rules, whose coercion-failure "
         f"marker needs a NULL-on-failure cast, but dialect {ctx.dialect.name!r} has none "
@@ -602,6 +708,9 @@ def _require_try_cast(entity: EntityIR, ctx: EmitContext) -> None:
         "drop the coercible rules"
     )
     raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
+
+
+# ....................... #
 
 
 def _require_unicode_normalize(entity: EntityIR, ctx: EmitContext) -> None:
@@ -613,10 +722,13 @@ def _require_unicode_normalize(entity: EntityIR, ctx: EmitContext) -> None:
     engine would fail at run time on a function it does not define, which is
     the "renders beautifully, aborts the run" shape RFC 0008 D3 refuses.
     """
+
     if not any(rule.kind == "normalize" for rule in entity.quality):
         return
+
     if ctx.dialect.supports(DialectFeature.UNICODE_NORMALIZE):
         return
+
     msg = (
         f"entity {entity.name!r} carries a normalize quality rule, which compares a value "
         f"against its Unicode normal form, but dialect {ctx.dialect.name!r} has no "
@@ -624,6 +736,9 @@ def _require_unicode_normalize(entity: EntityIR, ctx: EmitContext) -> None:
         "with one, or drop the normalize rules"
     )
     raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
+
+
+# ....................... #
 
 
 def _require_try_cast_for_audit(entity: EntityIR, ctx: EmitContext) -> None:
@@ -644,8 +759,10 @@ def _require_try_cast_for_audit(entity: EntityIR, ctx: EmitContext) -> None:
     quality-carrying entities at all"; this is the edge of that sentence.
     """
     _require_try_cast(entity, ctx)
+
     if ctx.dialect.supports(DialectFeature.TRY_CAST):
         return
+
     msg = (
         f"entity {entity.name!r} carries a dedupe:/quarantine: block, so it gets the "
         "ingestion-metadata audit (RFC 0016 D21/D25) asserting that _ingested_at casts to "
@@ -655,6 +772,9 @@ def _require_try_cast_for_audit(entity: EntityIR, ctx: EmitContext) -> None:
         "TRY_CAST, or drop the block"
     )
     raise UnsupportedByTarget(msg, source_path=f"entity_model: entities.{entity.name}")
+
+
+# ....................... #
 
 
 def _repair_projections(entity: EntityIR, *, arrays: bool) -> list[Expression]:
@@ -678,8 +798,10 @@ def _repair_projections(entity: EntityIR, *, arrays: bool) -> list[Expression]:
     re-opening every golden and fingerprint for.
     """
     repaired = [rule for rule in entity.quality if repairs(rule)]
+
     if not repaired:
         return []
+
     pairs = [
         (
             rule.name,
@@ -691,6 +813,9 @@ def _repair_projections(entity: EntityIR, *, arrays: bool) -> list[Expression]:
         for rule in repaired
     ]
     return [cast("Expression", exp.alias_(flags_expression(pairs, arrays=arrays), REPAIRS_COLUMN))]
+
+
+# ....................... #
 
 
 def _quality_pipeline(
@@ -734,11 +859,15 @@ def _quality_pipeline(
     )
     evaluated = _with_probes(evaluated, entity, ctx)
     kept = _route_predicate(entity, _EXTRACT_ALIAS, quarantined=False)
+
     if kept is not None:
         evaluated = evaluated.where(kept)
+
     carried = [column.name for column in entity.columns]
+
     if _carries_metadata(entity):
         carried.extend(INGESTION_METADATA)
+
     return (
         exp.Select()
         .select(
@@ -755,6 +884,9 @@ def _quality_pipeline(
     )
 
 
+# ....................... #
+
+
 def entity_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     """The silver SELECT: every lowered column expression aliased to its
     declared name, from the bronze relation under the naming policy — plus the
@@ -768,18 +900,25 @@ def entity_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     _require_try_cast(entity, ctx)
     _require_unicode_normalize(entity, ctx)
     extract = _extract_select(entity, ctx)
+
     if entity.quality:
         return _quality_pipeline(entity, ctx, extract)
+
     flags = exp.alias_(empty_flags(arrays=_arrays(ctx)), FLAGS_COLUMN)
     ok = exp.alias_(exp.true(), OK_COLUMN)
+
     if isinstance(extract, exp.Select):
         return extract.select(flags, ok)
+
     # A merged entity carries no quality rules (RFC 0024 D29), so the union is
     # the whole body and the two generated columns ride one level above it.
     # ``.select()`` on a ``UNION`` would attach them to its last branch alone,
     # which parses and is wrong — the other branches would be short two
     # columns.
     return exp.Select().select(exp.Star(), flags, ok).from_(extract.subquery(alias=_EXTRACT_ALIAS))
+
+
+# ....................... #
 
 
 def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
@@ -872,9 +1011,14 @@ def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     select = exp.Select().select(*projections).from_(extract.subquery(alias=_EXTRACT_ALIAS))
     select = _with_probes(select, entity, ctx)
     diverted = _route_predicate(entity, _EXTRACT_ALIAS, quarantined=True)
+
     if diverted is not None:  # pragma: no branch — a reject model implies one
         select = select.where(diverted)
+
     return select
+
+
+# ....................... #
 
 
 #: The merge aliases SQLMesh resolves inside a ``when_matched`` clause — its
@@ -928,6 +1072,7 @@ def reject_when_matched() -> tuple[Expression, ...]:
     RFC 0008 D4 doctrine.
     """
     assignments: list[Expression] = []
+
     for column in (name for name in REJECT_COLUMNS if name != REJECT_KEY):
         arriving = exp.column(column, table=_MERGE_SOURCE)
         value: Expression = (
@@ -936,7 +1081,11 @@ def reject_when_matched() -> tuple[Expression, ...]:
             else arriving
         )
         assignments.append(exp.EQ(this=exp.column(column, table=_MERGE_TARGET), expression=value))
+
     return tuple(assignments)
+
+
+# ....................... #
 
 
 def _uncastable_ingested_at() -> Expression:
@@ -957,6 +1106,9 @@ def _uncastable_ingested_at() -> Expression:
             exp.Is(this=castable, expression=exp.null()),
         ]
     )
+
+
+# ....................... #
 
 
 def ingestion_audit_predicate(entity: EntityIR, ctx: EmitContext) -> Expression:
@@ -989,7 +1141,11 @@ def ingestion_audit_predicate(entity: EntityIR, ctx: EmitContext) -> Expression:
     ]
     parts.append(exp.GT(this=exp.column(ROW_ID_COUNT_COLUMN), expression=exp.Literal.number(1)))
     parts.append(_uncastable_ingested_at())
+
     return disjunction(parts)
+
+
+# ....................... #
 
 
 #: The target-side macro standing for the audited model's own relation. Both
@@ -1044,6 +1200,9 @@ def metadata_audit_select(
     )
 
 
+# ....................... #
+
+
 def _this_model(alias: str = "", relation: str = THIS_MODEL) -> exp.Table:
     """``<relation> AS <alias>``, with the relation left unquoted.
 
@@ -1061,11 +1220,18 @@ def _this_model(alias: str = "", relation: str = THIS_MODEL) -> exp.Table:
     the start — the alternative, emitting ``@this_model`` and rewriting the
     finished file, is the substitution D10 refuses.
     """
+
     return exp.Table(this=exp.to_identifier(relation, quoted=False), alias=alias)
+
+
+# ....................... #
 
 
 def _count_of(relation: Expression) -> Expression:
     return exp.Subquery(this=exp.Select().select(exp.Count(this=exp.Star())).from_(relation))
+
+
+# ....................... #
 
 
 def _counted_as(predicate: Expression, name: str) -> Expression:
@@ -1074,6 +1240,9 @@ def _counted_as(predicate: Expression, name: str) -> Expression:
         ifs=[exp.If(this=predicate, true=exp.Literal.number(1))], default=exp.Literal.number(0)
     )
     return cast("Expression", exp.alias_(exp.Sum(this=case), name))
+
+
+# ....................... #
 
 
 #: The column the collision audit projects its per-key source count under.
@@ -1090,7 +1259,11 @@ def collision_audit(entity: EntityIR) -> bool:
     also need a ``_source`` column on every relation to group by, which D7
     refuses for the same reason it refuses the uniform column.
     """
+
     return len(entity.sources) > 1
+
+
+# ....................... #
 
 
 def collision_audit_select(entity: EntityIR, *, relation: str = THIS_MODEL) -> exp.Select:
@@ -1143,6 +1316,9 @@ def collision_audit_select(entity: EntityIR, *, relation: str = THIS_MODEL) -> e
     )
 
 
+# ....................... #
+
+
 def conservation_audit(entity: EntityIR) -> bool:
     """Whether the conservation audit can be emitted for this entity.
 
@@ -1161,9 +1337,14 @@ def conservation_audit(entity: EntityIR) -> bool:
     model itself. The property tier covers the law for every shape (RFC 0016
     §6); this is about what can be checked at run time, on this target.
     """
+
     if entity.quarantine is None:
         return False
+
     return not any(rule.kind == "referential" for rule in _rules(entity, OnFail.QUARANTINE))
+
+
+# ....................... #
 
 
 def conservation_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
@@ -1212,6 +1393,7 @@ def conservation_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     origin = _sole_source(entity, "the conservation audit")
     bronze_namespace, bronze_rel = ctx.naming.relation(origin.relation, Layer.BRONZE)
     diverted = _route_predicate(entity, _SURVIVORS_CTE, quarantined=True)
+
     if diverted is None:  # pragma: no cover — a quarantine block implies rules
         diverted = exp.false()
 
@@ -1249,6 +1431,9 @@ def conservation_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
         .from_(counted.subquery(alias=_CONSERVATION_ALIAS))
         .where(violated)
     )
+
+
+# ....................... #
 
 
 def fail_audits(
@@ -1306,9 +1491,12 @@ def fail_audits(
     _require_unicode_normalize(entity, ctx)
     arrays = _arrays(ctx)
     columns = [column.name for column in entity.columns]
+
     if _carries_metadata(entity):
         columns.extend(INGESTION_METADATA)
+
     audits: list[tuple[str, exp.Select | exp.Union]] = []
+
     for rule in _rules(entity, OnFail.FAIL):
         evaluated = (
             exp.Select()
@@ -1325,7 +1513,11 @@ def fail_audits(
             )
         )
         audits.append((f"{entity.name}_{rule.name}", exp.union(evaluated, stored)))
+
     return tuple(audits)
+
+
+# ....................... #
 
 
 def _one_winner_per_key(select: exp.Select, entity: EntityIR) -> exp.Select:
@@ -1346,8 +1538,10 @@ def _one_winner_per_key(select: exp.Select, entity: EntityIR) -> exp.Select:
     that: it arbitrates candidate against *incumbent*, never candidate against
     candidate.
     """
+
     if entity.dedupe is not None:
         return with_dedupe_qualify(select, entity.dedupe, entity.key)
+
     # The no-``dedupe:`` form of the total order is its final sort key alone
     # (D20): the stable source-row identity, which D21 guarantees exists and is
     # unique on any entity with a reject table.
@@ -1365,7 +1559,11 @@ def _one_winner_per_key(select: exp.Select, entity: EntityIR) -> exp.Select:
     )
     qualified = select.copy()
     qualified.set("qualify", exp.Qualify(this=winner))
+
     return qualified
+
+
+# ....................... #
 
 
 def _replay_candidates(entity: EntityIR, ctx: EmitContext) -> exp.Select:
@@ -1381,6 +1579,9 @@ def _replay_candidates(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     """
     pipeline = _quality_pipeline(entity, ctx, _extract_select(entity, ctx, from_payload=True))
     return _one_winner_per_key(pipeline, entity)
+
+
+# ....................... #
 
 
 def _reevaluated(entity: EntityIR, ctx: EmitContext) -> exp.Select:
@@ -1405,8 +1606,10 @@ def _reevaluated(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     """
     pairs = _flag_pairs(_recorded_rules(entity), _EXTRACT_ALIAS)
     kept = _route_predicate(entity, _EXTRACT_ALIAS, quarantined=False)
+
     if kept is not None:  # pragma: no branch — a reject table implies a split
         pairs.append((SUPERSEDED_RULE, kept))
+
     select = (
         exp.Select()
         .select(
@@ -1416,6 +1619,9 @@ def _reevaluated(entity: EntityIR, ctx: EmitContext) -> exp.Select:
         .from_(_extract_select(entity, ctx, from_payload=True).subquery(alias=_EXTRACT_ALIAS))
     )
     return _with_probes(select, entity, ctx)
+
+
+# ....................... #
 
 
 def _dedupe_columns(entity: EntityIR, table: str) -> list[Expression]:
@@ -1436,6 +1642,9 @@ def _dedupe_columns(entity: EntityIR, table: str) -> list[Expression]:
     """
     order = dedupe_order(entity.dedupe, table=table) if entity.dedupe else ()
     return [term.this for term in order] or [exp.column(ROW_ID_COLUMN, table=table)]
+
+
+# ....................... #
 
 
 def _candidate_wins(entity: EntityIR) -> Expression:
@@ -1462,6 +1671,7 @@ def _candidate_wins(entity: EntityIR) -> Expression:
     candidate = _dedupe_columns(entity, _REPLAY_ALIAS)
     incumbent = _dedupe_columns(entity, _TARGET_ALIAS)
     decided: exp.Condition | None = None
+
     # Built back to front: each column's verdict falls through to the tail it
     # already has, which is the lexicographic order read literally.
     for cand, inc in zip(reversed(candidate), reversed(incumbent), strict=True):
@@ -1483,8 +1693,12 @@ def _candidate_wins(entity: EntityIR) -> Expression:
             exp.EQ(this=cand.copy(), expression=inc.copy()),
         )
         decided = exp.or_(beats, exp.and_(exp.paren(tied), exp.paren(decided)))
+
     # Never None: _dedupe_columns is non-empty by construction.
     return exp.paren(cast("exp.Condition", decided))
+
+
+# ....................... #
 
 
 def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, ...]:

@@ -25,6 +25,8 @@ from bloomery.spec.catalog import Catalog
 from bloomery.spec.mapping import RecipeFieldMapping
 from bloomery.spec.project import Project
 
+# ----------------------- #
+
 __all__ = [
     "FieldProvenance",
     "Provenance",
@@ -42,6 +44,9 @@ class Provenance(StrEnum):
     RECIPE = "recipe"
     #: No ``canonical:`` link — the field participates in no catalog metric.
     NATIVE = "native"
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +74,9 @@ class FieldProvenance:
     recipe_id: str | None = None
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class Resolution:
     """The resolve stage's product (RFC 0005 D6): all tuples, explicitly
@@ -88,6 +96,9 @@ class Resolution:
     #: even though it is derivable from this — it is a published field with
     #: callers and RFC 0005 D6 names it as part of the stage's product.
     graph: Graph
+
+
+# ....................... #
 
 
 def _field_provenance(project: Project, graph: Graph) -> tuple[FieldProvenance, ...]:
@@ -128,6 +139,7 @@ def _field_provenance(project: Project, graph: Graph) -> tuple[FieldProvenance, 
     # Document order, overwriting: a merged entity's field is decided by the
     # last mapping that builds it — the limit `FieldProvenance` states.
     recipe_of: dict[tuple[str, str], str | None] = {}
+
     for mapping in project.mappings:
         for field_name in mapping.key:
             recipe_of[mapping.target, field_name] = None
@@ -137,6 +149,7 @@ def _field_provenance(project: Project, graph: Graph) -> tuple[FieldProvenance, 
             )
 
     entries = []
+
     for (entity, field), recipe_id in sorted(recipe_of.items()):
         if recipe_id is not None:
             provenance = Provenance.RECIPE
@@ -152,7 +165,11 @@ def _field_provenance(project: Project, graph: Graph) -> tuple[FieldProvenance, 
                 recipe_id=recipe_id,
             )
         )
+
     return tuple(entries)
+
+
+# ....................... #
 
 
 def resolve(project: Project, catalog: Catalog | None = None) -> Resolution:

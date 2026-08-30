@@ -25,6 +25,8 @@ if TYPE_CHECKING:
     from bloomery.spec.mapping import Mapping
     from bloomery.spec.project import Project
 
+# ----------------------- #
+
 __all__ = [
     "mapping_doc",
     "validate_references",
@@ -34,6 +36,7 @@ __all__ = [
 def _check_mapping(mapping: Mapping, project: Project, errors: list[BloomeryError]) -> None:
     doc = mapping_doc(mapping)
     entity = project.entity_model.entities.get(mapping.target)
+
     if entity is None:
         known = sorted(project.entity_model.entities)
         errors.append(
@@ -43,6 +46,7 @@ def _check_mapping(mapping: Mapping, project: Project, errors: list[BloomeryErro
             )
         )
         return
+
     for field_name in sorted(mapping.key):
         if field_name not in entity.fields:
             errors.append(
@@ -51,6 +55,7 @@ def _check_mapping(mapping: Mapping, project: Project, errors: list[BloomeryErro
                     source_path=f"{doc}: key.{field_name}",
                 )
             )
+
     for field_name in sorted(mapping.fields):
         if field_name not in entity.fields:
             errors.append(
@@ -66,6 +71,7 @@ def _check_mapping(mapping: Mapping, project: Project, errors: list[BloomeryErro
                     source_path=f"{doc}: fields.{field_name}",
                 )
             )
+
     for key_column in entity.key:
         if key_column not in mapping.key:
             errors.append(
@@ -74,6 +80,9 @@ def _check_mapping(mapping: Mapping, project: Project, errors: list[BloomeryErro
                     source_path=f"{doc}: key",
                 )
             )
+
+
+# ....................... #
 
 
 def _check_canonical_links(
@@ -114,6 +123,9 @@ def _check_canonical_links(
                 )
 
 
+# ....................... #
+
+
 def _check_step_canonical_links(
     project: Project, catalog: Catalog | None, errors: list[BloomeryError]
 ) -> None:
@@ -126,8 +138,10 @@ def _check_step_canonical_links(
     grain confusion RFC 0006 exists to refuse — a step output is an entity
     like any other, so it earns no exemption.
     """
+
     if project.steps is None:
         return
+
     for wiring in project.steps.steps:
         for output, links in sorted(wiring.canonical.items()):
             entity_name = wiring.outputs[output].rsplit(".", 1)[-1]
@@ -162,8 +176,12 @@ def _check_step_canonical_links(
                     )
 
 
+# ....................... #
+
+
 def _check_relationships(project: Project, errors: list[BloomeryError]) -> None:
     entities = project.entity_model.entities
+
     for index, rel in enumerate(project.entity_model.relationships):
         path = f"entity_model: relationships[{index}]"
         endpoints_ok = True
@@ -197,10 +215,15 @@ def _check_relationships(project: Project, errors: list[BloomeryError]) -> None:
                 )
 
 
+# ....................... #
+
+
 def _check_metrics(project: Project, catalog: Catalog | None, errors: list[BloomeryError]) -> None:
     if project.metric_set is None:
         return
+
     metric_names = set(project.metric_set.metrics)
+
     for name in sorted(project.metric_set.metrics):
         metric = project.metric_set.metrics[name]
         path = f"metrics: metrics.{name}"
@@ -246,6 +269,9 @@ def _check_metrics(project: Project, catalog: Catalog | None, errors: list[Bloom
                 )
 
 
+# ....................... #
+
+
 def validate_references(project: Project, catalog: Catalog | None) -> None:
     """Run every cross-spec reference check, batched (RFC 0005 D7).
 
@@ -253,12 +279,15 @@ def validate_references(project: Project, catalog: Catalog | None) -> None:
     single failure is raised as itself); returns ``None`` on a clean project.
     """
     errors: list[BloomeryError] = []
+
     for mapping in project.mappings:
         _check_mapping(mapping, project, errors)
+
     _check_canonical_links(project, catalog, errors)
     _check_step_canonical_links(project, catalog, errors)
     _check_relationships(project, errors)
     _check_metrics(project, catalog, errors)
+
     if errors:
         if len(errors) == 1:
             raise errors[0]

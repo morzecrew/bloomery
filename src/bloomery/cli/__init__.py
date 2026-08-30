@@ -79,6 +79,8 @@ if TYPE_CHECKING:
 
     from bloomery import Catalog, Project, ProjectIR
 
+# ----------------------- #
+
 __all__ = ["main"]
 
 #: Success, refusal, usage error (§5.2). Named rather than spelled inline so
@@ -101,6 +103,9 @@ class _Usage(Exception):
 # Loading — the same three lines every command starts with.
 
 
+# ....................... #
+
+
 def _load(directory: str, catalog_path: str | None) -> tuple[Project, Catalog | None]:
     """The two values every command starts from.
 
@@ -114,9 +119,15 @@ def _load(directory: str, catalog_path: str | None) -> tuple[Project, Catalog | 
     return load_project(sources), catalog
 
 
+# ....................... #
+
+
 def _load_ir(directory: str, catalog_path: str | None) -> ProjectIR:
     project, catalog = _load(directory, catalog_path)
     return build_project_ir(project, catalog=catalog)
+
+
+# ....................... #
 
 
 def _emit(payload: object, *, as_json: bool) -> None:
@@ -137,6 +148,9 @@ def _emit(payload: object, *, as_json: bool) -> None:
 # Commands
 
 
+# ....................... #
+
+
 def _check_names(*, target: str | None = None, dialect: str | None = None) -> None:
     """Refuse a mistyped ``--target``/``--dialect`` as a usage error.
 
@@ -150,6 +164,7 @@ def _check_names(*, target: str | None = None, dialect: str | None = None) -> No
     open (:func:`~bloomery.register_emitter`), so the library is the only thing
     that knows it, and its message already names what it does have.
     """
+
     try:
         if target is not None:
             get_emitter(target)
@@ -159,12 +174,16 @@ def _check_names(*, target: str | None = None, dialect: str | None = None) -> No
         raise _Usage(str(exc)) from exc
 
 
+# ....................... #
+
+
 def _compile(arguments: argparse.Namespace) -> int:
     _check_names(target=arguments.target, dialect=arguments.dialect)
     project, catalog = _load(arguments.directory, arguments.catalog)
     artifacts = compile_project(
         project, target=arguments.target, dialect=arguments.dialect, catalog=catalog
     )
+
     if arguments.out is not None:
         written = io.write_files(
             arguments.out, {artifact.path: artifact.content for artifact in artifacts}
@@ -172,19 +191,29 @@ def _compile(arguments: argparse.Namespace) -> int:
         for path in written:
             sys.stdout.write(f"{path}\n")
         return EXIT_OK
+
     _emit(artifacts, as_json=True)
+
     return EXIT_OK
+
+
+# ....................... #
 
 
 def _plan(arguments: argparse.Namespace) -> int:
     old = _load_ir(arguments.old, arguments.catalog)
     new = _load_ir(arguments.new, arguments.catalog)
     result = plan(old, new)
+
     if arguments.format == "json":
         _emit(result, as_json=True)
     else:
         _emit(render.render_plan(result), as_json=False)
+
     return EXIT_OK
+
+
+# ....................... #
 
 
 def _resolve(arguments: argparse.Namespace) -> int:
@@ -209,11 +238,16 @@ def _resolve(arguments: argparse.Namespace) -> int:
     """
     project, catalog = _load(arguments.directory, arguments.catalog)
     evidence = evaluate(project, catalog=catalog)
+
     if arguments.format == "json":
         _emit(evidence, as_json=True)
     else:
         _emit(render.render_evidence(evidence), as_json=False)
+
     return EXIT_OK if evidence.stage_reached is Stage.COMPLETE else EXIT_REFUSED
+
+
+# ....................... #
 
 
 def _lineage(arguments: argparse.Namespace) -> int:
@@ -231,11 +265,16 @@ def _lineage(arguments: argparse.Namespace) -> int:
         Direction(arguments.direction),
         max_depth=arguments.max_depth,
     )
+
     if arguments.format == "json":
         _emit(walk, as_json=True)
     else:
         _emit(render.render_lineage(walk), as_json=False)
+
     return EXIT_OK
+
+
+# ....................... #
 
 
 def _find_node(graph: Graph, wanted: str) -> Node:
@@ -262,8 +301,10 @@ def _find_node(graph: Graph, wanted: str) -> Node:
     what their project collided rather than that their spelling was wrong.
     """
     matches = [node for node in graph.nodes if node.name == wanted]
+
     if len(matches) == 1:
         return matches[0]
+
     if matches:
         collided = ", ".join(sorted(node.kind.value for node in matches))
         msg = (
@@ -273,9 +314,11 @@ def _find_node(graph: Graph, wanted: str) -> Node:
             " entity, the field, or whatever it collided with to walk this lineage"
         )
         raise UnknownMember(msg)
+
     names = [node.name for node in graph.nodes]
     close = difflib.get_close_matches(wanted, names, n=5, cutoff=0.6)
     kinds = sorted({node.kind.value for node in graph.nodes})
+
     if close:
         hint = "did you mean: " + ", ".join(close)
     elif not kinds:
@@ -292,8 +335,12 @@ def _find_node(graph: Graph, wanted: str) -> Node:
             " — an entity field is spelled '<entity>.<field>' with no prefix, and every"
             " other kind carries one"
         )
+
     msg = f"no node named {wanted!r} in this project's dependency graph. {hint}"
     raise UnknownMember(msg)
+
+
+# ....................... #
 
 
 def _parse_policy(spelling: str | None) -> RowPolicy | None:
@@ -310,21 +357,30 @@ def _parse_policy(spelling: str | None) -> RowPolicy | None:
     policy applies is upstream work bloomery must not know about. This flag
     takes a filter, not an identity, and nothing about a caller reaches it.
     """
+
     if spelling is None:
         return None
+
     parts = spelling.split(maxsplit=2)
+
     if len(parts) != 3:
         msg = f"--policy takes 'dimension op value', got {spelling!r}"
         raise _Usage(msg)
+
     dimension, operator, raw = parts
+
     try:
         op = Op(operator)
     except ValueError as exc:
         known = ", ".join(sorted(member.value for member in Op))
         msg = f"--policy operator {operator!r} is not one of: {known}"
         raise _Usage(msg) from exc
+
     value = tuple(raw.split(",")) if op in (Op.IN, Op.NOT_IN) else raw
     return RowPolicy(dimension=dimension, op=op, value=value)
+
+
+# ....................... #
 
 
 def _parse_where(payload: str | None) -> AbcMapping[str, object] | None:
@@ -338,31 +394,43 @@ def _parse_where(payload: str | None) -> AbcMapping[str, object] | None:
     The refusals *inside* the document are a different thing and stay
     refusals: ``$regex`` is a reviewed decision (RFC 0015), not a typo.
     """
+
     if payload is None:
         return None
+
     try:
         document: object = json.loads(payload)
     except json.JSONDecodeError as exc:
         msg = f"--where is not valid JSON: {exc}"
         raise _Usage(msg) from exc
+
     if not isinstance(document, dict):
         msg = f"--where takes a JSON object, got {type(document).__name__}"
         raise _Usage(msg)
+
     return cast("AbcMapping[str, object]", document)
+
+
+# ....................... #
 
 
 def _parse_grain(spelling: str | None) -> TimeGrain | None:
     """``--grain`` as a :class:`~bloomery.TimeGrain`, or a usage error listing
     the six. Not ``choices=`` on the parser, so the message can name the flag
     the same way the other value checks here do."""
+
     if spelling is None:
         return None
+
     try:
         return TimeGrain(spelling)
     except ValueError as exc:
         known = ", ".join(member.value for member in TimeGrain)
         msg = f"--grain {spelling!r} is not one of: {known}"
         raise _Usage(msg) from exc
+
+
+# ....................... #
 
 
 def _explain(arguments: argparse.Namespace) -> int:
@@ -385,11 +453,16 @@ def _explain(arguments: argparse.Namespace) -> int:
     naming = DefaultNaming()
     planner = MetricFlowPlanner(LruManifestHydrator(naming), naming=naming)
     query = planner.plan(ir, request, dialect=arguments.dialect, policy=policy)
+
     if arguments.format == "json":
         _emit(query, as_json=True)
     else:
         _emit(query.sql + "\n\n" + query.explanation.render(), as_json=False)
+
     return EXIT_OK
+
+
+# ....................... #
 
 
 def _schema(arguments: argparse.Namespace) -> int:
@@ -404,6 +477,7 @@ def _schema(arguments: argparse.Namespace) -> int:
     else:
         schemas = dict(all_spec_schemas())
         payload = {each.value: schema for each, schema in schemas.items()}
+
     if arguments.out is not None:
         written = io.write_files(
             arguments.out,
@@ -415,17 +489,26 @@ def _schema(arguments: argparse.Namespace) -> int:
         for path in written:
             sys.stdout.write(f"{path}\n")
         return EXIT_OK
+
     _emit(payload, as_json=True)
+
     return EXIT_OK
+
+
+# ....................... #
 
 
 def _fingerprint(arguments: argparse.Namespace) -> int:
     _emit(project_fingerprint(_load_ir(arguments.directory, arguments.catalog)), as_json=False)
+
     return EXIT_OK
 
 
 # ....................... #
 # Parser
+
+
+# ....................... #
 
 
 def _depth(spelling: str) -> int:
@@ -438,16 +521,22 @@ def _depth(spelling: str) -> int:
     that means the invocation was wrong. Validating here makes it the second,
     which is what a bad flag *value* is, exactly as ``--direction up`` already is.
     """
+
     try:
         depth = int(spelling)
     except ValueError:
         raise argparse.ArgumentTypeError(
             f"--max-depth must be an integer, got {spelling!r}"
         ) from None
+
     if depth < 0:
         msg = f"--max-depth must be >= 0, got {depth}"
         raise argparse.ArgumentTypeError(msg)
+
     return depth
+
+
+# ....................... #
 
 
 def _add_spec_directory(parser: argparse.ArgumentParser) -> None:
@@ -458,6 +547,9 @@ def _add_spec_directory(parser: argparse.ArgumentParser) -> None:
     )
 
 
+# ....................... #
+
+
 def _add_format(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--format",
@@ -465,6 +557,9 @@ def _add_format(parser: argparse.ArgumentParser) -> None:
         default="table",
         help="output format (json emits the same values the Python API returns)",
     )
+
+
+# ....................... #
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -571,6 +666,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# ....................... #
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for the ``bloomery`` console script.
 
@@ -585,6 +683,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     a function, which the paragraph above invites, did not.
     """
     parser = build_parser()
+
     try:
         arguments = parser.parse_args(argv)
     except SystemExit as request:
@@ -592,6 +691,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         # already the code this function means to return, so pass them through
         # rather than flattening them to one.
         return request.code if isinstance(request.code, int) else EXIT_USAGE
+
     try:
         exit_code: int = arguments.run(arguments)
     except BloomeryError as error:
@@ -609,11 +709,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (io.CliIoError, _Usage) as error:
         sys.stderr.write(f"{parser.prog}: {error}\n")
         return EXIT_USAGE
+
     return exit_code
+
+
+# ....................... #
 
 
 def _run() -> None:  # pragma: no cover — console-script shim
     raise SystemExit(main())
+
+
+# ....................... #
 
 
 if __name__ == "__main__":  # pragma: no cover

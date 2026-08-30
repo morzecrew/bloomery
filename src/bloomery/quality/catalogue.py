@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from bloomery.ir import FLAGS_COLUMN, OK_COLUMN, REJECT_SUFFIX, REPAIRS_COLUMN, OnFail
 
+# ----------------------- #
+
 __all__ = [
     "ALL_DISPOSITIONS",
     "ALL_ON_MISSING",
@@ -119,4 +121,5 @@ def payload_key(path: str) -> str:
     granularity, so a redaction can never remove half of a column something
     reads.
     """
+
     return path.removeprefix("$.").split(".")[0]

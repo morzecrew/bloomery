@@ -7,6 +7,8 @@ aggregate, plus the two non-raising amendments (path-conflict shadows and
 
 from bloomery.guardrails.stage import check_guardrails
 
+# ----------------------- #
+
 __all__ = [
     "check_guardrails",
 ]

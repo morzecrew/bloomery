@@ -20,6 +20,8 @@ from bloomery.typing import (
     VariantType,
 )
 
+# ----------------------- #
+
 __all__ = [
     "TrinoDialect",
 ]
@@ -51,6 +53,8 @@ class TrinoDialect(SQLGlotDialect):
         TimestampType: "TIMESTAMP",
         VariantType: "JSON",
     }
+
+    # ....................... #
 
     def render(self, node: Expression) -> str:
         """Render with zone *interpretation* spelled the way Trino spells it —
@@ -105,6 +109,8 @@ class TrinoDialect(SQLGlotDialect):
         rewritten: Expression = strip_iso_text(node.copy(), space_separated)
         return super().render(utc_from_zone(rewritten, utc))
 
+    # ....................... #
+
     def text_sha256(self, value: Expression) -> Expression:
         """``LOWER(TO_HEX(SHA256(TO_UTF8(…))))``.
 
@@ -118,6 +124,8 @@ class TrinoDialect(SQLGlotDialect):
         digest = exp.func("SHA256", exp.func("TO_UTF8", value))
         return exp.Lower(this=exp.func("TO_HEX", digest))
 
+    # ....................... #
+
     def json_object(self, pairs: Sequence[tuple[str, Expression]]) -> Expression:
         """``JSON_OBJECT(KEY 'k' VALUE v, …)`` — the SQL-standard spelling.
 
@@ -125,6 +133,7 @@ class TrinoDialect(SQLGlotDialect):
         keyword form is what SQLGlot emits for ``exp.JSONObject`` built from
         ``JSONKeyValue`` pairs.
         """
+
         return exp.JSONObject(
             expressions=[
                 exp.JSONKeyValue(this=exp.Literal.string(key), expression=value)

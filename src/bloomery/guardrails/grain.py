@@ -31,6 +31,8 @@ if TYPE_CHECKING:
     from bloomery.spec.catalog import Catalog
     from bloomery.spec.project import Project
 
+# ----------------------- #
+
 __all__ = [
     "check_grain",
 ]
@@ -48,14 +50,22 @@ def _grain_of(project: Project, entity_name: str) -> str:
     return entity.grain if entity is not None else "undeclared in this project"
 
 
+# ....................... #
+
+
 def _relationship_between(draft: ProjectIR, from_entity: str, to_entity: str) -> str:
     """How ``to_entity`` is reached from ``from_entity``, for the message."""
+
     for rel in draft.relationships:
         if rel.from_entity == from_entity and rel.to_entity == to_entity:
             return f"relationship {rel.name!r} ({rel.cardinality})"
         if rel.from_entity == to_entity and rel.to_entity == from_entity:
             return f"relationship {rel.name!r} ({_INVERSE[rel.cardinality]}, read inversely)"
+
     return "no declared relationship"
+
+
+# ....................... #
 
 
 def _fully_aggregated(tree: Expression, name: str) -> bool:
@@ -65,6 +75,9 @@ def _fully_aggregated(tree: Expression, name: str) -> bool:
     return bool(occurrences) and all(
         col.find_ancestor(exp.AggFunc) is not None for col in occurrences
     )
+
+
+# ....................... #
 
 
 def _mismatch(
@@ -88,6 +101,9 @@ def _mismatch(
     return GrainMismatch(msg, source_path=source_path)
 
 
+# ....................... #
+
+
 def check_grain(
     derivations: tuple[Derivation, ...],
     draft: ProjectIR,
@@ -96,6 +112,7 @@ def check_grain(
 ) -> list[GuardrailError]:
     """Every grain violation across derivations and metric expressions."""
     violations: list[GuardrailError] = []
+
     for derivation in derivations:
         tree = (
             cast("Expression", parse_one(derivation.expr)) if derivation.expr is not None else None
@@ -121,14 +138,20 @@ def check_grain(
                     source_path=derivation.source_path,
                 )
             )
+
     violations.extend(_check_metric_grain(draft, project, catalog))
+
     return violations
+
+
+# ....................... #
 
 
 def _check_metric_grain(
     draft: ProjectIR, project: Project, catalog: Catalog | None
 ) -> list[GuardrailError]:
     violations: list[GuardrailError] = []
+
     for metric in draft.metrics:
         if metric.expr is None:
             continue
@@ -170,4 +193,5 @@ def _check_metric_grain(
                 "and aggregate the others explicitly"
             )
             violations.append(GrainMismatch(msg, source_path=source_path))
+
     return violations

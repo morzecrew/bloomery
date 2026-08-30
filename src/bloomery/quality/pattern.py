@@ -38,6 +38,8 @@ from sqlglot import exp, parse_one
 
 from bloomery.dialects import DialectFeature, DialectPort, SQLGlotDialect, get_dialect
 
+# ----------------------- #
+
 __all__ = [
     "PATTERN_TARGET_DIALECTS",
     "unsupported_dialects",
@@ -58,9 +60,14 @@ def _sqlglot_name(dialect: DialectPort) -> str:
     """The SQLGlot generator an extension port renders through. Extension
     dialects that are not :class:`SQLGlotDialect` subclasses are probed under
     their own name — SQLGlot resolves it or the round-trip refuses."""
+
     if isinstance(dialect, SQLGlotDialect):
         return dialect.sqlglot_dialect
+
     return dialect.name
+
+
+# ....................... #
 
 
 def _transports_literal(pattern: str, sqlglot_dialect: str) -> bool:
@@ -71,6 +78,7 @@ def _transports_literal(pattern: str, sqlglot_dialect: str) -> bool:
     never "will the engine's regex engine accept it".
     """
     node = exp.RegexpLike(this=exp.column("_probe"), expression=exp.Literal.string(pattern))
+
     try:
         rendered = node.sql(dialect=sqlglot_dialect)
         reparsed = parse_one(rendered, dialect=sqlglot_dialect)
@@ -78,7 +86,11 @@ def _transports_literal(pattern: str, sqlglot_dialect: str) -> bool:
     # point is to discover that this dialect cannot carry this regex.
     except Exception:
         return False
+
     return any(literal.this == pattern for literal in reparsed.find_all(exp.Literal))
+
+
+# ....................... #
 
 
 def unsupported_dialects(

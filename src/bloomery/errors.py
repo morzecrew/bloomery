@@ -36,6 +36,7 @@ from typing import TYPE_CHECKING, Self
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+# ----------------------- #
 
 __all__ = [
     "BloomeryError",
@@ -131,6 +132,9 @@ class MartCoverage:
     grain: str
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class MeasureRef:
     """A mart measure and its own entity grain.
@@ -142,6 +146,9 @@ class MeasureRef:
 
     measure: str
     grain: str
+
+
+# ....................... #
 
 
 class BloomeryError(Exception):
@@ -164,6 +171,8 @@ class BloomeryError(Exception):
         self.source_path = source_path
         self.collected = collected
 
+    # ....................... #
+
     @classmethod
     def from_collected(cls, errors: tuple[BloomeryError, ...]) -> Self:
         """Build one aggregate error whose message lists every collected path.
@@ -173,14 +182,19 @@ class BloomeryError(Exception):
         in collection order (callers pre-sort where determinism demands it).
         """
         lines = [f"{len(errors)} error(s):"]
+
         for err in errors:
             prefix = f"{err.source_path}: " if err.source_path else ""
             lines.append(f"  - {prefix}{err}")
+
         return cls("\n".join(lines), collected=errors)
 
 
 # ....................... #
 # Parse stage — RFC 0002
+
+
+# ....................... #
 
 
 class InvariantViolated(BloomeryError):
@@ -193,6 +207,9 @@ class InvariantViolated(BloomeryError):
     the message names which guardrail was relied on, because that is the thing
     a reader needs and the traceback cannot supply.
     """
+
+
+# ....................... #
 
 
 def guaranteed[T](candidates: Iterable[T], *, expected: str, by: str) -> T:
@@ -209,13 +226,18 @@ def guaranteed[T](candidates: Iterable[T], *, expected: str, by: str) -> T:
     real and held everywhere but one, and what it never had was a place to be
     stated where drift would be visible.
     """
+
     for candidate in candidates:
         return candidate
+
     msg = (
         f"expected {expected}, which {by} is supposed to guarantee — reaching here means "
         "that check and this lookup disagree. This is a bug in bloomery, not in the spec"
     )
     raise InvariantViolated(msg)
+
+
+# ....................... #
 
 
 class SpecParseError(BloomeryError):
@@ -227,14 +249,23 @@ class SpecParseError(BloomeryError):
 # Typing and transforms — RFC 0004
 
 
+# ....................... #
+
+
 class UnknownTransformError(BloomeryError):
     """Raised by the typecheck stage (RFC 0004) when a transform chain names a
     transform absent from the registry; the message names the closest match."""
 
 
+# ....................... #
+
+
 class TypeCheckError(BloomeryError):
     """Raised by the type layer (RFC 0004): unparsable type strings and
     transform chains whose terminal type is not assignable to the declared."""
+
+
+# ....................... #
 
 
 class TransformRegistrationError(BloomeryError):
@@ -246,14 +277,23 @@ class TransformRegistrationError(BloomeryError):
 # Resolution — RFC 0005
 
 
+# ....................... #
+
+
 class ResolutionError(BloomeryError):
     """Raised by the resolution stage (RFC 0005): cross-spec reference and
     recipe failures over the dependency DAG — batched per stage (D7)."""
 
 
+# ....................... #
+
+
 class CircularDerivation(ResolutionError):
     """Raised by the resolution stage (RFC 0005 D4) on any cycle in the
     dependency DAG; the message names the full cycle path."""
+
+
+# ....................... #
 
 
 class MissingReference(ResolutionError):
@@ -265,9 +305,15 @@ class MissingReference(ResolutionError):
 # Guardrails — RFC 0006 (mart-level leaves: RFC 0010; MetricFlow: RFC 0013)
 
 
+# ....................... #
+
+
 class GuardrailError(BloomeryError):
     """Raised by the guardrail stage (RFC 0006): the aggregate whose
     ``collected`` violations are sorted by ``(source_path, type name)``."""
+
+
+# ....................... #
 
 
 class UnitMismatch(GuardrailError):
@@ -275,10 +321,16 @@ class UnitMismatch(GuardrailError):
     *declared* ``unit`` metadata (currency + count is the bug)."""
 
 
+# ....................... #
+
+
 class TaxBasisMismatch(GuardrailError):
     """Guardrail stage (RFC 0006 §5.2, worked example §5.7): ``net`` and
     ``gross`` — or an unknown basis alongside a monetary operand — meeting in
     additive arithmetic (unknown poisons, D3)."""
+
+
+# ....................... #
 
 
 class CurrencyMismatch(GuardrailError):
@@ -292,9 +344,15 @@ class CurrencyMismatch(GuardrailError):
     """
 
 
+# ....................... #
+
+
 class GrainMismatch(GuardrailError):
     """Guardrail stage (RFC 0006 §5.3): expression combining columns of
     different grains without an explicit aggregation."""
+
+
+# ....................... #
 
 
 class AdditivityViolation(GuardrailError):
@@ -302,9 +360,15 @@ class AdditivityViolation(GuardrailError):
     metric's declared additivity."""
 
 
+# ....................... #
+
+
 class AssertLoweringError(GuardrailError):
     """Guardrail stage (RFC 0006 D8): an ``assert:`` clause ill-typed against
     the field's logical type."""
+
+
+# ....................... #
 
 
 class GrainViolation(GuardrailError):
@@ -329,9 +393,15 @@ class GrainViolation(GuardrailError):
         self.offending_measures = offending_measures
 
 
+# ....................... #
+
+
 class FanoutRisk(GuardrailError):
     """Guardrail stage, mart-level (RFC 0010 D3): a mart ``via:`` flatten step
     over a ``one_to_many`` relationship."""
+
+
+# ....................... #
 
 
 class HistoricalFanout(GuardrailError):
@@ -346,9 +416,15 @@ class HistoricalFanout(GuardrailError):
     """
 
 
+# ....................... #
+
+
 class NonAdditiveWithoutComponents(GuardrailError):
     """Guardrail stage (RFC 0006 §5.4, RFC 0011 D5): a non-additive metric
     without a ratio / additive decomposition to recompute it from."""
+
+
+# ....................... #
 
 
 class MartMissingTimeDimension(GuardrailError):
@@ -363,16 +439,25 @@ class MartMissingTimeDimension(GuardrailError):
 # this RFC can decide without data is therefore a ``GuardrailError``.
 
 
+# ....................... #
+
+
 class QuarantineRetentionMissing(GuardrailError):
     """Guardrail stage (RFC 0016 §5.6, D10): an entity with a ``quarantine``
     disposition and no ``quarantine.retention`` — reject tables hold raw
     payloads, so retention is required, never defaulted."""
 
 
+# ....................... #
+
+
 class DedupeTieBreakMissing(GuardrailError):
     """Guardrail stage (RFC 0016 §5.3, D6): ``dedupe.keep: latest_by`` without
     ``tie_break`` — rows sharing a timestamp would make the winner arbitrary,
     and a nondeterministic model violates the core invariant (RFC 0003)."""
+
+
+# ....................... #
 
 
 class DedupeDispositionConflict(GuardrailError):
@@ -382,12 +467,18 @@ class DedupeDispositionConflict(GuardrailError):
     dedupe ordering undefined."""
 
 
+# ....................... #
+
+
 class IngestionMetadataMissing(GuardrailError):
     """Guardrail stage (RFC 0016 §5.6, D21): an entity using ``quarantine`` or
     ``dedupe`` whose bronze source lacks ``_load_id``/``_ingested_at``/
     ``_source_row_id``. Their NOT NULL/uniqueness properties are data facts no
     compiler can check — those become a generated blocking audit; *absence* is
     decidable from the spec, so it is this guardrail."""
+
+
+# ....................... #
 
 
 class RedactionConflict(GuardrailError):
@@ -404,8 +495,14 @@ class RedactionConflict(GuardrailError):
 # raises it, and nothing in bloomery ever catches it.
 
 
+# ....................... #
+
+
 class StepError(BloomeryError):
     """Raised for the referenced-implementation escape hatch (RFC 0017)."""
+
+
+# ....................... #
 
 
 class UnknownStep(StepError):
@@ -431,12 +528,18 @@ class UnknownStep(StepError):
         self.available_versions = available_versions
 
 
+# ....................... #
+
+
 class StepDeterminismError(StepError):
     """Compile stage (RFC 0017 §5.5, D5): a step declaring
     ``determinism: nondeterministic``, or a ``seeded`` step wired without a
     seed. A nondeterministic step makes a backfill disagree with the original
     run, which destroys restatement — the capability the architecture is
     organized around, so this is the load-bearing refusal, not caution."""
+
+
+# ....................... #
 
 
 class StepContractViolation(StepError):
@@ -452,14 +555,23 @@ class StepContractViolation(StepError):
 # Plan — RFC 0007
 
 
+# ....................... #
+
+
 class PlanError(BloomeryError):
     """Raised by the plan stage (RFC 0007) when a spec diff cannot produce a
     safe migration plan."""
 
 
+# ....................... #
+
+
 class ContractViolation(PlanError):
     """Plan stage (RFC 0007 D5): dropping or narrowing a field still
     referenced by a reachable metric — expand/contract enforced."""
+
+
+# ....................... #
 
 
 class RenameTargetMissing(PlanError):
@@ -471,9 +583,15 @@ class RenameTargetMissing(PlanError):
 # Emit — RFC 0008
 
 
+# ....................... #
+
+
 class EmitError(BloomeryError):
     """Raised by the emit stage (RFC 0008) when the IR cannot be lowered to a
     target artifact."""
+
+
+# ....................... #
 
 
 class UnsupportedByTarget(EmitError):
@@ -485,9 +603,15 @@ class UnsupportedByTarget(EmitError):
 # Planner — RFC 0011 (backend: RFC 0013). Deliberately NOT batched (0011 D9).
 
 
+# ....................... #
+
+
 class PlannerError(BloomeryError):
     """Raised by the query planner (RFC 0011) on malformed or unanswerable
     requests; planner errors are not batched (D9)."""
+
+
+# ....................... #
 
 
 class UnknownMember(PlannerError):
@@ -510,6 +634,9 @@ class UnknownMember(PlannerError):
     ) -> None:
         super().__init__(message, source_path=source_path, collected=collected)
         self.did_you_mean = did_you_mean
+
+
+# ....................... #
 
 
 class UnreachableAtGrain(PlannerError):
@@ -535,14 +662,23 @@ class UnreachableAtGrain(PlannerError):
         self.covering_marts = covering_marts
 
 
+# ....................... #
+
+
 class AmbiguousDimension(PlannerError):
     """Planner stage (RFC 0011 D6): an unqualified reference to a dimension
     with multiple roles; the message names the available roles."""
 
 
+# ....................... #
+
+
 class InvalidRequest(PlannerError):
     """Planner stage (RFC 0011 D9): bad filter/order/limit shapes or raw SQL
     where a structured request member is required."""
+
+
+# ....................... #
 
 
 class FilterTypeMismatch(PlannerError):
@@ -554,6 +690,9 @@ class FilterTypeMismatch(PlannerError):
 # Query vocabulary — RFC 0015 §5.3: the closed refusal list. Every leaf
 # carries a stable ``reason`` code; the union of codes the three parse
 # functions can raise is exported as ``bloomery.planner.KNOWN_UNSUPPORTED``.
+
+
+# ....................... #
 
 
 class UnsupportedFilter(PlannerError):
@@ -579,6 +718,8 @@ class UnsupportedFilter(PlannerError):
 
     reason: str = "unsupported_filter"
 
+    # ....................... #
+
     def __init__(
         self,
         message: str,
@@ -593,12 +734,18 @@ class UnsupportedFilter(PlannerError):
         self.nearest_supported = nearest_supported
 
 
+# ....................... #
+
+
 class UnsupportedSetRelation(UnsupportedFilter):
     """RFC 0015 §5.3: ``$superset``/``$subset``/``$disjoint``/``$overlaps`` —
     marts are flattened and scalar by construction; no array columns exist
     to relate."""
 
     reason = "unsupported_set_relation"
+
+
+# ....................... #
 
 
 class UnsupportedHierarchy(UnsupportedFilter):
@@ -609,6 +756,9 @@ class UnsupportedHierarchy(UnsupportedFilter):
     reason = "unsupported_hierarchy"
 
 
+# ....................... #
+
+
 class UnsupportedTextOperator(UnsupportedFilter):
     """RFC 0015 §5.3: ``$regex`` (dialect-divergent, unbounded cost) and
     ``$empty`` (ambiguous across types) — express as ``like``/``ilike``,
@@ -617,11 +767,17 @@ class UnsupportedTextOperator(UnsupportedFilter):
     reason = "unsupported_text_operator"
 
 
+# ....................... #
+
+
 class FilterTooComplex(UnsupportedFilter):
     """RFC 0015 §5.2 step 3: CNF expansion exceeded the clause cap — refused
     *during* distribution, before the expansion is ever materialized."""
 
     reason = "filter_too_complex"
+
+
+# ....................... #
 
 
 class UnsupportedNegation(UnsupportedFilter):
@@ -632,12 +788,18 @@ class UnsupportedNegation(UnsupportedFilter):
     reason = "unsupported_negation"
 
 
+# ....................... #
+
+
 class InvalidLiteral(UnsupportedFilter):
     """RFC 0015 D5: a non-finite numeric operand (``NaN``/``Infinity``/
     ``-Infinity``, float or string form) or an invalid ``like`` pattern
     (unpaired trailing ``\\``, NUL) — fails open if permitted."""
 
     reason = "invalid_literal"
+
+
+# ....................... #
 
 
 class UnsupportedSortNulls(UnsupportedFilter):
@@ -648,11 +810,17 @@ class UnsupportedSortNulls(UnsupportedFilter):
     reason = "unsupported_sort_nulls"
 
 
+# ....................... #
+
+
 class UnsupportedPagination(UnsupportedFilter):
     """RFC 0015 D-Q7: a non-zero ``offset`` or cursor pagination — paging
     aggregates belongs to the serving layer (materialize, then page)."""
 
     reason = "unsupported_pagination"
+
+
+# ....................... #
 
 
 class UnsupportedFieldCompare(UnsupportedFilter):
@@ -662,6 +830,9 @@ class UnsupportedFieldCompare(UnsupportedFilter):
     adapter's ``APP_UNSUPPORTED`` set."""
 
     reason = "unsupported_field_compare"
+
+
+# ....................... #
 
 
 class UnsupportedQuantifier(UnsupportedFilter):

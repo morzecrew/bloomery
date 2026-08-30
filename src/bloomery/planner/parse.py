@@ -58,6 +58,8 @@ from bloomery.planner.request import AnyOf, Op, OrderSpec, Predicate
 if TYPE_CHECKING:
     from bloomery.planner.request import Clause, Scalar
 
+# ----------------------- #
+
 __all__ = [
     "DEFAULT_CLAUSE_CAP",
     "KNOWN_UNSUPPORTED",
@@ -180,6 +182,8 @@ class _Leaf:
     values: tuple[object, ...]
     negated: bool = False
 
+    # ....................... #
+
     def render(self) -> str:
         prefix = "not " if self.negated else ""
         return f"{prefix}{self.field} {self.op.value} {list(self.values)!r}"
@@ -190,9 +194,15 @@ class _Leaf:
 # nodes never reach an error message, so they render nothing.
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class _And:
     children: tuple[_Node, ...]
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,9 +210,15 @@ class _Or:
     children: tuple[_Node, ...]
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class _Not:
     child: _Node
+
+
+# ....................... #
 
 
 type _Node = _Leaf | _And | _Or | _Not
@@ -216,18 +232,25 @@ def _check_operand(value: object, *, where: str) -> object:
     """One JSON scalar operand. Floats normalize downstream (``Predicate``
     construction, RFC 0015 D5); the non-finite check is made here too so
     the refusal carries the parse-stage source and reason."""
+
     if isinstance(value, float) and not math.isfinite(value):
         msg = f"{where} carries non-finite {value!r} — fails open if permitted (RFC 0015 D5)"
         raise InvalidLiteral(msg)
+
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
+
     msg = f"{where} carries a non-scalar value of type {type(value).__name__!r}"
     raise InvalidRequest(msg)
+
+
+# ....................... #
 
 
 def _leaf(field: str, spelling: str, operand: object) -> _Node:
     """One ``{field: {$op: operand}}`` entry as a leaf (or a refusal)."""
     where = f"filter on {field!r} ({spelling})"
+
     if spelling in _REFUSED_OPERATORS:
         error_type = _REFUSED_OPERATORS[spelling]
         msg = f"{where}: {_REFUSAL_REASONS[spelling]}"
@@ -237,14 +260,18 @@ def _leaf(field: str, spelling: str, operand: object) -> _Node:
             source_path=field,
             nearest_supported=nearest.value if nearest is not None else None,
         )
+
     op = _OPERATORS.get(spelling)
+
     if op is None:
         known = sorted(_OPERATORS)
         raise InvalidRequest(f"{where}: unknown operator; known: {known}")
+
     if op is Op.IS_NULL:
         if not isinstance(operand, bool):
             raise InvalidRequest(f"{where} takes exactly one bool operand")
         return _Leaf(field, op, (operand,))
+
     if op in (Op.IN, Op.NOT_IN):
         if not isinstance(operand, list):
             raise InvalidRequest(f"{where} takes an array operand")
@@ -253,32 +280,43 @@ def _leaf(field: str, spelling: str, operand: object) -> _Node:
         if any(v is None for v in values):
             raise InvalidRequest(f"{where} may not hold null — use $null instead")
         return _Leaf(field, op, values)
+
     if op in (Op.LIKE, Op.ILIKE):
         patterns: tuple[object, ...] = (
             tuple(cast("list[object]", operand)) if isinstance(operand, list) else (operand,)
         )
         return _Leaf(field, op, patterns)  # pattern validation rides Predicate
+
     checked = _check_operand(operand, where=where)
+
     if checked is None:  # {$eq: null} ≡ is_null true; {$neq: null} ≡ is_null false
         if op is Op.EQ:
             return _Leaf(field, Op.IS_NULL, (True,))
         if op is Op.NE:
             return _Leaf(field, Op.IS_NULL, (False,))
         raise InvalidRequest(f"{where} may not compare against null — use $null")
+
     return _Leaf(field, op, (checked,))
+
+
+# ....................... #
 
 
 def _field_entry(field: str, spec: object) -> _Node:
     """One field-map entry: scalar = ``$eq`` shortcut, array = ``$in``
     shortcut, null = ``is_null true``, mapping = operator map (implicit
     AND across its operators)."""
+
     if field.startswith("$"):
         msg = f"unknown combinator {field!r}; known: ['$and', '$not', '$or']"
         raise InvalidRequest(msg)
+
     if spec is None:
         return _Leaf(field, Op.IS_NULL, (True,))
+
     if isinstance(spec, list):
         return _leaf(field, "$in", cast("list[object]", spec))
+
     if isinstance(spec, dict):
         op_map = cast("dict[object, object]", spec)
         if not op_map:
@@ -290,7 +328,11 @@ def _field_entry(field: str, spec: object) -> _Node:
                 raise InvalidRequest(msg)
             nodes.append(_leaf(field, spelling, operand))
         return nodes[0] if len(nodes) == 1 else _And(tuple(nodes))
+
     return _leaf(field, "$eq", spec)
+
+
+# ....................... #
 
 
 def _tree(payload: object, *, depth: int = 0) -> _Node:
@@ -298,6 +340,7 @@ def _tree(payload: object, *, depth: int = 0) -> _Node:
     may mix in one mapping (implicit AND across the keys). ``depth`` guards
     totality: nesting beyond :data:`MAX_NESTING_DEPTH` refuses **before**
     recursing further, so no input depth can raise ``RecursionError``."""
+
     if depth > MAX_NESTING_DEPTH:
         msg = (
             f"filter document nesting exceeded the depth cap ({MAX_NESTING_DEPTH} "
@@ -305,13 +348,18 @@ def _tree(payload: object, *, depth: int = 0) -> _Node:
             "nesting-depth cap, distinct from the CNF clause cap (RFC 0015 §5.2)"
         )
         raise FilterTooComplex(msg, normalized=f">{MAX_NESTING_DEPTH} levels deep")
+
     if not isinstance(payload, dict):
         msg = f"a filter document is a mapping, got {type(payload).__name__!r}"
         raise InvalidRequest(msg)
+
     document = cast("dict[object, object]", payload)
+
     if not document:
         raise InvalidRequest("a filter document may not be empty")
+
     nodes: list[_Node] = []
+
     for key, value in document.items():
         if not isinstance(key, str):
             msg = f"filter keys are strings, got {type(key).__name__!r}"
@@ -325,6 +373,7 @@ def _tree(payload: object, *, depth: int = 0) -> _Node:
             nodes.append(_Not(_tree(value, depth=depth + 1)))
         else:
             nodes.append(_field_entry(key, value))
+
     return nodes[0] if len(nodes) == 1 else _And(tuple(nodes))
 
 
@@ -332,9 +381,13 @@ def _tree(payload: object, *, depth: int = 0) -> _Node:
 # Normalization (RFC 0015 §5.2): De Morgan → complement → capped CNF
 
 
+# ....................... #
+
+
 def _push_not(node: _Node, *, negate: bool) -> _Node:
     """Steps 1–2: negations to the leaves via De Morgan, then inverted
     through the complement table; a non-invertible negated leaf refuses."""
+
     match node:
         case _Not(child):
             return _push_not(child, negate=not negate)
@@ -362,6 +415,9 @@ def _push_not(node: _Node, *, negate: bool) -> _Node:
                     msg, source_path=leaf.field, normalized=normalized.render()
                 )
             return _Leaf(leaf.field, complement, leaf.values)
+
+
+# ....................... #
 
 
 def _distribute(node: _Node, *, cap: int) -> list[tuple[_Leaf, ...]]:
@@ -410,14 +466,22 @@ def _distribute(node: _Node, *, cap: int) -> list[tuple[_Leaf, ...]]:
 # The three public parse functions
 
 
+# ....................... #
+
+
 def _require_mapping(payload: object, *, what: str) -> Mapping[str, object]:
     """Defensive boundary check — untyped callers hand us raw JSON. A
     non-mapping payload is malformed input (``InvalidRequest``), never a
     reviewed refusal; only well-formed mappings reach the refusal logic."""
+
     if not isinstance(payload, Mapping):
         msg = f"{what} is a mapping, got {type(payload).__name__!r}"
         raise InvalidRequest(msg)
+
     return cast("Mapping[str, object]", payload)
+
+
+# ....................... #
 
 
 def parse_filter_json(
@@ -441,6 +505,7 @@ def parse_filter_json(
     document = dict(_require_mapping(payload, what="a filter document"))
     tree = _push_not(_tree(document), negate=False)
     clauses: list[Clause] = []
+
     for disjunction in _distribute(tree, cap=clause_cap):
         predicates = tuple(
             # Predicate re-validates every value at construction — the cast
@@ -453,7 +518,11 @@ def parse_filter_json(
             for leaf in disjunction
         )
         clauses.append(predicates[0] if len(predicates) == 1 else AnyOf(predicates))
+
     return tuple(clauses)
+
+
+# ....................... #
 
 
 def parse_sort_json(payload: Mapping[str, object]) -> tuple[OrderSpec, ...]:
@@ -472,6 +541,7 @@ def parse_sort_json(payload: Mapping[str, object]) -> tuple[OrderSpec, ...]:
     """
     document = _require_mapping(payload, what="a sort document")
     specs: list[OrderSpec] = []
+
     # The declared key type is a promise untyped callers may break — widen
     # and check (the same discipline ``_tree`` applies to filter keys).
     for field, value in cast("Mapping[object, object]", document).items():
@@ -519,7 +589,11 @@ def parse_sort_json(payload: Mapping[str, object]) -> tuple[OrderSpec, ...]:
                 )
                 raise UnsupportedSortNulls(msg, source_path=field)
         specs.append(OrderSpec(field=field, direction=literal_direction))
+
     return tuple(specs)
+
+
+# ....................... #
 
 
 def parse_page_json(payload: Mapping[str, object]) -> int | None:
@@ -536,16 +610,21 @@ def parse_page_json(payload: Mapping[str, object]) -> int | None:
     """
     document = _require_mapping(payload, what="a pagination document")
     cursors = sorted(key for key in ("after", "before") if key in document)
+
     if cursors:
         msg = (
             f"cursor pagination ({cursors}) is refused — pagination is limit-only; "
             "page a materialization at the serving layer (RFC 0015 D-Q7)"
         )
         raise UnsupportedPagination(msg)
+
     unknown = sorted(str(key) for key in set(document) - {"limit", "offset"})
+
     if unknown:
         raise InvalidRequest(f"pagination has unknown keys {unknown}")
+
     offset = document.get("offset")
+
     if offset is not None:
         if isinstance(offset, bool) or not isinstance(offset, int):
             msg = f"offset must be an int, got {type(offset).__name__!r}"
@@ -556,11 +635,16 @@ def parse_page_json(payload: Mapping[str, object]) -> int | None:
                 "materialization at the serving layer (RFC 0015 D-Q7)"
             )
             raise UnsupportedPagination(msg)
+
     limit = document.get("limit")
+
     if limit is None:
         return None
+
     if isinstance(limit, bool) or not isinstance(limit, int):
         raise InvalidRequest(f"limit must be an int, got {type(limit).__name__!r}")
+
     if limit < 1:
         raise InvalidRequest(f"limit must be >= 1, got {limit}")
+
     return limit

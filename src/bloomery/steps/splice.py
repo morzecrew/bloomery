@@ -32,6 +32,8 @@ if TYPE_CHECKING:
 
     from sqlglot.expressions.core import Expression
 
+# ----------------------- #
+
 __all__ = [
     "parameter_literal",
     "placeholders",
@@ -59,8 +61,10 @@ def parameter_literal(value: str, declared: str) -> Expression:
     (D57); no ``CAST`` spelling is invented here.
     """
     base = declared.split("(", 1)[0].strip()
+
     if base == "bool":
         return exp.Boolean(this=value.strip().lower() in {"true", "1"})
+
     if base in {"int", "decimal"}:
         # The text, not a parsed float: RFC 0003 D5 keeps floats out of every
         # emission path. But *checked* here rather than trusted from the caller
@@ -72,7 +76,11 @@ def parameter_literal(value: str, declared: str) -> Expression:
         # because a string literal is quoted; this one had nothing making it so.
         _refuse_non_numeric(value, declared)
         return exp.Literal.number(value)
+
     return exp.Literal.string(value)
+
+
+# ....................... #
 
 
 #: SQL numeric-literal syntax, per declared type (RFC 0017 D56).
@@ -106,8 +114,10 @@ def _refuse_non_numeric(value: str, declared: str) -> None:
     type reaching the SQL than the manifest promised.
     """
     base = declared.split("(", 1)[0].strip()
+
     if _NUMERIC_SYNTAX[base].fullmatch(value.strip()):
         return
+
     msg = (
         f"step parameter value {value!r} is declared {declared!r} but is not written as "
         f"{'an integer' if base == 'int' else 'a decimal number'}. A numeric parameter renders "
@@ -117,6 +127,9 @@ def _refuse_non_numeric(value: str, declared: str) -> None:
         "quoted literal"
     )
     raise StepError(msg)
+
+
+# ....................... #
 
 
 def placeholders(body: Expression) -> frozenset[str]:
@@ -132,9 +145,13 @@ def placeholders(body: Expression) -> frozenset[str]:
     This docstring used to say the signature was "read off the body rather than
     declared beside it", which is the design D51 explicitly rejected.
     """
+
     return frozenset(
         node.this for node in body.find_all(exp.Placeholder) if isinstance(node.this, str)
     )
+
+
+# ....................... #
 
 
 def splice(body: Expression, arguments: Mapping[str, Expression]) -> Expression:
@@ -155,6 +172,7 @@ def splice(body: Expression, arguments: Mapping[str, Expression]) -> Expression:
             replacement = arguments.get(node.this)
             if replacement is not None:
                 return replacement.copy()
+
         return node
 
     return body.transform(_substitute)

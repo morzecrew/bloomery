@@ -33,6 +33,8 @@ if TYPE_CHECKING:
     from bloomery.planner.names import ResolvedDimension
     from bloomery.planner.request import Clause, MetricRequest, Predicate, Scalar
 
+# ----------------------- #
+
 __all__ = [
     "build",
 ]
@@ -45,6 +47,7 @@ _WINDOWS = {SemiAdditiveRule.LAST: "MAX", SemiAdditiveRule.FIRST: "MIN"}
 def _day_column(mart: MartIR, source_column: str) -> str:
     """The day-bucket column serving a source date column — the same rule
     the emitter's ``non_additive_dimension`` lowering applies."""
+
     for column in mart.columns:  # sorted by name; first role wins, as emitted
         if (
             column.ref is not None
@@ -52,25 +55,36 @@ def _day_column(mart: MartIR, source_column: str) -> str:
             and column.source_column == source_column
         ):
             return column.name
+
     return source_column
+
+
+# ....................... #
 
 
 def _measure_explanation(metric: MetricIR, mart: MartIR) -> MeasureExplanation:
     additivity = metric.additivity.value
+
     if metric.additivity is Additivity.NON_ADDITIVE:
         if metric.ratio is None:  # pragma: no cover — coverage refused earlier
             raise PlannerError(f"non-additive metric {metric.name!r} has no ratio")
         expr = f"{metric.ratio.numerator} / {metric.ratio.denominator}"
         return MeasureExplanation(metric.name, expr, additivity, _RATIO_NOTE)
+
     agg = (metric.agg or "sum").upper()
     expr = f"{agg}({metric.expr.sql})" if metric.expr is not None else metric.name
+
     if metric.additivity is Additivity.SEMI_ADDITIVE and metric.semi_additive is not None:
         policy = metric.semi_additive
         over = _day_column(mart, policy.over.qualified)
         window = _WINDOWS.get(policy.rule, policy.rule.value.upper())
         note = f"semi-additive {policy.rule.value} over {over} — {window}-join then SUM"
         return MeasureExplanation(metric.name, expr, additivity, note)
+
     return MeasureExplanation(metric.name, expr, additivity, f"additive — {agg}")
+
+
+# ....................... #
 
 
 _SYMBOLS = {Op.EQ: "=", Op.NE: "!=", Op.GT: ">", Op.GTE: ">=", Op.LT: "<", Op.LTE: "<="}
@@ -79,9 +93,14 @@ _SYMBOLS = {Op.EQ: "=", Op.NE: "!=", Op.GT: ">", Op.GTE: ">=", Op.LT: "<", Op.LT
 def _scalar(value: Scalar) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
+
     if isinstance(value, str):
         return f"'{value}'"
+
     return str(value)
+
+
+# ....................... #
 
 
 def _human_predicate(predicate: Predicate, resolved_name: str) -> str:
@@ -89,17 +108,24 @@ def _human_predicate(predicate: Predicate, resolved_name: str) -> str:
     vocabulary per RFC 0015 §5.1)."""
     op = predicate.op
     values = predicate.values
+
     if op is Op.IS_NULL:
         return f"{resolved_name} is null" if values[0] else f"{resolved_name} is not null"
+
     if op in (Op.IN, Op.NOT_IN):
         keyword = "in" if op is Op.IN else "not in"
         return f"{resolved_name} {keyword} ({', '.join(_scalar(v) for v in values)})"
+
     if op in (Op.LIKE, Op.ILIKE):
         # Multi-pattern like/ilike is an OR of repeated predicates (RFC 0015
         # §5.1) — the renderer emits exactly that, so the prose says it
         # rather than hiding the disjunction behind a value list.
         return " OR ".join(f"{resolved_name} {op.value} {_scalar(v)}" for v in values)
+
     return f"{resolved_name} {_SYMBOLS[op]} {_scalar(values[0])}"
+
+
+# ....................... #
 
 
 def _human_clause(clause: Clause, resolutions: tuple[ResolvedDimension, ...]) -> str:
@@ -111,6 +137,9 @@ def _human_clause(clause: Clause, resolutions: tuple[ResolvedDimension, ...]) ->
         for predicate, resolved in zip(clause_predicates(clause), resolutions, strict=True)
     )
     return " OR ".join(rendered)
+
+
+# ....................... #
 
 
 def build(

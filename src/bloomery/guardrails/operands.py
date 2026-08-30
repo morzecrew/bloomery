@@ -27,6 +27,8 @@ if TYPE_CHECKING:
     from bloomery.spec.catalog import Catalog
     from bloomery.spec.project import Project
 
+# ----------------------- #
+
 __all__ = [
     "Derivation",
     "OperandMeta",
@@ -47,6 +49,9 @@ class OperandMeta:
     currency: str | None
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class Derivation:
     """One recorded recipe derivation, addressed for violation reporting:
@@ -62,15 +67,22 @@ class Derivation:
     direct: str | None
 
 
+# ....................... #
+
+
 def operand_meta(name: str, catalog: Catalog | None) -> OperandMeta | None:
     """Metadata for one operand name, or ``None`` when the name is not a
     canonical field — a mapping-local alias has no declared home entity, so
     the guards have nothing to check it against (RFC 0006 D3)."""
+
     if catalog is None:
         return None
+
     field = catalog.canonical_fields.get(name)
+
     if field is None:
         return None
+
     return OperandMeta(
         name=name,
         entity=field.entity,
@@ -80,6 +92,9 @@ def operand_meta(name: str, catalog: Catalog | None) -> OperandMeta | None:
     )
 
 
+# ....................... #
+
+
 def collect_derivations(project: Project, catalog: Catalog | None) -> tuple[Derivation, ...]:
     """Every recipe-form field mapping as a :class:`Derivation`.
 
@@ -87,6 +102,7 @@ def collect_derivations(project: Project, catalog: Catalog | None) -> tuple[Deri
     fields sorted by name within each mapping (RFC 0003 §5.5).
     """
     derivations: list[Derivation] = []
+
     for mapping in project.mappings:
         doc = mapping_doc(mapping)
         for field_name in sorted(mapping.fields):
@@ -112,4 +128,5 @@ def collect_derivations(project: Project, catalog: Catalog | None) -> tuple[Deri
                     direct=field_mapping.direct,
                 )
             )
+
     return tuple(derivations)

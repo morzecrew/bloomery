@@ -28,6 +28,8 @@ from bloomery.errors import EmitError
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+# ----------------------- #
+
 __all__ = [
     "DialectFeature",
     "DialectPort",
@@ -51,10 +53,15 @@ _overlay: dict[str, DialectPort] = {}
 def register_dialect(dialect: DialectPort) -> None:
     """Register an extension dialect (RFC 0008 D8). A name collision with any
     existing dialect, default or overlay, raises :class:`EmitError`."""
+
     if dialect.name in _DEFAULT_DIALECTS or dialect.name in _overlay:
         msg = f"dialect {dialect.name!r} is already registered; shadowing is not allowed"
         raise EmitError(msg)
+
     _overlay[dialect.name] = dialect
+
+
+# ....................... #
 
 
 def get_dialect(name: str) -> DialectPort:
@@ -62,7 +69,9 @@ def get_dialect(name: str) -> DialectPort:
     listing every known name, sorted."""
     merged = dict(_DEFAULT_DIALECTS) | _overlay
     dialect = merged.get(name)
+
     if dialect is None:
         msg = f"unknown dialect {name!r}: known dialects are {sorted(merged)}"
         raise EmitError(msg)
+
     return dialect

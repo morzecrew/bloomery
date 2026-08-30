@@ -28,6 +28,8 @@ from pydantic import Field, StringConstraints, model_validator
 
 from bloomery.spec.common import SpecModel, TypeString
 
+# ----------------------- #
+
 __all__ = [
     "ENTRYPOINT_PATTERN",
     "PARAMETER_TYPE_PATTERN",
@@ -95,6 +97,9 @@ class StepProduces(SpecModel):
     required: bool = False
 
 
+# ....................... #
+
+
 class StepInput(SpecModel):
     """One input a step reads: the grain it expects and the columns it needs.
 
@@ -105,6 +110,9 @@ class StepInput(SpecModel):
 
     grain: str
     requires: tuple[str, ...] = ()
+
+
+# ....................... #
 
 
 class StepOutput(SpecModel):
@@ -131,32 +139,43 @@ class StepOutput(SpecModel):
     #: refuse, and it does not become acceptable because the guess is cheap.
     references: dict[str, str] = Field(default_factory=dict[str, str])
 
+    # ....................... #
+
     @model_validator(mode="after")
     def _references_name_produced_columns(self) -> Self:
         """A referencing column must be one this output produces; the sibling
         it points at is checked one level up, where the other outputs are in
         scope."""
         missing = sorted(set(self.references) - set(self.produces))
+
         if missing:
             msg = (
                 f"references names column(s) {', '.join(missing)}, which this output does "
                 f"not produce; produced: {', '.join(sorted(self.produces))}"
             )
             raise ValueError(msg)
+
         return self
+
+    # ....................... #
 
     @model_validator(mode="after")
     def _key_columns_are_produced(self) -> Self:
         """A key naming a column the step does not produce is unenforceable —
         the runtime assertion would have nothing to group by."""
         missing = sorted(set(self.key) - set(self.produces))
+
         if missing:
             msg = (
                 f"key names {', '.join(missing)}, which this output does not produce; "
                 f"produced columns: {', '.join(sorted(self.produces))}"
             )
             raise ValueError(msg)
+
         return self
+
+
+# ....................... #
 
 
 class StepParameter(SpecModel):
@@ -174,12 +193,18 @@ class StepParameter(SpecModel):
     min: Decimal | None = None
     max: Decimal | None = None
 
+    # ....................... #
+
     @model_validator(mode="after")
     def _bounds_are_ordered(self) -> Self:
         if self.min is not None and self.max is not None and self.min > self.max:
             msg = f"parameter bounds are inverted: min {self.min} > max {self.max}"
             raise ValueError(msg)
+
         return self
+
+
+# ....................... #
 
 
 class StepManifest(SpecModel):
@@ -228,6 +253,8 @@ class StepManifest(SpecModel):
     #: emitter would silently ignore.
     entrypoint: StepEntrypoint | None = None
 
+    # ....................... #
+
     @model_validator(mode="after")
     def _accepts_matches_kind(self) -> Self:
         """Only a macro has a signature to declare, and its names must be
@@ -238,6 +265,7 @@ class StepManifest(SpecModel):
         and a rule nobody can predict is worse than an error (D47's finding,
         one tier down).
         """
+
         if self.kind != "sql_macro" and self.accepts:
             msg = (
                 f"a {self.kind} declares accepts, which only a sql_macro has: a step that "
@@ -245,18 +273,25 @@ class StepManifest(SpecModel):
                 "spliced into an expression"
             )
             raise ValueError(msg)
+
         bad = sorted(name for name in self.accepts if not name.isidentifier())
+
         if bad:
             msg = f"accepts names {', '.join(bad)}, which are not identifiers"
             raise ValueError(msg)
+
         both = sorted(set(self.accepts) & set(self.parameters))
+
         if both:
             msg = (
                 f"{', '.join(both)} is declared as both an accepted column and a "
                 "parameter; one placeholder cannot be filled by two things"
             )
             raise ValueError(msg)
+
         return self
+
+    # ....................... #
 
     @model_validator(mode="after")
     def _entrypoint_matches_kind(self) -> Self:
@@ -266,13 +301,17 @@ class StepManifest(SpecModel):
                 "it is what the generated wrapper imports at run time (RFC 0017 D13)"
             )
             raise ValueError(msg)
+
         if self.kind != "python_model" and self.entrypoint is not None:
             msg = (
                 f"a {self.kind} step declares entrypoint {self.entrypoint!r}, but only a "
                 "python_model imports one; a SQL step's body comes from the registry"
             )
             raise ValueError(msg)
+
         return self
+
+    # ....................... #
 
     @model_validator(mode="after")
     def _inputs_and_parameters_are_disjoint_identifiers(self) -> Self:
@@ -283,6 +322,7 @@ class StepManifest(SpecModel):
         all. Both are decidable here, from the manifest alone.
         """
         clashing = sorted(set(self.inputs) & set(self.parameters))
+
         if clashing:
             msg = (
                 f"{', '.join(clashing)} is declared as both an input and a parameter; the "
@@ -290,19 +330,23 @@ class StepManifest(SpecModel):
                 "with two values for one argument"
             )
             raise ValueError(msg)
+
         invalid = sorted(
             name for name in (*self.inputs, *self.parameters) if not name.isidentifier()
         )
+
         if invalid:
             msg = (
                 f"input/parameter name(s) {', '.join(invalid)} are not Python identifiers, "
                 "so the generated wrapper could not pass them as keyword arguments"
             )
             raise ValueError(msg)
+
         # Output names are not keyword arguments, but they *are* interpolated
         # into generated source (the wrapper's ``return outputs[…]`` and its
         # docstring), so the same constraint applies for the same reason.
         bad_outputs = sorted(name for name in self.outputs if not name.isidentifier())
+
         if bad_outputs:
             msg = (
                 f"output name(s) {', '.join(bad_outputs)} are not identifiers; output "
@@ -310,13 +354,17 @@ class StepManifest(SpecModel):
                 "carry syntax into it"
             )
             raise ValueError(msg)
+
         return self
+
+    # ....................... #
 
     @model_validator(mode="after")
     def _references_point_at_siblings(self) -> Self:
         """Each declared reference names another output of *this* step, and a
         single-column key — the audit compares one column to one key, and a
         composite target would need the reference to name every part of it."""
+
         for name, output in sorted(self.outputs.items()):
             for column, target in sorted(output.references.items()):
                 if target == name:
@@ -336,7 +384,10 @@ class StepManifest(SpecModel):
                         "cannot reference it"
                     )
                     raise ValueError(msg)
+
         return self
+
+    # ....................... #
 
     @model_validator(mode="after")
     def _references_are_acyclic(self) -> Self:
@@ -356,6 +407,7 @@ class StepManifest(SpecModel):
 
         def walk(node: str, path: list[str]) -> None:
             state[node] = 1
+
             for target in sorted(edges.get(node, ())):
                 if state.get(target) == 1:
                     cycle = " → ".join([*path, node, target])
@@ -367,12 +419,16 @@ class StepManifest(SpecModel):
                     raise ValueError(msg)
                 if state.get(target) is None:
                     walk(target, [*path, node])
+
             state[node] = 2
 
         for name in sorted(edges):
             if state.get(name) is None:
                 walk(name, [])
+
         return self
+
+    # ....................... #
 
     @model_validator(mode="after")
     def _sql_macro_produces_one_expression(self) -> Self:
@@ -380,8 +436,10 @@ class StepManifest(SpecModel):
         has exactly one output of exactly one column. A macro declaring a
         table shape is really a Tier 2 step wearing the wrong kind, and the
         splice would have no single value to substitute."""
+
         if self.kind != "sql_macro":
             return self
+
         if len(self.outputs) != 1:
             msg = (
                 f"a sql_macro declares {len(self.outputs)} outputs; it splices into a "
@@ -389,11 +447,14 @@ class StepManifest(SpecModel):
                 "sql_model if it produces a relation"
             )
             raise ValueError(msg)
+
         (output,) = self.outputs.values()
+
         if len(output.produces) != 1:
             msg = (
                 f"a sql_macro's output produces {len(output.produces)} columns; an "
                 "expression is one value. Fix: declare it as a sql_model"
             )
             raise ValueError(msg)
+
         return self

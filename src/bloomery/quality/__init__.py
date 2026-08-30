@@ -125,6 +125,8 @@ from bloomery.quality.reject import (
     reject_id,
 )
 
+# ----------------------- #
+
 __all__ = [
     # catalogue
     "ALL_DISPOSITIONS",

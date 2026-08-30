@@ -58,6 +58,8 @@ if TYPE_CHECKING:
     from bloomery.planner.request import MetricRequest
     from bloomery.runtime import LruManifestHydrator
 
+# ----------------------- #
+
 __all__ = [
     "MetricFlowPlanner",
     "translate_mf_error",
@@ -74,10 +76,13 @@ def translate_mf_error(error: MetricFlowException) -> PlannerError:
     (RFC 0013 D2): callers never catch a MetricFlow class. Unrecognized
     errors become a plain :class:`PlannerError` preserving the message."""
     message = str(error)
+
     if isinstance(error, InvalidQuerySyntax):
         return InvalidRequest(f"MetricFlow rejected the request syntax: {message}")
+
     if isinstance(error, (UnknownMetricError, MetricNotFoundError)):
         return UnknownMember(message)
+
     if isinstance(error, InvalidQueryException):
         lowered = message.lower()
         if "ambiguous" in lowered:
@@ -87,7 +92,11 @@ def translate_mf_error(error: MetricFlowException) -> PlannerError:
         if "join" in lowered or "common semantic model" in lowered:
             return UnreachableAtGrain(message)
         return InvalidRequest(message)
+
     return PlannerError(f"MetricFlow failed to plan the request: {message}")
+
+
+# ....................... #
 
 
 class MetricFlowPlanner:
@@ -112,15 +121,21 @@ class MetricFlowPlanner:
         self._default_limit = default_limit
         self._naming = naming if naming is not None else DefaultNaming()
 
+    # ....................... #
+
     def _effective_limit(self, request: MetricRequest) -> tuple[int | None, tuple[str, ...]]:
         limit = request.limit if request.limit is not None else self._default_limit
+
         if limit is not None and limit > self._max_limit:
             warning = (
                 f"limit {limit} exceeds the planner's max_limit {self._max_limit}; "
                 f"clamped to {self._max_limit}"
             )
             return self._max_limit, (warning,)
+
         return limit, ()
+
+    # ....................... #
 
     def plan(
         self,
@@ -138,6 +153,7 @@ class MetricFlowPlanner:
         resolved = coverage.resolve_request(ir, request, naming=self._naming, policy=policy)
         entity = names.entity_key(resolved.mart)
         warnings: tuple[str, ...] = ()
+
         if request.time_grain is not None and not any(
             dimension.role is not None for dimension in resolved.dimensions
         ):
@@ -147,6 +163,7 @@ class MetricFlowPlanner:
                     "in the request to apply to; ignored"
                 ),
             )
+
         limit, limit_warnings = self._effective_limit(request)
         warnings += limit_warnings
         dimensions_by_request = dict(zip(request.dimensions, resolved.dimensions, strict=True))
@@ -187,10 +204,12 @@ class MetricFlowPlanner:
             semantic_manifest_lookup=lookup,
             sql_client=sql_client_for_dialect(dialect),
         )
+
         try:
             result = engine.explain(mf_request)
         except MetricFlowException as error:
             raise translate_mf_error(error) from error
+
         sql = result.sql_statement.sql
         metrics_by_name = {metric.name: metric for metric in ir.metrics}
         return QueryPlan(

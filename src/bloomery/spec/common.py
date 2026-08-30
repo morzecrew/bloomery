@@ -22,6 +22,8 @@ from pydantic import ValidationError as PydanticValidationError
 
 from bloomery.errors import BloomeryError, SpecParseError
 
+# ----------------------- #
+
 __all__ = [
     "JSONPATH_PATTERN",
     "PARTITION_SPEC_PATTERN",
@@ -118,10 +120,15 @@ def _reject_reserved(name: str, *, rename: str) -> str:
     them before this runs.
     """
     reason = _RESERVED_MEMBER_REASONS.get(name)
+
     if reason is not None:
         msg = f"{name!r} is a reserved name ({reason}); pick a different {rename} name"
         raise ValueError(msg)
+
     return name
+
+
+# ....................... #
 
 
 def _reject_reserved_member(name: str) -> str:
@@ -130,9 +137,15 @@ def _reject_reserved_member(name: str) -> str:
     return _reject_reserved(name, rename="field/metric/dimension-role")
 
 
+# ....................... #
+
+
 def _reject_reserved_relation(name: str) -> str:
     #: :data:`RelationName`'s two surfaces (RFC 0002 D14).
     return _reject_reserved(name, rename="entity/mart")
+
+
+# ....................... #
 
 
 TypeString = Annotated[str, StringConstraints(pattern=TYPE_STRING_PATTERN)]
@@ -171,11 +184,17 @@ class SpecModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
 
 
+# ....................... #
+
+
 class RatioSpec(SpecModel):
     """Additive decomposition of a non-additive metric (RFC 0002 D9, RFC 0011 D5)."""
 
     numerator: str
     denominator: str
+
+
+# ....................... #
 
 
 class SemiAdditivePolicy(SpecModel):
@@ -190,6 +209,9 @@ class SemiAdditivePolicy(SpecModel):
 # Source paths (RFC 0002 §5.3)
 
 
+# ....................... #
+
+
 def source_path_from_loc(document: str, loc: tuple[int | str, ...]) -> str:
     """Convert a Pydantic ``loc`` tuple into a document-prefixed source path.
 
@@ -199,6 +221,7 @@ def source_path_from_loc(document: str, loc: tuple[int | str, ...]) -> str:
     already ends at the key itself.
     """
     parts: list[str] = []
+
     for item in loc:
         if isinstance(item, int):
             parts.append(f"[{item}]")
@@ -206,9 +229,14 @@ def source_path_from_loc(document: str, loc: tuple[int | str, ...]) -> str:
             continue
         else:
             parts.append(f".{item}" if parts else str(item))
+
     if not parts:
         return document
+
     return f"{document}: {''.join(parts)}"
+
+
+# ....................... #
 
 
 def validate_document[ModelT: SpecModel](
@@ -221,6 +249,7 @@ def validate_document[ModelT: SpecModel](
     path, and multiple failures in one document are batched into a single
     aggregate error listing every path (RFC 0002 D6).
     """
+
     try:
         return model_cls.model_validate(data)
     except PydanticValidationError as exc:
@@ -240,6 +269,9 @@ def validate_document[ModelT: SpecModel](
 # YAML parsing (RFC 0002 §5.6)
 
 
+# ....................... #
+
+
 class _StrictSafeLoader(yaml.SafeLoader):
     """``yaml.SafeLoader`` that rejects duplicate mapping keys.
 
@@ -249,13 +281,17 @@ class _StrictSafeLoader(yaml.SafeLoader):
 
     def _construct_key(self, node: yaml.Node) -> object:
         """``construct_object`` pinned to ``object`` — types-PyYAML leaves it untyped."""
+
         return cast(
             "object",
             self.construct_object(node, deep=True),  # pyright: ignore[reportUnknownMemberType]
         )
 
+    # ....................... #
+
     def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Hashable, Any]:
         seen: set[object] = set()
+
         for key_node, _value_node in node.value:
             key = self._construct_key(key_node)
             if isinstance(key, (dict, list)):  # unhashable — SafeLoader rejects later
@@ -266,7 +302,11 @@ class _StrictSafeLoader(yaml.SafeLoader):
                     problem_mark=key_node.start_mark,
                 )
             seen.add(key)
+
         return super().construct_mapping(node, deep=deep)
+
+
+# ....................... #
 
 
 def load_yaml_mapping(text: str, *, document: str) -> dict[str, object]:
@@ -275,34 +315,44 @@ def load_yaml_mapping(text: str, *, document: str) -> dict[str, object]:
     Duplicate keys, YAML syntax errors, unsafe tags, and non-mapping roots are
     all :class:`SpecParseError` with the document name as source path.
     """
+
     try:
         # SafeLoader subclass: only plain YAML types construct (RFC 0002 §5.6).
         data = yaml.load(text, Loader=_StrictSafeLoader)  # noqa: S506 — a SafeLoader subclass, see above
     except yaml.YAMLError as exc:
         raise SpecParseError(f"invalid YAML: {exc}", source_path=document) from exc
+
     if not isinstance(data, dict):
         raise SpecParseError(
             f"a spec document must be a YAML mapping, got {type(data).__name__}",
             source_path=document,
         )
+
     mapping = cast("dict[object, object]", data)
     bad_keys = [key for key in mapping if not isinstance(key, str)]
+
     if bad_keys:
         raise SpecParseError(
             f"spec document keys must be strings, got {bad_keys[0]!r}",
             source_path=document,
         )
+
     return {str(key): value for key, value in mapping.items()}
+
+
+# ....................... #
 
 
 def flatten_collected(errors: list[BloomeryError]) -> tuple[BloomeryError, ...]:
     """Flatten already-aggregated errors into one flat collected tuple."""
     flat: list[BloomeryError] = []
+
     for err in errors:
         if err.collected:
             flat.extend(err.collected)
         else:
             flat.append(err)
+
     return tuple(flat)
 
 
@@ -315,6 +365,10 @@ def flatten_collected(errors: list[BloomeryError]) -> tuple[BloomeryError, ...]:
 # ``sql_macro`` (RFC 0016 D87) while ``spec.steps`` reads ``quality``'s
 # ``ExpressionRule`` for a step output's rules. Whichever way that pair is
 # written it is a cycle, so the two primitives move below both.
+
+
+# ....................... #
+
 
 #: ``ref@version`` — the only way a spec names a step.
 USE_PATTERN = r"^[a-z][a-z0-9_]*@[1-9][0-9]*$"

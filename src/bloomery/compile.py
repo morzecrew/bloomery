@@ -16,6 +16,8 @@ from bloomery.resolve import build_project_ir
 from bloomery.spec import Catalog, Project
 from bloomery.steps import EMPTY_REGISTRY, StepRegistry
 
+# ----------------------- #
+
 __all__ = [
     "Target",
     "compile_project",
@@ -32,6 +34,9 @@ class Target(StrEnum):
     SQLMESH = "sqlmesh"
     CUBE = "cube"
     DBT = "dbt"
+
+
+# ....................... #
 
 
 def compile_project(

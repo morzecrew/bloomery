@@ -46,6 +46,8 @@ if TYPE_CHECKING:
     from bloomery.planner.request import OrderSpec
     from bloomery.typing import LogicalType
 
+# ----------------------- #
+
 __all__ = [
     "ResolvedDimension",
     "bloomery_dimension_name",
@@ -75,17 +77,28 @@ class ResolvedDimension:
     grain: TimeGrain | None = None
 
 
+# ....................... #
+
+
 def entity_key(mart: MartIR) -> str:
     """The dunder key for a mart's semantic model: its grain entity name —
     the primary entity in both key shapes the emitter produces."""
+
     return mart.grain
+
+
+# ....................... #
 
 
 def to_mf_metrics(metrics: Sequence[str]) -> tuple[str, ...]:
     """Metric names cross the bridge unchanged — metric names are the shared
     vocabulary (RFC 0013 §5.2: the manifest metric *is* the bloomery metric).
     Centralized so the seam stays visible and swappable."""
+
     return tuple(metrics)
+
+
+# ....................... #
 
 
 def group_by_name(dimension: ResolvedDimension, *, entity: str) -> str:
@@ -93,16 +106,25 @@ def group_by_name(dimension: ResolvedDimension, *, entity: str) -> str:
     ``{entity}__{column}`` for categorical, ``{entity}__{role}_day__{grain}``
     for date roles — the day bucket is the declared TIME dimension and
     MetricFlow derives the requested grain from it."""
+
     if dimension.role is not None and dimension.grain is not None:
         return f"{entity}__{dimension.role}{_DAY_SUFFIX}__{dimension.grain.value}"
+
     return f"{entity}__{dimension.name}"
+
+
+# ....................... #
 
 
 def to_mf_group_by(dimensions: Sequence[ResolvedDimension], *, entity: str) -> tuple[str, ...]:
     """Every requested dimension as a MetricFlow group-by name, in request
     order (output column order follows it — the planner passes
     ``output_column_order_mode=INPUT_ORDER``)."""
+
     return tuple(group_by_name(dimension, entity=entity) for dimension in dimensions)
+
+
+# ....................... #
 
 
 def to_mf_order(
@@ -117,6 +139,7 @@ def to_mf_order(
     resolution; request validation already guaranteed every field is a
     requested metric or dimension (RFC 0011 D4)."""
     names: list[str] = []
+
     for spec in order_by:
         if spec.field in dimensions:
             name = group_by_name(dimensions[spec.field], entity=entity)
@@ -126,40 +149,60 @@ def to_mf_order(
             msg = f"order_by field {spec.field!r} is not a requested metric or dimension"
             raise PlannerError(msg)
         names.append(f"-{name}" if spec.direction == "desc" else name)
+
     return tuple(names)
+
+
+# ....................... #
 
 
 def bloomery_dimension_name(element_name: str, grain: TimeGrain | None) -> str:
     """The reverse bridge for one dimension element: a TIME element
     ``{role}_day`` at ``grain`` maps back to the ``{role}_{grain}`` bucket
     column; a categorical element is already the column name."""
+
     if grain is None:
         return element_name
+
     role = element_name.removesuffix(_DAY_SUFFIX)
     return f"{role}_{grain.value}"
+
+
+# ....................... #
 
 
 def _column_type(mart: MartIR, column: str) -> LogicalType:
     for mart_column in mart.columns:
         if mart_column.name == column:
             return mart_column.type
+
     msg = f"MetricFlow returned dimension {column!r}, which mart {mart.name!r} does not flatten"
     raise PlannerError(msg)
+
+
+# ....................... #
 
 
 def _measure_type(metric: MetricIR, mart: MartIR) -> LogicalType:
     """The declared type of a measure column — honest where knowable: counts
     are ints, a bare-column SUM/MIN/MAX keeps the column's type, everything
     else (ratios, expressions) is a wide decimal."""
+
     if metric.additivity is Additivity.NON_ADDITIVE:
         return DecimalType(38, 9)
+
     if metric.agg in ("count", "count_distinct"):
         return IntType()
+
     if metric.expr is not None and _BARE_COLUMN.match(metric.expr.sql):
         for mart_column in mart.columns:
             if mart_column.name == metric.expr.sql:
                 return mart_column.type
+
     return DecimalType(38, 9)
+
+
+# ....................... #
 
 
 def columns_from(
@@ -176,6 +219,7 @@ def columns_from(
     qualified at their effective grain (``ordered_month``), never as dunders.
     """
     columns: list[ColumnDescriptor] = []
+
     for spec in query_spec.input_spec_order.group_by_item_specs:
         if isinstance(spec, TimeDimensionSpec):
             granularity = spec.time_granularity
@@ -201,6 +245,7 @@ def columns_from(
                 role="dimension",
             )
         )
+
     for metric_spec in query_spec.input_spec_order.metric_specs:
         metric = metrics_by_name.get(metric_spec.element_name)
         if metric is None:  # pragma: no cover — coverage validated the names
@@ -215,4 +260,5 @@ def columns_from(
                 label=metric.description,
             )
         )
+
     return tuple(columns)

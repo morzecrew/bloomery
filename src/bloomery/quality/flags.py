@@ -36,6 +36,8 @@ from bloomery.quality.catalogue import FLAGS_COLUMN
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+# ----------------------- #
+
 __all__ = [
     "DELIMITER",
     "FLAG_ARRAY_TYPE",
@@ -60,9 +62,14 @@ def empty_flags(*, arrays: bool) -> Expression:
     inferable element type on Postgres, so an uncast empty literal would make
     the fallback-free dialects the ones that fail.
     """
+
     if not arrays:
         return exp.Literal.string("")
+
     return exp.cast(exp.Array(expressions=[]), exp.DataType.build(FLAG_ARRAY_TYPE))
+
+
+# ....................... #
 
 
 def _array_flags(pairs: Sequence[tuple[str, Expression]]) -> Expression:
@@ -74,6 +81,7 @@ def _array_flags(pairs: Sequence[tuple[str, Expression]]) -> Expression:
     """
     empty = empty_flags(arrays=True)
     node: Expression | None = None
+
     for name, predicate in pairs:
         singleton = exp.Case(
             ifs=[exp.If(this=predicate, true=exp.Array(expressions=[exp.Literal.string(name)]))],
@@ -86,7 +94,11 @@ def _array_flags(pairs: Sequence[tuple[str, Expression]]) -> Expression:
             if node is None
             else cast("Expression", exp.func("ARRAY_CONCAT", node, singleton))
         )
+
     return node if node is not None else empty
+
+
+# ....................... #
 
 
 def _delimited_flags(pairs: Sequence[tuple[str, Expression]]) -> Expression:
@@ -105,10 +117,15 @@ def _delimited_flags(pairs: Sequence[tuple[str, Expression]]) -> Expression:
         )
         for name, predicate in pairs
     ]
+
     if not fragments:
         return empty_flags(arrays=False)
+
     joined = fragments[0] if len(fragments) == 1 else exp.func("CONCAT", *fragments)
     return exp.Trim(this=joined, expression=exp.Literal.string(DELIMITER), position="LEADING")
+
+
+# ....................... #
 
 
 def flags_expression(pairs: Sequence[tuple[str, Expression]], *, arrays: bool) -> Expression:
@@ -121,6 +138,9 @@ def flags_expression(pairs: Sequence[tuple[str, Expression]], *, arrays: bool) -
     """
     ordered = sorted(pairs, key=lambda pair: pair[0])
     return _array_flags(ordered) if arrays else _delimited_flags(ordered)
+
+
+# ....................... #
 
 
 def flag_member(flags: Expression, name: str, *, arrays: bool) -> Expression:
@@ -141,8 +161,10 @@ def flag_member(flags: Expression, name: str, *, arrays: bool) -> Expression:
     carries ``stockXlevel``. Wrapping both sides in the delimiter is what makes
     a substring search exact — ``,a,`` cannot occur inside ``,ab,``.
     """
+
     if arrays:
         return exp.ArrayContains(this=flags, expression=exp.Literal.string(name))
+
     delimiter = exp.Literal.string(DELIMITER)
     haystack = exp.func("CONCAT", delimiter.copy(), flags, delimiter.copy())
     needle = exp.Literal.string(f"{DELIMITER}{name}{DELIMITER}")
@@ -151,11 +173,16 @@ def flag_member(flags: Expression, name: str, *, arrays: bool) -> Expression:
     )
 
 
+# ....................... #
+
+
 def quality_ok(column: str = FLAGS_COLUMN, *, table: str | None = None, arrays: bool) -> Expression:
     """``_quality_ok``, generated per shape (D23) from the flag column."""
     reference = exp.column(column, table=table) if table else exp.column(column)
+
     if not arrays:
         return exp.EQ(this=reference, expression=exp.Literal.string(""))
+
     # ``exp.ArraySize`` is the neutral node: SQLGlot renders it ``ARRAY_LENGTH``
     # on DuckDB, ``ARRAY_LENGTH(x, 1)`` on Postgres and ``CARDINALITY`` on
     # Trino. Spelling ``CARDINALITY`` directly would look more like the RFC's

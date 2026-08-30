@@ -56,6 +56,8 @@ from bloomery.ir.nodes import (
     step_sort_key,
 )
 
+# ----------------------- #
+
 __all__ = [
     "step_sort_key",
     "StepOutputIR",

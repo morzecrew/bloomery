@@ -19,6 +19,8 @@ if TYPE_CHECKING:
     from bloomery.spec.metrics import Metric
     from bloomery.spec.project import Project
 
+# ----------------------- #
+
 __all__ = [
     "EffectiveMetric",
     "effective_metrics",
@@ -46,12 +48,17 @@ class EffectiveMetric:
     source_path: str
 
 
+# ....................... #
+
+
 def _merge(name: str, metric: Metric, template: MetricTemplate | None) -> EffectiveMetric:
     source_path = f"{_METRICS_DOC}: metrics.{name}"
     additivity = metric.additivity or (template.additivity if template else None)
+
     if additivity is None:
         msg = f"metric {name!r} declares no additivity, directly or via its template"
         raise ResolutionError(msg, source_path=source_path)
+
     return EffectiveMetric(
         name=name,
         requires=metric.requires or (template.requires if template else ()),
@@ -67,6 +74,9 @@ def _merge(name: str, metric: Metric, template: MetricTemplate | None) -> Effect
     )
 
 
+# ....................... #
+
+
 def effective_metrics(project: Project, catalog: Catalog | None) -> tuple[EffectiveMetric, ...]:
     """Every authored metric merged with its template, sorted by name.
 
@@ -74,10 +84,13 @@ def effective_metrics(project: Project, catalog: Catalog | None) -> tuple[Effect
     :class:`ResolutionError` for metrics that end up without an additivity —
     a completeness failure no reference check can express.
     """
+
     if project.metric_set is None:
         return ()
+
     merged: list[EffectiveMetric] = []
     errors: list[BloomeryError] = []
+
     for name in sorted(project.metric_set.metrics):
         metric = project.metric_set.metrics[name]
         template = None
@@ -87,8 +100,10 @@ def effective_metrics(project: Project, catalog: Catalog | None) -> tuple[Effect
             merged.append(_merge(name, metric, template))
         except ResolutionError as exc:
             errors.append(exc)
+
     if errors:
         if len(errors) == 1:
             raise errors[0]
         raise ResolutionError.from_collected(tuple(errors))
+
     return tuple(merged)

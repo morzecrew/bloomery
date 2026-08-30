@@ -8,6 +8,8 @@ from bloomery.resolve.graph import Edge, Graph, Node, NodeKind, step_node
 from bloomery.resolve.lineage import Direction, Lineage, lineage
 from bloomery.resolve.resolution import FieldProvenance, Provenance, Resolution, resolve
 
+# ----------------------- #
+
 __all__ = [
     "Direction",
     "Edge",

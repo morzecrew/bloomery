@@ -22,6 +22,8 @@ from bloomery.spec.common import (
     TypeString,
 )
 
+# ----------------------- #
+
 __all__ = [
     "Catalog",
     "CanonicalField",
@@ -42,6 +44,9 @@ class Recipe(SpecModel):
     expr: str | None = None
 
 
+# ....................... #
+
+
 class CanonicalField(SpecModel):
     """A canonical domain field: its home entity, logical type, monetary
     metadata (drives the guardrails, RFC 0006 §5.2), and recipes. The optional
@@ -57,6 +62,9 @@ class CanonicalField(SpecModel):
     recipes: tuple[Recipe, ...] = ()
 
 
+# ....................... #
+
+
 class CanonicalRelationship(SpecModel):
     """A canonical relationship between two catalog entities."""
 
@@ -64,6 +72,9 @@ class CanonicalRelationship(SpecModel):
     to: str
     via: str
     cardinality: CardinalityName
+
+
+# ....................... #
 
 
 class DateDimension(SpecModel):
@@ -77,12 +88,18 @@ class DateDimension(SpecModel):
     start_year: int = Field(ge=1, le=9999)
     end_year: int = Field(ge=1, le=9999)
 
+    # ....................... #
+
     @model_validator(mode="after")
     def _ordered_bounds(self) -> DateDimension:
         if self.end_year < self.start_year:
             msg = "end_year must be >= start_year"
             raise ValueError(msg)
+
         return self
+
+
+# ....................... #
 
 
 class MetricTemplate(SpecModel):
@@ -99,6 +116,9 @@ class MetricTemplate(SpecModel):
     expr: str | None = None
     ratio: RatioSpec | None = None
     semi_additive: SemiAdditivePolicy | None = None
+
+
+# ....................... #
 
 
 class Catalog(SpecModel):

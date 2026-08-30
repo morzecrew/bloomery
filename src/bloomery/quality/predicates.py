@@ -39,6 +39,8 @@ from bloomery.quality.charset import expand_codepoints
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
+# ----------------------- #
+
 __all__ = [
     "WINDOWED_KINDS",
     "conjunction",
@@ -77,35 +79,54 @@ _COMPOSITE = (exp.And, exp.Or, exp.Not)
 
 def grouped(node: Expression) -> Expression:
     """``node`` parenthesised if it is a connective, unchanged otherwise."""
+
     return exp.Paren(this=node) if isinstance(node, _COMPOSITE) else node
+
+
+# ....................... #
 
 
 def conjunction(parts: Sequence[Expression]) -> Expression:
     """Left-folded ``AND`` over ``parts`` — deterministic shape, explicit
     parentheses. Never called with an empty sequence."""
     node = grouped(parts[0])
+
     for part in parts[1:]:
         node = exp.And(this=node, expression=grouped(part))
+
     return node
+
+
+# ....................... #
 
 
 def disjunction(parts: Sequence[Expression]) -> Expression:
     """Left-folded ``OR`` over ``parts`` — the ``AND`` sibling above."""
     node = grouped(parts[0])
+
     for part in parts[1:]:
         node = exp.Or(this=node, expression=grouped(part))
+
     return node
+
+
+# ....................... #
 
 
 def is_null(node: Expression) -> Expression:
     """``<node> IS NULL``. Public because the replay comparison in
     :mod:`bloomery.emit.lower` must express the same NULL discipline this
     module owns, and two spellings of it is how they drift apart."""
+
     return exp.Is(this=node, expression=exp.null())
+
+
+# ....................... #
 
 
 def is_not_null(node: Expression) -> Expression:
     """``NOT <node> IS NULL`` — see :func:`is_null`."""
+
     return exp.Not(this=is_null(node))
 
 
@@ -113,10 +134,17 @@ def is_not_null(node: Expression) -> Expression:
 # Params
 
 
+# ....................... #
+
+
 def params_of(rule: QualityRuleIR) -> dict[str, str]:
     """A rule's params as a mapping — the params tuple is sorted by name, so
     the dict is a view, never a re-ordering."""
+
     return dict(rule.params)
+
+
+# ....................... #
 
 
 def indexed_params(rule: QualityRuleIR, prefix: str) -> tuple[str, ...]:
@@ -130,6 +158,9 @@ def indexed_params(rule: QualityRuleIR, prefix: str) -> tuple[str, ...]:
     return tuple(value for name, value in rule.params if name.startswith(marker))
 
 
+# ....................... #
+
+
 def source_alias(rule: QualityRuleIR, index: int) -> str:
     """The projection name a ``coercible`` rule's *n*-th source hides behind.
 
@@ -140,12 +171,20 @@ def source_alias(rule: QualityRuleIR, index: int) -> str:
     references it. One convention, spelled once, used by the builder below and
     by the emitter that projects them.
     """
+
     return f"_src_{rule.name}_{index:04d}"
+
+
+# ....................... #
 
 
 def repairs(rule: QualityRuleIR) -> bool:
     """Whether this rule carries a repair recipe (RFC 0016 D87)."""
+
     return rule.on_fail is OnFail.REPAIR
+
+
+# ....................... #
 
 
 def repair_alias(rule: QualityRuleIR) -> str:
@@ -158,7 +197,11 @@ def repair_alias(rule: QualityRuleIR) -> str:
     together they say "the recipe ran, and it worked", which is exactly what
     ``_quality_repairs`` records and what D17 asked for a distinct marker of.
     """
+
     return f"_rep_{rule.name}"
+
+
+# ....................... #
 
 
 def repair_body(rule: QualityRuleIR) -> Expression:
@@ -170,7 +213,11 @@ def repair_body(rule: QualityRuleIR) -> Expression:
     and the recipe is *in* the IR, so a version or ``runtime_lock`` bump moves
     the fingerprint and ``plan()`` classifies it like any other change.
     """
+
     return SqlExpr(params_of(rule)["body"]).ast()
+
+
+# ....................... #
 
 
 #: Rule kinds whose violation predicate contains a **window function**.
@@ -189,7 +236,11 @@ WINDOWED_KINDS = frozenset({"unique"})
 
 def windowed(rule: QualityRuleIR) -> bool:
     """Whether this rule's predicate must be projected before it can be used."""
+
     return rule.kind in WINDOWED_KINDS
+
+
+# ....................... #
 
 
 def window_alias(rule: QualityRuleIR) -> str:
@@ -199,7 +250,11 @@ def window_alias(rule: QualityRuleIR) -> str:
     and by every position that reads it back. It carries the rule name, so two
     windowed rules on one entity never collide.
     """
+
     return f"_win_{rule.name}"
+
+
+# ....................... #
 
 
 #: The value an aligned ``numeric_NNNN`` param carries for a member the spec
@@ -216,7 +271,11 @@ def ref_alias(relationship: str) -> str:
     Derived from the relationship name, not the entity name: two relationships
     may point at the same entity, and each needs its own probe.
     """
+
     return f"_ref_{relationship}"
+
+
+# ....................... #
 
 
 def qualify_columns(node: Expression, table: str | None) -> Expression:
@@ -226,12 +285,14 @@ def qualify_columns(node: Expression, table: str | None) -> Expression:
     the referenced entities, so an unqualified ``stock_level`` would be
     ambiguous. Qualification happens on a copy; the input is never mutated.
     """
+
     if table is None:
         return node
 
     def qualified(child: Expression) -> Expression:
         if isinstance(child, exp.Column) and not child.table:
             return exp.column(child.name, table=table)
+
         return child
 
     return node.copy().transform(qualified)
@@ -240,6 +301,9 @@ def qualify_columns(node: Expression, table: str | None) -> Expression:
 # ....................... #
 # The catalogue, one builder per kind. Read every one against this module's
 # docstring: TRUE only when definitively violated.
+
+
+# ....................... #
 
 
 def _coercible(rule: QualityRuleIR, table: str | None) -> Expression:
@@ -258,13 +322,21 @@ def _coercible(rule: QualityRuleIR, table: str | None) -> Expression:
         is_not_null(exp.column(source_alias(rule, index), table=table))
         for index, _source in enumerate(indexed_params(rule, "source"))
     )
+
     return conjunction(parts)
+
+
+# ....................... #
 
 
 def _not_null(rule: QualityRuleIR, table: str | None) -> Expression:
     """One of the two null-owning rules: ``col IS NULL`` is two-valued by
     construction — it is never ``UNKNOWN``."""
+
     return is_null(exp.column(rule.column or "", table=table))
+
+
+# ....................... #
 
 
 def _bound_literal(value: str) -> Expression:
@@ -272,11 +344,16 @@ def _bound_literal(value: str) -> Expression:
     everything else as a string literal the engine compares in the column's
     own type. Floats never appear (RFC 0003 D5) — the bound arrives as text
     and leaves as text."""
+
     try:
         float(value)  # a shape probe only: ``value`` is never converted
     except ValueError:
         return exp.Literal.string(value)
+
     return exp.Literal.number(value)
+
+
+# ....................... #
 
 
 def _range(rule: QualityRuleIR, table: str | None) -> Expression:
@@ -286,11 +363,17 @@ def _range(rule: QualityRuleIR, table: str | None) -> Expression:
     column = exp.column(rule.column or "", table=table)
     params = params_of(rule)
     parts: list[Expression] = []
+
     if "min" in params:
         parts.append(exp.LT(this=column.copy(), expression=_bound_literal(params["min"])))
+
     if "max" in params:
         parts.append(exp.GT(this=column.copy(), expression=_bound_literal(params["max"])))
+
     return disjunction(parts)
+
+
+# ....................... #
 
 
 def _length(rule: QualityRuleIR, table: str | None) -> Expression:
@@ -299,11 +382,17 @@ def _length(rule: QualityRuleIR, table: str | None) -> Expression:
     length = exp.Length(this=exp.column(rule.column or "", table=table))
     params = params_of(rule)
     parts: list[Expression] = []
+
     if "min" in params:
         parts.append(exp.LT(this=length.copy(), expression=exp.Literal.number(params["min"])))
+
     if "max" in params:
         parts.append(exp.GT(this=length.copy(), expression=exp.Literal.number(params["max"])))
+
     return disjunction(parts)
+
+
+# ....................... #
 
 
 def _pattern(rule: QualityRuleIR, table: str | None) -> Expression:
@@ -315,6 +404,9 @@ def _pattern(rule: QualityRuleIR, table: str | None) -> Expression:
         expression=exp.Literal.string(params_of(rule)["regex"]),
     )
     return exp.Not(this=matches)
+
+
+# ....................... #
 
 
 def _normalize(rule: QualityRuleIR, table: str | None) -> Expression:
@@ -336,6 +428,9 @@ def _normalize(rule: QualityRuleIR, table: str | None) -> Expression:
     column = exp.column(rule.column or "", table=table)
     normalized = exp.Normalize(this=column.copy(), form=exp.var(params_of(rule)["form"].upper()))
     return exp.NEQ(this=normalized, expression=column)
+
+
+# ....................... #
 
 
 def _charset(rule: QualityRuleIR, table: str | None) -> Expression:
@@ -367,15 +462,23 @@ def _charset(rule: QualityRuleIR, table: str | None) -> Expression:
             "TRANSLATE", column.copy(), exp.Literal.string(members), exp.Literal.string("")
         )
     )
+
     if side == "allow":
         return exp.GT(this=stripped, expression=exp.Literal.number(0))
+
     return exp.LT(this=stripped, expression=exp.Length(this=column.copy()))
+
+
+# ....................... #
 
 
 def _not_in(rule: QualityRuleIR, table: str | None, members: Sequence[Expression]) -> Expression:
     return exp.Not(
         this=exp.In(this=exp.column(rule.column or "", table=table), expressions=list(members))
     )
+
+
+# ....................... #
 
 
 def _in_enum(rule: QualityRuleIR, table: str | None) -> Expression:
@@ -390,6 +493,9 @@ def _in_enum(rule: QualityRuleIR, table: str | None) -> Expression:
     """
     members = [exp.Literal.string(value) for value in indexed_params(rule, "value")]
     return _not_in(rule, table, members)
+
+
+# ....................... #
 
 
 def _in_set(rule: QualityRuleIR, table: str | None) -> Expression:
@@ -416,6 +522,9 @@ def _in_set(rule: QualityRuleIR, table: str | None) -> Expression:
         for index, value in enumerate(values)
     ]
     return _not_in(rule, table, members)
+
+
+# ....................... #
 
 
 def _unique(rule: QualityRuleIR, table: str | None) -> Expression:
@@ -447,12 +556,18 @@ def _unique(rule: QualityRuleIR, table: str | None) -> Expression:
     )
 
 
+# ....................... #
+
+
 def _expression(rule: QualityRuleIR, table: str | None) -> Expression:
     """``NOT (<expr>)`` over the entity's own columns — a null operand leaves
     the authored predicate ``UNKNOWN``, and ``NOT UNKNOWN`` is ``UNKNOWN``
     (D19)."""
     body = qualify_columns(SqlExpr(params_of(rule)["expr"]).ast(), table)
     return exp.Not(this=exp.Paren(this=body))
+
+
+# ....................... #
 
 
 def _referential(rule: QualityRuleIR, table: str | None) -> Expression:
@@ -466,7 +581,11 @@ def _referential(rule: QualityRuleIR, table: str | None) -> Expression:
     pairs = [pair.split("=", 1) for pair in indexed_params(rule, "via")]
     parts: list[Expression] = [is_null(exp.column(pairs[0][1], table=alias))]
     parts.extend(is_not_null(exp.column(from_column, table=table)) for from_column, _to in pairs)
+
     return conjunction(parts)
+
+
+# ....................... #
 
 
 _BUILDERS = {
@@ -502,6 +621,7 @@ def sole_via_column(rule: QualityRuleIR) -> str:
     has to decide what a multi-column rewrite means before it can ship.
     """
     columns = tuple(pair.split("=", 1)[0] for pair in indexed_params(rule, "via"))
+
     if len(columns) != 1:
         msg = (
             f"referential rule {rule.name!r} rewrites its fk to the reserved member but "
@@ -511,7 +631,11 @@ def sole_via_column(rule: QualityRuleIR) -> str:
             "without deciding what a multi-column sentinel means"
         )
         raise ValueError(msg)
+
     return columns[0]
+
+
+# ....................... #
 
 
 def violation(rule: QualityRuleIR, *, table: str | None = None) -> Expression:
@@ -522,10 +646,15 @@ def violation(rule: QualityRuleIR, *, table: str | None = None) -> Expression:
     probe always qualifies the referenced side with :func:`ref_alias`.
     """
     builder = _BUILDERS.get(rule.kind)
+
     if builder is None:  # pragma: no cover — the catalogue is closed (D5/D6)
         msg = f"no violation predicate for rule kind {rule.kind!r}"
         raise KeyError(msg)
+
     return builder(rule, table)
+
+
+# ....................... #
 
 
 def verdict(rule: QualityRuleIR, table: str | None = None) -> Expression:
@@ -547,9 +676,14 @@ def verdict(rule: QualityRuleIR, table: str | None = None) -> Expression:
     re-derived this two-line rule would go on passing through exactly the
     regression it exists to catch.
     """
+
     if windowed(rule):
         return exp.column(window_alias(rule), table=table)
+
     return violation(rule, table=table)
+
+
+# ....................... #
 
 
 def routing_predicate(
@@ -578,6 +712,9 @@ def routing_predicate(
     return fired if quarantined else exp.Not(this=fired)
 
 
+# ....................... #
+
+
 def unknown_member_case(rule: QualityRuleIR, *, table: str | None = None) -> Expression:
     """``CASE WHEN ref.<pk> IS NULL AND fk IS NOT NULL THEN '__unknown__' ELSE
     fk END`` — the ``on_missing: unknown_member`` lowering (RFC 0016 §5.4).
@@ -598,6 +735,10 @@ def unknown_member_case(rule: QualityRuleIR, *, table: str | None = None) -> Exp
 
 # ....................... #
 # Disposition precedence (RFC 0016 D18)
+
+
+# ....................... #
+
 
 #: Severity, ascending — ``fail > quarantine > flag``.
 _SEVERITY = {OnFail.FLAG: 0, OnFail.QUARANTINE: 1, OnFail.FAIL: 2}
@@ -621,21 +762,33 @@ def disposition(rule: QualityRuleIR) -> OnFail:
     the disposition exists at all. A repaired row simply stops violating its
     rule, so it never reaches any of them.
     """
+
     if rule.on_fail is OnFail.REPAIR:
         return OnFail(params_of(rule)["fallback"])
+
     if rule.on_fail is not None:
         return rule.on_fail
+
     if params_of(rule)["on_missing"] == "quarantine":
         return OnFail.QUARANTINE
+
     return OnFail.FLAG
+
+
+# ....................... #
 
 
 def worst(rules: Iterable[QualityRuleIR]) -> OnFail | None:
     """The severest disposition among ``rules`` (D18), or ``None`` if empty."""
     dispositions = [disposition(rule) for rule in rules]
+
     if not dispositions:
         return None
+
     return max(dispositions, key=lambda value: _SEVERITY[value])
+
+
+# ....................... #
 
 
 def failed_rule_names(rules: Iterable[QualityRuleIR]) -> tuple[str, ...]:
@@ -645,4 +798,5 @@ def failed_rule_names(rules: Iterable[QualityRuleIR]) -> tuple[str, ...]:
     failures, flag-level ones included — the reject row is the full account of
     why a row is not in the entity, not merely the part that diverted it.
     """
+
     return tuple(sorted(rule.name for rule in rules))

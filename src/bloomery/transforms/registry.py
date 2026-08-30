@@ -39,6 +39,8 @@ from bloomery.typing import (
 if TYPE_CHECKING:
     from sqlglot.expressions.core import Expression
 
+# ----------------------- #
+
 __all__ = [
     "Builder",
     "neutral_type",
@@ -108,6 +110,9 @@ class TransformSpec:
     types: bool = False
 
 
+# ....................... #
+
+
 _NEUTRAL_TYPES: dict[type[LogicalType], str] = {
     StringType: "TEXT",
     IntType: "BIGINT",
@@ -132,9 +137,14 @@ def neutral_type(t: LogicalType) -> exp.DataType:
     a second name is the same hazard wearing a wrapper. ``bloomery.ir`` used to
     carry one, spelled ``generic_type``.
     """
+
     if isinstance(t, DecimalType):
         return exp.DataType.build(f"DECIMAL({t.precision}, {t.scale})")
+
     return exp.DataType.build(_NEUTRAL_TYPES[type(t)])
+
+
+# ....................... #
 
 
 _default: dict[str, TransformSpec] = {}
@@ -145,24 +155,33 @@ def _validate(spec: TransformSpec) -> None:
     if spec.arity < 0:
         msg = f"transform {spec.name!r}: arity must be >= 0, got {spec.arity}"
         raise TransformRegistrationError(msg)
+
     if spec.arity != len(spec.arg_kinds):
         msg = (
             f"transform {spec.name!r}: arity ({spec.arity}) must match the "
             f"number of declared arg kinds ({len(spec.arg_kinds)})"
         )
         raise TransformRegistrationError(msg)
+
     if spec.variadic and spec.arity == 0:
         msg = f"transform {spec.name!r}: a variadic transform needs at least one arg kind"
         raise TransformRegistrationError(msg)
+
     if not spec.input_domain:
         msg = f"transform {spec.name!r}: input domain must not be empty"
         raise TransformRegistrationError(msg)
+
+
+# ....................... #
 
 
 def _check_collision(name: str) -> None:
     if name in _default or name in _overlay:
         msg = f"transform {name!r} is already registered; shadowing is not allowed"
         raise TransformRegistrationError(msg)
+
+
+# ....................... #
 
 
 def transform(
@@ -188,6 +207,7 @@ def transform(
 
     def decorate(builder: Builder) -> TransformSpec:
         output_type: OutputType
+
         if callable(output):
             output_type = output
         else:
@@ -212,9 +232,13 @@ def transform(
         _validate(spec)
         _check_collision(name)
         _default[name] = spec
+
         return spec
 
     return decorate
+
+
+# ....................... #
 
 
 def register_transform(spec: TransformSpec) -> None:
@@ -231,6 +255,9 @@ def register_transform(spec: TransformSpec) -> None:
     _validate(spec)
     _check_collision(spec.name)
     _overlay[spec.name] = spec
+
+
+# ....................... #
 
 
 def registry() -> Registry:

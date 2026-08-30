@@ -88,6 +88,8 @@ from bloomery.steps import EMPTY_REGISTRY, StepManifest, StepRegistry
 from bloomery.transforms import Builder, OutputType, TransformSpec, register_transform
 from bloomery.typing import ArgKind, LogicalType
 
+# ----------------------- #
+
 try:
     #: The installed release, written at build time by ``hatch-vcs`` from the
     #: git tag. A *generated module* rather than

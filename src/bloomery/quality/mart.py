@@ -71,6 +71,8 @@ from bloomery.ir import (
 )
 from bloomery.typing import DateType, IntType, LogicalType, StringType
 
+# ----------------------- #
+
 __all__ = [
     "ENTITY_GRAIN_ROW",
     "QUALITY_MART",
@@ -186,6 +188,9 @@ class RunContext:
     run_date: str | None = None
 
 
+# ....................... #
+
+
 def is_quality_mart(mart: MartIR) -> bool:
     """Whether this is the bloomery-owned quality mart.
 
@@ -194,7 +199,11 @@ def is_quality_mart(mart: MartIR) -> bool:
     base entity (for its key, or to build the flatten join) must take the
     other path here.
     """
+
     return mart.name == QUALITY_MART
+
+
+# ....................... #
 
 
 def _columns() -> tuple[MartColumnIR, ...]:
@@ -216,7 +225,11 @@ def _columns() -> tuple[MartColumnIR, ...]:
         )
         for bucket in _DATE_BUCKETS
     )
+
     return tuple(sorted(columns, key=lambda column: column.name))
+
+
+# ....................... #
 
 
 def quality_mart_ir() -> MartIR:
@@ -252,6 +265,9 @@ def quality_mart_ir() -> MartIR:
     )
 
 
+# ....................... #
+
+
 def quality_metrics() -> tuple[MetricIR, ...]:
     """The four additive counts plus the quarantine rate, sorted by name."""
     metrics = [
@@ -280,7 +296,11 @@ def quality_metrics() -> tuple[MetricIR, ...]:
             depends_on=("quality_rows_evaluated", "quality_rows_quarantined"),
         )
     )
+
     return tuple(sorted(metrics, key=lambda metric: metric.name))
+
+
+# ....................... #
 
 
 def counted_entities(ir: ProjectIR) -> tuple[EntityIR, ...]:
@@ -302,7 +322,11 @@ def counted_entities(ir: ProjectIR) -> tuple[EntityIR, ...]:
     loop have to agree exactly: if the first says yes and the second finds
     nothing to count, the mart is emitted with no branches at all.
     """
+
     return tuple(entity for entity in ir.entities if entity.quality and entity.produced_by is None)
+
+
+# ....................... #
 
 
 def carries_quality(ir: ProjectIR) -> bool:
@@ -318,7 +342,11 @@ def carries_quality(ir: ProjectIR) -> bool:
     never heard of data quality gets no extra gold model, no extra metrics,
     and no golden churn.
     """
+
     return bool(counted_entities(ir)) or bool(ir.reconcile)
+
+
+# ....................... #
 
 
 def attach_quality_mart(ir: ProjectIR) -> ProjectIR:
@@ -329,13 +357,18 @@ def attach_quality_mart(ir: ProjectIR) -> ProjectIR:
     check is that no authored metric took one of its reserved names, and that
     it can do from the spec alone.
     """
+
     if not carries_quality(ir):
         return ir
+
     return replace(
         ir,
         marts=tuple(sorted((*ir.marts, quality_mart_ir()), key=lambda mart: mart.name)),
         metrics=tuple(sorted((*ir.metrics, *quality_metrics()), key=lambda m: m.name)),
     )
+
+
+# ....................... #
 
 
 #: Every column of the emitted mart, in the order the SELECT projects them —

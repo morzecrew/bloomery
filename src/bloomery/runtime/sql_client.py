@@ -34,6 +34,8 @@ if TYPE_CHECKING:
 
     from metricflow.sql.render.sql_plan_renderer import SqlPlanRenderer
 
+# ----------------------- #
+
 __all__ = [
     "RenderOnlySqlClient",
     "sql_client_for_dialect",
@@ -47,28 +49,45 @@ class RenderOnlySqlClient(SqlClient):
         self._engine = engine
         self._renderer = renderer
 
+    # ....................... #
+
     @property
     def sql_engine_type(self) -> SqlEngine:
         return self._engine
+
+    # ....................... #
 
     @property
     def sql_plan_renderer(self) -> SqlPlanRenderer:
         return self._renderer
 
+    # ....................... #
+
     def query(self, *_args: object, **_kwargs: object) -> NoReturn:
         raise NotImplementedError("render-only")
+
+    # ....................... #
 
     def execute(self, *_args: object, **_kwargs: object) -> NoReturn:
         raise NotImplementedError("render-only")
 
+    # ....................... #
+
     def dry_run(self, *_args: object, **_kwargs: object) -> NoReturn:
         raise NotImplementedError("render-only")
+
+    # ....................... #
 
     def close(self) -> None:
         """Nothing to close — there is no connection, by construction."""
 
+    # ....................... #
+
     def render_bind_parameter_key(self, bind_parameter_key: object) -> str:
         return f"${bind_parameter_key}"
+
+
+# ....................... #
 
 
 #: Dialect name → (engine type, plan-renderer class): the shipped dialect
@@ -90,8 +109,10 @@ def sql_client_for_dialect(name: str) -> RenderOnlySqlClient:
     wired dialect, sorted — same doctrine as the dialect registry (RFC 0008 D8).
     """
     entry = _DIALECTS.get(name)
+
     if entry is None:
         msg = f"unknown planner dialect {name!r}: known dialects are {sorted(_DIALECTS)}"
         raise PlannerError(msg)
+
     engine, renderer_cls = entry
     return RenderOnlySqlClient(engine, renderer_cls())

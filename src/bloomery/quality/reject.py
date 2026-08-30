@@ -31,6 +31,8 @@ from typing import cast
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
+# ----------------------- #
+
 __all__ = [
     "REJECT_COLUMNS",
     "SUPERSEDED_RULE",
@@ -71,7 +73,11 @@ def canon_literal(value: str) -> str:
     """The canonical encoding of a compile-time-known string:
     ``S<character length>:<value>`` (see the module docstring on why this is
     characters and not utf-8 bytes)."""
+
     return f"S{len(value)}:{value}"
+
+
+# ....................... #
 
 
 def canon_prefixed(column: Expression) -> tuple[Expression, ...]:
@@ -79,6 +85,9 @@ def canon_prefixed(column: Expression) -> tuple[Expression, ...]:
     ``'S' || LENGTH(col) || ':' || col``."""
     length = exp.cast(exp.Length(this=column.copy()), exp.DataType.build("TEXT"))
     return (exp.Literal.string("S"), length, exp.Literal.string(":"), column)
+
+
+# ....................... #
 
 
 def reject_id(

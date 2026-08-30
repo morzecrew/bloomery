@@ -25,6 +25,8 @@ from bloomery.spec.common import (
 )
 from bloomery.spec.quality import RangeBound, RuleName
 
+# ----------------------- #
+
 __all__ = [
     "DateRoleStep",
     "FlattenStep",
@@ -45,6 +47,9 @@ class ViaStep(SpecModel):
     prefix: str = Field(min_length=1)
 
 
+# ....................... #
+
+
 class DateRoleStep(SpecModel):
     """Declare a role-playing time dimension: ``{date: order_date, role:
     ordered}`` expands to ``ordered_day`` … ``ordered_year`` (RFC 0010 D4).
@@ -54,12 +59,20 @@ class DateRoleStep(SpecModel):
     role: MemberName
 
 
+# ....................... #
+
+
 def _flatten_tag(value: object) -> str:
     if isinstance(value, AbcMapping) and "via" in value:
         return "via"
+
     if isinstance(value, ViaStep):
         return "via"
+
     return "date"
+
+
+# ....................... #
 
 
 FlattenStep = Annotated[
@@ -112,19 +125,28 @@ class MartAssert(SpecModel):
     #: neither has a meaning without a row to route.
     on_fail: Literal["flag", "fail"]
 
+    # ....................... #
+
     @model_validator(mode="after")
     def _at_least_one_bound(self) -> Self:
         if self.min is None and self.max is None:
             msg = "a mart assertion needs at least one of min / max"
             raise ValueError(msg)
+
         return self
+
+    # ....................... #
 
     @model_validator(mode="after")
     def _by_is_a_set(self) -> Self:
         if len(set(self.by)) != len(self.by):
             msg = f"assertion {self.name!r} repeats a by: column — each names one grouping level"
             raise ValueError(msg)
+
         return self
+
+
+# ....................... #
 
 
 class Mart(SpecModel):
@@ -141,6 +163,9 @@ class Mart(SpecModel):
     materialization: MaterializationName | None = None
     assert_: tuple[MartAssert, ...] = Field(default=(), alias="assert")
     cost_hint: int = Field(default=1, ge=1)
+
+
+# ....................... #
 
 
 class MartSet(SpecModel):

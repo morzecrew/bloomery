@@ -66,17 +66,25 @@ _AGGREGATES: dict[str, type[exp.AggFunc]] = {
 def coverage_audit_name(check: CoverageIR) -> str:
     """``<check>_coverage`` — the audit's name and artifact path, suffixed the
     way a reconcile check's relation is (RFC 0016 D90)."""
+
     return f"{check.name}_coverage"
+
+
+# ....................... #
 
 
 def coverage_owner(check: CoverageIR, ir: ProjectIR) -> RelationshipIR:
     """The relationship a coverage check reads. Total by construction: the
     guardrail stage refuses an unresolvable name before emission runs."""
+
     return guaranteed(
         (rel for rel in ir.relationships if rel.name == check.relationship),
         expected=f"relationship {check.relationship!r} named by coverage check {check.name!r}",
         by="_check_coverage (RFC 0016 D90)",
     )
+
+
+# ....................... #
 
 
 def coverage_audit_select(
@@ -126,6 +134,9 @@ def coverage_audit_select(
     )
 
 
+# ....................... #
+
+
 def _referenced_key(relationship: RelationshipIR, ir: ProjectIR) -> tuple[str, ...]:
     """The referenced entity's declared key — what identifies a row the audit
     reports, so a failure names the customer rather than a row number."""
@@ -136,6 +147,9 @@ def _referenced_key(relationship: RelationshipIR, ir: ProjectIR) -> tuple[str, .
         by="_check_coverage (RFC 0016 D91)",
     )
     return entity.key
+
+
+# ....................... #
 
 
 #: Aliases for the two sides of a coverage audit. Fixed rather than derived
@@ -152,7 +166,11 @@ def mart_assert_name(mart: MartIR, clause: MartAssertIR) -> str:
     project (the same reason a rule name is prefixed by its column), and two
     marts asserting ``revenue_present`` are two different checks.
     """
+
     return f"{mart.name}_{clause.name}"
+
+
+# ....................... #
 
 
 def mart_assert_select(
@@ -183,23 +201,31 @@ def mart_assert_select(
     bound_type = _assert_bound_type(mart, clause)
     params = dict(clause.params)
     parts: list[Expression] = []
+
     if "min" in params:
         parts.append(
             exp.LT(this=aggregate.copy(), expression=_bound_literal(params["min"], bound_type))
         )
+
     if "max" in params:
         parts.append(
             exp.GT(this=aggregate.copy(), expression=_bound_literal(params["max"], bound_type))
         )
+
     grouped_by = [exp.column(name, table=alias) for name in clause.by]
     select = (
         exp.Select()
         .select(*[column.copy() for column in grouped_by], exp.alias_(aggregate.copy(), "value"))
         .from_(_this_model(alias, relation))
     )
+
     if grouped_by:
         select = select.group_by(*[column.copy() for column in grouped_by])
+
     return select.having(disjunction(parts))
+
+
+# ....................... #
 
 
 def _assert_bound_type(mart: MartIR, clause: MartAssertIR) -> LogicalType:
@@ -211,8 +237,10 @@ def _assert_bound_type(mart: MartIR, clause: MartAssertIR) -> LogicalType:
     engine has to coerce — the same reason :func:`_bound_literal` is typed at
     all.
     """
+
     if clause.agg == "count":
         return IntType()
+
     return guaranteed(
         (column.type for column in mart.columns if column.name == clause.column),
         expected=f"column {clause.column!r} on mart {mart.name!r}",
@@ -220,10 +248,17 @@ def _assert_bound_type(mart: MartIR, clause: MartAssertIR) -> LogicalType:
     )
 
 
+# ....................... #
+
+
 def reconcile_relation(check: ReconcileIR) -> str:
     """``<check>__reconcile`` — one relation per check, mirroring the reject
     table's naming (RFC 0016 §5.3)."""
+
     return f"{check.name}{RECONCILE_SUFFIX}"
+
+
+# ....................... #
 
 
 def _resolved_side(text: str, ir: ProjectIR) -> tuple[ReconcileSide, EntityIR, tuple[str, ...]]:
@@ -238,13 +273,18 @@ def _resolved_side(text: str, ir: ProjectIR) -> tuple[ReconcileSide, EntityIR, t
         (e for e in ir.entities if side is not None and e.name == side.entity),
         None,
     )
+
     if side is None or entity is None:  # pragma: no cover — the guardrail stage refuses both
         msg = (
             f"reconcile side {text!r} did not parse or names an unbuilt entity — the "
             "guardrail stage should have refused this (RFC 0016 §5.3)"
         )
         raise EmitError(msg)
+
     return side, entity, side.by if side.aggregated else tuple(entity.key)
+
+
+# ....................... #
 
 
 def reconcile_keys(check: ReconcileIR, ir: ProjectIR) -> tuple[str, ...]:
@@ -254,6 +294,9 @@ def reconcile_keys(check: ReconcileIR, ir: ProjectIR) -> tuple[str, ...]:
     return keys
 
 
+# ....................... #
+
+
 def _reconcile_side(
     text: str, ir: ProjectIR, ctx: EmitContext, *, value: str
 ) -> tuple[exp.Select, tuple[str, ...]]:
@@ -261,6 +304,7 @@ def _reconcile_side(
     side, _entity, keys = _resolved_side(text, ir)
     namespace, relation = ctx.naming.relation(side.entity, Layer.SILVER)
     select = exp.Select().from_(exp.table_(relation, db=namespace))
+
     if side.agg is None:
         return (
             select.select(
@@ -269,6 +313,7 @@ def _reconcile_side(
             ),
             keys,
         )
+
     aggregated = _AGGREGATES[side.agg](this=exp.column(side.column))
     return (
         select.select(*(exp.column(key) for key in keys), exp.alias_(aggregated, value)).group_by(
@@ -276,6 +321,9 @@ def _reconcile_side(
         ),
         keys,
     )
+
+
+# ....................... #
 
 
 def reconcile_select(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> exp.Select:
@@ -361,6 +409,7 @@ def reconcile_select(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> exp
             cast("Expression", exp.alias_(within, "within_tolerance")),
         )
     )
+
     return (
         exp.Select()
         .with_(_LEFT_ALIAS, as_=left)
@@ -373,6 +422,9 @@ def reconcile_select(check: ReconcileIR, ir: ProjectIR, ctx: EmitContext) -> exp
     )
 
 
+# ....................... #
+
+
 def _key_universe(keys: list[str]) -> exp.Union:
     """Every key either side compares by, once.
 
@@ -382,6 +434,7 @@ def _key_universe(keys: list[str]) -> exp.Union:
     order, because a set operation matches columns by position and the two
     sides may declare theirs in different authored orders.
     """
+
     return exp.Union(
         this=exp.Select()
         .select(*(exp.column(key, table=_LEFT_ALIAS) for key in keys))
@@ -393,8 +446,12 @@ def _key_universe(keys: list[str]) -> exp.Union:
     )
 
 
+# ....................... #
+
+
 def _keys_match(side: str, keys: list[str]) -> Expression:
     """``_keys.k IS NOT DISTINCT FROM <side>.k`` for every compared key."""
+
     return conjunction(
         [
             exp.NullSafeEQ(
@@ -406,12 +463,19 @@ def _keys_match(side: str, keys: list[str]) -> Expression:
     )
 
 
+# ....................... #
+
+
 def reconcile_audit_predicate() -> Expression:
     """The violating-row predicate of a check's audit: rows outside tolerance.
 
     ``within_tolerance`` is already two-valued, so ``NOT`` is total here.
     """
+
     return exp.Not(this=exp.column("within_tolerance"))
+
+
+# ....................... #
 
 
 def reconcile_audit_blocking(check: ReconcileIR) -> bool:
@@ -436,4 +500,5 @@ def reconcile_audit_blocking(check: ReconcileIR) -> bool:
     is typed; treating it as "report, do not stop" is the conservative reading
     until that refusal lands.
     """
+
     return check.on_fail is OnFail.FAIL

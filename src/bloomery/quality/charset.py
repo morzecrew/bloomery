@@ -20,6 +20,8 @@ from typing import Final
 
 from bloomery.errors import GuardrailError
 
+# ----------------------- #
+
 __all__ = [
     "MAX_CHARSET_SIZE",
     "expand_codepoints",
@@ -44,13 +46,18 @@ _SURROGATES: Final[range] = range(0xD800, 0xE000)
 
 def _codepoint(text: str, *, item: str, where: str) -> int:
     value = int(text.removeprefix("U+"), 16)
+
     if value > 0x10FFFF:
         msg = (
             f"charset item {item!r} on {where} names {text}, which is past the last Unicode "
             "codepoint U+10FFFF"
         )
         raise GuardrailError(msg)
+
     return value
+
+
+# ....................... #
 
 
 def expand_codepoints(items: tuple[str, ...], *, where: str) -> str:
@@ -70,6 +77,7 @@ def expand_codepoints(items: tuple[str, ...], *, where: str) -> str:
     constant that has nothing to do with surrogates.
     """
     codepoints: set[int] = set()
+
     for item in items:
         low_text, _, high_text = item.partition("-")
         low = _codepoint(low_text, item=item, where=where)
@@ -98,10 +106,12 @@ def expand_codepoints(items: tuple[str, ...], *, where: str) -> str:
             )
             raise GuardrailError(msg)
         codepoints.update(span)
+
     if len(codepoints) > MAX_CHARSET_SIZE:
         msg = (
             f"charset set on {where} expands to {len(codepoints)} characters, past the "
             f"{MAX_CHARSET_SIZE} a set may hold"
         )
         raise GuardrailError(msg)
+
     return "".join(chr(code) for code in sorted(codepoints))

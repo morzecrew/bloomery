@@ -26,6 +26,8 @@ from __future__ import annotations
 
 from pathlib import Path  # noqa: TID251 — the CLI's one door to a disk (RFC 0020 D5, D12)
 
+# ----------------------- #
+
 __all__ = [
     "CliIoError",
     "read_spec_directory",
@@ -58,6 +60,9 @@ class CliIoError(Exception):
     """
 
 
+# ....................... #
+
+
 def _read(target: Path) -> str:
     """One file's text, with every filesystem failure named as a usage error.
 
@@ -68,6 +73,7 @@ def _read(target: Path) -> str:
     printed a traceback and a script could not tell a bad path from a crash,
     which is the split :class:`CliIoError` exists to keep.
     """
+
     try:
         return target.read_text(encoding="utf-8")
     except UnicodeDecodeError as exc:
@@ -78,13 +84,21 @@ def _read(target: Path) -> str:
         raise CliIoError(msg) from exc
 
 
+# ....................... #
+
+
 def read_text(path: str) -> str:
     """One file's text, or :class:`CliIoError` naming it."""
     target = Path(path)
+
     if not target.is_file():
         msg = f"{path}: not a file"
         raise CliIoError(msg)
+
     return _read(target)
+
+
+# ....................... #
 
 
 def read_spec_directory(
@@ -103,9 +117,11 @@ def read_spec_directory(
     is, so pointing several projects at one shared catalog works.
     """
     directory = Path(path)
+
     if not directory.is_dir():
         msg = f"{path}: not a directory"
         raise CliIoError(msg)
+
     try:
         files = sorted(
             entry
@@ -117,6 +133,7 @@ def read_spec_directory(
         # listed — an unreadable one raises here, past everything `main` catches.
         msg = f"{path}: {exc.strerror or exc}"
         raise CliIoError(msg) from exc
+
     if not files:
         joined = "/".join(SPEC_SUFFIXES)
         msg = f"{path}: no {joined} files"
@@ -125,6 +142,7 @@ def read_spec_directory(
     explicit = Path(catalog).resolve() if catalog is not None else None
     sources: dict[str, str] = {}
     conventional: Path | None = None
+
     for entry in files:
         if explicit is not None and entry.resolve() == explicit:
             continue
@@ -135,9 +153,14 @@ def read_spec_directory(
 
     if catalog is not None:
         return sources, read_text(catalog)
+
     if conventional is not None:
         return sources, _read(conventional)
+
     return sources, None
+
+
+# ....................... #
 
 
 def write_files(directory: str, files: dict[str, str]) -> list[str]:
@@ -149,6 +172,7 @@ def write_files(directory: str, files: dict[str, str]) -> list[str]:
     """
     root = Path(directory)
     written: list[str] = []
+
     for relative, content in sorted(files.items()):
         destination = root / relative
         if not destination.resolve().is_relative_to(root.resolve()):
@@ -166,4 +190,5 @@ def write_files(directory: str, files: dict[str, str]) -> list[str]:
             msg = f"{destination}: {exc.strerror or exc}"
             raise CliIoError(msg) from exc
         written.append(str(destination))
+
     return written

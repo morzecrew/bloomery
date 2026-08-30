@@ -103,6 +103,8 @@ from bloomery.ir import (
 )
 from bloomery.quality import RunContext, is_quality_mart
 
+# ----------------------- #
+
 __all__ = [
     "SQLMeshEmitter",
 ]
@@ -307,12 +309,18 @@ def _kind_clause(entity: EntityIR) -> str:
         # Native SCD (RFC 0008 §5.3): the SCD kind *is* the materialization —
         # it supersedes the resolved incrementality strategy.
         return f"SCD_TYPE_2_BY_COLUMN (unique_key ({', '.join(entity.key)}), columns *)"
+
     if entity.materialization is Materialization.INCREMENTAL_BY_KEY:
         return f"INCREMENTAL_BY_UNIQUE_KEY (unique_key ({', '.join(entity.key)}))"
+
     if entity.materialization is Materialization.INCREMENTAL_BY_PARTITION:
         time_column = entity.partition_by[0].column
         return f"INCREMENTAL_BY_TIME_RANGE (time_column {time_column})"
+
     return "FULL"
+
+
+# ....................... #
 
 
 def _partitioned_by(specs: tuple[PartitionSpec, ...]) -> str:
@@ -321,20 +329,30 @@ def _partitioned_by(specs: tuple[PartitionSpec, ...]) -> str:
     )
 
 
+# ....................... #
+
+
 def _mart_kind_clause(mart: MartIR, base: EntityIR) -> str:
     """A mart is at exactly its base grain (RFC 0010 D2), so the base entity's
     key is its unique key when incrementality-by-key is requested."""
+
     if mart.materialization is Materialization.INCREMENTAL_BY_KEY:
         return f"INCREMENTAL_BY_UNIQUE_KEY (unique_key ({', '.join(base.key)}))"
+
     if mart.materialization is Materialization.INCREMENTAL_BY_PARTITION:
         time_column = mart.partition_by[0].column
         return f"INCREMENTAL_BY_TIME_RANGE (time_column {time_column})"
+
     return "FULL"
+
+
+# ....................... #
 
 
 def _mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact:
     if is_quality_mart(mart):
         return _quality_mart_artifact(mart, ir, ctx)
+
     namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
     base = guaranteed(
         (entity for entity in ir.entities if entity.name == mart.base),
@@ -360,11 +378,15 @@ def _mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArti
     )
 
 
+# ....................... #
+
+
 def _coverage_artifacts(ir: ProjectIR, ctx: EmitContext) -> list[EmittedArtifact]:
     """One AUDIT per coverage check (RFC 0016 D90), attached to the
     **dependent** entity's model by :func:`_coverage_audits_for`.
 
     Blocking-ness is the check's own, as a reconcile check's is (D38)."""
+
     return [
         EmittedArtifact.create(
             path=f"audits/{coverage_audit_name(check)}.sql",
@@ -379,6 +401,9 @@ def _coverage_artifacts(ir: ProjectIR, ctx: EmitContext) -> list[EmittedArtifact
         )
         for check in ir.coverage
     ]
+
+
+# ....................... #
 
 
 def _coverage_audits_for(
@@ -398,6 +423,7 @@ def _coverage_audits_for(
     """
     names: list[str] = []
     reads: set[str] = set()
+
     for check in ir.coverage:
         relationship = coverage_owner(check, ir)
         if relationship.from_entity != entity.name:
@@ -407,7 +433,11 @@ def _coverage_audits_for(
         # reached through ``@this_model``; declaring it would put the model in
         # its own ``depends_on``.
         reads.add(relationship.to_entity)
+
     return tuple(sorted(names)), tuple(sorted(reads))
+
+
+# ....................... #
 
 
 def _mart_assert_artifacts(mart: MartIR, ctx: EmitContext) -> list[EmittedArtifact]:
@@ -419,6 +449,7 @@ def _mart_assert_artifacts(mart: MartIR, ctx: EmitContext) -> list[EmittedArtifa
     aggregates — there is no per-row predicate that expresses "this month's
     total is out of bounds".
     """
+
     return [
         EmittedArtifact.create(
             path=f"audits/{mart_assert_name(mart, clause)}.sql",
@@ -433,6 +464,9 @@ def _mart_assert_artifacts(mart: MartIR, ctx: EmitContext) -> list[EmittedArtifa
         )
         for clause in mart.asserts
     ]
+
+
+# ....................... #
 
 
 #: What the executing engine fills the quality mart's run columns with
@@ -470,6 +504,9 @@ def _quality_mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> Emi
         content=content.rstrip("\n") + "\n",
         kind=ArtifactKind.MODEL,
     )
+
+
+# ....................... #
 
 
 def _reconcile_artifacts(
@@ -519,6 +556,9 @@ def _reconcile_artifacts(
     )
 
 
+# ....................... #
+
+
 def _dim_date_artifact(dim: DateDimensionIR, ctx: EmitContext) -> EmittedArtifact:
     # The date dimension is bloomery-owned, not a mart: it keeps its declared
     # relation name; the naming policy still shapes the gold namespace.
@@ -539,12 +579,18 @@ def _dim_date_artifact(dim: DateDimensionIR, ctx: EmitContext) -> EmittedArtifac
     )
 
 
+# ....................... #
+
+
 def _accepted_values(entity: EntityIR, audit: AuditIR, ctx: EmitContext) -> str:
     member_type = column_type(entity, audit.column)
     members = ", ".join(
         ctx.dialect.render(enum_literal(value, member_type)) for _name, value in audit.params
     )
     return f"accepted_values(column := {audit.column}, is_in := ({members}))"
+
+
+# ....................... #
 
 
 def _entity_audits(entity: EntityIR, ctx: EmitContext) -> tuple[str, tuple[EmittedArtifact, ...]]:
@@ -556,6 +602,7 @@ def _entity_audits(entity: EntityIR, ctx: EmitContext) -> tuple[str, tuple[Emitt
     quality_entries, quality_artifacts = _quality_audits(entity, ctx)
     entries.extend(quality_entries)
     artifacts.extend(quality_artifacts)
+
     for audit in entity.audits:
         if audit.kind == "not_null":
             entries.append(f"not_null(columns := ({audit.column}))")
@@ -576,7 +623,11 @@ def _entity_audits(entity: EntityIR, ctx: EmitContext) -> tuple[str, tuple[Emitt
                     kind=ArtifactKind.AUDIT,
                 )
             )
+
     return ", ".join(entries), tuple(artifacts)
+
+
+# ....................... #
 
 
 def _custom_audit(
@@ -593,6 +644,9 @@ def _custom_audit(
         content=content.rstrip("\n") + "\n",
         kind=ArtifactKind.AUDIT,
     )
+
+
+# ....................... #
 
 
 def _quality_audits(entity: EntityIR, ctx: EmitContext) -> tuple[list[str], list[EmittedArtifact]]:
@@ -616,6 +670,7 @@ def _quality_audits(entity: EntityIR, ctx: EmitContext) -> tuple[list[str], list
     """
     entries: list[str] = []
     artifacts: list[EmittedArtifact] = []
+
     if collision_audit(entity):
         name = f"{entity.name}_source_collision"
         entries.append(name)
@@ -631,6 +686,7 @@ def _quality_audits(entity: EntityIR, ctx: EmitContext) -> tuple[list[str], list
                 kind=ArtifactKind.AUDIT,
             )
         )
+
     if entity.dedupe is not None or entity.quarantine is not None:
         name = f"{entity.name}_ingestion_metadata"
         entries.append(name)
@@ -642,6 +698,7 @@ def _quality_audits(entity: EntityIR, ctx: EmitContext) -> tuple[list[str], list
                 _METADATA_AUDIT_ENVELOPE,
             )
         )
+
     if conservation_audit(entity):
         name = f"{entity.name}_conservation"
         entries.append(name)
@@ -657,6 +714,7 @@ def _quality_audits(entity: EntityIR, ctx: EmitContext) -> tuple[list[str], list
                 kind=ArtifactKind.AUDIT,
             )
         )
+
     for name, select in fail_audits(entity, ctx):
         # A whole query, not a predicate over ``@this_model``: a blocking rule
         # has to see the rows the routing split diverted as well as the ones it
@@ -673,7 +731,11 @@ def _quality_audits(entity: EntityIR, ctx: EmitContext) -> tuple[list[str], list
                 kind=ArtifactKind.AUDIT,
             )
         )
+
     return entries, artifacts
+
+
+# ....................... #
 
 
 def _reject_artifact(entity: EntityIR, ctx: EmitContext) -> EmittedArtifact:
@@ -712,6 +774,9 @@ def _reject_artifact(entity: EntityIR, ctx: EmitContext) -> EmittedArtifact:
     )
 
 
+# ....................... #
+
+
 def _replay_artifact(entity: EntityIR, ctx: EmitContext) -> EmittedArtifact:
     content = _REPLAY_ENVELOPE.render(
         fingerprint=ctx.fingerprint,
@@ -725,15 +790,21 @@ def _replay_artifact(entity: EntityIR, ctx: EmitContext) -> EmittedArtifact:
     )
 
 
+# ....................... #
+
+
 class SQLMeshEmitter:
     """RFC 0008 §5.3: one model artifact per silver entity, plus one custom
     audit artifact per non-builtin ``AuditIR``."""
 
     name = "sqlmesh"
 
+    # ....................... #
+
     def capabilities(self) -> TargetCapabilities:
         """Declared support per RFC 0008 §5.1 (amended D6): SCD type 2,
         variant columns, incrementality, audits, and all additivity features."""
+
         return TargetCapabilities(
             supported=frozenset(
                 {
@@ -749,6 +820,8 @@ class SQLMeshEmitter:
             )
         )
 
+    # ....................... #
+
     def emit(self, ir: ProjectIR, ctx: EmitContext) -> tuple[EmittedArtifact, ...]:
         """Lower every entity to a model artifact (plus its custom audits),
         every reconcile check to its model and non-blocking audit (RFC 0016
@@ -757,6 +830,7 @@ class SQLMeshEmitter:
         date dimension to ``gold.dim_date`` (RFC 0008 D13); artifacts sorted
         by path, content ending in exactly one newline (RFC 0003 §5.5 rule 5)."""
         artifacts: list[EmittedArtifact] = []
+
         for entity in ir.entities:
             if entity.produced_by is not None:
                 # A step writes this relation through its own generated
@@ -799,17 +873,24 @@ class SQLMeshEmitter:
                 # requires wherever a quarantine disposition does.
                 artifacts.append(_reject_artifact(entity, ctx))
                 artifacts.append(_replay_artifact(entity, ctx))
+
         # Steps contribute their own models (RFC 0017 §5.8): one generated
         # wrapper per python_model output, one ordinary model per sql_model
         # output, nothing for a sql_macro — that one lives inside a SELECT.
         artifacts.extend(step_artifacts(ir, ctx, _ENVELOPE, _SELECT_AUDIT_ENVELOPE))
+
         for check in ir.reconcile:  # sorted by name on ProjectIR
             artifacts.extend(_reconcile_artifacts(check, ir, ctx))
+
         artifacts.extend(_coverage_artifacts(ir, ctx))
         artifacts.extend(_mart_artifact(mart, ir, ctx) for mart in ir.marts)
+
         for mart in ir.marts:
             artifacts.extend(_mart_assert_artifacts(mart, ctx))
+
         if ir.date_dimension is not None:
             artifacts.append(_dim_date_artifact(ir.date_dimension, ctx))
+
         assert_unique_paths(artifacts)
+
         return tuple(sorted(artifacts, key=lambda a: a.path))

@@ -69,6 +69,8 @@ if TYPE_CHECKING:
     from bloomery.ir import EntityIR, ProjectIR, RelationshipIR
     from bloomery.spec.marts import DateRoleStep, Mart, MartSet
 
+# ----------------------- #
+
 __all__ = [
     "DATE_BUCKETS",
     "HAS_QUALITY_FLAGS",
@@ -103,7 +105,11 @@ _TYPE_NAMES: dict[type[LogicalType], str] = {
 def _type_name(t: LogicalType) -> str:
     if isinstance(t, DecimalType):
         return f"decimal({t.precision}, {t.scale})"
+
     return _TYPE_NAMES[type(t)]
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,6 +119,9 @@ class MartLowering:
 
     marts: tuple[MartIR, ...]
     violations: tuple[GuardrailError, ...]
+
+
+# ....................... #
 
 
 @dataclass(slots=True)
@@ -130,9 +139,15 @@ class _Flatten:
     roles: list[str]
 
 
+# ....................... #
+
+
 def _grain_prose(entity_name: str, entities: dict[str, EntityIR]) -> str:
     entity = entities.get(entity_name)
     return entity.grain if entity is not None else "undeclared in this project"
+
+
+# ....................... #
 
 
 #: What a `type2` entity's author is told to do instead, on both sides of the
@@ -164,8 +179,10 @@ def _historical_leaf(
     its own leaf is the one worth reporting.
     """
     to_entity = entities.get(rel.to_entity)
+
     if to_entity is None or to_entity.scd is not SCDKind.TYPE2:
         return []
+
     msg = (
         f"flatten step joins entity {rel.to_entity!r} through relationship "
         f"{rel.name!r} ({rel.cardinality}), and {rel.to_entity!r} is declared "
@@ -176,6 +193,9 @@ def _historical_leaf(
         f"(RFC 0023 D1). {_HISTORICAL_FIX}"
     )
     return [HistoricalFanout(msg, source_path=step_path)]
+
+
+# ....................... #
 
 
 def _flatten_via(
@@ -190,10 +210,12 @@ def _flatten_via(
     and flatten the joined entity's columns under the step's prefix."""
     step_path = f"{path}.flatten[{index}].via"
     rel = next((r for r in draft.relationships if r.name == step.via), None)
+
     if rel is None:
         known = sorted(r.name for r in draft.relationships)
         msg = f"flatten step names no declared relationship {step.via!r}; known: {known}"
         return [FanoutRisk(msg, source_path=step_path)]
+
     # Historical is checked *beside* the structural rules below rather than
     # after them, because the two are independent: ``one_to_many`` is a
     # property of the relationship and ``scd: type2`` a property of the
@@ -202,6 +224,7 @@ def _flatten_via(
     # first would only have suppressed the other one instead. The stage exists
     # so an author fixes a spec in one round-trip, so both leaves go out.
     historical = _historical_leaf(rel, entities, step_path)
+
     if rel.cardinality is Cardinality.ONE_TO_MANY:
         msg = (
             f"relationship {rel.name!r} is one_to_many: flattening it multiplies the "
@@ -210,6 +233,7 @@ def _flatten_via(
             f"the grain of {rel.to_entity!r}"
         )
         return [*historical, FanoutRisk(msg, source_path=step_path)]
+
     if rel.from_entity not in state.prefixes:
         msg = (
             f"relationship {rel.name!r} joins from entity {rel.from_entity!r}, which is "
@@ -218,13 +242,16 @@ def _flatten_via(
             f"reaching {rel.from_entity!r} first"
         )
         return [*historical, FanoutRisk(msg, source_path=step_path)]
+
     to_entity = entities.get(rel.to_entity)
+
     if to_entity is None:
         msg = (
             f"relationship {rel.name!r} joins entity {rel.to_entity!r}, which no mapping "
             "lowers — a mart cannot flatten an unbuilt entity"
         )
         return [GuardrailError(msg, source_path=step_path)]
+
     if historical:
         return historical
 
@@ -238,6 +265,7 @@ def _flatten_via(
         )
     )
     violations: list[GuardrailError] = []
+
     for column in to_entity.columns:  # sorted by name on EntityIR
         flattened = f"{step.prefix}{column.name}"
         existing = state.columns.get(flattened)
@@ -256,8 +284,13 @@ def _flatten_via(
             source_entity=rel.to_entity,
             source_column=column.name,
         )
+
     state.prefixes.setdefault(rel.to_entity, step.prefix)
+
     return violations
+
+
+# ....................... #
 
 
 def _flatten_date(
@@ -270,15 +303,18 @@ def _flatten_date(
     """One ``date:`` step: validate role and source column, then expand into
     the ``<role>_<bucket>`` columns with their :class:`DimensionRef`s."""
     role_path = f"{path}.flatten[{index}].role"
+
     if step.role in state.roles:
         msg = (
             f"date role {step.role!r} is declared more than once — a mart may declare "
             "the same role at most once (RFC 0010 §5.2). Fix: rename one of the roles"
         )
         return [GuardrailError(msg, source_path=role_path)]
+
     state.roles.append(step.role)
     date_path = f"{path}.flatten[{index}].date"
     source = next((c for c in base.columns if c.name == step.date), None)
+
     if source is None:
         known = sorted(c.name for c in base.columns)
         msg = (
@@ -286,6 +322,7 @@ def _flatten_date(
             f"of base entity {base.name!r}; known columns: {known}"
         )
         return [GuardrailError(msg, source_path=date_path)]
+
     if not isinstance(source.type, (DateType, TimestampType)):
         msg = (
             f"date role source column {step.date!r} has type "
@@ -293,7 +330,9 @@ def _flatten_date(
             "date or timestamp column (RFC 0010 §5.2)"
         )
         return [GuardrailError(msg, source_path=date_path)]
+
     violations: list[GuardrailError] = []
+
     for bucket in DATE_BUCKETS:
         name = f"{step.role}_{bucket}"
         existing = state.columns.get(name)
@@ -312,7 +351,11 @@ def _flatten_date(
             source_column=step.date,
             ref=DimensionRef(dimension=bucket, role=step.role),
         )
+
     return violations
+
+
+# ....................... #
 
 
 def _flatten_quality(base: EntityIR, path: str, state: _Flatten) -> list[GuardrailError]:
@@ -342,9 +385,12 @@ def _flatten_quality(base: EntityIR, path: str, state: _Flatten) -> list[Guardra
     failed on its first run with a binder error naming a generated column the
     author never wrote.
     """
+
     if not base.quality or base.produced_by is not None:
         return []
+
     existing = state.columns.get(HAS_QUALITY_FLAGS)
+
     if existing is not None:
         msg = (
             f"base entity {base.name!r} declares quality rules, so the mart flattens in the "
@@ -353,6 +399,7 @@ def _flatten_quality(base: EntityIR, path: str, state: _Flatten) -> list[Guardra
             f"(RFC 0010 D3). Fix: rename the entity field"
         )
         return [GuardrailError(msg, source_path=f"{path}.base")]
+
     state.columns[HAS_QUALITY_FLAGS] = MartColumnIR(
         name=HAS_QUALITY_FLAGS,
         type=BoolType(),
@@ -361,7 +408,11 @@ def _flatten_quality(base: EntityIR, path: str, state: _Flatten) -> list[Guardra
         # mart projection is ``NOT <base>._quality_ok``.
         source_column=OK_COLUMN,
     )
+
     return []
+
+
+# ....................... #
 
 
 def _check_measures(
@@ -375,6 +426,7 @@ def _check_measures(
     metrics = {m.name: m for m in draft.metrics}
     unreachable = {u.name: u for u in draft.unreachable}
     violations: list[GuardrailError] = []
+
     for measure in mart.measures:
         measure_path = f"{path}.measures.{measure}"
         metric = metrics.get(measure)
@@ -408,7 +460,11 @@ def _check_measures(
                     offending_measures=(MeasureRef(measure=measure, grain=metric.grain),),
                 )
             )
+
     return violations
+
+
+# ....................... #
 
 
 def _check_asserts(mart: Mart, path: str, state: _Flatten) -> list[GuardrailError]:
@@ -426,6 +482,7 @@ def _check_asserts(mart: Mart, path: str, state: _Flatten) -> list[GuardrailErro
     """
     violations: list[GuardrailError] = []
     seen: set[str] = set()
+
     for index, clause in enumerate(mart.assert_):
         where = f"{path}.assert[{index}]"
         if clause.name in seen:
@@ -443,17 +500,27 @@ def _check_asserts(mart: Mart, path: str, state: _Flatten) -> list[GuardrailErro
                 f"does not carry; flattened columns: {sorted(state.columns)}"
             )
             violations.append(GuardrailError(msg, source_path=f"{where}.{role}"))
+
     return violations
+
+
+# ....................... #
 
 
 def _materialization(mart: Mart) -> Materialization:
     """RFC 0002 D7, applied to marts as to entities (RFC 0010 §4): explicit
     wins; else partitioned marts default to incremental-by-partition."""
+
     if mart.materialization is not None:
         return Materialization(mart.materialization)
+
     if mart.partition_by:
         return Materialization.INCREMENTAL_BY_PARTITION
+
     return Materialization.FULL
+
+
+# ....................... #
 
 
 def _mart_ir(name: str, mart: Mart, state: _Flatten) -> MartIR:
@@ -483,6 +550,9 @@ def _mart_ir(name: str, mart: Mart, state: _Flatten) -> MartIR:
     )
 
 
+# ....................... #
+
+
 def _mart_asserts(mart: Mart) -> tuple[MartAssertIR, ...]:
     """The mart's aggregate assertions, sorted by name (RFC 0016 D89).
 
@@ -491,6 +561,7 @@ def _mart_asserts(mart: Mart) -> tuple[MartAssertIR, ...]:
     bound are the same kind of value, and a second representation for it is how
     the two come to disagree about ``1e3``.
     """
+
     return tuple(
         sorted(
             (
@@ -515,6 +586,9 @@ def _mart_asserts(mart: Mart) -> tuple[MartAssertIR, ...]:
     )
 
 
+# ....................... #
+
+
 def _reject_base(mart: Mart) -> str | None:
     """The message refusing a mart based on a reject table, or ``None``.
 
@@ -528,8 +602,10 @@ def _reject_base(mart: Mart) -> str | None:
     Refused on the *name*, before the "no mapping lowers this entity" fallback,
     so the author reads why rather than a generic missing-entity message.
     """
+
     if not mart.base.endswith(REJECT_SUFFIX):
         return None
+
     entity = mart.base.removesuffix(REJECT_SUFFIX)
     return (
         f"mart base names the reject table {mart.base!r}: a mart's base must be a silver "
@@ -540,15 +616,21 @@ def _reject_base(mart: Mart) -> str | None:
     )
 
 
+# ....................... #
+
+
 def _lower_mart(
     name: str, mart: Mart, draft: ProjectIR
 ) -> tuple[MartIR | None, list[GuardrailError]]:
     path = f"marts: marts.{name}"
     entities = {e.name: e for e in draft.entities}
     rejected = _reject_base(mart)
+
     if rejected is not None:
         return None, [GuardrailError(rejected, source_path=f"{path}.base")]
+
     base = entities.get(mart.base)
+
     if base is None:
         msg = (
             f"mart base names entity {mart.base!r}, which no mapping lowers; "
@@ -557,6 +639,7 @@ def _lower_mart(
         return None, [GuardrailError(msg, source_path=f"{path}.base")]
 
     violations: list[GuardrailError] = []
+
     if base.scd is SCDKind.TYPE2:
         # RFC 0023 D2. Nothing is multiplied here — there is no join — but the
         # mart declares one row per entity while the relation holds one per
@@ -570,6 +653,7 @@ def _lower_mart(
             f"counts revisions (RFC 0023 D2). {_HISTORICAL_FIX}"
         )
         violations.append(HistoricalFanout(msg, source_path=f"{path}.base"))
+
     if mart.grain != mart.base:
         msg = (
             f"mart grain {mart.grain!r} does not equal its base entity {mart.base!r} "
@@ -593,13 +677,16 @@ def _lower_mart(
         roles=[],
     )
     violations.extend(_flatten_quality(base, path, state))
+
     for index, step in enumerate(mart.flatten):
         if isinstance(step, ViaStep):
             violations.extend(_flatten_via(step, index, path, draft, entities, state))
         else:
             violations.extend(_flatten_date(step, index, path, base, state))
+
     violations.extend(_check_measures(mart, path, draft, entities))
     violations.extend(_check_asserts(mart, path, state))
+
     if mart.measures and not state.roles:
         msg = (
             f"mart carries measures {sorted(mart.measures)} but declares no date role — "
@@ -608,9 +695,14 @@ def _lower_mart(
             "{date: <date/timestamp column>, role: <role>}"
         )
         violations.append(MartMissingTimeDimension(msg, source_path=path))
+
     if violations:
         return None, violations
+
     return _mart_ir(name, mart, state), []
+
+
+# ....................... #
 
 
 def lower_marts(mart_set: MartSet | None, draft: ProjectIR) -> MartLowering:
@@ -622,13 +714,17 @@ def lower_marts(mart_set: MartSet | None, draft: ProjectIR) -> MartLowering:
     contributes no :class:`MartIR`; a project without a marts document lowers
     to the empty tuple (RFC 0010 D7).
     """
+
     if mart_set is None:
         return MartLowering(marts=(), violations=())
+
     marts: list[MartIR] = []
     violations: list[GuardrailError] = []
+
     for name in sorted(mart_set.marts):
         mart_ir, found = _lower_mart(name, mart_set.marts[name], draft)
         violations.extend(found)
         if mart_ir is not None:
             marts.append(mart_ir)
+
     return MartLowering(marts=tuple(marts), violations=tuple(violations))

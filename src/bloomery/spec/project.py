@@ -24,6 +24,8 @@ from bloomery.spec.marts import MartSet
 from bloomery.spec.metrics import MetricSet
 from bloomery.spec.steps import StepSet
 
+# ----------------------- #
+
 __all__ = [
     "Project",
     "load_catalog",
@@ -52,6 +54,9 @@ class Project:
     steps: StepSet | None = None
 
 
+# ....................... #
+
+
 def load_catalog(text: str) -> Catalog:
     """Parse a catalog document (original spec §3.2). Pure: text in, model out.
 
@@ -59,35 +64,47 @@ def load_catalog(text: str) -> Catalog:
     paths are prefixed with ``catalog``.
     """
     data = load_yaml_mapping(text, document="catalog")
+
     if "catalog_version" not in data:
         raise SpecParseError(
             "not a catalog document: missing 'catalog_version'",
             source_path="catalog",
         )
+
     return validate_document(Catalog, data, document="catalog")
+
+
+# ....................... #
 
 
 def _detect_kind(data: dict[str, object], *, document: str) -> type[SpecModel]:
     """Detect a project document's kind from its version key — exactly one."""
     present = sorted(key for key in _KIND_KEYS if key in data)
+
     if "catalog_version" in data:
         raise SpecParseError(
             "a catalog is not part of a project — load it via load_catalog() "
             "and pass it separately (RFC 0002 D8)",
             source_path=document,
         )
+
     if not present:
         raise SpecParseError(
             "unknown spec kind: expected exactly one of spec_version / "
             "mapping_version / metrics_version / marts_version / steps_version",
             source_path=document,
         )
+
     if len(present) > 1:
         raise SpecParseError(
             f"ambiguous spec kind: found multiple version keys {present}",
             source_path=document,
         )
+
     return _KIND_KEYS[present[0]]
+
+
+# ....................... #
 
 
 def _check_document_counts(
@@ -97,6 +114,7 @@ def _check_document_counts(
     step_sets: list[tuple[str, StepSet]],
 ) -> list[BloomeryError]:
     errors: list[BloomeryError] = []
+
     if not entity_models:
         errors.append(
             SpecParseError("a project requires exactly one EntityModel document, found none")
@@ -108,6 +126,7 @@ def _check_document_counts(
                 f"a project requires exactly one EntityModel document, found {len(names)}: {names}"
             )
         )
+
     for kind, sets in (
         ("MetricSet", metric_sets),
         ("MartSet", mart_sets),
@@ -120,7 +139,11 @@ def _check_document_counts(
                     f"a project allows at most one {kind} document, found {len(names)}: {names}"
                 )
             )
+
     return errors
+
+
+# ....................... #
 
 
 def load_project(sources: AbcMapping[str, str]) -> Project:
@@ -167,6 +190,7 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
         # misleading (a failed document still *was* its kind) — report the
         # parse errors first; counts are checked once every document parses.
         errors.extend(_check_document_counts(entity_models, metric_sets, mart_sets, step_sets))
+
     if errors:
         flat = flatten_collected(errors)
         if len(flat) == 1:

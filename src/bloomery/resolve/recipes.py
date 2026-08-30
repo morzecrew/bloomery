@@ -26,6 +26,8 @@ if TYPE_CHECKING:
     from bloomery.spec.mapping import Mapping
     from bloomery.spec.project import Project
 
+# ----------------------- #
+
 __all__ = [
     "recipe_fields",
     "resolve_recipe",
@@ -35,11 +37,15 @@ __all__ = [
 
 def recipe_fields(mapping: Mapping) -> tuple[tuple[str, RecipeFieldMapping], ...]:
     """The mapping's recipe-form fields, sorted by field name."""
+
     return tuple(
         (name, field)
         for name, field in sorted(mapping.fields.items())
         if isinstance(field, RecipeFieldMapping)
     )
+
+
+# ....................... #
 
 
 def resolve_recipe(
@@ -57,18 +63,22 @@ def resolve_recipe(
     path = f"{mapping_doc(mapping)}: fields.{field_name}"
     entity = project.entity_model.entities[mapping.target]
     canonical = entity.fields[field_name].canonical
+
     if canonical is None:
         msg = (
             f"field {field_name!r} records recipe {field_mapping.recipe!r} but carries no "
             "canonical: link — a recipe without a catalog link is meaningless"
         )
         raise ResolutionError(msg, source_path=f"{path}.recipe")
+
     if catalog is None:  # pragma: no cover — reference validation rejects this first
         msg = f"field {field_name!r} records a recipe but no catalog was provided"
         raise ResolutionError(msg, source_path=f"{path}.recipe")
+
     canonical_field = catalog.canonical_fields[canonical]
     recipes_by_id = {recipe.id: recipe for recipe in canonical_field.recipes}
     recipe = recipes_by_id.get(field_mapping.recipe)
+
     if recipe is None:
         known = sorted(recipes_by_id)
         msg = (
@@ -77,40 +87,51 @@ def resolve_recipe(
             "the upstream chooser must re-decide"
         )
         raise ResolutionError(msg, source_path=f"{path}.recipe")
+
     required = set(recipe.requires)
     bound = set(field_mapping.from_)
     unbound = sorted(required - bound)
+
     if unbound:
         msg = (
             f"recipe {recipe.id!r} requires {unbound} but the mapping's from: aliases "
             "do not bind them"
         )
         raise ResolutionError(msg, source_path=f"{path}.from")
+
     surplus = sorted(bound - required)
+
     if surplus:
         msg = (
             f"mapping binds aliases {surplus} that recipe {recipe.id!r} does not require "
             "— a surplus alias is a silent no-op"
         )
         raise ResolutionError(msg, source_path=f"{path}.from")
+
     if recipe.expr is None and len(recipe.requires) != 1:
         msg = (
             f"recipe {recipe.id!r} has no expr and requires {len(recipe.requires)} names; "
             "only single-requirement recipes may omit expr (identity)"
         )
         raise ResolutionError(msg, source_path=f"{path}.recipe")
+
     return recipe
+
+
+# ....................... #
 
 
 def validate_recipes(project: Project, catalog: Catalog | None) -> None:
     """Validate every recorded recipe across all mappings, batched (D7)."""
     errors: list[BloomeryError] = []
+
     for mapping in project.mappings:
         for field_name, field_mapping in recipe_fields(mapping):
             try:
                 resolve_recipe(mapping, field_name, field_mapping, project, catalog)
             except ResolutionError as exc:
                 errors.append(exc)
+
     if errors:
         if len(errors) == 1:
             raise errors[0]

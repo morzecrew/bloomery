@@ -38,6 +38,8 @@ from bloomery.errors import StepContractViolation
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
+# ----------------------- #
+
 __all__ = [
     "assert_step_contract",
 ]
@@ -70,7 +72,11 @@ _KIND_BY_TYPE: dict[str, frozenset[str]] = {
 
 def _base_type(declared: str) -> str:
     """``decimal(12,4)`` → ``decimal``; every other type is its own base."""
+
     return declared.split("(", 1)[0].strip()
+
+
+# ....................... #
 
 
 def _violation(step: str, output: str, detail: str) -> StepContractViolation:
@@ -78,6 +84,9 @@ def _violation(step: str, output: str, detail: str) -> StepContractViolation:
         f"step {step!r} output {output!r}: {detail} (RFC 0017 §5.4)",
         source_path=f"step: {step}.{output}",
     )
+
+
+# ....................... #
 
 
 def _check_columns(step: str, name: str, frame: Any, produces: Mapping[str, Any]) -> None:
@@ -97,6 +106,7 @@ def _check_columns(step: str, name: str, frame: Any, produces: Mapping[str, Any]
     # two made `sorted` raise, which is the same opaque `TypeError`-instead-of-
     # violation this guard exists to prevent, one type short.
     repeated = sorted({column for column in actual if actual.count(column) > 1}, key=str)
+
     if repeated:
         raise _violation(
             step,
@@ -104,9 +114,11 @@ def _check_columns(step: str, name: str, frame: Any, produces: Mapping[str, Any]
             f"column(s) {', '.join(map(str, repeated))} appear more than once — a "
             "duplicated label makes the declared type and grain unverifiable",
         )
+
     declared = set(produces)
     missing = sorted(declared - set(actual))
     undeclared = sorted(set(actual) - declared)
+
     if missing or undeclared:
         parts: list[str] = []
         if missing:
@@ -149,6 +161,9 @@ def _check_columns(step: str, name: str, frame: Any, produces: Mapping[str, Any]
             )
 
 
+# ....................... #
+
+
 def _check_key(step: str, name: str, frame: Any, key: Sequence[str]) -> None:
     """The declared grain is unique over its declared key columns (§5.2).
 
@@ -158,6 +173,7 @@ def _check_key(step: str, name: str, frame: Any, key: Sequence[str]) -> None:
     """
     columns = list(key)
     duplicated = int(frame.duplicated(subset=columns).sum())
+
     if duplicated:
         raise _violation(
             step,
@@ -165,6 +181,9 @@ def _check_key(step: str, name: str, frame: Any, key: Sequence[str]) -> None:
             f"declared grain is not unique: {duplicated} duplicate row(s) over "
             f"key ({', '.join(columns)})",
         )
+
+
+# ....................... #
 
 
 def assert_step_contract(outputs: Mapping[str, Any], manifest: Mapping[str, Any]) -> None:
@@ -192,9 +211,12 @@ def assert_step_contract(outputs: Mapping[str, Any], manifest: Mapping[str, Any]
     declared_outputs: Mapping[str, Any] = manifest["outputs"]
 
     missing = sorted(set(declared_outputs) - set(outputs))
+
     if missing:
         raise _violation(step, ", ".join(missing), "declared output(s) not returned by the step")
+
     undeclared = sorted(set(outputs) - set(declared_outputs))
+
     if undeclared:
         raise _violation(
             step,

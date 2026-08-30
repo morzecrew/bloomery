@@ -24,6 +24,8 @@ from sqlglot.expressions.core import Expression
 from bloomery.ir.nodes import PartitionSpec, SqlExpr
 from bloomery.spec.common import PARTITION_SPEC_PATTERN
 
+# ----------------------- #
+
 __all__ = [
     "canon",
     "extraction",
@@ -35,7 +37,11 @@ _PARTITION_RE = re.compile(PARTITION_SPEC_PATTERN)
 
 def canon(node: Expression) -> SqlExpr:
     """Canonical dialect-neutral text (RFC 0003 §5.2)."""
+
     return SqlExpr(node.sql(pretty=False))
+
+
+# ....................... #
 
 
 def extraction(path: str) -> Expression:
@@ -43,10 +49,15 @@ def extraction(path: str) -> Expression:
     segment is the physical column, deeper segments are JSON extraction."""
     segments = path.removeprefix("$.").split(".")
     column = exp.column(segments[0])
+
     if len(segments) == 1:
         return column
+
     remainder = "$." + ".".join(segments[1:])
     return exp.JSONExtractScalar(this=column, expression=exp.Literal.string(remainder))
+
+
+# ....................... #
 
 
 def partition_specs(entries: tuple[str, ...]) -> tuple[PartitionSpec, ...]:
@@ -54,10 +65,12 @@ def partition_specs(entries: tuple[str, ...]) -> tuple[PartitionSpec, ...]:
     §5.5) into :class:`PartitionSpec` values, authored order preserved
     (RFC 0003 D4)."""
     specs: list[PartitionSpec] = []
+
     for entry in entries:
         match = _PARTITION_RE.match(entry)
         if match is None or match.group(2) is None:  # bare column form
             specs.append(PartitionSpec(transform=None, column=entry))
         else:
             specs.append(PartitionSpec(transform=match.group(1), column=match.group(2)))
+
     return tuple(specs)

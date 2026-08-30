@@ -60,6 +60,8 @@ if TYPE_CHECKING:
     from bloomery.spec.steps import StepWiring
     from bloomery.steps import StepManifest, StepRegistry
 
+# ----------------------- #
+
 __all__ = [
     "lower_steps",
     "output_canonicals",
@@ -69,6 +71,9 @@ __all__ = [
 
 def _path(wiring: StepWiring) -> str:
     return f"steps: steps.{wiring.use}"
+
+
+# ....................... #
 
 
 def _check_determinism(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryError]:
@@ -87,6 +92,7 @@ def _check_determinism(wiring: StepWiring, manifest: StepManifest) -> list[Bloom
     an author believing something is pinned that is not.
     """
     errors: list[BloomeryError] = []
+
     if manifest.determinism == "nondeterministic":
         msg = (
             f"step {wiring.use!r} declares determinism: nondeterministic (RFC 0017 §5.5). "
@@ -110,7 +116,11 @@ def _check_determinism(wiring: StepWiring, manifest: StepManifest) -> list[Bloom
             "seed, or have the step declare seeded if it does draw from a generator"
         )
         errors.append(StepDeterminismError(msg, source_path=_path(wiring)))
+
     return errors
+
+
+# ....................... #
 
 
 def _check_bindings(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryError]:
@@ -123,6 +133,7 @@ def _check_bindings(wiring: StepWiring, manifest: StepManifest) -> list[Bloomery
     name, which is exactly the guessing this project refuses.
     """
     errors: list[BloomeryError] = []
+
     for label, bound, declared in (
         ("input", set(wiring.inputs), set(manifest.inputs)),
         ("output", set(wiring.outputs), set(manifest.outputs)),
@@ -135,7 +146,9 @@ def _check_bindings(wiring: StepWiring, manifest: StepManifest) -> list[Bloomery
                 f"{', '.join(sorted(declared)) or '(none)'}"
             )
             errors.append(StepError(msg, source_path=_path(wiring)))
+
     unbound = sorted(set(manifest.outputs) - set(wiring.outputs))
+
     if unbound:
         msg = (
             f"step {wiring.use!r} leaves output(s) {', '.join(unbound)} unbound; every "
@@ -143,14 +156,20 @@ def _check_bindings(wiring: StepWiring, manifest: StepManifest) -> list[Bloomery
             "relation to write to. Fix: bind them under outputs:"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
+
     missing_inputs = sorted(set(manifest.inputs) - set(wiring.inputs))
+
     if missing_inputs:
         msg = (
             f"step {wiring.use!r} does not bind input(s) {', '.join(missing_inputs)} the "
             "manifest declares; the step reads them, so there is nothing to read from"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
+
     return errors
+
+
+# ....................... #
 
 
 def _check_parameters(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryError]:
@@ -163,12 +182,14 @@ def _check_parameters(wiring: StepWiring, manifest: StepManifest) -> list[Bloome
     """
     errors: list[BloomeryError] = []
     unknown = sorted(set(wiring.parameters) - set(manifest.parameters))
+
     if unknown:
         msg = (
             f"step {wiring.use!r} sets parameter(s) {', '.join(unknown)} the manifest does "
             f"not declare; declared: {', '.join(sorted(manifest.parameters)) or '(none)'}"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
+
     for name in sorted(set(wiring.parameters) & set(manifest.parameters)):
         spec, value = manifest.parameters[name], wiring.parameters[name]
         if spec.min is None and spec.max is None:
@@ -195,17 +216,25 @@ def _check_parameters(wiring: StepWiring, manifest: StepManifest) -> list[Bloome
                 f"declared bounds (min {spec.min}, max {spec.max})"
             )
             errors.append(StepError(msg, source_path=_path(wiring)))
+
     return errors
+
+
+# ....................... #
 
 
 def _claims(wiring: StepWiring) -> list[tuple[str, str]]:
     """What a step would write, for the collision check to see even when the
     step itself failed validation — otherwise the author fixes one error,
     re-runs, and only then learns two steps claim one relation."""
+
     return [
         (relation.rsplit(".", 1)[-1], f"{wiring.ref}@{wiring.version}.{name}")
         for name, relation in sorted(wiring.outputs.items())
     ]
+
+
+# ....................... #
 
 
 def _check_parameter_types(
@@ -223,6 +252,7 @@ def _check_parameter_types(
     exactly like an authored value and were the path that crashed.
     """
     errors: list[BloomeryError] = []
+
     for name in sorted(resolved):
         declared = manifest.parameters[name].type.split("(", 1)[0].strip()
         value = resolved[name]
@@ -261,7 +291,11 @@ def _check_parameter_types(
                 "fails at model import rather than here"
             )
             errors.append(StepError(msg, source_path=_path(wiring)))
+
     return errors
+
+
+# ....................... #
 
 
 def _resolved_parameters(wiring: StepWiring, manifest: StepManifest) -> tuple[StepParameterIR, ...]:
@@ -275,10 +309,14 @@ def _resolved_parameters(wiring: StepWiring, manifest: StepManifest) -> tuple[St
     meets a float (RFC 0003 D5); the declared type travels beside each one so
     the generated wrapper can rebuild the real value (§5.8).
     """
+
     return tuple(
         StepParameterIR(name=name, value=value, type=manifest.parameters[name].type)
         for name, value in sorted(_resolved_values(wiring, manifest).items())
     )
+
+
+# ....................... #
 
 
 def _resolved_values(wiring: StepWiring, manifest: StepManifest) -> dict[str, str]:
@@ -298,12 +336,17 @@ def _resolved_values(wiring: StepWiring, manifest: StepManifest) -> dict[str, st
             if name in manifest.parameters
         }
     )
+
     return resolved
+
+
+# ....................... #
 
 
 def _outputs(wiring: StepWiring, manifest: StepManifest) -> tuple[StepOutputIR, ...]:
     path = _path(wiring)
     outputs: list[StepOutputIR] = []
+
     for name in sorted(set(wiring.outputs) & set(manifest.outputs)):
         declared = manifest.outputs[name]
         outputs.append(
@@ -323,7 +366,11 @@ def _outputs(wiring: StepWiring, manifest: StepManifest) -> tuple[StepOutputIR, 
                 ),
             )
         )
+
     return tuple(outputs)
+
+
+# ....................... #
 
 
 def _emitted_name(relation: str) -> str:
@@ -334,7 +381,11 @@ def _emitted_name(relation: str) -> str:
     the *same* emitted model. Comparing the bindings let both through and
     produced two files at one path, the last of which won.
     """
+
     return relation.rsplit(".", 1)[-1]
+
+
+# ....................... #
 
 
 def _check_duplicate_relations(
@@ -359,6 +410,7 @@ def _check_duplicate_relations(
         for output in step.outputs
     ]
     claims.extend(also_claimed)
+
     for emitted, claimant in sorted(claims):
         if emitted in seen and seen[emitted] != f"step output {claimant}":
             msg = (
@@ -370,7 +422,11 @@ def _check_duplicate_relations(
             errors.append(StepError(msg, source_path=f"steps: steps.{claimant}"))
             continue
         seen[emitted] = f"step output {claimant}"
+
     return errors
+
+
+# ....................... #
 
 
 def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryError]:
@@ -391,6 +447,7 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
     feature whose entire job is to catch bad data.
     """
     errors: list[BloomeryError] = []
+
     if manifest.kind == "sql_macro":
         msg = (
             f"step {wiring.use!r} is a sql_macro, which is not wired here: Tier 1 splices "
@@ -400,7 +457,9 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
             "serve several call sites with different arguments"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
+
     routed = sorted(rule.name for rule in wiring.quality if rule.on_fail != "fail")
+
     if routed:
         msg = (
             f"step {wiring.use!r} declares quality rule(s) {', '.join(routed)} on its "
@@ -411,7 +470,11 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
             "Fix: use on_fail: fail, or move the rule to a downstream mapped entity"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
+
     return errors
+
+
+# ....................... #
 
 
 def _check_canonical(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryError]:
@@ -426,6 +489,7 @@ def _check_canonical(wiring: StepWiring, manifest: StepManifest) -> list[Bloomer
     the kind of late failure this stage exists to pull forward.
     """
     errors: list[BloomeryError] = []
+
     for output, links in sorted(wiring.canonical.items()):
         declared = manifest.outputs.get(output)
         if declared is None:  # pragma: no cover — _check_bindings refuses this first
@@ -438,7 +502,11 @@ def _check_canonical(wiring: StepWiring, manifest: StepManifest) -> list[Bloomer
                 f"produced: {', '.join(sorted(declared.produces))}"
             )
             errors.append(StepError(msg, source_path=_path(wiring)))
+
     return errors
+
+
+# ....................... #
 
 
 def _check_body(
@@ -451,6 +519,7 @@ def _check_body(
     that a bad body is a compile error naming the step, not something an
     engine discovers later, and a *missing* body is the same statement.
     """
+
     if manifest.kind in {"sql_macro", "sql_model"} and body is None:
         msg = (
             f"step {wiring.use!r} is a {manifest.kind} but the registry carries no body "
@@ -459,7 +528,11 @@ def _check_body(
             "body to the registry's macro_bodies/sql_bodies"
         )
         return [StepError(msg, source_path=_path(wiring))]
+
     return []
+
+
+# ....................... #
 
 
 def _check_placeholders(
@@ -490,8 +563,10 @@ def _check_placeholders(
     *columns* its call site supplies, which is why :func:`macro_expression`
     ignores an unused argument rather than refusing it.
     """
+
     if manifest.kind != "sql_model":
         return []
+
     used = {
         placeholder.this
         for placeholder in node.find_all(exp.Placeholder)
@@ -500,6 +575,7 @@ def _check_placeholders(
     declared = set(manifest.parameters)
     available = set(resolved)
     errors: list[BloomeryError] = []
+
     # Split so the message names the actual fault: a typo in the body, versus
     # a parameter that is declared but was never given a value.
     if undeclared := sorted(used - declared):
@@ -510,6 +586,7 @@ def _check_placeholders(
             "reaches the engine as an unknown variable"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
+
     if unresolved := sorted((used & declared) - available):
         msg = (
             f"step {wiring.use!r} has a body referencing :{', :'.join(unresolved)}, which "
@@ -518,11 +595,13 @@ def _check_placeholders(
             "in the step's parameters:, or give the manifest a default"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
+
     variants = sorted(
         name
         for name in used & available
         if manifest.parameters[name].type.split("(", 1)[0].strip() == "variant"
     )
+
     if variants:
         msg = (
             f"step {wiring.use!r} substitutes parameter(s) {', '.join(variants)} of type "
@@ -533,6 +612,7 @@ def _check_placeholders(
             "body, or keep the structure in a relation the body joins"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
+
     if unused := sorted(available - used):
         msg = (
             f"step {wiring.use!r} resolves parameter(s) {', '.join(unused)} that its body "
@@ -541,7 +621,11 @@ def _check_placeholders(
             f"reference :{unused[0]} in the body, or drop it from the manifest"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
+
     return errors
+
+
+# ....................... #
 
 
 def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[BloomeryError]]:
@@ -554,6 +638,7 @@ def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[Bloo
     possible at all: an expression has to be an AST before it can be
     substituted into a SELECT.
     """
+
     try:
         return sqlglot.parse_one(body), []
     # The base class, not `ParseError`: `TokenError` is its *sibling* under
@@ -567,6 +652,9 @@ def _parse_body(wiring: StepWiring, body: str) -> tuple[object | None, list[Bloo
             "registry error rather than something an engine discovers later"
         )
         return None, [StepError(msg, source_path=_path(wiring))]
+
+
+# ....................... #
 
 
 def step_entities(
@@ -612,6 +700,7 @@ def step_entities(
     rules = _output_rules(project)
     links = output_canonicals(project)
     entities: list[EntityIR] = []
+
     for step in steps:
         for output in step.outputs:
             entities.append(
@@ -662,7 +751,11 @@ def step_entities(
                     produced_by=f"{step.ref}@{step.version}",
                 )
             )
+
     return tuple(sorted(entities, key=lambda entity: entity.name))
+
+
+# ....................... #
 
 
 def output_canonicals(
@@ -676,13 +769,18 @@ def output_canonicals(
     column claiming a link the graph never drew reads as reachable and then
     has no derivation path.
     """
+
     if project is None or project.steps is None:
         return {}
+
     return {
         (wiring.ref, wiring.version, output): dict(links)
         for wiring in project.steps.steps
         for output, links in wiring.canonical.items()
     }
+
+
+# ....................... #
 
 
 def _output_rules(
@@ -695,9 +793,12 @@ def _output_rules(
     judges (§5.2). Rules of one output are sorted by name so the entity's
     ``quality`` tuple is canonical whatever order they were authored in.
     """
+
     if project is None or project.steps is None:
         return {}
+
     rules: dict[tuple[str, int, str], list[QualityRuleIR]] = {}
+
     for wiring in project.steps.steps:
         for rule in wiring.quality:
             output = wiring.applies_to.get(rule.name)
@@ -712,7 +813,11 @@ def _output_rules(
                     params=(("expr", rule.expr),),
                 )
             )
+
     return {key: tuple(sorted(value, key=lambda rule: rule.name)) for key, value in rules.items()}
+
+
+# ....................... #
 
 
 def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tuple[StepIR, ...]:
@@ -722,12 +827,14 @@ def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tu
     resolve or is disqualified; returns ``()`` for a project that wires none,
     which is every project that has never heard of steps.
     """
+
     if project.steps is None or not project.steps.steps:
         return ()
 
     errors: list[BloomeryError] = []
     steps: list[StepIR] = []
     claimed: list[tuple[str, str]] = []
+
     for wiring in project.steps.steps:
         try:
             manifest = registry.resolve(wiring.ref, wiring.version, source_path=_path(wiring))
@@ -792,9 +899,11 @@ def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tu
             ordered, frozenset(project.entity_model.entities), tuple(claimed)
         )
     )
+
     if errors:
         batched = tuple(sorted(errors, key=lambda e: (e.source_path or "", str(e))))
         if len(batched) == 1:
             raise batched[0]
         raise StepError.from_collected(batched)
+
     return ordered

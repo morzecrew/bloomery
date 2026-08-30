@@ -19,6 +19,8 @@ from bloomery.typing import (
     VariantType,
 )
 
+# ----------------------- #
+
 __all__ = [
     "DuckDBDialect",
 ]
@@ -37,6 +39,8 @@ class DuckDBDialect(SQLGlotDialect):
         TimestampType: "TIMESTAMP",
         VariantType: "JSON",
     }
+
+    # ....................... #
 
     def render(self, node: Expression) -> str:
         """Render, rewriting ``NORMALIZE(x, NFC)`` to DuckDB's spelling — the
@@ -65,6 +69,9 @@ class DuckDBDialect(SQLGlotDialect):
         return super().render(rewritten)
 
 
+# ....................... #
+
+
 def _nfc_normalize(node: Expression) -> Expression:
     """``NORMALIZE(x, NFC)`` → ``NFC_NORMALIZE(x)``.
 
@@ -73,10 +80,14 @@ def _nfc_normalize(node: Expression) -> Expression:
     A form that somehow arrived here would silently normalize to the wrong one,
     so it raises rather than guessing.
     """
+
     if not isinstance(node, exp.Normalize):
         return node
+
     form = node.args.get("form")
+
     if form is not None and form.name.upper() != "NFC":
         msg = f"duckdb can only normalize to NFC, not {form.name!r}"
         raise ValueError(msg)
+
     return cast("Expression", exp.func("NFC_NORMALIZE", node.this.copy()))

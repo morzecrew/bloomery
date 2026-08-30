@@ -33,6 +33,8 @@ from pydantic import AfterValidator, Discriminator, Field, StringConstraints, mo
 
 from bloomery.spec.common import JsonPath, ParameterValue, SpecModel, StepUse
 
+# ----------------------- #
+
 __all__ = [
     "PORTABLE_REGEX_REJECTED",
     "RETENTION_PATTERN",
@@ -218,6 +220,9 @@ def _refuse(construct: str, text: str, why: str) -> NoReturn:
     raise ValueError(msg)
 
 
+# ....................... #
+
+
 def _refuse_escape(char: str, *, in_class: bool) -> NoReturn:
     if in_class and char in "DWS":
         _refuse(
@@ -226,9 +231,11 @@ def _refuse_escape(char: str, *, in_class: bool) -> NoReturn:
             "Postgres ARE rejects it inside brackets where RE2 accepts it, so the "
             f"same pattern is an error on one engine and a match on another; write [^\\{char.lower()}]",
         )
+
     for chars, label in _ESCAPE_REFUSALS:
         if char in chars:
             _refuse(label, f"\\{char}", "no RE2 engine and no POSIX ARE agree on it")
+
     _refuse(
         "unrecognized escape",
         f"\\{char}",
@@ -236,14 +243,20 @@ def _refuse_escape(char: str, *, in_class: bool) -> NoReturn:
     )
 
 
+# ....................... #
+
+
 def _scan_class(pattern: str, start: int) -> int:
     """Scan the character class opening at ``pattern[start]``; return the
     index just past its closing ``]``."""
     index = start + 1
+
     if pattern[index : index + 1] == "^":
         index += 1
+
     if pattern[index : index + 1] == "]":
         _refuse("empty character class", "[]", "write \\] for a literal bracket")
+
     while index < len(pattern):
         char = pattern[index]
         if char == "]":
@@ -272,7 +285,11 @@ def _scan_class(pattern: str, start: int) -> int:
                 "unescaped '[' inside a character class", "[", "write \\[ for a literal bracket"
             )
         index += 1
+
     _refuse("unterminated character class", pattern[start:], "no ']' closes it")
+
+
+# ....................... #
 
 
 def _scan_portable(pattern: str) -> None:
@@ -411,8 +428,12 @@ def _scan_portable(pattern: str) -> None:
 
     if depth:
         _refuse("unbalanced '('", "(?:", "no ')' closes it")
+
     if not (opened and closed):
         _refuse_unanchored(pattern)
+
+
+# ....................... #
 
 
 def _refuse_nested_repetition(pattern: str) -> NoReturn:
@@ -447,6 +468,9 @@ def _refuse_nested_repetition(pattern: str) -> NoReturn:
     )
 
 
+# ....................... #
+
+
 def _refuse_unanchored(pattern: str) -> NoReturn:
     msg = (
         f"pattern {pattern!r} is not anchored (RFC 0016 §5.3): a `pattern` rule matches the "
@@ -455,6 +479,9 @@ def _refuse_unanchored(pattern: str) -> NoReturn:
         "yourself, one pair per top-level alternative: '^[0-9]{5}$', '^a$|^b$'"
     )
     raise ValueError(msg)
+
+
+# ....................... #
 
 
 def _portable_regex(pattern: str) -> str:
@@ -468,12 +495,17 @@ def _portable_regex(pattern: str) -> str:
     scanner deliberately does not model, such as a reversed class range.
     """
     _scan_portable(pattern)
+
     try:
         re.compile(pattern)
     except re.error as exc:
         msg = f"invalid regular expression: {exc}"
         raise ValueError(msg) from None
+
     return pattern
+
+
+# ....................... #
 
 
 PortableRegex = Annotated[str, AfterValidator(_portable_regex)]
@@ -514,15 +546,19 @@ def _exact_bound(value: int | Decimal | str) -> int | Decimal | str:
     spellings, which stay strings precisely because ``Decimal`` refused them.
     """
     text = str(value)
+
     if EXACT_DECIMAL.match(text) or (isinstance(value, str) and _ISO_TEMPORAL.match(text)):
         return value
+
     lowered = text.lower().lstrip("+-")
+
     if lowered.startswith(("nan", "snan", "inf")):
         msg = (
             f"range bound {text!r} is non-finite: `amount < nan` is never TRUE on some engines "
             "and always TRUE on others (RFC 0015 D5). Fix: write a real bound"
         )
         raise ValueError(msg)
+
     if "e" in lowered:
         msg = (
             f"range bound {text!r} carries an exponent, which renders as a double literal, and "
@@ -530,12 +566,16 @@ def _exact_bound(value: int | Decimal | str) -> int | Decimal | str:
             'e.g. "10000000000"'
         )
         raise ValueError(msg)
+
     msg = (
         f"range bound {text!r} is neither an exact decimal nor an ISO date/timestamp. Bounds are "
         "int, Decimal, or a string carrying one exactly (RFC 0015 D5) — the string form exists "
         "for decimals YAML would round to a float and for ISO temporals, nothing else"
     )
     raise ValueError(msg)
+
+
+# ....................... #
 
 
 RangeBound = Annotated[int | Decimal | str, AfterValidator(_exact_bound)]
@@ -569,6 +609,9 @@ class Repair(SpecModel):
     fallback: Literal["flag", "quarantine", "fail"]
 
 
+# ....................... #
+
+
 class QualityRule(SpecModel):
     """Base of every disposition-carrying rule: ``on_fail`` is **required**,
     never inherited from a project-wide default (RFC 0016 D2). The implicit
@@ -585,6 +628,8 @@ class QualityRule(SpecModel):
     on_fail: OnFailName
     repair: Repair | None = None
 
+    # ....................... #
+
     @model_validator(mode="after")
     def _repair_accompanies_its_disposition(self) -> Self:
         if (self.on_fail == "repair") != (self.repair is not None):
@@ -594,6 +639,7 @@ class QualityRule(SpecModel):
                 "never run (RFC 0016 D87)"
             )
             raise ValueError(msg)
+
         if self.repair is not None and not type(self).repairable:
             msg = (
                 f"a {getattr(self, 'rule', 'row')!r} rule cannot carry on_fail: repair — it has "
@@ -601,7 +647,11 @@ class QualityRule(SpecModel):
                 "instead: a sql_macro spliced into the mapping runs before any rule sees it"
             )
             raise ValueError(msg)
+
         return self
+
+
+# ....................... #
 
 
 class CoercibleRule(QualityRule):
@@ -618,11 +668,17 @@ class CoercibleRule(QualityRule):
     repairable: ClassVar[bool] = False
 
 
+# ....................... #
+
+
 class NotNullRule(QualityRule):
     """``{rule: not_null}`` — one of the two rules that own nulls (RFC 0016
     D19): every other rule's violation predicate stays silent on ``UNKNOWN``."""
 
     rule: Literal["not_null"]
+
+
+# ....................... #
 
 
 class RangeRule(QualityRule):
@@ -637,12 +693,18 @@ class RangeRule(QualityRule):
     min: RangeBound | None = None
     max: RangeBound | None = None
 
+    # ....................... #
+
     @model_validator(mode="after")
     def _at_least_one_bound(self) -> Self:
         if self.min is None and self.max is None:
             msg = "a range rule needs at least one of min / max"
             raise ValueError(msg)
+
         return self
+
+
+# ....................... #
 
 
 class LengthRule(QualityRule):
@@ -653,12 +715,18 @@ class LengthRule(QualityRule):
     min: int | None = Field(default=None, ge=0)
     max: int | None = Field(default=None, ge=0)
 
+    # ....................... #
+
     @model_validator(mode="after")
     def _at_least_one_bound(self) -> Self:
         if self.min is None and self.max is None:
             msg = "a length rule needs at least one of min / max"
             raise ValueError(msg)
+
         return self
+
+
+# ....................... #
 
 
 class PatternRule(QualityRule):
@@ -671,6 +739,9 @@ class PatternRule(QualityRule):
     regex: PortableRegex
 
 
+# ....................... #
+
+
 class InEnumRule(QualityRule):
     """``{rule: in_enum}`` — the value survived its ``enum_map`` chain
     unmapped. Parameterless by construction: the admissible set *is* the
@@ -679,12 +750,18 @@ class InEnumRule(QualityRule):
     rule: Literal["in_enum"]
 
 
+# ....................... #
+
+
 class InSetRule(QualityRule):
     """``{rule: in_set, values: [...]}`` — membership in a literal set
     declared inline; at least one value (an empty set fails every row)."""
 
     rule: Literal["in_set"]
     values: tuple[str | int, ...] = Field(min_length=1)
+
+
+# ....................... #
 
 
 class NormalizeRule(QualityRule):
@@ -701,6 +778,9 @@ class NormalizeRule(QualityRule):
 
     rule: Literal["normalize"]
     form: NormalFormName
+
+
+# ....................... #
 
 
 class CharsetRule(QualityRule):
@@ -733,6 +813,8 @@ class CharsetRule(QualityRule):
     allow: tuple[CodepointItem, ...] | None = Field(default=None, min_length=1)
     forbid: tuple[CodepointItem, ...] | None = Field(default=None, min_length=1)
 
+    # ....................... #
+
     @model_validator(mode="after")
     def _exactly_one_side(self) -> Self:
         if (self.allow is None) == (self.forbid is None):
@@ -742,7 +824,11 @@ class CharsetRule(QualityRule):
                 "with nothing making the halves agree"
             )
             raise ValueError(msg)
+
         return self
+
+
+# ....................... #
 
 
 class UniqueRule(QualityRule):
@@ -755,6 +841,9 @@ class UniqueRule(QualityRule):
     # column can make a duplicate unique, and the predicate is a window
     # besides.
     repairable: ClassVar[bool] = False
+
+
+# ....................... #
 
 
 FieldQualityRule = Annotated[
@@ -792,6 +881,9 @@ class ExpressionRule(QualityRule):
     expr: str
 
 
+# ....................... #
+
+
 class ReferentialRule(SpecModel):
     """``{rule: referential, via: …, on_missing: …}`` — a declared
     relationship probed at the row-rule stage against the referenced *silver*
@@ -806,6 +898,9 @@ class ReferentialRule(SpecModel):
     rule: Literal["referential"]
     via: str
     on_missing: OnMissingName
+
+
+# ....................... #
 
 
 EntityQualityRule = Annotated[ExpressionRule | ReferentialRule, Discriminator("rule")]
@@ -830,6 +925,9 @@ class Dedupe(SpecModel):
     tie_break: tuple[str, ...] = ()
 
 
+# ....................... #
+
+
 class Quarantine(SpecModel):
     """``quarantine: {retention: 90d, redact: [...]}`` — the per-entity reject
     table's policy (RFC 0016 §5.6).
@@ -842,6 +940,9 @@ class Quarantine(SpecModel):
 
     retention: RetentionDuration
     redact: tuple[JsonPath, ...] = ()
+
+
+# ....................... #
 
 
 class Coverage(SpecModel):
@@ -884,6 +985,9 @@ class Coverage(SpecModel):
     on_fail: Literal["flag", "fail"]
 
 
+# ....................... #
+
+
 class Reconcile(SpecModel):
     """One ``reconcile:`` block — the check that catches a *correct formula
     over wrong data* (RFC 0016 §5.3), emitting its own model plus a
@@ -905,16 +1009,21 @@ class Reconcile(SpecModel):
     #: quality mart's disposition column as if it meant something.
     on_fail: Literal["flag", "fail"]
 
+    # ....................... #
+
     @model_validator(mode="before")
     @classmethod
     def _reject_float_tolerance(cls, value: object) -> object:
         if not isinstance(value, AbcMapping):
             return value
+
         mapping = cast("AbcMapping[object, object]", value)
+
         if isinstance(mapping.get("tolerance"), float):
             msg = (
                 "tolerance must be a quoted decimal string — an unquoted YAML number "
                 'parses as a float, which the IR bans (RFC 0003 D5): use tolerance: "0.01"'
             )
             raise ValueError(msg)
+
         return mapping

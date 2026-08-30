@@ -113,6 +113,8 @@ if TYPE_CHECKING:
     )
     from bloomery.naming import NamingPolicy
 
+# ----------------------- #
+
 __all__ = [
     "METRICFLOW_PLANNER_CAPABILITIES",
     "emit_manifest",
@@ -168,26 +170,34 @@ _WINDOW_CHOICES: dict[SemiAdditiveRule, AggregationType] = {
 
 def _aggregation(metric: MetricIR) -> AggregationType:
     aggregation = _AGGREGATIONS.get(metric.agg) if metric.agg is not None else None
+
     if aggregation is None:
         msg = (
             f"metric {metric.name!r} uses aggregation {metric.agg!r}, which has no MetricFlow "
             f"AggregationType mapping; supported: {sorted(_AGGREGATIONS)}"
         )
         raise UnsupportedByTarget(msg)
+
     return aggregation
+
+
+# ....................... #
 
 
 def _non_additive_dimension(
     metric: MetricIR, mart: MartIR, day_by_source: dict[str, str]
 ) -> PydanticNonAdditiveDimensionParameters:
     policy = metric.semi_additive
+
     if policy is None:
         msg = (
             f"semi-additive metric {metric.name!r} carries no {{over, rule}} policy — "
             "nothing to lower to non_additive_dimension (RFC 0013 D4)"
         )
         raise EmitError(msg)
+
     window_choice = _WINDOW_CHOICES.get(policy.rule)
+
     if window_choice is None:
         msg = (
             f"semi-additive rule {policy.rule.value!r} of metric {metric.name!r} is not "
@@ -195,7 +205,9 @@ def _non_additive_dimension(
             "first -> MIN are; RFC 0013 D4)"
         )
         raise UnsupportedByTarget(msg)
+
     day_column = day_by_source.get(policy.over.qualified)
+
     if day_column is None:
         msg = (
             f"semi-additive metric {metric.name!r} is non-additive over "
@@ -203,6 +215,7 @@ def _non_additive_dimension(
             "that column — add a {date: ..., role: ...} flatten step for it"
         )
         raise EmitError(msg)
+
     return PydanticNonAdditiveDimensionParameters(
         name=day_column,
         window_choice=window_choice,
@@ -210,14 +223,19 @@ def _non_additive_dimension(
     )
 
 
+# ....................... #
+
+
 def _day_columns(mart: MartIR) -> dict[str, str]:
     """Source date column → the day-bucket column serving it; when two roles
     bucket the same column, the lexicographically first role wins (columns
     are sorted by name, so first-seen is first lexicographically)."""
     day_by_source: dict[str, str] = {}
+
     for column in mart.columns:
         if column.ref is not None and column.ref.dimension == "day":
             day_by_source.setdefault(column.source_column, column.name)
+
     return day_by_source
 
 
@@ -226,6 +244,9 @@ def _day_columns(mart: MartIR) -> dict[str, str]:
 # *required* constructor arguments. Every unused optional field below is
 # therefore pinned to its ``None`` default explicitly — identical runtime
 # models and bytes, but honest under strict typing.
+
+
+# ....................... #
 
 
 def _entities(
@@ -241,6 +262,7 @@ def _entities(
     """
     entities: list[PydanticEntity] = []
     primary_entity: str | None = None
+
     if base is not None and len(base.key) == 1:
         entities.append(
             PydanticEntity(
@@ -256,8 +278,10 @@ def _entities(
         # Composite key: no single natural key column exists, so the primary
         # entity is declared name-only on the model (RFC 0013 D3).
         primary_entity = mart.grain
+
     used = {mart.grain}
     join_keys: set[str] = set()
+
     for join in mart.joins:
         join_keys.update(from_column for from_column, _to in join.on)
         if len(join.on) != 1:
@@ -276,14 +300,20 @@ def _entities(
                 config=None,
             )
         )
+
     entities.sort(key=lambda e: e.name)
+
     return entities, primary_entity, frozenset(join_keys)
+
+
+# ....................... #
 
 
 def _dimensions(
     mart: MartIR, join_keys: frozenset[str], descriptions: dict[tuple[str, str], str | None]
 ) -> list[PydanticDimension]:
     dimensions: list[PydanticDimension] = []
+
     for column in mart.columns:  # sorted by name on MartIR
         description = descriptions.get((column.source_entity, column.source_column))
         if column.ref is not None:
@@ -310,7 +340,11 @@ def _dimensions(
                     config=None,
                 )
             )
+
     return dimensions
+
+
+# ....................... #
 
 
 def _measures(
@@ -321,6 +355,7 @@ def _measures(
 ) -> list[PydanticMeasure]:
     owned = [name for name in mart.measures if owners[name] is mart]  # sorted on MartIR
     measures: list[PydanticMeasure] = []
+
     for name in owned:
         metric = metrics_by_name[name]
         if metric.additivity is Additivity.NON_ADDITIVE:
@@ -347,7 +382,11 @@ def _measures(
                 metadata=None,
             )
         )
+
     return measures
+
+
+# ....................... #
 
 
 def _agg_time_dimension(mart: MartIR) -> str:
@@ -359,13 +398,18 @@ def _agg_time_dimension(mart: MartIR) -> str:
     re-check here is the RFC 0013 D3 rule-2 defense.
     """
     roles = sorted({c.ref.role for c in mart.columns if c.ref is not None and c.ref.role})
+
     if not roles:
         msg = (
             f"mart {mart.name!r} carries measures but no date role reached the emitter — "
             "the guardrail stage should have refused this (RFC 0010 D9)"
         )
         raise EmitError(msg)
+
     return f"{roles[0]}_day"
+
+
+# ....................... #
 
 
 def _semantic_model(
@@ -393,13 +437,20 @@ def _semantic_model(
     )
 
 
+# ....................... #
+
+
 def _metric_input(name: str) -> PydanticMetricInput:
     """A name-only ratio component. MSI coerces a ``PydanticMetricInputMeasure``
     into exactly this shape at validation time; constructing it directly says
     what is meant (and is byte-identical in the serialized manifest)."""
+
     return PydanticMetricInput(
         name=name, filter=None, alias=None, offset_window=None, offset_to_grain=None
     )
+
+
+# ....................... #
 
 
 def _type_params(
@@ -410,6 +461,7 @@ def _type_params(
 ) -> PydanticMetricTypeParams:
     """``PydanticMetricTypeParams`` with every unused optional field pinned to
     its ``None`` default (see the implicit-optional note above)."""
+
     return PydanticMetricTypeParams(
         measure=measure,
         numerator=numerator,
@@ -424,6 +476,9 @@ def _type_params(
     )
 
 
+# ....................... #
+
+
 def _metrics(ir: ProjectIR, owners: dict[str, MartIR]) -> list[PydanticMetric]:
     """One SIMPLE metric per emitted measure; one RATIO metric per ratio
     whose component measures are both emitted. Sorted by name."""
@@ -432,6 +487,7 @@ def _metrics(ir: ProjectIR, owners: dict[str, MartIR]) -> list[PydanticMetric]:
         name for name in owners if by_name[name].additivity is not Additivity.NON_ADDITIVE
     }
     metrics: list[PydanticMetric] = []
+
     for metric in ir.metrics:  # sorted by name on ProjectIR
         if metric.name in emitted_measures:
             metrics.append(
@@ -469,7 +525,11 @@ def _metrics(ir: ProjectIR, owners: dict[str, MartIR]) -> list[PydanticMetric]:
                     config=None,
                 )
             )
+
     return metrics
+
+
+# ....................... #
 
 
 def _project_configuration(
@@ -477,6 +537,7 @@ def _project_configuration(
 ) -> PydanticProjectConfiguration:
     if date_dimension is None:
         return PydanticProjectConfiguration()
+
     # Same convention as the SQLMesh dim_date emission (RFC 0008 D13): the
     # date dimension keeps its declared relation name; the naming policy
     # shapes only the gold namespace. One definition, two emissions, no drift.
@@ -496,16 +557,22 @@ def _project_configuration(
     )
 
 
+# ....................... #
+
+
 def _check_reserved(manifest: PydanticSemanticManifest) -> None:
     """Defense in depth (RFC 0013 R4): the spec layer already rejects
     ``metric_time`` as a member name (M1); re-check the emitted surface."""
     names: set[str] = set()
+
     for model in manifest.semantic_models:
         names.add(model.name)
         names.update(entity.name for entity in model.entities)
         names.update(dimension.name for dimension in model.dimensions)
         names.update(measure.name for measure in model.measures)
+
     names.update(metric.name for metric in manifest.metrics)
+
     if _RESERVED_NAME in names:
         msg = (
             f"{_RESERVED_NAME!r} appeared in the emitted manifest — it is MetricFlow's "
@@ -513,6 +580,9 @@ def _check_reserved(manifest: PydanticSemanticManifest) -> None:
             "validation; this is a bug upstream of the emitter"
         )
         raise EmitError(msg)
+
+
+# ....................... #
 
 
 def emit_manifest(ir: ProjectIR, *, naming: NamingPolicy) -> PydanticSemanticManifest:
@@ -524,6 +594,7 @@ def emit_manifest(ir: ProjectIR, *, naming: NamingPolicy) -> PydanticSemanticMan
     catalog ``date_dimension`` — MetricFlow requires a declared time spine
     for ``metric_time``; declare one in the catalog.
     """
+
     if ir.marts and ir.date_dimension is None:
         msg = (
             f"project has {len(ir.marts)} mart(s) but the catalog declares no "
@@ -532,6 +603,7 @@ def emit_manifest(ir: ProjectIR, *, naming: NamingPolicy) -> PydanticSemanticMan
             "(name, grain: day, start_year, end_year)"
         )
         raise EmitError(msg)
+
     owners = measure_owners(ir)
     metrics_by_name = {metric.name: metric for metric in ir.metrics}
     descriptions = {
@@ -552,6 +624,7 @@ def emit_manifest(ir: ProjectIR, *, naming: NamingPolicy) -> PydanticSemanticMan
     # MetricFlowInternalError (verified, RFC 0013 §3). M8 caches the
     # *post-transform* manifest (RFC 0014 D3), so that is what we return.
     transformed = PydanticSemanticManifestTransformer.transform(manifest)
+
     # transform()'s AddInputMetricMeasuresRule collects each metric's
     # input_measures through a builtin set, so their order is hash-seed
     # dependent — the one nondeterminism in an otherwise deterministic
@@ -563,7 +636,11 @@ def emit_manifest(ir: ProjectIR, *, naming: NamingPolicy) -> PydanticSemanticMan
         metric.type_params.input_measures = sorted(
             metric.type_params.input_measures, key=lambda measure: measure.name
         )
+
     return transformed
+
+
+# ....................... #
 
 
 def manifest_json(manifest: PydanticSemanticManifest, *, indent: int | None = None) -> str:

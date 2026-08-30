@@ -43,6 +43,8 @@ from bloomery.transforms import registry
 if TYPE_CHECKING:
     from bloomery.spec.common import SpecModel
 
+# ----------------------- #
+
 __all__ = [
     "JsonDict",
     "SpecKind",
@@ -83,6 +85,9 @@ class SpecKind(StrEnum):
     STEPS = "steps"
 
 
+# ....................... #
+
+
 #: Kind → the model that parses it, and the version key that identifies it.
 #: The version key is the document-kind discriminator (RFC 0002 §5.5) and, since
 #: RFC 0018 D7, a ``Literal[1]`` — which is where :func:`_document_version` reads
@@ -106,10 +111,15 @@ def _document_version(kind: SpecKind) -> int:
     """
     model, version_key = _KINDS[kind]
     (version,) = get_args(model.model_fields[version_key].annotation)
+
     if not isinstance(version, int):  # pragma: no cover — RFC 0018 D7 pins all five
         msg = f"{kind.value} version key is not a pinned integer literal: {version!r}"
         raise TypeError(msg)
+
     return version
+
+
+# ....................... #
 
 
 def _transform_step_schema(generated: JsonDict) -> JsonDict:
@@ -182,6 +192,9 @@ def _transform_step_schema(generated: JsonDict) -> JsonDict:
     }
 
 
+# ....................... #
+
+
 def _one_kind_of_link(normalized: JsonDict, title: str, present: str, absent: str) -> JsonDict:
     """The normalized object with exactly one of ``name``/``step`` required.
 
@@ -210,17 +223,27 @@ def _one_kind_of_link(normalized: JsonDict, title: str, present: str, absent: st
     }
 
 
+# ....................... #
+
+
 def _as_dict(value: object) -> dict[str, object]:
     """A nested schema node as a mapping, or empty if the key was absent.
 
     Pydantic's output is ``dict[str, Any]``; this is the one place that shape
     is narrowed, so the callers below stay free of casts.
     """
+
     return cast("dict[str, object]", value) if isinstance(value, dict) else {}
+
+
+# ....................... #
 
 
 def _as_list(value: object) -> list[object]:
     return cast("list[object]", value) if isinstance(value, list) else []
+
+
+# ....................... #
 
 
 def _canonical(value: object) -> object:
@@ -231,11 +254,17 @@ def _canonical(value: object) -> object:
     on whatever order Pydantic happened to walk the models in. ``required`` is
     sorted for the same reason — it is a set written as a list.
     """
+
     if isinstance(value, dict):
         return _canonical_mapping(cast("dict[str, object]", value))
+
     if isinstance(value, list):
         return [_canonical(item) for item in cast("list[object]", value)]
+
     return value
+
+
+# ....................... #
 
 
 def _canonical_mapping(entries: dict[str, object]) -> dict[str, object]:
@@ -247,10 +276,15 @@ def _canonical_mapping(entries: dict[str, object]) -> dict[str, object]:
     """
     canonical: dict[str, object] = {key: _canonical(entries[key]) for key in sorted(entries)}
     required = canonical.get("required")
+
     if isinstance(required, list):
         items = cast("list[object]", required)
         canonical["required"] = sorted(str(item) for item in items)
+
     return canonical
+
+
+# ....................... #
 
 
 def spec_json_schema(kind: SpecKind) -> JsonDict:
@@ -266,12 +300,17 @@ def spec_json_schema(kind: SpecKind) -> JsonDict:
     # document or a cached one is its business, not something the export
     # should depend on.
     defs = dict(_as_dict(schema.get("$defs")))
+
     if "TransformStep" in defs:
         defs["TransformStep"] = _transform_step_schema(_as_dict(defs["TransformStep"]))
         schema["$defs"] = defs
+
     schema["$schema"] = JSON_SCHEMA_DIALECT
     schema["$id"] = f"{_BASE_URI}/v{_document_version(kind)}/{kind.value}.json"
     return _canonical_mapping(schema)
+
+
+# ....................... #
 
 
 def all_spec_schemas() -> AbcMapping[SpecKind, JsonDict]:
@@ -284,4 +323,5 @@ def all_spec_schemas() -> AbcMapping[SpecKind, JsonDict]:
     ``$id``s serve both that and ``$ref``-by-URL, and joining them later is
     mechanical if a consumer ever wants one.
     """
+
     return {kind: spec_json_schema(kind) for kind in SpecKind}

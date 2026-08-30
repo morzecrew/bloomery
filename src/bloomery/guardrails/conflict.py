@@ -26,6 +26,8 @@ if TYPE_CHECKING:
     from bloomery.guardrails.operands import Derivation
     from bloomery.ir import EntityIR, ProjectIR
 
+# ----------------------- #
+
 __all__ = [
     "path_conflict_amendments",
 ]
@@ -46,6 +48,7 @@ def _shadow(derived: ColumnIR, direct: str) -> tuple[ColumnIR, SourceColumnIR]:
     a reconcile audit that silently stops checking. RFC 0024 D28 refuses the
     combination, which is what keeps this function one-to-one.
     """
+
     return (
         ColumnIR(
             name=f"{derived.name}__direct",
@@ -63,6 +66,9 @@ def _shadow(derived: ColumnIR, direct: str) -> tuple[ColumnIR, SourceColumnIR]:
     )
 
 
+# ....................... #
+
+
 def path_conflict_amendments(
     derivations: tuple[Derivation, ...], draft: ProjectIR
 ) -> tuple[dict[str, list[tuple[ColumnIR, SourceColumnIR]]], dict[str, list[AuditIR]]]:
@@ -71,6 +77,7 @@ def path_conflict_amendments(
     entities: dict[str, EntityIR] = {entity.name: entity for entity in draft.entities}
     shadows: dict[str, list[tuple[ColumnIR, SourceColumnIR]]] = {}
     audits: dict[str, list[AuditIR]] = {}
+
     for derivation in derivations:
         if derivation.direct is None:
             continue
@@ -88,4 +95,5 @@ def path_conflict_amendments(
                 params=(("shadow", f"{derivation.field}__direct"),),
             )
         )
+
     return shadows, audits

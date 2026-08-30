@@ -68,6 +68,8 @@ from bloomery.emit.lower.silver import (
     replay_statements,
 )
 
+# ----------------------- #
+
 __all__ = [
     "REJECT_KEY",
     "COLLISION_COUNT_COLUMN",

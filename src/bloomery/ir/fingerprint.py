@@ -18,6 +18,8 @@ from typing import cast
 
 from bloomery.ir.nodes import ProjectIR
 
+# ----------------------- #
+
 __all__ = [
     "project_fingerprint",
 ]
@@ -25,6 +27,9 @@ __all__ = [
 
 def _write_tagged(out: bytearray, tag: bytes, payload: bytes) -> None:
     out += tag + str(len(payload)).encode("ascii") + b":" + payload
+
+
+# ....................... #
 
 
 def _write(out: bytearray, value: object) -> None:
@@ -63,12 +68,19 @@ def _write(out: bytearray, value: object) -> None:
         raise TypeError(msg)
 
 
+# ....................... #
+
+
 def _canon_bytes(ir: object) -> bytes:
     """Canonically encode an IR node tree (RFC 0003 §5.4): length-prefixed,
     type-tagged, field names included, tuples length-prefixed."""
     out = bytearray()
     _write(out, ir)
+
     return bytes(out)
+
+
+# ....................... #
 
 
 def project_fingerprint(ir: ProjectIR) -> str:
@@ -77,4 +89,5 @@ def project_fingerprint(ir: ProjectIR) -> str:
     Stable within a bloomery version (``bloomery_ir_version`` is part of the
     stream), explicitly not across versions (RFC 0003 D3).
     """
+
     return "blm1:" + hashlib.sha256(_canon_bytes(ir)).hexdigest()

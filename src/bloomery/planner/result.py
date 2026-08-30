@@ -19,6 +19,8 @@ from typing import Literal
 
 from bloomery.typing import LogicalType
 
+# ----------------------- #
+
 __all__ = [
     "ColumnDescriptor",
     "Explanation",
@@ -63,6 +65,9 @@ class ColumnDescriptor:
     label: str | None = None
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class MeasureExplanation:
     """How one requested measure was computed: its expression, declared
@@ -72,6 +77,9 @@ class MeasureExplanation:
     expr: str
     additivity: str
     note: str
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,17 +92,25 @@ class Explanation:
     filters: tuple[str, ...]
     policy_applied: bool
 
+    # ....................... #
+
     def render(self) -> str:
         """The human-readable provenance block (RFC 0011 §5.6 shape)."""
         lines = [", ".join(measure.name for measure in self.measures)]
         lines.append(f"  mart:     {self.mart} (grain: {self.grain})")
+
         for measure in self.measures:
             lines.append(f"  measure:  {measure.name} = {measure.expr}")
             lines.append(f"            [{measure.note}]")
+
         rendered_filters = "; ".join(self.filters) if self.filters else "(none)"
         lines.append(f"  filters:  {rendered_filters}")
         lines.append(f"  policy:   {'applied' if self.policy_applied else 'not applied'}")
+
         return "\n".join(lines)
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)

@@ -70,6 +70,8 @@ if TYPE_CHECKING:
     from bloomery.spec.mapping import FieldMapping, Mapping
     from bloomery.spec.quality import FieldQualityRule
 
+# ----------------------- #
+
 __all__ = [
     "field_sources",
     "generated_rule_names",
@@ -95,11 +97,15 @@ def _rule_name(stem: str) -> str:
     a column spelled ``Order-Id`` cannot smuggle a delimiter into the
     comma-delimited fallback.
     """
+
     return _NON_NAME.sub("_", stem.lower())
 
 
 # ....................... #
 # Mapping introspection
+
+
+# ....................... #
 
 
 def mapped_fields(mapping: Mapping) -> tuple[tuple[str, FieldMapping | None], ...]:
@@ -112,6 +118,9 @@ def mapped_fields(mapping: Mapping) -> tuple[tuple[str, FieldMapping | None], ..
     return (*keys, *values)
 
 
+# ....................... #
+
+
 def field_sources(mapping: Mapping, field_name: str) -> tuple[str, ...]:
     """The canonical SQL of every raw extraction one mapped field reads.
 
@@ -119,14 +128,21 @@ def field_sources(mapping: Mapping, field_name: str) -> tuple[str, ...]:
     every source it reads was not" (see
     :func:`bloomery.quality.predicates.violation`).
     """
+
     if field_name in mapping.key:
         return (canon(extraction(mapping.key[field_name].from_)).sql,)
+
     field_mapping = mapping.fields[field_name]
+
     if isinstance(field_mapping, ALIAS_BOUND):
         paths = sorted(field_mapping.from_.values())
     else:
         paths = [field_mapping.from_]
+
     return tuple(canon(extraction(path)).sql for path in paths)
+
+
+# ....................... #
 
 
 def _enum_chain(mapping: Mapping, field_name: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
@@ -147,15 +163,22 @@ def _enum_chain(mapping: Mapping, field_name: str) -> tuple[tuple[str, ...], tup
     # Only a value field can carry ``in_enum`` (key fields have no
     # ``quality:`` surface), so the lookup is total.
     field_mapping = mapping.fields[field_name]
+
     if isinstance(field_mapping, ALIAS_BOUND):
         return ((), ())  # a recipe or macro binds aliases, not a chain — no enum_map
+
     spellings: set[str] = set()
     targets: set[str] = set()
+
     for step in field_mapping.transform:
         if step.name == "enum_map":
             spellings.update(str(value) for value in step.args[::2])
             targets.update(str(value) for value in step.args[1::2])
+
     return tuple(sorted(spellings)), tuple(sorted(targets))
+
+
+# ....................... #
 
 
 def nullifying_steps(
@@ -184,8 +207,10 @@ def nullifying_steps(
     is not this function's error to raise: the chain typecheck already owns
     it, and reporting it twice would only crowd the batch.
     """
+
     if isinstance(field_mapping, ALIAS_BOUND):
         return ()  # a recipe or macro binds aliases, not a chain
+
     if field_mapping is None:
         key_field = mapping.key.get(column)
         if key_field is None:
@@ -193,6 +218,7 @@ def nullifying_steps(
         chain = key_field.transform
     else:
         chain = field_mapping.transform
+
     specs = registry()
     return tuple(
         sorted(
@@ -205,13 +231,20 @@ def nullifying_steps(
     )
 
 
+# ....................... #
+
+
 def _field_quality(field_mapping: FieldMapping | None) -> tuple[FieldQualityRule, ...]:
     return () if field_mapping is None else field_mapping.quality
+
+
+# ....................... #
 
 
 def opts_in(entity: Entity, mapping: Mapping) -> bool:
     """Whether this entity joins the quality system (see the module docstring
     for why ``dedupe:`` alone does not)."""
+
     return bool(
         entity.quality
         or entity.quarantine is not None
@@ -223,8 +256,14 @@ def opts_in(entity: Entity, mapping: Mapping) -> bool:
 # Rule lowering
 
 
+# ....................... #
+
+
 def _indexed(prefix: str, values: tuple[str, ...]) -> list[tuple[str, str]]:
     return [(f"{prefix}_{index:04d}", value) for index, value in enumerate(values)]
+
+
+# ....................... #
 
 
 def _field_rule_ir(
@@ -237,6 +276,7 @@ def _field_rule_ir(
 ) -> QualityRuleIR:
     params: list[tuple[str, str]] = []
     stem = f"{column}_{rule.rule}"
+
     if rule.repair is not None:
         # The recipe travels as SQL, already spliced with this column and the
         # call site's parameters — resolved one layer up, where the step
@@ -246,6 +286,7 @@ def _field_rule_ir(
         params.append(("fallback", rule.repair.fallback))
         params.append(("via", rule.repair.via))
         params.append(("body", repair_body or ""))
+
     if isinstance(rule, CoercibleRule):
         params.extend(_indexed("source", field_sources(mapping, column)))
     elif isinstance(rule, (RangeRule, LengthRule)):
@@ -292,6 +333,7 @@ def _field_rule_ir(
             )
     else:  # UniqueRule — the slice is the entity's partition, or the table
         params.extend(_indexed("slice", slice_columns))
+
     return QualityRuleIR(
         name=_rule_name(stem),
         kind=rule.rule,
@@ -299,6 +341,9 @@ def _field_rule_ir(
         on_fail=OnFail(rule.on_fail),
         params=tuple(sorted(params)),
     )
+
+
+# ....................... #
 
 
 def _referential_ir(rule: ReferentialRule, relationship: Relationship) -> QualityRuleIR:
@@ -323,10 +368,17 @@ def _referential_ir(rule: ReferentialRule, relationship: Relationship) -> Qualit
     )
 
 
+# ....................... #
+
+
 def _dedupe_fields(entity: Entity) -> frozenset[str]:
     if entity.dedupe is None:
         return frozenset()
+
     return frozenset({entity.dedupe.field, *entity.dedupe.tie_break})
+
+
+# ....................... #
 
 
 def _assign_names(rules: list[QualityRuleIR], taken: set[str]) -> list[QualityRuleIR]:
@@ -346,6 +398,7 @@ def _assign_names(rules: list[QualityRuleIR], taken: set[str]) -> list[QualityRu
     name (RFC 0003: same specs in, same bytes out).
     """
     named: list[QualityRuleIR] = []
+
     for rule in sorted(rules, key=quality_sort_key):
         name, index = rule.name, 1
         while name in taken:
@@ -353,7 +406,11 @@ def _assign_names(rules: list[QualityRuleIR], taken: set[str]) -> list[QualityRu
             name = f"{rule.name}_{index}"
         taken.add(name)
         named.append(rule if name == rule.name else replace(rule, name=name))
+
     return named
+
+
+# ....................... #
 
 
 def _deduplicate_names(
@@ -386,7 +443,11 @@ def _deduplicate_names(
     taken: set[str] = set()
     named = _assign_names(generated, taken)
     named.extend(_assign_names(authored, taken))
+
     return tuple(sorted(named, key=quality_sort_key))
+
+
+# ....................... #
 
 
 def _draft_rules(
@@ -445,6 +506,7 @@ def _draft_rules(
             )
 
     by_name = {relationship.name: relationship for relationship in relationships}
+
     for row_rule in entity.quality:
         if isinstance(row_rule, ExpressionRule):
             authored.append(
@@ -468,7 +530,11 @@ def _draft_rules(
             relationship = by_name.get(row_rule.via)
             if relationship is not None:
                 generated.append(_referential_ir(row_rule, relationship))
+
     return generated, authored
+
+
+# ....................... #
 
 
 def generated_rule_names(
@@ -480,10 +546,15 @@ def generated_rule_names(
     it, which is exactly what makes it usable as the set a guardrail refuses an
     authored name for landing in. Empty for an entity that never opted in.
     """
+
     if not opts_in(entity, mapping):
         return frozenset()
+
     generated, _authored = _draft_rules(entity, mapping, relationships, {})
     return frozenset(rule.name for rule in _assign_names(generated, set()))
+
+
+# ....................... #
 
 
 def lower_quality(
@@ -500,8 +571,10 @@ def lower_quality(
     splicing needs the step registry and the field's declared type, neither of
     which this module may reach.
     """
+
     if not opts_in(entity, mapping):
         return ()
+
     generated, authored = _draft_rules(entity, mapping, relationships, repairs or {})
     return _deduplicate_names(generated, authored)
 
@@ -510,29 +583,43 @@ def lower_quality(
 # The entity-level blocks
 
 
+# ....................... #
+
+
 def lower_dedupe(entity: Entity) -> DedupeIR | None:
     """``dedupe:`` → :class:`DedupeIR`, authored ``tie_break`` order kept (it
     is a sort order, therefore semantic — RFC 0003 D4)."""
+
     if entity.dedupe is None:
         return None
+
     return DedupeIR(
         keep=entity.dedupe.keep, field=entity.dedupe.field, tie_break=entity.dedupe.tie_break
     )
 
 
+# ....................... #
+
+
 def lower_quarantine(entity: Entity) -> QuarantineIR | None:
     """``quarantine:`` → :class:`QuarantineIR`, ``redact`` sorted (it is a set
     of paths; authored order carries nothing)."""
+
     if entity.quarantine is None:
         return None
+
     return QuarantineIR(
         retention=entity.quarantine.retention, redact=tuple(sorted(entity.quarantine.redact))
     )
 
 
+# ....................... #
+
+
 def lower_coverage(entity_model: EntityModel) -> tuple[CoverageIR, ...]:
     """The document-level ``coverage:`` list → :class:`CoverageIR`, sorted by
     name (RFC 0016 D90)."""
+
     return tuple(
         sorted(
             (
@@ -549,9 +636,13 @@ def lower_coverage(entity_model: EntityModel) -> tuple[CoverageIR, ...]:
     )
 
 
+# ....................... #
+
+
 def lower_reconcile(entity_model: EntityModel) -> tuple[ReconcileIR, ...]:
     """The document-level ``reconcile:`` list → :class:`ReconcileIR`, sorted by
     name."""
+
     return tuple(
         sorted(
             (

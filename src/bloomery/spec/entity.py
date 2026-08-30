@@ -26,6 +26,8 @@ from bloomery.spec.common import (
 )
 from bloomery.spec.quality import Coverage, Dedupe, EntityQualityRule, Quarantine, Reconcile
 
+# ----------------------- #
+
 __all__ = [
     "AssertClause",
     "Entity",
@@ -47,6 +49,9 @@ class AssertClause(SpecModel):
     regex: str | None = None
 
 
+# ....................... #
+
+
 class Field(SpecModel):
     """One entity field: logical type (grammar-validated string at parse,
     RFC 0002 §5.5), optional catalog link, explicit-rename annotation
@@ -57,6 +62,9 @@ class Field(SpecModel):
     canonical: str | None = None
     renamed_from: str | None = None
     assert_: AssertClause | None = PydanticField(default=None, alias="assert")
+
+
+# ....................... #
 
 
 class Entity(SpecModel):
@@ -80,6 +88,9 @@ class Entity(SpecModel):
     quarantine: Quarantine | None = None
 
 
+# ....................... #
+
+
 class Relationship(SpecModel):
     """A declared relationship between two entities; ``via`` maps from-side
     columns to to-side columns."""
@@ -98,6 +109,9 @@ class Relationship(SpecModel):
     #: (RFC 0002 D4 — shape is exactly what parse is for).
     via: dict[str, str] = PydanticField(min_length=1)
     cardinality: CardinalityName
+
+
+# ....................... #
 
 
 class EntityModel(SpecModel):

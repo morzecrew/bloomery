@@ -13,6 +13,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+# ----------------------- #
+
 __all__ = [
     "BackfillScope",
     "Change",
@@ -39,6 +41,9 @@ class ChangeClass(StrEnum):
     BREAKING = "breaking"
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class Change:
     """One classified difference between two IRs (RFC 0007 §5.1).
@@ -62,6 +67,9 @@ class Change:
     new: str | None = None
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class BackfillScope:
     """Which stored rows a plan invalidates (RFC 0007 §5.1): the sorted
@@ -70,6 +78,9 @@ class BackfillScope:
 
     entities: tuple[str, ...]
     restates_history: bool
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +114,9 @@ class ReplayScope:
     entities: tuple[str, ...]
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class Plan:
     """The product of :func:`bloomery.plan.plan` (RFC 0007 D6): classified
@@ -116,16 +130,22 @@ class Plan:
     downstream_impact: tuple[str, ...]
     replay_scope: ReplayScope = ReplayScope(entities=())
 
+    # ....................... #
+
     @property
     def has_changes(self) -> bool:
         """Whether the diff found anything at all — ``plan(ir, ir)`` is the
         empty plan (RFC 0007 D2)."""
+
         return bool(self.changes)
+
+    # ....................... #
 
     @property
     def breaking(self) -> tuple[Change, ...]:
         """The BREAKING subset, in plan order — the changes a caller must
         explicitly accept before applying."""
+
         return tuple(
             change for change in self.changes if change.change_class is ChangeClass.BREAKING
         )

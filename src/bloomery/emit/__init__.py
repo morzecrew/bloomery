@@ -23,6 +23,8 @@ from bloomery.errors import EmitError
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+# ----------------------- #
+
 __all__ = [
     "ArtifactKind",
     "CubeEmitter",
@@ -51,10 +53,15 @@ def register_emitter(emitter: TargetEmitter) -> None:
     """Register an extension target emitter (public API, spec §8; RFC 0008
     D8). A name collision with any existing emitter raises
     :class:`EmitError` — shadowing a target silently is forbidden."""
+
     if emitter.name in _DEFAULT_EMITTERS or emitter.name in _overlay:
         msg = f"target emitter {emitter.name!r} is already registered; shadowing is not allowed"
         raise EmitError(msg)
+
     _overlay[emitter.name] = emitter
+
+
+# ....................... #
 
 
 def get_emitter(name: str) -> TargetEmitter:
@@ -62,7 +69,9 @@ def get_emitter(name: str) -> TargetEmitter:
     :class:`EmitError` listing every known name, sorted."""
     merged = dict(_DEFAULT_EMITTERS) | _overlay
     emitter = merged.get(name)
+
     if emitter is None:
         msg = f"unknown target {name!r}: known targets are {sorted(merged)}"
         raise EmitError(msg)
+
     return emitter

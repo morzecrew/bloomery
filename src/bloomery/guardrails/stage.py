@@ -33,6 +33,8 @@ if TYPE_CHECKING:
     from bloomery.spec.catalog import Catalog
     from bloomery.spec.project import Project
 
+# ----------------------- #
+
 __all__ = [
     "check_guardrails",
 ]
@@ -52,8 +54,10 @@ def _amended_entity(
     )
     present = {column.name for column in entity.columns}
     extra = [pair for pair in shadows.get(entity.name, []) if pair[0].name not in present]
+
     if audits == entity.audits and not extra:
         return entity
+
     columns = tuple(
         sorted([*entity.columns, *(column for column, _ in extra)], key=lambda column: column.name)
     )
@@ -80,6 +84,9 @@ def _amended_entity(
     return replace(entity, columns=columns, sources=sources, audits=audits)
 
 
+# ....................... #
+
+
 def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | None) -> ProjectIR:
     """Run all seven guardrails plus the data-quality leaves over the draft IR
     (RFC 0006 D9; RFC 0016 §5.9).
@@ -101,13 +108,17 @@ def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | N
     violations.extend(check_quality(draft, project))
     assert_errors, lowered = lower_asserts(project, draft)
     violations.extend(assert_errors)
+
     if violations:
         ordered = tuple(sorted(violations, key=lambda v: (v.source_path or "", type(v).__name__)))
         raise GuardrailError.from_collected(ordered)
+
     shadows, reconcile = path_conflict_amendments(derivations, draft)
     entities = tuple(
         _amended_entity(entity, lowered, shadows, reconcile) for entity in draft.entities
     )
+
     if entities == draft.entities:
         return draft
+
     return replace(draft, entities=entities)

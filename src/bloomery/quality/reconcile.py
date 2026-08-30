@@ -40,6 +40,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+# ----------------------- #
+
 __all__ = [
     "RECONCILE_AGGREGATES",
     "RECONCILE_SUFFIX",
@@ -89,9 +91,14 @@ class ReconcileSide:
     agg: str | None = None
     by: tuple[str, ...] = ()
 
+    # ....................... #
+
     @property
     def aggregated(self) -> bool:
         return self.agg is not None
+
+
+# ....................... #
 
 
 def parse_side(text: str) -> ReconcileSide | None:
@@ -103,6 +110,7 @@ def parse_side(text: str) -> ReconcileSide | None:
     aggregate error (RFC 0006 D2) instead of stopping at the first.
     """
     match = _AGGREGATE.match(text)
+
     if match is not None:
         agg = match.group("agg").lower()
         if agg not in RECONCILE_AGGREGATES:
@@ -111,7 +119,10 @@ def parse_side(text: str) -> ReconcileSide | None:
         return ReconcileSide(
             entity=match.group("entity"), column=match.group("column"), agg=agg, by=by
         )
+
     match = _COLUMN.match(text)
+
     if match is None:
         return None
+
     return ReconcileSide(entity=match.group("entity"), column=match.group("column"))

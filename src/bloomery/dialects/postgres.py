@@ -26,6 +26,8 @@ from bloomery.typing import (
     VariantType,
 )
 
+# ----------------------- #
+
 __all__ = [
     "PostgresDialect",
 ]
@@ -84,6 +86,8 @@ class PostgresDialect(SQLGlotDialect):
         VariantType: "JSONB",
     }
 
+    # ....................... #
+
     def render(self, node: Expression) -> str:
         """Render with reserved identifiers quoted and JSON extraction made
         ``jsonb``-safe — the input node is never mutated (the port contract
@@ -118,10 +122,13 @@ class PostgresDialect(SQLGlotDialect):
         rewritten = rewritten.transform(_zoneless_parse)
         rewritten = rewritten.transform(_pg_text_functions)
         rewritten = rewritten.transform(_guarded_try_cast)
+
         for identifier in rewritten.find_all(exp.Identifier):
             if identifier.this.lower() in _RESERVED:
                 identifier.set("quoted", True)
+
         rewritten = rewritten.transform(_variant_is_jsonb)
+
         for extract in rewritten.find_all(exp.JSONExtractScalar):
             path = extract.args.get("expression")
             if not isinstance(path, exp.JSONPath):
@@ -131,8 +138,11 @@ class PostgresDialect(SQLGlotDialect):
                 extract.set("only_json_types", True)  # ``->``/``->>`` form
             else:
                 extract.set("this", exp.cast(extract.this, exp.DataType.build("JSON")))
+
         rewritten = rewritten.transform(_jsonb_extraction)
         return super().render(rewritten)
+
+    # ....................... #
 
     def text_sha256(self, value: Expression) -> Expression:
         """``ENCODE(SHA256(CONVERT_TO(…, 'UTF8')), 'hex')``.
@@ -147,6 +157,8 @@ class PostgresDialect(SQLGlotDialect):
         digest = exp.func("SHA256", encoded)
         return cast("Expression", exp.func("ENCODE", digest, exp.Literal.string("hex")))
 
+    # ....................... #
+
     def json_object(self, pairs: Sequence[tuple[str, Expression]]) -> Expression:
         """``JSON_BUILD_OBJECT('k', v, …)``.
 
@@ -155,9 +167,14 @@ class PostgresDialect(SQLGlotDialect):
         has always been spelled ``json_build_object``.
         """
         arguments: list[Expression] = []
+
         for key, value in pairs:
             arguments.extend((exp.Literal.string(key), value))
+
         return cast("Expression", exp.func("JSON_BUILD_OBJECT", *arguments))
+
+
+# ....................... #
 
 
 #: Datetime inputs Postgres accepts whose value depends on *when the query
@@ -207,9 +224,14 @@ def _variant_is_jsonb(node: Expression) -> Expression:
     than ``variant``, so that cast is about reaching the right *function* and
     not about the column's type.
     """
+
     if isinstance(node, exp.DataType) and node.this is exp.DataType.Type.JSON:
         return exp.DataType.build("JSONB")
+
     return node
+
+
+# ....................... #
 
 
 def _jsonb_extraction(node: Expression) -> Expression:
@@ -240,13 +262,20 @@ def _jsonb_extraction(node: Expression) -> Expression:
     ``->>``/``json_extract_path_text`` return text correctly — moving it here
     would change a column's type to fix nothing.
     """
+
     if not isinstance(node, exp.JSONExtract):
         return node
+
     path = node.args.get("expression")
+
     if not isinstance(path, exp.JSONPath):
         return node
+
     operand = exp.cast(node.this, exp.DataType.build("JSONB"))
     return exp.JSONExtract(this=operand, expression=path.copy(), only_json_types=True)
+
+
+# ....................... #
 
 
 def _pg_text_functions(node: Expression) -> Expression:
@@ -276,10 +305,12 @@ def _pg_text_functions(node: Expression) -> Expression:
     (RFC 0016 D84) already puts this port's floor at 16, so nothing new is
     required of the engine.
     """
+
     if isinstance(node, exp.EndsWith):
         suffix = node.expression
         tail = exp.func("RIGHT", node.this.copy(), exp.Length(this=suffix.copy()))
         return exp.EQ(this=cast("Expression", tail), expression=suffix.copy())
+
     if isinstance(node, exp.RegexpExtract):
         group = node.args.get("group") or exp.Literal.number(0)
         return cast(
@@ -294,7 +325,11 @@ def _pg_text_functions(node: Expression) -> Expression:
                 group.copy(),
             ),
         )
+
     return node
+
+
+# ....................... #
 
 
 def _zoneless_parse(node: Expression) -> Expression:
@@ -324,9 +359,14 @@ def _zoneless_parse(node: Expression) -> Expression:
     ``parse_date``'s ``TO_DATE`` needs none of this: it returns ``date``, which
     has no zone to attach.
     """
+
     if not isinstance(node, exp.StrToTime):
         return node
+
     return exp.cast(node, exp.DataType.build("TIMESTAMP"))
+
+
+# ....................... #
 
 
 def _guarded_try_cast(node: Expression) -> Expression:
@@ -355,14 +395,17 @@ def _guarded_try_cast(node: Expression) -> Expression:
     column. Over a folded constant Postgres evaluates the ``THEN`` branch at
     plan time and raises — which is how this was nearly mismeasured.
     """
+
     if not isinstance(node, exp.TryCast):
         return node
+
     value = node.this
     type_name = node.to.sql(dialect="postgres")
     valid = cast(
         "Expression",
         exp.func("pg_input_is_valid", value.copy(), exp.Literal.string(type_name)),
     )
+
     if node.to.this.name.upper() in _TEMPORAL:
         stable = exp.Not(
             this=exp.RegexpLike(
@@ -371,4 +414,5 @@ def _guarded_try_cast(node: Expression) -> Expression:
             )
         )
         valid = exp.And(this=valid, expression=stable)
+
     return exp.Case(ifs=[exp.If(this=valid, true=exp.cast(value.copy(), node.to.copy()))])

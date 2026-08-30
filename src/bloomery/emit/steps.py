@@ -59,6 +59,8 @@ if TYPE_CHECKING:
     from bloomery.emit.base import EmitContext
     from bloomery.ir import ProjectIR, QualityRuleIR, StepIR, StepOutputIR, StepParameterIR
 
+# ----------------------- #
+
 __all__ = [
     "consistency_audits",
     "refuse_python_models",
@@ -83,8 +85,10 @@ def refuse_python_models(ir: ProjectIR, target: str) -> None:
     refused = sorted(
         f"{step.ref}@{step.version}" for step in ir.steps if step.kind is StepKind.PYTHON_MODEL
     )
+
     if not refused:
         return
+
     msg = (
         f"project wires python_model step(s) {', '.join(refused)}, which the {target} "
         "target cannot emit (RFC 0017 D52). dbt's Python models run on Snowflake, "
@@ -95,6 +99,9 @@ def refuse_python_models(ir: ProjectIR, target: str) -> None:
     raise UnsupportedByTarget(msg)
 
 
+# ....................... #
+
+
 def step_body(step: StepIR) -> Expression:
     """A Tier 2 body with its parameters substituted, for any target.
 
@@ -103,12 +110,20 @@ def step_body(step: StepIR) -> Expression:
     the parameter substitution underneath must be the one thing both share
     (RFC 0008 D4).
     """
+
     return _with_parameters(step)
+
+
+# ....................... #
 
 
 def step_output_relation(output: StepOutputIR, ctx: EmitContext) -> tuple[str, str]:
     """``(namespace, relation)`` for one output, under the naming policy."""
+
     return ctx.naming.relation(_relation_name(output), Layer.SILVER)
+
+
+# ....................... #
 
 
 # The wrapper is Python, so the envelope interpolates *pre-rendered* strings
@@ -197,6 +212,7 @@ def _python_literal(value: object) -> str:
     §5.3/D3's promise is that such a spec can never become an
     arbitrary-code-execution surface.
     """
+
     if isinstance(value, dict):
         pairs = cast("dict[object, object]", value)
         items = ", ".join(
@@ -204,13 +220,19 @@ def _python_literal(value: object) -> str:
             for key, item in sorted(pairs.items(), key=lambda pair: str(pair[0]))
         )
         return "{" + items + "}"
+
     if isinstance(value, (list, tuple)):
         members: Sequence[object] = cast("Sequence[object]", value)
         return "[" + ", ".join(_python_literal(item) for item in members) + "]"
+
     if isinstance(value, (str, bool, int)) or value is None:
         return repr(value)
+
     msg = f"unsupported value in a generated wrapper literal: {type(value).__name__}"
     raise TypeError(msg)
+
+
+# ....................... #
 
 
 def _manifest_literal(step: StepIR) -> str:
@@ -222,6 +244,7 @@ def _manifest_literal(step: StepIR) -> str:
     keys and their produced columns — because anything else would be a second
     copy of the manifest going stale in a generated file.
     """
+
     return _python_literal(
         {
             "ref": step.ref,
@@ -243,13 +266,20 @@ def _manifest_literal(step: StepIR) -> str:
     )
 
 
+# ....................... #
+
+
 def _columns_literal(output: StepOutputIR, ctx: EmitContext) -> str:
     """The SQLMesh ``columns=`` mapping — physical types through the dialect
     port, so a step model declares its schema the same way every other model
     does."""
+
     return _python_literal(
         {column.name: ctx.dialect.physical_type(column.type) for column in output.columns}
     )
+
+
+# ....................... #
 
 
 #: How each declared parameter type is reconstructed in the wrapper. The IR
@@ -274,16 +304,24 @@ _PARAMETER_CTORS: Final[dict[str, str]] = {
 
 def _parameter_expression(parameter: StepParameterIR) -> str:
     base = parameter.type.split("(", 1)[0].strip()
+
     if base == "bool":
         return repr(parameter.value.strip().lower() in {"true", "1"})
+
     if base == "int":
         # Validated at lowering; repr of the parsed int rather than the text,
         # so nothing an author wrote reaches the source unquoted.
         return repr(int(parameter.value))
+
     template = _PARAMETER_CTORS.get(base)
+
     if template is None:
         return repr(parameter.value)
+
     return template.format(literal=repr(parameter.value))
+
+
+# ....................... #
 
 
 def _with_parameters(step: StepIR) -> Expression:
@@ -293,9 +331,11 @@ def _with_parameters(step: StepIR) -> Expression:
     the declared parameters, so every placeholder found here has a value and
     every value is used.
     """
+
     if step.body is None:  # pragma: no cover — lowering refuses a bodiless Tier 2 step
         msg = f"step {step.ref}@{step.version} is a sql_model with no body"
         raise ValueError(msg)
+
     values = {parameter.name: parameter for parameter in step.parameters}
 
     def _substitute(node: Expression) -> Expression:
@@ -303,9 +343,13 @@ def _with_parameters(step: StepIR) -> Expression:
             parameter = values.get(node.this)
             if parameter is not None:
                 return parameter_literal(parameter.value, parameter.type)
+
         return node
 
     return step.body.ast().transform(_substitute)
+
+
+# ....................... #
 
 
 def _parameters_literal(step: StepIR) -> str:
@@ -318,9 +362,14 @@ def _parameters_literal(step: StepIR) -> str:
     step agree (D16).
     """
     entries = [f"{_python_literal(p.name)}: {_parameter_expression(p)}" for p in step.parameters]
+
     if step.seed is not None:
         entries.append(f"{_python_literal('seed')}: {step.seed:d}")
+
     return "{" + ", ".join(entries) + "}"
+
+
+# ....................... #
 
 
 def _wrapper_artifact(
@@ -366,6 +415,9 @@ def _wrapper_artifact(
     )
 
 
+# ....................... #
+
+
 def _bound(relation: str, ctx: EmitContext) -> str:
     """An input binding as the naming policy spells it.
 
@@ -378,6 +430,9 @@ def _bound(relation: str, ctx: EmitContext) -> str:
     return f"{namespace}.{name}"
 
 
+# ....................... #
+
+
 def _relation_name(output: StepOutputIR) -> str:
     """The bare relation a bound output writes to.
 
@@ -385,7 +440,11 @@ def _relation_name(output: StepOutputIR) -> str:
     owns the namespace, so only the last segment is handed to it — otherwise
     a policy that prefixes namespaces would produce ``silver.silver_customer``.
     """
+
     return output.relation.rsplit(".", 1)[-1]
+
+
+# ....................... #
 
 
 def _sql_model_artifact(
@@ -414,6 +473,9 @@ def _sql_model_artifact(
     )
 
 
+# ....................... #
+
+
 #: Aliases for the two sides of a consistency audit. Fixed rather than derived
 #: from the output names, which are only identifiers — two outputs could
 #: otherwise alias to the same thing.
@@ -427,6 +489,9 @@ def _qualified(output: StepOutputIR, ctx: EmitContext) -> str:
     return f"{namespace}.{relation}"
 
 
+# ....................... #
+
+
 def _audit_relation(output: StepOutputIR, ctx: EmitContext) -> exp.Table:
     """The relation an output writes, as the naming policy spells it.
 
@@ -436,7 +501,11 @@ def _audit_relation(output: StepOutputIR, ctx: EmitContext) -> exp.Table:
     a scoping policy means does not exist, which is the defect D34 fixed on
     the input side and this repeated on the audit side.
     """
+
     return exp.to_table(_qualified(output, ctx))
+
+
+# ....................... #
 
 
 def _consistency_select(
@@ -475,12 +544,19 @@ def _consistency_select(
     )
 
 
+# ....................... #
+
+
 def _audit_name(child: StepOutputIR, column: str, parent: StepOutputIR) -> str:
     """Namespaced under ``step_`` so it cannot collide with an RFC 0016
     quality audit, whose names are ``<entity>_<rule>`` over author-chosen
     parts. Two audits at one path is the two-writers collision D28 refuses for
     relations, arrived at through the audit namespace."""
+
     return f"step_{_relation_name(child)}_{column}_references_{_relation_name(parent)}"
+
+
+# ....................... #
 
 
 #: The alias a step-output quality audit reads its own relation under. Fixed,
@@ -499,7 +575,11 @@ def _macro_relation(_output: StepOutputIR) -> str:
     against the model it judges — and the alternative, emitting ``@this_model``
     and rewriting the file afterwards, is the substitution D10 refuses.
     """
+
     return THIS_MODEL
+
+
+# ....................... #
 
 
 def _quality_audit_name(output: StepOutputIR, rule: QualityRuleIR) -> str:
@@ -507,7 +587,11 @@ def _quality_audit_name(output: StepOutputIR, rule: QualityRuleIR) -> str:
     consistency audits use, so an authored rule name cannot collide with an
     RFC 0016 audit (``<entity>_<rule>``) on a mapped entity of the same name.
     """
+
     return f"step_{_relation_name(output)}_{rule.name}"
+
+
+# ....................... #
 
 
 def quality_audits(
@@ -545,6 +629,7 @@ def quality_audits(
         entity.name: entity.quality for entity in ir.entities if entity.produced_by is not None
     }
     emitted: list[AuditBody] = []
+
     for output in step.outputs:
         for rule in rules.get(_relation_name(output), ()):
             if rule.on_fail is not OnFail.FAIL:  # pragma: no cover — lowering refuses these
@@ -566,7 +651,11 @@ def quality_audits(
                 .where(verdict(rule, _OUTPUT_ALIAS))
             )
             emitted.append(AuditBody(owner=output.name, name=name, select=select))
+
     return tuple(emitted)
+
+
+# ....................... #
 
 
 def consistency_audits(step: StepIR, ctx: EmitContext) -> tuple[AuditBody, ...]:
@@ -605,6 +694,7 @@ def consistency_audits(step: StepIR, ctx: EmitContext) -> tuple[AuditBody, ...]:
     # test passed without.
     emitted: list[AuditBody] = []
     by_name = {output.name: output for output in step.outputs}
+
     for child in step.outputs:
         for column, target in child.references:
             parent = by_name.get(target)
@@ -617,7 +707,11 @@ def consistency_audits(step: StepIR, ctx: EmitContext) -> tuple[AuditBody, ...]:
                     select=_consistency_select(parent, child, column, ctx),
                 )
             )
+
     return tuple(emitted)
+
+
+# ....................... #
 
 
 def step_artifacts(
@@ -639,6 +733,7 @@ def step_artifacts(
     it now says so in its signature instead of in its output.
     """
     artifacts: list[EmittedArtifact] = []
+
     for step in ir.steps:
         if step.kind is StepKind.SQL_MACRO:
             continue
@@ -679,4 +774,5 @@ def step_artifacts(
                 artifacts.append(_wrapper_artifact(step, output, ir, ctx, attached, reads))
             else:
                 artifacts.append(_sql_model_artifact(step, output, ctx, envelope, attached, reads))
+
     return tuple(sorted(artifacts, key=lambda a: a.path))

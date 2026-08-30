@@ -129,6 +129,8 @@ if TYPE_CHECKING:
         TransformStepIR,
     )
 
+# ----------------------- #
+
 __all__ = [
     "plan",
 ]
@@ -143,14 +145,22 @@ def _render_shape(column: ColumnIR) -> str:
     return f"{_render_type(column.type)}, {'required' if column.required else 'optional'}"
 
 
+# ....................... #
+
+
 def _ref_names(column: ColumnIR) -> frozenset[str]:
     """Every name a metric may reference this column by: its own name and,
     when linked, its canonical name (``MetricIR.depends_on`` leaves are
     canonical names — RFC 0005 §5.3)."""
     names = {column.name}
+
     if column.canonical is not None:
         names.add(column.canonical)
+
     return frozenset(names)
+
+
+# ....................... #
 
 
 @dataclass(slots=True)
@@ -176,17 +186,26 @@ class _Acc:
 # Entities and columns (§5.2 rules 1–4, §5.3)
 
 
+# ....................... #
+
+
 def _entity_columns_refs(entity: EntityIR) -> frozenset[str]:
     names: set[str] = set()
+
     for column in entity.columns:
         names |= _ref_names(column)
+
     return frozenset(names)
+
+
+# ....................... #
 
 
 def _added_entity(entity: EntityIR, acc: _Acc) -> None:
     for column in entity.columns:
         if column.renamed_from is not None:
             _raise_stale_rename(entity.name, column)
+
     acc.changes.append(
         Change(entity.name, f"entity:{entity.name}", ChangeClass.ADDITIVE, "entity added")
     )
@@ -202,6 +221,9 @@ def _added_entity(entity: EntityIR, acc: _Acc) -> None:
     )
 
 
+# ....................... #
+
+
 def _dropped_entity(entity: EntityIR, acc: _Acc) -> None:
     acc.changes.append(
         Change(
@@ -211,9 +233,14 @@ def _dropped_entity(entity: EntityIR, acc: _Acc) -> None:
             f"entity dropped ({len(entity.columns)} fields)",
         )
     )
+
     for column in entity.columns:
         acc.contract_fields.append((f"{entity.name}.{column.name}", "dropped", _ref_names(column)))
+
     acc.seeds |= _entity_columns_refs(entity)
+
+
+# ....................... #
 
 
 def _reject_source(entity: EntityIR) -> SourceIR:
@@ -225,6 +252,7 @@ def _reject_source(entity: EntityIR) -> SourceIR:
     among branches. Spelled as an accessor so it stops being true loudly if
     P2 ever lets both hold at once.
     """
+
     if len(entity.sources) != 1:
         msg = (
             f"the reject schema of entity {entity.name!r} was diffed across "
@@ -233,12 +261,20 @@ def _reject_source(entity: EntityIR) -> SourceIR:
             "'quarantine:' on a merged entity"
         )
         raise PlanError(msg)
+
     return entity.sources[0]
+
+
+# ....................... #
 
 
 def _relations(entity: EntityIR) -> tuple[str, ...]:
     """The bronze relations the entity is built from, in branch order."""
+
     return tuple(source.relation for source in entity.sources)
+
+
+# ....................... #
 
 
 def _source_set_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> bool:
@@ -269,6 +305,7 @@ def _source_set_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> bool:
     """
     subject = f"entity:{new_e.name}"
     old_relations, new_relations = _relations(old_e), _relations(new_e)
+
     if len(old_relations) == 1 and len(new_relations) == 1:
         acc.changes.append(
             Change(
@@ -282,8 +319,10 @@ def _source_set_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> bool:
         )
         acc.backfill.add(new_e.name)
         return True
+
     added = tuple(relation for relation in new_relations if relation not in old_relations)
     removed = tuple(relation for relation in old_relations if relation not in new_relations)
+
     if added:
         detail = f"source added to the union merge ({', '.join(added)})"
         if len(old_relations) == 1:
@@ -299,13 +338,18 @@ def _source_set_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> bool:
         # that silently tells an operator no metric is affected is the reading
         # that costs them the most.
         acc.seeds |= _entity_columns_refs(new_e)
+
     if removed:
         detail = f"source removed from the union merge ({', '.join(removed)})"
         if len(new_relations) == 1:
             detail += f"; the {SOURCE_COLUMN} column is dropped"
         acc.changes.append(Change(new_e.name, subject, ChangeClass.RESTATING, detail))
         acc.backfill.add(new_e.name)
+
     return bool(removed)
+
+
+# ....................... #
 
 
 def _entity_level_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
@@ -319,6 +363,7 @@ def _entity_level_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
         ("materialization", str(old_e.materialization), str(new_e.materialization)),
     )
     redefined = False
+
     for label, old_repr, new_repr in breaking:
         if old_repr != new_repr:
             redefined = True
@@ -332,10 +377,13 @@ def _entity_level_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                     new=new_repr,
                 )
             )
+
     if _relations(old_e) != _relations(new_e):
         redefined |= _source_set_changes(old_e, new_e, acc)
+
     if redefined:
         acc.seeds |= _entity_columns_refs(old_e) | _entity_columns_refs(new_e)
+
     if old_e.partition_by != new_e.partition_by:
         acc.changes.append(
             Change(
@@ -345,10 +393,14 @@ def _entity_level_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 "partition_by changed (metadata only)",
             )
         )
+
     if old_e.audits != new_e.audits:
         acc.changes.append(
             Change(new_e.name, subject, ChangeClass.ADDITIVE, "audits changed (metadata only)")
         )
+
+
+# ....................... #
 
 
 def _raise_stale_rename(entity_name: str, column: ColumnIR) -> None:
@@ -363,6 +415,9 @@ def _raise_stale_rename(entity_name: str, column: ColumnIR) -> None:
     )
 
 
+# ....................... #
+
+
 def _rename_map(old_e: EntityIR, new_e: EntityIR) -> dict[str, str]:
     """Validated old-name → new-name bridges (§5.3). An annotation the old IR
     already carries on the same column is *applied*, not stale — this is what
@@ -370,6 +425,7 @@ def _rename_map(old_e: EntityIR, new_e: EntityIR) -> dict[str, str]:
     old_cols = {column.name: column for column in old_e.columns}
     new_names = {column.name for column in new_e.columns}
     renames: dict[str, str] = {}
+
     for column in new_e.columns:
         source = column.renamed_from
         if source is None:
@@ -393,7 +449,11 @@ def _rename_map(old_e: EntityIR, new_e: EntityIR) -> dict[str, str]:
             )
             raise PlanError(msg, source_path=source_path)
         renames[source] = column.name
+
     return renames
+
+
+# ....................... #
 
 
 def _shared_relations(old_e: EntityIR, new_e: EntityIR) -> tuple[str, ...]:
@@ -413,6 +473,9 @@ def _shared_relations(old_e: EntityIR, new_e: EntityIR) -> tuple[str, ...]:
     return tuple(relation for relation in _relations(old_e) if relation in present)
 
 
+# ....................... #
+
+
 def _source_signature(
     entity: EntityIR, column: str, relation: str
 ) -> tuple[tuple[str, tuple[TransformStepIR, ...]], ...]:
@@ -424,13 +487,18 @@ def _source_signature(
     relation once per column as well.
     """
     origin = next((source for source in entity.sources if source.relation == relation), None)
+
     if origin is None:  # pragma: no cover — `relations` is the shared set, so it is present
         return ()
+
     return tuple(
         (entry.source_path, entry.transform)
         for entry in origin.fields
         if entry.target_field == column
     )
+
+
+# ....................... #
 
 
 _SEMANTIC_FACETS = ("canonical", "recipe", "expression", "unit", "tax_basis", "source")
@@ -448,12 +516,16 @@ def _lowerings(entity: EntityIR, name: str) -> dict[str, SourceColumnIR]:
     the same sources and index-matching them would compare one shop's lowering
     against another's.
     """
+
     return {
         source.relation: column
         for source in entity.sources
         for column in source.columns
         if column.name == name
     }
+
+
+# ....................... #
 
 
 def _recipe_label(entity: EntityIR, name: str, relations: tuple[str, ...]) -> str | None:
@@ -467,9 +539,14 @@ def _recipe_label(entity: EntityIR, name: str, relations: tuple[str, ...]) -> st
     """
     lowerings = _lowerings(entity, name)
     recipes = [lowerings[relation].recipe_id for relation in relations if relation in lowerings]
+
     if len(recipes) == 1:
         return recipes[0]
+
     return ", ".join(sorted({recipe for recipe in recipes if recipe is not None})) or None
+
+
+# ....................... #
 
 
 def _semantic_signature(
@@ -495,6 +572,9 @@ def _semantic_signature(
     )
 
 
+# ....................... #
+
+
 def _added_column(entity_name: str, column: ColumnIR, acc: _Acc) -> None:
     if column.required:
         acc.changes.append(
@@ -508,6 +588,7 @@ def _added_column(entity_name: str, column: ColumnIR, acc: _Acc) -> None:
             )
         )
         return
+
     acc.changes.append(
         Change(
             entity_name,
@@ -519,17 +600,22 @@ def _added_column(entity_name: str, column: ColumnIR, acc: _Acc) -> None:
     )
 
 
+# ....................... #
+
+
 def _dropped_column(old_e: EntityIR, new_e: EntityIR, column: ColumnIR, acc: _Acc) -> None:
     old_names = {c.name for c in old_e.columns}
     same_typed = sorted(
         c.name for c in new_e.columns if c.name not in old_names and c.type == column.type
     )
     hint = ""
+
     if same_typed:
         hint = (
             f" (a same-typed field {same_typed[0]!r} was added — if this is a rename, "
             f"declare renamed_from: {column.name!r} instead)"
         )
+
     acc.changes.append(
         Change(
             new_e.name,
@@ -541,6 +627,9 @@ def _dropped_column(old_e: EntityIR, new_e: EntityIR, column: ColumnIR, acc: _Ac
     )
     acc.contract_fields.append((f"{new_e.name}.{column.name}", "dropped", _ref_names(column)))
     acc.seeds |= _ref_names(column)
+
+
+# ....................... #
 
 
 def _column_pair(
@@ -557,6 +646,7 @@ def _column_pair(
     record (identity preserved — no drop, no add, no backfill)."""
     subject = f"field:{new_c.name}"
     refs = _ref_names(old_c) | _ref_names(new_c)
+
     if renamed_from is not None:
         acc.changes.append(
             Change(
@@ -568,6 +658,7 @@ def _column_pair(
                 new=new_c.name,
             )
         )
+
     if old_c.type != new_c.type or old_c.required != new_c.required:
         widened = assignable(old_c.type, new_c.type)
         tightened = new_c.required and not old_c.required
@@ -603,11 +694,13 @@ def _column_pair(
             )
         acc.seeds |= refs
         return
+
     shared = _shared_relations(old_e, new_e)
     old_sig = _semantic_signature(old_e, old_c, shared)
     new_sig = _semantic_signature(new_e, new_c, shared)
     old_recipe = _recipe_label(old_e, old_c.name, shared)
     new_recipe = _recipe_label(new_e, new_c.name, shared)
+
     if old_sig != new_sig:
         facets = [
             facet
@@ -627,6 +720,7 @@ def _column_pair(
         acc.backfill.add(new_e.name)
         acc.seeds |= refs
         return
+
     if old_c.description != new_c.description:
         acc.changes.append(
             Change(
@@ -643,6 +737,9 @@ def _column_pair(
 # docstring's four bullets: this section implements exactly them.
 
 
+# ....................... #
+
+
 def _rule_identity(rule: QualityRuleIR) -> tuple[str, str, str]:
     """What makes two rules *the same rule* across two IRs.
 
@@ -652,7 +749,11 @@ def _rule_identity(rule: QualityRuleIR) -> tuple[str, str, str]:
     rule that changed shape (``min`` → ``max``) reads as one rule removed and
     another added — which is what it is.
     """
+
     return (rule.kind, rule.column or "", rule.name)
+
+
+# ....................... #
 
 
 def _rule_settings(rule: QualityRuleIR) -> tuple[tuple[str, str], ...]:
@@ -661,7 +762,11 @@ def _rule_settings(rule: QualityRuleIR) -> tuple[tuple[str, str], ...]:
     ``referential`` carries ``on_missing`` *as* a param, so leaving it in
     would report a disposition change twice, in two different vocabularies.
     """
+
     return tuple((name, value) for name, value in rule.params if name != "on_missing")
+
+
+# ....................... #
 
 
 def _disposition_label(rule: QualityRuleIR) -> str:
@@ -676,9 +781,14 @@ def _disposition_label(rule: QualityRuleIR) -> str:
     disposition changes classified in **both** directions, so the label is the
     authored value.
     """
+
     if rule.on_fail is not None:
         return str(rule.on_fail)
+
     return dict(rule.params)["on_missing"]
+
+
+# ....................... #
 
 
 #: Rule kinds whose params define an *ordered* admissible interval, so a
@@ -718,6 +828,9 @@ def _members(kind: str, settings: tuple[tuple[str, str], ...]) -> frozenset[str]
     return frozenset(value for name, value in settings if name.rsplit("_", 1)[0] in families)
 
 
+# ....................... #
+
+
 def _admits_previously_rejected(old_rule: QualityRuleIR, new_rule: QualityRuleIR) -> bool | None:
     """Whether the settings change admits any value the old rule **rejected**:
     ``True`` some quarantined row can now come back, ``False`` none can,
@@ -741,8 +854,10 @@ def _admits_previously_rejected(old_rule: QualityRuleIR, new_rule: QualityRuleIR
     pretend.
     """
     old_settings, new_settings = _rule_settings(old_rule), _rule_settings(new_rule)
+
     if old_settings == new_settings:
         return False
+
     if old_rule.kind in _SET_KINDS:
         # The param *names* are positions in a sorted list, so a set that grew
         # or shrank changes them; only the membership families carry values.
@@ -750,10 +865,16 @@ def _admits_previously_rejected(old_rule: QualityRuleIR, new_rule: QualityRuleIR
         # membership contains anything the old one did not.
         gained = _members(new_rule.kind, new_settings) - _members(old_rule.kind, old_settings)
         return bool(gained)
+
     old_params, new_params = dict(old_settings), dict(new_settings)
+
     if old_rule.kind in _BOUNDED_KINDS and set(old_params) == set(new_params):
         return _admits_outside_bounds(old_params, new_params)
+
     return None
+
+
+# ....................... #
 
 
 def _bound_value(text: str) -> Decimal | datetime | None:
@@ -770,12 +891,17 @@ def _bound_value(text: str) -> Decimal | datetime | None:
 
     Parsing only; no clock is read (RFC 0003).
     """
+
     if EXACT_DECIMAL.match(text):
         return Decimal(text)
+
     try:
         return datetime.fromisoformat(text)
     except ValueError:
         return None
+
+
+# ....................... #
 
 
 def _compare_bounds(lhs_text: str, rhs_text: str) -> int | None:
@@ -791,15 +917,21 @@ def _compare_bounds(lhs_text: str, rhs_text: str) -> int | None:
     guessed.
     """
     lhs, rhs = _bound_value(lhs_text), _bound_value(rhs_text)
+
     if isinstance(lhs, Decimal) and isinstance(rhs, Decimal):
         return (lhs > rhs) - (lhs < rhs)
+
     if (
         isinstance(lhs, datetime)
         and isinstance(rhs, datetime)
         and (lhs.tzinfo is None) == (rhs.tzinfo is None)
     ):
         return (lhs > rhs) - (lhs < rhs)
+
     return None
+
+
+# ....................... #
 
 
 def _admits_outside_bounds(old_params: dict[str, str], new_params: dict[str, str]) -> bool | None:
@@ -817,12 +949,17 @@ def _admits_outside_bounds(old_params: dict[str, str], new_params: dict[str, str
     ``None``, undecidable, rather than a guess about the end it could read.
     """
     moved: dict[str, int] = {}
+
     for bound, old_text in old_params.items():
         order = _compare_bounds(new_params[bound], old_text)
         if order is None:
             return None
         moved[bound] = order
+
     return moved.get("min", 0) < 0 or moved.get("max", 0) > 0
+
+
+# ....................... #
 
 
 def _restates(acc: _Acc, entity: EntityIR, subject: str, detail: str, **reprs: str | None) -> None:
@@ -843,10 +980,14 @@ def _restates(acc: _Acc, entity: EntityIR, subject: str, detail: str, **reprs: s
     acc.seeds |= _entity_columns_refs(entity)
 
 
+# ....................... #
+
+
 def _quality_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
     """Rule add / remove / change, and the replay scope a relaxation opens."""
     old_rules = {_rule_identity(rule): rule for rule in old_e.quality}
     new_rules = {_rule_identity(rule): rule for rule in new_e.quality}
+
     for identity in sorted(old_rules.keys() | new_rules.keys()):
         kind, _column, name = identity
         subject = f"quality:{name}"
@@ -892,6 +1033,9 @@ def _quality_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
         _replay(old_rule, new_rule, new_e, acc)
 
 
+# ....................... #
+
+
 def _replay(
     old_rule: QualityRuleIR, new_rule: QualityRuleIR | None, entity: EntityIR, acc: _Acc
 ) -> None:
@@ -933,19 +1077,29 @@ def _replay(
     hand — and §5.6's whole point is that quarantine is drop *plus*
     recoverability.
     """
+
     if disposition(old_rule) is not OnFail.QUARANTINE:
         return
+
     if new_rule is None or disposition(new_rule) is OnFail.FLAG:
         acc.replay.add(entity.name)
         return
+
     if _admits_previously_rejected(old_rule, new_rule) is not False:
         acc.replay.add(entity.name)
+
+
+# ....................... #
 
 
 def _dedupe_repr(dedupe: DedupeIR | None) -> tuple[str, str, str]:
     if dedupe is None:
         return ("", "", "")
+
     return (dedupe.keep, dedupe.field, ", ".join(dedupe.tie_break))
+
+
+# ....................... #
 
 
 def _dedupe_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
@@ -953,8 +1107,10 @@ def _dedupe_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
     change to any of them changes stored history (§5.7). Adding or removing
     the block is the same statement in the limit."""
     old_repr, new_repr = _dedupe_repr(old_e.dedupe), _dedupe_repr(new_e.dedupe)
+
     if old_repr == new_repr:
         return
+
     facets = [
         label
         for label, old_part, new_part in zip(
@@ -972,10 +1128,17 @@ def _dedupe_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
     )
 
 
+# ....................... #
+
+
 def _quarantine_repr(quarantine: QuarantineIR | None) -> tuple[str, frozenset[str]]:
     if quarantine is None:
         return ("", frozenset())
+
     return (quarantine.retention, frozenset(quarantine.redact))
+
+
+# ....................... #
 
 
 def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
@@ -994,6 +1157,7 @@ def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
     subject = f"quarantine:{new_e.name}"
     old_retention, old_redact = _quarantine_repr(old_e.quarantine)
     new_retention, new_redact = _quarantine_repr(new_e.quarantine)
+
     if old_e.quarantine is not None and new_e.quarantine is None:
         acc.changes.append(
             Change(
@@ -1018,12 +1182,14 @@ def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 new=new_retention or None,
             )
         )
+
     # Not mutually exclusive: a **swap** is a widening and a narrowing at once,
     # and an ``elif`` here dropped the un-redaction — the caller was told payload
     # is being destroyed but never that a previously-scrubbed path is now being
     # written into ``raw``, which is a PII-governance fact (§5.6, D59).
     widened = sorted(new_redact - old_redact)
     narrowed = sorted(old_redact - new_redact)
+
     if widened:
         acc.changes.append(
             Change(
@@ -1035,6 +1201,7 @@ def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 "restore a redacted path",
             )
         )
+
     if narrowed:
         acc.changes.append(
             Change(
@@ -1045,6 +1212,9 @@ def _quarantine_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 "from now on carry a path the stored ones scrubbed",
             )
         )
+
+
+# ....................... #
 
 
 def _raw_payload_columns(entity: EntityIR) -> frozenset[str]:
@@ -1062,6 +1232,9 @@ def _raw_payload_columns(entity: EntityIR) -> frozenset[str]:
     origin = _reject_source(entity)
     paths = {field.source_path for field in origin.fields} | set(origin.unmapped)
     return frozenset(payload_key(path) for path in paths)
+
+
+# ....................... #
 
 
 def _reject_schema_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
@@ -1084,9 +1257,12 @@ def _reject_schema_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
     stored ones, and neither job can restore a column the write path no longer
     projects.
     """
+
     if old_e.quarantine is None or new_e.quarantine is None:
         return
+
     subject = f"quarantine:{new_e.name}"
+
     if _reject_source(old_e).mapping_version != _reject_source(new_e).mapping_version:
         acc.changes.append(
             Change(
@@ -1098,9 +1274,11 @@ def _reject_schema_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 new=str(_reject_source(new_e).mapping_version),
             )
         )
+
     old_raw, new_raw = _raw_payload_columns(old_e), _raw_payload_columns(new_e)
     gained = sorted(new_raw - old_raw)
     lost = sorted(old_raw - new_raw)
+
     if gained:
         acc.changes.append(
             Change(
@@ -1111,6 +1289,7 @@ def _reject_schema_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 "the stored reject rows do not",
             )
         )
+
     if lost:
         acc.changes.append(
             Change(
@@ -1124,8 +1303,14 @@ def _reject_schema_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
         )
 
 
+# ....................... #
+
+
 def _reconcile_definition(check: ReconcileIR) -> tuple[str, str, str, str]:
     return (check.left, check.right, str(check.tolerance), str(check.on_fail))
+
+
+# ....................... #
 
 
 def _diff_reconcile(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
@@ -1133,6 +1318,7 @@ def _diff_reconcile(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     to neither, so they never enter ``backfill_scope`` (§5.7)."""
     old_map = {check.name: check for check in old.reconcile} if old is not None else {}
     new_map = {check.name: check for check in new.reconcile}
+
     for name in sorted(old_map.keys() | new_map.keys()):
         subject = f"reconcile:{name}"
         if name not in old_map:
@@ -1152,6 +1338,9 @@ def _diff_reconcile(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
             )
 
 
+# ....................... #
+
+
 def _step_identity(step: StepIR) -> tuple[object, ...]:
     """Everything about a step that can change what it produces.
 
@@ -1162,6 +1351,7 @@ def _step_identity(step: StepIR) -> tuple[object, ...]:
     input and a changed output contract are the same kind of fact, and reading
     them off one tuple is what keeps them treated the same.
     """
+
     return (
         step.version,
         step.kind,
@@ -1177,6 +1367,9 @@ def _step_identity(step: StepIR) -> tuple[object, ...]:
     )
 
 
+# ....................... #
+
+
 def _step_entities(step: StepIR) -> frozenset[str]:
     """The entities a step's outputs write — what a step change backfills.
 
@@ -1186,7 +1379,11 @@ def _step_entities(step: StepIR) -> frozenset[str]:
     dependency bump that restated nothing downstream would leave the warehouse
     holding rows no current code can reproduce.
     """
+
     return frozenset(output.relation.rsplit(".", 1)[-1] for output in step.outputs)
+
+
+# ....................... #
 
 
 def _diff_steps(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
@@ -1199,6 +1396,7 @@ def _diff_steps(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     """
     old_map = {step.ref: step for step in old.steps} if old is not None else {}
     new_map = {step.ref: step for step in new.steps}
+
     for ref in sorted(old_map.keys() | new_map.keys()):
         subject = f"step:{ref}"
         if ref not in old_map:
@@ -1253,6 +1451,9 @@ def _diff_steps(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
         acc.seeds |= {column.name for output in new_step.outputs for column in output.columns}
 
 
+# ....................... #
+
+
 def _entity_pair(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
     _entity_level_changes(old_e, new_e, acc)
     _quality_changes(old_e, new_e, acc)
@@ -1263,6 +1464,7 @@ def _entity_pair(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
     renamed_targets = set(renames.values())
     old_cols = {column.name: column for column in old_e.columns}
     new_cols = {column.name: column for column in new_e.columns}
+
     for name in sorted(old_cols.keys() | new_cols.keys()):
         if name in renames:
             _column_pair(
@@ -1278,9 +1480,13 @@ def _entity_pair(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
             _column_pair(old_e, new_e, old_cols[name], new_cols[name], acc, renamed_from=None)
 
 
+# ....................... #
+
+
 def _diff_entities(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     old_map = {entity.name: entity for entity in old.entities} if old is not None else {}
     new_map = {entity.name: entity for entity in new.entities}
+
     for name in sorted(old_map.keys() | new_map.keys()):
         if name not in old_map:
             _added_entity(new_map[name], acc)
@@ -1294,6 +1500,9 @@ def _diff_entities(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
 # Metrics
 
 
+# ....................... #
+
+
 def _metric_definition(metric: MetricIR) -> tuple[object, ...]:
     return (
         metric.additivity,
@@ -1305,8 +1514,12 @@ def _metric_definition(metric: MetricIR) -> tuple[object, ...]:
     )
 
 
+# ....................... #
+
+
 def _metric_pair(old_m: MetricIR, new_m: MetricIR, acc: _Acc) -> None:
     subject = f"metric:{new_m.name}"
+
     if old_m.grain != new_m.grain:
         acc.changes.append(
             Change(
@@ -1320,6 +1533,7 @@ def _metric_pair(old_m: MetricIR, new_m: MetricIR, acc: _Acc) -> None:
         )
         acc.seeds.add(new_m.name)
         return
+
     if _metric_definition(old_m) != _metric_definition(new_m):
         acc.changes.append(
             Change(
@@ -1331,16 +1545,21 @@ def _metric_pair(old_m: MetricIR, new_m: MetricIR, acc: _Acc) -> None:
         )
         acc.seeds.add(new_m.name)
         return
+
     if old_m.description != new_m.description:
         acc.changes.append(
             Change(None, subject, ChangeClass.ADDITIVE, "description changed (metadata only)")
         )
 
 
+# ....................... #
+
+
 def _diff_metrics(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     old_map = {metric.name: metric for metric in old.metrics} if old is not None else {}
     new_map = {metric.name: metric for metric in new.metrics}
     unreachable = {entry.name: entry for entry in new.unreachable}
+
     for name in sorted(old_map.keys() | new_map.keys()):
         subject = f"metric:{name}"
         if name not in old_map:
@@ -1362,8 +1581,12 @@ def _diff_metrics(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
 # Marts (RFC 0007 §12 amended phasing; RFC 0010)
 
 
+# ....................... #
+
+
 def _mart_pair(old_m: MartIR, new_m: MartIR, acc: _Acc) -> None:
     subject = f"mart:{new_m.name}"
+
     for label, old_repr, new_repr in (
         ("grain", old_m.grain, new_m.grain),
         ("base", old_m.base, new_m.base),
@@ -1380,8 +1603,10 @@ def _mart_pair(old_m: MartIR, new_m: MartIR, acc: _Acc) -> None:
                     new=new_repr,
                 )
             )
+
     old_cols = {column.name: column for column in old_m.columns}
     new_cols = {column.name: column for column in new_m.columns}
+
     for name in sorted(old_cols.keys() | new_cols.keys()):
         if name not in old_cols:
             acc.changes.append(
@@ -1395,22 +1620,28 @@ def _mart_pair(old_m: MartIR, new_m: MartIR, acc: _Acc) -> None:
             acc.changes.append(
                 Change(None, subject, ChangeClass.BREAKING, f"flattened column {name!r} changed")
             )
+
     old_measures, new_measures = set(old_m.measures), set(new_m.measures)
     acc.changes.extend(
         Change(None, subject, ChangeClass.ADDITIVE, f"measure {name!r} added")
         for name in sorted(new_measures - old_measures)
     )
+
     for name in sorted(old_measures - new_measures):
         acc.changes.append(Change(None, subject, ChangeClass.BREAKING, f"measure {name!r} removed"))
         acc.dropped_measures.append((new_m.name, name))
+
     if old_m.dimensions != new_m.dimensions:
         acc.changes.append(Change(None, subject, ChangeClass.BREAKING, "dimensions changed"))
+
     if old_m.joins != new_m.joins:
         acc.changes.append(Change(None, subject, ChangeClass.BREAKING, "joins changed"))
+
     if old_m.partition_by != new_m.partition_by:
         acc.changes.append(
             Change(None, subject, ChangeClass.ADDITIVE, "partition_by changed (metadata only)")
         )
+
     if old_m.cost_hint != new_m.cost_hint:
         acc.changes.append(
             Change(
@@ -1424,9 +1655,13 @@ def _mart_pair(old_m: MartIR, new_m: MartIR, acc: _Acc) -> None:
         )
 
 
+# ....................... #
+
+
 def _diff_marts(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     old_map = {mart.name: mart for mart in old.marts} if old is not None else {}
     new_map = {mart.name: mart for mart in new.marts}
+
     for name in sorted(old_map.keys() | new_map.keys()):
         subject = f"mart:{name}"
         if name not in old_map:
@@ -1442,9 +1677,13 @@ def _diff_marts(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
 # Relationships and the date dimension
 
 
+# ....................... #
+
+
 def _diff_relationships(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     old_map = {rel.name: rel for rel in old.relationships} if old is not None else {}
     new_map = {rel.name: rel for rel in new.relationships}
+
     for name in sorted(old_map.keys() | new_map.keys()):
         subject = f"relationship:{name}"
         if name not in old_map:
@@ -1462,9 +1701,13 @@ def _diff_relationships(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> Non
             )
 
 
+# ....................... #
+
+
 def _diff_date_dimension(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     old_d = old.date_dimension if old is not None else None
     new_d = new.date_dimension
+
     if new_d is None:
         if old_d is not None:
             acc.changes.append(
@@ -1476,6 +1719,7 @@ def _diff_date_dimension(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> No
                 )
             )
         return
+
     if old_d is None:
         acc.changes.append(
             Change(
@@ -1483,8 +1727,10 @@ def _diff_date_dimension(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> No
             )
         )
         return
+
     if old_d == new_d:
         return
+
     bounds_only = (
         old_d.name == new_d.name
         and old_d.grain == new_d.grain
@@ -1509,28 +1755,40 @@ def _diff_date_dimension(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> No
 # Dependency edges: downstream impact and expand/contract (D5, D6)
 
 
+# ....................... #
+
+
 def _dependency_closure(
     name: str, by_name: dict[str, MetricIR], memo: dict[str, frozenset[str]]
 ) -> frozenset[str]:
     """Every name reachable from a metric through ``depends_on``, itself
     included — leaves are canonical field names, inner nodes metric names."""
     cached = memo.get(name)
+
     if cached is not None:
         return cached
+
     memo[name] = frozenset((name,))  # cycle guard; resolution guarantees a DAG
     names = {name}
     metric = by_name.get(name)
+
     if metric is not None:
         for dependency in metric.depends_on:
             names |= _dependency_closure(dependency, by_name, memo)
+
     closure = frozenset(names)
     memo[name] = closure
+
     return closure
+
+
+# ....................... #
 
 
 def _downstream_impact(new: ProjectIR, seeds: set[str]) -> tuple[str, ...]:
     if not seeds:
         return ()
+
     by_name = {metric.name: metric for metric in new.metrics}
     memo: dict[str, frozenset[str]] = {}
     return tuple(
@@ -1540,11 +1798,15 @@ def _downstream_impact(new: ProjectIR, seeds: set[str]) -> tuple[str, ...]:
     )
 
 
+# ....................... #
+
+
 def _enforce_contract(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     """RFC 0007 D5 — the stage's only refusal: a dropped or narrowed field
     still referenced by a metric reachable in ``new``, or by an old-reachable
     metric that vanished in the same plan (deprecation must land first)."""
     problems: list[str] = []
+
     if acc.contract_fields and old is not None:
         old_by_name = {metric.name: metric for metric in old.metrics}
         new_by_name = {metric.name: metric for metric in new.metrics}
@@ -1569,6 +1831,7 @@ def _enforce_contract(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
                     f"{', '.join(referencing)} — expand/contract: land the metric's removal "
                     "(deprecation) in a prior version, then drop or narrow the field"
                 )
+
     if acc.dropped_measures:
         new_metric_names = {metric.name for metric in new.metrics}
         served = {measure for mart in new.marts for measure in mart.measures}
@@ -1579,6 +1842,7 @@ def _enforce_contract(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
                     "reachable and no other mart serves it — remove or deprecate the metric "
                     "in a prior version"
                 )
+
     if problems:
         raise ContractViolation(
             "expand/contract violation (RFC 0007 D5):\n  - " + "\n  - ".join(problems)
@@ -1587,6 +1851,9 @@ def _enforce_contract(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
 
 # ....................... #
 # The public diff
+
+
+# ....................... #
 
 
 def _sort_key(change: Change) -> tuple[str, str, str, str, str, str]:
@@ -1598,6 +1865,9 @@ def _sort_key(change: Change) -> tuple[str, str, str, str, str, str]:
         change.old or "",
         change.new or "",
     )
+
+
+# ....................... #
 
 
 def plan(old: ProjectIR | None, new: ProjectIR) -> Plan:
@@ -1612,12 +1882,14 @@ def plan(old: ProjectIR | None, new: ProjectIR) -> Plan:
     and :class:`ContractViolation` on an expand/contract breach (D5) — every
     other change, BREAKING included, is classified and returned.
     """
+
     if old is not None and old.bloomery_ir_version != new.bloomery_ir_version:
         msg = (
             f"cannot diff IR version {old.bloomery_ir_version} against "
             f"{new.bloomery_ir_version} — recompile both sides with one compiler"
         )
         raise PlanError(msg)
+
     acc = _Acc()
     _diff_entities(old, new, acc)
     _diff_metrics(old, new, acc)

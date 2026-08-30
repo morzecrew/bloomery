@@ -42,6 +42,8 @@ if TYPE_CHECKING:
     from bloomery.ir import MetricIR
     from bloomery.spec.catalog import Catalog
 
+# ----------------------- #
+
 __all__ = [
     "check_arithmetic",
 ]
@@ -64,17 +66,29 @@ class _Side:
     metas: tuple[OperandMeta, ...]
 
 
+# ....................... #
+
+
 def _summarize(node: Expression, lookup: dict[str, OperandMeta]) -> _Side:
     names = dict.fromkeys(col.name for col in node.find_all(exp.Column) if col.name in lookup)
     return _Side(metas=tuple(lookup[name] for name in names))
+
+
+# ....................... #
 
 
 def _declared_units(side: _Side) -> set[str]:
     return {meta.unit for meta in side.metas if meta.unit is not None}
 
 
+# ....................... #
+
+
 def _declared_currencies(side: _Side) -> set[str]:
     return {meta.currency for meta in side.metas if meta.currency is not None}
+
+
+# ....................... #
 
 
 def _described(metas: tuple[OperandMeta, ...], attribute: str) -> str:
@@ -83,10 +97,15 @@ def _described(metas: tuple[OperandMeta, ...], attribute: str) -> str:
     )
 
 
+# ....................... #
+
+
 def _check_units(op: str, left: _Side, right: _Side, source_path: str) -> UnitMismatch | None:
     left_units, right_units = _declared_units(left), _declared_units(right)
+
     if len(left_units) != 1 or len(right_units) != 1 or left_units == right_units:
         return None
+
     metas = left.metas + right.metas
     msg = (
         f"{op!r} combines {_described(metas, 'unit')}; operands of '+'/'-' must share a "
@@ -96,6 +115,9 @@ def _check_units(op: str, left: _Side, right: _Side, source_path: str) -> UnitMi
     return UnitMismatch(msg, source_path=source_path)
 
 
+# ....................... #
+
+
 def _check_tax(op: str, left: _Side, right: _Side, source_path: str) -> TaxBasisMismatch | None:
     # The rule is scoped to monetary arithmetic (RFC 0006 §5.2): operands with
     # a declared non-currency unit (a count is not money) carry no basis by
@@ -103,9 +125,12 @@ def _check_tax(op: str, left: _Side, right: _Side, source_path: str) -> TaxBasis
     metas = tuple(
         meta for meta in left.metas + right.metas if meta.unit is None or meta.unit == Unit.CURRENCY
     )
+
     if not any(meta.unit == Unit.CURRENCY for meta in metas):
         return None
+
     described = _described(metas, "tax_basis")
+
     if any(meta.tax_basis is None for meta in metas):
         msg = (
             f"{op!r} combines {described}; an unknown basis means the canonical field "
@@ -115,6 +140,7 @@ def _check_tax(op: str, left: _Side, right: _Side, source_path: str) -> TaxBasis
             "to a canonical field that carries one"
         )
         return TaxBasisMismatch(msg, source_path=source_path)
+
     if {meta.tax_basis for meta in metas} >= {"net", "gross"}:
         msg = (
             f"{op!r} combines {described}; net and gross may not meet in '+'/'-' "
@@ -122,15 +148,21 @@ def _check_tax(op: str, left: _Side, right: _Side, source_path: str) -> TaxBasis
             "before combining"
         )
         return TaxBasisMismatch(msg, source_path=source_path)
+
     return None
+
+
+# ....................... #
 
 
 def _check_currency(
     op: str, left: _Side, right: _Side, source_path: str
 ) -> CurrencyMismatch | None:
     left_codes, right_codes = _declared_currencies(left), _declared_currencies(right)
+
     if len(left_codes) != 1 or len(right_codes) != 1 or left_codes == right_codes:
         return None
+
     metas = left.metas + right.metas
     msg = (
         f"{op!r} combines {_described(metas, 'currency')}; distinct declared codes may "
@@ -142,11 +174,15 @@ def _check_currency(
     return CurrencyMismatch(msg, source_path=source_path)
 
 
+# ....................... #
+
+
 def _walk(sql: str, lookup: dict[str, OperandMeta], source_path: str) -> list[GuardrailError]:
     """One expression's violations — at most one per rule (first offending
     node in deterministic walk order)."""
     found: dict[type[GuardrailError], GuardrailError] = {}
     tree = cast("Expression", parse_one(sql))
+
     for node in tree.find_all(exp.Add, exp.Sub, exp.Mul, exp.Div):
         op = _OPS[type(node)]
         left = _summarize(node.this, lookup)
@@ -163,7 +199,11 @@ def _walk(sql: str, lookup: dict[str, OperandMeta], source_path: str) -> list[Gu
             currency_hit = _check_currency(op, left, right, source_path)
             if currency_hit is not None:
                 found[CurrencyMismatch] = currency_hit
+
     return list(found.values())
+
+
+# ....................... #
 
 
 def check_arithmetic(
@@ -174,6 +214,7 @@ def check_arithmetic(
     """Every unit/tax/currency violation across all derivation and metric
     expressions, in walk order (the stage sorts before raising)."""
     violations: list[GuardrailError] = []
+
     for derivation in derivations:
         if derivation.expr is None:
             continue
@@ -183,6 +224,7 @@ def check_arithmetic(
             if (meta := operand_meta(name, catalog)) is not None
         }
         violations.extend(_walk(derivation.expr, lookup, derivation.source_path))
+
     for metric in metrics:
         if metric.expr is None:
             continue
@@ -192,4 +234,5 @@ def check_arithmetic(
             if (meta := operand_meta(name, catalog)) is not None
         }
         violations.extend(_walk(metric.expr.sql, lookup, f"metrics: metrics.{metric.name}"))
+
     return violations

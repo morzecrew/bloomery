@@ -16,6 +16,8 @@ from typing import Protocol
 
 from bloomery.ir import Layer
 
+# ----------------------- #
+
 __all__ = [
     "DefaultNaming",
     "NamingPolicy",
@@ -30,6 +32,9 @@ class NamingPolicy(Protocol):
     def relation(self, entity: str, layer: Layer) -> tuple[str, str]: ...
 
 
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class DefaultNaming:
     """The layer-named default: bronze relations pass through under the
@@ -39,7 +44,11 @@ class DefaultNaming:
     def relation(self, entity: str, layer: Layer) -> tuple[str, str]:
         if layer is Layer.GOLD:
             return ("gold", f"mart_{entity}")
+
         return (layer.value, entity)
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +58,8 @@ class PrefixNaming:
     per hard invariant #3 (RFC 0008 §5.1)."""
 
     prefix: str
+
+    # ....................... #
 
     def relation(self, entity: str, layer: Layer) -> tuple[str, str]:
         namespace, relation = DefaultNaming().relation(entity, layer)

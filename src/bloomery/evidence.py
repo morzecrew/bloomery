@@ -51,6 +51,8 @@ from bloomery.steps import EMPTY_REGISTRY, StepRegistry
 if TYPE_CHECKING:
     from bloomery.ir import MartIR, ProjectIR
 
+# ----------------------- #
+
 __all__ = [
     "Gap",
     "MartSummary",
@@ -85,6 +87,9 @@ class MartSummary:
     materialization: Materialization
 
 
+# ....................... #
+
+
 class Gap(StrEnum):
     """Why a canonical field is unavailable — which decides the edit
     (RFC 0030 D3).
@@ -101,6 +106,9 @@ class Gap(StrEnum):
     #: A field carries the link and no mapping produces it. The edit is a
     #: mapping field, and it is where the recipe choice is.
     UNMAPPED = "unmapped"
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,6 +130,9 @@ class RecipeOption:
     requires: tuple[str, ...]
     #: The recipe's expression; ``None`` is identity over a single requirement.
     expr: str | None = None
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,6 +171,9 @@ class OpenDecision:
     #: nothing requires is not work — and it is what lets a caller set a
     #: priority bloomery deliberately does not.
     blocks: tuple[str, ...]
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -264,6 +278,9 @@ class SpecEvidence:
     provenance: tuple[FieldProvenance, ...] = ()
 
 
+# ....................... #
+
+
 def _mart_summary(mart: MartIR) -> MartSummary:
     return MartSummary(
         name=mart.name,
@@ -274,6 +291,9 @@ def _mart_summary(mart: MartIR) -> MartSummary:
         dimensions=tuple(sorted(str(dimension.ref) for dimension in mart.dimensions)),
         materialization=mart.materialization,
     )
+
+
+# ....................... #
 
 
 def _refusals(raised: BloomeryError) -> tuple[BloomeryError, ...]:
@@ -290,7 +310,11 @@ def _refusals(raised: BloomeryError) -> tuple[BloomeryError, ...]:
     nests two deep, and flattening a hierarchy nobody builds would be guessing
     at a shape rather than reading one.
     """
+
     return tuple(sorted(raised.collected or (raised,), key=_refusal_key))
+
+
+# ....................... #
 
 
 def _refusal_key(refusal: BloomeryError) -> tuple[str, str, str]:
@@ -300,7 +324,11 @@ def _refusal_key(refusal: BloomeryError) -> tuple[str, str, str]:
     stands in for ``None`` — a refusal with no path sorts first and
     deterministically, rather than the comparison failing on a mixed tuple.
     """
+
     return (refusal.source_path or "", type(refusal).__name__, str(refusal))
+
+
+# ....................... #
 
 
 def _unresolved(
@@ -323,9 +351,11 @@ def _unresolved(
     does.
     """
     blocked_by: dict[str, list[str]] = {}
+
     for metric in resolution.unreachable_metrics:
         for canonical in metric.missing:
             blocked_by.setdefault(canonical, []).append(metric.name)
+
     if catalog is None:  # no canonical fields, so nothing requires one
         return ()
 
@@ -333,13 +363,16 @@ def _unresolved(
     # closes the gap when mapped, so naming one is naming the edit rather than
     # choosing between unequal options (`logs/T-0007.md` D-032).
     linked: dict[str, tuple[str, str]] = {}
+
     for entity_name, declared_entity in sorted(project.entity_model.entities.items()):
         for field_name, field in sorted(declared_entity.fields.items()):
             if field.canonical is not None:
                 linked.setdefault(field.canonical, (entity_name, field_name))
+
     mappings_per_entity = Counter(mapping.target for mapping in project.mappings)
 
     decisions: list[OpenDecision] = []
+
     for canonical in sorted(blocked_by):
         declared = catalog.canonical_fields[canonical]
         link = linked.get(canonical)
@@ -362,7 +395,11 @@ def _unresolved(
                 blocks=tuple(sorted(blocked_by[canonical])),
             )
         )
+
     return tuple(decisions)
+
+
+# ....................... #
 
 
 def _from_ir(
@@ -410,6 +447,9 @@ def _from_ir(
     )
 
 
+# ....................... #
+
+
 def _reachability(
     resolution: Resolution,
 ) -> tuple[tuple[str, ...], tuple[UnreachableMetric, ...]]:
@@ -420,10 +460,14 @@ def _reachability(
     key gained a field in the change that added ``via``, and a projection
     written twice is one where the second copy is updated a release later.
     """
+
     return (
         tuple(sorted(resolution.reachable_metrics)),
         tuple(sorted(resolution.unreachable_metrics, key=_unreachable_key)),
     )
+
+
+# ....................... #
 
 
 def _unreachable_key(metric: UnreachableMetric) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
@@ -433,7 +477,11 @@ def _unreachable_key(metric: UnreachableMetric) -> tuple[str, tuple[str, ...], t
     and a sort key that relies on a uniqueness it does not state is one
     refactor away from being unstable for a reason nobody looks for.
     """
+
     return (metric.name, metric.missing, metric.via)
+
+
+# ....................... #
 
 
 def _partial(
@@ -462,10 +510,13 @@ def _partial(
     """
     refusals = _refusals(raised)
     resolution = progress.resolution
+
     if resolution is None:
         return SpecEvidence(stage_reached=stage, refusals=refusals)
+
     if progress.ir is not None:
         return _from_ir(stage, project, catalog, progress.ir, resolution, refusals)
+
     reachable, unreachable = _reachability(resolution)
     return SpecEvidence(
         stage_reached=stage,
@@ -475,6 +526,9 @@ def _partial(
         unresolved=_unresolved(project, catalog, resolution),
         provenance=resolution.provenance,
     )
+
+
+# ....................... #
 
 
 def evaluate(
@@ -518,6 +572,7 @@ def evaluate(
     # so when one refuses these hold that stage and everything before it —
     # which is exactly the partial answer.
     stage, progress = Stage.RESOLVE, StageProgress()
+
     try:
         for reached_stage, reached in pipeline(project, catalog, steps=steps):
             stage, progress = reached_stage, reached
@@ -525,8 +580,11 @@ def evaluate(
         raise
     except BloomeryError as refusal:
         return _partial(stage, project, catalog, progress, refusal)
+
     ir, resolution = progress.ir, progress.resolution
+
     if ir is None or resolution is None:  # pragma: no cover — COMPLETE carries both
         msg = "the pipeline reached COMPLETE without an IR"
         raise InvariantViolated(msg)
+
     return _from_ir(Stage.COMPLETE, project, catalog, ir, resolution, (), project_fingerprint(ir))

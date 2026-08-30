@@ -27,6 +27,8 @@ if TYPE_CHECKING:
     from bloomery.spec.mapping import TransformStep
     from bloomery.transforms.registry import Registry, TransformSpec
 
+# ----------------------- #
+
 __all__ = [
     "ChainCheck",
     "typecheck_chain",
@@ -36,32 +38,48 @@ __all__ = [
 
 def _describe(t: LogicalType) -> str:
     """A type as the spec layer spells it (``decimal(12, 4)``, ``string``)."""
+
     if isinstance(t, DecimalType):
         return f"decimal({t.precision}, {t.scale})"
+
     return type(t).__name__.removesuffix("Type").lower()
+
+
+# ....................... #
 
 
 def _is_number(value: str | int) -> bool:
     if isinstance(value, bool):
         return False
+
     if isinstance(value, int):
         return True
+
     try:
         return Decimal(value).is_finite()
     except InvalidOperation:
         return False
 
 
+# ....................... #
+
+
 def _arg_matches(kind: ArgKind, value: str | int) -> bool:
     if kind is ArgKind.STR:
         return isinstance(value, str)
+
     if kind is ArgKind.INT:
         return isinstance(value, int) and not isinstance(value, bool)
+
     if kind is ArgKind.NUMBER:
         return _is_number(value)
+
     # ArgKind.LITERAL — a str or an int, mirrored into SQL as-is (a non-str
     # value is an int by the parameter type; only bool must be excluded).
     return isinstance(value, str) or not isinstance(value, bool)
+
+
+# ....................... #
 
 
 def _check_args(spec: TransformSpec, args: tuple[str | int, ...], *, source_path: str) -> None:
@@ -75,6 +93,7 @@ def _check_args(spec: TransformSpec, args: tuple[str | int, ...], *, source_path
     elif len(args) != spec.arity:
         msg = f"{spec.name!r} takes {spec.arity} argument(s), got {len(args)}"
         raise TypeCheckError(msg, source_path=source_path)
+
     for position, value in enumerate(args):
         kind = spec.arg_kinds[position % len(spec.arg_kinds)]
         if not _arg_matches(kind, value):
@@ -85,14 +104,22 @@ def _check_args(spec: TransformSpec, args: tuple[str | int, ...], *, source_path
             raise TypeCheckError(msg, source_path=source_path)
 
 
+# ....................... #
+
+
 def _lookup(name: str, registry: Registry, *, source_path: str) -> TransformSpec:
     spec = registry.get(name)
+
     if spec is not None:
         return spec
+
     matches = difflib.get_close_matches(name, sorted(registry), n=1)
     hint = f"; closest match: {matches[0]!r}" if matches else ""
     msg = f"unknown transform {name!r}{hint}"
     raise UnknownTransformError(msg, source_path=source_path)
+
+
+# ....................... #
 
 
 def typecheck_chain(
@@ -112,6 +139,7 @@ def typecheck_chain(
     Step failures carry ``source_path`` suffixed ``.transform[i]``.
     """
     current = input_type
+
     for index, step in enumerate(steps):
         step_path = f"{source_path}.transform[{index}]"
         spec = _lookup(step.name, registry, source_path=step_path)
@@ -129,6 +157,7 @@ def typecheck_chain(
             current = spec.output_type(current, step.args)
         except TypeCheckError as exc:
             raise TypeCheckError(str(exc), source_path=step_path) from None
+
     if not assignable(current, declared):
         msg = (
             f"chain produces {_describe(current)}, which is not assignable to "
@@ -140,7 +169,11 @@ def typecheck_chain(
                 "explicit to_decimal(p, s) step"
             )
         raise TypeCheckError(msg, source_path=source_path)
+
     return current
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,6 +187,9 @@ class ChainCheck:
     source_path: str
 
 
+# ....................... #
+
+
 def typecheck_chains(
     checks: Sequence[ChainCheck], *, registry: Registry
 ) -> tuple[LogicalType, ...]:
@@ -162,6 +198,7 @@ def typecheck_chains(
     listing every path (a single failure is raised as itself)."""
     results: list[LogicalType] = []
     errors: list[BloomeryError] = []
+
     for check in checks:
         try:
             results.append(
@@ -175,8 +212,10 @@ def typecheck_chains(
             )
         except (TypeCheckError, UnknownTransformError) as exc:
             errors.append(exc)
+
     if errors:
         if len(errors) == 1:
             raise errors[0]
         raise TypeCheckError.from_collected(tuple(errors))
+
     return tuple(results)

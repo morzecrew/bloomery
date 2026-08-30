@@ -45,6 +45,8 @@ from bloomery.spec.quality import (
 )
 from bloomery.spec.steps import StepSet, StepUse, StepWiring
 
+# ----------------------- #
+
 __all__ = [
     # catalog
     "Catalog",

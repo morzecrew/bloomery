@@ -31,6 +31,8 @@ from bloomery.resolve.graph import Edge, Graph, Node
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+# ----------------------- #
+
 __all__ = [
     "Direction",
     "Lineage",
@@ -59,6 +61,9 @@ class Direction(StrEnum):
     #: ``edges`` are the **union of what the two walks reached**, not the
     #: subgraph induced on that union — see :func:`lineage`.
     BOTH = "both"
+
+
+# ....................... #
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +107,9 @@ class Lineage:
     truncated: bool = False
 
 
+# ....................... #
+
+
 def lineage(
     graph: Graph,
     root: Node,
@@ -137,6 +145,7 @@ def lineage(
     # on the result, so the value would misreport the walk it describes. This
     # also refuses `"both"`, which is D4's P2 member and has no behaviour yet.
     direction = Direction(direction)
+
     if max_depth is not None and max_depth < 0:
         msg = f"max_depth must be >= 0 or None, got {max_depth}"
         raise ValueError(msg)
@@ -147,6 +156,7 @@ def lineage(
     # lists inherit that order and nothing here iterates a set into output.
     outgoing: dict[Node, list[Edge]] = {}
     incoming: dict[Node, list[Edge]] = {}
+
     for edge in graph.edges:
         outgoing.setdefault(edge.src, []).append(edge)
         incoming.setdefault(edge.dst, []).append(edge)
@@ -158,6 +168,7 @@ def lineage(
         # incoming edges and the node reached is their `src`.
         step: dict[Node, list[Edge]]
         reached: Callable[[Edge], Node]
+
         if one_way is Direction.UPSTREAM:
             step, reached = incoming, lambda edge: edge.src
         else:
@@ -167,6 +178,7 @@ def lineage(
         crossed: set[Edge] = set()
         frontier: list[Node] = [root]
         depth = 0
+
         while frontier:
             if max_depth is not None and depth >= max_depth:
                 # Every edge leaving the frontier is one the walk would have
@@ -196,6 +208,7 @@ def lineage(
                         following.append(far)
             frontier = following
             depth += 1
+
         return seen, crossed, False
 
     if direction is Direction.BOTH:

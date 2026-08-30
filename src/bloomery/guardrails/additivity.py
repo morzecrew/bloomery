@@ -31,6 +31,8 @@ from bloomery.ir import Additivity
 if TYPE_CHECKING:
     from bloomery.ir import MetricIR, ProjectIR, SqlExpr
 
+# ----------------------- #
+
 __all__ = [
     "check_additivity",
 ]
@@ -39,7 +41,11 @@ __all__ = [
 def _has_decomposition(metric: MetricIR) -> bool:
     """An expression over declared dependencies is an additive decomposition
     the planner can recompute from (RFC 0011 D5)."""
+
     return metric.expr is not None and metric.depends_on != ()
+
+
+# ....................... #
 
 
 def _aggregates_over(expr: SqlExpr, dimension: str) -> bool:
@@ -50,8 +56,12 @@ def _aggregates_over(expr: SqlExpr, dimension: str) -> bool:
     )
 
 
+# ....................... #
+
+
 def _check_non_additive(metric: MetricIR, draft: ProjectIR, path: str) -> list[GuardrailError]:
     violations: list[GuardrailError] = []
+
     if metric.ratio is None and not _has_decomposition(metric):
         msg = (
             f"metric {metric.name!r} is non_additive but declares neither a ratio nor an "
@@ -61,12 +71,14 @@ def _check_non_additive(metric: MetricIR, draft: ProjectIR, path: str) -> list[G
             "its additive components (or an expr over additive dependencies)"
         )
         violations.append(NonAdditiveWithoutComponents(msg, source_path=path))
+
     stored = sorted(
         entity.name
         for entity in draft.entities
         for column in entity.columns
         if column.name == metric.name
     )
+
     if stored:
         msg = (
             f"metric {metric.name!r} is non_additive and may not be materialized as a "
@@ -76,7 +88,11 @@ def _check_non_additive(metric: MetricIR, draft: ProjectIR, path: str) -> list[G
             "calculated measure at query time"
         )
         violations.append(AdditivityViolation(msg, source_path=path))
+
     return violations
+
+
+# ....................... #
 
 
 def _check_semi_additive(metric: MetricIR, path: str) -> list[GuardrailError]:
@@ -88,7 +104,9 @@ def _check_semi_additive(metric: MetricIR, path: str) -> list[GuardrailError]:
             "semi_additive: {over: <date dimension>, rule: last|first|avg|min|max}"
         )
         return [AdditivityViolation(msg, source_path=path)]
+
     over = metric.semi_additive.over.dimension
+
     if metric.expr is not None and _aggregates_over(metric.expr, over):
         msg = (
             f"metric {metric.name!r} is semi_additive over {over!r} but its expr "
@@ -98,16 +116,22 @@ def _check_semi_additive(metric: MetricIR, path: str) -> list[GuardrailError]:
             f"({metric.semi_additive.rule}) is applied at query time"
         )
         return [AdditivityViolation(msg, source_path=path)]
+
     return []
+
+
+# ....................... #
 
 
 def check_additivity(draft: ProjectIR) -> list[GuardrailError]:
     """Every additivity violation across the draft's metrics."""
     violations: list[GuardrailError] = []
+
     for metric in draft.metrics:
         path = f"metrics: metrics.{metric.name}"
         if metric.additivity is Additivity.NON_ADDITIVE:
             violations.extend(_check_non_additive(metric, draft, path))
         elif metric.additivity is Additivity.SEMI_ADDITIVE:
             violations.extend(_check_semi_additive(metric, path))
+
     return violations
