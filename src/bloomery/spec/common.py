@@ -279,7 +279,7 @@ def _with_document_identity(
         )
         # The authored value is dropped and the loader's bound in its place, so
         # the rest of the document still validates and reports its own errors.
-        refusal = SpecParseError(msg, source_path=f"{document}.document")
+        refusal = SpecParseError(msg, source_path=source_path_from_loc(document, ("document",)))
 
         return {**data, "document": document}, refusal  # pyright: ignore[reportUnknownVariableType]
 

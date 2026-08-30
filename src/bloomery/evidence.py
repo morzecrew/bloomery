@@ -148,9 +148,12 @@ class OpenDecision:
     **Every entry names one edit** (RFC 0030 D9). An entry a caller cannot act
     on is worse than a gap — it is a worklist item that never clears — so a
     canonical whose entity is built by more than one mapping is left out
-    entirely: its columns are per mapping (RFC 0024 D26), and an entry keyed on
-    the canonical cannot say which document to edit. Nothing is hidden by that;
-    the metric blocked on it is still in
+    entirely. The reason is no longer that no identity exists: RFC 0032 gives
+    a mapping one, and :class:`~bloomery.FieldProvenance` names it. What is
+    unanswered is what an entry would *mean* across N documents, since a merged
+    entity's gap may be closable in **any** one of them — so an entry per
+    mapping would be an over-count rather than a list. Nothing is hidden by the
+    omission; the metric blocked on it is still in
     :attr:`~bloomery.SpecEvidence.unreachable`.
     """
 
@@ -201,7 +204,7 @@ class SpecEvidence:
     :attr:`marts`                           ``(name, grain)``
     :attr:`refusals`                        ``(source_path or "", class, str)``
     :attr:`unresolved`                      ``canonical``
-    :attr:`provenance`                      ``(entity, field)``
+    :attr:`provenance`                      ``(entity, field, mapping)``
     ======================================  ==================================
 
     One collection escapes that rule, deliberately and in one place:
@@ -271,10 +274,9 @@ class SpecEvidence:
     #: has already decided, and the recipe id it decided on (RFC 0030 D8).
     #: Computed on every ``resolve()``; carried here rather than discarded.
     #:
-    #: One entry per ``(entity, field)``, so a **merged entity's** field appears
-    #: once however many mappings build it — see
-    #: :class:`~bloomery.FieldProvenance`, which carries the limit and where it
-    #: is answered.
+    #: One entry per ``(entity, field, mapping)`` (RFC 0032), so a **merged
+    #: entity's** field appears once per mapping that builds it, each naming the
+    #: document it was read from — see :class:`~bloomery.FieldProvenance`.
     provenance: tuple[FieldProvenance, ...] = ()
 
 

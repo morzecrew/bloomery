@@ -12,6 +12,7 @@ construction.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from enum import StrEnum
 
 from bloomery.ir import UnreachableMetric
@@ -62,18 +63,20 @@ class FieldProvenance:
     entity's other mappings were not representable at all; ``mapping`` is the
     document name that made them representable.
 
-    ``mapping`` is third rather than appended last (RFC 0032 D5). Every field
-    before ``recipe_id`` is required, so a caller constructing this
-    positionally gets a ``TypeError`` on arity rather than the silent
-    rebinding :class:`~bloomery.SpecEvidence`'s own field order exists to
-    avoid — which is what lets reading order win over wire order here.
+    ``mapping`` reads third and is **keyword-only** (RFC 0032 D11). D5 put it
+    third on the argument that a positional caller would fail on arity; that
+    was wrong, because ``recipe_id`` carries a default, so the old
+    four-argument call ``FieldProvenance(entity, field, provenance, recipe_id)``
+    still satisfies arity and binds ``provenance`` into ``mapping`` — the exact
+    silent rebinding the placement was chosen to avoid. Keyword-only restores
+    the loud failure, and keeps the reading order the argument wanted.
     """
 
     entity: str
     field: str
     #: The mapping document that builds this field (RFC 0032 D1) — the name it
     #: was loaded under, which is the document a reader would edit.
-    mapping: str
+    mapping: str = dataclass_field(kw_only=True)
     provenance: Provenance
     recipe_id: str | None = None
 

@@ -225,7 +225,7 @@ def test_an_authored_document_key_is_refused() -> None:
             document="mappings/orders",
         )
 
-    assert excinfo.value.source_path == "mappings/orders.document"
+    assert excinfo.value.source_path == "mappings/orders: document"
     assert "not part of the mapping vocabulary" in str(excinfo.value)
 
 
@@ -249,7 +249,7 @@ def test_an_authored_document_joins_the_documents_other_failures() -> None:
 
     paths = sorted(err.source_path for err in excinfo.value.collected)
     assert paths == [
-        "mappings/orders.document",
+        "mappings/orders: document",
         "mappings/orders: fields.f.simple.from",
     ]
 
