@@ -72,6 +72,9 @@ def _handmade_project(*, canonical: str | None) -> Project:
     )
     mapping = Mapping.model_validate(
         {
+            # `document` is the loader's to bind (RFC 0032 D3); this constructs
+            # the model directly, so it supplies its own.
+            "document": "mapping_item",
             "mapping_version": 1,
             "source": "s",
             "target": "item",

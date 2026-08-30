@@ -34,6 +34,7 @@ import yaml
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 from jsonschema import Draft202012Validator
+from pydantic import ValidationError
 
 from bloomery import SpecKind, all_spec_schemas, load_catalog, load_project
 from bloomery.spec import Mapping
@@ -409,6 +410,10 @@ def test_the_schema_refuses_a_boolean_transform_argument_the_parser_coerces() ->
 
     parsed = Mapping.model_validate(
         {
+            # Bound by `validate_document` on every loaded document (RFC 0032
+            # D1); this bypasses it to reach the parser directly, so it says so
+            # itself. See `test_document_is_in_the_model_and_not_the_schema`.
+            "document": "mapping",
             "mapping_version": 1,
             "source": "s",
             "target": "e",
@@ -418,6 +423,34 @@ def test_the_schema_refuses_a_boolean_transform_argument_the_parser_coerces() ->
     # The sharper half, which the schema cannot express and the parser does not
     # announce: `true` does not stay a bool, it becomes 1.
     assert parsed.key["k"].transform[0].args == (1,)
+
+
+def test_document_is_in_the_model_and_not_the_schema() -> None:
+    """The one divergence that is a *field*, recorded rather than met later.
+
+    `Mapping.document` is required by the model and absent from the schema
+    (RFC 0032 D1/D3). That is deliberate on both sides: the schema describes
+    what an author writes, and `document` is the name the loader binds — so a
+    required `document` in the exported schema would have an editor demand the
+    one key the loader refuses.
+
+    It is not a disagreement an author can reach. Every parsed document goes
+    through `validate_document`, which binds the field, so the two validators
+    never see the same input and never contradict each other on one. What it
+    *does* catch is a caller who reaches past the loader to
+    `Mapping.model_validate` with a schema-valid document and gets
+    `document: Field required` — which is confusing exactly once, and this is
+    where they will find out why.
+    """
+    schema = all_spec_schemas()[SpecKind.MAPPING]
+    authored = {"mapping_version": 1, "source": "s", "target": "e", "key": {}}
+
+    assert "document" not in schema["properties"]
+    assert _validates(SpecKind.MAPPING, authored), "the schema wants nothing extra"
+    assert _parses(SpecKind.MAPPING, authored), "and the loader binds what it needs"
+
+    with pytest.raises(ValidationError):
+        Mapping.model_validate(authored)
 
 
 def test_the_schema_is_stricter_about_an_explicitly_null_step() -> None:

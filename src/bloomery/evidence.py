@@ -381,6 +381,16 @@ def _unresolved(
             # RFC 0030 D9: a merged entity's columns are per mapping, so no
             # single document is the edit. The blocked metric stays visible in
             # `unreachable`; only the un-actionable worklist entry is withheld.
+            #
+            # **The identity D9 was waiting on now exists** (RFC 0032 D1) — and
+            # this is deliberately still here (RFC 0032 D6). D9 gave two
+            # reasons and RFC 0032 removes one; the other is what an entry
+            # *means* when N documents could each close the gap, which is a
+            # decision about this report's promise rather than about nouns.
+            # Note that a merged entity's gap may be closable in *any* one
+            # document, so an entry per mapping would be an over-count rather
+            # than a list — which is why the answer is not obvious enough to
+            # take in passing.
             continue
         decisions.append(
             OpenDecision(

@@ -69,6 +69,7 @@ def test_field_mapping_union_revalidates_model_instances() -> None:
     original = parse(HAPPY)
     revalidated = Mapping.model_validate(
         {
+            "document": original.document,
             "mapping_version": original.mapping_version,
             "source": original.source,
             "target": original.target,
@@ -180,3 +181,89 @@ def test_reserved_target_field_names(name: str) -> None:
             f'fields:\n  {name}: {{from: "$.x"}}\n'
         )
     assert excinfo.value.source_path == f"mappings/orders: fields.{name}"
+
+
+# ....................... #
+# Mapping identity (RFC 0032)
+
+
+def test_document_is_the_name_the_mapping_was_loaded_under() -> None:
+    """RFC 0032 D1 — the identity is bound from the loader's name.
+
+    `validate_document` already receives that name, because it prefixes every
+    refusal raised from this document (RFC 0002 §5.3). Binding the identity
+    from the same argument is what keeps the coordinate a reader is sent to and
+    the coordinate a refusal names from being two different things.
+    """
+    mapping = validate_document(
+        Mapping,
+        yaml.safe_load("mapping_version: 1\nsource: s\ntarget: t\nkey: {}\n"),
+        document="mappings/orders",
+    )
+
+    assert mapping.document == "mappings/orders"
+
+
+def test_an_authored_document_key_is_refused() -> None:
+    """RFC 0032 D3 — refused, not overwritten.
+
+    The field is a fact about where the document was read from, so a document
+    asserting its own filename is a second source of truth that can disagree
+    with the first. Silently discarding the author's value would make that
+    disagreement invisible, which is the failure the refusal exists to prevent.
+
+    Asserted alongside the test above rather than alone: "the loader's name
+    wins" would pass just as well if the author's value were quietly dropped,
+    and those are different contracts.
+    """
+    with pytest.raises(SpecParseError) as excinfo:
+        validate_document(
+            Mapping,
+            yaml.safe_load(
+                "document: sneaky\nmapping_version: 1\nsource: s\ntarget: t\nkey: {}\n"
+            ),
+            document="mappings/orders",
+        )
+
+    assert excinfo.value.source_path == "mappings/orders.document"
+    assert "not part of the mapping vocabulary" in str(excinfo.value)
+
+
+def test_an_authored_document_joins_the_documents_other_failures() -> None:
+    """The refusal batches (RFC 0002 D6), rather than pre-empting.
+
+    Raising on the authored key the moment it is seen would report it and hide
+    every other shape error in the same document — the one-at-a-time fixing
+    that batching exists to prevent, introduced by a check that runs before
+    pydantic sees the data. Both errors have to come back together.
+    """
+    with pytest.raises(SpecParseError) as excinfo:
+        validate_document(
+            Mapping,
+            yaml.safe_load(
+                "document: sneaky\nmapping_version: 1\nsource: s\ntarget: t\n"
+                'key: {}\nfields:\n  f: {from: 1}\n'
+            ),
+            document="mappings/orders",
+        )
+
+    paths = sorted(err.source_path for err in excinfo.value.collected)
+    assert paths == [
+        "mappings/orders.document",
+        "mappings/orders: fields.f.simple.from",
+    ]
+
+
+def test_document_is_absent_from_the_exported_schema() -> None:
+    """The authored vocabulary and the model are not the same set.
+
+    `bloomery schema` exports these models for an editor to validate a spec
+    against (RFC 0020), and its audience is the author. A required `document`
+    there would have the editor demand the one key the loader refuses — the
+    exported contract contradicting the compiler, on the surface whose entire
+    job is to agree with it.
+    """
+    schema = Mapping.model_json_schema()
+
+    assert "document" not in schema["properties"]
+    assert "document" not in schema["required"]

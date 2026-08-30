@@ -143,13 +143,18 @@ $ bloomery resolve specs/ --format json
 
 `SpecEvidence.provenance` is the other half of a loop's memory: one entry per mapped field,
 saying whether it comes straight from a source column, through a recipe — with the id you
-recorded — or from no canonical link at all.
+recorded — or from no canonical link at all. `mapping` names the document it was read
+from, which is the document you would edit.
 
 ```json
-{"entity": "order_item", "field": "unit_price", "provenance": "recipe", "recipe_id": "from_total"}
+{"entity": "order_item", "field": "unit_price", "mapping": "mapping_order_items", "provenance": "recipe", "recipe_id": "from_total"}
 ```
 
 Use it to avoid re-deriving your own history from the mapping documents you wrote.
+
+Where several mappings build one entity, a field they both produce gets **one entry per
+mapping**, so two documents implementing one column differently are two rows rather than
+one — the answers for a field stay next to each other, sorted by document name.
 
 ## When the report is empty and something is still blocked
 
@@ -160,9 +165,10 @@ Three cases, and they are worth telling apart.
 report that round. The refusal names the fix and lists the ids the catalog does have; fix
 it and recompile.
 
-**A merged entity.** Where several mappings build one entity, its columns are per mapping,
-so no single document is *the* edit and no entry can name one. Those decisions are left
-out rather than reported un-actionably; the metric blocked on one is still in
-`unreachable`.
+**A merged entity.** Where several mappings build one entity, any one of them might be the
+document that closes the gap, and the report does not guess between them: those decisions
+are left out rather than reported un-actionably, and the metric blocked on one is still in
+`unreachable`. `provenance` does name mappings, so it will tell you which documents build
+the entity — start from the one whose source carries the field.
 
 **Nothing requires it.** A canonical field no metric needs is not work, and never appears.

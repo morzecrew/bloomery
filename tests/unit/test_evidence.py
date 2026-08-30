@@ -420,14 +420,21 @@ def test_a_field_added_to_the_value_does_not_rebind_a_positional_caller() -> Non
     assert evidence.provenance == ()
 
 
-def test_a_merged_entitys_field_reports_one_provenance() -> None:
-    """The limit `FieldProvenance` states, pinned rather than left to prose.
+def test_a_merged_entitys_field_reports_one_entry_per_mapping() -> None:
+    """Each mapping that builds a field says so in its own entry (RFC 0032).
 
-    Two mappings building one entity may implement one field two ways, and this
-    collection keys on ``(entity, field)`` — so it reports the last in document
-    order. That is the documented shape, not a bug this test is waiting on: an
-    entry would have to name its mapping to say more, which is the identity
-    RFC 0030 D9 also withholds an open decision for want of.
+    Two mappings building one entity may implement one field two ways. Until
+    the record carried a mapping identity this collection keyed on
+    ``(entity, field)`` and reported the last in document order, so the other
+    mapping's answer was not representable at all — and the entry looked
+    identical to a single-mapping one, which is what made it misleading rather
+    than merely partial.
+
+    The disagreement is constructed rather than taken from `multi_source`,
+    which merges two mappings that happen to agree: a fixture where both
+    mappings are `direct` would pass this whether the key were the pair or the
+    triple. What is asserted is that the two entries differ, not merely that
+    there are two.
     """
     sources = fixture_sources("ecom_basic")
     legacy = sources["mapping_order_items"].replace(
@@ -440,13 +447,33 @@ def test_a_merged_entitys_field_reports_one_provenance() -> None:
     sources["mapping_legacy"] = legacy
     evidence = evaluate(load_project(sources), catalog=_ecom_catalog())
     assert evidence.stage_reached is Stage.COMPLETE, evidence.refusals
+
     quantity = [entry for entry in evidence.provenance if entry.field == "quantity"]
-    assert len(quantity) == 1, "one entry per (entity, field) — the documented limit"
-    # `mapping_legacy` sorts first, so the recipe it records is the one lost.
-    assert quantity[0].provenance is Provenance.DIRECT
+    assert [(e.mapping, e.provenance, e.recipe_id) for e in quantity] == [
+        ("mapping_legacy", Provenance.RECIPE, "direct"),
+        ("mapping_order_items", Provenance.DIRECT, None),
+    ]
     assert "recipe: direct" in sources["mapping_legacy"], (
         "the fixture must actually disagree with the other mapping, or this proves nothing"
     )
+
+
+def test_a_single_mapping_entitys_provenance_does_not_grow_rows() -> None:
+    """The shape almost every project has is unchanged but for a field.
+
+    Naming the mapping is additive: an entity built by one document reports the
+    same fields it always did, each now saying which document that was. Without
+    this, a keying change that quietly duplicated every entry would still pass
+    the merged case above.
+    """
+    evidence = evaluate(load_project(fixture_sources("ecom_basic")), catalog=_ecom_catalog())
+
+    assert {e.mapping for e in evidence.provenance} == {
+        "mapping_order_items",
+        "mapping_orders",
+    }
+    keyed = [(e.entity, e.field) for e in evidence.provenance]
+    assert len(keyed) == len(set(keyed)), "one mapping per field here — no row should repeat"
 
 
 def test_the_fixture_corpus_is_actually_being_walked() -> None:

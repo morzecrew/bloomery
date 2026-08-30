@@ -54,22 +54,26 @@ class FieldProvenance:
     """Provenance of one mapped entity field; ``recipe_id`` is set iff
     ``provenance`` is :attr:`Provenance.RECIPE`.
 
-    **One entry per ``(entity, field)``, which a merged entity can outgrow.**
-    Where several mappings build one entity (RFC 0024) they may implement the
-    same field differently — one straight from a column, another through a
-    recipe — and this collection keys on the field alone, so it reports the
-    last mapping in document order and no others. The field is still produced
-    the way each mapping says; what is not representable here is *that there
-    were two*.
+    **One entry per ``(entity, field, mapping)``** (RFC 0032). Where several
+    mappings build one entity (RFC 0024) they may implement the same field
+    differently — one straight from a column, another through a recipe — and
+    each says so in its own entry. Until RFC 0032 this collection keyed on the
+    field alone and reported the last mapping in document order, so a merged
+    entity's other mappings were not representable at all; ``mapping`` is the
+    document name that made them representable.
 
-    Stated rather than fixed, because the fix is a shape change to a published
-    field: an entry would have to name its mapping, which is the same identity
-    RFC 0030 D9 withholds an open decision for want of, and belongs with
-    RFC 0024's merged-entity work rather than beside either reader.
+    ``mapping`` is third rather than appended last (RFC 0032 D5). Every field
+    before ``recipe_id`` is required, so a caller constructing this
+    positionally gets a ``TypeError`` on arity rather than the silent
+    rebinding :class:`~bloomery.SpecEvidence`'s own field order exists to
+    avoid — which is what lets reading order win over wire order here.
     """
 
     entity: str
     field: str
+    #: The mapping document that builds this field (RFC 0032 D1) — the name it
+    #: was loaded under, which is the document a reader would edit.
+    mapping: str
     provenance: Provenance
     recipe_id: str | None = None
 
@@ -136,21 +140,27 @@ def _field_provenance(project: Project, graph: Graph) -> tuple[FieldProvenance, 
     """
     linked = {edge.src.name for edge in graph.edges if edge.label == "canonical"}
 
-    # Document order, overwriting: a merged entity's field is decided by the
-    # last mapping that builds it — the limit `FieldProvenance` states.
-    recipe_of: dict[tuple[str, str], str | None] = {}
+    # Keyed on the mapping too (RFC 0032 D1), so nothing overwrites anything:
+    # where two mappings build one field they each get an entry, rather than the
+    # last in document order deciding for both.
+    recipe_of: dict[tuple[str, str, str], str | None] = {}
 
     for mapping in project.mappings:
         for field_name in mapping.key:
-            recipe_of[mapping.target, field_name] = None
+            recipe_of[mapping.target, field_name, mapping.document] = None
         for field_name, field_mapping in mapping.fields.items():
-            recipe_of[mapping.target, field_name] = (
+            recipe_of[mapping.target, field_name, mapping.document] = (
                 field_mapping.recipe if isinstance(field_mapping, RecipeFieldMapping) else None
             )
 
     entries = []
 
-    for (entity, field), recipe_id in sorted(recipe_of.items()):
+    # Sorted `(entity, field, mapping)` — RFC 0032 D7, decided against the
+    # corpus: on `multi_source` it keeps `order_line.quantity`'s two answers
+    # adjacent, which is the comparison a reader of a merged field is making.
+    # `(entity, mapping, field)` groups by document instead and interleaves
+    # them, so the two rows a merged field exists to show sit apart.
+    for (entity, field, document), recipe_id in sorted(recipe_of.items()):
         if recipe_id is not None:
             provenance = Provenance.RECIPE
         elif entity_field_node(entity, field).name in linked:
@@ -161,6 +171,7 @@ def _field_provenance(project: Project, graph: Graph) -> tuple[FieldProvenance, 
             FieldProvenance(
                 entity=entity,
                 field=field,
+                mapping=document,
                 provenance=provenance,
                 recipe_id=recipe_id,
             )
