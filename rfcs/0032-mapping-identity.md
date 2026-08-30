@@ -1,6 +1,12 @@
 # RFC 0032 — Mapping identity
 
-- **Status:** 📝 Draft (execution-ready — one PR)
+- **Status:** ✅ Complete — shipped 2026-08-31: `Mapping.document`, `FieldProvenance.mapping`,
+  §6's battery and §7's docs. D8–D10 were added by execution (`logs/T-0008.md`).
+  **Not yet retired, and the exception is mechanical rather than a judgement.** A retirement
+  row must name a commit that holds the document *and* that a fresh clone can reach; this RFC
+  was authored and executed in one branch, so no such commit exists until this lands on
+  `main`. Retiring it here would write a row `just quality` refuses — verified, not assumed.
+  It is retired in the change immediately after the merge, citing the merge commit.
 - **Scope:** The identity of a mapping document, settled once for the two readers that
   need it. `Mapping` carries no name today, so a report that must say *which document to
   edit* either picks one arbitrarily (`FieldProvenance`, "last in document order") or
@@ -298,6 +304,9 @@ mappings — is §8's first bullet, and it is not a precondition for anything he
 | 5 | `ASSUMED` | **`FieldProvenance.mapping` goes third, not last.** Every field before `recipe_id` is required, so a positional caller gets a `TypeError` rather than the silent rebinding `SpecEvidence`'s field order exists to avoid. Consequence: reading order and wire order agree here, and the precedent does not generalise to a type whose fields all have defaults. |
 | 6 | `LOCKED` | **RFC 0030 D9's omission is not lifted here.** D9 gave two reasons and this RFC removes one; the other — what a worklist entry means when N documents could each close a gap — is a decision about the report's promise. Consequence: `_unresolved` keeps its `continue`, and the change is a comment saying what is now true. Answering both at once would decide RFC 0030's contract inside a document about nouns. |
 | 7 | `OPEN` | **Whether `FieldProvenance` sorts by `(entity, field, mapping)` or `(entity, mapping, field)`.** §5.4 argues the first — a field's answers stay adjacent — but the second groups a reader's attention by document, which is what they will edit. Execution decides against the corpus, and logs it: whichever reads better on `multi_source`'s four collapsed facts is the answer, and that is a thing to look at rather than reason about. |
+| 8 | `ASSUMED` | **The identity is bound in `validate_document`, which already receives the document name as the prefix for this document's refusals (RFC 0002 §5.3)** — not in `load_project`, as §5.1's prose said. A required field only one caller could supply leaves every other caller with a model it cannot construct; binding it at the one gate every parsed document passes also means the coordinate a report sends a reader to and the coordinate a refusal names are the same value by construction. Consequence: a caller reaching the shape check directly gets an identity too. *Added by execution 2026-08-30 — see logs/T-0008.md (D-035, attempt 1).* |
+| 9 | `LOCKED` | **`document` is `SkipJsonSchema` — absent from the schema `bloomery schema` exports.** That schema's audience is a spec author and D3 says this field is not theirs to write; a required `document` there would have an editor demand the one key the loader refuses, the exported contract contradicting the compiler on the surface whose whole job is to agree with it. Consequence: the model and the exported schema deliberately disagree about one field, recorded by `test_document_is_in_the_model_and_not_the_schema` where the other measured divergences live. *Added by execution 2026-08-30 — see logs/T-0008.md (D-036, attempt 1).* |
+| 10 | `ASSUMED` | **The refusal of an authored `document:` is returned, not raised, so it joins the document's other shape failures** (RFC 0002 D6). Raising at the check pre-empted every other error in the same document — the one-at-a-time fixing batching exists to prevent, reintroduced by a check that runs before pydantic sees the data. Consequence: `_with_document_identity` returns a `(data, refusal)` pair rather than raising, and `validate_document` merges the refusal into the collected set. *Added by execution 2026-08-30 — see logs/T-0008.md (A-1).* |
 
 ## 12. Phasing
 
