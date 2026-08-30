@@ -244,6 +244,19 @@ the upgrade and a `plan` reports nothing.
   holds no state between calls. Shipped versions are unaffected: this never reached a
   release.
 
+- **A mapped field that binds no source path exists in the graph.** Both alias-bound
+  field shapes can bind zero `from:` paths — a `sql_macro` computing from its
+  `parameters` alone, which is what an omitted `from` means, and a recipe with an empty
+  `requires` and an `expr`, which compiles to a constant column. The dependency graph
+  took its entity-field nodes from its edges alone, so such a field had no node at all:
+  it was absent from `Resolution.topo_order`, `bloomery lineage --node <entity>.<field>`
+  refused it as a name the project has no node for and suggested a sibling field instead,
+  and `SpecEvidence.provenance` did not report it — for a field the entity model declares
+  and the emitter writes a column for. Mapped fields are now nodes whether or not
+  an edge reaches them. No project in which every mapped field binds at least one path is
+  affected, which is every project that does not use those two shapes: the graph, the
+  topological order and the fingerprint are byte-identical.
+
 - **An empty L2 payload is a cache miss, not a manifest.**
   `LruManifestHydrator`'s documented contract has always been that it rebuilds from the
   IR "when absent or empty", but the check read `data is None`. An injected `fetch_l2`

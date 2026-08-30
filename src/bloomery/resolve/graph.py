@@ -293,6 +293,23 @@ def build_graph(
         # A step with no wired inputs still exists in the lineage; without
         # this it would vanish from the topological order entirely.
         nodes.update(step_node(wiring.ref) for wiring in project.steps.steps)
+    # A mapped field with no edge at all, for the same reason and with the same
+    # fix. Both alias-bound shapes can bind **zero** source paths: a
+    # `sql_macro` whose `from` is empty — the schema's default, because a macro
+    # may compute from its `parameters` alone (RFC 0017 D50) — and a recipe
+    # with an empty `requires` and an `expr`. Such a field draws no edge from
+    # any source column, so before this it existed nowhere in the graph:
+    # absent from `topo_order`, and refused by `bloomery lineage`, whose
+    # `_find_node` looks the id up in `nodes` and suggested a sibling field
+    # instead — for a field the entity model declares and the emitter writes
+    # a column for. (`lineage()` itself answered: it takes a root that is not
+    # a member, by design.) Every ordinary mapped field is already here via
+    # its incoming edge, so this adds a node only where one was missing.
+    nodes.update(
+        entity_field_node(mapping.target, field_name)
+        for mapping in project.mappings
+        for field_name in (*mapping.key, *mapping.fields)
+    )
     for edge in edges:
         nodes.add(edge.src)
         nodes.add(edge.dst)
