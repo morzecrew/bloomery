@@ -9,7 +9,7 @@ import pytest
 from bloomery import load_project, resolve
 from bloomery.ir import UnreachableMetric
 from bloomery.resolve import FieldProvenance, Provenance
-from support.compiling import fixture_sources, load_fixture
+from support.compiling import fixture_sources, load_fixture, spec_fixture_names
 
 pytestmark = pytest.mark.unit
 
@@ -46,6 +46,37 @@ def test_ecom_basic_provenance() -> None:
     # Sorted by (entity, field) — RFC 0005 D6.
     keys = [(p.entity, p.field) for p in resolution.provenance]
     assert keys == sorted(keys)
+
+
+def test_every_mapped_field_appears_exactly_once() -> None:
+    """The report's *population*, swept over the corpus and named.
+
+    Every mapped field, key fields included, exactly once — the rule that makes
+    a merged entity's field collapse to one entry and nothing else appear. It
+    says nothing about the provenance *kind*, which is pinned above; this is
+    the width, and the corpus is the only place wide enough to measure it. A
+    change to the number below is a change to the corpus or to the population
+    and should be read as one, which is why it is named rather than floored: a
+    floor cannot tell a fixture that stopped resolving from one that never
+    existed.
+    """
+    swept = 0
+    for name in spec_fixture_names():
+        project, catalog = load_fixture(name)
+        mapped = {
+            (mapping.target, field)
+            for mapping in project.mappings
+            for field in (*mapping.key, *mapping.fields)
+        }
+        reported = [(entry.entity, entry.field) for entry in resolve(project, catalog).provenance]
+        assert len(reported) == len(set(reported)), f"{name}: a field is reported twice"
+        assert set(reported) == mapped, f"{name}: the report and the mappings disagree"
+        swept += len(mapped)
+
+    # RFC 0031 §3 measured 146 across this corpus, and the change that moved
+    # provenance's `DIRECT`/`NATIVE` decision onto the graph's edges kept every
+    # one of them.
+    assert swept == 146, f"{swept} mapped fields across the corpus, not 146"
 
 
 def test_minimal_resolves_catalog_free() -> None:

@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from bloomery.ir import UnreachableMetric
-from bloomery.resolve.graph import Graph, Node, build_graph
+from bloomery.resolve.graph import Graph, Node, build_graph, entity_field_node
 from bloomery.resolve.metrics import effective_metrics
 from bloomery.resolve.order import toposort
 from bloomery.resolve.reach import available_canonicals, compute_reachability
@@ -90,31 +90,69 @@ class Resolution:
     graph: Graph
 
 
-def _field_provenance(project: Project) -> tuple[FieldProvenance, ...]:
-    entries: dict[tuple[str, str], FieldProvenance] = {}
+def _field_provenance(project: Project, graph: Graph) -> tuple[FieldProvenance, ...]:
+    """One record per mapped entity field.
+
+    ``DIRECT`` versus ``NATIVE`` is the graph's answer, read off the outgoing
+    ``canonical`` edges — the same edges ``available_canonicals`` reads to
+    decide what a metric can reach (RFC 0031 §5.2). Asking them rather than
+    re-reading ``entity.fields[...].canonical`` in parallel is what stops this
+    report and reachability disagreeing about which fields feed the catalog.
+    It is decided by the outgoing canonical edge rather than by an incoming
+    ``direct`` one: every non-recipe mapped field has an incoming ``direct``
+    edge whether or not it links to a canonical, so that edge cannot separate
+    the two.
+
+    **The recipe and the population come from the mappings, and cannot come
+    from the graph.** Both look like they could — a ``recipe:<id>`` label sits
+    on every edge a recipe field draws — and both are lossy that way:
+
+    - An alias-bound field may bind **zero** source paths: a ``sql_macro``
+      whose ``from`` is empty (the schema's default — a macro may compute from
+      its ``parameters`` alone, RFC 0017 D50), or a recipe with an empty
+      ``requires`` and an ``expr``, which compiles to a constant column. Such a
+      field draws no edge from any source column, so there is no edge to carry
+      its label, and a label-derived kind would silently report a recorded
+      recipe as ``DIRECT`` — losing exactly the decision this record exists to
+      remember (RFC 0005 D2: the compiler never re-chooses).
+    - An entity wired as a step input contributes a node for **every** field it
+      declares (``_step_edges``), mapped or not, so a node-keyed population
+      would report fields no mapping builds.
+
+    So each fact is taken from wherever it is total. The recipe id is a
+    recorded upstream decision and the mappings are where it is recorded; the
+    canonical link is a graph fact and the graph is asked for it.
+    """
+    linked = {edge.src.name for edge in graph.edges if edge.label == "canonical"}
+
+    # Document order, overwriting: a merged entity's field is decided by the
+    # last mapping that builds it — the limit `FieldProvenance` states.
+    recipe_of: dict[tuple[str, str], str | None] = {}
     for mapping in project.mappings:
-        entity = project.entity_model.entities[mapping.target]
         for field_name in mapping.key:
-            has_link = entity.fields[field_name].canonical is not None
-            entries[mapping.target, field_name] = FieldProvenance(
-                entity=mapping.target,
-                field=field_name,
-                provenance=Provenance.DIRECT if has_link else Provenance.NATIVE,
-            )
+            recipe_of[mapping.target, field_name] = None
         for field_name, field_mapping in mapping.fields.items():
-            if isinstance(field_mapping, RecipeFieldMapping):
-                provenance, recipe_id = Provenance.RECIPE, field_mapping.recipe
-            elif entity.fields[field_name].canonical is not None:
-                provenance, recipe_id = Provenance.DIRECT, None
-            else:
-                provenance, recipe_id = Provenance.NATIVE, None
-            entries[mapping.target, field_name] = FieldProvenance(
-                entity=mapping.target,
-                field=field_name,
+            recipe_of[mapping.target, field_name] = (
+                field_mapping.recipe if isinstance(field_mapping, RecipeFieldMapping) else None
+            )
+
+    entries = []
+    for (entity, field), recipe_id in sorted(recipe_of.items()):
+        if recipe_id is not None:
+            provenance = Provenance.RECIPE
+        elif entity_field_node(entity, field).name in linked:
+            provenance, recipe_id = Provenance.DIRECT, None
+        else:
+            provenance, recipe_id = Provenance.NATIVE, None
+        entries.append(
+            FieldProvenance(
+                entity=entity,
+                field=field,
                 provenance=provenance,
                 recipe_id=recipe_id,
             )
-    return tuple(entries[key] for key in sorted(entries))
+        )
+    return tuple(entries)
 
 
 def resolve(project: Project, catalog: Catalog | None = None) -> Resolution:
@@ -134,7 +172,7 @@ def resolve(project: Project, catalog: Catalog | None = None) -> Resolution:
     return Resolution(
         reachable_metrics=reachable,
         unreachable_metrics=unreachable,
-        provenance=_field_provenance(project),
+        provenance=_field_provenance(project, graph),
         topo_order=topo_order,
         graph=graph,
     )

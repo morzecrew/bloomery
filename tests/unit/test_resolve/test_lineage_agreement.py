@@ -1,18 +1,30 @@
-"""Two relationships with two implementations each, asserted to agree
+"""One relationship with two implementations, asserted to agree
 (RFC 0031 §6, D7).
 
-Neither battery tests `lineage()` alone. Each pins a fact that is computed
+The battery does not test `lineage()` alone. It pins a fact that is computed
 twice in this tree by different code reading the same graph, which is the
 `reading-isnt-proof` case: if they disagree, one of them is wrong and a spot
 check would not say which.
 
-- **Provenance.** `_field_provenance` walks the *project's mappings*; the graph
-  encodes the same fact in its edges. RFC 0031 D7 keeps both deliberately and
-  makes this the check that keeps them honest, so that whoever unifies them
-  later starts from a green test rather than an assumption.
 - **Reachability.** `compute_reachability` names the unavailable leaves that
   block a metric. The same leaves are the unavailable canonical fields in that
   metric's upstream lineage — the negative case of the general walk.
+
+**Provenance used to be the second pair, and is not one any more.** RFC 0031 D7
+shipped `_field_provenance`'s parallel read of `entity.fields[...].canonical`
+beside the graph's `canonical` edges with a test holding them to the same 146
+answers, so that unifying them later would be a refactor rather than a
+rediscovery. It since was: the `DIRECT`/`NATIVE` decision reads those edges —
+the same ones `available_canonicals` reads — and comparing it against them now
+would compare the graph to itself.
+
+The `RECIPE` half stayed with the mappings rather than moving, and the reason is
+worth recording where the old test was: a `recipe:<id>` label rides on the edges
+a field's `from:` aliases draw, and an alias-bound field may bind none, so the
+graph is a lossy account of *that* fact and no test between them could have been
+green in both directions. `test_edge_shapes_offcorpus.py` holds the two shapes
+that show it. What the corpus still checks about these records lives with the
+other things `resolve()` returns, in `test_resolution.py`.
 """
 
 from __future__ import annotations
@@ -23,9 +35,8 @@ import pytest
 
 from bloomery import Direction, Lineage, lineage, load_catalog, load_project, resolve
 from bloomery.cli import io
-from bloomery.resolve.graph import NodeKind, entity_field_node, metric_node
+from bloomery.resolve.graph import NodeKind, metric_node
 from bloomery.resolve.reach import available_canonicals
-from bloomery.resolve.resolution import Provenance
 from support.compiling import spec_fixture_names
 
 pytestmark = pytest.mark.unit
@@ -71,44 +82,6 @@ def test_every_spec_fixture_resolves() -> None:
     resolving from one that never existed, and both batteries below are only as
     wide as this sweep."""
     assert [name for name, _r in resolved_fixtures()] == list(spec_fixture_names())
-
-
-def test_graph_edges_and_field_provenance_agree() -> None:
-    """`RECIPE` iff an incoming `recipe:` edge; `DIRECT` iff an outgoing
-    `canonical` edge; `NATIVE` iff neither.
-
-    The order matters and is the part a reading gets wrong: a recipe field may
-    *also* carry a canonical link, so `recipe:` is checked first. And `DIRECT`
-    is decided by the canonical link rather than by an incoming `direct` edge —
-    every non-recipe mapped field has one of those whether or not it links to a
-    canonical, so that edge cannot separate `DIRECT` from `NATIVE`.
-    """
-    checked = 0
-    for name, resolution in resolved_fixtures():
-        graph = resolution.graph  # type: ignore[attr-defined]
-        incoming: dict[str, set[str]] = {}
-        linked: set[str] = set()
-        for edge in graph.edges:
-            incoming.setdefault(edge.dst.name, set()).add(edge.label)
-            if edge.label == "canonical":
-                linked.add(edge.src.name)
-
-        for record in resolution.provenance:  # type: ignore[attr-defined]
-            node_name = entity_field_node(record.entity, record.field).name
-            labels = incoming.get(node_name, set())
-            if any(label.startswith("recipe:") for label in labels):
-                expected = Provenance.RECIPE
-            elif node_name in linked:
-                expected = Provenance.DIRECT
-            else:
-                expected = Provenance.NATIVE
-            assert record.provenance is expected, (
-                f"{name}: {node_name} is {record.provenance} "
-                f"but the graph says {expected} (labels={sorted(labels)})"
-            )
-            checked += 1
-
-    assert checked >= 140, f"only {checked} provenance records compared"
 
 
 def test_unreachable_missing_leaves_are_the_unavailable_canonicals_upstream() -> None:
