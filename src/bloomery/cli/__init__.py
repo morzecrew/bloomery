@@ -251,10 +251,28 @@ def _find_node(graph: Graph, wanted: str) -> Node:
     Where nothing is close enough, the fallback names the id *kinds* present.
     A reader who mistyped the scheme rather than the name learns the scheme —
     entity fields carry no prefix, everything else does.
+
+    **An id can name two nodes**, and that is refused rather than resolved by
+    picking. Entity-field ids carry no kind prefix, so an entity named
+    ``metric`` with a field ``revenue`` produces ``metric.revenue`` and so does
+    a metric named ``revenue``; the graph holds both, and this function is
+    handed one string. Returning the first would walk one of two lineages with
+    nothing in the output saying which — a silently wrong answer to a question
+    that has two right ones. The refusal names both kinds, so a reader learns
+    what their project collided rather than that their spelling was wrong.
     """
-    for node in graph.nodes:
-        if node.name == wanted:
-            return node
+    matches = [node for node in graph.nodes if node.name == wanted]
+    if len(matches) == 1:
+        return matches[0]
+    if matches:
+        collided = ", ".join(sorted(node.kind.value for node in matches))
+        msg = (
+            f"{wanted!r} names {len(matches)} nodes in this project's dependency graph,"
+            f" of kinds {collided}. An entity field is spelled '<entity>.<field>' with no"
+            " kind prefix, so its id can collide with another kind's — rename the"
+            " entity, the field, or whatever it collided with to walk this lineage"
+        )
+        raise UnknownMember(msg)
     names = [node.name for node in graph.nodes]
     close = difflib.get_close_matches(wanted, names, n=5, cutoff=0.6)
     kinds = sorted({node.kind.value for node in graph.nodes})

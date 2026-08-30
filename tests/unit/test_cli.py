@@ -60,7 +60,7 @@ from bloomery.cli.render import render_evidence, render_plan
 from bloomery.cli.serialize import SpecEncoder
 from bloomery.errors import BloomeryError
 from bloomery.naming import DefaultNaming
-from support.compiling import load_fixture
+from support.compiling import COLLIDING_ID_SOURCES, load_fixture
 
 
 def as_json_value(value: object) -> object:
@@ -1061,6 +1061,32 @@ def test_a_node_with_no_near_miss_is_taught_the_id_scheme(
     assert "entity field is spelled '<entity>.<field>' with no prefix" in err
     for kind in ("metric", "canonical_field", "source_column", "entity_field"):
         assert kind in err
+
+
+def test_an_ambiguous_node_id_is_refused_rather_than_resolved(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """One id, two nodes: the CLI says so instead of picking one.
+
+    An entity field is spelled `<entity>.<field>` with no kind prefix, so entity
+    `metric` with field `revenue` collides with a metric named `revenue`. The
+    graph holds both and `--node` is one string. Returning the first match would
+    walk one of two lineages with nothing in the output saying which — the
+    reader cannot tell a walk of the wrong node from a walk of the right one.
+
+    The message names the *kinds* it collided, because that is the part the
+    reader can act on; a "did you mean" would be absurd here, the spelling being
+    exactly right.
+    """
+    for name, text in COLLIDING_ID_SOURCES.items():
+        (tmp_path / f"{name}.yaml").write_text(text)
+
+    code, _out, err = run(capsys, "lineage", str(tmp_path), "--node", "metric.revenue")
+
+    assert code == EXIT_REFUSED
+    assert "names 2 nodes" in err
+    assert "of kinds entity_field, metric" in err
+    assert "did you mean" not in err
 
 
 def test_lineage_suggestions_are_bounded_and_deterministic(
