@@ -29,6 +29,48 @@ _DBT_SOURCE = re.compile(r"\{\{ source\('(?P<namespace>[^']+)', '(?P<relation>[^
 NON_SPEC_FIXTURES = frozenset({"dirty"})
 
 
+#: A project whose entity-field id collides with a metric id. An entity-field id
+#: carries no kind prefix, so entity `metric` with field `revenue` is spelled
+#: `metric.revenue` — and so is a metric named `revenue`.
+#:
+#: Here rather than in `tests/fixtures/`, because a fixture is an input to every
+#: golden and every corpus sweep, and this project exists to exercise one
+#: collision. Here rather than inline in one test, because two tiers need it —
+#: `toposort` must order both nodes, and `bloomery lineage` must refuse the
+#: ambiguous id — and a second copy that drifted would leave two tests agreeing
+#: about a collision that no longer collides.
+COLLIDING_ID_SOURCES: dict[str, str] = {
+    "entity_model": """
+spec_version: 1
+entities:
+  metric:
+    grain: one row per metric
+    key: [metric_id]
+    fields:
+      metric_id: {type: string}
+      revenue: {type: "decimal(12, 4)"}
+""",
+    "mapping": """
+mapping_version: 1
+source: raw__metrics
+target: metric
+key:
+  metric_id: {from: "$.id", transform: [to_string]}
+fields:
+  revenue: {from: "$.revenue"}
+""",
+    "metrics": """
+metrics_version: 1
+metrics:
+  revenue:
+    grain: metric
+    additivity: additive
+    agg: count
+    expr: "metric_id"
+""",
+}
+
+
 def spec_fixture_names() -> tuple[str, ...]:
     """Every fixture directory holding a spec project, sorted.
 

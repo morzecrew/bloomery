@@ -24,8 +24,44 @@ __all__ = [
     "toposort",
 ]
 
+#: A node's identity here: its name paired with its kind, which is exactly the
+#: key ``build_graph`` already sorts ``Graph.nodes`` by.
+#:
+#: **Not the name alone.** An entity-field id carries no kind prefix
+#: (``<entity>.<field>``), so it can collide with any other kind's: an entity
+#: named ``metric`` with a field ``revenue`` produces ``metric.revenue``, and so
+#: does a metric named ``revenue``. Keyed by name, the two collapsed into one
+#: entry, ``len(order)`` then disagreed with ``len(graph.nodes)`` on a graph
+#: with no cycle, and the cycle path ran — where ``remaining`` was empty,
+#: because nothing was actually blocked, and ``min()`` raised a bare
+#: ``ValueError`` out of a package that promises named refusals.
+#:
+#: Keying by it also makes the length comparison below mean "a cycle" and
+#: nothing else. ``build_graph`` collects its nodes into a ``set``, so its
+#: graphs never repeat one — but ``Graph`` is a public frozen dataclass holding
+#: a plain tuple, and a caller assembling one by hand can list a node twice.
+#: Compared against ``len(graph.nodes)`` that repeat was indistinguishable from
+#: a node the walk never reached, which is the same bare ``ValueError`` on the
+#: same empty ``remaining``. Compared against ``len(by_key)`` it is not: a
+#: repeated node collapses to the one node it names, which is what listing it
+#: twice meant.
+#:
+#: **The other fix was to make the ids themselves unique**, giving entity fields
+#: a kind prefix as every other kind already has, which would remove the
+#: collision rather than accommodate it. It is the better shape and it is not
+#: this change: those ids are printed by ``bloomery lineage``, pinned by tests,
+#: and rendered into ``CircularDerivation`` messages (RFC 0005 §9), so it moves
+#: a published spelling and belongs in a change that says so on the tin.
+_NodeKey = tuple[str, str]
 
-def _find_cycle(remaining: set[str], predecessors: dict[str, list[str]]) -> list[str]:
+
+def _key(node: Node) -> _NodeKey:
+    return (node.name, node.kind.value)
+
+
+def _find_cycle(
+    remaining: set[_NodeKey], predecessors: dict[_NodeKey, list[_NodeKey]]
+) -> list[_NodeKey]:
     """One cycle among ``remaining`` nodes, in dependency → dependent order.
 
     Every remaining node has a predecessor in ``remaining`` (edges from
@@ -37,7 +73,7 @@ def _find_cycle(remaining: set[str], predecessors: dict[str, list[str]]) -> list
     seen = {start: 0}
     current = start
     while True:
-        current = min(name for name in predecessors[current] if name in remaining)
+        current = min(key for key in predecessors[current] if key in remaining)
         if current in seen:
             walked = path[seen[current] :]
             walked.reverse()  # predecessor walk → dependency → dependent order
@@ -49,29 +85,36 @@ def _find_cycle(remaining: set[str], predecessors: dict[str, list[str]]) -> list
 
 def toposort(graph: Graph) -> tuple[Node, ...]:
     """The deterministic topological order of the DAG (RFC 0005 D5)."""
-    by_name = {node.name: node for node in graph.nodes}
-    indegree = dict.fromkeys(by_name, 0)
-    successors: dict[str, list[str]] = {name: [] for name in by_name}
-    predecessors: dict[str, list[str]] = {name: [] for name in by_name}
+    by_key = {_key(node): node for node in graph.nodes}
+    indegree = dict.fromkeys(by_key, 0)
+    successors: dict[_NodeKey, list[_NodeKey]] = {key: [] for key in by_key}
+    predecessors: dict[_NodeKey, list[_NodeKey]] = {key: [] for key in by_key}
     for edge in graph.edges:
-        indegree[edge.dst.name] += 1
-        successors[edge.src.name].append(edge.dst.name)
-        predecessors[edge.dst.name].append(edge.src.name)
+        indegree[_key(edge.dst)] += 1
+        successors[_key(edge.src)].append(_key(edge.dst))
+        predecessors[_key(edge.dst)].append(_key(edge.src))
 
-    ready = sorted(name for name, degree in indegree.items() if degree == 0)
+    # The heap orders by the key, so a tie on name breaks on kind — the same
+    # total order `Graph.nodes` carries, rather than a second one that could
+    # disagree with it.
+    ready = sorted(key for key, degree in indegree.items() if degree == 0)
     order: list[Node] = []
     while ready:
-        name = heapq.heappop(ready)
-        order.append(by_name[name])
-        for successor in successors[name]:
+        key = heapq.heappop(ready)
+        order.append(by_key[key])
+        for successor in successors[key]:
             indegree[successor] -= 1
             if indegree[successor] == 0:
                 heapq.heappush(ready, successor)
 
-    if len(order) != len(graph.nodes):
-        remaining = {name for name, degree in indegree.items() if degree > 0}
+    if len(order) != len(by_key):
+        remaining = {key for key, degree in indegree.items() if degree > 0}
         cycle = _find_cycle(remaining, predecessors)
-        rendered = " → ".join([*cycle, cycle[0]])
+        # Names alone, not keys: the message is a lineage path a reader retypes,
+        # and RFC 0005 D4 pins its rendering. Two colliding ids print the same
+        # name here, which is the honest rendering of a project in which they
+        # *are* the same id.
+        rendered = " → ".join([name for name, _kind in [*cycle, cycle[0]]])
         msg = f"circular derivation: {rendered}"
         raise CircularDerivation(msg)
     return tuple(order)

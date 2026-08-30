@@ -244,6 +244,26 @@ the upgrade and a `plan` reports nothing.
   holds no state between calls. Shipped versions are unaffected: this never reached a
   release.
 
+- **A node-id collision is no longer reported as a cycle.** Entity-field ids carry no
+  kind prefix (`<entity>.<field>`), so they can collide with any other kind's: an entity
+  named `metric` with a field `revenue` produces the id `metric.revenue`, and so does a
+  metric named `revenue`. `build_graph` already kept both nodes and sorted them by
+  `(name, kind)`, but `toposort` keyed them by name alone and collapsed the two into one.
+  `len(order)` then disagreed with `len(graph.nodes)` on an acyclic graph, so the cycle
+  path ran — where nothing was actually blocked, and `min()` over an empty set raised a
+  bare `ValueError` out of a package whose contract is named refusals. `toposort` now
+  keys by the same `(name, kind)` pair the graph sorts by, and `CircularDerivation` still
+  renders names alone. `bloomery lineage` refuses such an id as ambiguous, naming the
+  kinds it collided, rather than silently walking whichever node it found first.
+
+  The same comparison lied a second way, for callers who assemble a `Graph` themselves:
+  `Graph.nodes` is a plain tuple, so a node listed twice was indistinguishable from a node
+  the walk never reached, and raised the identical `ValueError`. `toposort` now compares
+  against the number of distinct nodes, so a repeat collapses to the one node it names.
+
+  No project without a collision is affected: the graph, the topological order, every
+  cycle message and the fingerprint are byte-identical.
+
 - **A mapped field that binds no source path exists in the graph.** Both alias-bound
   field shapes can bind zero `from:` paths — a `sql_macro` computing from its
   `parameters` alone, which is what an omitted `from` means, and a recipe with an empty

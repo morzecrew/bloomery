@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import pytest
 
-from bloomery import Direction, Lineage, lineage
+from bloomery import Direction, Lineage, lineage, load_project, resolve
 from bloomery.resolve.graph import Edge, Graph, Node, NodeKind
+from support.compiling import COLLIDING_ID_SOURCES
 
 pytestmark = pytest.mark.unit
 
@@ -382,3 +383,28 @@ def test_a_bounded_walk_keeps_every_edge_between_carried_nodes() -> None:
     # Still truncated: `z` is past the bound and was genuinely not reached.
     assert walk.truncated is True
 
+
+def test_two_nodes_sharing_a_name_have_separate_lineages() -> None:
+    """`lineage()` takes a `Node`, so a name collision does not reach it.
+
+    This is the compensating fact for `bloomery lineage` refusing an ambiguous
+    `--node`: the id is ambiguous, the *node* is not, and a caller holding the
+    `Node` walks whichever of the two it means. Asserted on both, because the
+    claim is that they differ — one of them answering correctly proves nothing
+    about the other.
+
+    The two walks are genuinely different here: the entity field reaches back to
+    the source column it is mapped from, while the metric `revenue` is an
+    `agg: count` over `metric_id` with no `requires`, so its upstream is empty
+    and a bare root is the right answer (RFC 0031 §5.5).
+    """
+    graph = resolve(load_project(COLLIDING_ID_SOURCES)).graph
+
+    field = lineage(graph, node("metric.revenue"), Direction.UPSTREAM)
+    metric = lineage(graph, node("metric.revenue", NodeKind.METRIC), Direction.UPSTREAM)
+
+    assert sorted(n.name for n in field.nodes) == [
+        "metric.revenue",
+        "source.raw__metrics.$.revenue",
+    ]
+    assert [n.name for n in metric.nodes] == ["metric.revenue"]
