@@ -153,7 +153,7 @@ def _field_provenance(project: Project, graph: Graph) -> tuple[FieldProvenance, 
                 field_mapping.recipe if isinstance(field_mapping, RecipeFieldMapping) else None
             )
 
-    entries = []
+    entries: list[FieldProvenance] = []
 
     # Sorted `(entity, field, mapping)` — RFC 0032 D7, decided against the
     # corpus: on `multi_source` it keeps `order_line.quantity`'s two answers
@@ -163,10 +163,13 @@ def _field_provenance(project: Project, graph: Graph) -> tuple[FieldProvenance, 
     for (entity, field, document), recipe_id in sorted(recipe_of.items()):
         if recipe_id is not None:
             provenance = Provenance.RECIPE
+
         elif entity_field_node(entity, field).name in linked:
             provenance, recipe_id = Provenance.DIRECT, None
+
         else:
             provenance, recipe_id = Provenance.NATIVE, None
+
         entries.append(
             FieldProvenance(
                 entity=entity,
@@ -193,10 +196,12 @@ def resolve(project: Project, catalog: Catalog | None = None) -> Resolution:
     """
     validate_references(project, catalog)
     validate_recipes(project, catalog)
+
     metrics = effective_metrics(project, catalog)
     graph = build_graph(project, catalog, metrics)
     topo_order = toposort(graph)
     reachable, unreachable = compute_reachability(metrics, available_canonicals(graph))
+
     return Resolution(
         reachable_metrics=reachable,
         unreachable_metrics=unreachable,

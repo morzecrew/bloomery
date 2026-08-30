@@ -241,7 +241,10 @@ def source_path_from_loc(document: str, loc: tuple[int | str, ...]) -> str:
 
 
 def _with_document_identity(
-    model_cls: type[SpecModel], data: object, *, document: str
+    model_cls: type[SpecModel],
+    data: object,
+    *,
+    document: str,
 ) -> tuple[object, SpecParseError | None]:
     """Bind ``document`` on a mapping's data; leave every other kind alone.
 
@@ -277,9 +280,10 @@ def _with_document_identity(
         # The authored value is dropped and the loader's bound in its place, so
         # the rest of the document still validates and reports its own errors.
         refusal = SpecParseError(msg, source_path=f"{document}.document")
-        return {**data, "document": document}, refusal
 
-    return {**data, "document": document}, None
+        return {**data, "document": document}, refusal  # pyright: ignore[reportUnknownVariableType]
+
+    return {**data, "document": document}, None  # pyright: ignore[reportUnknownVariableType]
 
 
 # ....................... #
