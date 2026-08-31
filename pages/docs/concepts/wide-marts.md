@@ -103,11 +103,8 @@ AmbiguousDimension: 'date' has roles [ordered, shipped]. Use 'ordered_date' or '
 A mart definition is compiled once into the IR and read by two consumers that must
 never disagree:
 
-```mermaid
-flowchart LR
-    M[("MartIR<br/>grain · columns · measures")] --> B["SQLMesh emitter<br/>builds the table:<br/>joins + flattening"]
-    M --> P["planner<br/>queries the table:<br/>no joins, ever"]
-```
+![One MartIR read twice: the SQLMesh emitter builds the table with joins, the planner queries it with none](../_diagrams/light/wide-marts.svg#only-light){ data-src="../_diagrams/light/wide-marts.svg#only-light" }
+![One MartIR read twice: the SQLMesh emitter builds the table with joins, the planner queries it with none](../_diagrams/dark/wide-marts.svg#only-dark){ data-src="../_diagrams/dark/wide-marts.svg#only-dark" }
 
 The SQLMesh emitter lowers the mart into the gold-layer model that *builds* the wide
 table — the base entity joined once per flatten step and once per date role. That model

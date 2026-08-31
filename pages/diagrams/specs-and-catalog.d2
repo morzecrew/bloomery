@@ -1,0 +1,62 @@
+# How the six spec kinds relate (RFC 0002). The Catalog is written once per
+# vertical; everything to its right is per tenant.
+
+style: {
+    fill: transparent
+}
+
+vars: {
+    d2-config: {
+        pad: 40
+    }
+}
+
+direction: right
+
+catalog: {
+    shape: rectangle
+    style: {
+        stroke: "#4a90d9"
+        stroke-width: 2
+    }
+    label: |md
+        ### Catalog
+        one per vertical
+    |
+}
+
+source: {
+    shape: cylinder
+    label: bronze source
+}
+
+mapping: {
+    shape: rectangle
+    label: |md
+        ### Mapping
+        one per source × entity
+    |
+}
+
+entity: {
+    shape: rectangle
+    label: |md
+        ### EntityModel
+        one per tenant
+    |
+}
+
+metrics: {
+    shape: rectangle
+    label: MetricSet
+}
+
+marts: {
+    shape: rectangle
+    label: Marts
+}
+
+catalog -> entity: "canonical: links"
+source -> mapping -> entity
+entity -> metrics
+entity -> marts

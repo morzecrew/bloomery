@@ -74,6 +74,10 @@ _ADMONITION = re.compile(r'^!!! (?:warning|danger) "(?P<title>[^"]*)"\n(?P<body>
 #: directories that exist, so ordinary code spans are not mistaken for paths.
 _REPO_PATH = re.compile(r"`((?:src|tests|pages|rfcs|tools|\.github)/[A-Za-z0-9_./-]+)`")
 
+#: An embedded diagram, as `just build-diagrams` names its output:
+#: `../_diagrams/<theme>/<name>.svg#only-<theme>`.
+_DIAGRAM = re.compile(r"_diagrams/(light|dark)/([A-Za-z0-9_-]+)\.svg")
+
 
 # ....................... #
 # 1. The documented set is the exported set
@@ -359,3 +363,26 @@ def test_every_repo_relative_path_cited_in_docs_resolves() -> None:
         if not (ROOT / cited.split("#")[0]).exists()
     )
     assert broken == []
+
+
+def test_every_embedded_diagram_has_a_d2_source() -> None:
+    """The rendered SVGs are gitignored, so nothing in the tree contradicts a
+    page embedding one that no longer exists.
+
+    `zensical build --strict` does not catch this — measured, not assumed:
+    pointing a page at `no-such-diagram.svg` builds clean and "No issues found".
+    Its `check_paths` resolves *page* links, and an image is not one. So a
+    renamed or deleted `.d2` would reach production as a broken image on a page
+    whose prose still explains the diagram.
+
+    Both themes are checked against one source, since `build-diagrams` renders
+    every file twice and a page must embed the pair.
+    """
+    sources = {path.stem for path in (ROOT / "pages" / "diagrams").glob("*.d2")}
+    missing = sorted(
+        f"{page.relative_to(DOCS).as_posix()}: {theme}/{name}.svg"
+        for page in DOCS.rglob("*.md")
+        for theme, name in _DIAGRAM.findall(page.read_text())
+        if name not in sources
+    )
+    assert missing == [], "embedded diagrams with no `pages/diagrams/<name>.d2` source"

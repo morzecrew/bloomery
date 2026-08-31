@@ -8,13 +8,8 @@ planning) operates on.
 
 The split that makes the model work is vertical-level versus tenant-level:
 
-```mermaid
-flowchart LR
-    C["Catalog<br/>(one per vertical)"] -->|"canonical: links"| E["EntityModel<br/>(one per tenant)"]
-    S["bronze source"] --> M["Mapping<br/>(one per source × entity)"] --> E
-    E --> MS["MetricSet"]
-    E --> MT["Marts"]
-```
+![The Catalog links canonical fields into the EntityModel; a bronze source reaches it through a Mapping; the MetricSet and the Marts read the entity](../_diagrams/light/specs-and-catalog.svg#only-light){ data-src="../_diagrams/light/specs-and-catalog.svg#only-light" }
+![The Catalog links canonical fields into the EntityModel; a bronze source reaches it through a Mapping; the MetricSet and the Marts read the entity](../_diagrams/dark/specs-and-catalog.svg#only-dark){ data-src="../_diagrams/dark/specs-and-catalog.svg#only-dark" }
 
 ## Catalog: the vertical-level domain graph
 

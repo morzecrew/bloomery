@@ -10,6 +10,17 @@ _uv_sync := "uv sync --all-groups > /dev/null 2>&1"
 
 _pwd := justfile_directory()
 
+# ....................... #
+# Diagrams (RFC 0001 §5.5's escape clause — "d2 remains available if diagrams
+# outgrow mermaid"). One source per diagram, rendered twice: the site serves
+# whichever matches the reader's theme.
+
+_d2_dir := join(_pwd, "pages", "diagrams")
+_d2_light_dir := join(_pwd, "pages", "docs", "_diagrams", "light")
+_d2_dark_dir := join(_pwd, "pages", "docs", "_diagrams", "dark")
+_d2_light_flags := "--center --scale 1"
+_d2_dark_flags := "--theme 200 --center --scale 1"
+
 # ----------------------- #
 # Default command
 
@@ -115,10 +126,22 @@ quality strict="false":
 # ----------------------- #
 # Docs
 
+# Render every D2 diagram to light and dark SVGs.
+#
+# `pages/docs/_diagrams/` is generated and gitignored, so this runs before any
+# build that reads it — including CI's, where `zensical build --strict` fails on
+# an image path that does not resolve.
+build-diagrams:
+    mkdir -p {{ _d2_light_dir }} {{ _d2_dark_dir }}
+
+    for f in {{ _d2_dir }}/*.d2; do \
+        d2 "$f" "{{ _d2_light_dir }}/$(basename "${f%.d2}.svg")" {{ _d2_light_flags }}; \
+        d2 "$f" "{{ _d2_dark_dir }}/$(basename "${f%.d2}.svg")" {{ _d2_dark_flags }}; \
+    done
+
 # Serve the documentation with live reload
-[working-directory("pages")]
-serve-docs:
-    uv run zensical serve
+serve-docs: build-diagrams
+    cd pages && uv run zensical serve
 
 # Build the documentation site into pages/site.
 #
@@ -127,9 +150,8 @@ serve-docs:
 # nobody. The link half of RFC 0025 §5.1 item 3 is Zensical's; the repo-path
 # half a page cites in backticks is invisible to it and lives in
 # `tests/unit/test_docs_floor.py`.
-[working-directory("pages")]
-build-docs:
-    uv run zensical build --strict
+build-docs: build-diagrams
+    cd pages && uv run zensical build --strict
 
 # ----------------------- #
 # Utils

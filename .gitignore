@@ -227,6 +227,10 @@ src/bloomery/_version.py
 pages/site/
 pages/.cache/
 
+# Rendered diagrams — `just build-diagrams` regenerates both themes from
+# `pages/diagrams/*.d2`, which is the source under review.
+pages/docs/_diagrams/
+
 # Tooling state
 .benchmarks
 .just/

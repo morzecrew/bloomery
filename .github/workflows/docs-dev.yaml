@@ -52,11 +52,24 @@ jobs:
             uv.lock
             pyproject.toml
 
+      - name: Install just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+
+      - name: Install d2
+        run: bash .github/scripts/install-d2.sh
+
       - name: Install dependencies
         run: uv sync --group docs
 
       - name: Configure git identity
         run: bash .github/scripts/configure-git-identity.sh
+
+      # mike runs `zensical build`, never `just build-docs`, so nothing here
+      # renders the diagrams on its own — and `pages/docs/_diagrams/` is
+      # generated and gitignored. Without this the deploy publishes pages whose
+      # every diagram is a broken image.
+      - name: Build diagrams
+        run: just build-diagrams
 
       - name: Deploy dev version
         working-directory: pages

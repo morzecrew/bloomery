@@ -6,17 +6,8 @@ intermediate representation (IR) that every consumer reads. Emitters and the pla
 consume the IR, never the specs — which is why the thing that builds a table and the
 thing that queries it can never disagree about what the table means.
 
-```mermaid
-flowchart LR
-    S["specs<br/>(YAML text)"] --> P[parse] --> R[resolve] --> T[typecheck] --> G[guardrails]
-    G --> IR[("ProjectIR<br/>frozen, fingerprinted")]
-    IR --> PL["plan()<br/>spec diff"]
-    IR --> LE["lower / emit"]
-    IR --> Q["planner<br/>MetricRequest → QueryPlan"]
-    LE --> A["SQLMesh · dbt · Cube<br/>artifacts"]
-    LE --> M["MetricFlow<br/>semantic manifest"]
-    Q -.->|delegates to| MF["embedded MetricFlow<br/>(render-only)"]
-```
+![Specs parse, resolve, typecheck and pass the guardrails into one frozen ProjectIR, which plan(), the emitters and the planner all read](../_diagrams/light/compile-pipeline.svg#only-light){ data-src="../_diagrams/light/compile-pipeline.svg#only-light" }
+![Specs parse, resolve, typecheck and pass the guardrails into one frozen ProjectIR, which plan(), the emitters and the planner all read](../_diagrams/dark/compile-pipeline.svg#only-dark){ data-src="../_diagrams/dark/compile-pipeline.svg#only-dark" }
 
 Every stage is a pure function: data structures in, data structures out, no I/O, no
 clock, no randomness. A stage never patches over bad input from the one before it —

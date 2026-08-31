@@ -132,12 +132,8 @@ capability.
 
 Declared once, never per field, never configurable:
 
-```mermaid
-flowchart LR
-    E[extract] --> T[transform] --> D[dedupe] --> F[field rules] --> R[row rules] --> RT[route]
-    RT --> S[("silver.&lt;entity&gt;<br/>_quality_flags")]
-    RT --> J[("silver.&lt;entity&gt;__reject")]
-```
+![Extract, transform, dedupe, then the field and row rules, then routing to the flagged table or the reject table](../_diagrams/light/quality-pipeline.svg#only-light){ data-src="../_diagrams/light/quality-pipeline.svg#only-light" }
+![Extract, transform, dedupe, then the field and row rules, then routing to the flagged table or the reject table](../_diagrams/dark/quality-pipeline.svg#only-dark){ data-src="../_diagrams/dark/quality-pipeline.svg#only-dark" }
 
 The order that matters most is **dedupe before the rules**. The alternative — validate
 first, deduplicate the survivors — means a corrupt latest row is silently replaced by a

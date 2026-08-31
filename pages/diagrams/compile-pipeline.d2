@@ -1,0 +1,97 @@
+# The compile pipeline: pure stages from YAML text to artifacts (RFC 0002).
+# One IR in the middle, three readers hanging off it.
+
+style: {
+    fill: transparent
+}
+
+vars: {
+    d2-config: {
+        pad: 40
+    }
+}
+
+direction: right
+
+specs: {
+    shape: rectangle
+    label: |md
+        ### specs
+        YAML text
+    |
+}
+
+parse: parse
+resolve: resolve
+typecheck: typecheck
+guardrails: guardrails
+
+ir: {
+    shape: cylinder
+    style: {
+        stroke: "#4a90d9"
+        stroke-width: 2
+    }
+    label: |md
+        ### ProjectIR
+        frozen · fingerprinted
+    |
+}
+
+plan: {
+    shape: rectangle
+    label: |md
+        ### plan()
+        spec diff
+    |
+}
+
+emit: {
+    shape: rectangle
+    label: |md
+        ### lower / emit
+    |
+}
+
+planner: {
+    shape: rectangle
+    label: |md
+        ### planner
+        MetricRequest → QueryPlan
+    |
+}
+
+artifacts: {
+    shape: rectangle
+    label: |md
+        ### SQLMesh · dbt · Cube
+        artifacts
+    |
+}
+
+manifest: {
+    shape: rectangle
+    label: |md
+        ### MetricFlow
+        semantic manifest
+    |
+}
+
+metricflow: {
+    shape: rectangle
+    label: |md
+        ### embedded MetricFlow
+        render-only
+    |
+}
+
+specs -> parse -> resolve -> typecheck -> guardrails -> ir
+ir -> plan
+ir -> emit
+ir -> planner
+emit -> artifacts
+emit -> manifest
+planner -> metricflow: {
+    label: delegates to
+    style.stroke-dash: 3
+}
