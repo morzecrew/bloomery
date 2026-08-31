@@ -75,6 +75,7 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0029 | Transform types the engine agrees with | `558b31c` |
 | 0030 | The unresolved-work report | `bcae31d` |
 | 0031 | Lineage | `bcae31d` |
+| 0032 | Mapping identity | `3f7b574` |
 
 ## Not in the table
 

@@ -3,7 +3,7 @@ set shell := ["bash", "-cu"]
 
 [no-exit-message]
 _default:
-    echo "Six specs that look right and cannot be right."
+    echo "Five specs that look right and cannot be right."
     echo
     just --color=always --list | sed '1d'
     echo

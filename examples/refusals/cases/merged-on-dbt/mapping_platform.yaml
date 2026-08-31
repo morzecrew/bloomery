@@ -1,8 +1,0 @@
-mapping_version: 1
-source: shopify__order_lines
-target: order_line
-key:
-  order_id: {from: "$.order_id", transform: [to_string]}
-  line_no: {from: "$.position", transform: [to_int]}
-fields:
-  sku: {from: "$.variant_sku", transform: [to_string]}
