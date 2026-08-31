@@ -235,11 +235,16 @@ has.
   why autoescaping is wrong for SQL. `radon` was a dependency and a config block that no
   gate had ever read.
 
-- **The M4.5 MetricFlow verification spikes are retired.** `spikes/metricflow/*.py` was
-  exploratory code no gate ran and nothing imported; its one surviving piece of logic, the
-  row-policy AST audit, already lives in `tests/support/planning.py` where a tier runs it.
-  `spikes/metricflow/VERIFICATION.md` keeps the findings, and `git show` prints the scripts
-  back — the same doctrine that retires a landed RFC.
+- **The M4.5 MetricFlow spike is retired, write-up included.** `spikes/metricflow/*.py`
+  was exploratory code no gate ran and nothing imported. Its write-up outlived it by one
+  release and is gone too: every finding it recorded is now asserted by something that
+  runs — the row-policy audit in `tests/support/planning.py`, the semi-additive cases in
+  `tests/execution/test_planner_numbers.py`, the hydration budgets in
+  `tests/bench/test_hydration.py`, the import-order gotcha as a comment in
+  `bloomery.emit.metricflow`, and the pin itself in `tests/unit/test_metricflow_canary.py`.
+  Its dependency tables measured 0.211 and this release ships 0.212. `git log
+  --diff-filter=D -- spikes/` finds the commit and `git show` prints it back — the same
+  doctrine that retires a landed RFC.
 
 ### Fixed
 
