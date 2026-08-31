@@ -133,7 +133,7 @@ one answer" is a claim, and this turns it into a measurement.
 
 ## Documentation
 
-Full documentation: [morzecrew.github.io/bloomery](https://morzecrew.github.io/bloomery/).
+Full documentation: [morzecrew.github.io/bloomery](https://morzecrew.github.io/bloomery/latest/).
 
 ## Stability
 
@@ -144,7 +144,7 @@ instead. Pin the minor (`bloomery>=0.2,<0.3`).
 Spec YAML is the stronger promise and does not wait for 1.0: a document that loads keeps
 loading, and a breaking grammar change mints a new `<kind>_version`. Emitted artifacts are
 explicitly **not** stable across versions —
-[details](https://morzecrew.github.io/bloomery/reference/stability/).
+[details](https://morzecrew.github.io/bloomery/latest/reference/stability/).
 
 ## Contributing
 
