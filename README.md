@@ -137,7 +137,7 @@ of one segment vocabulary, prices in integer cents, an unparseable timestamp.
 | Example | What it demonstrates | Infrastructure |
 |---|---|---|
 | [`quickstart/`](examples/quickstart/) | The five core spec kinds; compile, then plan a metric request | none |
-| [`refusals/`](examples/refusals/) | Six specs that look right and cannot be right, with the real messages | none |
+| [`refusals/`](examples/refusals/) | Five specs that look right and cannot be right, with the real messages | none |
 | [`targets/`](examples/targets/) | SQLMesh, dbt, Cube and the planner all actually running | one container |
 | [`lakehouse/`](examples/lakehouse/) | Iceberg via Lakekeeper: union merge, quality rules, quarantine, a blocking audit | four containers |
 

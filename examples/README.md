@@ -59,14 +59,14 @@ the collision audit on purpose and watch the plan refuse to publish.
 
 ## refusals/
 
-Six specs that look right and cannot be right, and what bloomery says about
+Five specs that look right and cannot be right, and what bloomery says about
 each. No containers and no setup — every case is decided at compile time.
 
-Four of the six would run fine in a hand-written dbt or SQL project and return
+Four of the five would run fine in a hand-written dbt or SQL project and return
 rows that are silently wrong: a dimension that keeps history flattened into a
 mart, an order-grain cost duplicated per line, a `one_to_many` flatten, EUR
-added to USD. The other two are unsupported rather than wrong, and say which
-target does support them.
+added to USD. The fifth is unsupported rather than wrong — a transform no engine
+implements, refused at emit rather than shipped as SQL that fails at run time.
 
 ```bash
 cd examples/refusals
