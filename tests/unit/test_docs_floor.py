@@ -75,8 +75,11 @@ _ADMONITION = re.compile(r'^!!! (?:warning|danger) "(?P<title>[^"]*)"\n(?P<body>
 _REPO_PATH = re.compile(r"`((?:src|tests|pages|rfcs|tools|\.github)/[A-Za-z0-9_./-]+)`")
 
 #: An embedded diagram, as `just build-diagrams` names its output:
-#: `../_diagrams/<theme>/<name>.svg#only-<theme>`.
-_DIAGRAM = re.compile(r"_diagrams/(light|dark)/([A-Za-z0-9_-]+)\.svg")
+#: `../_diagrams/<theme>/<name>.svg#only-<theme>`. The name is everything up to
+#: the extension rather than a conservative character class: a `.d2` whose stem
+#: holds a dot renders to a filename this once did not match at all, and an
+#: unmatched reference is a diagram the audit below never sees.
+_DIAGRAM = re.compile(r"_diagrams/(light|dark)/([^/\s)#]+)\.svg")
 
 
 # ....................... #
