@@ -316,8 +316,6 @@ the upgrade and a `plan` reports nothing.
   declare `scd: type2`, and may not record a `direct:` path. Each is refused at compile
   time with a message naming the reason. `assert:`, `references:` and `coverage:` are
   unaffected.
-- The dbt target refuses a merged entity: the collision audit has no honest dbt
-  equivalent, and the merge is not correct without it.
 - **`divide` is inexact on DuckDB.** That engine has no exact decimal division — `/` is
   float division and `//` is integer division — so the division happens in binary floating
   point and the result is narrowed back to the declared decimal. PostgreSQL and Trino

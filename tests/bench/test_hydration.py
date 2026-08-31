@@ -72,8 +72,6 @@ def _column(name: str, type_: object) -> ColumnIR:
         canonical=None,
         unit=None,
         tax_basis=None,
-        expr=SqlExpr(name),
-        recipe_id=None,
         renamed_from=None,
         required=name == "pk",
     )
@@ -98,6 +96,10 @@ def _model(index: int) -> tuple[EntityIR, MartIR, list[MetricIR]]:
         materialization=Materialization.FULL,
         partition_by=(),
         columns=tuple(columns),
+        # `columns=` is left empty deliberately: `build_manifest_bytes` reads no
+        # part of `sources`, so populating it produces byte-identical payload
+        # and would be fixture the measurement cannot see (RFC 0024 D26 moved
+        # the lowered expression here, out of `ColumnIR`).
         sources=(SourceIR(relation=f"src__{entity_name}"),),
     )
     mart_columns = [
