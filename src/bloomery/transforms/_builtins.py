@@ -12,7 +12,7 @@ output round-trips through ``sqlglot.parse_one``.
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
@@ -95,6 +95,43 @@ def _typed_literal(value: str | int, input_type: LogicalType) -> Expression:
         return _literal(value)
 
     return exp.cast(_literal(value), neutral_type(input_type))
+
+
+# ....................... #
+
+
+def _checked_passthrough(t: LogicalType, args: tuple[str | int, ...]) -> LogicalType:
+    """``coalesce``/``nullif`` produce the input type — after proving the
+    literal survives the cast :func:`_typed_literal` emits.
+
+    The cast makes the declared *type* true (RFC 0029 §2.1/§2.4) and says
+    nothing about the *value*: a fallback whose integral part cannot fit
+    ``decimal(p, s)`` raises ``ConversionException`` on the engine, so the
+    spec compiled and failed at run time (T-0002 D-018) — the degradation
+    RFC 0008 D3 refuses. Only decimal columns are value-checked: theirs is the
+    one cast whose failure is decidable from ``(p, s)`` alone at compile time.
+    """
+    if isinstance(t, DecimalType):
+        value = args[0]
+        try:
+            parsed = Decimal(str(value))
+        except InvalidOperation:
+            msg = (
+                f"literal {value!r} is not a number and cannot be cast to "
+                f"decimal({t.precision}, {t.scale}); use a numeric literal"
+            )
+            raise TypeCheckError(msg) from None
+
+        if not parsed.is_finite() or abs(parsed) >= Decimal(10) ** (t.precision - t.scale):
+            msg = (
+                f"literal {value!r} does not fit decimal({t.precision}, {t.scale}): the "
+                f"emitted CAST would overflow at run time on every engine — values must "
+                f"stay below 10^{t.precision - t.scale}. Fix: use a fitting literal, or "
+                "widen the field's declared type"
+            )
+            raise TypeCheckError(msg)
+
+    return t
 
 
 # ....................... #
@@ -466,7 +503,7 @@ def to_utc(col: Expression, zone: str) -> Expression:
     arity=1,
     arg_kinds=(ArgKind.LITERAL,),
     input=_ALL_TYPES,
-    output=lambda t, _args: t,
+    output=_checked_passthrough,
     types=True,
 )
 def coalesce(col: Expression, fallback: str | int, *, input_type: LogicalType) -> Expression:
@@ -500,7 +537,7 @@ def coalesce(col: Expression, fallback: str | int, *, input_type: LogicalType) -
     arity=1,
     arg_kinds=(ArgKind.LITERAL,),
     input=_ALL_TYPES,
-    output=lambda t, _args: t,
+    output=_checked_passthrough,
     nullifies=True,
     types=True,
 )

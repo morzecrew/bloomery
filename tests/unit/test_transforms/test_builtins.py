@@ -112,9 +112,12 @@ def test_enum_map_is_the_only_variadic_transform() -> None:
 
 
 def test_output_preservation_tracks_the_input_type() -> None:
+    # A decimal column takes a numeric literal — a non-numeric one is refused
+    # (see test_a_literal_that_cannot_survive_its_cast_is_refused).
     coalesce = DEFAULT_REGISTRY["coalesce"]
-    for t in (StringType(), IntType(), DecimalType(9, 2), TimestampType()):
+    for t in (StringType(), IntType(), TimestampType()):
         assert coalesce.output_type(t, ("x",)) == t
+    assert coalesce.output_type(DecimalType(9, 2), ("1.5",)) == DecimalType(9, 2)
 
 
 @pytest.mark.parametrize(
@@ -145,6 +148,30 @@ def test_arithmetic_overflow_past_38_is_loud(name: str) -> None:
     spec = DEFAULT_REGISTRY[name]
     with pytest.raises(TypeCheckError, match="38-digit precision cap"):
         spec.output_type(DecimalType(38, 2), (10,))
+
+
+@pytest.mark.parametrize("name", ["coalesce", "nullif"])
+def test_a_literal_that_cannot_survive_its_cast_is_refused(name: str) -> None:
+    """T-0002 D-018: the emitter casts the literal into the column's decimal
+    type, and a value whose integral part cannot fit raises ConversionException
+    on the engine — compile-and-fail, the degradation RFC 0008 D3 refuses."""
+    spec = DEFAULT_REGISTRY[name]
+    with pytest.raises(TypeCheckError, match=r"does not fit decimal\(12, 4\)"):
+        spec.output_type(DecimalType(12, 4), (99999999999999,))
+    with pytest.raises(TypeCheckError, match=r"does not fit decimal\(12, 4\)"):
+        spec.output_type(DecimalType(12, 4), ("100000000",))
+    with pytest.raises(TypeCheckError, match="is not a number"):
+        spec.output_type(DecimalType(12, 4), ("unknown",))
+
+
+@pytest.mark.parametrize("name", ["coalesce", "nullif"])
+def test_a_fitting_literal_still_produces_the_input_type(name: str) -> None:
+    spec = DEFAULT_REGISTRY[name]
+    # 99999999.9999 is the largest decimal(12, 4); the boundary fits.
+    assert spec.output_type(DecimalType(12, 4), ("99999999.9999",)) == DecimalType(12, 4)
+    assert spec.output_type(DecimalType(12, 4), (0,)) == DecimalType(12, 4)
+    # Non-decimal columns are untouched: a string fallback stays a string.
+    assert spec.output_type(StringType(), ("unknown",)) == StringType()
 
 
 def test_round_output() -> None:
