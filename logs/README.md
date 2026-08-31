@@ -16,6 +16,7 @@ appending a row to the RFC's decision table, and that row cites the entry it cam
 | [T-0002](T-0002.md) | RFC 0029 — transform types the engine agrees with | 2 |
 | [T-0003](T-0003.md) | RFC 0026 — the dbt singular-test surface | 0 |
 | [T-0004](T-0004.md) | RFC 0024 P1 — deterministic union merge | 0 |
+| [T-0008](T-0008.md) | RFC 0032 — mapping identity | 0 |
 
 ## How to read an entry
 

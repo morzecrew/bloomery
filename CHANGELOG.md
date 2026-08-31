@@ -110,6 +110,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A mapping document has a name, and field provenance uses it.** `Mapping.document` is
+  the name the document was loaded under — already the key that orders `Project.mappings`
+  and already the prefix on that document's refusals, and until now discarded. It is set
+  by the loader and is not part of the mapping vocabulary: a document declaring
+  `document:` is refused rather than overwritten, and the schema `bloomery schema` exports
+  is unchanged, because its audience is a spec author and this field is not theirs to
+  write.
+
+  `FieldProvenance` gains `mapping` and now carries **one entry per
+  `(entity, field, mapping)`**. Where several mappings build one entity (a merged entity)
+  and implement one field differently, each says so in its own entry; previously the
+  collection keyed on the field alone and reported the last mapping in document order, so
+  the others were not representable and the entry looked identical to a single-mapping
+  one. Across the fixture corpus this recovers 4 facts that could not be stated. An entity
+  built by one mapping reports the same fields it always did, each now naming that
+  document. `FieldProvenance.mapping` binds under SemVer on the top-level surface;
+  `Mapping.document` binds on `bloomery.spec`, where `Mapping` is exported.
+
+  **`SpecEvidence.unresolved` is unchanged.** It still omits an open decision whose entity
+  is built by more than one mapping. The identity it was waiting on now exists; what
+  remains is what a worklist entry means when any one of N documents could close the gap,
+  which is a decision about that report's promise rather than about names. See
+  [Close an open decision](https://morzecrew.github.io/bloomery/how-to/close-an-open-decision/).
+
+
 - **MetricFlow moves to 0.212**, and the emitted MetricFlow manifest changes with it:
   `minor_version` reads `"212"` where it read `"211"`. That field is part of every emitted
   manifest, so the artifact bytes move for every project even where nothing else did —

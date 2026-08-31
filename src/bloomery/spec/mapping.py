@@ -14,6 +14,7 @@ from collections.abc import Mapping as AbcMapping
 from typing import Annotated, Literal, Self, cast
 
 from pydantic import Discriminator, Field, Tag, model_validator
+from pydantic.json_schema import SkipJsonSchema
 
 from bloomery.spec.common import JsonPath, MemberName, SpecModel
 from bloomery.spec.quality import FieldQualityRule
@@ -208,6 +209,23 @@ ALIAS_BOUND = (RecipeFieldMapping, MacroFieldMapping)
 class Mapping(SpecModel):
     """One (source, target entity) mapping document (``mapping_version``)."""
 
+    #: The document this mapping was parsed from — the identity two reports need
+    #: in order to name an edit (RFC 0032 D1). It is unique by construction (a
+    #: key of ``load_project``'s ``sources``), already orders
+    #: :attr:`~bloomery.spec.project.Project.mappings`, and is already the
+    #: prefix on this document's refusals (RFC 0002 §5.3).
+    #:
+    #: **Set by the loader, never authored** (RFC 0032 D3): a document
+    #: declaring ``document:`` is refused, because a document asserting its own
+    #: filename is a second source of truth that can disagree with the first.
+    #:
+    #: ``SkipJsonSchema`` for that same reason, and it is load-bearing rather
+    #: than cosmetic. ``bloomery schema`` exports these models for editors to
+    #: validate against (RFC 0020), and its audience is a spec *author* — so a
+    #: required ``document`` in the exported schema would have an editor demand
+    #: the one key the loader refuses. The schema describes the authored
+    #: vocabulary; this field is not in it.
+    document: SkipJsonSchema[str]
     #: Pinned to the one version bloomery implements (RFC 0018 D7). It was
     #: ``int`` with ``ge=1``, which accepted a document written for a future
     #: bloomery and silently applied v1 semantics to it — the exact misreading

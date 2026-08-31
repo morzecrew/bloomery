@@ -13,6 +13,7 @@ nothing internal but errors (import-linter contract).
 from __future__ import annotations
 
 from collections.abc import Hashable
+from collections.abc import Mapping as AbcMapping
 from decimal import Decimal
 from typing import Annotated, Any, Literal, cast
 
@@ -239,6 +240,55 @@ def source_path_from_loc(document: str, loc: tuple[int | str, ...]) -> str:
 # ....................... #
 
 
+def _with_document_identity(
+    model_cls: type[SpecModel],
+    data: object,
+    *,
+    document: str,
+) -> tuple[object, SpecParseError | None]:
+    """Bind ``document`` on a mapping's data; leave every other kind alone.
+
+    An authored ``document:`` is **refused rather than overwritten**
+    (RFC 0032 D3): the field is a fact about where the document was read from,
+    and a document asserting its own filename is a second source of truth that
+    can disagree with the first. Silently discarding the author's value would
+    make that disagreement invisible, which is the failure the refusal exists
+    to prevent.
+
+    Refused here rather than by ``extra="forbid"``, which cannot see it: once
+    ``document`` is a declared field of :class:`~bloomery.spec.mapping.Mapping`
+    it is a *known* key, so the shape check that refuses every other unknown
+    key would accept this one.
+
+    **The refusal is returned, not raised**, so that it joins the document's
+    other shape failures instead of pre-empting them (RFC 0002 D6). Raising
+    here would report the authored key and hide every other error in the same
+    document, which is the one-at-a-time fixing that batching exists to
+    prevent — and the caller has the author's value bound to a real field by
+    then, so it must be a refusal rather than a value either way.
+    """
+    from bloomery.spec.mapping import Mapping
+
+    if model_cls is not Mapping or not isinstance(data, AbcMapping):
+        return data, None
+
+    if "document" in data:
+        msg = (
+            "'document' is not part of the mapping vocabulary — it is the name this "
+            "document was loaded under, which bloomery supplies (RFC 0032 D3)"
+        )
+        # The authored value is dropped and the loader's bound in its place, so
+        # the rest of the document still validates and reports its own errors.
+        refusal = SpecParseError(msg, source_path=source_path_from_loc(document, ("document",)))
+
+        return {**data, "document": document}, refusal  # pyright: ignore[reportUnknownVariableType]
+
+    return {**data, "document": document}, None  # pyright: ignore[reportUnknownVariableType]
+
+
+# ....................... #
+
+
 def validate_document[ModelT: SpecModel](
     model_cls: type[ModelT], data: object, *, document: str
 ) -> ModelT:
@@ -248,21 +298,40 @@ def validate_document[ModelT: SpecModel](
     is converted to a :class:`SpecParseError` with a document-prefixed source
     path, and multiple failures in one document are batched into a single
     aggregate error listing every path (RFC 0002 D6).
+
+    ``document`` also **binds a mapping's identity** (RFC 0032 D1/D3). It is
+    already the name this document is known by — it prefixes every refusal
+    raised here — so a :class:`~bloomery.spec.mapping.Mapping` takes its
+    ``document`` field from the same argument rather than from a second one
+    that could disagree. Bound here rather than in ``load_project`` because
+    this is the one gate every parsed document passes: a caller validating a
+    mapping directly gets an identity too, instead of a
+    ``document: Field required`` from a model it has no way to complete.
     """
 
+    data, identity_refusal = _with_document_identity(model_cls, data, document=document)
+
     try:
-        return model_cls.model_validate(data)
+        validated = model_cls.model_validate(data)
     except PydanticValidationError as exc:
-        collected = tuple(
-            SpecParseError(
-                str(err["msg"]),
-                source_path=source_path_from_loc(document, tuple(err["loc"])),
-            )
-            for err in exc.errors()
+        collected = (
+            *((identity_refusal,) if identity_refusal is not None else ()),
+            *(
+                SpecParseError(
+                    str(err["msg"]),
+                    source_path=source_path_from_loc(document, tuple(err["loc"])),
+                )
+                for err in exc.errors()
+            ),
         )
         if len(collected) == 1:
             raise collected[0] from None
         raise SpecParseError.from_collected(collected) from None
+
+    if identity_refusal is not None:
+        raise identity_refusal
+
+    return validated
 
 
 # ....................... #
