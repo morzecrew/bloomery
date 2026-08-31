@@ -99,8 +99,6 @@ from bloomery.emit.base import (
     ArtifactKind,
     EmitContext,
     EmittedArtifact,
-    Feature,
-    TargetCapabilities,
     assert_unique_paths,
 )
 from bloomery.emit.lower import (
@@ -1094,32 +1092,9 @@ def _project_artifact(ctx: EmitContext, namespaces: tuple[str, ...]) -> EmittedA
 
 class DbtEmitter:
     """RFC 0008 §5.5: the port-abstraction proof (RFC 0008 D5) — same
-    lowered SELECTs as SQLMesh, dbt envelopes, honest capability answers."""
+    lowered SELECTs as SQLMesh, dbt envelopes, honest refusals per construct."""
 
     name = "dbt"
-
-    # ....................... #
-
-    def capabilities(self) -> TargetCapabilities:
-        """Declared support per RFC 0008 §5.1 (amended D6): dbt builds the
-        same silver/gold tables SQLMesh does — SCD type 2 (lowered to a
-        snapshot), variant columns, incrementality (merge-on-key), audits
-        (schema tests), and all additivity features."""
-
-        return TargetCapabilities(
-            supported=frozenset(
-                {
-                    Feature.SCD_TYPE_2,
-                    Feature.VARIANT_COLUMN,
-                    Feature.INCREMENTAL,
-                    Feature.AUDITS,
-                    Feature.SEMI_ADDITIVE,
-                    Feature.NON_ADDITIVE,
-                    Feature.CUMULATIVE,
-                    Feature.DERIVED_METRIC,
-                }
-            )
-        )
 
     # ....................... #
 

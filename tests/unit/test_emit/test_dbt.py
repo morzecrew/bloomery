@@ -17,7 +17,6 @@ from sqlglot import exp, parse_one
 from bloomery import Target
 from bloomery.dialects import get_dialect
 from bloomery.emit import ArtifactKind, EmitContext, EmittedArtifact
-from bloomery.emit.base import Feature
 from bloomery.emit.dbt import DbtEmitter
 from bloomery.emit.dbt import _reference_map  # pyright: ignore[reportPrivateUsage]
 from bloomery.emit.lower import THIS_MODEL
@@ -127,21 +126,6 @@ def _dbt_select(content: str) -> str:
     that closes the header + config block."""
     _envelope, _sep, select = content.partition("\n\n")
     return select.strip()
-
-
-def test_capabilities_mirror_the_tables_dbt_builds() -> None:
-    assert DbtEmitter().capabilities().supported == frozenset(
-        {
-            Feature.SCD_TYPE_2,
-            Feature.VARIANT_COLUMN,
-            Feature.INCREMENTAL,
-            Feature.AUDITS,
-            Feature.SEMI_ADDITIVE,
-            Feature.NON_ADDITIVE,
-            Feature.CUMULATIVE,
-            Feature.DERIVED_METRIC,
-        }
-    )
 
 
 @pytest.mark.parametrize(

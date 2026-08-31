@@ -11,8 +11,6 @@ from bloomery.emit.base import (
     ArtifactKind,
     EmitContext,
     EmittedArtifact,
-    Feature,
-    TargetCapabilities,
     TargetEmitter,
 )
 from bloomery.emit.cube import CubeEmitter
@@ -31,9 +29,7 @@ __all__ = [
     "DbtEmitter",
     "EmitContext",
     "EmittedArtifact",
-    "Feature",
     "SQLMeshEmitter",
-    "TargetCapabilities",
     "TargetEmitter",
     "get_emitter",
     "register_emitter",

@@ -162,14 +162,14 @@ which is the only way a ratio stays correct. A spec that tries to store a non-ad
 metric as a mart measure is already refused at the guardrail stage; the emitter checks
 again and raises `UnsupportedByTarget` rather than approximate.
 
-## What Cube capabilities mean
+## What Cube cannot express
 
-Each target declares which IR features it supports, and the Cube emitter's declared set
-is intentionally small: the semantic features (non-additive, semi-additive metadata,
-role-playing dimensions). SCD2 and incremental materialization are *absent* — and that
-absence is irrelevance, not error: Cube consumes tables that SQLMesh (or dbt) builds
-and maintains, so materialization concerns never reach this target. Only a feature a
-target claims to support but cannot express honestly raises `UnsupportedByTarget`.
+What this target cannot express is refused per construct with
+`UnsupportedByTarget`, never approximated: an aggregation outside Cube's closed
+set, a metric with no expression, a non-additive metric whose decomposition is
+additive rather than a ratio. SCD2 and incremental materialization never reach
+this target at all — and that absence is irrelevance, not error: Cube consumes
+tables that SQLMesh (or dbt) builds and maintains.
 
 ## Notes
 

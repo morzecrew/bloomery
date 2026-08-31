@@ -20,9 +20,7 @@ from metricflow_semantic_interfaces.type_enums.time_granularity import TimeGranu
 from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifestLookup
 
 from bloomery import build_project_ir, load_catalog, load_project
-from bloomery.emit import Feature
 from bloomery.emit.metricflow import (
-    METRICFLOW_PLANNER_CAPABILITIES,
     emit_manifest,
     manifest_json,
 )
@@ -414,7 +412,7 @@ def test_metric_time_in_the_emitted_surface_is_an_emit_error() -> None:
 
 
 # ....................... #
-# Time spine, martless projects, capabilities, serialization
+# Time spine, martless projects, serialization
 
 def test_time_spine_points_at_the_gold_date_dimension() -> None:
     manifest = _manifest("ecom_basic")
@@ -437,17 +435,6 @@ def test_a_martless_project_emits_an_empty_manifest() -> None:
     assert list(manifest.semantic_models) == []
     assert list(manifest.metrics) == []
     assert list(manifest.project_configuration.time_spines) == []
-
-
-def test_planner_capabilities_refuse_query_time_joins_by_policy() -> None:
-    assert METRICFLOW_PLANNER_CAPABILITIES.supports(Feature.SEMI_ADDITIVE)
-    assert METRICFLOW_PLANNER_CAPABILITIES.supports(Feature.NON_ADDITIVE)
-    assert METRICFLOW_PLANNER_CAPABILITIES.supports(Feature.CUMULATIVE)
-    assert METRICFLOW_PLANNER_CAPABILITIES.supports(Feature.DERIVED_METRIC)
-    assert METRICFLOW_PLANNER_CAPABILITIES.supports(Feature.ROLE_PLAYING_DIM)
-    assert METRICFLOW_PLANNER_CAPABILITIES.supports(Feature.ROW_LEVEL_SECURITY)
-    assert not METRICFLOW_PLANNER_CAPABILITIES.supports(Feature.QUERY_TIME_JOIN)
-    assert not METRICFLOW_PLANNER_CAPABILITIES.supports(Feature.MULTI_FACT)
 
 
 def test_manifest_json_is_byte_stable_and_sorted() -> None:

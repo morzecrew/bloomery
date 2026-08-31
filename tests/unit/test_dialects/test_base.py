@@ -20,7 +20,6 @@ from bloomery.dialects import (
     register_dialect,
 )
 from bloomery.dialects.base import strip_iso_text
-from bloomery.emit.base import Feature
 from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.ir.lower import canon
 from bloomery.quality.pattern import unsupported_dialects
@@ -115,10 +114,12 @@ def test_every_shipped_dialect_has_arrays(dialect: DialectPort) -> None:
     assert dialect.supports(DialectFeature.ARRAY)
 
 
-def test_array_is_a_dialect_feature_not_a_target_feature() -> None:
-    # the deliberate divergence from Document 5 §5.3, recorded as a test
+def test_array_is_a_dialect_feature() -> None:
+    # RFC 0016 D9's deliberate divergence from Document 5 §5.3: array support
+    # is an engine property, recorded on the dialect port. (The target-side
+    # Feature vocabulary it diverged from has since been removed outright —
+    # nothing ever consulted it.)
     assert "array" in {feature.value for feature in DialectFeature}
-    assert "array" not in {feature.value for feature in Feature}
 
 
 def test_a_port_that_never_strips_the_iso_marker_is_refused() -> None:
