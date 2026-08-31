@@ -45,6 +45,7 @@ from bloomery.ir import (
     MetricIR,
     ProjectIR,
     SCDKind,
+    SourceColumnIR,
     SourceIR,
     SqlExpr,
     Additivity,
@@ -72,8 +73,6 @@ def _column(name: str, type_: object) -> ColumnIR:
         canonical=None,
         unit=None,
         tax_basis=None,
-        expr=SqlExpr(name),
-        recipe_id=None,
         renamed_from=None,
         required=name == "pk",
     )
@@ -98,7 +97,15 @@ def _model(index: int) -> tuple[EntityIR, MartIR, list[MetricIR]]:
         materialization=Materialization.FULL,
         partition_by=(),
         columns=tuple(columns),
-        sources=(SourceIR(relation=f"src__{entity_name}"),),
+        sources=(
+            SourceIR(
+                relation=f"src__{entity_name}",
+                # RFC 0024 D26: the lowered expression hangs off the source, one
+                # per entity column, so a manifest built without these is
+                # narrower than any the emitter produces.
+                columns=tuple(SourceColumnIR(name=c.name, expr=SqlExpr(c.name)) for c in columns),
+            ),
+        ),
     )
     mart_columns = [
         MartColumnIR(name=c.name, type=c.type, source_entity=entity_name, source_column=c.name)
