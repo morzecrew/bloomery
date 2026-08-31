@@ -1,6 +1,6 @@
 # refusals/
 
-Six specs that look right and cannot be right, and what bloomery says about
+Five specs that look right and cannot be right, and what bloomery says about
 each. No containers, no warehouse, no setup — every case here is decided at
 compile time, which is the whole point.
 
@@ -18,7 +18,7 @@ Every other example shows bloomery building something. This one shows it
 would produce a plausible wrong number is a compile error, not a query someone
 discovers is wrong three months later.
 
-Four of these six would run fine in a hand-written dbt or SQL project. They
+Four of these five would run fine in a hand-written dbt or SQL project. They
 would return rows. The rows would be wrong, and nothing would say so.
 
 | Case | Refusal | What it would have done |
@@ -28,12 +28,11 @@ would return rows. The rows would be wrong, and nothing would say so.
 | `fanout/` | `FanoutRisk` | Multiplied the mart's rows once per match across a `one_to_many` relationship |
 | `mixed-currency/` | `CurrencyMismatch` | Added EUR to USD and returned a number that is the sum of two different things |
 | `unimplemented-convert/` | `UnsupportedByTarget` | Emitted a `CONVERT_CURRENCY(...)` call that exists in no engine |
-| `merged-on-dbt/` | `UnsupportedByTarget` | Built a union merge on a target with no artifact for its blocking collision audit |
 
-The last two are a different kind of refusal and the distinction is worth
-keeping: those specs are not *wrong*, they are *unsupported*. `merged-on-dbt`
-compiles for SQLMesh and is refused for dbt, and the message says which target
-does support it. A limitation that names itself is not the same as a defect.
+The last one is a different kind of refusal and the distinction is worth
+keeping: that spec is not *wrong*, it is *unsupported*. `convert` typechecks and
+passes every guardrail, and is refused only because no engine implements the
+call it would emit. A limitation that names itself is not the same as a defect.
 
 ## What to read
 
@@ -67,7 +66,7 @@ bloomery does.
 
 ## The full catalogue
 
-These six are a sample chosen to tell a story. The complete list of error
+These five are a sample chosen to tell a story. The complete list of error
 classes, what raises each and at which stage, is in the
 [errors reference](https://morzecrew.github.io/bloomery/reference/errors/).
 Every class documented there is produced by the test suite — a documented
