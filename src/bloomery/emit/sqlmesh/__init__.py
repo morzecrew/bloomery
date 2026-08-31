@@ -52,8 +52,6 @@ from bloomery.emit.base import (
     ArtifactKind,
     EmitContext,
     EmittedArtifact,
-    Feature,
-    TargetCapabilities,
     assert_unique_paths,
 )
 from bloomery.emit.lower import (
@@ -88,7 +86,7 @@ from bloomery.emit.lower import (
     replay_statements,
 )
 from bloomery.emit.steps import step_artifacts
-from bloomery.errors import guaranteed
+from bloomery.errors import UnsupportedByTarget, guaranteed
 from bloomery.ir import (
     AuditIR,
     DateDimensionIR,
@@ -102,6 +100,7 @@ from bloomery.ir import (
     SCDKind,
 )
 from bloomery.quality import RunContext, is_quality_mart
+from bloomery.typing import DateType, TimestampType
 
 # ----------------------- #
 
@@ -314,8 +313,22 @@ def _kind_clause(entity: EntityIR) -> str:
         return f"INCREMENTAL_BY_UNIQUE_KEY (unique_key ({', '.join(entity.key)}))"
 
     if entity.materialization is Materialization.INCREMENTAL_BY_PARTITION:
-        time_column = entity.partition_by[0].column
-        return f"INCREMENTAL_BY_TIME_RANGE (time_column {time_column})"
+        # The kind takes exactly one time column, documented as the first
+        # partition_by entry. A non-temporal leading column would emit a model
+        # whose time_column is not time — SQLMesh fails on it (or filters
+        # wrongly by it) only at run time, the compile-and-fail degradation
+        # RFC 0008 D3 refuses.
+        leading = entity.partition_by[0].column
+        declared = next((c.type for c in entity.columns if c.name == leading), None)
+        if declared is not None and not isinstance(declared, DateType | TimestampType):
+            msg = (
+                f"entity {entity.name!r} is incremental_by_partition, whose SQLMesh kind "
+                f"INCREMENTAL_BY_TIME_RANGE takes the first partition column as its "
+                f"time_column — but {leading!r} is not a date or timestamp. Fix: put the "
+                "time column first in partition_by, or use incremental_by_key"
+            )
+            raise UnsupportedByTarget(msg)
+        return f"INCREMENTAL_BY_TIME_RANGE (time_column {leading})"
 
     return "FULL"
 
@@ -798,27 +811,6 @@ class SQLMeshEmitter:
     audit artifact per non-builtin ``AuditIR``."""
 
     name = "sqlmesh"
-
-    # ....................... #
-
-    def capabilities(self) -> TargetCapabilities:
-        """Declared support per RFC 0008 §5.1 (amended D6): SCD type 2,
-        variant columns, incrementality, audits, and all additivity features."""
-
-        return TargetCapabilities(
-            supported=frozenset(
-                {
-                    Feature.SCD_TYPE_2,
-                    Feature.VARIANT_COLUMN,
-                    Feature.INCREMENTAL,
-                    Feature.AUDITS,
-                    Feature.SEMI_ADDITIVE,
-                    Feature.NON_ADDITIVE,
-                    Feature.CUMULATIVE,
-                    Feature.DERIVED_METRIC,
-                }
-            )
-        )
 
     # ....................... #
 
