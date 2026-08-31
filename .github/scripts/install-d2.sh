@@ -23,6 +23,12 @@ curl -LsSf -o /tmp/d2.tar.gz \
 	"https://github.com/terrastruct/d2/releases/download/${D2_VERSION}/d2-${D2_VERSION}-linux-amd64.tar.gz"
 echo "${D2_SHA256}  /tmp/d2.tar.gz" | sha256sum --check --strict
 
+# Emptied first, not merely created: `find | head -n 1` returns whatever the
+# directory walk reaches first, so an extract left by an earlier run — a
+# different D2_VERSION, a re-run — can be installed *instead of* the archive
+# whose digest was just checked. That is the pin verifying one file and
+# shipping another.
+rm -rf /tmp/d2-extract
 mkdir -p /tmp/d2-extract
 tar -xzf /tmp/d2.tar.gz -C /tmp/d2-extract
 sudo mv "$(find /tmp/d2-extract -type f -name d2 | head -n 1)" /usr/local/bin/d2
