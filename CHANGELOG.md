@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A metric declaring `cumulative:` is now refused at compile time
+  (`UnsupportedCumulative`). It was accepted and silently compiled as a plain
+  simple metric — per-period aggregation where a running total was declared. A
+  spec that compiled with `cumulative:` now fails until the clause is removed.
+
+- A `coalesce`/`nullif` literal that cannot survive the cast into its column's
+  decimal type — too wide for the declared `(p, s)`, or not a number — is now
+  refused at typecheck. It compiled and then failed on the engine with a
+  conversion error at run time.
+
+- The SQLMesh target now refuses `incremental_by_partition` when the first
+  `partition_by` column is not a date or timestamp, instead of emitting an
+  `INCREMENTAL_BY_TIME_RANGE` model whose time column is not time.
+
+- Compiling for a registered extension dialect now checks `pattern` quality
+  rules against that dialect (a regex surface, literal transport) and refuses
+  what it cannot carry. Extension dialects previously had patterns rendered
+  with no check at all; the shipped three dialects are unaffected.
+
+### Removed
+
+- The unenforced target-capability surface: `Feature`, `TargetCapabilities`,
+  each emitter's `capabilities()`, and `METRICFLOW_PLANNER_CAPABILITIES`.
+  Nothing consulted them, and the tables claimed features no emitter emits.
+  What a target cannot express is still refused with `UnsupportedByTarget`.
+
 ## [0.2.0] - 2026-08-31
 
 **Known limitations, stated up front.** Keep a Changelog names six section types and none
