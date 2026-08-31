@@ -1830,20 +1830,25 @@ ids and leaves each recipe's <code>requires</code> to <code>--format json</code>
 <h2 id="what-you-already-decided">What you already decided<a class="headerlink" href="#what-you-already-decided" title="Permanent link">&para;</a></h2>
 <p><code>SpecEvidence.provenance</code> is the other half of a loop's memory: one entry per mapped field,
 saying whether it comes straight from a source column, through a recipe — with the id you
-recorded — or from no canonical link at all.</p>
-<div class="highlight"><pre><span></span><code><span class="p">{</span><span class="nt">"entity"</span><span class="p">:</span><span class="w"> </span><span class="s2">"order_item"</span><span class="p">,</span><span class="w"> </span><span class="nt">"field"</span><span class="p">:</span><span class="w"> </span><span class="s2">"unit_price"</span><span class="p">,</span><span class="w"> </span><span class="nt">"provenance"</span><span class="p">:</span><span class="w"> </span><span class="s2">"recipe"</span><span class="p">,</span><span class="w"> </span><span class="nt">"recipe_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"from_total"</span><span class="p">}</span>
+recorded — or from no canonical link at all. <code>mapping</code> names the document it was read
+from, which is the document you would edit.</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span><span class="nt">"entity"</span><span class="p">:</span><span class="w"> </span><span class="s2">"order_item"</span><span class="p">,</span><span class="w"> </span><span class="nt">"field"</span><span class="p">:</span><span class="w"> </span><span class="s2">"unit_price"</span><span class="p">,</span><span class="w"> </span><span class="nt">"mapping"</span><span class="p">:</span><span class="w"> </span><span class="s2">"mapping_order_items"</span><span class="p">,</span><span class="w"> </span><span class="nt">"provenance"</span><span class="p">:</span><span class="w"> </span><span class="s2">"recipe"</span><span class="p">,</span><span class="w"> </span><span class="nt">"recipe_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"from_total"</span><span class="p">}</span>
 </code></pre></div>
 <p>Use it to avoid re-deriving your own history from the mapping documents you wrote.</p>
+<p>Where several mappings build one entity, a field they both produce gets <strong>one entry per
+mapping</strong>, so two documents implementing one column differently are two rows rather than
+one — the answers for a field stay next to each other, sorted by document name.</p>
 <h2 id="when-the-report-is-empty-and-something-is-still-blocked">When the report is empty and something is still blocked<a class="headerlink" href="#when-the-report-is-empty-and-something-is-still-blocked" title="Permanent link">&para;</a></h2>
 <p>Three cases, and they are worth telling apart.</p>
 <p><strong>A refusal in the resolve stage.</strong> A recipe id that does not exist, or one whose
 <code>requires</code> are not bound, is refused before reachability is computed — so there is no
 report that round. The refusal names the fix and lists the ids the catalog does have; fix
 it and recompile.</p>
-<p><strong>A merged entity.</strong> Where several mappings build one entity, its columns are per mapping,
-so no single document is <em>the</em> edit and no entry can name one. Those decisions are left
-out rather than reported un-actionably; the metric blocked on one is still in
-<code>unreachable</code>.</p>
+<p><strong>A merged entity.</strong> Where several mappings build one entity, any one of them might be the
+document that closes the gap, and the report does not guess between them: those decisions
+are left out rather than reported un-actionably, and the metric blocked on one is still in
+<code>unreachable</code>. <code>provenance</code> does name mappings, so it will tell you which documents build
+the entity — start from the one whose source carries the field.</p>
 <p><strong>Nothing requires it.</strong> A canonical field no metric needs is not work, and never appears.</p>
 
 
