@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.55">
+      <meta name="generator" content="zensical-0.0.57">
     
     
       
@@ -36,12 +36,12 @@
       
         
       
-      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.20815dad.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.5da3a30f.min.css">
       
         
           
         
-        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.dfe2e883.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.812a03bb.min.css">
       
       
 
@@ -1969,10 +1969,8 @@ that position; the refusal is what a fourth one would meet if it arrived without
 capability.</p>
 <h2 id="the-pipeline-order-is-fixed">The pipeline order is fixed<a class="headerlink" href="#the-pipeline-order-is-fixed" title="Permanent link">&para;</a></h2>
 <p>Declared once, never per field, never configurable:</p>
-<pre class="mermaid"><code>flowchart LR
-    E[extract] --&gt; T[transform] --&gt; D[dedupe] --&gt; F[field rules] --&gt; R[row rules] --&gt; RT[route]
-    RT --&gt; S[("silver.&amp;lt;entity&amp;gt;&lt;br/&gt;_quality_flags")]
-    RT --&gt; J[("silver.&amp;lt;entity&amp;gt;__reject")]</code></pre>
+<p><img alt="Extract, transform, dedupe, then the field and row rules, then routing to the flagged table or the reject table" data-src="../_diagrams/light/quality-pipeline.svg#only-light" src="../../_diagrams/light/quality-pipeline.svg#only-light" />
+<img alt="Extract, transform, dedupe, then the field and row rules, then routing to the flagged table or the reject table" data-src="../_diagrams/dark/quality-pipeline.svg#only-dark" src="../../_diagrams/dark/quality-pipeline.svg#only-dark" /></p>
 <p>The order that matters most is <strong>dedupe before the rules</strong>. The alternative — validate
 first, deduplicate the survivors — means a corrupt latest row is silently replaced by a
 stale-but-clean older one. That is data loss disguised as data quality: the dashboard
@@ -2298,7 +2296,7 @@ disposition change produces.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
+      <script src="../../assets/javascripts/bundle.49251538.min.js"></script>
       
     
   </body>

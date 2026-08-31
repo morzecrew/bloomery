@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.55">
+      <meta name="generator" content="zensical-0.0.57">
     
     
       
@@ -36,12 +36,12 @@
       
         
       
-      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.20815dad.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.5da3a30f.min.css">
       
         
           
         
-        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.dfe2e883.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.812a03bb.min.css">
       
       
 
@@ -1752,11 +1752,8 @@ rather than makes — derivation decisions, and how a MetricSet classifies every
 by additivity. It is the model everything downstream (resolution, guardrails, marts,
 planning) operates on.</p>
 <p>The split that makes the model work is vertical-level versus tenant-level:</p>
-<pre class="mermaid"><code>flowchart LR
-    C["Catalog&lt;br/&gt;(one per vertical)"] --&gt;|"canonical: links"| E["EntityModel&lt;br/&gt;(one per tenant)"]
-    S["bronze source"] --&gt; M["Mapping&lt;br/&gt;(one per source × entity)"] --&gt; E
-    E --&gt; MS["MetricSet"]
-    E --&gt; MT["Marts"]</code></pre>
+<p><img alt="The Catalog links canonical fields into the EntityModel; a bronze source reaches it through a Mapping; the MetricSet and the Marts read the entity" data-src="../_diagrams/light/specs-and-catalog.svg#only-light" src="../../_diagrams/light/specs-and-catalog.svg#only-light" />
+<img alt="The Catalog links canonical fields into the EntityModel; a bronze source reaches it through a Mapping; the MetricSet and the Marts read the entity" data-src="../_diagrams/dark/specs-and-catalog.svg#only-dark" src="../../_diagrams/dark/specs-and-catalog.svg#only-dark" /></p>
 <h2 id="catalog-the-vertical-level-domain-graph">Catalog: the vertical-level domain graph<a class="headerlink" href="#catalog-the-vertical-level-domain-graph" title="Permanent link">&para;</a></h2>
 <p>The Catalog is the piece most spec-compiler designs miss, and it is what makes the rest
 tractable. One Catalog exists per vertical (e-commerce retail, logistics, …), written by
@@ -2046,7 +2043,7 @@ the specs through that graph to emitted artifacts.</p>
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
+      <script src="../../assets/javascripts/bundle.49251538.min.js"></script>
       
     
   </body>

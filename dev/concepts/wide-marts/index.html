@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="zensical-0.0.55">
+      <meta name="generator" content="zensical-0.0.57">
     
     
       
@@ -36,12 +36,12 @@
       
         
       
-      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.20815dad.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.5da3a30f.min.css">
       
         
           
         
-        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.dfe2e883.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.812a03bb.min.css">
       
       
 
@@ -1842,9 +1842,8 @@ named:</p>
 <h2 id="one-definition-two-consumers">One definition, two consumers<a class="headerlink" href="#one-definition-two-consumers" title="Permanent link">&para;</a></h2>
 <p>A mart definition is compiled once into the IR and read by two consumers that must
 never disagree:</p>
-<pre class="mermaid"><code>flowchart LR
-    M[("MartIR&lt;br/&gt;grain · columns · measures")] --&gt; B["SQLMesh emitter&lt;br/&gt;builds the table:&lt;br/&gt;joins + flattening"]
-    M --&gt; P["planner&lt;br/&gt;queries the table:&lt;br/&gt;no joins, ever"]</code></pre>
+<p><img alt="One MartIR read twice: the SQLMesh emitter builds the table with joins, the planner queries it with none" data-src="../_diagrams/light/wide-marts.svg#only-light" src="../../_diagrams/light/wide-marts.svg#only-light" />
+<img alt="One MartIR read twice: the SQLMesh emitter builds the table with joins, the planner queries it with none" data-src="../_diagrams/dark/wide-marts.svg#only-dark" src="../../_diagrams/dark/wide-marts.svg#only-dark" /></p>
 <p>The SQLMesh emitter lowers the mart into the gold-layer model that <em>builds</em> the wide
 table — the base entity joined once per flatten step and once per date role. That model
 is the only place joins are ever emitted for a mart. The planner then treats the built
@@ -1988,7 +1987,7 @@ carry are explained in <a href="../specs-and-catalog/">Specs and the catalog</a>
       <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.e886cdf1.min.js"></script>
+      <script src="../../assets/javascripts/bundle.49251538.min.js"></script>
       
     
   </body>
