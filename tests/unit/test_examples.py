@@ -164,8 +164,13 @@ def test_quickstart_plans_a_query_rather_than_an_empty_one() -> None:
     after it, which is the difference between "the example ran" and "the
     example did what the README says it does".
     """
-    stdout = run_example("quickstart").stdout
-    sql = stdout.split("-- plan.sql --", 1)[1].split("-- plan.explanation", 1)[0]
+    result = run_example("quickstart")
+    assert "-- plan.sql --" in result.stdout, (
+        f"the quickstart example printed no plan:\n"
+        f"{result.stdout[-2000:]}\n{result.stderr[-2000:]}"
+    )
+
+    sql = result.stdout.split("-- plan.sql --", 1)[1].split("-- plan.explanation", 1)[0]
 
     assert "SELECT" in sql.upper(), f"no query in the planned SQL:\n{sql[:400]}"
     assert "revenue" in sql, "the requested metric is not in its own plan"
