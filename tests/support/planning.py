@@ -68,8 +68,9 @@ def quantized(value: object) -> Decimal:
 
 
 # ....................... #
-# Row-policy AST audit (M4.5 spike V4's logic, verbatim — spikes/metricflow/
-# VERIFICATION.md §V4 is the finding; the script itself is retired)
+# Row-policy AST audit (M4.5 spike V4's logic, verbatim). The spike and its
+# write-up are retired — `git log --diff-filter=D -- spikes/` finds the commit,
+# `git show <commit>^:spikes/metricflow/VERIFICATION.md` prints the finding.
 
 
 def _where_has_policy(select: exp.Select, column: str, value: str) -> bool:

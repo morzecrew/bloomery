@@ -41,9 +41,10 @@ secret:
     - '**/*.lock'
 
     # Documentation build output — rendered from `pages/docs/`, which is itself scanned.
-    # (Diagrams are inline mermaid in the Markdown, so there is no generated-asset tree.)
+    # Diagram SVGs are rendered from `pages/diagrams/*.d2`, which is itself scanned.
     - 'pages/site/**/*'
     - 'pages/.cache/**/*'
+    - 'pages/docs/_diagrams/**/*'
 
     # Build and tooling output, never authored by hand.
     - '**/__pycache__/**/*'

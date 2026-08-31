@@ -1,0 +1,45 @@
+# One MartIR, two readers (RFC 0011). The emitter is the only place a mart's
+# joins are written; the planner never joins at all.
+
+style: {
+    fill: transparent
+}
+
+vars: {
+    d2-config: {
+        pad: 40
+    }
+}
+
+direction: right
+
+mart: {
+    shape: cylinder
+    style: {
+        stroke: "#4a90d9"
+        stroke-width: 2
+    }
+    label: |md
+        ### MartIR
+        grain · columns · measures
+    |
+}
+
+builds: {
+    shape: rectangle
+    label: |md
+        ### SQLMesh emitter
+        builds the table: joins + flattening
+    |
+}
+
+queries: {
+    shape: rectangle
+    label: |md
+        ### planner
+        queries the table: no joins, ever
+    |
+}
+
+mart -> builds
+mart -> queries

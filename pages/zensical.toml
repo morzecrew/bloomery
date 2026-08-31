@@ -130,13 +130,11 @@ check_paths = true
 [project.markdown_extensions.attr_list]
 [project.markdown_extensions.md_in_html]
 
-# Diagrams are mermaid, not d2 (RFC 0001 D1) — fenced ```mermaid blocks render
-# client-side, no CI binary and no build step.
+# Diagrams are d2, rendered to SVG by `just build-diagrams` and embedded as a
+# light/dark pair. RFC 0001 D1 chose mermaid for a new repo — "no CI binary and
+# no build step" — and left the door open: "d2 remains available if diagrams
+# outgrow mermaid". They did; this is that clause, not a reversal of it.
 [project.markdown_extensions.pymdownx.superfences]
-[[project.markdown_extensions.pymdownx.superfences.custom_fences]]
-name = "mermaid"
-class = "mermaid"
-format = "pymdownx.superfences.fence_code_format"
 
 [project.markdown_extensions.pymdownx.emoji]
 emoji_index = "zensical.extensions.emoji.twemoji"

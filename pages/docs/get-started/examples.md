@@ -9,7 +9,7 @@ Two need no setup at all. Two bring up containers and build real tables.
 | Example | What it demonstrates | Infrastructure |
 |---|---|---|
 | `quickstart/` | The five core spec kinds: compile, then plan a metric request | none |
-| `refusals/` | Six specs that look right and cannot be right | none |
+| `refusals/` | Five specs that look right and cannot be right | none |
 | `targets/` | SQLMesh, dbt, Cube and the planner all actually running | one container |
 | `lakehouse/` | Iceberg via Lakekeeper: union merge, quality rules, quarantine, a blocking audit | four containers |
 
@@ -33,11 +33,12 @@ The [Quickstart](quickstart.md) walks through these same documents step by step.
 
 ### "Does it actually refuse things?" — `refusals/`
 
-Six tiny projects, each one a spec that a hand-written dbt or SQL project would run
+Five tiny projects, each one a spec that a hand-written dbt or SQL project would run
 without complaint. Four of them return a silently wrong number: a dimension that keeps
 history flattened into a mart, an order-grain cost duplicated per line, a `one_to_many`
-flatten, EUR added to USD. The other two are unsupported rather than wrong, and name the
-target that does support them.
+flatten, EUR added to USD. The fifth is unsupported rather than wrong — a transform that
+typechecks and passes every guardrail, refused because no engine implements the call it
+would emit.
 
 The runner prints what each spec would have done, then the message bloomery gives instead.
 

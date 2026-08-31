@@ -143,8 +143,17 @@ Serve the documentation with live reload while editing:
 just serve-docs
 ```
 
-Diagrams are authored as [mermaid](https://mermaid.js.org/) code blocks directly in the
-Markdown — no separate build step.
+Diagrams are authored as [d2](https://d2lang.com/) sources under `pages/diagrams/`, one
+file per diagram. `just build-diagrams` renders each to a light and a dark SVG under
+`pages/docs/_diagrams/`, which is generated and gitignored; `just build-docs` and
+`just serve-docs` run it first, so editing a `.d2` and rebuilding is the whole loop.
+
+Embed the pair, never one of them — the site serves whichever matches the reader's theme:
+
+```markdown
+![alt text](../_diagrams/light/<name>.svg#only-light){ data-src="../_diagrams/light/<name>.svg#only-light" }
+![alt text](../_diagrams/dark/<name>.svg#only-dark){ data-src="../_diagrams/dark/<name>.svg#only-dark" }
+```
 
 Consistency:
 

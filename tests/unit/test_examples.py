@@ -15,18 +15,21 @@ A subprocess rather than an import, because the entry point is what rotted: the
 case list, the target it compiles for and the runner's own arithmetic are all
 things a reader runs, and only running it covers them together.
 
-**All three examples are here, two of them whole and one of them halved.**
-`refusals/` and `quickstart/` are pure — compile, parse and plan, no engine and
-no container — so they run end to end through their own entry points.
+**All four examples are here, two of them whole and two of them at their
+compile step.** `refusals/` and `quickstart/` are pure — compile, parse and plan,
+no engine and no container — so they run end to end through their own entry
+points.
 
-`lakehouse/` is covered at its **first step only**, and the split is the
-example's own: its docstring says the compile to SQLMesh artifacts "is the whole
-of bloomery's involvement — a pure function from YAML strings to file-shaped
-artifacts, no warehouse in sight", and everything after it shells out to the
-`sqlmesh` CLI against a seven-service compose stack. Step 1 is what rots when
-*this* repository changes, and it is free to check.
+`lakehouse/` and `targets/` are covered at their **first step only**, and the
+split is the examples' own. `lakehouse/`'s docstring says the compile to SQLMesh
+artifacts "is the whole of bloomery's involvement — a pure function from YAML
+strings to file-shaped artifacts, no warehouse in sight"; everything after it
+shells out to the `sqlmesh` CLI against a seven-service compose stack.
+`targets/` seeds DuckDB and drives the `sqlmesh` and `dbt` CLIs, with Cube
+behind a container. In both, the compile is the step that rots when *this*
+repository changes, and it is the one that is free to check.
 
-Rebuilding that stack in pytest was considered and refused, on a decision this
+Rebuilding either stack in pytest was considered and refused, on a decision this
 repository already took: `tests/engines/test_trino.py` diverges from RFC 0009
 §5.2's sketched "trino+iceberg+minio (compose)" tier for exactly this reason —
 "bloomery emits SELECTs and models and never storage-format DDL, so an object
@@ -43,7 +46,7 @@ from pathlib import Path
 
 import pytest
 
-from bloomery import Target, compile_project, load_catalog, load_project
+from bloomery import Catalog, Target, compile_project, load_catalog, load_project
 
 pytestmark = pytest.mark.unit
 
@@ -61,6 +64,17 @@ def run_example(name: str) -> subprocess.CompletedProcess[str]:
         cwd=REPO_ROOT,
         check=False,
     )
+
+
+def load_example_specs(name: str) -> tuple[dict[str, str], Catalog]:
+    """One example's `specs/` directory, split the way its own `run.py` splits it."""
+    specs = EXAMPLES / name / "specs"
+    documents = {
+        path.name: path.read_text()
+        for path in sorted(specs.glob("*.yaml"))
+        if path.name != "catalog.yaml"
+    }
+    return documents, load_catalog((specs / "catalog.yaml").read_text())
 
 
 def test_every_refusal_case_still_refuses() -> None:
@@ -189,13 +203,7 @@ def test_the_lakehouse_specs_compile_for_trino() -> None:
     the `trino` dialect stops emitting something the example depends on — the
     failures this repository can cause, as opposed to the ones a container can.
     """
-    specs = EXAMPLES / "lakehouse" / "specs"
-    catalog = load_catalog((specs / "catalog.yaml").read_text())
-    documents = {
-        path.name: path.read_text()
-        for path in sorted(specs.glob("*.yaml"))
-        if path.name != "catalog.yaml"
-    }
+    documents, catalog = load_example_specs("lakehouse")
 
     artifacts = compile_project(
         load_project(documents), target=Target.SQLMESH, dialect="trino", catalog=catalog
@@ -218,13 +226,7 @@ def test_the_lakehouse_merge_and_its_blocking_audit_are_emitted() -> None:
     emitted, would leave the README describing a thing the artifacts no longer
     do, and the compile above would still pass.
     """
-    specs = EXAMPLES / "lakehouse" / "specs"
-    catalog = load_catalog((specs / "catalog.yaml").read_text())
-    documents = {
-        path.name: path.read_text()
-        for path in sorted(specs.glob("*.yaml"))
-        if path.name != "catalog.yaml"
-    }
+    documents, catalog = load_example_specs("lakehouse")
     artifacts = {
         artifact.path: artifact.content
         for artifact in compile_project(
@@ -238,3 +240,37 @@ def test_the_lakehouse_merge_and_its_blocking_audit_are_emitted() -> None:
         assert relation in order_line, f"{relation} dropped out of the merge"
 
     assert "blocking false" not in artifacts["audits/order_line_source_collision.sql"]
+
+
+# ....................... #
+# targets/ — the compile, not the three frameworks it then drives
+
+
+def test_one_spec_set_compiles_to_all_three_targets() -> None:
+    """`targets/` exists to show SQLMesh, dbt and Cube agreeing on one answer.
+
+    Steps 3–6 seed DuckDB and shell out to the `sqlmesh` and `dbt` CLIs, and
+    Cube needs a container, so what is checked here is the step before all of
+    them: the same `Project` compiles to each target. That is the claim's
+    precondition — "one spec set" is only interesting while one spec set still
+    loads once and emits three times.
+
+    Asserted per target rather than in aggregate, because the failure this
+    guards is one port going quiet while the other two carry the count.
+    """
+    documents, catalog = load_example_specs("targets")
+    project = load_project(documents)
+
+    emitted = {
+        target: {
+            artifact.path
+            for artifact in compile_project(
+                project, target=target, dialect="duckdb", catalog=catalog
+            )
+        }
+        for target in (Target.SQLMESH, Target.DBT, Target.CUBE)
+    }
+
+    assert "models/gold/mart_orders.sql" in emitted[Target.SQLMESH]
+    assert {"dbt_project.yml", "models/schema.yml"} <= emitted[Target.DBT]
+    assert "model/views/orders_view.yml" in emitted[Target.CUBE]

@@ -6,7 +6,6 @@
   ],
   "include": [
     "src",
-    "spikes",
     "examples"
   ],
   "exclude": [

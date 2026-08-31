@@ -109,6 +109,7 @@ jobs:
             docs:
               - "pages/**"
               - "justfile"
+              - ".github/scripts/install-d2.sh"
               - ".github/workflows/ci.yml"
             # What only a real engine or a real target framework can check:
             # the dialect ports (SQL that must parse and run *there*), the
@@ -158,9 +159,18 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
 
+      - name: Install d2
+        run: bash .github/scripts/install-d2.sh
+
       - name: Install dependencies
         run: uv sync --all-groups
 
+      # `build-docs` depends on `build-diagrams`, so d2 runs here before
+      # Zensical does. It does *not* follow that a missing render fails the
+      # build: `--strict` resolves page links, and an image is not one — a page
+      # embedding `no-such-diagram.svg` builds clean and reports "No issues
+      # found". `test_every_embedded_diagram_has_a_d2_source` is what catches
+      # that, and it rides the test matrix rather than this job.
       - name: Build the documentation site
         run: just build-docs
 

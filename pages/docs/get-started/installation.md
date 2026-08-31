@@ -25,7 +25,7 @@ pip install bloomery
 
 **Pin the minor.** Below 1.0 a breaking API change may ship in a minor release — never
 silently, always with a changelog entry naming the migration, but it may ship. So
-`bloomery>=0.1,<0.2` is the constraint that holds the API still; see
+`bloomery>=0.2,<0.3` is the constraint that holds the API still; see
 [Stability](../reference/stability.md) for exactly what each surface promises.
 
 To track unreleased work instead, install from the repository — append `@<sha>` to pin a

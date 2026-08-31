@@ -1,0 +1,54 @@
+# The per-row quality pipeline, in the order the silver model applies it
+# (RFC 0016). Dedupe sits *before* the rules, which is the ordering decision
+# the page argues for.
+
+style: {
+    fill: transparent
+}
+
+vars: {
+    d2-config: {
+        pad: 40
+    }
+}
+
+direction: right
+
+extract: extract
+transform: transform
+
+dedupe: {
+    shape: rectangle
+    style: {
+        stroke: "#4a90d9"
+        stroke-width: 2
+    }
+    label: dedupe
+}
+
+field: field rules
+row: row rules
+route: route
+
+kept: {
+    shape: cylinder
+    label: |md
+        ### silver.&lt;entity&gt;
+        `_quality_flags`
+    |
+}
+
+rejected: {
+    shape: cylinder
+    style: {
+        stroke: "#e65100"
+        stroke-width: 2
+    }
+    label: |md
+        ### silver.&lt;entity&gt;__reject
+    |
+}
+
+extract -> transform -> dedupe -> field -> row -> route
+route -> kept
+route -> rejected

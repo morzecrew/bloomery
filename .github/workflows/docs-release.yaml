@@ -52,11 +52,24 @@ jobs:
             uv.lock
             pyproject.toml
 
+      - name: Install just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+
+      - name: Install d2
+        run: bash .github/scripts/install-d2.sh
+
       - name: Install dependencies
         run: uv sync --group docs
 
       - name: Configure git identity
         run: bash .github/scripts/configure-git-identity.sh
+
+      # mike runs `zensical build`, never `just build-docs`, and
+      # `pages/docs/_diagrams/` is generated and gitignored — see docs-dev.yaml.
+      # A released minor's docs are the ones a reader pins to, so a missing
+      # render here is permanent until the next deploy.
+      - name: Build diagrams
+        run: just build-diagrams
 
       - name: Resolve target version
         id: ver
