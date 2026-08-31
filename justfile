@@ -134,7 +134,11 @@ quality strict="false":
 build-diagrams:
     mkdir -p {{ _d2_light_dir }} {{ _d2_dark_dir }}
 
-    for f in {{ _d2_dir }}/*.d2; do \
+    # `nullglob`, so an empty `pages/diagrams/` renders nothing rather than
+    # handing d2 the literal string `*.d2` and failing the docs build on it. A
+    # page still embedding a diagram is caught by
+    # `test_every_embedded_diagram_has_a_d2_source`, which names the page.
+    shopt -s nullglob; for f in {{ _d2_dir }}/*.d2; do \
         d2 "$f" "{{ _d2_light_dir }}/$(basename "${f%.d2}.svg")" {{ _d2_light_flags }}; \
         d2 "$f" "{{ _d2_dark_dir }}/$(basename "${f%.d2}.svg")" {{ _d2_dark_flags }}; \
     done
