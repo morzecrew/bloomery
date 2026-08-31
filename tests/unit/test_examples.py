@@ -101,6 +101,34 @@ def test_the_runner_counts_the_cases_it_actually_walks() -> None:
     assert listed == on_disk, "a case directory the runner never walks, or the reverse"
 
 
+def test_each_case_refuses_for_the_reason_it_documents() -> None:
+    """Exiting 0 says every case refuses; it does not say *why* any of them does.
+
+    A case that started failing on a typo would still refuse, still exit 0, and
+    still be printed under a headline promising a currency mismatch — the same
+    rot this module exists to catch, one layer in. The class is the cheapest
+    thing that separates them: the runner prints it per case, and the narrative
+    each case ships is a claim about which refusal a reader will see.
+    """
+    stdout = run_example("refusals").stdout
+    seen: dict[str, str] = {}
+    case = ""
+    for line in stdout.splitlines():
+        if line.endswith("/)"):
+            case = line.split("/)")[0].rsplit("(", 1)[-1]
+        elif line.startswith("  ") and line.rstrip().endswith(":") and case:
+            seen[case] = line.strip().removesuffix(":")
+            case = ""
+
+    assert seen == {
+        "scd2-flatten": "GuardrailError",
+        "wrong-grain": "GuardrailError",
+        "fanout": "GuardrailError",
+        "mixed-currency": "GuardrailError",
+        "unimplemented-convert": "UnsupportedByTarget",
+    }
+
+
 # ....................... #
 # quickstart/ (RFC 0009 — the example the README's first page sends people to)
 
