@@ -194,7 +194,7 @@ The middle row is the whole split, so it is worth stating without the table:
   makes in the row above, extended to the Python surface once the surface has been used
   enough to be worth freezing.
 
-Pinning follows from that: pin the minor (`bloomery>=0.1,<0.2`) if you want the API to
+Pinning follows from that: pin the minor (`bloomery>=0.2,<0.3`) if you want the API to
 hold still, and read the changelog on every minor bump.
 
 **The spec YAML promise does not wait**, and it is deliberately the strong one. A spec is
