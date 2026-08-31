@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-31
+
+**Known limitations, stated up front.** Keep a Changelog names six section types and none
+of them is "things this release still refuses", so these are here rather than under a
+heading of their own — a release note that omitted them would describe a version nobody
+has.
+
+- A merged entity may not carry `quality:` rules, `dedupe:` or `quarantine:`, may not
+  declare `scd: type2`, and may not record a `direct:` path. Each is refused at compile
+  time with a message naming the reason. `assert:`, `references:` and `coverage:` are
+  unaffected.
+- **`divide` is inexact on DuckDB.** That engine has no exact decimal division — `/` is
+  float division and `//` is integer division — so the division happens in binary floating
+  point and the result is narrowed back to the declared decimal. PostgreSQL and Trino
+  divide exactly. Prefer `{multiply: "0.01"}` to `{divide: 100}` on DuckDB, as the shipped
+  examples do.
+
 ### Added
 
 - **The unresolved-work report** — `SpecEvidence.unresolved` states every decision a spec
@@ -310,18 +327,6 @@ the upgrade and a `plan` reports nothing.
   `ValidationError` out of what the caller had every reason to treat as a cache lookup.
   Callers with no `fetch_l2`, which is the default, were never affected.
 
-### Limitations
-
-- A merged entity may not carry `quality:` rules, `dedupe:` or `quarantine:`, may not
-  declare `scd: type2`, and may not record a `direct:` path. Each is refused at compile
-  time with a message naming the reason. `assert:`, `references:` and `coverage:` are
-  unaffected.
-- **`divide` is inexact on DuckDB.** That engine has no exact decimal division — `/` is
-  float division and `//` is integer division — so the division happens in binary floating
-  point and the result is narrowed back to the declared decimal. PostgreSQL and Trino
-  divide exactly. Prefer `{multiply: "0.01"}` to `{divide: 100}` on DuckDB, as the shipped
-  examples do.
-
 ## [0.1.0] - 2026-08-15
 
 First release. Everything bloomery does is new here, so this section is one `Added` —
@@ -465,5 +470,6 @@ artifacts explicitly **not** stable across bloomery versions.
 - Documentation: get-started, concepts, how-to guides for every target and the planner,
   full spec/transform/error/API/stability references, and a runnable `examples/quickstart/`.
 
-[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/morzecrew/bloomery/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/morzecrew/bloomery/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/morzecrew/bloomery/releases/tag/v0.1.0
