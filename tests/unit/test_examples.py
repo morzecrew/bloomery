@@ -15,13 +15,24 @@ A subprocess rather than an import, because the entry point is what rotted: the
 case list, the target it compiles for and the runner's own arithmetic are all
 things a reader runs, and only running it covers them together.
 
-**Two of the three examples are here.** `refusals/` and `quickstart/` are pure —
-compile, parse and plan, with no engine and no container — so they belong in
-the unit tier and cost about a second between them. `lakehouse/` is not: it runs
-`sqlmesh plan` against a live Trino, which is Tier 5/6 work behind the Docker
-gate, and putting it here would make `just test` require a warehouse. It is
-named rather than silently omitted, because "the examples are covered" would
-otherwise read as all of them.
+**All three examples are here, two of them whole and one of them halved.**
+`refusals/` and `quickstart/` are pure — compile, parse and plan, no engine and
+no container — so they run end to end through their own entry points.
+
+`lakehouse/` is covered at its **first step only**, and the split is the
+example's own: its docstring says the compile to SQLMesh artifacts "is the whole
+of bloomery's involvement — a pure function from YAML strings to file-shaped
+artifacts, no warehouse in sight", and everything after it shells out to the
+`sqlmesh` CLI against a seven-service compose stack. Step 1 is what rots when
+*this* repository changes, and it is free to check.
+
+Rebuilding that stack in pytest was considered and refused, on a decision this
+repository already took: `tests/engines/test_trino.py` diverges from RFC 0009
+§5.2's sketched "trino+iceberg+minio (compose)" tier for exactly this reason —
+"bloomery emits SELECTs and models and never storage-format DDL, so an object
+store and a table format would be three more moving parts serving no assertion
+here" (RFC 0009 D21). A second copy of `compose.yaml` living in the test suite
+would be two accounts of one stack, drifting.
 """
 
 from __future__ import annotations
@@ -31,6 +42,8 @@ import sys
 from pathlib import Path
 
 import pytest
+
+from bloomery import Target, compile_project, load_catalog, load_project
 
 pytestmark = pytest.mark.unit
 
@@ -128,3 +141,67 @@ def test_quickstart_plans_a_query_rather_than_an_empty_one() -> None:
 
     assert "SELECT" in sql.upper(), f"no query in the planned SQL:\n{sql[:400]}"
     assert "revenue" in sql, "the requested metric is not in its own plan"
+
+
+# ....................... #
+# lakehouse/ — step 1 only, which is where bloomery's involvement ends
+
+
+def test_the_lakehouse_specs_compile_for_trino() -> None:
+    """The example's step 1, which needs no warehouse to check.
+
+    Steps 2–6 shell out to `sqlmesh` against Trino, Lakekeeper and MinIO. Step 1
+    is a pure function from YAML strings to artifacts, and it is the step that
+    breaks when a spec in `specs/` drifts out of what bloomery accepts, or when
+    the `trino` dialect stops emitting something the example depends on — the
+    failures this repository can cause, as opposed to the ones a container can.
+    """
+    specs = EXAMPLES / "lakehouse" / "specs"
+    catalog = load_catalog((specs / "catalog.yaml").read_text())
+    documents = {
+        path.name: path.read_text()
+        for path in sorted(specs.glob("*.yaml"))
+        if path.name != "catalog.yaml"
+    }
+
+    artifacts = compile_project(
+        load_project(documents), target=Target.SQLMESH, dialect="trino", catalog=catalog
+    )
+
+    assert {artifact.path for artifact in artifacts} >= {
+        "models/silver/order_line.sql",
+        "models/gold/mart_order_lines.sql",
+        "audits/order_line_source_collision.sql",
+    }
+
+
+def test_the_lakehouse_merge_and_its_blocking_audit_are_emitted() -> None:
+    """The two claims the README makes about this example, in the SQL.
+
+    `order_line` is built by two mappings — the example exists to show a union
+    merge — and RFC 0024 D5 makes the disjointness audit blocking, because the
+    compiler has no data with which to establish the key sets are disjoint. A
+    merge that silently stopped unioning, or an audit that stopped being
+    emitted, would leave the README describing a thing the artifacts no longer
+    do, and the compile above would still pass.
+    """
+    specs = EXAMPLES / "lakehouse" / "specs"
+    catalog = load_catalog((specs / "catalog.yaml").read_text())
+    documents = {
+        path.name: path.read_text()
+        for path in sorted(specs.glob("*.yaml"))
+        if path.name != "catalog.yaml"
+    }
+    artifacts = {
+        artifact.path: artifact.content
+        for artifact in compile_project(
+            load_project(documents), target=Target.SQLMESH, dialect="trino", catalog=catalog
+        )
+    }
+
+    order_line = artifacts["models/silver/order_line.sql"]
+    assert "UNION ALL" in order_line, "the merge stopped being a union"
+    for relation in ("bronze.shopify__order_lines", "bronze.woo__order_lines"):
+        assert relation in order_line, f"{relation} dropped out of the merge"
+
+    assert "blocking false" not in artifacts["audits/order_line_source_collision.sql"]
