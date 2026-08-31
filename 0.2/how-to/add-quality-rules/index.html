@@ -1,0 +1,2196 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Entity-first spec compiler: declarative entity/mapping/metric specs → SQLMesh, dbt, and Cube artifacts">
+      
+      
+        <meta name="author" content="Lev Litvinov">
+      
+      
+        <link rel="canonical" href="https://morzecrew.github.io/bloomery/0.2/how-to/add-quality-rules/">
+      
+      
+        <link rel="prev" href="../emit-dbt/">
+      
+      
+        <link rel="next" href="../plan-a-metric-request/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/favicon.svg">
+      <meta name="generator" content="zensical-0.0.57">
+    
+    
+      
+        <title>Add quality rules to an entity - Bloomery</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.5da3a30f.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.812a03bb.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/palette.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#add-quality-rules-to-an-entity" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Bloomery" class="md-header__button md-logo" aria-label="Bloomery" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="Bloomery">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Bloomery
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Add quality rules to an entity
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="slate" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/morzecrew/bloomery" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bloomery
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../get-started/introduction/" class="md-tabs__link">
+          
+  
+  Get Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/specs-and-catalog/" class="md-tabs__link">
+          
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../emit-sqlmesh/" class="md-tabs__link">
+          
+  
+  How-to
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/spec-schemas/" class="md-tabs__link">
+          
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Bloomery" class="md-nav__button md-logo" aria-label="Bloomery" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="Bloomery">
+
+    </a>
+    Bloomery
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/morzecrew/bloomery" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bloomery
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Get Started
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Get Started
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/introduction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Introduction
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Installation
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Quickstart
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Examples
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Concepts
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Concepts
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/specs-and-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Specs and the catalog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/compile-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The compile pipeline
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/determinism/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Determinism
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Guardrails
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data quality
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/wide-marts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The wide-mart gold layer
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/step-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Steps: referenced implementations
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  How-to
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  How-to
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../emit-sqlmesh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit SQLMesh artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../emit-cube/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit Cube artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../emit-dbt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit dbt artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Add quality rules to an entity
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Add quality rules to an entity
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#declare-field-rules-on-the-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Declare field rules on the mapping
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choose-a-disposition" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Choose a disposition
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#add-row-rules-on-the-entity" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Add row rules on the entity
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deduplicate-before-the-rules-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Deduplicate before the rules run
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#set-retention-and-redact-what-you-must-not-keep" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Set retention, and redact what you must not keep
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#wire-a-reconcile-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Wire a reconcile check
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compile-and-see-what-you-got" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Compile and see what you got
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#read-the-quality-mart" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Read the quality mart
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#check-what-a-rule-change-costs-before-you-ship-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Check what a rule change costs before you ship it
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Notes
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plan-a-metric-request/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan a metric request
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evolve-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Evolve a spec safely
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaluate-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Assess a spec before it compiles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../close-an-open-decision/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Close an open decision
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../merge-sources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Merge sources into one entity
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../resolve-identities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Resolve identities across systems
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../trace-lineage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Trace where a metric comes from
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../use-the-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Use the CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Reference
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spec-schemas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Spec schemas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/json-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  JSON Schema export
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/transforms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Transforms
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dialects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Dialects
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Errors
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/stability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Stability
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#declare-field-rules-on-the-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Declare field rules on the mapping
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choose-a-disposition" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Choose a disposition
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#add-row-rules-on-the-entity" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Add row rules on the entity
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deduplicate-before-the-rules-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Deduplicate before the rules run
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#set-retention-and-redact-what-you-must-not-keep" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Set retention, and redact what you must not keep
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#wire-a-reconcile-check" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Wire a reconcile check
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compile-and-see-what-you-got" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Compile and see what you got
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#read-the-quality-mart" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Read the quality mart
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#check-what-a-rule-change-costs-before-you-ship-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Check what a rule change costs before you ship it
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Notes
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+    
+    
+    
+      <li class="md-path__item">
+        <a href="../emit-sqlmesh/" class="md-path__link">
+          
+  
+  <span class="md-ellipsis">
+    How-to
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="add-quality-rules-to-an-entity">Add quality rules to an entity<a class="headerlink" href="#add-quality-rules-to-an-entity" title="Permanent link">&para;</a></h1>
+<p>You have an entity whose source data misbehaves — values that will not cast, duplicate
+snapshots, orphan references — and you want each of those decided in the spec rather
+than in hand-written SQL beside the generated models. Declare the rules, pick a
+disposition for each, and compile.</p>
+<p>The running example is a warehouse-management feed: a WMS re-sends the same
+warehouse/day stock snapshot whenever an operator corrects it, and corrections sometimes
+arrive with a negative or uncastable level. Why each part is there is explained in
+<a href="../../concepts/data-quality/">Data quality</a>; this page is the wiring.</p>
+<h2 id="declare-field-rules-on-the-mapping">Declare field rules on the mapping<a class="headerlink" href="#declare-field-rules-on-the-mapping" title="Permanent link">&para;</a></h2>
+<p>Field rules live beside the transform chain that produces the value, because that is
+where a reader asks "and what if this does not cast?".</p>
+<div class="highlight"><pre><span></span><code><span class="nt">mapping_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">wms__stock_levels</span>
+<span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inventory_level</span>
+<span class="nt">key</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">warehouse_id</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.warehouse"</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">to_string</span><span class="p p-Indicator">]}</span>
+<span class="w">  </span><span class="nt">stock_date</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.day"</span><span class="p p-Indicator">,</span><span class="nt"> transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">parse_date</span><span class="p">:</span><span class="w"> </span><span class="nv">ISO8601</span><span class="p p-Indicator">}]}</span>
+<span class="nt">fields</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">stock_level</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.on_hand"</span>
+<span class="w">    </span><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">to_int</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">quality</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">rule</span><span class="p">:</span><span class="w"> </span><span class="nv">not_null</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">fail</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">rule</span><span class="p">:</span><span class="w"> </span><span class="nv">range</span><span class="p p-Indicator">,</span><span class="nt"> min</span><span class="p">:</span><span class="w"> </span><span class="nv">0</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">quarantine</span><span class="p p-Indicator">}</span>
+<span class="nt">unmapped</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"$._ingested_at"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"$._load_id"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"$._source_row_id"</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">"$.operator_note"</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<p>The catalogue is closed — <code>coercible</code>, <code>not_null</code>, <code>range</code>, <code>length</code>, <code>pattern</code>,
+<code>in_enum</code>, <code>in_set</code>, <code>unique</code> — and every entry is listed with its parameters in the
+<a href="../../reference/spec-schemas/#field-quality-rules">spec schemas reference</a>. Two rules
+that come up immediately:</p>
+<ul>
+<li>Bounds are separate rules, so <code>min</code> and <code>max</code> can carry different dispositions.
+  Writing <code>{rule: range, min: 0, on_fail: quarantine}</code> beside
+  <code>{rule: range, max: 1000000, on_fail: flag}</code> is the normal shape, not a workaround.</li>
+<li><code>in_enum</code> takes no values. Its admissible set <em>is</em> the <code>enum_map</code> chain's targets, so
+  widening an enum means editing one list rather than two that can drift.</li>
+</ul>
+<p>The <code>unmapped:</code> list is doing real work here. An entity that quarantines or dedupes
+requires the bronze ingestion-metadata columns <code>_load_id</code>, <code>_ingested_at</code>, and
+<code>_source_row_id</code>; listing them as the acknowledged tail is how a mapping states they
+exist without mapping them. Omit them and compilation raises
+<code>IngestionMetadataMissing</code>.</p>
+<h2 id="choose-a-disposition">Choose a disposition<a class="headerlink" href="#choose-a-disposition" title="Permanent link">&para;</a></h2>
+<p><code>on_fail</code> is required on every rule — there is no default to inherit. Pick by what you
+want to happen to the row:</p>
+<table>
+<thead>
+<tr>
+<th>You want</th>
+<th>Write</th>
+<th>The row</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>To know, without changing anything</td>
+<td><code>on_fail: flag</code></td>
+<td>passes, its rule name appended to <code>_quality_flags</code></td>
+</tr>
+<tr>
+<td>The row held back, recoverably</td>
+<td><code>on_fail: quarantine</code></td>
+<td>moves to <code>inventory_level__reject</code>, replayable</td>
+</tr>
+<tr>
+<td>The run stopped</td>
+<td><code>on_fail: fail</code></td>
+<td>a blocking audit fires, whatever else the row tripped</td>
+</tr>
+</tbody>
+</table>
+<p>There is no <code>drop</code>, deliberately. If you want rows gone, quarantine them and let
+retention delete them — a deletion with a paper trail.</p>
+<p>If a row fails several rules at once, severity decides: <code>fail</code> beats <code>quarantine</code> beats
+<code>flag</code>. A <code>fail</code> rule's audit reads the rows the pipeline evaluated rather than the
+finished model, so a row that quarantines <em>and</em> trips a blocking rule still stops the
+run. Every rule the row failed is recorded either way — in <code>failed_rules</code> if it was
+diverted, in <code>_quality_flags</code> if it was kept — so nothing about the failure is lost by
+the routing.</p>
+<h2 id="add-row-rules-on-the-entity">Add row rules on the entity<a class="headerlink" href="#add-row-rules-on-the-entity" title="Permanent link">&para;</a></h2>
+<p>Rules that read more than one column, or another entity, belong on the entity:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">spec_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="nt">entities</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">inventory_level</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">one row per warehouse per day</span>
+<span class="w">    </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">warehouse_id</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">stock_date</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">fields</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">warehouse_id</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="nv">string</span><span class="p p-Indicator">,</span><span class="nt"> required</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="nt">stock_date</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="nv">date</span><span class="p p-Indicator">,</span><span class="nt"> required</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="p p-Indicator">}</span>
+<span class="w">      </span><span class="nt">stock_level</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="nv">int</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">dedupe</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">keep</span><span class="p">:</span><span class="w"> </span><span class="nv">latest_by</span><span class="p p-Indicator">,</span><span class="nt"> field</span><span class="p">:</span><span class="w"> </span><span class="nv">_ingested_at</span><span class="p p-Indicator">,</span><span class="nt"> tie_break</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">_load_id</span><span class="p p-Indicator">]}</span>
+<span class="w">    </span><span class="nt">quarantine</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">retention</span><span class="p">:</span><span class="w"> </span><span class="nv">90d</span><span class="p p-Indicator">,</span><span class="nt"> redact</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"$.operator_note"</span><span class="p p-Indicator">]}</span>
+<span class="w">    </span><span class="nt">quality</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">rule</span><span class="p">:</span><span class="w"> </span><span class="nv">expression</span><span class="p p-Indicator">,</span><span class="nt"> name</span><span class="p">:</span><span class="w"> </span><span class="nv">stock_level_not_negative</span><span class="p p-Indicator">,</span>
+<span class="nt">         expr</span><span class="p">:</span><span class="w"> </span><span class="s">"stock_level</span><span class="nv"> </span><span class="s">&gt;=</span><span class="nv"> </span><span class="s">0"</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">flag</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p><code>expression</code> takes a boolean predicate over the entity's own columns plus an authored
+<code>name</code>, because that name reaches <code>_quality_flags</code> and the quality mart where a
+generated one would be unreadable.</p>
+<p>To check a foreign key, name a declared relationship instead:</p>
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="nt">quality</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">rule</span><span class="p">:</span><span class="w"> </span><span class="nv">referential</span><span class="p p-Indicator">,</span><span class="nt"> via</span><span class="p">:</span><span class="w"> </span><span class="nv">item_of_order</span><span class="p p-Indicator">,</span><span class="nt"> on_missing</span><span class="p">:</span><span class="w"> </span><span class="nv">unknown_member</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p><code>referential</code> carries <code>on_missing</code> — <code>unknown_member</code>, <code>quarantine</code>, or <code>flag</code> — not
+<code>on_fail</code>. Use <code>unknown_member</code> when you want aggregates to stay correct: orphans keep
+their row, their foreign key is rewritten to the reserved <code>'__unknown__'</code> member, and
+the problem shows up in the dashboard instead of as a quiet shortfall. It requires a
+string-typed foreign key; a non-string key is refused at compile time rather than given
+a sentinel that could collide with a real value.</p>
+<p>If the relationship's <code>to</code> side is the entity itself, compilation refuses it: the rule
+lowers to a <code>LEFT JOIN</code> inside that entity's own model, and a model cannot join the
+table it is being built from. Model the referenced side as a separate entity built from
+the same source, or use a <code>reconcile</code> check.</p>
+<h2 id="deduplicate-before-the-rules-run">Deduplicate before the rules run<a class="headerlink" href="#deduplicate-before-the-rules-run" title="Permanent link">&para;</a></h2>
+<p><code>dedupe:</code> keeps one row per entity key. It is not optional to say how ties break:</p>
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="nt">dedupe</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">keep</span><span class="p">:</span><span class="w"> </span><span class="nv">latest_by</span><span class="p p-Indicator">,</span><span class="nt"> field</span><span class="p">:</span><span class="w"> </span><span class="nv">_ingested_at</span><span class="p p-Indicator">,</span><span class="nt"> tie_break</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">_load_id</span><span class="p p-Indicator">]}</span>
+</code></pre></div>
+<p>Omitting <code>tie_break</code> under <code>keep: latest_by</code> is the compile error
+<code>DedupeTieBreakMissing</code> — two rows sharing a timestamp would make the winner arbitrary,
+and a nondeterministic model makes backfills disagree with the original runs. The order
+finishes with <code>_source_row_id</code>, so it is total whatever you supply.</p>
+<p>Because the dedupe columns decide which row survives, <code>coercible</code> is forced to <code>fail</code> on
+any field named by <code>dedupe.field</code> or <code>tie_break</code>. Declaring something weaker there is
+<code>DedupeDispositionConflict</code>; write <code>on_fail: fail</code> or order by a different column.</p>
+<h2 id="set-retention-and-redact-what-you-must-not-keep">Set retention, and redact what you must not keep<a class="headerlink" href="#set-retention-and-redact-what-you-must-not-keep" title="Permanent link">&para;</a></h2>
+<p>Retention is required the moment anything can quarantine, because reject rows hold raw
+source payloads:</p>
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="nt">quarantine</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">retention</span><span class="p">:</span><span class="w"> </span><span class="nv">90d</span><span class="p p-Indicator">,</span><span class="nt"> redact</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">"$.operator_note"</span><span class="p p-Indicator">]}</span>
+</code></pre></div>
+<p><code>retention:</code> is a positive integer with one unit suffix — <code>h</code>, <code>d</code>, or <code>w</code>. Months and
+years are absent on purpose: they are not fixed durations, and a retention window that
+means something different in February is a legal problem rather than a convenience.</p>
+<p>Leave the block off and compilation tells you precisely why, naming the rules that made
+it necessary:</p>
+<div class="highlight"><pre><span></span><code>GuardrailError: 1 error(s):
+  - entity_model: entities.inventory_level.quarantine: entity 'inventory_level' has
+    quarantine dispositions (stock_date_coercible, stock_level_coercible,
+    stock_level_range_min, warehouse_id_coercible) but no quarantine: block — reject
+    rows hold raw source payloads, and therefore PII, so retention is required and
+    never defaulted (RFC 0016 §5.6). Note that the implicit coercible rule carries the
+    quarantine default (§5.2), so an entity with any quality: surface has one even
+    when nothing spells it. Fix: add quarantine: {retention: 90d}
+</code></pre></div>
+<p>Those <code>*_coercible</code> rules are the point of the message: you never wrote them. Declaring
+any <code>quality:</code> surface opts the entity into coercion routing, and a failed cast
+quarantines by default. Override it per field with an explicit
+<code>{rule: coercible, on_fail: flag}</code> if that is not what you want.</p>
+<p><code>redact:</code> removes JSONPaths from <code>raw</code> and <code>key_values</code> at write time. It may not
+intersect a path the mapping reads — <code>RedactionConflict</code> otherwise — because replay
+re-runs the mapping against <code>raw</code>, and a redacted path is gone by then.</p>
+<h2 id="wire-a-reconcile-check">Wire a reconcile check<a class="headerlink" href="#wire-a-reconcile-check" title="Permanent link">&para;</a></h2>
+<p>A reconcile check catches a <em>correct formula over wrong data</em>: it compares two declared
+sides and reports the disagreement. It sits at the document root, beside <code>entities:</code>,
+because it belongs to no single entity.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">reconcile</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="nv">stock_level_matches_snapshot</span><span class="p p-Indicator">,</span>
+<span class="nt">     left</span><span class="p">:</span><span class="w"> </span><span class="s">"sum(inventory_level.stock_level)</span><span class="nv"> </span><span class="s">by</span><span class="nv"> </span><span class="s">warehouse_id,</span><span class="nv"> </span><span class="s">stock_date"</span><span class="p p-Indicator">,</span>
+<span class="nt">     right</span><span class="p">:</span><span class="w"> </span><span class="s">"inventory_level.stock_level"</span><span class="p p-Indicator">,</span>
+<span class="nt">     tolerance</span><span class="p">:</span><span class="w"> </span><span class="s">"0.01"</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">flag</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p><code>on_fail</code> decides whether the check's audit stops the run. <code>flag</code> reports and carries on
+— which is usually what you want, since a disagreement is exactly when someone needs to
+read the comparison table. <code>fail</code> blocks: this is the pipeline-stopping gate to reach for
+when a rule's disposition is not enough.</p>
+<p>Both sides come from a closed grammar — <code>&lt;agg&gt;(&lt;entity&gt;.&lt;column&gt;) by &lt;columns&gt;</code> or a
+plain <code>&lt;entity&gt;.&lt;column&gt;</code> — and must key on the same columns, since the two sides join
+on their keys. <code>tolerance</code> must be a <strong>quoted</strong> decimal: an unquoted <code>0.01</code> is a YAML
+float, and floats never reach the IR.</p>
+<p>This particular check is the executable statement of what dedupe promises. Exactly one
+row survives per (warehouse, day), so the per-key sum must equal the per-key value.</p>
+<h2 id="compile-and-see-what-you-got">Compile and see what you got<a class="headerlink" href="#compile-and-see-what-you-got" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">Target</span><span class="p">,</span> <span class="n">compile_project</span><span class="p">,</span> <span class="n">load_project</span>
+
+<span class="n">project</span> <span class="o">=</span> <span class="n">load_project</span><span class="p">({</span><span class="s2">"entity_model"</span><span class="p">:</span> <span class="n">ENTITY_MODEL</span><span class="p">,</span> <span class="s2">"mapping"</span><span class="p">:</span> <span class="n">MAPPING</span><span class="p">})</span>
+<span class="n">artifacts</span> <span class="o">=</span> <span class="n">compile_project</span><span class="p">(</span><span class="n">project</span><span class="p">,</span> <span class="n">target</span><span class="o">=</span><span class="n">Target</span><span class="o">.</span><span class="n">SQLMESH</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s2">"duckdb"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">artifact</span><span class="o">.</span><span class="n">path</span> <span class="k">for</span> <span class="n">artifact</span> <span class="ow">in</span> <span class="n">artifacts</span><span class="p">))</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>['audits/inventory_level_conservation.sql',
+ 'audits/inventory_level_ingestion_metadata.sql',
+ 'audits/inventory_level_stock_level_not_null.sql',
+ 'audits/stock_level_matches_snapshot_reconcile.sql',
+ 'models/gold/mart_data_quality.sql',
+ 'models/silver/inventory_level.sql',
+ 'models/silver/inventory_level__reject.sql',
+ 'models/silver/stock_level_matches_snapshot__reconcile.sql',
+ 'replay/inventory_level.sql']
+</code></pre></div>
+<p>Four of those are new because of the quality surface: the reject model, the blocking
+audit on the ingestion-metadata contract (a null metadata column, a repeated
+<code>_source_row_id</code>, or an <code>_ingested_at</code> that will not cast to timestamp), the
+conservation audit (every bronze row lands in exactly one of the entity, an unresolved
+reject, or the deduped count), and the replay merge. The replay artifact is not a model
+— bloomery emits it and never runs it. Apply it yourself, as one unit of work, when you
+have relaxed a rule and want the quarantined rows back.</p>
+<h2 id="read-the-quality-mart">Read the quality mart<a class="headerlink" href="#read-the-quality-mart" title="Permanent link">&para;</a></h2>
+<p>Every rule evaluation lands in <code>gold.mart_data_quality</code>, which is an ordinary mart. Ask
+it the same way you ask anything else:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">LruManifestHydrator</span><span class="p">,</span> <span class="n">MetricFlowPlanner</span><span class="p">,</span> <span class="n">MetricRequest</span><span class="p">,</span> <span class="n">build_project_ir</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">bloomery.naming</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultNaming</span>
+
+<span class="n">ir</span> <span class="o">=</span> <span class="n">build_project_ir</span><span class="p">(</span><span class="n">project</span><span class="p">)</span>
+
+<span class="n">naming</span> <span class="o">=</span> <span class="n">DefaultNaming</span><span class="p">()</span>
+<span class="n">planner</span> <span class="o">=</span> <span class="n">MetricFlowPlanner</span><span class="p">(</span><span class="n">LruManifestHydrator</span><span class="p">(</span><span class="n">naming</span><span class="p">),</span> <span class="n">naming</span><span class="o">=</span><span class="n">naming</span><span class="p">)</span>
+
+<span class="n">query</span> <span class="o">=</span> <span class="n">planner</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span>
+    <span class="n">ir</span><span class="p">,</span>
+    <span class="n">MetricRequest</span><span class="p">(</span>
+        <span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">"quality_quarantine_rate"</span><span class="p">,</span> <span class="s2">"quality_rows_quarantined"</span><span class="p">),</span>
+        <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">"entity"</span><span class="p">,</span> <span class="s2">"run_month"</span><span class="p">),</span>
+    <span class="p">),</span>
+    <span class="n">dialect</span><span class="o">=</span><span class="s2">"duckdb"</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">query</span><span class="o">.</span><span class="n">mart</span><span class="p">,</span> <span class="p">[</span><span class="n">column</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">query</span><span class="o">.</span><span class="n">columns</span><span class="p">])</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>data_quality ['entity', 'run_month', 'quality_quarantine_rate', 'quality_rows_quarantined']
+</code></pre></div>
+<p>Five metric names are reserved for it — <code>quality_rows_evaluated</code>,
+<code>quality_rows_failed</code>, <code>quality_rows_quarantined</code>, <code>quality_rows_deduped</code>, and the
+<code>quality_quarantine_rate</code> ratio. A project metric colliding with one of them is a
+compile error, since they share one flat namespace.</p>
+<p>Group by <code>rule</code> to ask what one predicate did — that is <code>quality_rows_failed</code>'s grain.
+The other three counts describe the entity's population, so they ride on one accounting
+row per entity (<code>rule = '(entity)'</code>) rather than being repeated on every rule row. That
+is what keeps <code>SUM</code> honest: a repeated population count returns a multiple of the truth
+as soon as you aggregate over rules.</p>
+<h2 id="check-what-a-rule-change-costs-before-you-ship-it">Check what a rule change costs before you ship it<a class="headerlink" href="#check-what-a-rule-change-costs-before-you-ship-it" title="Permanent link">&para;</a></h2>
+<p>Changing a disposition is a <code>RESTATING</code> change, and relaxing <code>quarantine</code> to <code>flag</code>
+needs a <strong>replay</strong> rather than a backfill — the affected rows sit in the reject table,
+not in bronze's incremental window:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">plan</span>
+
+<span class="n">migration</span> <span class="o">=</span> <span class="n">plan</span><span class="p">(</span><span class="n">old_ir</span><span class="p">,</span> <span class="n">new_ir</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">change</span> <span class="ow">in</span> <span class="n">migration</span><span class="o">.</span><span class="n">changes</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">change</span><span class="o">.</span><span class="n">change_class</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">change</span><span class="o">.</span><span class="n">subject</span><span class="p">,</span> <span class="n">change</span><span class="o">.</span><span class="n">detail</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"replay:"</span><span class="p">,</span> <span class="n">migration</span><span class="o">.</span><span class="n">replay_scope</span><span class="o">.</span><span class="n">entities</span><span class="p">)</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>restating quality:stock_level_range_min quality rule changed (disposition)
+replay: ('inventory_level',)
+</code></pre></div>
+<p>Backfilling without replaying would leave those rows quarantined forever. Feed
+<code>replay_scope.entities</code> to whatever applies the <code>replay/&lt;entity&gt;.sql</code> artifacts.</p>
+<p>The scope stays empty when nothing could come back: a <em>tightened</em> rule (a narrowed
+bound, or <code>quarantine → fail</code>) restates and backfills, but every quarantined row still
+fails it. Widening an <code>enum_map</code> — a new target <em>or</em> a new spelling for an existing one
+— relaxes <code>in_enum</code> and does name the entity.</p>
+<h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Targets.</strong> SQLMesh emits the full set. The dbt emitter raises <code>UnsupportedByTarget</code>
+  for the reject/replay artifacts and for <code>reconcile</code> — flag-only surfaces still emit,
+  since <code>_quality_flags</code> is the same shared <code>SELECT</code> for both. The checks that are not
+  row predicates — a <code>coverage:</code> check, a mart <code>assert:</code>, and the ingestion-metadata
+  audit an entity with <code>dedupe:</code> carries — emit there as
+  <a href="../emit-dbt/#singular-tests-and-when-they-run">singular tests</a>, which run under
+  <code>dbt build</code> and not under <code>dbt run</code>. Cube consumes the quality mart like any other
+  mart.</li>
+<li><strong>Dialects.</strong> Postgres has no <code>TRY_CAST</code>, so an entity carrying <code>coercible</code> rules —
+  which is any entity with a <code>quality:</code> surface — cannot compile for it.
+  <code>UnsupportedByTarget</code>, loudly, rather than a <code>CAST</code> that aborts the run where the spec
+  said quarantine. An entity that declares only <code>dedupe:</code> is refused too, on its own
+  account: it gets the ingestion-metadata audit, and that audit's "does <code>_ingested_at</code>
+  cast to timestamp" assertion is a <code>TRY_CAST</code> as much as any rule is.</li>
+<li><strong><code>run_id</code> is declared but NULL</strong> in the quality mart on the pinned SQLMesh, which
+  exposes no run-identifier macro. <code>run_date</code> comes from <code>@execution_ds</code>.</li>
+<li><strong><code>pattern</code> speaks a portable regex subset</strong> — an allowlist of literals, character
+  classes, anchors, quantifiers, alternation and <code>(?:…)</code>; whatever it does not name,
+  lookaround and backreferences included, is refused by name at <em>parse</em>. That allowlist,
+  not any per-dialect check, is what carries the portability claim. The guardrail stage
+  adds one mechanical check, over the <em>shipped</em> ports <code>duckdb</code>/<code>postgres</code>/<code>trino</code> — a
+  constant, not the process-global dialect registry, so an unrelated import cannot
+  decide whether an existing project compiles (RFC 0016 D56): does the dialect declare a
+  regex surface at all, and does the pattern text reach its SQL unchanged. Neither
+  question is about semantics — a compiler that never executes SQL cannot prove an
+  engine's regex engine accepts a pattern (D55).</li>
+</ul>
+<p>To watch these rules act on rows rather than read about them, the
+<a href="../../get-started/examples/"><code>lakehouse/</code> example</a> runs them against seed data written to
+trip each disposition: two rows flagged and kept, one duplicate resolved by declared
+policy, and one row diverted to a reject table with its raw payload. Once rules are
+declared, <a href="../evolve-a-spec/">Evolve a spec safely</a> covers the rest of the change classes
+a spec edit can produce.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../emit-dbt/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Emit dbt artifacts">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Emit dbt artifacts
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../plan-a-metric-request/" class="md-footer__link md-footer__link--next" aria-label="Next: Plan a metric request">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Plan a metric request
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2026 Lev Litvinov and contributors
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.49251538.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,2087 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Entity-first spec compiler: declarative entity/mapping/metric specs → SQLMesh, dbt, and Cube artifacts">
+      
+      
+        <meta name="author" content="Lev Litvinov">
+      
+      
+        <link rel="canonical" href="https://morzecrew.github.io/bloomery/0.2/how-to/use-the-cli/">
+      
+      
+        <link rel="prev" href="../trace-lineage/">
+      
+      
+        <link rel="next" href="../../reference/spec-schemas/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/favicon.svg">
+      <meta name="generator" content="zensical-0.0.57">
+    
+    
+      
+        <title>Use the CLI - Bloomery</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.5da3a30f.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.812a03bb.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/palette.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#use-the-cli" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Bloomery" class="md-header__button md-logo" aria-label="Bloomery" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="Bloomery">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Bloomery
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Use the CLI
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="slate" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/morzecrew/bloomery" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bloomery
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../get-started/introduction/" class="md-tabs__link">
+          
+  
+  Get Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/specs-and-catalog/" class="md-tabs__link">
+          
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../emit-sqlmesh/" class="md-tabs__link">
+          
+  
+  How-to
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/spec-schemas/" class="md-tabs__link">
+          
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Bloomery" class="md-nav__button md-logo" aria-label="Bloomery" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="Bloomery">
+
+    </a>
+    Bloomery
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/morzecrew/bloomery" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bloomery
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Get Started
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Get Started
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/introduction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Introduction
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Installation
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Quickstart
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Examples
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Concepts
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Concepts
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/specs-and-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Specs and the catalog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/compile-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The compile pipeline
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/determinism/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Determinism
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Guardrails
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data quality
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/wide-marts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The wide-mart gold layer
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/step-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Steps: referenced implementations
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  How-to
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  How-to
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../emit-sqlmesh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit SQLMesh artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../emit-cube/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit Cube artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../emit-dbt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit dbt artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../add-quality-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Add quality rules to an entity
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plan-a-metric-request/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan a metric request
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evolve-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Evolve a spec safely
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaluate-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Assess a spec before it compiles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../close-an-open-decision/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Close an open decision
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../merge-sources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Merge sources into one entity
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../resolve-identities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Resolve identities across systems
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../trace-lineage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Trace where a metric comes from
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Use the CLI
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Use the CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-seven-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The seven commands
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-spec-directory" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The spec directory
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compiling" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Compiling
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#planning-a-change" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Planning a change
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#explaining-a-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Explaining a request
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#emitting-the-schemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Emitting the schemas
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Exit codes
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scripting-with-format-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Scripting with <code>--format json</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-cli-will-never-grow" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What the CLI will never grow
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Reference
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spec-schemas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Spec schemas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/json-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  JSON Schema export
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/transforms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Transforms
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dialects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Dialects
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Errors
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/stability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Stability
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-seven-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The seven commands
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-spec-directory" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The spec directory
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#compiling" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Compiling
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#planning-a-change" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Planning a change
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#explaining-a-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Explaining a request
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#emitting-the-schemas" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Emitting the schemas
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exit-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Exit codes
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scripting-with-format-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Scripting with <code>--format json</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-cli-will-never-grow" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What the CLI will never grow
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+    
+    
+    
+      <li class="md-path__item">
+        <a href="../emit-sqlmesh/" class="md-path__link">
+          
+  
+  <span class="md-ellipsis">
+    How-to
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="use-the-cli">Use the CLI<a class="headerlink" href="#use-the-cli" title="Permanent link">&para;</a></h1>
+<p>You want to compile a spec directory, or find out which metrics it can actually answer,
+without writing a Python script. <code>bloomery</code> is that: six commands, each a thin argument
+shell over one public function.</p>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>resolve<span class="w"> </span>specs/
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>Stage: complete
+Fingerprint: blm1:46f0d4f549273b5e43db9b6961ce4ef35919611d2987e1dc0f841c355840087c
+
+Reachable (3)
+  average_order_value
+  gross_revenue
+  order_count
+
+Unreachable (1)
+  margin  missing: cogs
+
+Marts (1)
+  order_items  grain: order_item
+</code></pre></div>
+<p>That is the command the rest exist alongside. "Did the spec I just wrote do what I
+meant" is the question bloomery is best placed to answer, and the specific missing leaf
+is the part a summary would throw away.</p>
+<p><strong>A spec that is refused still gets an answer.</strong> <code>resolve</code> calls
+<a href="../evaluate-a-spec/"><code>evaluate()</code></a>, which reports refusals rather than raising them, so a
+draft mid-edit prints how far analysis got, what was reachable at that point, and every
+refusal with its source path:</p>
+<div class="highlight"><pre><span></span><code>Stage: guardrails
+  analysis stopped here — every count below is a prefix, not a total
+
+Reachable (2)
+  landed_revenue
+  shipping_cost
+
+Unreachable (0)
+
+Refusals (1)
+  marts: marts.order_items.measures.shipping_cost
+    GrainViolation: measure 'shipping_cost' has grain 'order' (one row per
+      order), not the mart's grain 'order_item' …
+</code></pre></div>
+<p>Exit code <code>1</code> — the spec is still refused, and a pipeline branching on the code must not
+start reading it as fine. <strong>Read the stage before the counts</strong>: at any stage but
+<code>complete</code> they are a prefix, and <code>Unreachable (0)</code> there means "never computed" rather
+than "nothing unreachable".</p>
+<p>A project that wires a <code>steps:</code> document reports the unwired step here, because the CLI
+passes no registry — see <a href="#compiling">Steps are the one thing the CLI cannot wire</a> below.
+<code>bloomery compile</code> on the same project refuses for the same reason.</p>
+<h2 id="the-seven-commands">The seven commands<a class="headerlink" href="#the-seven-commands" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>bloomery compile     &lt;dir&gt; [--target sqlmesh] [--dialect duckdb] [--catalog F] [--out DIR]
+bloomery plan        &lt;old-dir&gt; &lt;new-dir&gt; [--catalog F] [--format table|json]
+bloomery resolve     &lt;dir&gt; [--catalog F] [--format table|json]
+bloomery lineage     &lt;dir&gt; --node ID [--direction upstream|downstream|both] [--max-depth N]
+                           [--catalog F] [--format table|json]
+bloomery explain     &lt;dir&gt; --metrics a,b [--by x,y] [--where JSON] [--grain month]
+                           [--limit N] [--policy 'dim op value'] [--dialect duckdb]
+                           [--format table|json]
+bloomery schema      [--kind entity_model] [--out DIR]
+bloomery fingerprint &lt;dir&gt; [--catalog F]
+</code></pre></div>
+<p>Every command reads files, calls the public API, and writes stdout or a directory.
+Nothing is executed, nothing is cached, and there is no state anywhere.</p>
+<p>One flag needs no command: <code>bloomery --version</code> prints the installed release and exits
+<code>0</code>. It is a flag rather than a command of its own because the moment you most need it is
+when something is wrong enough that you do not trust the rest of the surface.</p>
+<h2 id="the-spec-directory">The spec directory<a class="headerlink" href="#the-spec-directory" title="Permanent link">&para;</a></h2>
+<p><code>&lt;dir&gt;</code> is a directory of <code>.yaml</code> / <code>.yml</code> documents. Each is keyed by its filename stem,
+which is the prefix you will see in every error message — so a refusal reads
+<code>metrics: metrics.revenue.agg: …</code> and you know which file to open.</p>
+<p>A <strong>catalog</strong> is not part of a project, so it has to be told apart from the project
+documents. Two ways, in order:</p>
+<ul>
+<li><code>--catalog path/to/catalog.yaml</code> — explicit, and the only way to point several
+  projects at one shared catalog.</li>
+<li>A file named <code>catalog.yaml</code> in the directory. Recognized by <em>name</em>, never by looking
+  inside it.</li>
+</ul>
+<p>If a catalog document ends up in the project by accident, <code>load_project</code> refuses it by
+name and tells you to pass it separately. That is a loud failure, which is the point.</p>
+<h2 id="compiling">Compiling<a class="headerlink" href="#compiling" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>compile<span class="w"> </span>specs/<span class="w"> </span>--target<span class="w"> </span>sqlmesh<span class="w"> </span>--dialect<span class="w"> </span>duckdb<span class="w"> </span>--out<span class="w"> </span>out/
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>out/models/gold/dim_date.sql
+out/models/gold/mart_order_items.sql
+out/models/silver/order.sql
+out/models/silver/order_item.sql
+</code></pre></div>
+<p>Without <code>--out</code>, the artifacts go to stdout as JSON — path, content, kind and checksum
+for each — so you can place them yourself. <code>--target</code> takes <code>sqlmesh</code>, <code>cube</code>, <code>dbt</code>, or
+the name of an emitter you registered.</p>
+<p><strong>Steps are the one thing the CLI cannot wire.</strong> A <code>StepRegistry</code> is assembled by the
+caller and handed to <code>compile_project</code>; bloomery reads no step manifests from disk, by
+design — that absence is what stops an authored spec from becoming a code-loading
+surface. A flag would have to invent a manifest loader. A project using <code>steps:</code> compiles
+through Python, and <code>UnknownStep</code> names the versions the registry does hold. <code>resolve</code>
+reports that refusal too, rather than answering reachability as though the wiring were
+not there.</p>
+<h2 id="planning-a-change">Planning a change<a class="headerlink" href="#planning-a-change" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>plan<span class="w"> </span>deployed/<span class="w"> </span>proposed/
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>Changes (2, 0 breaking)
+  additive  field:discount    field added
+  widening  field:unit_price  type widened
+
+Backfill scope
+  (none)
+
+Downstream metrics
+  gross_revenue
+</code></pre></div>
+<p>Both directories are compiled to IR and diffed. The breaking count is the number you
+decide on; the rest is context. See <a href="../evolve-a-spec/">evolve a spec</a> for what each
+change class means.</p>
+<h2 id="explaining-a-request">Explaining a request<a class="headerlink" href="#explaining-a-request" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>explain<span class="w"> </span>specs/<span class="w"> </span>--metrics<span class="w"> </span>gross_revenue<span class="w"> </span>--by<span class="w"> </span>ordered_month<span class="w"> </span>--limit<span class="w"> </span><span class="m">5</span>
+</code></pre></div>
+<p>prints the SQL, then the provenance record — how each number was computed, which mart
+served it, and whether a row policy applied. Filters arrive as the same JSON document
+<code>parse_filter_json</code> takes:</p>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>explain<span class="w"> </span>specs/<span class="w"> </span>--metrics<span class="w"> </span>gross_revenue<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--where<span class="w"> </span><span class="s1">'{"customer_id": {"$neq": "internal"}}'</span>
+</code></pre></div>
+<p><code>--policy 'order_customer_id eq c1'</code> applies a row-level scoping filter — a dimension, an
+operator, and a value, comma-separated for <code>in</code> / <code>not_in</code>. It is a filter, not an
+identity: deciding whose policy applies is your side of the boundary.</p>
+<p><strong><code>explain</code> prints; it never runs anything.</strong> There is no <code>bloomery run</code>, no connection
+string, and no profile — not as an omission but as a decision. Execution belongs to
+whatever already owns your warehouse credentials.</p>
+<h2 id="emitting-the-schemas">Emitting the schemas<a class="headerlink" href="#emitting-the-schemas" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>schema<span class="w"> </span>--out<span class="w"> </span>schemas/
+bloomery<span class="w"> </span>schema<span class="w"> </span>--kind<span class="w"> </span>entity_model<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>.
+</code></pre></div>
+<p>See the <a href="../../reference/json-schema/">JSON Schema reference</a> for what the documents
+contain and how to point an editor at them.</p>
+<h2 id="exit-codes">Exit codes<a class="headerlink" href="#exit-codes" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0</code></td>
+<td>Success.</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>A <strong>refusal</strong>. Bloomery read the spec and said no, with a reason and a source path.</td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td>A <strong>usage error</strong>: a path that is not there, a flag that is not a flag.</td>
+</tr>
+</tbody>
+</table>
+<p>The line between them is <em>whose mistake it was</em>. <code>1</code> means bloomery read your spec and
+said no. <code>2</code> means the invocation was wrong before any spec was opened — a path, a flag,
+a <code>--where</code> document that is not JSON, a mistyped <code>--target</code>, <code>--dialect</code>, <code>--grain</code> or
+<code>--policy</code>, a file that is not UTF-8 or cannot be read.</p>
+<p><code>main</code> <strong>returns</strong> these codes rather than raising, so a Python caller can read them:
+<code>from bloomery.cli import main; code = main(["resolve", "specs/"])</code>. That holds for
+argparse's own refusals too.</p>
+<p>The split matters for scripting. A refusal is a <em>correct</em> outcome — the compiler did its
+job — so a pipeline that retries on it will retry forever. Branch on the code:</p>
+<div class="highlight"><pre><span></span><code><span class="k">if</span><span class="w"> </span>!<span class="w"> </span>bloomery<span class="w"> </span>compile<span class="w"> </span>specs/<span class="w"> </span>--out<span class="w"> </span>out/<span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<span class="w">  </span><span class="k">case</span><span class="w"> </span><span class="nv">$?</span><span class="w"> </span><span class="k">in</span>
+<span class="w">    </span><span class="m">1</span><span class="o">)</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"spec refused; fix the spec"</span><span class="w"> </span><span class="p">;;</span>
+<span class="w">    </span><span class="m">2</span><span class="o">)</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"bad invocation"</span><span class="w"> </span><span class="p">;;</span>
+<span class="w">  </span><span class="k">esac</span>
+<span class="k">fi</span>
+</code></pre></div>
+<p>Refusals go to stderr with their source path prepended:</p>
+<div class="highlight"><pre><span></span><code>entity_model: entities.order.fields.total.type: String should match pattern '^(?:string|int|…
+</code></pre></div>
+<h2 id="scripting-with-format-json">Scripting with <code>--format json</code><a class="headerlink" href="#scripting-with-format-json" title="Permanent link">&para;</a></h2>
+<p><code>plan</code>, <code>resolve</code> and <code>explain</code> take <code>--format json</code>, and it emits the <strong>same values the
+Python API returns</strong> — not a summary of them. <code>bloomery resolve --format json</code> carries
+each mart's measures and dimensions and the full text of every refusal even though the
+table prints neither, because a script should not have to drop into Python for a field
+the function already returned.</p>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>resolve<span class="w"> </span>specs/<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'.unreachable[] | {name, missing, via}'</span>
+bloomery<span class="w"> </span>resolve<span class="w"> </span>specs/<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'.refusals[] | {type, source_path}'</span>
+</code></pre></div>
+<p>Three conversions are worth knowing. A <code>Decimal</code> becomes a string (never a float — see
+<a href="../../concepts/determinism/">determinism</a>). A logical type becomes the string a spec
+writes it as, <code>decimal(12, 4)</code>. And a refusal — which is an exception, not a dataclass —
+becomes its <code>type</code>, its <code>message</code>, and every attribute it carries, so <code>source_path</code> and
+the <a href="../../reference/errors/">structured fix suggestions</a> arrive as fields rather than as
+prose to re-parse.</p>
+<h2 id="what-the-cli-will-never-grow">What the CLI will never grow<a class="headerlink" href="#what-the-cli-will-never-grow" title="Permanent link">&para;</a></h2>
+<p>No <code>run</code> and no engine connection. No config file, profile, or credentials. No
+<code>bloomery init</code> or <code>bloomery new entity</code> — templates encode opinions about project layout
+that this library deliberately does not hold. No watch mode and no daemon, both of which
+imply state. Each of these is pinned by a test, because the pressure to add them arrives
+as a small, reasonable-looking patch.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../trace-lineage/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Trace where a metric comes from">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Trace where a metric comes from
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../../reference/spec-schemas/" class="md-footer__link md-footer__link--next" aria-label="Next: Spec schemas">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Spec schemas
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2026 Lev Litvinov and contributors
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.49251538.min.js"></script>
+      
+    
+  </body>
+</html>

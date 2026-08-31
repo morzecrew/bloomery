@@ -1,0 +1,2118 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Entity-first spec compiler: declarative entity/mapping/metric specs → SQLMesh, dbt, and Cube artifacts">
+      
+      
+        <meta name="author" content="Lev Litvinov">
+      
+      
+        <link rel="canonical" href="https://morzecrew.github.io/bloomery/0.2/how-to/plan-a-metric-request/">
+      
+      
+        <link rel="prev" href="../add-quality-rules/">
+      
+      
+        <link rel="next" href="../evolve-a-spec/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/favicon.svg">
+      <meta name="generator" content="zensical-0.0.57">
+    
+    
+      
+        <title>Plan a metric request - Bloomery</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.5da3a30f.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.812a03bb.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/palette.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#plan-a-metric-request" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Bloomery" class="md-header__button md-logo" aria-label="Bloomery" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="Bloomery">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Bloomery
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Plan a metric request
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="slate" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/morzecrew/bloomery" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bloomery
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../get-started/introduction/" class="md-tabs__link">
+          
+  
+  Get Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/specs-and-catalog/" class="md-tabs__link">
+          
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../emit-sqlmesh/" class="md-tabs__link">
+          
+  
+  How-to
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/spec-schemas/" class="md-tabs__link">
+          
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Bloomery" class="md-nav__button md-logo" aria-label="Bloomery" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="Bloomery">
+
+    </a>
+    Bloomery
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/morzecrew/bloomery" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bloomery
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Get Started
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Get Started
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/introduction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Introduction
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Installation
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Quickstart
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Examples
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Concepts
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Concepts
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/specs-and-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Specs and the catalog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/compile-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The compile pipeline
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/determinism/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Determinism
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Guardrails
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data quality
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/wide-marts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The wide-mart gold layer
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/step-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Steps: referenced implementations
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  How-to
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  How-to
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../emit-sqlmesh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit SQLMesh artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../emit-cube/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit Cube artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../emit-dbt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit dbt artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../add-quality-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Add quality rules to an entity
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan a metric request
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan a metric request
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#build-the-ir-and-the-planner" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Build the IR and the planner
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#make-a-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Make a request
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Make a request">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filters-are-cnf-clauses" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Filters are CNF clauses
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-json-front-door" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The JSON front door
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-comes-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What comes back
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#refusals" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Refusals
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scope-rows-with-a-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Scope rows with a policy
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execute-the-sql-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Execute the SQL yourself
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Notes
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evolve-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Evolve a spec safely
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaluate-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Assess a spec before it compiles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../close-an-open-decision/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Close an open decision
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../merge-sources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Merge sources into one entity
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../resolve-identities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Resolve identities across systems
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../trace-lineage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Trace where a metric comes from
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../use-the-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Use the CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Reference
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/spec-schemas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Spec schemas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/json-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  JSON Schema export
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/transforms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Transforms
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/dialects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Dialects
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Errors
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/stability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Stability
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#build-the-ir-and-the-planner" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Build the IR and the planner
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#make-a-request" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Make a request
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Make a request">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#filters-are-cnf-clauses" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Filters are CNF clauses
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-json-front-door" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The JSON front door
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-comes-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What comes back
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#refusals" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Refusals
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scope-rows-with-a-policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Scope rows with a policy
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#execute-the-sql-yourself" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Execute the SQL yourself
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Notes
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+    
+    
+    
+      <li class="md-path__item">
+        <a href="../emit-sqlmesh/" class="md-path__link">
+          
+  
+  <span class="md-ellipsis">
+    How-to
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="plan-a-metric-request">Plan a metric request<a class="headerlink" href="#plan-a-metric-request" title="Permanent link">&para;</a></h1>
+<p>You have compiled specs and a built mart, and you want SQL that answers "revenue by
+month for these countries" — correct at the requested grain, refused when it cannot be.
+The planner turns a structured <code>MetricRequest</code> into a <code>QueryPlan</code>: SQL text plus
+metadata, rendered by an embedded MetricFlow that never executes anything. For a
+runnable end-to-end script see
+<a href="https://github.com/morzecrew/bloomery/tree/main/examples/quickstart"><code>examples/quickstart/run.py</code></a>;
+the <a href="../../concepts/wide-marts/">wide-marts</a> page explains why requests are served from
+one mart with no query-time joins.</p>
+<h2 id="build-the-ir-and-the-planner">Build the IR and the planner<a class="headerlink" href="#build-the-ir-and-the-planner" title="Permanent link">&para;</a></h2>
+<p>The planner works on the compiled IR, not on specs, and gets its manifests through a
+hydrator — an in-process LRU that rebuilds (or loads caller-supplied bytes) whenever
+the specs, the bloomery version, or the MetricFlow version change:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">LruManifestHydrator</span><span class="p">,</span> <span class="n">MetricFlowPlanner</span><span class="p">,</span> <span class="n">build_project_ir</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">bloomery.naming</span><span class="w"> </span><span class="kn">import</span> <span class="n">DefaultNaming</span>
+
+<span class="n">ir</span> <span class="o">=</span> <span class="n">build_project_ir</span><span class="p">(</span><span class="n">project</span><span class="p">,</span> <span class="n">catalog</span><span class="o">=</span><span class="n">catalog</span><span class="p">)</span>
+
+<span class="n">naming</span> <span class="o">=</span> <span class="n">DefaultNaming</span><span class="p">()</span>
+<span class="n">planner</span> <span class="o">=</span> <span class="n">MetricFlowPlanner</span><span class="p">(</span><span class="n">LruManifestHydrator</span><span class="p">(</span><span class="n">naming</span><span class="p">),</span> <span class="n">naming</span><span class="o">=</span><span class="n">naming</span><span class="p">)</span>
+</code></pre></div>
+<p>Two wiring rules:</p>
+<ul>
+<li><code>naming</code> must be the policy the artifacts were emitted with — it shapes the gold
+  relation names in the SQL, the refusals, and the explanations.</li>
+<li>Build the planner once and reuse it: the hydrator's cache is what makes repeated
+  planning cheap. If you persist manifests yourself, pass <code>fetch_l2=</code> to the hydrator;
+  a <code>None</code> return falls back to rebuilding from the IR.</li>
+</ul>
+<h2 id="make-a-request">Make a request<a class="headerlink" href="#make-a-request" title="Permanent link">&para;</a></h2>
+<p>A request is structured data — metrics, dimensions, typed filters, a time grain,
+ordering, a limit. There is no SQL string anywhere a caller could inject into:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">MetricRequest</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">OrderSpec</span><span class="p">,</span> <span class="n">Predicate</span><span class="p">,</span> <span class="n">TimeGrain</span>
+
+<span class="n">request</span> <span class="o">=</span> <span class="n">MetricRequest</span><span class="p">(</span>
+    <span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">"revenue"</span><span class="p">,),</span>
+    <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">"country"</span><span class="p">,</span> <span class="s2">"ordered_day"</span><span class="p">),</span>
+    <span class="n">filters</span><span class="o">=</span><span class="p">(</span><span class="n">Predicate</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="s2">"country"</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="n">Op</span><span class="o">.</span><span class="n">IN</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="p">(</span><span class="s2">"FR"</span><span class="p">,</span> <span class="s2">"DE"</span><span class="p">)),),</span>
+    <span class="n">time_grain</span><span class="o">=</span><span class="n">TimeGrain</span><span class="o">.</span><span class="n">MONTH</span><span class="p">,</span>
+    <span class="n">order_by</span><span class="o">=</span><span class="p">(</span><span class="n">OrderSpec</span><span class="p">(</span><span class="n">field</span><span class="o">=</span><span class="s2">"revenue"</span><span class="p">,</span> <span class="n">direction</span><span class="o">=</span><span class="s2">"desc"</span><span class="p">),),</span>
+    <span class="n">limit</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">plan</span> <span class="o">=</span> <span class="n">planner</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span><span class="n">ir</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s2">"duckdb"</span><span class="p">)</span>
+</code></pre></div>
+<p>Structural rules, enforced at construction with <code>InvalidRequest</code>: at least one metric,
+no duplicates, <code>order_by</code> only over requested members, <code>limit &gt;= 1</code>, and filter
+operator/value arity coherence. Float filter values are accepted and normalized to
+<code>Decimal(str(value))</code> at the boundary — no float ever reaches the rendered SQL, and
+non-finite values (<code>NaN</code>/<code>Infinity</code>, float or string form) are refused with
+<code>InvalidLiteral</code>. <code>time_grain</code> re-buckets every date-role dimension in the request —
+here <code>ordered_day</code> with <code>TimeGrain.MONTH</code> groups by the <code>ordered_month</code> bucket column.</p>
+<h3 id="filters-are-cnf-clauses">Filters are CNF clauses<a class="headerlink" href="#filters-are-cnf-clauses" title="Permanent link">&para;</a></h3>
+<p><code>filters</code> is an implicit AND across clauses; each clause is a single <code>Predicate</code> or one
+<code>AnyOf</code> disjunction group — exactly one level of OR, which covers every filter a BI UI
+builds ("carrier in [DHL, UPS] <strong>and</strong> (region = EU <strong>or</strong> region = UK)"):</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">AnyOf</span><span class="p">,</span> <span class="n">Op</span><span class="p">,</span> <span class="n">Predicate</span>
+
+<span class="n">filters</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">Predicate</span><span class="p">(</span><span class="s2">"carrier"</span><span class="p">,</span> <span class="n">Op</span><span class="o">.</span><span class="n">IN</span><span class="p">,</span> <span class="p">(</span><span class="s2">"DHL"</span><span class="p">,</span> <span class="s2">"UPS"</span><span class="p">)),</span>
+    <span class="n">AnyOf</span><span class="p">((</span><span class="n">Predicate</span><span class="p">(</span><span class="s2">"region"</span><span class="p">,</span> <span class="n">Op</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="p">(</span><span class="s2">"EU"</span><span class="p">,)),</span> <span class="n">Predicate</span><span class="p">(</span><span class="s2">"region"</span><span class="p">,</span> <span class="n">Op</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="p">(</span><span class="s2">"UK"</span><span class="p">,)))),</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>The operators are <code>eq</code>, <code>ne</code>, <code>gt</code>, <code>gte</code>, <code>lt</code>, <code>lte</code>, <code>in</code>, <code>not_in</code>, <code>is_null</code>,
+<code>like</code>, and <code>ilike</code>. Three worth knowing:</p>
+<ul>
+<li><code>is_null</code> takes exactly one bool — <code>(True,)</code> renders <code>IS NULL</code>, <code>(False,)</code> renders
+  <code>IS NOT NULL</code>.</li>
+<li><code>like</code>/<code>ilike</code> (case-sensitive / case-insensitive) take one or more SQL <code>LIKE</code>
+  <em>patterns</em> with OR semantics. Wildcards are yours: write <code>%needle%</code> for a substring
+  match, and escape literal <code>%</code>/<code>_</code>/<code>\</code> as <code>\%</code>/<code>\_</code>/<code>\\</code> (a pattern ending in an
+  unpaired <code>\</code> is refused). There is no auto-wrapping.</li>
+<li>Ranges compose from <code>gte</code> + <code>lte</code> as two clauses — there is no <code>between</code> operator.</li>
+</ul>
+<p>Each clause renders as its own <code>WHERE</code> constraint; an <code>AnyOf</code> group is always
+parenthesized, so a disjunction can never leak past a row policy.</p>
+<h3 id="the-json-front-door">The JSON front door<a class="headerlink" href="#the-json-front-door" title="Permanent link">&para;</a></h3>
+<p>If your filters arrive as a Mongo-flavoured JSON document (<code>$and</code>/<code>$or</code>/<code>$not</code>,
+field maps, <code>$eq $neq $gt $gte $lt $lte $in $nin $null $like $ilike</code>),
+<code>bloomery.planner.parse_filter_json</code> turns it into clauses, <em>normalizing before
+refusing</em> — De Morgan push-down, complement inversion (<code>$not $eq</code> → <code>ne</code>), then CNF
+distribution with a clause cap:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery.planner</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_filter_json</span>
+
+<span class="n">clauses</span> <span class="o">=</span> <span class="n">parse_filter_json</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">"carrier"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"$in"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"DHL"</span><span class="p">,</span> <span class="s2">"UPS"</span><span class="p">]},</span> <span class="s2">"$or"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"region"</span><span class="p">:</span> <span class="s2">"EU"</span><span class="p">},</span> <span class="p">{</span><span class="s2">"region"</span><span class="p">:</span> <span class="s2">"UK"</span><span class="p">}]}</span>
+<span class="p">)</span>
+<span class="n">request</span> <span class="o">=</span> <span class="n">MetricRequest</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">"revenue"</span><span class="p">,),</span> <span class="n">filters</span><span class="o">=</span><span class="n">clauses</span><span class="p">)</span>
+</code></pre></div>
+<p>Scalars are the <code>$eq</code> shortcut, arrays the <code>$in</code> shortcut, and <code>null</code> means
+<code>is_null: true</code>. What cannot cross is refused <em>after normalization</em> with a typed
+<code>UnsupportedFilter</code> carrying a stable <code>.reason</code> code from the closed list
+<code>bloomery.planner.KNOWN_UNSUPPORTED</code> — a reviewed gap, never drift. A <strong>malformed</strong>
+document is a different class: a non-mapping payload, a field map of the wrong shape, an
+unknown <code>$op</code>, an operand of the wrong type — these are <code>InvalidRequest</code>, because a
+schema error is not a reviewed refusal and never enters the closed list.
+<code>parse_sort_json</code> and <code>parse_page_json</code> ship alongside and split the same way (sort is
+direction-only; pagination is limit-only — a well-formed non-default nulls placement, a
+non-zero offset, and cursors are refused rather than silently dropped, while a
+malformed <code>nulls</code>, <code>limit</code>, or <code>offset</code> value is <code>InvalidRequest</code>).</p>
+<h2 id="what-comes-back">What comes back<a class="headerlink" href="#what-comes-back" title="Permanent link">&para;</a></h2>
+<p><code>QueryPlan</code> is the planner's whole product:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>What it carries</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sql</code></td>
+<td>The rendered SQL text — runnable as-is on the requested dialect</td>
+</tr>
+<tr>
+<td><code>columns</code></td>
+<td>Self-describing output envelope: one <code>ColumnDescriptor(name, type, role)</code> per output column, in bloomery names (<code>ordered_month</code>, never MetricFlow's internal names)</td>
+</tr>
+<tr>
+<td><code>mart</code></td>
+<td>The serving mart's logical name</td>
+</tr>
+<tr>
+<td><code>warnings</code></td>
+<td>Non-fatal notices: a clamped <code>limit</code>, a <code>time_grain</code> with nothing to apply to</td>
+</tr>
+<tr>
+<td><code>explanation</code></td>
+<td>Deterministic provenance — <code>explanation.render()</code> gives the human-readable block</td>
+</tr>
+<tr>
+<td><code>fingerprint</code></td>
+<td><code>sha256(sql)</code> — your result-cache key</td>
+</tr>
+</tbody>
+</table>
+<p>The explanation is generated from the plan, never from a model — every number ships
+with how it was computed:</p>
+<div class="highlight"><pre><span></span><code>revenue
+  mart:     gold.mart_orders (grain: order)
+  measure:  revenue = SUM(amount)
+            [additive — SUM]
+  filters:  country in ('FR', 'DE')
+  policy:   not applied
+</code></pre></div>
+<h2 id="refusals">Refusals<a class="headerlink" href="#refusals" title="Permanent link">&para;</a></h2>
+<p>The planner answers correctly or refuses with a typed error — never guesses. All
+planner errors subclass <code>PlannerError</code>; the first failure wins (they are not batched).
+The three you will design UX around:</p>
+<p><code>UnknownMember</code> — a name that does not exist, with a closest match:</p>
+<div class="highlight"><pre><span></span><code>unknown metric 'revenu'; did you mean 'revenue'?
+</code></pre></div>
+<p><code>UnreachableAtGrain</code> — no single mart can serve the request. Summing across grains
+would double-count, so the planner refuses rather than join at plan time:</p>
+<div class="highlight"><pre><span></span><code>metric 'order_count' (grain: order) is served by no mart — no mart lists it as a measure.
+  Define a mart at grain 'order' carrying it.
+</code></pre></div>
+<p><code>AmbiguousDimension</code> — an unqualified bucket where the mart has several date roles:</p>
+<div class="highlight"><pre><span></span><code>'month' has roles ['ordered', 'shipped']. Use 'ordered_month' or 'shipped_month'.
+</code></pre></div>
+<p>The remaining refusals: <code>InvalidRequest</code> (structural problems, raised at request
+construction or planning), <code>FilterTypeMismatch</code> (a filter value whose type contradicts
+the dimension's column type — refused before any SQL renders), and the
+<code>UnsupportedFilter</code> family — the closed query-vocabulary list (set relations,
+hierarchy operators, <code>$regex</code>, over-cap CNF expansions, non-invertible negations,
+non-finite literals, non-default sort-nulls, offset/cursor paging), each with a
+stable <code>.reason</code> in <code>bloomery.planner.KNOWN_UNSUPPORTED</code>. See
+<a href="../../reference/errors/">Errors</a>.</p>
+<h2 id="scope-rows-with-a-policy">Scope rows with a policy<a class="headerlink" href="#scope-rows-with-a-policy" title="Permanent link">&para;</a></h2>
+<p>Row-level scoping is a typed filter, not a predicate string. Deciding <em>whose</em> policy
+applies is your upstream concern; the planner takes the value and renders it through
+the same escaping pipeline as every other filter, prepended to the user's filters:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">Op</span><span class="p">,</span> <span class="n">RowPolicy</span>
+
+<span class="n">plan</span> <span class="o">=</span> <span class="n">planner</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span>
+    <span class="n">ir</span><span class="p">,</span>
+    <span class="n">MetricRequest</span><span class="p">(</span><span class="n">metrics</span><span class="o">=</span><span class="p">(</span><span class="s2">"revenue"</span><span class="p">,),</span> <span class="n">dimensions</span><span class="o">=</span><span class="p">(</span><span class="s2">"ordered_month"</span><span class="p">,)),</span>
+    <span class="n">dialect</span><span class="o">=</span><span class="s2">"duckdb"</span><span class="p">,</span>
+    <span class="n">policy</span><span class="o">=</span><span class="n">RowPolicy</span><span class="p">(</span><span class="n">dimension</span><span class="o">=</span><span class="s2">"country"</span><span class="p">,</span> <span class="n">op</span><span class="o">=</span><span class="n">Op</span><span class="o">.</span><span class="n">EQ</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="s2">"FR"</span><span class="p">),</span>
+<span class="p">)</span>
+</code></pre></div>
+<p>The rendered predicate reaches every scan of the mart relation, and
+<code>explanation.render()</code> reports <code>policy:   applied</code> — the plan itself records that
+scoping happened.</p>
+<h2 id="execute-the-sql-yourself">Execute the SQL yourself<a class="headerlink" href="#execute-the-sql-yourself" title="Permanent link">&para;</a></h2>
+<p>The planner never sees a connection — execution is your side of the line. <code>plan.sql</code>
+runs directly on the dialect you asked for; on DuckDB, with the mart table built (by
+the emitted SQLMesh models in real life, by hand here):</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">duckdb</span>
+
+<span class="n">con</span> <span class="o">=</span> <span class="n">duckdb</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
+<span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"CREATE SCHEMA gold"</span><span class="p">)</span>
+<span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"""</span>
+<span class="s2">    CREATE TABLE gold.mart_orders AS</span>
+<span class="s2">    SELECT * FROM (VALUES</span>
+<span class="s2">        ('FR', DECIMAL '10.00', DATE '2024-01-05'),</span>
+<span class="s2">        ('DE', DECIMAL '20.00', DATE '2024-01-20'),</span>
+<span class="s2">        ('FR', DECIMAL '5.00',  DATE '2024-02-01')</span>
+<span class="s2">    ) AS t(country, amount, ordered_day)</span>
+<span class="s2">"""</span><span class="p">)</span>
+<span class="n">rows</span> <span class="o">=</span> <span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">plan</span><span class="o">.</span><span class="n">sql</span><span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
+</code></pre></div>
+<p>Pair the rows with <code>plan.columns</code> for names and types, and cache results under
+<code>plan.fingerprint</code> — identical requests over identical specs produce identical SQL,
+so the fingerprint is a sound cache key.</p>
+<h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>limit</code> is clamped to the planner's <code>max_limit</code> (default 50 000) with a warning on
+  the plan, and <code>default_limit</code> applies when a request carries none.</li>
+<li><code>TimeGrain.HOUR</code> is accepted by the contract but refused at coverage — marts expand
+  date roles to day–year buckets only.</li>
+<li>A non-additive ratio metric is planned from its additive components on the mart that
+  carries both; it is never read from storage. See
+  <a href="../../concepts/guardrails/#additivity">guardrails</a> for why.</li>
+<li>When specs change shape, re-run <code>build_project_ir</code> and hand the new IR to the same
+  planner — the hydrator treats it as a new cache key automatically.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../add-quality-rules/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Add quality rules to an entity">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Add quality rules to an entity
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../evolve-a-spec/" class="md-footer__link md-footer__link--next" aria-label="Next: Evolve a spec safely">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Evolve a spec safely
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2026 Lev Litvinov and contributors
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.49251538.min.js"></script>
+      
+    
+  </body>
+</html>

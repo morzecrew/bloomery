@@ -1,0 +1,2117 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Entity-first spec compiler: declarative entity/mapping/metric specs → SQLMesh, dbt, and Cube artifacts">
+      
+      
+        <meta name="author" content="Lev Litvinov">
+      
+      
+        <link rel="canonical" href="https://morzecrew.github.io/bloomery/0.2/reference/stability/">
+      
+      
+        <link rel="prev" href="../api/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/favicon.svg">
+      <meta name="generator" content="zensical-0.0.57">
+    
+    
+      
+        <title>Stability - Bloomery</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.5da3a30f.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.812a03bb.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/palette.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#stability" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Bloomery" class="md-header__button md-logo" aria-label="Bloomery" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="Bloomery">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Bloomery
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Stability
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="default" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="slate" data-md-color-primary="blue-grey" data-md-color-accent="deep-orange"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/morzecrew/bloomery" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bloomery
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../get-started/introduction/" class="md-tabs__link">
+          
+  
+  Get Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/specs-and-catalog/" class="md-tabs__link">
+          
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../how-to/emit-sqlmesh/" class="md-tabs__link">
+          
+  
+  How-to
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+      
+    
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../spec-schemas/" class="md-tabs__link">
+          
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Bloomery" class="md-nav__button md-logo" aria-label="Bloomery" data-md-component="logo">
+      
+  <img src="../../assets/logo.svg" alt="Bloomery">
+
+    </a>
+    Bloomery
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/morzecrew/bloomery" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.3.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2026 Fonticons, Inc.--><path fill="currentColor" d="M216.5 362.5c-66-8-112.5-55.5-112.5-117 0-25 9-52 24-70-6.5-16.5-5.5-51.5 2-66 20-2.5 47 8 63 22.5 19-6 39-9 63.5-9s44.5 3 62.5 8.5c15.5-14 43-24.5 63-22 7 13.5 8 48.5 1.5 65.5 16 19 24.5 44.5 24.5 70.5 0 61.5-46.5 108-113.5 116.5 17 11 28.5 35 28.5 62.5v52c0 15 12.5 23.5 27.5 17.5C441 459.5 512 369 512 257 512 115.5 397 0 255.5 0S0 115.5 0 257c0 111 70.5 203 165.5 237.5 13.5 5 26.5-4 26.5-17.5v-40c-7 3-16 5-24 5-33 0-52.5-18-66.5-51.5-5.5-13.5-11.5-21.5-23-23-6-.5-8-3-8-6 0-6 10-10.5 20-10.5 14.5 0 27 9 40 27.5 10 14.5 20.5 21 33 21s20.5-4.5 32-16c8.5-8.5 15-16 21-21"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bloomery
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Home
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Get Started
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Get Started
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/introduction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Introduction
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Installation
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Quickstart
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../get-started/examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Examples
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Concepts
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Concepts
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/specs-and-catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Specs and the catalog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/compile-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The compile pipeline
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/determinism/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Determinism
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/guardrails/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Guardrails
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Data quality
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/wide-marts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  The wide-mart gold layer
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/step-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Steps: referenced implementations
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  How-to
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  How-to
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/emit-sqlmesh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit SQLMesh artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/emit-cube/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit Cube artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/emit-dbt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Emit dbt artifacts
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/add-quality-rules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Add quality rules to an entity
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/plan-a-metric-request/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Plan a metric request
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/evolve-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Evolve a spec safely
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/evaluate-a-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Assess a spec before it compiles
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/close-an-open-decision/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Close an open decision
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/merge-sources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Merge sources into one entity
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/resolve-identities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Resolve identities across systems
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/trace-lineage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Trace where a metric comes from
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/use-the-cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Use the CLI
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+  Reference
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spec-schemas/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Spec schemas
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../json-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  JSON Schema export
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../transforms/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Transforms
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dialects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Dialects
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Errors
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Stability
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Stability
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-python-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The Python API
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Python API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deep-imports-carry-no-promise" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Deep imports carry no promise
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spec-yaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Spec YAML
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Spec YAML">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-one-exception-a-new-reserved-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The one exception: a new reserved name
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#emitted-artifacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Emitted artifacts
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supported-dialects" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Supported dialects
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-binds-at-01-and-what-waits-for-10" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What binds at 0.1, and what waits for 1.0
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What binds at 0.1, and what waits for 1.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-installed-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The installed version
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-python-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The Python API
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Python API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#deep-imports-carry-no-promise" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Deep imports carry no promise
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spec-yaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Spec YAML
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Spec YAML">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-one-exception-a-new-reserved-name" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The one exception: a new reserved name
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#emitted-artifacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Emitted artifacts
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supported-dialects" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Supported dialects
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-binds-at-01-and-what-waits-for-10" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What binds at 0.1, and what waits for 1.0
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What binds at 0.1, and what waits for 1.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-installed-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The installed version
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+    
+    
+    
+      <li class="md-path__item">
+        <a href="../spec-schemas/" class="md-path__link">
+          
+  
+  <span class="md-ellipsis">
+    Reference
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+  
+
+
+<h1 id="stability">Stability<a class="headerlink" href="#stability" title="Permanent link">&para;</a></h1>
+<p>bloomery makes three promises, to three different surfaces. They are not the same
+promise, and the third is the one that gets misread.</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Promise</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Python API</strong> — <code>bloomery.__all__</code> and each subpackage's <code>__all__</code></td>
+<td>SemVer. A breaking change is never silent, and below 1.0 it requires a minor — see <a href="#what-binds-at-01-and-what-waits-for-10">what binds at 0.1</a>.</td>
+</tr>
+<tr>
+<td><strong>Spec YAML</strong></td>
+<td>Per-kind document versioning. Additive within a version; a breaking change mints a new version.</td>
+</tr>
+<tr>
+<td><strong>Emitted artifacts</strong></td>
+<td><strong>Not stable.</strong> Byte-reproducible for fixed inputs; not comparable across bloomery versions.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="the-python-api">The Python API<a class="headerlink" href="#the-python-api" title="Permanent link">&para;</a></h2>
+<p><code>bloomery.__all__</code> is the contract. What is in it follows SemVer: a name will not be
+removed, and a signature will not narrow, without a version bump that says so — a minor
+while bloomery is below 1.0, a major from 1.0 onward. Either way it is in the changelog
+with the migration; the section at the foot of this page is the exact split.</p>
+<p>The list is <strong>closed over its own signatures</strong>. If a type appears in the signature of
+anything exported — as a parameter, a return, a generic argument, a field of a returned
+dataclass, a constructor argument, or a property — that type is exported too. So you can
+always name what the API hands you:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">compile_project</span><span class="p">,</span> <span class="n">Catalog</span><span class="p">,</span> <span class="n">NamingPolicy</span><span class="p">,</span> <span class="n">EmittedArtifact</span>
+</code></pre></div>
+<p>None of <code>Catalog</code>, <code>NamingPolicy</code> or <code>EmittedArtifact</code> is something you would think to
+look for. Each appears in <code>compile_project</code>'s signature, so each is public. A test walks
+the whole surface and fails the build if a new export arrives without the types it
+mentions — the rule is enforced mechanically, not by review.</p>
+<p>The walk stops at three <strong>handle types</strong> — <code>Catalog</code>, <code>Project</code> and <code>ProjectIR</code>. You
+receive these and pass them back; you do not read fields off them. Descending into
+<code>ProjectIR</code> would drag the entire intermediate representation into the public namespace,
+which is internal and changes freely.</p>
+<h3 id="deep-imports-carry-no-promise">Deep imports carry no promise<a class="headerlink" href="#deep-imports-carry-no-promise" title="Permanent link">&para;</a></h3>
+<p><code>from bloomery.emit.lowering import something</code> is not covered. If a name is not in a
+declared <code>__all__</code>, it can move or disappear in a minor release. Two consequences:</p>
+<ul>
+<li>Anything you need should be reachable from <code>bloomery</code> or from a subpackage's <code>__all__</code>
+  (<code>bloomery.planner</code>, <code>bloomery.steps</code>, <code>bloomery.errors</code>, …). If it is not, that is
+  worth reporting — it usually means the closure rule found a gap.</li>
+<li><code>bloomery.errors</code> is a declared <code>__all__</code>, so importing a specific error class from it
+  is supported. The root deliberately exports only <code>BloomeryError</code>, because
+  root-exporting the whole hierarchy would swamp the namespace.</li>
+</ul>
+<p>One name is public because <em>generated code</em> imports it. Step wrappers that bloomery emits
+into your repository contain <code>from bloomery.steps import assert_step_contract</code>, so that
+path is a promise like any other.</p>
+<h2 id="spec-yaml">Spec YAML<a class="headerlink" href="#spec-yaml" title="Permanent link">&para;</a></h2>
+<p>Every spec document declares its version, and the key also says which kind of document it
+is:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">spec_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">       </span><span class="c1"># entity model</span>
+<span class="nt">mapping_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">    </span><span class="c1"># mapping</span>
+<span class="nt">metrics_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">    </span><span class="c1"># metric set</span>
+<span class="nt">marts_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">      </span><span class="c1"># mart set</span>
+<span class="nt">steps_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">      </span><span class="c1"># step set</span>
+<span class="nt">catalog_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">    </span><span class="c1"># catalog</span>
+</code></pre></div>
+<p>The key is required. A document without one cannot be identified, and bloomery refuses it
+rather than guessing.</p>
+<p>Within a version, changes are additive: new optional fields appear, existing documents
+keep loading. A breaking change mints a new version number, and bloomery <strong>refuses</strong> a
+version it does not implement rather than reading it as one it does. That refusal is the
+point — a spec written for a newer bloomery is a mistake worth stopping, not worth
+interpreting.</p>
+<h3 id="the-one-exception-a-new-reserved-name">The one exception: a new reserved name<a class="headerlink" href="#the-one-exception-a-new-reserved-name" title="Permanent link">&para;</a></h3>
+<p>There is exactly one way a <code>spec_version: 1</code> document that loaded before can stop loading
+without a version bump, and it is written down here rather than discovered on upgrade.</p>
+<p>bloomery generates columns — <code>_quality_flags</code>, <code>_source_row_id</code>, <code>metric_time</code> and the
+rest — and an authored field, dimension or role may not claim one of those names, because
+the generated column would collide with it silently. When a release adds a generated
+column, its name joins that reserved list, and a project that had already used the name
+stops compiling.</p>
+<p><strong>Why this does not mint a new version.</strong> A version bump exists to stop bloomery reading a
+document as something it is not, and that risk comes from <em>meaning</em> changing under a
+stable spelling. A reserved name cannot do that. The document either loads exactly as
+before or is refused outright, with a message naming the name, the layer that owns it and
+the instruction to rename:</p>
+<div class="highlight"><pre><span></span><code>'_source' is a reserved name (RFC 0024 D7: the generated union-merge provenance
+column); pick a different field/dimension/role name
+</code></pre></div>
+<p>There is no third outcome, no silent reinterpretation, and the fix is a rename the error
+states. Minting a version for it would make every author edit every document to record a
+collision almost none of them have.</p>
+<p><strong>What it costs, stated rather than buried.</strong> <code>spec_version: 1</code> therefore means <em>your
+document keeps its meaning</em>, not <em>your document is guaranteed to load</em>. That is weaker
+than the paragraph above reads on its own, and it is the honest boundary.</p>
+<p>The exception is bounded and does not widen:</p>
+<ul>
+<li>It covers <strong>adding</strong> a name to the reserved list. Removing one is additive — a name that
+  was refused starts working — and renaming a spec key, changing a field's meaning,
+  tightening a type, or making an optional key required all still mint a version.</li>
+<li>Every addition appears in <code>CHANGELOG.md</code> under <strong>Changed</strong>, naming the reserved name and
+  the generated column it protects. A reserved name that arrives without a changelog entry
+  is a bug in the release, not an application of this exception.</li>
+<li>The reason string is part of the contract, not decoration. Each reserved name carries one
+  (<code>bloomery.spec.common</code>), and the refusal quotes it, because "reserved" alone tells an
+  author nothing about which layer owns the name or whether it will ever be released.</li>
+</ul>
+<p><code>spec_version</code> names the entity model rather than being spelled <code>entity_model_version</code>.
+That is inconsistent, and it stays: renaming it would break every existing spec to buy
+tidiness.</p>
+<h2 id="emitted-artifacts">Emitted artifacts<a class="headerlink" href="#emitted-artifacts" title="Permanent link">&para;</a></h2>
+<p><strong>The emitted SQL, YAML and manifests are not a stable interface.</strong> Upgrading bloomery may
+change them, and that is not a bug.</p>
+<p>What bloomery does guarantee is <em>determinism</em>: the same specs, the same bloomery version
+and the same pinned dependencies produce byte-identical artifacts, across machines,
+processes and hash seeds. Every artifact carries a <code>blm1:</code> fingerprint header recording
+exactly which inputs produced it.</p>
+<p>Determinism and stability read alike and are different:</p>
+<ul>
+<li><strong>Determinism</strong> — <em>these</em> inputs always produce <em>these</em> bytes. Guaranteed.</li>
+<li><strong>Stability</strong> — a future version produces the same bytes for the same inputs. <strong>Not</strong>
+  guaranteed.</li>
+</ul>
+<p>So a diff in emitted SQL after a bloomery upgrade is expected. Review it the way you would
+review any generated change; do not treat it as a regression on its own. If you pin
+artifacts in your own repository, expect to regenerate them on upgrade.</p>
+<p><code>bloomery_ir_version</code> covers the intermediate representation, which is internal. It is
+named here only to be clear that it is not one of the three promises above — though a bump
+does move every fingerprint, which is deliberate: an IR shape change should be loud.</p>
+<h2 id="supported-dialects">Supported dialects<a class="headerlink" href="#supported-dialects" title="Permanent link">&para;</a></h2>
+<p>Three ship: <strong>DuckDB</strong>, <strong>PostgreSQL</strong> and <strong>Trino</strong>. Each is a <code>DialectPort</code> with a
+declared <code>Feature</code> set, a column in the golden matrix, and a cell in the engine tier that
+runs the emitted SQL against the real database.</p>
+<p>Four more are costed and deliberately unbuilt. MetricFlow already ships a renderer for
+each, so the work is a port, a golden column and an engine cell:</p>
+<table>
+<thead>
+<tr>
+<th>Dialect</th>
+<th>Estimate</th>
+<th>Likely trigger</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Snowflake</td>
+<td>~1 week</td>
+<td>Enterprise ask; the most likely first</td>
+</tr>
+<tr>
+<td>BigQuery</td>
+<td>~1 week+</td>
+<td>GCP ask. Costlier: <code>STRUCT</code>/<code>ARRAY</code> semantics and the partition model differ most from the shipped three, and it is the one most likely to need a new <code>Feature</code> rather than only an implementation</td>
+</tr>
+<tr>
+<td>Databricks</td>
+<td>~1 week</td>
+<td>Existing-lakehouse ask</td>
+</tr>
+<tr>
+<td>Redshift</td>
+<td>~1 week</td>
+<td>Least likely</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The policy is demand-driven on a named consumer, never speculative.</strong> The point of
+costing them without building them is that "we don't support Snowflake" becomes "Snowflake
+is about a week" — a different answer, and one that requires writing no code to give.</p>
+<p>A new dialect <strong>declares its <code>Feature</code> set honestly or is refused</strong>, never silently
+approximating. The Postgres <code>TRY_CAST</code> is the standard: implemented as a guard around the
+engine's own parser rather than as an approximation of one, because a dialect that
+approximates a feature produces plausible wrong rows instead of an error. A new port also
+inherits its own cost questions — whether its regex engine backtracks decides whether a
+<code>pattern</code> rule is a denial-of-service surface there, and that belongs in the port's own
+assessment rather than being assumed from the three that ship.</p>
+<h2 id="what-binds-at-01-and-what-waits-for-10">What binds at 0.1, and what waits for 1.0<a class="headerlink" href="#what-binds-at-01-and-what-waits-for-10" title="Permanent link">&para;</a></h2>
+<p>The promises above are in force from <strong>0.1.0</strong>. They are not all in force to the same
+degree, and the difference is what SemVer itself says about versions below 1.0.</p>
+<table>
+<thead>
+<tr>
+<th>Promise</th>
+<th>At 0.1</th>
+<th>At 1.0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Spec YAML</strong> — a document that loads keeps loading; a breaking grammar change mints a new <code>&lt;kind&gt;_version</code></td>
+<td><strong>Fully binding</strong></td>
+<td>Unchanged</td>
+</tr>
+<tr>
+<td><strong>Python API</strong> — nothing in an <code>__all__</code> moves without a version bump and a changelog entry naming the migration</td>
+<td><strong>Binding: never silent</strong></td>
+<td><strong>Binding: never breaking outside a major</strong></td>
+</tr>
+<tr>
+<td><strong>Emitted artifacts</strong> — not stable across versions</td>
+<td>Binding as stated (it is a <em>non</em>-promise, and it does not soften)</td>
+<td>Unchanged</td>
+</tr>
+</tbody>
+</table>
+<p>The middle row is the whole split, so it is worth stating without the table:</p>
+<ul>
+<li><strong>Below 1.0, a breaking change to the Python API may ship in a minor release</strong> — 0.1 to
+  0.2 — which is exactly what SemVer reserves the <code>0.</code> series for. What binds now is that
+  it may never be <em>quiet</em>: every breaking change appears in <code>CHANGELOG.md</code> with the name
+  that moved and what to write instead, and a minor bump is the floor for one. A patch
+  release never breaks anything.</li>
+<li><strong>From 1.0, breaking requires a major version.</strong> That is the promise spec YAML already
+  makes in the row above, extended to the Python surface once the surface has been used
+  enough to be worth freezing.</li>
+</ul>
+<p>Pinning follows from that: pin the minor (<code>bloomery&gt;=0.2,&lt;0.3</code>) if you want the API to
+hold still, and read the changelog on every minor bump.</p>
+<p><strong>The spec YAML promise does not wait</strong>, and it is deliberately the strong one. A spec is
+authored by people and lives in a repository far longer than the library version that
+compiled it, so <code>spec_version: 1</code> documents keep their meaning — a breaking grammar change
+gets a new version number rather than a new bloomery release. Those two clocks are
+independent by design. The single exception, a newly reserved name, is
+<a href="#the-one-exception-a-new-reserved-name">above</a>; it can refuse a document but never
+reinterpret one.</p>
+<h3 id="the-installed-version">The installed version<a class="headerlink" href="#the-installed-version" title="Permanent link">&para;</a></h3>
+<p><code>bloomery.__version__</code> and <code>bloomery --version</code> report the release you have. Both come
+from the build rather than from a constant in the source, so they cannot disagree with
+the wheel. Quote one of them in a bug report.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../api/" class="md-footer__link md-footer__link--prev" aria-label="Previous: API">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                API
+              </div>
+            </div>
+          </a>
+        
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      &copy; 2026 Lev Litvinov and contributors
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+      <div class="md-progress" data-md-component="progress" role="progressbar"></div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.49251538.min.js"></script>
+      
+    
+  </body>
+</html>
