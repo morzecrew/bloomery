@@ -45,7 +45,6 @@ from bloomery.ir import (
     MetricIR,
     ProjectIR,
     SCDKind,
-    SourceColumnIR,
     SourceIR,
     SqlExpr,
     Additivity,
@@ -97,15 +96,11 @@ def _model(index: int) -> tuple[EntityIR, MartIR, list[MetricIR]]:
         materialization=Materialization.FULL,
         partition_by=(),
         columns=tuple(columns),
-        sources=(
-            SourceIR(
-                relation=f"src__{entity_name}",
-                # RFC 0024 D26: the lowered expression hangs off the source, one
-                # per entity column, so a manifest built without these is
-                # narrower than any the emitter produces.
-                columns=tuple(SourceColumnIR(name=c.name, expr=SqlExpr(c.name)) for c in columns),
-            ),
-        ),
+        # `columns=` is left empty deliberately: `build_manifest_bytes` reads no
+        # part of `sources`, so populating it produces byte-identical payload
+        # and would be fixture the measurement cannot see (RFC 0024 D26 moved
+        # the lowered expression here, out of `ColumnIR`).
+        sources=(SourceIR(relation=f"src__{entity_name}"),),
     )
     mart_columns = [
         MartColumnIR(name=c.name, type=c.type, source_entity=entity_name, source_column=c.name)
