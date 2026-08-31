@@ -125,9 +125,9 @@ def _checked_passthrough(t: LogicalType, args: tuple[str | int, ...]) -> Logical
         if not parsed.is_finite() or abs(parsed) >= Decimal(10) ** (t.precision - t.scale):
             msg = (
                 f"literal {value!r} does not fit decimal({t.precision}, {t.scale}): the "
-                f"emitted CAST would overflow at run time on every engine — values must "
-                f"stay below 10^{t.precision - t.scale}. Fix: use a fitting literal, or "
-                "widen the field's declared type"
+                f"emitted CAST would overflow at run time on every engine — the value's "
+                f"magnitude must stay below 10^{t.precision - t.scale}. Fix: use a "
+                "fitting literal, or widen the field's declared type"
             )
             raise TypeCheckError(msg)
 

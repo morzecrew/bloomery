@@ -125,9 +125,10 @@ Every artifact opens with the same two comment lines: a "do not edit" marker and
 
 The entity's resolved materialization maps to the SQLMesh model kind: `full` → `FULL`,
 `incremental_by_key` → `INCREMENTAL_BY_UNIQUE_KEY`, `incremental_by_partition` →
-`INCREMENTAL_BY_TIME_RANGE` over the first partition column. Without an explicit
-`materialization:`, an entity with `partition_by` defaults to
-`incremental_by_partition`, otherwise `full`.
+`INCREMENTAL_BY_TIME_RANGE` over the first partition column — which must be a date or
+timestamp, since it becomes the kind's `time_column`; a non-temporal leading column is
+refused. Without an explicit `materialization:`, an entity with `partition_by` defaults
+to `incremental_by_partition`, otherwise `full`.
 
 `scd: type2` entities use SQLMesh's native kind, as in the model above:
 `SCD_TYPE_2_BY_COLUMN (unique_key (...), columns *)`. Change tracking is by column
