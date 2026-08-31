@@ -62,6 +62,7 @@ __all__ = [
     "FanoutRisk",
     "HistoricalFanout",
     "NonAdditiveWithoutComponents",
+    "UnsupportedCumulative",
     "MartMissingTimeDimension",
     "QuarantineRetentionMissing",
     "DedupeTieBreakMissing",
@@ -422,6 +423,20 @@ class HistoricalFanout(GuardrailError):
 class NonAdditiveWithoutComponents(GuardrailError):
     """Guardrail stage (RFC 0006 §5.4, RFC 0011 D5): a non-additive metric
     without a ratio / additive decomposition to recompute it from."""
+
+
+# ....................... #
+
+
+class UnsupportedCumulative(GuardrailError):
+    """Guardrail stage: a metric declaring ``cumulative:``, which is reserved
+    spec surface (RFC 0002 D10) that no stage lowers.
+
+    Refused rather than dropped: until the lowering ships, a ``cumulative:``
+    metric would compile as a plain simple metric and every artifact would
+    aggregate per period instead of cumulatively — a wrong number with no
+    signal, which the compiler exists to refuse.
+    """
 
 
 # ....................... #
