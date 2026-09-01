@@ -2,12 +2,13 @@
 
 Everything else under ``src/bloomery/`` takes strings and returns values, and
 ruff's ``TID251`` enforces that by refusing ``os``, ``pathlib`` and friends
-outright. The ``noqa`` marker on the import below is the tree's single
-exemption from that rule, with the reason stated there and here: a command
-line has to reach a disk, and the honest place for that is one module a reader
-can hold in their head.
+outright. The ``noqa`` markers on the two imports below are the tree's only
+exemptions from that rule, with the reason stated there and here: a command
+line has to reach a disk — ``pathlib`` for the spec files, ``os`` for the null
+device the broken-pipe path re-aims stdout at — and the honest place for both
+is one module a reader can hold in their head.
 
-The carve-out is one **line**, not this file and not the ``bloomery/cli/``
+Each carve-out is one **line**, not this file and not the ``bloomery/cli/``
 package. A file-scoped ignore would exempt a ``datetime.now()`` here too, and a
 package-wide one would let the argument parser or the renderer open a file while
 this module's docstring still claimed one did — the guard and the document
@@ -24,6 +25,8 @@ Everything here returns ``str``. The library never sees a path.
 
 from __future__ import annotations
 
+import os  # noqa: TID251 — see `pathlib` below; `silence_stdout` needs the null device
+import sys
 from pathlib import Path  # noqa: TID251 — the CLI's one door to a disk (RFC 0020 D5, D12)
 
 # ----------------------- #
@@ -32,6 +35,7 @@ __all__ = [
     "CliIoError",
     "read_spec_directory",
     "read_text",
+    "silence_stdout",
     "write_files",
 ]
 
@@ -192,3 +196,19 @@ def write_files(directory: str, files: dict[str, str]) -> list[str]:
         written.append(str(destination))
 
     return written
+
+
+# ....................... #
+
+
+def silence_stdout() -> None:
+    """Point stdout's file descriptor at the null device.
+
+    For the broken-pipe path: once the reader of a pipe has hung up, every
+    further write — including the flush the interpreter performs at shutdown,
+    which no ``except`` in user code can reach — raises ``BrokenPipeError``
+    again. Re-aiming the descriptor is the fix the Python docs prescribe, and
+    it is descriptor-level I/O, which is why it lives in this module.
+    """
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull, sys.stdout.fileno())

@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess  # nosec B404 — a python subprocess, argv-only, no shell
+import sys
 from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -54,7 +56,7 @@ from bloomery import (
     plan,
     project_fingerprint,
 )
-from bloomery.cli import EXIT_OK, EXIT_REFUSED, EXIT_USAGE, build_parser, main
+from bloomery.cli import EXIT_INTERNAL, EXIT_OK, EXIT_REFUSED, EXIT_USAGE, build_parser, main
 from bloomery.cli.io import CliIoError, read_spec_directory, write_files
 from bloomery.cli.render import render_evidence, render_plan
 from bloomery.cli.serialize import SpecEncoder
@@ -1262,3 +1264,106 @@ def test_a_project_with_an_empty_graph_refuses_readably(
     assert "kinds  —" not in err, "the kind list was empty and joined into a gap"
     assert "dependency graph is empty" in err
     assert "nothing maps a source into an entity yet" in err
+
+
+# ....................... #
+# The catch-all contract (exit 3) and the broken pipe
+
+
+def test_an_unexpected_exception_exits_three_with_the_report_line(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The contract: no traceback ever escapes as the interface. A bug in
+    bloomery still prints its traceback — a report needs it — but under a line
+    that says whose bug it is, and behind an exit code a script can branch on
+    without confusing it with a refusal (1) or a bad invocation (2)."""
+
+    def boom() -> object:
+        raise RecursionError("the leak class the catch-all exists for")
+
+    monkeypatch.setattr("bloomery.cli.all_spec_schemas", boom)
+    code, _out, err = run(capsys, "schema")
+
+    assert code == EXIT_INTERNAL
+    assert "internal error" in err
+    assert "https://github.com/morzecrew/bloomery/issues" in err
+    assert "RecursionError" in err  # the traceback is in the report, not the interface
+
+
+def test_a_keyboard_interrupt_is_not_claimed_by_the_catch_all(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ctrl-C is the caller's act, not a bloomery bug: swallowing it into exit
+    3 would both misreport it and make the process ignore an interrupt."""
+
+    def interrupted() -> object:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("bloomery.cli.all_spec_schemas", interrupted)
+    with pytest.raises(KeyboardInterrupt):
+        main(["schema"])
+
+
+def test_a_broken_pipe_exits_zero_and_quietly() -> None:
+    """`bloomery schema | head` — the reader hung up; that is its right, not
+    our failure. In a subprocess rather than in-process, because the second
+    half of the defect is the interpreter's *shutdown* flush raising again
+    after `main` has returned, which no in-process assertion can see.
+
+    The schema payload is ~89KB against a ~64KB pipe buffer, so the writer
+    reliably blocks and takes EPIPE when the read end closes."""
+    process = subprocess.Popen(  # noqa: S603 — argv is ours, no shell
+        [sys.executable, "-c", "from bloomery.cli import main; raise SystemExit(main(['schema']))"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert process.stdout is not None and process.stderr is not None
+    process.stdout.read(100)
+    process.stdout.close()  # the `head` half: hang up with the writer mid-stream
+    stderr = process.stderr.read()
+    assert process.wait() == EXIT_OK
+    assert stderr == b"", stderr.decode()
+
+
+def test_a_broken_pipe_maps_to_exit_zero_in_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The exit-code half of the pipe contract, in-process (the subprocess
+    test above owns the shutdown-flush half): the handler silences stdout and
+    reports success."""
+    silenced: list[bool] = []
+    monkeypatch.setattr("bloomery.cli.io.silence_stdout", lambda: silenced.append(True))
+
+    def hung_up() -> object:
+        raise BrokenPipeError
+
+    monkeypatch.setattr("bloomery.cli.all_spec_schemas", hung_up)
+    assert main(["schema"]) == EXIT_OK
+    assert silenced == [True]
+
+
+def test_silence_stdout_points_the_descriptor_at_devnull(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """After the call, whatever descriptor `sys.stdout` reports is the null
+    device — which is what lets the interpreter's shutdown flush succeed
+    against a dead pipe. A private pipe stands in for stdout so the function
+    is exercised in-process without fighting pytest's own capture of the real
+    descriptor; the subprocess test above covers the genuine article."""
+    from bloomery.cli.io import silence_stdout
+
+    read_end, write_end = os.pipe()
+    try:
+
+        class _FdOnly:
+            def fileno(self) -> int:
+                return write_end
+
+        monkeypatch.setattr(sys, "stdout", _FdOnly())
+        silence_stdout()
+        redirected = os.fstat(write_end)
+        devnull = os.stat(os.devnull)
+        assert (redirected.st_dev, redirected.st_ino) == (devnull.st_dev, devnull.st_ino)
+    finally:
+        os.close(read_end)
+        os.close(write_end)

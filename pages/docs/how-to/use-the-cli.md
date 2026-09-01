@@ -184,11 +184,17 @@ contain and how to point an editor at them.
 | `0` | Success. |
 | `1` | A **refusal**. Bloomery read the spec and said no, with a reason and a source path. |
 | `2` | A **usage error**: a path that is not there, a flag that is not a flag. |
+| `3` | An **internal error**: a bug in bloomery, not in your spec or invocation. |
 
 The line between them is *whose mistake it was*. `1` means bloomery read your spec and
 said no. `2` means the invocation was wrong before any spec was opened — a path, a flag,
 a `--where` document that is not JSON, a mistyped `--target`, `--dialect`, `--grain` or
-`--policy`, a file that is not UTF-8 or cannot be read.
+`--policy`, a file that is not UTF-8 or cannot be read. `3` means the mistake was
+bloomery's: an exception no handler claimed. It still prints the traceback to stderr —
+a bug report needs it — under a line asking you to report it, and never as the interface.
+
+One non-code: a **broken pipe** is not an error at all. `bloomery schema | head` means
+the reader chose to stop; the command exits `0` quietly instead of a traceback.
 
 `main` **returns** these codes rather than raising, so a Python caller can read them:
 `from bloomery.cli import main; code = main(["resolve", "specs/"])`. That holds for
@@ -202,6 +208,7 @@ if ! bloomery compile specs/ --out out/; then
   case $? in
     1) echo "spec refused; fix the spec" ;;
     2) echo "bad invocation" ;;
+    3) echo "bloomery bug; report it" ;;
   esac
 fi
 ```

@@ -14,6 +14,11 @@ are not — stops requiring a Python script to ask.
   bloomery looked at the spec and said no, with a reason. Conflating it with a
   crash is what makes a pipeline retry a spec error.
 * ``2`` — a usage error: a path that is not there, a flag that is not a flag.
+* ``3`` — an internal error: an exception no handler above claimed. That is a
+  bug in bloomery, said so on stderr with the tracker's address; no traceback
+  ever escapes as the interface. A broken pipe is none of these — the reader
+  hanging up early is not an error at all, so ``bloomery schema | head``
+  exits ``0`` quietly.
 
 ``--format json`` on ``plan``, ``resolve`` and ``explain`` emits the same
 values the Python API returns, so the CLI is not a second, lossier surface
@@ -37,6 +42,7 @@ import argparse
 import difflib
 import json
 import sys
+import traceback
 from typing import TYPE_CHECKING, cast
 
 from bloomery import (
@@ -83,11 +89,12 @@ if TYPE_CHECKING:
 
 __all__ = ["main"]
 
-#: Success, refusal, usage error (§5.2). Named rather than spelled inline so
-#: the docs page and the tests can cite the same three constants.
+#: Success, refusal, usage error (§5.2), internal error. Named rather than
+#: spelled inline so the docs page and the tests can cite the same constants.
 EXIT_OK = 0
 EXIT_REFUSED = 1
 EXIT_USAGE = 2
+EXIT_INTERNAL = 3
 
 
 class _Usage(Exception):
@@ -709,6 +716,26 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (io.CliIoError, _Usage) as error:
         sys.stderr.write(f"{parser.prog}: {error}\n")
         return EXIT_USAGE
+    except BrokenPipeError:
+        # `bloomery schema | head` — the reader hung up, which is its right,
+        # not our failure. Point stdout at devnull before returning so the
+        # interpreter's shutdown flush cannot raise the same error again
+        # noisily (the flush happens after any `except` here can run).
+        io.silence_stdout()
+        return EXIT_OK
+    except Exception:
+        # Anything else is a bug in bloomery, not in the spec or the
+        # invocation — a refusal it should have raised as a BloomeryError, or
+        # a defect. The traceback still prints (a report needs it), but under
+        # a contract line and behind its own exit code, so a script can tell
+        # "your spec is wrong" (1) and "the invocation is wrong" (2) from
+        # "bloomery is wrong" (3).
+        traceback.print_exc(file=sys.stderr)
+        sys.stderr.write(
+            f"{parser.prog}: internal error — this is a bug in bloomery, not in your"
+            " spec. Please report it: https://github.com/morzecrew/bloomery/issues\n"
+        )
+        return EXIT_INTERNAL
 
     return exit_code
 
