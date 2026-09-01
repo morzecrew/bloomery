@@ -99,6 +99,7 @@ def reconciled() -> Iterator[trino.dbapi.Connection]:
             body = re.sub(r"@[a-z_]+", "'2026-01-01'", extract_select(artifact.content))
             _run(connection, f'CREATE TABLE memory.silver."{name}" AS {body}')
         yield connection
+        connection.close()
 
 
 def test_the_model_runs_at_all(reconciled: trino.dbapi.Connection) -> None:

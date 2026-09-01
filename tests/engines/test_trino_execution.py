@@ -103,6 +103,7 @@ def seeded() -> Iterator[trino.dbapi.Connection]:
                 f'CREATE TABLE memory.{namespace}."{relation}" AS {extract_select(artifact.content)}',
             )
         yield connection
+        connection.close()
 
 
 def test_silver_recipe_derivation_runs_on_trino(seeded: trino.dbapi.Connection) -> None:
