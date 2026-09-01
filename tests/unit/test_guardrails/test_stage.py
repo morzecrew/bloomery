@@ -16,6 +16,7 @@ from bloomery.errors import (
     HistoricalFanout,
     NonAdditiveWithoutComponents,
     SpecParseError,
+    UnsupportedCumulative,
 )
 from bloomery.guardrails import check_guardrails
 from bloomery.quality import QUALITY_METRICS
@@ -208,6 +209,38 @@ metrics:
     assert isinstance(leaf, NonAdditiveWithoutComponents)
     assert "'average_stock'" in str(leaf)
     assert "add ratio: {numerator, denominator}" in str(leaf)
+
+
+# ....................... #
+# Reserved spec surface fails closed (RFC 0002 D10)
+
+
+def test_a_cumulative_metric_is_refused_not_silently_dropped() -> None:
+    """``cumulative:`` parse-validates and no stage lowers it; before this
+    refusal the metric compiled as a plain simple metric — per-period
+    aggregation where a running total was declared, with no signal."""
+    _project, catalog = load_fixture("ecom_basic")
+    sources = dict(fixture_sources("ecom_basic"))
+    sources["metrics"] = sources["metrics"].replace(
+        "    agg: count\n", "    agg: count\n    cumulative: {grain_to_date: month}\n"
+    )
+    broken = load_project(sources)
+    assert broken.metric_set is not None
+    assert broken.metric_set.metrics["order_count"].cumulative is not None
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(broken, catalog)
+    (leaf,) = excinfo.value.collected
+    assert isinstance(leaf, UnsupportedCumulative)
+    assert leaf.source_path == "metrics: metrics.order_count.cumulative"
+    assert "does not lower" in str(leaf)
+    assert "Fix:" in str(leaf)
+
+
+def test_the_same_project_without_the_cumulative_line_compiles_clean() -> None:
+    """Pins the refusal to the one line: ecom_basic itself keeps compiling."""
+    project, catalog = load_fixture("ecom_basic")
+    ir = build_project_ir(project, catalog)
+    assert "order_count" in [metric.name for metric in ir.metrics]
 
 
 # ....................... #

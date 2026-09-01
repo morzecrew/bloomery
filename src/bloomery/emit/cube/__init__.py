@@ -48,9 +48,8 @@ Deterministic choices pinned here (each golden/unit-tested):
   skipped by the calculated one, so it vanishes from the artifact, and a ratio
   naming it as a component emits ``{member}`` templating against a measure the
   cube does not define (RFC 0008 D3: fail loud, never approximate).
-- Cube has no SCD/incremental concepts — those capabilities are absent and
-  *irrelevant rather than errors*: Cube consumes tables SQLMesh maintains
-  (RFC 0008 §5.4).
+- Cube has no SCD/incremental concepts — their absence here is *irrelevance
+  rather than error*: Cube consumes tables SQLMesh maintains (RFC 0008 §5.4).
 - **Nothing about how a relation is built is Cube's to refuse** (RFC 0017 D52).
   This emitter writes no silver model, no reject table, no replay statement and
   no audit — a project full of quality rules compiles to cubes and views and
@@ -69,8 +68,6 @@ from bloomery.emit.base import (
     ArtifactKind,
     EmitContext,
     EmittedArtifact,
-    Feature,
-    TargetCapabilities,
 )
 from bloomery.emit.lower import measure_owners
 from bloomery.errors import UnsupportedByTarget
@@ -323,26 +320,6 @@ class CubeEmitter:
     files, dialect-independent by construction."""
 
     name = "cube"
-
-    # ....................... #
-
-    def capabilities(self) -> TargetCapabilities:
-        """Declared support per RFC 0008 §5.1 (amended D6): query-time joins,
-        multi-fact, row-level security, role-playing dimensions. Semi-additive
-        emission carries honest ``meta``; *trusting* it is gated on the
-        equivalence suite (RFC 0009 §5.8). SCD2/incremental are irrelevant,
-        not errors — Cube consumes tables SQLMesh maintains."""
-
-        return TargetCapabilities(
-            supported=frozenset(
-                {
-                    Feature.QUERY_TIME_JOIN,
-                    Feature.MULTI_FACT,
-                    Feature.ROW_LEVEL_SECURITY,
-                    Feature.ROLE_PLAYING_DIM,
-                }
-            )
-        )
 
     # ....................... #
 

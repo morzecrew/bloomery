@@ -1,9 +1,16 @@
 """Emitter port surface (RFC 0008 §5.1, amended per ``_bloomery-changes.md``
-D6 + pivot R8): the :class:`TargetEmitter` protocol, the closed
-:class:`Feature` vocabulary with :class:`TargetCapabilities`, the
+D6 + pivot R8): the :class:`TargetEmitter` protocol, the
 :class:`EmitContext` handed to every emitter, and the file-shaped
 :class:`EmittedArtifact` (settles open question #1: artifacts are data —
 no filesystem writes, no live-context registration in core, RFC 0008 D2).
+
+The ``Feature``/``TargetCapabilities`` declaration tables RFC 0008 D10 added
+were removed: nothing in the pipeline ever consulted them, and the tables had
+drifted into claiming features no emitter emits (cumulative and derived
+metrics on both SQL targets, row-level security and joins on Cube). What a
+target cannot express is refused per construct with
+:class:`~bloomery.errors.UnsupportedByTarget`, which is checked by tests and
+cannot drift from the emitter it lives in.
 """
 
 from __future__ import annotations
@@ -29,55 +36,9 @@ __all__ = [
     "AuditBody",
     "EmitContext",
     "EmittedArtifact",
-    "Feature",
-    "TargetCapabilities",
     "TargetEmitter",
     "assert_unique_paths",
 ]
-
-
-class Feature(StrEnum):
-    """The closed capability vocabulary (RFC 0008 D10, amended by pivot R8
-    with :attr:`CUMULATIVE` and :attr:`DERIVED_METRIC`, and by RFC 0015
-    D-Q6 with :attr:`SORT_NULLS_PLACEMENT`). Shared by targets and the
-    planner port (RFC 0011/0013)."""
-
-    SEMI_ADDITIVE = "semi_additive"
-    NON_ADDITIVE = "non_additive"
-    CUMULATIVE = "cumulative"
-    DERIVED_METRIC = "derived_metric"
-    ROLE_PLAYING_DIM = "role_playing_dim"
-    MULTI_FACT = "multi_fact"
-    QUERY_TIME_JOIN = "query_time_join"
-    ROW_LEVEL_SECURITY = "row_level_security"
-    #: RFC 0015 D-Q6: NULLS FIRST/LAST ordering control. Deliberately
-    #: **not** declared by the MetricFlow planner capabilities —
-    #: ``order_by_names`` is direction-only, so a non-default placement is
-    #: refused (``UnsupportedSortNulls``), never silently dropped.
-    SORT_NULLS_PLACEMENT = "sort_nulls_placement"
-    VARIANT_COLUMN = "variant_column"
-    SCD_TYPE_2 = "scd_type_2"
-    INCREMENTAL = "incremental"
-    AUDITS = "audits"
-
-
-# ....................... #
-
-
-@dataclass(frozen=True, slots=True)
-class TargetCapabilities:
-    """A target's declared support: membership-checked; any output-reaching
-    iteration must be ``sorted()`` (RFC 0008 D10)."""
-
-    supported: frozenset[Feature]
-
-    # ....................... #
-
-    def supports(self, feature: Feature) -> bool:
-        return feature in self.supported
-
-
-# ....................... #
 
 
 class ArtifactKind(StrEnum):
@@ -226,7 +187,5 @@ class TargetEmitter(Protocol):
     name: str
 
     # ....................... #
-
-    def capabilities(self) -> TargetCapabilities: ...
 
     def emit(self, ir: ProjectIR, ctx: EmitContext) -> tuple[EmittedArtifact, ...]: ...

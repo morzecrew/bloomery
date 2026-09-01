@@ -12,7 +12,8 @@ output round-trips through ``sqlglot.parse_one``.
 
 from __future__ import annotations
 
-from decimal import Decimal
+import re
+from decimal import ROUND_HALF_UP, Decimal, localcontext
 
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
@@ -95,6 +96,70 @@ def _typed_literal(value: str | int, input_type: LogicalType) -> Expression:
         return _literal(value)
 
     return exp.cast(_literal(value), neutral_type(input_type))
+
+
+# ....................... #
+
+
+#: The one numeric spelling every engine's text-to-decimal cast agrees on:
+#: optional sign, ASCII digits, optional dot-fraction. ``Decimal`` alone is
+#: too permissive a gate — it accepts exponents, underscores, padding and
+#: Unicode digits (``"1e3"``, ``"1_0"``, ``" 1 "``, ``"١٢٣"``) that the
+#: emitted ``CAST('…' AS DECIMAL)`` does not portably accept, which would
+#: re-open the compile-and-fail hole this check closes. ``[0-9]`` rather than
+#: ``\\d`` for the same reason.
+_PLAIN_NUMBER = re.compile(r"[+-]?([0-9]+(\.[0-9]+)?|\.[0-9]+)\Z")
+
+
+def _checked_passthrough(t: LogicalType, args: tuple[str | int, ...]) -> LogicalType:
+    """``coalesce``/``nullif`` produce the input type — after proving the
+    literal survives the cast :func:`_typed_literal` emits.
+
+    The cast makes the declared *type* true (RFC 0029 §2.1/§2.4) and says
+    nothing about the *value*: a fallback whose integral part cannot fit
+    ``decimal(p, s)`` raises ``ConversionException`` on the engine, so the
+    spec compiled and failed at run time (T-0002 D-018) — the degradation
+    RFC 0008 D3 refuses. The bound is applied to the value *rounded to the
+    declared scale*, because that is what the engines cast: ``9.999`` is below
+    10 and still overflows ``decimal(3, 2)``, rounding to ``10.00``. Only
+    decimal columns are value-checked: theirs is the one cast whose failure is
+    decidable from ``(p, s)`` alone at compile time.
+    """
+    if isinstance(t, DecimalType):
+        value = args[0]
+
+        if isinstance(value, str) and _PLAIN_NUMBER.match(value) is None:
+            msg = (
+                f"literal {value!r} is not a number the emitted CAST portably accepts — "
+                f"only plain sign/digits/fraction spellings reach decimal({t.precision}, "
+                f"{t.scale}) on every engine; no exponents, underscores or padding"
+            )
+            raise TypeCheckError(msg)
+
+        parsed = Decimal(str(value))
+        # Quantize under a context sized to the literal itself, never the
+        # default 28-digit one: a fitting 38-digit fallback must not be
+        # misread as overflow, and with room for every digit plus the target
+        # scale the quantize cannot raise — the magnitude compare below is
+        # the one arbiter of fit.
+        with localcontext() as ctx:
+            ctx.prec = len(parsed.as_tuple().digits) + t.scale + 2
+            rounded = parsed.quantize(Decimal(1).scaleb(-t.scale), rounding=ROUND_HALF_UP)
+
+        # ``copy_abs`` rather than ``abs``: the builtin is a *context*
+        # operation and would re-round a wide value back to 28 digits, undoing
+        # the widened quantize above.
+        if rounded.copy_abs() >= Decimal(10) ** (t.precision - t.scale):
+            msg = (
+                f"literal {value!r} does not fit decimal({t.precision}, {t.scale}): the "
+                f"emitted CAST would overflow at run time on every engine — the value's "
+                f"magnitude, rounded to scale {t.scale}, must stay below "
+                f"10^{t.precision - t.scale}. Fix: use a fitting literal, or widen the "
+                "field's declared type"
+            )
+            raise TypeCheckError(msg)
+
+    return t
 
 
 # ....................... #
@@ -466,7 +531,7 @@ def to_utc(col: Expression, zone: str) -> Expression:
     arity=1,
     arg_kinds=(ArgKind.LITERAL,),
     input=_ALL_TYPES,
-    output=lambda t, _args: t,
+    output=_checked_passthrough,
     types=True,
 )
 def coalesce(col: Expression, fallback: str | int, *, input_type: LogicalType) -> Expression:
@@ -500,7 +565,7 @@ def coalesce(col: Expression, fallback: str | int, *, input_type: LogicalType) -
     arity=1,
     arg_kinds=(ArgKind.LITERAL,),
     input=_ALL_TYPES,
-    output=lambda t, _args: t,
+    output=_checked_passthrough,
     nullifies=True,
     types=True,
 )

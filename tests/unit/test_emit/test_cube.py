@@ -13,7 +13,6 @@ import yaml
 from bloomery import Target
 from bloomery.dialects import DialectPort
 from bloomery.emit import ArtifactKind, EmitContext, EmittedArtifact
-from bloomery.emit.base import Feature
 from bloomery.emit.cube import CubeEmitter
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import (
@@ -164,17 +163,6 @@ def _cube_yaml(artifacts: tuple[EmittedArtifact, ...], name: str) -> dict[str, o
     artifact = next(a for a in artifacts if a.path == f"model/cubes/{name}.yml")
     (cube,) = cast("dict[str, list[dict[str, object]]]", yaml.safe_load(artifact.content))["cubes"]
     return cube
-
-
-def test_capabilities_declare_the_cube_feature_set() -> None:
-    assert CubeEmitter().capabilities().supported == frozenset(
-        {
-            Feature.QUERY_TIME_JOIN,
-            Feature.MULTI_FACT,
-            Feature.ROW_LEVEL_SECURITY,
-            Feature.ROLE_PLAYING_DIM,
-        }
-    )
 
 
 def test_emit_never_touches_the_dialect_port() -> None:

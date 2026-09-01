@@ -30,6 +30,7 @@ BloomeryError
 │   ├── FanoutRisk
 │   ├── HistoricalFanout
 │   ├── NonAdditiveWithoutComponents
+│   ├── UnsupportedCumulative
 │   ├── MartMissingTimeDimension
 │   ├── QuarantineRetentionMissing
 │   ├── DedupeTieBreakMissing
@@ -87,6 +88,7 @@ BloomeryError
 | `FanoutRisk` | guardrails | A mart `via:` flatten step over a `one_to_many` relationship |
 | `HistoricalFanout` | guardrails | A mart that flattens — or is based on — an `scd: type2` entity, whose relation holds one row per version per key |
 | `NonAdditiveWithoutComponents` | guardrails | A non-additive metric with no ratio/additive decomposition to recompute from |
+| `UnsupportedCumulative` | guardrails | A metric declaring `cumulative:` — reserved spec surface no stage lowers; compiled anyway it would aggregate per period instead of cumulatively |
 | `MartMissingTimeDimension` | guardrails | A measure-carrying mart that declares no date role |
 | `QuarantineRetentionMissing` | guardrails | An entity with a `quarantine` disposition and no `quarantine:` block — reject rows hold raw payloads, so retention is required and never defaulted |
 | `DedupeTieBreakMissing` | guardrails | `dedupe: {keep: latest_by}` without `tie_break` — rows sharing a timestamp would make the winner arbitrary |

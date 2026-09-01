@@ -112,9 +112,12 @@ def test_enum_map_is_the_only_variadic_transform() -> None:
 
 
 def test_output_preservation_tracks_the_input_type() -> None:
+    # A decimal column takes a numeric literal — a non-numeric one is refused
+    # (see test_a_literal_that_cannot_survive_its_cast_is_refused).
     coalesce = DEFAULT_REGISTRY["coalesce"]
-    for t in (StringType(), IntType(), DecimalType(9, 2), TimestampType()):
+    for t in (StringType(), IntType(), TimestampType()):
         assert coalesce.output_type(t, ("x",)) == t
+    assert coalesce.output_type(DecimalType(9, 2), ("1.5",)) == DecimalType(9, 2)
 
 
 @pytest.mark.parametrize(
@@ -145,6 +148,71 @@ def test_arithmetic_overflow_past_38_is_loud(name: str) -> None:
     spec = DEFAULT_REGISTRY[name]
     with pytest.raises(TypeCheckError, match="38-digit precision cap"):
         spec.output_type(DecimalType(38, 2), (10,))
+
+
+@pytest.mark.parametrize("name", ["coalesce", "nullif"])
+def test_a_literal_that_cannot_survive_its_cast_is_refused(name: str) -> None:
+    """T-0002 D-018: the emitter casts the literal into the column's decimal
+    type, and a value whose integral part cannot fit raises ConversionException
+    on the engine — compile-and-fail, the degradation RFC 0008 D3 refuses."""
+    spec = DEFAULT_REGISTRY[name]
+    with pytest.raises(TypeCheckError, match=r"does not fit decimal\(12, 4\)"):
+        spec.output_type(DecimalType(12, 4), (99999999999999,))
+    with pytest.raises(TypeCheckError, match=r"does not fit decimal\(12, 4\)"):
+        spec.output_type(DecimalType(12, 4), ("100000000",))
+    with pytest.raises(TypeCheckError, match="is not a number"):
+        spec.output_type(DecimalType(12, 4), ("unknown",))
+
+
+@pytest.mark.parametrize("name", ["coalesce", "nullif"])
+@pytest.mark.parametrize("literal", ["1e3", "1_0", " 1 ", "1.", "Infinity", "NaN"])
+def test_a_non_plain_numeric_spelling_is_refused(name: str, literal: str) -> None:
+    """``Decimal`` accepts exponents, underscores and padding that the emitted
+    ``CAST('…' AS DECIMAL)`` does not portably accept — a spelling the check
+    passes and an engine refuses is the compile-and-fail shape again."""
+    with pytest.raises(TypeCheckError, match="is not a number"):
+        DEFAULT_REGISTRY[name].output_type(DecimalType(12, 4), (literal,))
+
+
+@pytest.mark.parametrize("name", ["coalesce", "nullif"])
+def test_a_literal_that_overflows_only_after_rounding_is_refused(name: str) -> None:
+    """The cast rounds to the declared scale first: '9.999' is below 10 but
+    rounds to 10.00, which overflows decimal(3, 2) on every engine."""
+    spec = DEFAULT_REGISTRY[name]
+    with pytest.raises(TypeCheckError, match=r"does not fit decimal\(3, 2\)"):
+        spec.output_type(DecimalType(3, 2), ("9.999",))
+    # Rounding that stays inside the width is the engines' own behavior.
+    assert spec.output_type(DecimalType(3, 2), ("9.994",)) == DecimalType(3, 2)
+
+
+@pytest.mark.parametrize("name", ["coalesce", "nullif"])
+def test_a_wide_fitting_literal_is_not_misread_as_overflow(name: str) -> None:
+    """The fit decision depends on the declared (p, s), never on Python's
+    default 28-digit decimal context: a 31-digit value fits decimal(38, 0)."""
+    spec = DEFAULT_REGISTRY[name]
+    assert spec.output_type(DecimalType(38, 0), (10**30,)) == DecimalType(38, 0)
+    assert spec.output_type(DecimalType(38, 0), ("9" * 38,)) == DecimalType(38, 0)
+    with pytest.raises(TypeCheckError, match=r"does not fit decimal\(38, 0\)"):
+        spec.output_type(DecimalType(38, 0), ("1" + "0" * 38,))
+
+
+@pytest.mark.parametrize("name", ["coalesce", "nullif"])
+def test_unicode_digits_are_refused(name: str) -> None:
+    """``\\d`` matches Unicode decimal digits and ``Decimal`` parses them, but
+    the emitted ``CAST('١٢٣' AS DECIMAL)`` fails on the engine — the guard is
+    ASCII-only on purpose."""
+    with pytest.raises(TypeCheckError, match="is not a number"):
+        DEFAULT_REGISTRY[name].output_type(DecimalType(12, 4), ("١٢٣",))
+
+
+@pytest.mark.parametrize("name", ["coalesce", "nullif"])
+def test_a_fitting_literal_still_produces_the_input_type(name: str) -> None:
+    spec = DEFAULT_REGISTRY[name]
+    # 99999999.9999 is the largest decimal(12, 4); the boundary fits.
+    assert spec.output_type(DecimalType(12, 4), ("99999999.9999",)) == DecimalType(12, 4)
+    assert spec.output_type(DecimalType(12, 4), (0,)) == DecimalType(12, 4)
+    # Non-decimal columns are untouched: a string fallback stays a string.
+    assert spec.output_type(StringType(), ("unknown",)) == StringType()
 
 
 def test_round_output() -> None:

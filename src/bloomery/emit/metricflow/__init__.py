@@ -98,7 +98,6 @@ from metricflow_semantic_interfaces.type_enums.entity_type import EntityType
 from metricflow_semantic_interfaces.type_enums.metric_type import MetricType
 from metricflow_semantic_interfaces.type_enums.time_granularity import TimeGranularity
 
-from bloomery.emit.base import Feature, TargetCapabilities
 from bloomery.emit.lower import measure_owners
 from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.ir import Additivity, Layer, SemiAdditiveRule
@@ -116,32 +115,10 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 __all__ = [
-    "METRICFLOW_PLANNER_CAPABILITIES",
     "emit_manifest",
     "manifest_json",
     "measure_owners",
 ]
-
-#: The MetricFlow planner's declared capabilities (RFC 0008 D12, RFC 0013).
-#:
-#: ``QUERY_TIME_JOIN`` and ``MULTI_FACT`` are absent **by deliberate policy,
-#: not limitation**: MetricFlow can plan multi-hop query-time joins, but a
-#: cross-grain request is *refused* at the planner's coverage precheck
-#: (RFC 0013 D6) — a mart answers a request alone or not at all, which is the
-#: fan-out-impossibility property the mart design (RFC 0010) exists for.
-#: Do not "fix" this by adding the features.
-METRICFLOW_PLANNER_CAPABILITIES = TargetCapabilities(
-    supported=frozenset(
-        {
-            Feature.SEMI_ADDITIVE,
-            Feature.NON_ADDITIVE,
-            Feature.CUMULATIVE,
-            Feature.DERIVED_METRIC,
-            Feature.ROLE_PLAYING_DIM,
-            Feature.ROW_LEVEL_SECURITY,
-        }
-    )
-)
 
 #: ``metric_time`` is MetricFlow's canonical query-time dimension (RFC 0013
 #: R4); the spec layer already rejects it as a member name (M1) — the emitter

@@ -7,7 +7,8 @@ a :class:`~bloomery.spec.common.SemiAdditivePolicy`, ``non_additive`` a
 :class:`~bloomery.spec.common.RatioSpec`; their *presence* is shape-validated
 here, their necessity is enforced at the guardrail stage
 (``NonAdditiveWithoutComponents``, RFC 0006). The ``cumulative:`` form is
-reserved spec surface (RFC 0002 D10), parse-validated only.
+reserved spec surface (RFC 0002 D10): parse-validated here, refused at the
+guardrail stage (``UnsupportedCumulative``) because no stage lowers it.
 """
 
 from __future__ import annotations
@@ -34,8 +35,10 @@ __all__ = [
 
 
 class CumulativeSpec(SpecModel):
-    """Reserved cumulative-metric form (RFC 0002 D10; lowered per RFC 0013):
-    exactly one of ``window`` or ``grain_to_date``."""
+    """Reserved cumulative-metric form (RFC 0002 D10): exactly one of
+    ``window`` or ``grain_to_date``. No stage lowers it yet, so a metric
+    carrying one is refused at the guardrail stage
+    (:class:`~bloomery.errors.UnsupportedCumulative`)."""
 
     window: str | None = None
     grain_to_date: str | None = None

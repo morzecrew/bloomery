@@ -18,7 +18,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from bloomery.errors import GuardrailError
+from bloomery.errors import GuardrailError, UnsupportedCumulative
 from bloomery.guardrails.additivity import check_additivity
 from bloomery.guardrails.arithmetic import check_arithmetic
 from bloomery.guardrails.asserts import lower_asserts
@@ -87,6 +87,35 @@ def _amended_entity(
 # ....................... #
 
 
+def _check_reserved(project: Project) -> list[GuardrailError]:
+    """Refuse reserved spec surface nothing lowers (RFC 0002 D10).
+
+    ``cumulative:`` parse-validates and is read by no later stage, so without
+    this check the metric compiles as a plain simple metric — per-period
+    aggregation where a running total was declared, silently. Checked over the
+    spec rather than the draft IR because the IR deliberately has no field for
+    it: the defect is exactly that the declaration never reaches the IR.
+    """
+    if project.metric_set is None:
+        return []
+
+    return [
+        UnsupportedCumulative(
+            f"metric {name!r} declares cumulative:, which bloomery does not lower yet — "
+            "compiled anyway it would aggregate per period instead of cumulatively, a "
+            "wrong number with no signal (RFC 0002 D10 reserves the surface). Fix: "
+            "remove cumulative: and compute the running total downstream, or express "
+            "the metric over a pre-accumulated column",
+            source_path=f"metrics: metrics.{name}.cumulative",
+        )
+        for name, metric in project.metric_set.metrics.items()
+        if metric.cumulative is not None
+    ]
+
+
+# ....................... #
+
+
 def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | None) -> ProjectIR:
     """Run all seven guardrails plus the data-quality leaves over the draft IR
     (RFC 0006 D9; RFC 0016 §5.9).
@@ -100,6 +129,7 @@ def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | N
     violations = check_arithmetic(derivations, draft.metrics, catalog)
     violations.extend(check_grain(derivations, draft, project, catalog))
     violations.extend(check_additivity(draft))
+    violations.extend(_check_reserved(project))
     # Mart-level checks (RFC 0006 D10): the flattener re-runs here as a pure
     # sibling stage; its leaves batch into the same aggregate as the rest.
     violations.extend(lower_marts(project.marts, draft).violations)
