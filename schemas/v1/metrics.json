@@ -2,7 +2,7 @@
   "$defs": {
     "CumulativeSpec": {
       "additionalProperties": false,
-      "description": "Reserved cumulative-metric form (RFC 0002 D10; lowered per RFC 0013):\nexactly one of ``window`` or ``grain_to_date``.",
+      "description": "Reserved cumulative-metric form (RFC 0002 D10): exactly one of\n``window`` or ``grain_to_date``. No stage lowers it yet, so a metric\ncarrying one is refused at the guardrail stage\n(:class:`~bloomery.errors.UnsupportedCumulative`).",
       "properties": {
         "grain_to_date": {
           "anyOf": [
