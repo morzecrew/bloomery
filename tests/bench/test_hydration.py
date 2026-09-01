@@ -1,5 +1,7 @@
-"""Hydration budgets (RFC 0014 §5.5/§6, RFC 0009 §5.9 — the bench lane's
-single asserted entry): **50 ms cold** (bytes → ``parse_raw`` + lookup) and
+"""Hydration budgets (RFC 0014 §5.5/§6, RFC 0009 §5.9 — one of the bench
+lane's two asserted entries, beside
+:mod:`tests.bench.test_compile_scale`): **50 ms cold** (bytes →
+``parse_raw`` + lookup) and
 **10 ms warm** (an L1 hit, including keying), asserted as medians over ≥20
 iterations with the documented relaxed **3× CI multiplier**, on a
 reference-tenant manifest (~30 semantic models / ~90 metrics) built

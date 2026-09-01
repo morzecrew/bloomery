@@ -28,14 +28,23 @@ jobs:
   # `perf`, so a gate living only on a schedule can run after the tag or skip a
   # release candidate entirely — satisfying D1 on paper and enforcing nothing.
   #
-  # The assertion is an absolute ceiling with headroom (D4), never a drift
-  # comparison against a stored baseline: runner variance on millisecond
+  # Every assertion here is an absolute ceiling with headroom (D4), never a
+  # drift comparison against a stored baseline: runner variance on millisecond
   # measurements makes percentage drift flaky, and a flaky gate is one people
-  # learn to re-run. Measured on this tree, 30-model reference tenant, median
-  # of 25: cold 10.8 ms against a 150 ms ceiling, warm 7.9 ms against 30 ms.
-  # An order-of-magnitude regression is what this blocks; noise is not.
+  # learn to re-run. An order-of-magnitude regression is what this blocks;
+  # noise is not. Two entries ride the marker, both measured on this tree:
+  #
+  # * hydration, 30-model reference tenant, median of 25 — cold 10.8 ms
+  #   against a 150 ms ceiling, warm 7.9 ms against 30 ms;
+  # * the compile path at 100/500/1000 entities — 264 ms / 1.28 s / 2.54 s
+  #   against ceilings of 3 s and 30 s (the 500 point records without
+  #   gating).
+  #
+  # The job is named for the lane rather than for hydration alone, because
+  # `-m perf` selects both and a release blocked by the compile ceiling used
+  # to fail under a name that mentioned only the other entry.
   perf:
-    name: Hydration budgets (release candidate)
+    name: Performance budgets (release candidate)
     needs: ci
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -70,7 +79,7 @@ jobs:
       # Exit code 5 (no tests collected) is a failure, not a tolerance: an
       # empty perf lane is a release that measured nothing, which is the one
       # outcome indistinguishable from a release that met its budgets.
-      - name: Assert the hydration budgets
+      - name: Assert the performance budgets
         run: uv run pytest -m perf
 
   build:
