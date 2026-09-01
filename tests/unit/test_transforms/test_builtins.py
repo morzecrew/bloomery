@@ -165,6 +165,27 @@ def test_a_literal_that_cannot_survive_its_cast_is_refused(name: str) -> None:
 
 
 @pytest.mark.parametrize("name", ["coalesce", "nullif"])
+@pytest.mark.parametrize("literal", ["1e3", "1_0", " 1 ", "1.", "Infinity", "NaN"])
+def test_a_non_plain_numeric_spelling_is_refused(name: str, literal: str) -> None:
+    """``Decimal`` accepts exponents, underscores and padding that the emitted
+    ``CAST('…' AS DECIMAL)`` does not portably accept — a spelling the check
+    passes and an engine refuses is the compile-and-fail shape again."""
+    with pytest.raises(TypeCheckError, match="is not a number"):
+        DEFAULT_REGISTRY[name].output_type(DecimalType(12, 4), (literal,))
+
+
+@pytest.mark.parametrize("name", ["coalesce", "nullif"])
+def test_a_literal_that_overflows_only_after_rounding_is_refused(name: str) -> None:
+    """The cast rounds to the declared scale first: '9.999' is below 10 but
+    rounds to 10.00, which overflows decimal(3, 2) on every engine."""
+    spec = DEFAULT_REGISTRY[name]
+    with pytest.raises(TypeCheckError, match=r"does not fit decimal\(3, 2\)"):
+        spec.output_type(DecimalType(3, 2), ("9.999",))
+    # Rounding that stays inside the width is the engines' own behavior.
+    assert spec.output_type(DecimalType(3, 2), ("9.994",)) == DecimalType(3, 2)
+
+
+@pytest.mark.parametrize("name", ["coalesce", "nullif"])
 def test_a_fitting_literal_still_produces_the_input_type(name: str) -> None:
     spec = DEFAULT_REGISTRY[name]
     # 99999999.9999 is the largest decimal(12, 4); the boundary fits.

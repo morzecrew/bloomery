@@ -12,7 +12,8 @@ output round-trips through ``sqlglot.parse_one``.
 
 from __future__ import annotations
 
-from decimal import Decimal, InvalidOperation
+import re
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
@@ -100,6 +101,15 @@ def _typed_literal(value: str | int, input_type: LogicalType) -> Expression:
 # ....................... #
 
 
+#: The one numeric spelling every engine's text-to-decimal cast agrees on:
+#: optional sign, digits, optional dot-fraction. ``Decimal`` alone is too
+#: permissive a gate — it accepts exponents, underscores and padding
+#: (``"1e3"``, ``"1_0"``, ``" 1 "``) that the emitted ``CAST('…' AS DECIMAL)``
+#: does not portably accept, which would re-open the compile-and-fail hole
+#: this check closes.
+_PLAIN_NUMBER = re.compile(r"[+-]?(\d+(\.\d+)?|\.\d+)\Z")
+
+
 def _checked_passthrough(t: LogicalType, args: tuple[str | int, ...]) -> LogicalType:
     """``coalesce``/``nullif`` produce the input type — after proving the
     literal survives the cast :func:`_typed_literal` emits.
@@ -108,26 +118,40 @@ def _checked_passthrough(t: LogicalType, args: tuple[str | int, ...]) -> Logical
     nothing about the *value*: a fallback whose integral part cannot fit
     ``decimal(p, s)`` raises ``ConversionException`` on the engine, so the
     spec compiled and failed at run time (T-0002 D-018) — the degradation
-    RFC 0008 D3 refuses. Only decimal columns are value-checked: theirs is the
-    one cast whose failure is decidable from ``(p, s)`` alone at compile time.
+    RFC 0008 D3 refuses. The bound is applied to the value *rounded to the
+    declared scale*, because that is what the engines cast: ``9.999`` is below
+    10 and still overflows ``decimal(3, 2)``, rounding to ``10.00``. Only
+    decimal columns are value-checked: theirs is the one cast whose failure is
+    decidable from ``(p, s)`` alone at compile time.
     """
     if isinstance(t, DecimalType):
         value = args[0]
-        try:
-            parsed = Decimal(str(value))
-        except InvalidOperation:
-            msg = (
-                f"literal {value!r} is not a number and cannot be cast to "
-                f"decimal({t.precision}, {t.scale}); use a numeric literal"
-            )
-            raise TypeCheckError(msg) from None
 
-        if not parsed.is_finite() or abs(parsed) >= Decimal(10) ** (t.precision - t.scale):
+        if isinstance(value, str) and _PLAIN_NUMBER.match(value) is None:
+            msg = (
+                f"literal {value!r} is not a number the emitted CAST portably accepts — "
+                f"only plain sign/digits/fraction spellings reach decimal({t.precision}, "
+                f"{t.scale}) on every engine; no exponents, underscores or padding"
+            )
+            raise TypeCheckError(msg)
+
+        try:
+            rounded = Decimal(str(value)).quantize(
+                Decimal(1).scaleb(-t.scale), rounding=ROUND_HALF_UP
+            )
+            fits = abs(rounded) < Decimal(10) ** (t.precision - t.scale)
+        except InvalidOperation:
+            # Quantizing needs more digits than the decimal context holds —
+            # only a value astronomically wider than any declarable (p, s).
+            fits = False
+
+        if not fits:
             msg = (
                 f"literal {value!r} does not fit decimal({t.precision}, {t.scale}): the "
                 f"emitted CAST would overflow at run time on every engine — the value's "
-                f"magnitude must stay below 10^{t.precision - t.scale}. Fix: use a "
-                "fitting literal, or widen the field's declared type"
+                f"magnitude, rounded to scale {t.scale}, must stay below "
+                f"10^{t.precision - t.scale}. Fix: use a fitting literal, or widen the "
+                "field's declared type"
             )
             raise TypeCheckError(msg)
 
