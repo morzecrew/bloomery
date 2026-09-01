@@ -1,0 +1,3 @@
+FanoutRisk
+source: marts: marts.orders.flatten[0].via
+relationship 'order_of_customer' is one_to_many: flattening it multiplies the mart's own rows once per 'customer' row (RFC 0006 §5.3). Fix: flatten only many_to_one/one_to_one relationships, or model a mart at the grain of 'customer'

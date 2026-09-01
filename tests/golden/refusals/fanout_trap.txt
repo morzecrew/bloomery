@@ -1,0 +1,13 @@
+stage: GUARDRAILS
+
+GrainMismatch
+source: mapping[wms__order_lines->order_item]: fields.landed_cost
+derivation of 'landed_cost' combines 'shipping_cost' from entity 'order' (grain: one row per order) at the grain of entity 'order_item' (grain: one row per line on an order), reached via relationship 'item_of_order' (many_to_one) with no aggregation step. Joined across grains, 'shipping_cost' is duplicated once per 'order_item' row and any SUM over the result overstates it. Fix: add an explicit aggregation/allocation over 'order_item', or declare the derivation on entity 'order'
+
+GrainViolation
+source: marts: marts.order_items.measures.shipping_cost
+measure 'shipping_cost' has grain 'order' (one row per order), not the mart's grain 'order_item' (one row per line on an order) — measure grain must strictly equal mart grain (RFC 0010 D2). Flattened into the mart it is duplicated once per 'order_item' row and any SUM over it overstates. Fix: remove it from this mart's measures, or serve it from a mart at grain 'order'
+
+GrainMismatch
+source: metrics: metrics.landed_revenue
+metric 'landed_revenue' combines 'shipping_cost' from entity 'order' (grain: one row per order) at the grain of entity 'order_item' (grain: one row per line on an order), reached via relationship 'item_of_order' (many_to_one) with no aggregation step. Joined across grains, 'shipping_cost' is duplicated once per 'order_item' row and any SUM over the result overstates it. Fix: aggregate 'shipping_cost' explicitly inside expr, or split the metric per entity
