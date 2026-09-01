@@ -159,8 +159,20 @@ class LruManifestHydrator:
     must be thread-safe, and concurrent misses of the same *cold* key each
     call it — duplicate work on a cold key, never a wrong answer. Put
     single-flight deduplication inside ``fetch_l2`` if that I/O is expensive.
-    The reference states the same contract for callers who read docs rather
-    than docstrings (``pages/docs/reference/api.md``).
+
+    A third obligation is about the bytes rather than the threads:
+    **``fetch_l2`` must answer for the key it was handed, or answer with
+    nothing.** Non-empty bytes are hydrated and cached under *that* key
+    unexamined, so a store keyed loosely — one manifest serving several
+    fingerprints, a stale write, a shared prefix — returns another project's
+    manifest and keeps returning it, exactly the poisoning shape
+    :meth:`_hydrate` moved the IR into the cache key to prevent. Bloomery
+    cannot check this: the payload is MetricFlow's manifest and carries no
+    fingerprint, so verifying would mean re-deriving one on every L2 hit —
+    the parse the L2 exists to avoid. Returning ``None`` when unsure is
+    always safe; a miss rebuilds from the IR. The reference states the same
+    contract for callers who read docs rather than docstrings
+    (``pages/docs/reference/api.md``).
     """
 
     def __init__(
