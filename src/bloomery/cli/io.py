@@ -209,6 +209,12 @@ def silence_stdout() -> None:
     which no ``except`` in user code can reach — raises ``BrokenPipeError``
     again. Re-aiming the descriptor is the fix the Python docs prescribe, and
     it is descriptor-level I/O, which is why it lives in this module.
+    ``dup2`` duplicates the source descriptor, so the one ``os.open``
+    returned closes after — an embedder calling ``main`` per request must
+    not pay one leaked descriptor per broken pipe.
     """
     devnull = os.open(os.devnull, os.O_WRONLY)
-    os.dup2(devnull, sys.stdout.fileno())
+    try:
+        os.dup2(devnull, sys.stdout.fileno())
+    finally:
+        os.close(devnull)
