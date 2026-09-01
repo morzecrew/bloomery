@@ -117,8 +117,11 @@ The CLI becomes the first consumer:
 
 - **D9 — CLI verbosity is a handler, not a channel.** `--verbose` attaches a stderr
   `StreamHandler` at INFO to the `"bloomery"` logger for the duration of `main`, `-vv`
-  at DEBUG; the handler is removed before `main` returns, so an embedder calling
-  `main()` as a function is not left with a mutated global logger. The flag is a
+  at DEBUG — and sets the logger's *level* to match, because a logger left at
+  `NOTSET` defers to the root's default `WARNING` and would drop the very records the
+  handler exists to show. Both the handler and the prior level are restored in a
+  `finally` around the whole of `main`, so neither a refusal nor a
+  `KeyboardInterrupt` leaves an embedder with a mutated global logger. The flag is a
   *view* over the same records any embedder gets, never a second instrumentation
   path — which also gives the feature a test surface that is a user surface. Whether
   the flag squares with RFC 0020's "no config" posture is open question 3; D9 fixes
@@ -189,18 +192,22 @@ advisory constructor.
 - **D8 — `warnings.warn(..., BloomeryDeprecationWarning)` at the old call site**, where
   `BloomeryDeprecationWarning(DeprecationWarning)` is exported so `filterwarnings` can
   target bloomery precisely, naming the replacement and the removal release — the
-  exact text `stability.md` promises. **At most once per process per spelling, by an
-  explicit guard** — a module-level set of spellings already warned — not by the
-  warnings machinery's default filter, which deduplicates on
+  exact text `stability.md` promises. **Best-effort once per process per spelling,
+  by an explicit guard** — a module-level set of spellings already warned — not by
+  the warnings machinery's default filter, which deduplicates on
   (message, category, lineno), scoped per emitting module by where the registry
   lives, and is caller-overridable in both directions:
   an `always` filter would repeat bloomery's warning per call without the guard, and
   the guard cannot *show* a warning a caller's `ignore` filter hides — it only bounds
   how often bloomery emits. This is the only use of the `warnings` module in `src/`;
   advisories (§5) and log records (§4) each have their own channel, and the three do
-  not blur. The guard is process-global mutable state, so it is documented alongside
-  the thread-safety contract: a duplicate emission under a concurrent first hit is
-  harmless and tolerated rather than locked against.
+  not blur. "Best-effort" is the whole contract, stated rather than implied: the
+  guard is an unsynchronized module-level set, so two threads hitting a spelling's
+  *first* use concurrently may emit the warning twice — tolerated, documented in the
+  thread-safety contract, and pinned by a test the way the hydrator's
+  duplicate-fetch behaviour already is, rather than locked against. Callers needing
+  a hard once (a `-W error` suite) get it from their own filter configuration, which
+  deduplicates delivery regardless of how often bloomery emits.
 
 ## 7. What is deliberately absent
 

@@ -1434,7 +1434,11 @@ def test_a_failing_stdout_write_is_the_environment_not_a_bloomery_bug(
 ) -> None:
     """A full disk or an EIO at the flush is the same failure `CliIoError`
     names for `--out`, so it gets the same exit code — never the internal
-    error contract asking the user to file a bug about their disk."""
+    error contract asking the user to file a bug about their disk. Stdout is
+    silenced on the way out, so the interpreter's shutdown flush cannot retry
+    the dead buffer and stamp exit code 120 over the 2."""
+    silenced: list[bool] = []
+    monkeypatch.setattr("bloomery.cli.io.silence_stdout", lambda: silenced.append(True))
 
     fired: list[bool] = []
 
@@ -1448,5 +1452,25 @@ def test_a_failing_stdout_write_is_the_environment_not_a_bloomery_bug(
     err = capsys.readouterr().err
 
     assert code == EXIT_USAGE
+    assert silenced == [True]
     assert "No space left on device" in err
     assert "internal error" not in err
+
+
+def test_a_command_body_os_error_is_still_an_internal_error(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The environment arm is scoped to the stdout flush alone: an OSError out
+    of a command body — a defect surfacing as, say, PermissionError — is
+    bloomery's bug and must reach the report line as exit 3, not be relabeled
+    a stdout failure and downgraded to 2."""
+
+    def defect() -> object:
+        raise PermissionError("a library defect, not a stdout failure")
+
+    monkeypatch.setattr("bloomery.cli.all_spec_schemas", defect)
+    code, _out, err = run(capsys, "schema")
+
+    assert code == EXIT_INTERNAL
+    assert "internal error" in err
+    assert "stdout:" not in err

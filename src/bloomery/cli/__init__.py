@@ -718,7 +718,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         # buffered when it returns; without this the broken pipe surfaced at
         # the *interpreter's* shutdown flush — past every handler here — as
         # "Exception ignored while flushing sys.stdout" and exit code 120.
-        sys.stdout.flush()
+        #
+        # The OSError handling is scoped to this flush alone, deliberately: an
+        # OSError out of a command body is a defect that belongs to the
+        # internal-error contract below, and an arm on the outer try could
+        # not tell the two apart. A broken pipe re-raises to its outer arm,
+        # which knows what to do with `exit_code`.
+        try:
+            sys.stdout.flush()
+        except BrokenPipeError:
+            raise
+        except OSError as error:
+            # The environment failing at the write — a full disk, an EIO —
+            # not bloomery: the same reading `CliIoError` gives a full disk
+            # under `--out`, and the same exit code. Stdout is silenced first
+            # so the interpreter's shutdown flush cannot retry the buffer and
+            # stamp exit code 120 over this one.
+            io.silence_stdout()
+            sys.stderr.write(f"{prog}: stdout: {error}\n")
+            return EXIT_USAGE
     except BloomeryError as error:
         # A refusal, not a crash: bloomery read the spec and said no.
         #
@@ -746,14 +764,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         # `EXIT_OK` when the pipe broke before it could finish.
         io.silence_stdout()
         return exit_code
-    except OSError as error:
-        # The flush above is also where stdout's first real write can land, so
-        # a full disk, an EIO, a closed descriptor surface here. That is the
-        # environment failing, not bloomery — the same reading `CliIoError`
-        # gives a full disk under `--out` — so it gets the same exit code,
-        # never the "bug in bloomery, please report" contract below.
-        sys.stderr.write(f"{prog}: stdout: {error}\n")
-        return EXIT_USAGE
     except Exception:
         # Anything else is a bug in bloomery, not in the spec or the
         # invocation — a refusal it should have raised as a BloomeryError, or
