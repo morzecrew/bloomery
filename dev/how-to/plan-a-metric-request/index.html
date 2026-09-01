@@ -1816,7 +1816,14 @@ the specs, the bloomery version, or the MetricFlow version change:</p>
   relation names in the SQL, the refusals, and the explanations.</li>
 <li>Build the planner once and reuse it: the hydrator's cache is what makes repeated
   planning cheap. If you persist manifests yourself, pass <code>fetch_l2=</code> to the hydrator;
-  a <code>None</code> return falls back to rebuilding from the IR.</li>
+  a <code>None</code> return falls back to rebuilding from the IR. Store what you return under the
+  key you were handed — bytes are cached under that key unexamined, so a loosely keyed
+  store serves another project's manifest until eviction.</li>
+<li>In a service, "reuse it" means <em>across threads</em>, and both objects are safe to share.
+  What stays yours: <code>fetch_l2</code> is called concurrently, so it must be thread-safe, and
+  concurrent misses of the same cold key each call it — duplicate work on a cold key,
+  never a wrong answer. See <a href="../../reference/api/#thread-safety">Thread safety</a> for the
+  full contract and what it does not promise.</li>
 </ul>
 <h2 id="make-a-request">Make a request<a class="headerlink" href="#make-a-request" title="Permanent link">&para;</a></h2>
 <p>A request is structured data — metrics, dimensions, typed filters, a time grain,
