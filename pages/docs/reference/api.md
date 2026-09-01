@@ -357,6 +357,13 @@ manifests keyed by `HydrationKey`. On a miss it consults the caller-injected
 `hits`/`misses`/`hit_rate` are plain counters to poll into your metrics system.
 **`.get(ir)`** returns the hydrated lookup for a project.
 
+**`fetch_l2` must answer for the key it is handed, or return `None`.** Non-empty bytes
+are hydrated and cached under that key unexamined, so a store keyed loosely returns
+another project's manifest and keeps returning it. Bloomery cannot check this — the
+payload is MetricFlow's manifest and carries no fingerprint, so verifying would mean
+re-deriving one on every hit, which is the parse the L2 exists to avoid. `None` is
+always safe: a miss rebuilds from the IR. See also [Thread safety](#thread-safety).
+
 ### `HydrationKey`
 
 The cache key covering all three invalidation axes: `spec_fingerprint`,

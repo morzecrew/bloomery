@@ -31,7 +31,14 @@ Two wiring rules:
   relation names in the SQL, the refusals, and the explanations.
 - Build the planner once and reuse it: the hydrator's cache is what makes repeated
   planning cheap. If you persist manifests yourself, pass `fetch_l2=` to the hydrator;
-  a `None` return falls back to rebuilding from the IR.
+  a `None` return falls back to rebuilding from the IR. Store what you return under the
+  key you were handed — bytes are cached under that key unexamined, so a loosely keyed
+  store serves another project's manifest until eviction.
+- In a service, "reuse it" means *across threads*, and both objects are safe to share.
+  What stays yours: `fetch_l2` is called concurrently, so it must be thread-safe, and
+  concurrent misses of the same cold key each call it — duplicate work on a cold key,
+  never a wrong answer. See [Thread safety](../reference/api.md#thread-safety) for the
+  full contract and what it does not promise.
 
 ## Make a request
 
