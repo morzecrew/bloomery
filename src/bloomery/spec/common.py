@@ -341,12 +341,118 @@ def validate_document[ModelT: SpecModel](
 # ....................... #
 
 
+#: The caps below exist because the spec path is the one that takes files from
+#: other teams, and the filter parser already promises its half ("adversarial
+#: nesting yields FilterTooComplex, never a RecursionError"). Each was sized
+#: from the failure it prevents, not from what a spec needs — real documents
+#: sit orders of magnitude below all three.
+#:
+#: Depth: PyYAML's composer recurses per nesting level, so ~1000 levels is a
+#: raw ``RecursionError`` out of ``yaml.load`` (measured). 120 stays far under
+#: the interpreter limit while no hand-written spec nests a tenth of it.
+_MAX_DEPTH = 120
+
+#: Aliases: PyYAML composes an alias as a *shared* node, so a billion-laughs
+#: document loads cheaply here — and then costs whoever walks the result. A
+#: 399-byte document was measured expanding to 10^8 leaves for its first
+#: consumer (validation, in this package). The budget bounds the *expanded*
+#: size: each alias adds the node count of what it names.
+_MAX_ALIAS_EXPANSION = 1_000_000
+
+#: Size: parse cost and every later cost scale with the document, so refuse
+#: the pathological ones with a reason instead of an OOM kill. Five million
+#: characters is ~three orders of magnitude above the largest fixture.
+_MAX_SPEC_CHARS = 5_000_000
+
+
+def _node_count(node: yaml.Node, memo: dict[int, int]) -> int:
+    """The number of values constructing ``node`` yields — the cost an alias
+    adds each time it names one.
+
+    Memoized by node identity, so computing it costs the *distinct* nodes
+    (bounded by the document's own size), never the expanded tree it guards
+    against. Iterative for the same reason the depth cap exists: a weight
+    function that recursed would fall to the nesting it is part of bounding.
+    """
+    total = 0
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        cached = memo.get(id(current))
+        if cached is not None:
+            total += cached
+            continue
+        if isinstance(current, yaml.SequenceNode):
+            children = list(cast("list[yaml.Node]", current.value))
+        elif isinstance(current, yaml.MappingNode):
+            pairs = cast("list[tuple[yaml.Node, yaml.Node]]", current.value)
+            children = [child for pair in pairs for child in pair]
+        else:
+            memo[id(current)] = 1
+            total += 1
+            continue
+        # Count the collection node itself, then its children; the memo stays
+        # per-leaf/per-revisit rather than per-subtree, which over-counts
+        # nothing and keeps the loop one pass.
+        total += 1
+        stack.extend(children)
+    return total
+
+
 class _StrictSafeLoader(yaml.SafeLoader):
-    """``yaml.SafeLoader`` that rejects duplicate mapping keys.
+    """``yaml.SafeLoader`` that rejects duplicate mapping keys and caps
+    adversarial shape.
 
     PyYAML's default silently keeps the last value — exactly the silent
-    failure the spec layer exists to prevent (RFC 0002 D5).
+    failure the spec layer exists to prevent (RFC 0002 D5). The two structural
+    caps (nesting depth, alias expansion) turn the two quiet
+    resource-exhaustion shapes into refusals with the limit named; the module
+    constants above record the measurements behind them.
     """
+
+    def __init__(self, stream: str) -> None:
+        super().__init__(stream)
+        self._depth = 0
+        self._expanded = 0
+        self._weight_memo: dict[int, int] = {}
+
+    # ....................... #
+
+    def compose_node(self, parent: yaml.Node | None, index: int) -> yaml.Node | None:
+        is_alias = self.check_event(yaml.events.AliasEvent)
+        self._depth += 1
+        if self._depth > _MAX_DEPTH:
+            event = self.peek_event()  # type: ignore[no-untyped-call]  # types-PyYAML leaves it untyped
+            mark = cast("yaml.error.Mark", event.start_mark)  # pyright: ignore[reportUnknownMemberType]
+            raise yaml.MarkedYAMLError(
+                problem=(
+                    f"nested more than {_MAX_DEPTH} levels deep — a spec document does"
+                    " not nest this far, and deeper would exhaust the parser"
+                ),
+                problem_mark=mark,
+            )
+        try:
+            node = super().compose_node(parent, index)
+        finally:
+            self._depth -= 1
+        if is_alias and node is not None:
+            weight = self._weight_memo.get(id(node))
+            if weight is None:
+                weight = _node_count(node, self._weight_memo)
+                self._weight_memo[id(node)] = weight
+            self._expanded += weight
+            if self._expanded > _MAX_ALIAS_EXPANSION:
+                raise yaml.MarkedYAMLError(
+                    problem=(
+                        "aliases expand this document past"
+                        f" {_MAX_ALIAS_EXPANSION:,} nodes — write the repeated"
+                        " content out, or split the document"
+                    ),
+                    problem_mark=node.start_mark,
+                )
+        return node
+
+    # ....................... #
 
     def _construct_key(self, node: yaml.Node) -> object:
         """``construct_object`` pinned to ``object`` — types-PyYAML leaves it untyped."""
@@ -382,8 +488,19 @@ def load_yaml_mapping(text: str, *, document: str) -> dict[str, object]:
     """Parse one YAML document into a mapping, strictly.
 
     Duplicate keys, YAML syntax errors, unsafe tags, and non-mapping roots are
-    all :class:`SpecParseError` with the document name as source path.
+    all :class:`SpecParseError` with the document name as source path. So are
+    the three adversarial shapes — an oversized document, nesting past the
+    parser's depth, aliases that expand a small document into a huge value —
+    which is the same guarantee the filter parser makes for its input: a
+    hostile document yields a refusal naming the limit, never a
+    ``RecursionError`` and never memory exhaustion.
     """
+    if len(text) > _MAX_SPEC_CHARS:
+        raise SpecParseError(
+            f"the document is {len(text):,} characters, over the"
+            f" {_MAX_SPEC_CHARS:,} limit — split it into multiple spec files",
+            source_path=document,
+        )
 
     try:
         # SafeLoader subclass: only plain YAML types construct (RFC 0002 §5.6).
