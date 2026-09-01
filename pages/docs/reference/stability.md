@@ -205,6 +205,22 @@ independent by design. The single exception, a newly reserved name, is
 [above](#the-one-exception-a-new-reserved-name); it can refuse a document but never
 reinterpret one.
 
+### How a removal is announced
+
+Two channels, and a removal below 1.0 uses both:
+
+1. **The changelog**, always — the name that moved and what to write instead, in the
+   release that changes it.
+2. **A runtime `DeprecationWarning`**, whenever the old spelling can still work for one
+   more minor release: the warning names the replacement and the release that will
+   remove it, so a test suite run with warnings-as-errors sees the move a release
+   before it lands. A spelling that *cannot* keep working — a semantic fix, a removed
+   guarantee — skips the warning and relies on the changelog, which is why the
+   changelog is the channel that is always there.
+
+Nothing in the current release is deprecated; this section is the mechanism, recorded
+before it is needed rather than invented mid-removal.
+
 ### The installed version
 
 `bloomery.__version__` and `bloomery --version` report the release you have. Both come

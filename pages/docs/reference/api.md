@@ -363,6 +363,32 @@ The cache key covering all three invalidation axes: `spec_fingerprint`,
 `bloomery_version`, `metricflow_version`. A spec edit or a version bump changes the
 key, so stale entries are a miss, never an error.
 
+### Thread safety
+
+The advice elsewhere in these docs — build the planner once and reuse it — means, in a
+web service, shared across threads. The contract that makes that sound:
+
+- **`MetricFlowPlanner` is safe to share.** Its instance state is set at construction
+  and only read afterwards; `plan()` takes everything else as arguments. Concurrent
+  `plan()` calls on one shared planner are exercised by test
+  (`tests/unit/test_runtime/test_hydration.py`) and return identical plans.
+- **`LruManifestHydrator` is safe to share.** The cache is `functools.lru_cache`,
+  whose internal state is lock-protected in CPython, and a manifest is hydrated as a
+  pure function of `(key, ir)` — the cross-thread cache-poisoning bug that motivated
+  that shape is regression-tested.
+- **A cold miss is not deduplicated.** Threads missing the same key concurrently each
+  hydrate (and each call `fetch_l2`) — pinned by test, forced rather than raced for.
+  The results are identical, so this costs duplicate work on a cold key, never wrong
+  answers.
+  If your `fetch_l2` is expensive, put single-flight deduplication inside it; bloomery
+  will not call your I/O under a lock it owns.
+- **`fetch_l2` must be thread-safe.** It is caller-owned I/O, invoked concurrently
+  and never serialized by bloomery.
+
+What is *not* promised: mutating a `NamingPolicy` or registering transforms
+(`register_transform`) while other threads compile or plan. Registration is
+process-global and intended for import time.
+
 ## Schema export
 
 ### `spec_json_schema(kind: SpecKind) -> JsonDict`
