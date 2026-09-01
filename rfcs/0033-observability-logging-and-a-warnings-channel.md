@@ -113,10 +113,16 @@ bloomery.runtime      # hydration hits/misses (the counters, now narrated)
 bloomery.planner      # delegation boundary
 ```
 
-The CLI becomes the first consumer: `--verbose` attaches a stderr handler at INFO,
-`-vv` at DEBUG (D9). That keeps the flag a *view* over the same records any embedder
-gets, rather than a second instrumentation path — and gives the feature a test surface
-that is a user surface.
+The CLI becomes the first consumer:
+
+- **D9 — CLI verbosity is a handler, not a channel.** `--verbose` attaches a stderr
+  `StreamHandler` at INFO to the `"bloomery"` logger for the duration of `main`, `-vv`
+  at DEBUG; the handler is removed before `main` returns, so an embedder calling
+  `main()` as a function is not left with a mutated global logger. The flag is a
+  *view* over the same records any embedder gets, never a second instrumentation
+  path — which also gives the feature a test surface that is a user surface. Whether
+  the flag squares with RFC 0020's "no config" posture is open question 3; D9 fixes
+  what the flag *means* if it lands, not that it lands.
 
 ## 5. Design: the warnings channel
 
@@ -126,9 +132,24 @@ A compile-time advisory is a frozen `Advisory(code, message, source_path)` — `
 from a closed enum (mirroring `KNOWN_UNSUPPORTED`'s taste for closed vocabularies), the
 message under the same "what's wrong / why / the way out" contract refusals carry, the
 source path pointing into the authored document. Advisories are **sorted, deduplicated
-tuples** (RFC 0003: tuples, not sets) and ride the values a caller already receives:
+tuples** (RFC 0003: tuples, not sets), under rules stated here rather than left to a
+default (`evidence.py` already sorts its collections by explicit keys because sorting
+evidence values directly is not a safe default):
 
-- `evaluate(...)` → `SpecEvidence.advisories` (new field, default empty — additive).
+- **Sort key:** `(code.value, source_path or "", message)` — total, explicit, and
+  stable under a missing source path, which normalizes to the empty string for
+  ordering while staying `None` on the value.
+- **Identity:** two advisories are duplicates exactly when all three fields are equal;
+  deduplication keeps the first of an equal pair, which the total sort makes
+  indistinguishable from keeping any.
+
+They ride the values a caller already receives:
+
+- `evaluate(...)` → `SpecEvidence.advisories` — new field, default empty, **appended
+  after `provenance`**, today's final field. "Additive" holds positionally only for an
+  appended field: `SpecEvidence` is a plain frozen dataclass, and a field inserted
+  earlier silently rebinds positional construction. A positional-construction
+  regression test lands with the field.
 - `compile_project(...)` — **D6, the one genuinely open signature question.** Artifacts
   out is the whole contract, and this RFC's preferred answer is to leave it alone:
   callers who want advisories call `evaluate`, which already exists to answer "what
@@ -167,11 +188,18 @@ advisory constructor.
 
 - **D8 — `warnings.warn(..., BloomeryDeprecationWarning)` at the old call site**, where
   `BloomeryDeprecationWarning(DeprecationWarning)` is exported so `filterwarnings` can
-  target bloomery precisely. Emitted at most once per process per spelling
-  (stdlib default dedup), naming the replacement and the removal release — the exact
-  text `stability.md` promises. This is the only use of the `warnings` module in
-  `src/`; advisories (§5) and log records (§4) each have their own channel, and the
-  three do not blur.
+  target bloomery precisely, naming the replacement and the removal release — the
+  exact text `stability.md` promises. **At most once per process per spelling, by an
+  explicit guard** — a module-level set of spellings already warned — not by the
+  warnings machinery's default filter, which deduplicates on
+  (message, category, module, lineno) and is caller-overridable in both directions:
+  an `always` filter would repeat bloomery's warning per call without the guard, and
+  the guard cannot *show* a warning a caller's `ignore` filter hides — it only bounds
+  how often bloomery emits. This is the only use of the `warnings` module in `src/`;
+  advisories (§5) and log records (§4) each have their own channel, and the three do
+  not blur. The guard is process-global mutable state, so it is documented alongside
+  the thread-safety contract: a duplicate emission under a concurrent first hit is
+  harmless and tolerated rather than locked against.
 
 ## 7. What is deliberately absent
 
