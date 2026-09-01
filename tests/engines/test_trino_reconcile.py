@@ -126,12 +126,15 @@ def test_one_sided_keys_are_still_the_loudest_disagreement(
     reconciled: trino.dbapi.Connection,
 ) -> None:
     rows = {
-        order_id: (left, right, within)
-        for order_id, left, right, within in _run(
+        order_id: (left, right, difference, within)
+        for order_id, left, right, difference, within in _run(
             reconciled,
-            f"SELECT order_id, left_value, right_value, within_tolerance FROM {RECONCILE}",
+            f"SELECT order_id, left_value, right_value, difference, within_tolerance "
+            f"FROM {RECONCILE}",
         )
     }
-    assert rows["o2"] == (Decimal("3.00"), None, False)
-    assert rows["o3"] == (None, Decimal("9.00"), False)
-    assert rows["o1"] == (Decimal("15.00"), Decimal("15.00"), True)
+    # `difference` stays NULL on a one-sided key — the DuckDB tier's assertion,
+    # asked of this engine too.
+    assert rows["o2"] == (Decimal("3.00"), None, None, False)
+    assert rows["o3"] == (None, Decimal("9.00"), None, False)
+    assert rows["o1"] == (Decimal("15.00"), Decimal("15.00"), Decimal("0.00"), True)
