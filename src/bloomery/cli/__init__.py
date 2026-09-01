@@ -689,17 +689,26 @@ def main(argv: Sequence[str] | None = None) -> int:
     number. The shell saw the right code either way; a caller using ``main`` as
     a function, which the paragraph above invites, did not.
     """
-    parser = build_parser()
-
+    # `prog` before the boundary: the handlers below prefix messages with
+    # it, and if `build_parser` itself is what raised, there is no parser to
+    # ask.
+    prog = "bloomery"
+    # One boundary around everything: parser construction and parsing are as
+    # capable of a bloomery bug as the command bodies, and a catch-all that
+    # started after them would leak exactly the class of traceback it exists
+    # to claim. `SystemExit` derives from `BaseException`, so argparse's own
+    # exits pass the `except Exception` arm untouched and are handled by
+    # their dedicated arm below.
     try:
-        arguments = parser.parse_args(argv)
-    except SystemExit as request:
-        # argparse exits 2 for a usage error and 0 for `--help`; both are
-        # already the code this function means to return, so pass them through
-        # rather than flattening them to one.
-        return request.code if isinstance(request.code, int) else EXIT_USAGE
-
-    try:
+        parser = build_parser()
+        prog = parser.prog
+        try:
+            arguments = parser.parse_args(argv)
+        except SystemExit as request:
+            # argparse exits 2 for a usage error and 0 for `--help`; both are
+            # already the code this function means to return, so pass them
+            # through rather than flattening them to one.
+            return request.code if isinstance(request.code, int) else EXIT_USAGE
         exit_code: int = arguments.run(arguments)
     except BloomeryError as error:
         # A refusal, not a crash: bloomery read the spec and said no.
@@ -714,7 +723,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         sys.stderr.write(f"{location}{error}\n")
         return EXIT_REFUSED
     except (io.CliIoError, _Usage) as error:
-        sys.stderr.write(f"{parser.prog}: {error}\n")
+        sys.stderr.write(f"{prog}: {error}\n")
         return EXIT_USAGE
     except BrokenPipeError:
         # `bloomery schema | head` — the reader hung up, which is its right,
@@ -732,7 +741,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         # "bloomery is wrong" (3).
         traceback.print_exc(file=sys.stderr)
         sys.stderr.write(
-            f"{parser.prog}: internal error — this is a bug in bloomery, not in your"
+            f"{prog}: internal error — this is a bug in bloomery, not in your"
             " spec. Please report it: https://github.com/morzecrew/bloomery/issues\n"
         )
         return EXIT_INTERNAL

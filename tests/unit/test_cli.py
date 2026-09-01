@@ -1310,19 +1310,39 @@ def test_a_broken_pipe_exits_zero_and_quietly() -> None:
     half of the defect is the interpreter's *shutdown* flush raising again
     after `main` has returned, which no in-process assertion can see.
 
-    The schema payload is ~89KB against a ~64KB pipe buffer, so the writer
-    reliably blocks and takes EPIPE when the read end closes."""
-    process = subprocess.Popen(  # noqa: S603 — argv is ours, no shell
-        [sys.executable, "-c", "from bloomery.cli import main; raise SystemExit(main(['schema']))"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    assert process.stdout is not None and process.stderr is not None
-    process.stdout.read(100)
-    process.stdout.close()  # the `head` half: hang up with the writer mid-stream
+    The pipe is created here and shrunk to its floor where the platform
+    allows (Linux `F_SETPIPE_SZ`), so the writer reliably blocks mid-stream
+    and takes EPIPE when the read end closes; elsewhere the ~89KB schema
+    payload against the common 64KB default gives the same blocking without
+    the guarantee. Either way the asserted contract — exit 0, silent stderr —
+    holds even on a run where the writer happened to finish first."""
+    read_end, write_end = os.pipe()
+    try:
+        try:
+            import fcntl
+
+            fcntl.fcntl(write_end, fcntl.F_SETPIPE_SZ, 4096)
+        except (ImportError, AttributeError, OSError):
+            pass  # not Linux, or unprivileged floor — the payload-size margin applies
+        process = subprocess.Popen(  # noqa: S603 — argv is ours, no shell
+            [
+                sys.executable,
+                "-c",
+                "from bloomery.cli import main; raise SystemExit(main(['schema']))",
+            ],
+            stdout=write_end,
+            stderr=subprocess.PIPE,
+        )
+    finally:
+        os.close(write_end)  # the child holds its own copy; ours must not keep the pipe alive
+    assert process.stderr is not None
+    os.read(read_end, 100)
+    os.close(read_end)  # the `head` half: hang up with the writer mid-stream
     stderr = process.stderr.read()
+    process.stderr.close()
     assert process.wait() == EXIT_OK
     assert stderr == b"", stderr.decode()
+
 
 
 def test_a_broken_pipe_maps_to_exit_zero_in_process(
@@ -1367,3 +1387,21 @@ def test_silence_stdout_points_the_descriptor_at_devnull(
     finally:
         os.close(read_end)
         os.close(write_end)
+
+
+def test_a_parser_construction_bug_is_claimed_by_the_boundary(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The boundary starts before the parser exists: a bug in `build_parser`
+    itself — as much bloomery's code as any command body — must come back as
+    exit 3 with the report line, not escape as a raw traceback."""
+
+    def broken_parser() -> object:
+        raise KeyError("a parser-construction defect")
+
+    monkeypatch.setattr("bloomery.cli.build_parser", broken_parser)
+    code, _out, err = run(capsys, "schema")
+
+    assert code == EXIT_INTERNAL
+    assert "internal error" in err
+    assert "KeyError" in err
