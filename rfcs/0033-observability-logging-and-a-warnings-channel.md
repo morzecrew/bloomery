@@ -192,7 +192,8 @@ advisory constructor.
   exact text `stability.md` promises. **At most once per process per spelling, by an
   explicit guard** — a module-level set of spellings already warned — not by the
   warnings machinery's default filter, which deduplicates on
-  (message, category, module, lineno) and is caller-overridable in both directions:
+  (message, category, lineno), scoped per emitting module by where the registry
+  lives, and is caller-overridable in both directions:
   an `always` filter would repeat bloomery's warning per call without the guard, and
   the guard cannot *show* a warning a caller's `ignore` filter hides — it only bounds
   how often bloomery emits. This is the only use of the `warnings` module in `src/`;

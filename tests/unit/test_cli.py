@@ -1405,3 +1405,48 @@ def test_a_parser_construction_bug_is_claimed_by_the_boundary(
     assert code == EXIT_INTERNAL
     assert "internal error" in err
     assert "KeyError" in err
+
+
+def test_a_broken_pipe_does_not_overwrite_a_refusal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`bloomery resolve | head` on a refused project: the reader leaving
+    mid-stream does not make the spec fine. The pipe arm returns the
+    command's own verdict when the command completed — the refusal reached
+    the flush, so the refusal is what the pipeline must see."""
+    monkeypatch.setattr("bloomery.cli.io.silence_stdout", lambda: None)
+    fired: list[bool] = []
+
+    def hung_up() -> None:
+        # One-shot: pytest's own capture flushes this stream at teardown, and
+        # a persistent raise would fail the fixture rather than the code.
+        if not fired:
+            fired.append(True)
+            raise BrokenPipeError
+
+    monkeypatch.setattr(sys.stdout, "flush", hung_up)
+    assert main(["resolve", FANOUT]) == EXIT_REFUSED
+    assert fired
+
+
+def test_a_failing_stdout_write_is_the_environment_not_a_bloomery_bug(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A full disk or an EIO at the flush is the same failure `CliIoError`
+    names for `--out`, so it gets the same exit code — never the internal
+    error contract asking the user to file a bug about their disk."""
+
+    fired: list[bool] = []
+
+    def full_disk() -> None:
+        if not fired:  # one-shot, for the same teardown reason as above
+            fired.append(True)
+            raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(sys.stdout, "flush", full_disk)
+    code = main(["schema"])
+    err = capsys.readouterr().err
+
+    assert code == EXIT_USAGE
+    assert "No space left on device" in err
+    assert "internal error" not in err

@@ -693,6 +693,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     # it, and if `build_parser` itself is what raised, there is no parser to
     # ask.
     prog = "bloomery"
+    # `exit_code` before the boundary too: the broken-pipe arm returns it, and
+    # a pipe can break before the command body has produced one.
+    exit_code: int = EXIT_OK
     # One boundary around everything: parser construction and parsing are as
     # capable of a bloomery bug as the command bodies, and a catch-all that
     # started after them would leak exactly the class of traceback it exists
@@ -709,7 +712,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             # already the code this function means to return, so pass them
             # through rather than flattening them to one.
             return request.code if isinstance(request.code, int) else EXIT_USAGE
-        exit_code: int = arguments.run(arguments)
+        exit_code = arguments.run(arguments)
         # Flush while the boundary can still see the error. Python 3.14 raised
         # the default io buffer to 128 KiB, so a command's whole stdout can sit
         # buffered when it returns; without this the broken pipe surfaced at
@@ -736,8 +739,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         # not our failure. Point stdout at devnull before returning so the
         # interpreter's shutdown flush cannot raise the same error again
         # noisily (the flush happens after any `except` here can run).
+        #
+        # The command's own verdict survives the hang-up: a refused `resolve`
+        # whose reader left mid-stream is still a refusal, so this returns
+        # `exit_code` — set by the command when it completed, and still
+        # `EXIT_OK` when the pipe broke before it could finish.
         io.silence_stdout()
-        return EXIT_OK
+        return exit_code
+    except OSError as error:
+        # The flush above is also where stdout's first real write can land, so
+        # a full disk, an EIO, a closed descriptor surface here. That is the
+        # environment failing, not bloomery — the same reading `CliIoError`
+        # gives a full disk under `--out` — so it gets the same exit code,
+        # never the "bug in bloomery, please report" contract below.
+        sys.stderr.write(f"{prog}: stdout: {error}\n")
+        return EXIT_USAGE
     except Exception:
         # Anything else is a bug in bloomery, not in the spec or the
         # invocation — a refusal it should have raised as a BloomeryError, or
