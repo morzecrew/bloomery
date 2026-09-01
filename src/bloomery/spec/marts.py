@@ -41,10 +41,24 @@ __all__ = [
 class ViaStep(SpecModel):
     """Flatten one declared relationship into the mart, prefixing every
     flattened column with ``prefix`` (RFC 0010 D3 — prefixes mandatory,
-    so an empty prefix is a parse error, not a silent no-op)."""
+    so an empty prefix is a parse error, not a silent no-op).
+
+    ``as_of`` names the **anchor**: a date or timestamp column of the mart's
+    base entity, and the instant the joined entity is read *as of* (RFC 0023
+    §5.3, D8). It is required to flatten an ``scd: type2`` entity and refused
+    on any other, because a historical relation joined without one matches
+    every version of each key and multiplies the base grain, while a
+    current-view relation has no version to choose between.
+
+    Declared, never inferred: which date history is read on is intent, and
+    RFC 0021 closed inference. The anchor sits here rather than on the mart
+    because it qualifies *this* join — two historical dimensions in one mart
+    can legitimately be read as of different dates.
+    """
 
     via: str
     prefix: str = Field(min_length=1)
+    as_of: str | None = None
 
 
 # ....................... #

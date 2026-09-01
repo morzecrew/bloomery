@@ -692,8 +692,9 @@ canonical_fields:
 
 def test_scd_type2_is_refused_on_a_merged_entity() -> None:
     """RFC 0024 D23: the collision audit would fire on every key holding
-    versions from two sources, and telling a version from a collision needs
-    validity columns nothing models."""
+    versions from two sources, and telling a version from a collision needs the
+    audit to read the validity interval — which the union's lowering does not,
+    even now that RFC 0023 §5.3 models the interval."""
     model = _MERGE_ENTITY_MODEL.replace(
         "    key: [event_id]\n", "    key: [event_id]\n    scd: type2\n"
     )
@@ -717,3 +718,42 @@ def test_the_refusals_are_batched() -> None:
     with pytest.raises(ResolutionError) as excinfo:
         build_project_ir(load_project(_merge_sources(entity_model=model)))
     assert len(excinfo.value.collected) >= 2
+
+
+def test_a_type2_entity_may_not_carry_a_validity_column_name() -> None:
+    """RFC 0023 §5.3: the target's snapshot writes `valid_from`/`valid_to` onto
+    the historical relation, so an authored column of that name would leave two
+    columns with one name and an as-of join comparing against whichever the
+    engine resolved."""
+    model = _MERGE_ENTITY_MODEL.replace(
+        "    key: [event_id]\n", "    key: [event_id]\n    scd: type2\n"
+    ).replace("      kind: {type: string}\n", "      valid_from: {type: timestamp}\n")
+    sources = {
+        "entity_model": model,
+        "mapping_a": _SRC_A_MAPPING.replace(
+            '  kind: {from: "$.type", transform: [to_string]}\n',
+            '  valid_from: {from: "$.vf", transform: [{parse_ts: ISO8601}]}\n',
+        ),
+    }
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources))
+    assert "carries 'valid_from'" in str(excinfo.value)
+    assert excinfo.value.source_path == "entity_model: entities.event.fields"
+
+
+def test_a_type1_entity_may_carry_one() -> None:
+    """The nearest non-trigger: on a current-view dimension the target writes
+    no interval, so `valid_from` is an ordinary business column and stays
+    legal. Reserving the name everywhere would refuse this."""
+    model = _MERGE_ENTITY_MODEL.replace(
+        "      kind: {type: string}\n", "      valid_from: {type: timestamp}\n"
+    )
+    sources = {
+        "entity_model": model,
+        "mapping_a": _SRC_A_MAPPING.replace(
+            '  kind: {from: "$.type", transform: [to_string]}\n',
+            '  valid_from: {from: "$.vf", transform: [{parse_ts: ISO8601}]}\n',
+        ),
+    }
+    ir = build_project_ir(load_project(sources))
+    assert "valid_from" in {column.name for column in ir.entities[0].columns}

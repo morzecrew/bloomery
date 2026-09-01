@@ -85,7 +85,11 @@ def test_scd2_mart_refusal_fails_closed_on_both_sides() -> None:
     # flatten multiplies. One error class, two readings, neither generic.
     assert "counts revisions" in message
     assert "matches every version of each 'customer' key" in message
-    assert message.count("Fix: declare the entity scd: type1") == 2
+    # And each routes to the fix its own side has. Only the flatten can be
+    # qualified by an anchor (RFC 0023 §5.3); a base has nothing to qualify,
+    # so sending its author to `as_of:` would be a dead end.
+    assert message.count("Fix: declare an anchor") == 1
+    assert message.count("Fix: declare the entity scd: type1, or build a type1") == 1
 
 
 def test_the_same_project_without_the_scd2_line_compiles_clean() -> None:

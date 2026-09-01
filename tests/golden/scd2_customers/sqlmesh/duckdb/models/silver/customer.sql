@@ -2,7 +2,7 @@
 -- fingerprint: blm1:fa72003aee6d1f4c6d6a87f7d119bd5177413a487bae0fe815632b18ef75a04d
 MODEL (
   name silver.customer,
-  kind SCD_TYPE_2_BY_COLUMN (unique_key (customer_id), columns *),
+  kind SCD_TYPE_2_BY_COLUMN (unique_key (customer_id), columns *, valid_from_name valid_from, valid_to_name valid_to),
   grain (customer_id),
   audits (accepted_values(column := segment, is_in := ('business', 'consumer')), not_null(columns := (email)))
 );

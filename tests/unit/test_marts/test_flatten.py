@@ -958,3 +958,108 @@ def test_a_base_column_colliding_with_the_quality_dimension_is_refused() -> None
     assert violation.source_path == "marts: marts.items.base"
     assert "already" in str(violation)
     assert "never auto-renamed" in str(violation)
+
+
+# ....................... #
+# The as-of join (RFC 0023 §5.3) — the anchor that lifts the refusal
+
+
+#: The same chain, anchored. `order_item` is the base and carries `order_date`;
+#: `customer` is reached *through* `order`, which is the two-hop shape RFC 0023
+#: §5.3 calls the common case — the anchor is on the fact, the foreign key is
+#: not.
+_CHAIN_AS_OF = """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: item_of_order, prefix: order_}
+      - {via: order_of_customer, prefix: customer_, as_of: order_date}
+"""
+
+
+def test_an_anchor_lifts_the_historical_refusal() -> None:
+    """One clause is the whole difference from
+    `test_flattening_a_type2_entity_is_historical_fanout`, which is the
+    property the pair exists to pin."""
+    lowering = _historical("customer", _CHAIN_AS_OF)
+    assert lowering.violations == ()
+    (mart,) = lowering.marts
+    join = next(j for j in mart.joins if j.entity == "customer")
+    assert join.as_of == "order_date"
+
+
+def test_a_join_without_an_anchor_carries_none() -> None:
+    """The ordinary join is unchanged — `as_of` is absent, not defaulted to
+    something the emitter would have to special-case."""
+    lowering = lower_marts(_mart_set(_CHAIN_TO_CUSTOMER), _draft())
+    assert [join.as_of for join in lowering.marts[0].joins] == [None, None]
+
+
+def test_an_anchor_on_a_current_view_entity_is_refused() -> None:
+    """`as_of` over a type1 relation names a reading that does not exist: one
+    row per key, no version to choose, and no validity columns to join
+    against."""
+    anchored = _CHAIN_TO_CUSTOMER.replace(
+        "{via: order_of_customer, prefix: customer_}",
+        "{via: order_of_customer, prefix: customer_, as_of: order_date}",
+    )
+    lowering = lower_marts(_mart_set(anchored), _draft())
+    assert lowering.marts == ()
+    (violation,) = lowering.violations
+    assert isinstance(violation, HistoricalFanout)
+    assert violation.source_path == "marts: marts.items.flatten[1].via"
+    assert "is not scd: type2" in str(violation)
+    assert "no version to read the join as of" in str(violation)
+
+
+def test_an_anchor_naming_no_base_column_is_refused() -> None:
+    """The anchor is read off the base row, so a column that is not there
+    cannot be one — and the message lists what is."""
+    lowering = _historical(
+        "customer", _CHAIN_AS_OF.replace("as_of: order_date", "as_of: no_such_date")
+    )
+    assert lowering.marts == ()
+    (violation,) = lowering.violations
+    assert isinstance(violation, HistoricalFanout)
+    assert "names no column of the mart's base entity 'order_item'" in str(violation)
+    assert "order_date" in str(violation)  # the known-columns list routes the fix
+
+
+def test_a_non_temporal_anchor_is_refused() -> None:
+    """An anchor is compared against an interval, and only a date or timestamp
+    orders against one. `ordered_day` is an int on this corpus — a name that
+    reads like a date and is not, which is exactly the specimen worth pinning:
+    the comparison an engine would happily perform and answer wrongly."""
+    lowering = _historical(
+        "customer", _CHAIN_AS_OF.replace("as_of: order_date", "as_of: ordered_day")
+    )
+    assert lowering.marts == ()
+    (violation,) = lowering.violations
+    assert isinstance(violation, HistoricalFanout)
+    assert "which is int on 'order_item'" in str(violation)
+    assert "only a date or timestamp orders against one" in str(violation)
+
+
+def test_an_anchor_does_not_rescue_a_type2_base() -> None:
+    """The base side stays refused (RFC 0023 D2): there is no join to qualify,
+    and the grain lie — one row per entity declared over a relation holding one
+    per version — is untouched by any predicate."""
+    lowering = _historical(
+        "order",
+        """\
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    flatten:
+      - {via: order_of_customer, prefix: customer_, as_of: order_date}
+""",
+    )
+    assert lowering.marts == ()
+    paths = [v.source_path for v in lowering.violations]
+    assert "marts: marts.orders.base" in paths
+    assert any("counts revisions" in str(v) for v in lowering.violations)

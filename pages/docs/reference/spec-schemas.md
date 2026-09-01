@@ -472,6 +472,7 @@ Discriminated on `via` vs `date`:
 ```yaml
 flatten:
   - {via: item_of_order, prefix: order_}    # flatten a relationship
+  - {via: order_of_customer, prefix: customer_, as_of: order_date}  # ... as of a date
   - {date: order_date, role: ordered}       # declare a date role
 ```
 
@@ -479,6 +480,7 @@ flatten:
 |---|---|---|---|---|
 | via | `via` | relationship name | yes | Relationship to flatten; `one_to_many` is refused (fan-out) |
 | via | `prefix` | string, non-empty | yes | Prefix on every flattened column — mandatory, collisions are errors |
+| via | `as_of` | base date/timestamp column | on `scd: type2` | The anchor: the instant the joined entity is read as of. Required to flatten a historical dimension, refused on any other |
 | date | `date` | field name | yes | A date/timestamp column of the base entity |
 | date | `role` | member name | yes | Expands to `<role>_day` … `<role>_year` bucket columns (`metric_time` reserved) |
 

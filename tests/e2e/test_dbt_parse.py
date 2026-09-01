@@ -175,6 +175,8 @@ def _seed_sources(database: pathlib.Path, fixture: str) -> None:
             for column in tree.find_all(exp.Column):
                 if column.name:
                     declared.setdefault(column.name, declared_type(column))
+    import duckdb  # local, as `_seed_sources` does: the driver is a test dep
+
     connection = duckdb.connect(str(database))
     try:
         for (namespace, relation), declared in sorted(columns.items()):
@@ -228,6 +230,8 @@ def test_the_build_would_notice_a_model_that_lands_in_the_wrong_schema(
     _seed_sources(database, "ecom_basic")
     (tmp_path / "macros/generate_schema_name.sql").unlink()
     assert _run(tmp_path, "build").success
+    import duckdb  # local, as `_seed_sources` does: the driver is a test dep
+
     connection = duckdb.connect(str(database))
     try:
         schemas = {
@@ -355,6 +359,8 @@ def _insert(database: pathlib.Path, rows: tuple[tuple[str, dict[str, object]], .
     """
     import duckdb
 
+    import duckdb  # local, as `_seed_sources` does: the driver is a test dep
+
     connection = duckdb.connect(str(database))
     try:
         for relation, values in rows:
@@ -473,3 +479,37 @@ def test_a_native_test_names_its_column_where_a_singular_test_names_the_check(
     # The column is in the node's own name — which is the whole of D4's claim.
     assert any(name.startswith("not_null_") and "email" in name for name in names), names
     assert any(name.startswith("accepted_values_") and "segment" in name for name in names), names
+
+
+def test_the_snapshot_materializes_the_interval_under_the_names_the_ir_owns(
+    tmp_path: pathlib.Path,
+) -> None:
+    """The claim the whole as-of design rests on, measured rather than read off
+    a config (RFC 0023 §5.3, D7).
+
+    One as-of predicate is lowered for every target, so it references one pair
+    of column names. SQLMesh already spells them `valid_from`/`valid_to`; dbt
+    would call them `dbt_valid_from`/`dbt_valid_to`, and the emitter passes
+    `snapshot_meta_column_names` to move them. Emitting that config proves
+    nothing on its own — the question is whether the *built table* has those
+    columns, which only running dbt can answer.
+    """
+    database = tmp_path / "warehouse.duckdb"
+    _write_project(tmp_path, "scd2_customers", database=str(database))
+    _seed_sources(database, "scd2_customers")
+    assert _run(tmp_path, "build").success
+
+    import duckdb  # local, as `_seed_sources` does: the driver is a test dep
+
+    connection = duckdb.connect(str(database))
+    try:
+        columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info('silver.customer_snapshot')").fetchall()
+        }
+    finally:
+        connection.close()
+
+    assert {"valid_from", "valid_to"} <= columns
+    assert "dbt_valid_from" not in columns
+    assert "dbt_valid_to" not in columns
