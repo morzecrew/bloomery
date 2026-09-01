@@ -106,6 +106,13 @@ class MetricFlowPlanner:
     (it shapes the gold relations named in refusal messages and
     explanations); it defaults to :class:`~bloomery.naming.DefaultNaming`,
     matching :class:`~bloomery.runtime.LruManifestHydrator`'s build path.
+
+    **Safe to share across threads.** Every attribute below is set here and
+    only read afterwards; :meth:`plan` takes the IR, the request and the
+    dialect as arguments and holds no state between calls, so one planner
+    serving a whole service is the intended shape rather than a tolerated
+    one. The obligations that remain are the hydrator's — see
+    :class:`~bloomery.runtime.LruManifestHydrator`.
     """
 
     def __init__(

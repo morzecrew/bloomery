@@ -149,6 +149,18 @@ class LruManifestHydrator:
     out longhand. Per instance rather than per class because ``fetch_l2``,
     ``prewarm`` and the naming policy are constructor state — a shared cache
     would serve one hydrator's entries to another configured differently.
+
+    **Safe to share across threads**, which is what the documented "build the
+    planner once and reuse it" means in a service: the cache's own state is
+    lock-protected, and a manifest is hydrated as a pure function of
+    ``(key, ir)`` — see :meth:`_hydrate` for the poisoning bug that shape
+    exists to prevent. Two obligations stay with the caller, because bloomery
+    holds no lock of its own: **``fetch_l2`` is invoked concurrently** and
+    must be thread-safe, and concurrent misses of the same *cold* key each
+    call it — duplicate work on a cold key, never a wrong answer. Put
+    single-flight deduplication inside ``fetch_l2`` if that I/O is expensive.
+    The reference states the same contract for callers who read docs rather
+    than docstrings (``pages/docs/reference/api.md``).
     """
 
     def __init__(
