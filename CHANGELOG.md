@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The CLI's exit-code contract gained `3`: an exception no handler claims prints
+  its traceback under an "internal error, please report" line instead of escaping
+  raw, and a broken pipe (`bloomery schema | head`) now exits `0` quietly.
+
+- The YAML spec loader refuses adversarial shape with the limit named: documents
+  over 5,000,000 characters, nesting past 120 levels, and aliases expanding past
+  1,000,000 nodes are `SpecParseError`, never a `RecursionError` or memory
+  exhaustion. Ordinary anchors and aliases are unaffected.
+
 ### Fixed
 
 - A metric declaring `cumulative:` is now refused at compile time
