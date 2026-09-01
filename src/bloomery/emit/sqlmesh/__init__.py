@@ -100,7 +100,7 @@ from bloomery.ir import (
     SCDKind,
 )
 from bloomery.quality import RunContext, is_quality_mart
-from bloomery.typing import DateType, TimestampType
+from bloomery.typing import DateType, LogicalType, TimestampType
 
 # ----------------------- #
 
@@ -313,24 +313,43 @@ def _kind_clause(entity: EntityIR) -> str:
         return f"INCREMENTAL_BY_UNIQUE_KEY (unique_key ({', '.join(entity.key)}))"
 
     if entity.materialization is Materialization.INCREMENTAL_BY_PARTITION:
-        # The kind takes exactly one time column, documented as the first
-        # partition_by entry. A non-temporal leading column would emit a model
-        # whose time_column is not time — SQLMesh fails on it (or filters
-        # wrongly by it) only at run time, the compile-and-fail degradation
-        # RFC 0008 D3 refuses.
-        leading = entity.partition_by[0].column
-        declared = next((c.type for c in entity.columns if c.name == leading), None)
-        if declared is not None and not isinstance(declared, DateType | TimestampType):
-            msg = (
-                f"entity {entity.name!r} is incremental_by_partition, whose SQLMesh kind "
-                f"INCREMENTAL_BY_TIME_RANGE takes the first partition column as its "
-                f"time_column — but {leading!r} is not a date or timestamp. Fix: put the "
-                "time column first in partition_by, or use incremental_by_key"
-            )
-            raise UnsupportedByTarget(msg)
-        return f"INCREMENTAL_BY_TIME_RANGE (time_column {leading})"
+        declared = {column.name: column.type for column in entity.columns}
+        return _time_range_kind(f"entity {entity.name!r}", entity.partition_by, declared)
 
     return "FULL"
+
+
+# ....................... #
+
+
+def _time_range_kind(
+    owner: str, partition_by: tuple[PartitionSpec, ...], declared: dict[str, LogicalType]
+) -> str:
+    """The ``INCREMENTAL_BY_TIME_RANGE`` clause, or a refusal.
+
+    The kind takes exactly one time column, documented as the first
+    ``partition_by`` entry. A leading column that is not a date or timestamp —
+    or names no column of the model at all — would emit a model whose
+    ``time_column`` SQLMesh fails on (or filters wrongly by) only at run time,
+    the compile-and-fail degradation RFC 0008 D3 refuses. Shared by the entity
+    and mart kind clauses so the two paths cannot diverge.
+    """
+    leading = partition_by[0].column
+    column_type = declared.get(leading)
+
+    if not isinstance(column_type, DateType | TimestampType):
+        described = (
+            "names no column of the model" if column_type is None else "is not a date or timestamp"
+        )
+        msg = (
+            f"{owner} is incremental_by_partition, whose SQLMesh kind "
+            f"INCREMENTAL_BY_TIME_RANGE takes the first partition column as its "
+            f"time_column — but {leading!r} {described}. Fix: put the time column "
+            "first in partition_by, or use incremental_by_key"
+        )
+        raise UnsupportedByTarget(msg)
+
+    return f"INCREMENTAL_BY_TIME_RANGE (time_column {leading})"
 
 
 # ....................... #
@@ -353,8 +372,8 @@ def _mart_kind_clause(mart: MartIR, base: EntityIR) -> str:
         return f"INCREMENTAL_BY_UNIQUE_KEY (unique_key ({', '.join(base.key)}))"
 
     if mart.materialization is Materialization.INCREMENTAL_BY_PARTITION:
-        time_column = mart.partition_by[0].column
-        return f"INCREMENTAL_BY_TIME_RANGE (time_column {time_column})"
+        declared = {column.name: column.type for column in mart.columns}
+        return _time_range_kind(f"mart {mart.name!r}", mart.partition_by, declared)
 
     return "FULL"
 

@@ -196,6 +196,67 @@ def test_a_temporal_leading_partition_column_keeps_every_partition() -> None:
     assert "partitioned_by (event_date, status)" in content
 
 
+def test_an_unknown_leading_partition_column_is_refused() -> None:
+    """A ``partition_by`` entry naming no model column would become a
+    ``time_column`` SQLMesh cannot resolve — same compile-and-fail shape as a
+    non-temporal one, so the same refusal."""
+    from bloomery.errors import UnsupportedByTarget
+
+    with pytest.raises(UnsupportedByTarget) as excinfo:
+        _compile_partitioned("vanished", "event_date")
+    message = str(excinfo.value)
+    assert "'vanished'" in message
+    assert "time_column" in message
+
+
+_PARTITIONED_MARTS = """\
+marts_version: 1
+marts:
+  events:
+    grain: event
+    base: event
+    partition_by: [{first}, {second}]
+    materialization: incremental_by_partition
+    flatten:
+      - {{date: event_date, role: happened}}
+"""
+
+
+def _compile_partitioned_mart(first: str, second: str) -> tuple[str, ...]:
+    from bloomery import load_project
+
+    artifacts = compile_project(
+        load_project(
+            {
+                "entity_model": _PARTITIONED_MODEL.format(first="event_date", second="status"),
+                "mapping": _PARTITIONED_MAPPING,
+                "marts": _PARTITIONED_MARTS.format(first=first, second=second),
+            }
+        ),
+        target=Target.SQLMESH,
+        dialect="duckdb",
+    )
+    return tuple(a.content for a in artifacts if a.path == "models/gold/mart_events.sql")
+
+
+def test_a_non_temporal_leading_partition_column_is_refused_for_marts_too() -> None:
+    """The mart kind clause takes the same first-partition-column mapping as
+    the entity one, so the same non-temporal leading column emitted the same
+    broken ``INCREMENTAL_BY_TIME_RANGE`` model through the gold path."""
+    from bloomery.errors import UnsupportedByTarget
+
+    with pytest.raises(UnsupportedByTarget) as excinfo:
+        _compile_partitioned_mart("status", "event_date")
+    message = str(excinfo.value)
+    assert "mart 'events'" in message
+    assert "'status'" in message
+
+
+def test_a_temporal_leading_mart_partition_column_passes() -> None:
+    (content,) = _compile_partitioned_mart("event_date", "status")
+    assert "kind INCREMENTAL_BY_TIME_RANGE (time_column event_date)," in content
+
+
 # ....................... #
 # Audit lowering (RFC 0006 §5.6/D7 → RFC 0008 §5.3)
 
