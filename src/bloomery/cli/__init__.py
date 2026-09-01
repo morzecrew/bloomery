@@ -710,6 +710,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             # through rather than flattening them to one.
             return request.code if isinstance(request.code, int) else EXIT_USAGE
         exit_code: int = arguments.run(arguments)
+        # Flush while the boundary can still see the error. Python 3.14 raised
+        # the default io buffer to 128 KiB, so a command's whole stdout can sit
+        # buffered when it returns; without this the broken pipe surfaced at
+        # the *interpreter's* shutdown flush — past every handler here — as
+        # "Exception ignored while flushing sys.stdout" and exit code 120.
+        sys.stdout.flush()
     except BloomeryError as error:
         # A refusal, not a crash: bloomery read the spec and said no.
         #
