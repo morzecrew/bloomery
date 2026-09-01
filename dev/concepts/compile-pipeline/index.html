@@ -817,6 +817,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#what-compiling-costs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What compiling costs
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1762,6 +1773,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#what-compiling-costs" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What compiling costs
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -2022,7 +2044,7 @@ line of dialect logic — so collapsing them would produce an N×M explosion of
 near-duplicate templates. This split is the most load-bearing design decision in the
 package.</p>
 <p>The planner is the fourth port, deliberately not a <code>TargetEmitter</code>: emitters run once
-per spec version, the planner answers at request time, thousands of times per second —
+per spec version, the planner answers at request time, as often as callers ask —
 different lifecycle, different envelope. Its contract is a pair of frozen types,
 <code>MetricRequest</code> in and <code>QueryPlan</code> out, and that contract is the stability boundary:
 behind it sits <code>MetricFlowPlanner</code>, which delegates SQL generation to an embedded,
@@ -2031,6 +2053,14 @@ guarantee, so upgrades are deliberate, canary-tested events). Callers bind to
 <code>MetricRequest</code>/<code>QueryPlan</code> and never see a MetricFlow type — errors are translated
 into bloomery's taxonomy at the adapter, which is what makes the backend swappable. The
 <a href="../wide-marts/">wide-marts</a> page explains what the planner refuses and why.</p>
+<h2 id="what-compiling-costs">What compiling costs<a class="headerlink" href="#what-compiling-costs" title="Permanent link">&para;</a></h2>
+<p>The whole path — YAML text through <code>load_project</code>, resolution, guardrails, lowering and
+SQLMesh emission — is measured in the bench lane
+(<code>tests/bench/test_compile_scale.py</code>) at 100, 500 and 1000 entities: <strong>~2.6 ms per
+entity, linear across that decade</strong> (medians 264 ms / 1.28 s / 2.54 s when the bench
+was wired). The lane runs nightly as information and gates the release candidate, so an
+order-of-magnitude regression fails a release rather than drifting in. Beyond 1000
+entities is unmeasured, and this sentence is the record of that.</p>
 <p>Determinism is what holds all six stages together — the same specs must produce the
 same bytes forever — and it gets its own page: <a href="../determinism/">Determinism</a>.</p>
 

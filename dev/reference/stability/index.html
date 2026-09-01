@@ -1541,6 +1541,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#how-a-removal-is-announced" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How a removal is announced
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-installed-version" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1701,6 +1712,17 @@
   
     <nav class="md-nav" aria-label="What binds at 0.1, and what waits for 1.0">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-a-removal-is-announced" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How a removal is announced
+      </span>
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#the-installed-version" class="md-nav__link">
@@ -2016,6 +2038,20 @@ gets a new version number rather than a new bloomery release. Those two clocks a
 independent by design. The single exception, a newly reserved name, is
 <a href="#the-one-exception-a-new-reserved-name">above</a>; it can refuse a document but never
 reinterpret one.</p>
+<h3 id="how-a-removal-is-announced">How a removal is announced<a class="headerlink" href="#how-a-removal-is-announced" title="Permanent link">&para;</a></h3>
+<p>Two channels, and a removal below 1.0 uses both:</p>
+<ol>
+<li><strong>The changelog</strong>, always — the name that moved and what to write instead, in the
+   release that changes it.</li>
+<li><strong>A runtime <code>DeprecationWarning</code></strong>, whenever the old spelling can still work for one
+   more minor release: the warning names the replacement and the release that will
+   remove it, so a test suite run with warnings-as-errors sees the move a release
+   before it lands. A spelling that <em>cannot</em> keep working — a semantic fix, a removed
+   guarantee — skips the warning and relies on the changelog, which is why the
+   changelog is the channel that is always there.</li>
+</ol>
+<p>Nothing in the current release is deprecated; this section is the mechanism, recorded
+before it is needed rather than invented mid-removal.</p>
 <h3 id="the-installed-version">The installed version<a class="headerlink" href="#the-installed-version" title="Permanent link">&para;</a></h3>
 <p><code>bloomery.__version__</code> and <code>bloomery --version</code> report the release you have. Both come
 from the build rather than from a constant in the source, so they cannot disagree with

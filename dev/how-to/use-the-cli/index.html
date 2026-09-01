@@ -1932,12 +1932,20 @@ contain and how to point an editor at them.</p>
 <td><code>2</code></td>
 <td>A <strong>usage error</strong>: a path that is not there, a flag that is not a flag.</td>
 </tr>
+<tr>
+<td><code>3</code></td>
+<td>An <strong>internal error</strong>: a bug in bloomery, not in your spec or invocation.</td>
+</tr>
 </tbody>
 </table>
 <p>The line between them is <em>whose mistake it was</em>. <code>1</code> means bloomery read your spec and
 said no. <code>2</code> means the invocation was wrong before any spec was opened — a path, a flag,
 a <code>--where</code> document that is not JSON, a mistyped <code>--target</code>, <code>--dialect</code>, <code>--grain</code> or
-<code>--policy</code>, a file that is not UTF-8 or cannot be read.</p>
+<code>--policy</code>, a file that is not UTF-8 or cannot be read. <code>3</code> means the mistake was
+bloomery's: an exception no handler claimed. It still prints the traceback to stderr —
+a bug report needs it — under a line asking you to report it, and never as the interface.</p>
+<p>One non-code: a <strong>broken pipe</strong> is not an error at all. <code>bloomery schema | head</code> means
+the reader chose to stop; the command exits <code>0</code> quietly instead of a traceback.</p>
 <p><code>main</code> <strong>returns</strong> these codes rather than raising, so a Python caller can read them:
 <code>from bloomery.cli import main; code = main(["resolve", "specs/"])</code>. That holds for
 argparse's own refusals too.</p>
@@ -1947,6 +1955,7 @@ job — so a pipeline that retries on it will retry forever. Branch on the code:
 <span class="w">  </span><span class="k">case</span><span class="w"> </span><span class="nv">$?</span><span class="w"> </span><span class="k">in</span>
 <span class="w">    </span><span class="m">1</span><span class="o">)</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"spec refused; fix the spec"</span><span class="w"> </span><span class="p">;;</span>
 <span class="w">    </span><span class="m">2</span><span class="o">)</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"bad invocation"</span><span class="w"> </span><span class="p">;;</span>
+<span class="w">    </span><span class="m">3</span><span class="o">)</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">"bloomery bug; report it"</span><span class="w"> </span><span class="p">;;</span>
 <span class="w">  </span><span class="k">esac</span>
 <span class="k">fi</span>
 </code></pre></div>

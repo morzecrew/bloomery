@@ -1934,6 +1934,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#thread-safety" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Thread safety
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2681,6 +2692,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#thread-safety" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Thread safety
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3219,6 +3241,30 @@ manifests keyed by <code>HydrationKey</code>. On a miss it consults the caller-i
 <p>The cache key covering all three invalidation axes: <code>spec_fingerprint</code>,
 <code>bloomery_version</code>, <code>metricflow_version</code>. A spec edit or a version bump changes the
 key, so stale entries are a miss, never an error.</p>
+<h3 id="thread-safety">Thread safety<a class="headerlink" href="#thread-safety" title="Permanent link">&para;</a></h3>
+<p>The advice elsewhere in these docs — build the planner once and reuse it — means, in a
+web service, shared across threads. The contract that makes that sound:</p>
+<ul>
+<li><strong><code>MetricFlowPlanner</code> is safe to share.</strong> Its instance state is set at construction
+  and only read afterwards; <code>plan()</code> takes everything else as arguments. Concurrent
+  <code>plan()</code> calls on one shared planner are exercised by test
+  (<code>tests/unit/test_runtime/test_hydration.py</code>) and return identical plans.</li>
+<li><strong><code>LruManifestHydrator</code> is safe to share.</strong> The cache is <code>functools.lru_cache</code>,
+  whose internal state is lock-protected in CPython, and a manifest is hydrated as a
+  pure function of <code>(key, ir)</code> — the cross-thread cache-poisoning bug that motivated
+  that shape is regression-tested.</li>
+<li><strong>A cold miss is not deduplicated.</strong> Threads missing the same key concurrently each
+  hydrate (and each call <code>fetch_l2</code>) — pinned by test, forced rather than raced for.
+  The results are identical, so this costs duplicate work on a cold key, never wrong
+  answers.
+  If your <code>fetch_l2</code> is expensive, put single-flight deduplication inside it; bloomery
+  will not call your I/O under a lock it owns.</li>
+<li><strong><code>fetch_l2</code> must be thread-safe.</strong> It is caller-owned I/O, invoked concurrently
+  and never serialized by bloomery.</li>
+</ul>
+<p>What is <em>not</em> promised: mutating a <code>NamingPolicy</code> or registering transforms
+(<code>register_transform</code>) while other threads compile or plan. Registration is
+process-global and intended for import time.</p>
 <h2 id="schema-export">Schema export<a class="headerlink" href="#schema-export" title="Permanent link">&para;</a></h2>
 <h3 id="spec_json_schemakind-speckind-jsondict"><code>spec_json_schema(kind: SpecKind) -&gt; JsonDict</code><a class="headerlink" href="#spec_json_schemakind-speckind-jsondict" title="Permanent link">&para;</a></h3>
 <p>The JSON Schema for one spec kind, generated from the Pydantic model so it cannot drift
