@@ -1874,9 +1874,10 @@ pass <code>naming=</code> to <code>compile_project</code> to override them.</p>
 <h2 id="materialization-and-scd2">Materialization and SCD2<a class="headerlink" href="#materialization-and-scd2" title="Permanent link">&para;</a></h2>
 <p>The entity's resolved materialization maps to the SQLMesh model kind: <code>full</code> → <code>FULL</code>,
 <code>incremental_by_key</code> → <code>INCREMENTAL_BY_UNIQUE_KEY</code>, <code>incremental_by_partition</code> →
-<code>INCREMENTAL_BY_TIME_RANGE</code> over the first partition column. Without an explicit
-<code>materialization:</code>, an entity with <code>partition_by</code> defaults to
-<code>incremental_by_partition</code>, otherwise <code>full</code>.</p>
+<code>INCREMENTAL_BY_TIME_RANGE</code> over the first partition column — which must be a date or
+timestamp, since it becomes the kind's <code>time_column</code>; a non-temporal leading column is
+refused. Without an explicit <code>materialization:</code>, an entity with <code>partition_by</code> defaults
+to <code>incremental_by_partition</code>, otherwise <code>full</code>.</p>
 <p><code>scd: type2</code> entities use SQLMesh's native kind, as in the model above:
 <code>SCD_TYPE_2_BY_COLUMN (unique_key (...), columns *)</code>. Change tracking is by column
 comparison over all columns, not by an updated-at timestamp — the specs declare no such

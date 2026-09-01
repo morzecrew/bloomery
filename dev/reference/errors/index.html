@@ -1761,6 +1761,7 @@ pulling in any pipeline stage.</p>
 │   ├── FanoutRisk
 │   ├── HistoricalFanout
 │   ├── NonAdditiveWithoutComponents
+│   ├── UnsupportedCumulative
 │   ├── MartMissingTimeDimension
 │   ├── QuarantineRetentionMissing
 │   ├── DedupeTieBreakMissing
@@ -1914,6 +1915,11 @@ pulling in any pipeline stage.</p>
 <td><code>NonAdditiveWithoutComponents</code></td>
 <td>guardrails</td>
 <td>A non-additive metric with no ratio/additive decomposition to recompute from</td>
+</tr>
+<tr>
+<td><code>UnsupportedCumulative</code></td>
+<td>guardrails</td>
+<td>A metric declaring <code>cumulative:</code> — reserved spec surface no stage lowers; compiled anyway it would aggregate per period instead of cumulatively</td>
 </tr>
 <tr>
 <td><code>MartMissingTimeDimension</code></td>

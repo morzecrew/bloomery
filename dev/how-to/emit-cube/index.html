@@ -992,10 +992,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-cube-capabilities-mean" class="md-nav__link">
+  <a href="#what-cube-cannot-express" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        What Cube capabilities mean
+        What Cube cannot express
       </span>
     </span>
   </a>
@@ -1641,10 +1641,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-cube-capabilities-mean" class="md-nav__link">
+  <a href="#what-cube-cannot-express" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        What Cube capabilities mean
+        What Cube cannot express
       </span>
     </span>
   </a>
@@ -1891,13 +1891,13 @@ that owns both components. Cube then recomputes it at whatever grain a query gro
 which is the only way a ratio stays correct. A spec that tries to store a non-additive
 metric as a mart measure is already refused at the guardrail stage; the emitter checks
 again and raises <code>UnsupportedByTarget</code> rather than approximate.</p>
-<h2 id="what-cube-capabilities-mean">What Cube capabilities mean<a class="headerlink" href="#what-cube-capabilities-mean" title="Permanent link">&para;</a></h2>
-<p>Each target declares which IR features it supports, and the Cube emitter's declared set
-is intentionally small: the semantic features (non-additive, semi-additive metadata,
-role-playing dimensions). SCD2 and incremental materialization are <em>absent</em> — and that
-absence is irrelevance, not error: Cube consumes tables that SQLMesh (or dbt) builds
-and maintains, so materialization concerns never reach this target. Only a feature a
-target claims to support but cannot express honestly raises <code>UnsupportedByTarget</code>.</p>
+<h2 id="what-cube-cannot-express">What Cube cannot express<a class="headerlink" href="#what-cube-cannot-express" title="Permanent link">&para;</a></h2>
+<p>What this target cannot express is refused per construct with
+<code>UnsupportedByTarget</code>, never approximated: an aggregation outside Cube's closed
+set, a metric with no expression, a non-additive metric whose decomposition is
+additive rather than a ratio. SCD2 and incremental materialization never reach
+this target at all — and that absence is irrelevance, not error: Cube consumes
+tables that SQLMesh (or dbt) builds and maintains.</p>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Measure aggregations map to Cube's closed set (<code>sum</code>, <code>count</code>, <code>count_distinct</code>,

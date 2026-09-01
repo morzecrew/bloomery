@@ -2002,6 +2002,17 @@ float, and only for <code>divide</code>.</p>
 <p>If exactness matters on DuckDB, multiply by the reciprocal instead: <code>{multiply:
 "0.01"}</code> rather than <code>{divide: 100}</code> stays in decimal arithmetic end to end. The
 shipped examples do exactly that, and say why.</p>
+<p><strong>A catalog recipe's <code>/</code> is inexact on every engine.</strong> The <code>divide</code> transform is
+marked so PostgreSQL and Trino keep it in exact decimal arithmetic, but a
+recipe's <code>expr:</code> is parsed SQL, not a built transform, and carries no marker —
+<code>expr: line_total / quantity</code> renders as <code>CAST(line_total AS DOUBLE PRECISION) /
+quantity</code>, a binary-float division narrowed back to the declared decimal
+(logs/T-0002.md D-004). The narrowing bounds the error the way DuckDB's <code>divide</code>
+is bounded above; values needing more than ~15 significant digits can still
+round. Marking a recipe's division exact needs operand types the recipe grammar
+does not carry yet — until it does, prefer a <code>divide</code>/<code>multiply</code> transform chain
+where the division must be exact, and keep recipe <code>expr:</code> division for
+screen-precision derivations.</p>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>The dialect is not the target.</strong> <code>--target sqlmesh --dialect postgres</code> and
