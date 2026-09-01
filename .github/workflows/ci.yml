@@ -111,15 +111,17 @@ jobs:
               - "justfile"
               - ".github/scripts/install-d2.sh"
               - ".github/workflows/ci.yml"
-            # What only a real engine or a real target framework can check:
-            # the dialect ports (SQL that must parse and run *there*), the
-            # emitters (artifacts a framework must accept), and the two tiers
-            # written against them. A change outside these cannot move that
-            # lane's verdict, so scoping keeps a docs-only PR from pulling
-            # three containers to assert nothing.
+            # What only a real engine or a real target framework can check.
+            # All of `src/`, not just `dialects/**` and `emit/**`: the tiers
+            # compile whole projects, so the SQL an engine executes is shaped
+            # by `ir`, `quality`, `resolve`, `transforms` and `typing` just as
+            # much as by the emitting packages — scoped to the two, a PR
+            # editing `transforms/registry.py` (where `output_type`
+            # declarations live, the RFC 0029 defect class this lane exists
+            # for) skipped it and waited for nightly. The scoping's real job
+            # survives: a docs-only PR still pulls no containers.
             engine:
-              - "src/bloomery/dialects/**"
-              - "src/bloomery/emit/**"
+              - "src/bloomery/**"
               - "tests/engines/**"
               - "tests/e2e/**"
               - "tests/support/**"
@@ -265,9 +267,15 @@ jobs:
       # `--cov-fail-under=0` because this leg does not gate: the floor belongs
       # to the combined report. Left at 80 here it would fail a leg for lines
       # another interpreter covers.
+      #
+      # `not chaos` matches `just test`: the expression here predates the
+      # chaos tier and silently kept it, so every PR ran the mutation battery
+      # three times over — once per interpreter, though detection does not
+      # vary by interpreter. It is an opt-in lane by design (RFC 0016 §6) and
+      # now runs once, in the scheduled `chaos` job below.
       - name: Run tests
         run: |
-          uv run pytest -m "not engine and not e2e and not perf" \
+          uv run pytest -m "not engine and not e2e and not chaos and not perf" \
             --refusal-census \
             --cov=src \
             --cov-report= \
@@ -491,6 +499,49 @@ jobs:
 
       - name: Measure the hydration budgets
         run: uv run pytest -m perf
+
+  # The mutation battery (RFC 0016 §6): deforms the lowering and requires the
+  # M12 quality suite to notice — the only evidence that suite is detection
+  # rather than decoration. Opt-in by design and excluded from the test
+  # matrix above; this job is where it actually runs: nightly, and on
+  # force_full (dispatch, release).
+  #
+  # Blocking, unlike `perf`: a surviving mutation is a hole in the battery,
+  # not a slow runner. No Docker, no matrix — mutation detection does not
+  # vary by interpreter.
+  chaos:
+    name: Mutation battery (chaos)
+    needs: [changes, quality]
+    if: |
+      needs.quality.result == 'success' &&
+      needs.changes.outputs.force_full == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Run the mutation battery
+        run: uv run pytest -m chaos
 
   # Tiers 5–6 (engine matrix via testcontainers, target e2e). Runs on the
   # nightly schedule, on explicit force_full runs (workflow_dispatch, release),
