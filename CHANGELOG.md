@@ -14,9 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   raw, and a broken pipe (`bloomery schema | head`) now exits `0` quietly.
 
 - The YAML spec loader refuses adversarial shape with the limit named: documents
-  over 5,000,000 characters, nesting past 120 levels, and aliases expanding past
-  1,000,000 nodes are `SpecParseError`, never a `RecursionError` or memory
-  exhaustion. Ordinary anchors and aliases are unaffected.
+  over 5,000,000 characters, nesting past 120 levels, aliases expanding a document
+  past 10× its written nodes, and an alias inside its own anchor (a recursive
+  value) are `SpecParseError`, never a `RecursionError` or memory exhaustion.
+  Ordinary anchors and aliases are unaffected.
 
 ### Fixed
 

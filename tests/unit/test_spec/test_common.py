@@ -130,3 +130,31 @@ def test_an_oversized_document_is_refused_with_its_size_named() -> None:
     assert excinfo.value.source_path == "big"
     assert "5,000,000 limit" in str(excinfo.value)
     assert "split it" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "a: &x\n  b: *x\n",  # the alias inside its own anchor
+        "a: &x\n  b: *x\nc: *x\n",  # and named again after the anchor closes
+        "a: &x [1, *x]\n",  # the sequence spelling
+    ],
+)
+def test_a_recursive_alias_is_refused_not_constructed(text: str) -> None:
+    """Measured before the fix: `a: &x {b: *x}` loaded and made
+    `d["a"]["b"] is d["a"]` true — a cyclic value that hangs or crashes
+    whoever walks it (pydantic validation, `json.dumps`). A per-alias check
+    cannot see it, because inside its own anchor the alias resolves to a
+    node whose children are not composed yet; the accounting therefore runs
+    once on the finished graph, where the cycle is visible."""
+    with pytest.raises(SpecParseError) as excinfo:
+        load_yaml_mapping(text, document="d")
+    assert "inside its own anchor" in str(excinfo.value)
+
+
+def test_heavy_but_honest_alias_reuse_still_loads() -> None:
+    """The expansion budget scales with the document's own written size, so
+    thousands of references to a small shared block — the legitimate use at
+    its heaviest — stay loadable while a bomb's ratio is astronomical."""
+    document = "anchor: &a {x: 1, y: 2}\n" + "\n".join(f"k{i}: *a" for i in range(2_000))
+    assert len(load_yaml_mapping(document, document="d")) == 2_001

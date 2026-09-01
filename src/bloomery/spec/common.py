@@ -355,9 +355,13 @@ _MAX_DEPTH = 120
 #: Aliases: PyYAML composes an alias as a *shared* node, so a billion-laughs
 #: document loads cheaply here — and then costs whoever walks the result. A
 #: 399-byte document was measured expanding to 10^8 leaves for its first
-#: consumer (validation, in this package). The budget bounds the *expanded*
-#: size: each alias adds the node count of what it names.
-_MAX_ALIAS_EXPANSION = 1_000_000
+#: consumer (validation, in this package). The budget bounds the document's
+#: *expanded* node count — every node counted once per path from the root —
+#: relative to its distinct nodes, so a dense but alias-free document is
+#: never refused for its honest size while a bomb's ratio is astronomical:
+#: legitimate anchor reuse measures well under 2×.
+_ALIAS_EXPANSION_FACTOR = 10
+_ALIAS_EXPANSION_FLOOR = 10_000
 
 #: Size: parse cost and every later cost scale with the document, so refuse
 #: the pathological ones with a reason instead of an OOM kill. Five million
@@ -365,38 +369,59 @@ _MAX_ALIAS_EXPANSION = 1_000_000
 _MAX_SPEC_CHARS = 5_000_000
 
 
-def _node_count(node: yaml.Node, memo: dict[int, int]) -> int:
-    """The number of values constructing ``node`` yields — the cost an alias
-    adds each time it names one.
+class _RecursiveAlias(Exception):
+    """A node reachable from itself — an alias inside its own anchor."""
 
-    Memoized by node identity, so computing it costs the *distinct* nodes
-    (bounded by the document's own size), never the expanded tree it guards
-    against. Iterative for the same reason the depth cap exists: a weight
-    function that recursed would fall to the nesting it is part of bounding.
+    def __init__(self, node: yaml.Node) -> None:
+        super().__init__()
+        self.node = node
+
+
+def _children(node: yaml.Node) -> list[yaml.Node] | None:
+    """A collection node's children, or ``None`` for a scalar."""
+    if isinstance(node, yaml.SequenceNode):
+        return list(cast("list[yaml.Node]", node.value))
+    if isinstance(node, yaml.MappingNode):
+        pairs = cast("list[tuple[yaml.Node, yaml.Node]]", node.value)
+        return [child for pair in pairs for child in pair]
+    return None
+
+
+def _expanded_size(root: yaml.Node, memo: dict[int, int]) -> int:
+    """The document's expanded node count — every node counted once per path
+    from the root, which is exactly the cost a consumer walking the
+    constructed value pays.
+
+    Iterative post-order with a proper subtree memo, so an aliased subtree is
+    measured once however many times it is named, and the whole computation
+    costs the *distinct* nodes — never the expansion it bounds. A node found
+    on its own path (an alias inside its own anchor) raises
+    :class:`_RecursiveAlias`: the constructed value would be a cyclic
+    structure no consumer can walk at all. Iterative for the same reason the
+    depth cap exists: a walker that recursed would fall to the nesting it is
+    part of bounding.
     """
-    total = 0
-    stack = [node]
+    in_progress: set[int] = set()
+    stack: list[tuple[yaml.Node, bool]] = [(root, False)]
     while stack:
-        current = stack.pop()
-        cached = memo.get(id(current))
-        if cached is not None:
-            total += cached
+        current, children_done = stack.pop()
+        if children_done:
+            in_progress.discard(id(current))
+            done_children = _children(current) or []
+            memo[id(current)] = 1 + sum(memo[id(child)] for child in done_children)
             continue
-        if isinstance(current, yaml.SequenceNode):
-            children = list(cast("list[yaml.Node]", current.value))
-        elif isinstance(current, yaml.MappingNode):
-            pairs = cast("list[tuple[yaml.Node, yaml.Node]]", current.value)
-            children = [child for pair in pairs for child in pair]
-        else:
+        if id(current) in memo:
+            continue
+        if id(current) in in_progress:
+            raise _RecursiveAlias(current)
+        children = _children(current)
+        if children is None:
             memo[id(current)] = 1
-            total += 1
             continue
-        # Count the collection node itself, then its children; the memo stays
-        # per-leaf/per-revisit rather than per-subtree, which over-counts
-        # nothing and keeps the loop one pass.
-        total += 1
-        stack.extend(children)
-    return total
+        in_progress.add(id(current))
+        stack.append((current, True))
+        stack.extend((child, False) for child in children)
+    return memo[id(root)]
 
 
 class _StrictSafeLoader(yaml.SafeLoader):
@@ -413,13 +438,10 @@ class _StrictSafeLoader(yaml.SafeLoader):
     def __init__(self, stream: str) -> None:
         super().__init__(stream)
         self._depth = 0
-        self._expanded = 0
-        self._weight_memo: dict[int, int] = {}
 
     # ....................... #
 
-    def compose_node(self, parent: yaml.Node | None, index: int) -> yaml.Node | None:
-        is_alias = self.check_event(yaml.events.AliasEvent)
+    def compose_node(self, parent: yaml.Node | None, index: int | None) -> yaml.Node | None:
         self._depth += 1
         if self._depth > _MAX_DEPTH:
             event = self.peek_event()  # type: ignore[no-untyped-call]  # types-PyYAML leaves it untyped
@@ -432,25 +454,52 @@ class _StrictSafeLoader(yaml.SafeLoader):
                 problem_mark=mark,
             )
         try:
-            node = super().compose_node(parent, index)
+            # The stub narrows `index` to int; PyYAML itself passes None for
+            # the document root, hence the wider parameter and the cast here.
+            return super().compose_node(parent, cast("int", index))
         finally:
             self._depth -= 1
-        if is_alias and node is not None:
-            weight = self._weight_memo.get(id(node))
-            if weight is None:
-                weight = _node_count(node, self._weight_memo)
-                self._weight_memo[id(node)] = weight
-            self._expanded += weight
-            if self._expanded > _MAX_ALIAS_EXPANSION:
-                raise yaml.MarkedYAMLError(
-                    problem=(
-                        "aliases expand this document past"
-                        f" {_MAX_ALIAS_EXPANSION:,} nodes — write the repeated"
-                        " content out, or split the document"
-                    ),
-                    problem_mark=node.start_mark,
-                )
-        return node
+
+    # ....................... #
+
+    def get_single_node(self) -> yaml.Node | None:
+        """The composed document, measured before anything constructs it.
+
+        Accounting runs here — once, on the finished node graph — rather than
+        per alias during composition, because an alias *inside its own anchor*
+        resolves to a node whose children are not composed yet: a per-alias
+        walk sees an empty shell, undercounts it, and lets a cyclic document
+        through to construct a recursive Python value no consumer can walk
+        (measured: ``a: &x {b: *x}`` loaded and made ``d["a"]["b"] is
+        d["a"]`` true). On the finished graph the cycle is visible and the
+        weights are final.
+        """
+        root = super().get_single_node()
+        if root is None:
+            return root
+        memo: dict[int, int] = {}
+        try:
+            expanded = _expanded_size(root, memo)
+        except _RecursiveAlias as cycle:
+            raise yaml.MarkedYAMLError(
+                problem=(
+                    "an alias refers to a node inside its own anchor — the"
+                    " document would construct a recursive value no consumer"
+                    " can read; name a completed anchor instead"
+                ),
+                problem_mark=cycle.node.start_mark,
+            ) from None
+        budget = max(_ALIAS_EXPANSION_FACTOR * len(memo), _ALIAS_EXPANSION_FLOOR)
+        if expanded > budget:
+            raise yaml.MarkedYAMLError(
+                problem=(
+                    f"aliases expand this document to {expanded:,} nodes from"
+                    f" {len(memo):,} written ones, over the {budget:,} allowed —"
+                    " write the repeated content out, or split the document"
+                ),
+                problem_mark=root.start_mark,
+            )
+        return root
 
     # ....................... #
 
