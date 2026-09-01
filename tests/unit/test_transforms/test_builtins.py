@@ -186,6 +186,26 @@ def test_a_literal_that_overflows_only_after_rounding_is_refused(name: str) -> N
 
 
 @pytest.mark.parametrize("name", ["coalesce", "nullif"])
+def test_a_wide_fitting_literal_is_not_misread_as_overflow(name: str) -> None:
+    """The fit decision depends on the declared (p, s), never on Python's
+    default 28-digit decimal context: a 31-digit value fits decimal(38, 0)."""
+    spec = DEFAULT_REGISTRY[name]
+    assert spec.output_type(DecimalType(38, 0), (10**30,)) == DecimalType(38, 0)
+    assert spec.output_type(DecimalType(38, 0), ("9" * 38,)) == DecimalType(38, 0)
+    with pytest.raises(TypeCheckError, match=r"does not fit decimal\(38, 0\)"):
+        spec.output_type(DecimalType(38, 0), ("1" + "0" * 38,))
+
+
+@pytest.mark.parametrize("name", ["coalesce", "nullif"])
+def test_unicode_digits_are_refused(name: str) -> None:
+    """``\\d`` matches Unicode decimal digits and ``Decimal`` parses them, but
+    the emitted ``CAST('١٢٣' AS DECIMAL)`` fails on the engine — the guard is
+    ASCII-only on purpose."""
+    with pytest.raises(TypeCheckError, match="is not a number"):
+        DEFAULT_REGISTRY[name].output_type(DecimalType(12, 4), ("١٢٣",))
+
+
+@pytest.mark.parametrize("name", ["coalesce", "nullif"])
 def test_a_fitting_literal_still_produces_the_input_type(name: str) -> None:
     spec = DEFAULT_REGISTRY[name]
     # 99999999.9999 is the largest decimal(12, 4); the boundary fits.

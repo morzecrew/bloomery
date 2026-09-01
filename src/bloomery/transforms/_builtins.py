@@ -13,7 +13,7 @@ output round-trips through ``sqlglot.parse_one``.
 from __future__ import annotations
 
 import re
-from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, localcontext
 
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
@@ -102,12 +102,13 @@ def _typed_literal(value: str | int, input_type: LogicalType) -> Expression:
 
 
 #: The one numeric spelling every engine's text-to-decimal cast agrees on:
-#: optional sign, digits, optional dot-fraction. ``Decimal`` alone is too
-#: permissive a gate — it accepts exponents, underscores and padding
-#: (``"1e3"``, ``"1_0"``, ``" 1 "``) that the emitted ``CAST('…' AS DECIMAL)``
-#: does not portably accept, which would re-open the compile-and-fail hole
-#: this check closes.
-_PLAIN_NUMBER = re.compile(r"[+-]?(\d+(\.\d+)?|\.\d+)\Z")
+#: optional sign, ASCII digits, optional dot-fraction. ``Decimal`` alone is
+#: too permissive a gate — it accepts exponents, underscores, padding and
+#: Unicode digits (``"1e3"``, ``"1_0"``, ``" 1 "``, ``"١٢٣"``) that the
+#: emitted ``CAST('…' AS DECIMAL)`` does not portably accept, which would
+#: re-open the compile-and-fail hole this check closes. ``[0-9]`` rather than
+#: ``\\d`` for the same reason.
+_PLAIN_NUMBER = re.compile(r"[+-]?([0-9]+(\.[0-9]+)?|\.[0-9]+)\Z")
 
 
 def _checked_passthrough(t: LogicalType, args: tuple[str | int, ...]) -> LogicalType:
@@ -135,17 +136,20 @@ def _checked_passthrough(t: LogicalType, args: tuple[str | int, ...]) -> Logical
             )
             raise TypeCheckError(msg)
 
-        try:
-            rounded = Decimal(str(value)).quantize(
-                Decimal(1).scaleb(-t.scale), rounding=ROUND_HALF_UP
-            )
-            fits = abs(rounded) < Decimal(10) ** (t.precision - t.scale)
-        except InvalidOperation:
-            # Quantizing needs more digits than the decimal context holds —
-            # only a value astronomically wider than any declarable (p, s).
-            fits = False
+        parsed = Decimal(str(value))
+        # Quantize under a context sized to the literal itself, never the
+        # default 28-digit one: a fitting 38-digit fallback must not be
+        # misread as overflow, and with room for every digit plus the target
+        # scale the quantize cannot raise — the magnitude compare below is
+        # the one arbiter of fit.
+        with localcontext() as ctx:
+            ctx.prec = len(parsed.as_tuple().digits) + t.scale + 2
+            rounded = parsed.quantize(Decimal(1).scaleb(-t.scale), rounding=ROUND_HALF_UP)
 
-        if not fits:
+        # ``copy_abs`` rather than ``abs``: the builtin is a *context*
+        # operation and would re-round a wide value back to 28 digits, undoing
+        # the widened quantize above.
+        if rounded.copy_abs() >= Decimal(10) ** (t.precision - t.scale):
             msg = (
                 f"literal {value!r} does not fit decimal({t.precision}, {t.scale}): the "
                 f"emitted CAST would overflow at run time on every engine — the value's "
