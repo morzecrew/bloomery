@@ -14,6 +14,11 @@ are not — stops requiring a Python script to ask.
   bloomery looked at the spec and said no, with a reason. Conflating it with a
   crash is what makes a pipeline retry a spec error.
 * ``2`` — a usage error: a path that is not there, a flag that is not a flag.
+* ``3`` — an internal error: an exception no handler above claimed. That is a
+  bug in bloomery, said so on stderr with the tracker's address; no traceback
+  ever escapes as the interface. A broken pipe is none of these — the reader
+  hanging up early is not an error at all, so ``bloomery schema | head``
+  exits ``0`` quietly.
 
 ``--format json`` on ``plan``, ``resolve`` and ``explain`` emits the same
 values the Python API returns, so the CLI is not a second, lossier surface
@@ -37,6 +42,7 @@ import argparse
 import difflib
 import json
 import sys
+import traceback
 from typing import TYPE_CHECKING, cast
 
 from bloomery import (
@@ -83,11 +89,12 @@ if TYPE_CHECKING:
 
 __all__ = ["main"]
 
-#: Success, refusal, usage error (§5.2). Named rather than spelled inline so
-#: the docs page and the tests can cite the same three constants.
+#: Success, refusal, usage error (§5.2), internal error. Named rather than
+#: spelled inline so the docs page and the tests can cite the same constants.
 EXIT_OK = 0
 EXIT_REFUSED = 1
 EXIT_USAGE = 2
+EXIT_INTERNAL = 3
 
 
 class _Usage(Exception):
@@ -682,18 +689,54 @@ def main(argv: Sequence[str] | None = None) -> int:
     number. The shell saw the right code either way; a caller using ``main`` as
     a function, which the paragraph above invites, did not.
     """
-    parser = build_parser()
-
+    # `prog` before the boundary: the handlers below prefix messages with
+    # it, and if `build_parser` itself is what raised, there is no parser to
+    # ask.
+    prog = "bloomery"
+    # `exit_code` before the boundary too: the broken-pipe arm returns it, and
+    # a pipe can break before the command body has produced one.
+    exit_code: int = EXIT_OK
+    # One boundary around everything: parser construction and parsing are as
+    # capable of a bloomery bug as the command bodies, and a catch-all that
+    # started after them would leak exactly the class of traceback it exists
+    # to claim. `SystemExit` derives from `BaseException`, so argparse's own
+    # exits pass the `except Exception` arm untouched and are handled by
+    # their dedicated arm below.
     try:
-        arguments = parser.parse_args(argv)
-    except SystemExit as request:
-        # argparse exits 2 for a usage error and 0 for `--help`; both are
-        # already the code this function means to return, so pass them through
-        # rather than flattening them to one.
-        return request.code if isinstance(request.code, int) else EXIT_USAGE
-
-    try:
-        exit_code: int = arguments.run(arguments)
+        parser = build_parser()
+        prog = parser.prog
+        try:
+            arguments = parser.parse_args(argv)
+        except SystemExit as request:
+            # argparse exits 2 for a usage error and 0 for `--help`; both are
+            # already the code this function means to return, so pass them
+            # through rather than flattening them to one.
+            return request.code if isinstance(request.code, int) else EXIT_USAGE
+        exit_code = arguments.run(arguments)
+        # Flush while the boundary can still see the error. Python 3.14 raised
+        # the default io buffer to 128 KiB, so a command's whole stdout can sit
+        # buffered when it returns; without this the broken pipe surfaced at
+        # the *interpreter's* shutdown flush — past every handler here — as
+        # "Exception ignored while flushing sys.stdout" and exit code 120.
+        #
+        # The OSError handling is scoped to this flush alone, deliberately: an
+        # OSError out of a command body is a defect that belongs to the
+        # internal-error contract below, and an arm on the outer try could
+        # not tell the two apart. A broken pipe re-raises to its outer arm,
+        # which knows what to do with `exit_code`.
+        try:
+            sys.stdout.flush()
+        except BrokenPipeError:
+            raise
+        except OSError as error:
+            # The environment failing at the write — a full disk, an EIO —
+            # not bloomery: the same reading `CliIoError` gives a full disk
+            # under `--out`, and the same exit code. Stdout is silenced first
+            # so the interpreter's shutdown flush cannot retry the buffer and
+            # stamp exit code 120 over this one.
+            io.silence_stdout()
+            sys.stderr.write(f"{prog}: stdout: {error}\n")
+            return EXIT_USAGE
     except BloomeryError as error:
         # A refusal, not a crash: bloomery read the spec and said no.
         #
@@ -707,8 +750,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         sys.stderr.write(f"{location}{error}\n")
         return EXIT_REFUSED
     except (io.CliIoError, _Usage) as error:
-        sys.stderr.write(f"{parser.prog}: {error}\n")
+        sys.stderr.write(f"{prog}: {error}\n")
         return EXIT_USAGE
+    except BrokenPipeError:
+        # `bloomery schema | head` — the reader hung up, which is its right,
+        # not our failure. Point stdout at devnull before returning so the
+        # interpreter's shutdown flush cannot raise the same error again
+        # noisily (the flush happens after any `except` here can run).
+        #
+        # The command's own verdict survives the hang-up: a refused `resolve`
+        # whose reader left mid-stream is still a refusal, so this returns
+        # `exit_code` — set by the command when it completed, and still
+        # `EXIT_OK` when the pipe broke before it could finish.
+        io.silence_stdout()
+        return exit_code
+    except Exception:
+        # Anything else is a bug in bloomery, not in the spec or the
+        # invocation — a refusal it should have raised as a BloomeryError, or
+        # a defect. The traceback still prints (a report needs it), but under
+        # a contract line and behind its own exit code, so a script can tell
+        # "your spec is wrong" (1) and "the invocation is wrong" (2) from
+        # "bloomery is wrong" (3).
+        traceback.print_exc(file=sys.stderr)
+        sys.stderr.write(
+            f"{prog}: internal error — this is a bug in bloomery, not in your"
+            " spec. Please report it: https://github.com/morzecrew/bloomery/issues\n"
+        )
+        return EXIT_INTERNAL
 
     return exit_code
 

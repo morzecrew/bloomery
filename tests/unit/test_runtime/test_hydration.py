@@ -246,3 +246,89 @@ def test_concurrent_gets_never_cache_one_ir_under_another_s_key() -> None:
 def test_lru_prewarm_flag_reaches_hydration() -> None:
     hydrator = LruManifestHydrator(NAMING, prewarm=True)
     assert isinstance(hydrator.get(fixture_ir("non_additive_aov")), SemanticManifestLookup)
+
+
+# ....................... #
+# The thread-safety contract the API reference states (hardening: the docs
+# advise sharing one planner across requests, so the claims are tested here
+# rather than asserted)
+
+
+def test_a_shared_planner_answers_identically_across_threads() -> None:
+    """`MetricFlowPlanner` sets its state at construction and only reads it in
+    `plan()`; eight threads planning the same request on one shared instance
+    must all get the plan a lone caller gets."""
+    from bloomery import MetricFlowPlanner, MetricRequest
+
+    ir = fixture_ir("ecom_basic")
+    planner = MetricFlowPlanner(LruManifestHydrator(NAMING))
+    request = MetricRequest(metrics=("gross_revenue",), dimensions=("ordered_month",))
+    expected = planner.plan(ir, request, dialect="duckdb").sql
+
+    results: list[str] = []
+    errors: list[BaseException] = []
+    barrier = threading.Barrier(8, timeout=30)
+    lock = threading.Lock()
+
+    def worker() -> None:
+        try:
+            barrier.wait()
+            for _ in range(3):
+                sql = planner.plan(ir, request, dialect="duckdb").sql
+                with lock:
+                    results.append(sql)
+        except BaseException as exc:  # noqa: BLE001 — surfaced below, not swallowed
+            with lock:
+                errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert len(results) == 24
+    assert all(sql == expected for sql in results)
+
+
+def test_a_cold_miss_under_contention_duplicates_work_never_answers() -> None:
+    """The documented thundering-herd behaviour, pinned: threads missing the
+    same key concurrently each call `fetch_l2` (no single-flight — that
+    belongs inside the caller's I/O if it wants one), and every caller still
+    gets the same manifest.
+
+    The barrier sits *inside* ``fetch`` with two parties, the same
+    construction as the poisoning test above: the first thread cannot finish
+    its miss until the second is also inside one, so the duplicate fetch is
+    forced rather than raced for — a single-flight hydrator would deadlock
+    here and time the barrier out, failing loudly."""
+    ir = fixture_ir("ecom_basic")
+    calls: list[int] = []
+    lock = threading.Lock()
+    barrier = threading.Barrier(2, timeout=30)
+
+    def fetch(key: HydrationKey) -> bytes | None:
+        with lock:
+            calls.append(1)
+        barrier.wait()  # both threads inside the miss path at once
+        return None
+
+    hydrator = LruManifestHydrator(NAMING, fetch_l2=fetch)
+    lookups: list[SemanticManifestLookup] = []
+
+    def worker() -> None:
+        lookup = hydrator.get(ir)
+        with lock:
+            lookups.append(lookup)
+
+    threads = [threading.Thread(target=worker) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert len(lookups) == 2
+    # Each concurrent miss did its own fetch: duplicate cost is the contract,
+    # and a future single-flight would legitimately change this number down.
+    assert len(calls) == 2

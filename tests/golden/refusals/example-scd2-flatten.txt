@@ -1,0 +1,3 @@
+HistoricalFanout
+source: marts: marts.orders.flatten[0].via
+flatten step joins entity 'customer' through relationship 'order_of_customer' (many_to_one), and 'customer' is declared scd: type2 — the emitted join carries no validity predicate, so it matches every version of each 'customer' key and each base row is multiplied by that key's version count. The declared cardinality is a claim about the domain; the relation holds one row per version (RFC 0023 D1). Fix: declare the entity scd: type1, or build a type1 current-view entity from it and use that here

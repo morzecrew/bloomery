@@ -341,12 +341,167 @@ def validate_document[ModelT: SpecModel](
 # ....................... #
 
 
+#: The caps below exist because the spec path is the one that takes files from
+#: other teams, and the filter parser already promises its half ("adversarial
+#: nesting yields FilterTooComplex, never a RecursionError"). Each was sized
+#: from the failure it prevents, not from what a spec needs — real documents
+#: sit orders of magnitude below all three.
+#:
+#: Depth: PyYAML's composer recurses per nesting level, so ~1000 levels is a
+#: raw ``RecursionError`` out of ``yaml.load`` (measured). 120 stays far under
+#: the interpreter limit while no hand-written spec nests a tenth of it.
+_MAX_DEPTH = 120
+
+#: Aliases: PyYAML composes an alias as a *shared* node, so a billion-laughs
+#: document loads cheaply here — and then costs whoever walks the result. A
+#: 399-byte document was measured expanding to 10^8 leaves for its first
+#: consumer (validation, in this package). The budget bounds the document's
+#: *expanded* node count — every node counted once per path from the root —
+#: relative to its distinct nodes, so a dense but alias-free document is
+#: never refused for its honest size while a bomb's ratio is astronomical:
+#: legitimate anchor reuse measures well under 2×.
+_ALIAS_EXPANSION_FACTOR = 10
+_ALIAS_EXPANSION_FLOOR = 10_000
+
+#: Size: parse cost and every later cost scale with the document, so refuse
+#: the pathological ones with a reason instead of an OOM kill. Five million
+#: characters is ~three orders of magnitude above the largest fixture.
+_MAX_SPEC_CHARS = 5_000_000
+
+
+class _RecursiveAlias(Exception):
+    """A node reachable from itself — an alias inside its own anchor."""
+
+    def __init__(self, node: yaml.Node) -> None:
+        super().__init__()
+        self.node = node
+
+
+def _children(node: yaml.Node) -> list[yaml.Node] | None:
+    """A collection node's children, or ``None`` for a scalar."""
+    if isinstance(node, yaml.SequenceNode):
+        return list(cast("list[yaml.Node]", node.value))
+    if isinstance(node, yaml.MappingNode):
+        pairs = cast("list[tuple[yaml.Node, yaml.Node]]", node.value)
+        return [child for pair in pairs for child in pair]
+    return None
+
+
+def _expanded_size(root: yaml.Node, memo: dict[int, int]) -> int:
+    """The document's expanded node count — every node counted once per path
+    from the root, which is exactly the cost a consumer walking the
+    constructed value pays.
+
+    Iterative post-order with a proper subtree memo, so an aliased subtree is
+    measured once however many times it is named, and the whole computation
+    costs the *distinct* nodes — never the expansion it bounds. A node found
+    on its own path (an alias inside its own anchor) raises
+    :class:`_RecursiveAlias`: the constructed value would be a cyclic
+    structure no consumer can walk at all. Iterative for the same reason the
+    depth cap exists: a walker that recursed would fall to the nesting it is
+    part of bounding.
+    """
+    in_progress: set[int] = set()
+    stack: list[tuple[yaml.Node, bool]] = [(root, False)]
+    while stack:
+        current, children_done = stack.pop()
+        if children_done:
+            in_progress.discard(id(current))
+            done_children = _children(current) or []
+            memo[id(current)] = 1 + sum(memo[id(child)] for child in done_children)
+            continue
+        if id(current) in memo:
+            continue
+        if id(current) in in_progress:
+            raise _RecursiveAlias(current)
+        children = _children(current)
+        if children is None:
+            memo[id(current)] = 1
+            continue
+        in_progress.add(id(current))
+        stack.append((current, True))
+        stack.extend((child, False) for child in children)
+    return memo[id(root)]
+
+
 class _StrictSafeLoader(yaml.SafeLoader):
-    """``yaml.SafeLoader`` that rejects duplicate mapping keys.
+    """``yaml.SafeLoader`` that rejects duplicate mapping keys and caps
+    adversarial shape.
 
     PyYAML's default silently keeps the last value — exactly the silent
-    failure the spec layer exists to prevent (RFC 0002 D5).
+    failure the spec layer exists to prevent (RFC 0002 D5). The two structural
+    caps (nesting depth, alias expansion) turn the two quiet
+    resource-exhaustion shapes into refusals with the limit named; the module
+    constants above record the measurements behind them.
     """
+
+    def __init__(self, stream: str) -> None:
+        super().__init__(stream)
+        self._depth = 0
+
+    # ....................... #
+
+    def compose_node(self, parent: yaml.Node | None, index: int | None) -> yaml.Node | None:
+        self._depth += 1
+        if self._depth > _MAX_DEPTH:
+            event = self.peek_event()  # type: ignore[no-untyped-call]  # types-PyYAML leaves it untyped
+            mark = cast("yaml.error.Mark", event.start_mark)  # pyright: ignore[reportUnknownMemberType]
+            raise yaml.MarkedYAMLError(
+                problem=(
+                    f"nested more than {_MAX_DEPTH} levels deep — a spec document does"
+                    " not nest this far, and deeper would exhaust the parser"
+                ),
+                problem_mark=mark,
+            )
+        try:
+            # The stub narrows `index` to int; PyYAML itself passes None for
+            # the document root, hence the wider parameter and the cast here.
+            return super().compose_node(parent, cast("int", index))
+        finally:
+            self._depth -= 1
+
+    # ....................... #
+
+    def get_single_node(self) -> yaml.Node | None:
+        """The composed document, measured before anything constructs it.
+
+        Accounting runs here — once, on the finished node graph — rather than
+        per alias during composition, because an alias *inside its own anchor*
+        resolves to a node whose children are not composed yet: a per-alias
+        walk sees an empty shell, undercounts it, and lets a cyclic document
+        through to construct a recursive Python value no consumer can walk
+        (measured: ``a: &x {b: *x}`` loaded and made ``d["a"]["b"] is
+        d["a"]`` true). On the finished graph the cycle is visible and the
+        weights are final.
+        """
+        root = super().get_single_node()
+        if root is None:
+            return root
+        memo: dict[int, int] = {}
+        try:
+            expanded = _expanded_size(root, memo)
+        except _RecursiveAlias as cycle:
+            raise yaml.MarkedYAMLError(
+                problem=(
+                    "an alias refers to a node inside its own anchor — the"
+                    " document would construct a recursive value no consumer"
+                    " can read; name a completed anchor instead"
+                ),
+                problem_mark=cycle.node.start_mark,
+            ) from None
+        budget = max(_ALIAS_EXPANSION_FACTOR * len(memo), _ALIAS_EXPANSION_FLOOR)
+        if expanded > budget:
+            raise yaml.MarkedYAMLError(
+                problem=(
+                    f"aliases expand this document to {expanded:,} nodes from"
+                    f" {len(memo):,} written ones, over the {budget:,} allowed —"
+                    " write the repeated content out, or split the document"
+                ),
+                problem_mark=root.start_mark,
+            )
+        return root
+
+    # ....................... #
 
     def _construct_key(self, node: yaml.Node) -> object:
         """``construct_object`` pinned to ``object`` — types-PyYAML leaves it untyped."""
@@ -382,8 +537,19 @@ def load_yaml_mapping(text: str, *, document: str) -> dict[str, object]:
     """Parse one YAML document into a mapping, strictly.
 
     Duplicate keys, YAML syntax errors, unsafe tags, and non-mapping roots are
-    all :class:`SpecParseError` with the document name as source path.
+    all :class:`SpecParseError` with the document name as source path. So are
+    the three adversarial shapes — an oversized document, nesting past the
+    parser's depth, aliases that expand a small document into a huge value —
+    which is the same guarantee the filter parser makes for its input: a
+    hostile document yields a refusal naming the limit, never a
+    ``RecursionError`` and never memory exhaustion.
     """
+    if len(text) > _MAX_SPEC_CHARS:
+        raise SpecParseError(
+            f"the document is {len(text):,} characters, over the"
+            f" {_MAX_SPEC_CHARS:,} limit — split it into multiple spec files",
+            source_path=document,
+        )
 
     try:
         # SafeLoader subclass: only plain YAML types construct (RFC 0002 §5.6).

@@ -313,9 +313,10 @@ def test_every_full_suite_invocation_asks_for_the_census() -> None:
     that stopped passing it would be a gate that stopped running with nothing
     to show for it.
 
-    Asserted against the files rather than trusted, because there are three of
-    them and they are edited for unrelated reasons: two `just` recipes and CI's
-    own `pytest` line, which does not go through `just`.
+    Asserted against the files rather than trusted, because there are four of
+    them and they are edited for unrelated reasons: two `just` recipes and
+    CI's own `pytest` lines (the test matrix and the OS smoke lane), which do
+    not go through `just`.
     """
     justfile = (ROOT / "justfile").read_text()
     ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
@@ -324,7 +325,7 @@ def test_every_full_suite_invocation_asks_for_the_census() -> None:
         for line in (*justfile.splitlines(), *ci.splitlines())
         if "pytest" in line and "not engine and not e2e" in line
     ]
-    assert len(full_suite) == 3, f"expected three full-suite invocations, found {full_suite}"
+    assert len(full_suite) == 4, f"expected four full-suite invocations, found {full_suite}"
     for line in full_suite:
         # CI splits its invocation across continuations, so the flag may be on
         # a later line; check the surrounding block instead of the line alone.

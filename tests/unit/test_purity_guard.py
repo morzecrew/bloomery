@@ -109,15 +109,18 @@ def test_what_only_looks_banned_is_not_reported(source: str) -> None:
     assert "TID251" not in findings_for(source), f"false positive on {source!r}"
 
 
-def test_the_filesystem_carve_out_is_one_line_not_the_cli_package() -> None:
+def test_the_filesystem_carve_out_is_two_lines_not_the_cli_package() -> None:
     """RFC 0020 D12. ``cli/io.py`` may open a file; nothing else under ``cli/``
     may, and not even ``io.py`` may read a clock.
 
     A per-file ignore would pass every test that only checks ``cli/io.py`` may
     import ``pathlib``, while also exempting a ``datetime.now()`` in the same
     file — the tree claiming one door and the guard enforcing none. A
-    line-scoped ``# noqa`` cannot do that, which is why the exemption is spelled
-    as one, and the assertion that matters is that no file-scoped one exists.
+    line-scoped ``# noqa`` cannot do that, which is why each exemption is
+    spelled as one, and the assertion that matters is that no file-scoped one
+    exists. Both exempted imports are filesystem doors — ``pathlib`` for the
+    spec files, ``os`` for the null device the broken-pipe path re-aims stdout
+    at — and neither buys a clock.
     """
     config = (ROOT / "pyproject.toml").read_text()
     assert "[tool.ruff.lint.per-file-ignores]" not in config, (
@@ -131,8 +134,9 @@ def test_the_filesystem_carve_out_is_one_line_not_the_cli_package() -> None:
         for line in path.read_text().splitlines()
         if "# noqa: TID251" in line
     ]
-    assert [path for path, _ in exempted] == ["cli/io.py"], exempted
-    assert exempted[0][1].startswith("from pathlib import Path"), exempted
+    assert [path for path, _ in exempted] == ["cli/io.py", "cli/io.py"], exempted
+    assert exempted[0][1].startswith("import os"), exempted
+    assert exempted[1][1].startswith("from pathlib import Path"), exempted
 
 
 def test_the_carve_out_does_not_exempt_a_clock() -> None:

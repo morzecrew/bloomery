@@ -543,6 +543,47 @@ jobs:
       - name: Run the mutation battery
         run: uv run pytest -m chaos
 
+  # The OS smoke lane: the default tiers on Windows and macOS, nightly and on
+  # force-full runs. The bug template offers both platforms while CI ran
+  # Ubuntu alone, so the classic portability failures — console encoding on
+  # Windows above all — had no runner to fail on. Informational
+  # (`continue-on-error`, not in `required-ci`): a platform-specific breakage
+  # deserves a red nightly and an issue, not a blocked merge on a lane no PR
+  # exercises. No harden-runner step: the action is Linux-only.
+  os-smoke:
+    name: OS smoke (${{ matrix.os }})
+    needs: [changes, quality]
+    if: |
+      needs.quality.result == 'success' &&
+      needs.changes.outputs.force_full == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    continue-on-error: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout code # zizmor: ignore[artipacked] no workspace/.git is uploaded as an artifact
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            uv.lock
+            pyproject.toml
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Run the default test tiers
+        run: uv run pytest -m "not engine and not e2e and not chaos and not perf" --refusal-census
+
   # Tiers 5–6 (engine matrix via testcontainers, target e2e). Runs on the
   # nightly schedule, on explicit force_full runs (workflow_dispatch, release),
   # and — since the PR that measured it — on same-repo pull requests that touch

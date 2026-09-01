@@ -175,7 +175,7 @@ near-duplicate templates. This split is the most load-bearing design decision in
 package.
 
 The planner is the fourth port, deliberately not a `TargetEmitter`: emitters run once
-per spec version, the planner answers at request time, thousands of times per second —
+per spec version, the planner answers at request time, as often as callers ask —
 different lifecycle, different envelope. Its contract is a pair of frozen types,
 `MetricRequest` in and `QueryPlan` out, and that contract is the stability boundary:
 behind it sits `MetricFlowPlanner`, which delegates SQL generation to an embedded,
@@ -184,6 +184,16 @@ guarantee, so upgrades are deliberate, canary-tested events). Callers bind to
 `MetricRequest`/`QueryPlan` and never see a MetricFlow type — errors are translated
 into bloomery's taxonomy at the adapter, which is what makes the backend swappable. The
 [wide-marts](wide-marts.md) page explains what the planner refuses and why.
+
+## What compiling costs
+
+The whole path — YAML text through `load_project`, resolution, guardrails, lowering and
+SQLMesh emission — is measured in the bench lane
+(`tests/bench/test_compile_scale.py`) at 100, 500 and 1000 entities: **~2.6 ms per
+entity, linear across that decade** (medians 264 ms / 1.28 s / 2.54 s when the bench
+was wired). The lane runs nightly as information and gates the release candidate, so an
+order-of-magnitude regression fails a release rather than drifting in. Beyond 1000
+entities is unmeasured, and this sentence is the record of that.
 
 Determinism is what holds all six stages together — the same specs must produce the
 same bytes forever — and it gets its own page: [Determinism](determinism.md).
