@@ -111,11 +111,14 @@ def test_one_sided_keys_are_still_the_loudest_disagreement(
     """Two ``LEFT JOIN``s off the key union have to keep what the ``FULL JOIN``
     was for: a key on one side only fails rather than vanishing."""
     rows = {
-        order_id: (left, right, within)
-        for order_id, left, right, within in reconciled.execute(
-            f"SELECT order_id, left_value, right_value, within_tolerance FROM {RECONCILE}"
+        order_id: (left, right, difference, within)
+        for order_id, left, right, difference, within in reconciled.execute(
+            f"SELECT order_id, left_value, right_value, difference, within_tolerance "
+            f"FROM {RECONCILE}"
         ).fetchall()
     }
-    assert rows["o2"] == (Decimal("3.00"), None, False)
-    assert rows["o3"] == (None, Decimal("9.00"), False)
-    assert rows["o1"] == (Decimal("15.00"), Decimal("15.00"), True)
+    # `difference` stays NULL on a one-sided key — the DuckDB tier's assertion,
+    # asked of this engine too.
+    assert rows["o2"] == (Decimal("3.00"), None, None, False)
+    assert rows["o3"] == (None, Decimal("9.00"), None, False)
+    assert rows["o1"] == (Decimal("15.00"), Decimal("15.00"), Decimal("0.00"), True)

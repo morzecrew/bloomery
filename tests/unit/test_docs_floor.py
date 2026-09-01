@@ -278,8 +278,7 @@ def _config(requested: bool = False, keyword: str = "") -> _FakeConfig:
 @pytest.mark.parametrize(
     ("collected", "deselected"),
     [
-        (2935, 93),  # `just test`
-        (2942, 86),  # CI's expression, which keeps the chaos tier
+        (2935, 93),  # `just test` and CI's test matrix, the same expression
         (2, 1),  # the boundary: strictly more collected than deselected
     ],
 )

@@ -19,7 +19,9 @@ Each mutation runs in a **subprocess**, because applying one monkeypatches the
 lowering irreversibly for the process. The battery is the M12 quality suite;
 one failing test in it is enough (``-x`` stops at the first).
 
-Not part of ``just test``: marked ``chaos``, an opt-in lane. Run it with::
+Not part of ``just test``: marked ``chaos``, an opt-in lane. CI runs it in
+the scheduled ``chaos`` job — nightly and on force-full runs, blocking. Run
+it locally with::
 
     uv run pytest tests/chaos -m chaos
 """
