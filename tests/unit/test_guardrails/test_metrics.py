@@ -341,6 +341,11 @@ def test_a_value_in_the_columns_own_type_compiles(clause: str) -> None:
         "{dimension: status, op: eq, values: [1]}",
         # A temporal column takes an ISO carrier, not a number and not prose.
         "{dimension: sold_at, op: gte, values: [20240101]}",
+        # ...and the carrier is *parsed*, not pattern-matched: these are the
+        # right shape and no such day exists, and either would have reached SQL
+        # as a literal the engine rejects at run time.
+        '{dimension: sold_at, op: gte, values: ["2026-99-99"]}',
+        '{dimension: sold_at, op: gte, values: ["2026-02-30"]}',
         '{dimension: sold_at, op: gte, values: ["last tuesday"]}',
     ],
 )

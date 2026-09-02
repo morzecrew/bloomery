@@ -16,6 +16,7 @@ longer why any of these fail.
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING
 
@@ -47,17 +48,38 @@ __all__ = [
     "check_metrics",
 ]
 
-#: The length of an ISO date, which is the shape every temporal filter value
-#: has by the time it reaches the IR (``resolve.build._metric_filters`` writes
-#: dates and timestamps as ``isoformat()``).
-#:
-#: A length-and-separator check rather than the quality layer's `_ISO_TEMPORAL`
-#: regex, because this is a *fit* test and that is a *validity* test: what fails
-#: here is a value in the wrong type — a number, a word — and the emitted
-#: literal is compared by the engine in the column's own type, which is where a
-#: malformed date is caught with the engine's own message. Deliberately not the
-#: same rule, so nothing is claimed about the two agreeing.
-_ISO_DATE_LENGTH = 10
+
+def _is_temporal(value: str, *, with_time: bool) -> bool:
+    """Whether a filter value really is the ISO temporal it looks like.
+
+    Parsed rather than pattern-matched. A length-and-separator check passes
+    ``"2026-99-99"``, which then reaches SQL as a literal compared against a
+    date column and fails on the engine — a model error decidable from the spec
+    alone, surfacing at run time with the engine's message instead of at compile
+    time with the column's name. That is the trade RFC 0016 D13 already refused
+    for range bounds, and it is refused here for the same reason.
+
+    ``date.fromisoformat`` accepts only a date; a ``timestamp`` column takes
+    either, because a date is a valid instant in it and
+    ``resolve.build._metric_filters`` writes whichever the author wrote.
+    """
+
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        pass
+    else:
+        return True
+
+    if not with_time:
+        return False
+
+    try:
+        datetime.fromisoformat(value)
+    except ValueError:
+        return False
+
+    return True
 
 
 def _fits(value: str | int | bool | Decimal, declared: LogicalType) -> bool:
@@ -92,10 +114,9 @@ def _fits(value: str | int | bool | Decimal, declared: LogicalType) -> bool:
         return isinstance(value, str)
 
     if isinstance(declared, (DateType, TimestampType)):
-        if not isinstance(value, str):
-            return False
-        head = value[:_ISO_DATE_LENGTH]
-        return len(head) == _ISO_DATE_LENGTH and head.count("-") == 2
+        return isinstance(value, str) and _is_temporal(
+            value, with_time=isinstance(declared, TimestampType)
+        )
 
     return False  # pragma: no cover — the logical-type set is closed
 
