@@ -274,12 +274,16 @@ def _check_metrics(project: Project, catalog: Catalog | None, errors: list[Bloom
         # one definition and the two cannot disagree about it.
         derived = metric.derived or (template.derived if template else None)
         if derived is not None:
-            for input_metric in derived.input_metrics:
+            # By alias, not by the block: two unknown inputs would otherwise
+            # share one source path, and the alias is the identity the author
+            # wrote — the same reason `requires_metrics` reports its index.
+            for alias in sorted(derived.inputs):
+                input_metric = derived.inputs[alias].metric
                 if input_metric not in metric_names:
                     errors.append(
                         MissingReference(
                             f"derived metric reads unknown metric {input_metric!r}",
-                            source_path=f"{path}.derived.inputs",
+                            source_path=f"{path}.derived.inputs.{alias}",
                         )
                     )
 

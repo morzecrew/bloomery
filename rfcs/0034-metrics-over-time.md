@@ -81,7 +81,8 @@ are unused because nothing upstream can produce them, and this RFC produces them
 
 ## 3. The shape of the addition
 
-Three of the four constructs describe a metric that **has no measure of its own**:
+Of the constructs this RFC adds, exactly one — `derived:` — describes a metric that
+**has no measure of its own**, and it is not the first of its kind:
 
 | Construct | Has its own measure? | MetricFlow type |
 | --- | --- | --- |
@@ -256,8 +257,8 @@ needs is already emitted.
 - **Cross-mart metrics.** Not a gap: summing across grains double-counts, and the coverage
   precheck refuses it by name with the per-metric grain table. It stays refused.
 - **Per-input filters on a derived metric.** MetricFlow allows a filter on each
-  `PydanticMetricInput`; the metric-level filter covers the cases the ceiling named, and the
-  input-level one can be added later without moving anything (D10).
+  `PydanticMetricInput`; the metric-level filter (D8) covers the cases the ceiling named, and
+  the input-level one can be added later without moving anything.
 - **`fill_nulls_with` / `join_to_timespine`.** A gap in a cumulative or offset series is a
   real question and a data-shaped one; defaulting it silently is the wrong answer, and
   answering it properly is its own decision.
