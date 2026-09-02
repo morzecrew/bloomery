@@ -19,7 +19,7 @@ from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
 from bloomery.dialects import DialectFeature
-from bloomery.emit.lower.predicates import as_of_conditions, column_type
+from bloomery.emit.lower.predicates import as_of_conditions
 from bloomery.errors import EmitError, UnsupportedByTarget, guaranteed
 from bloomery.ir import (
     SOURCE_COLUMN,
@@ -71,12 +71,14 @@ from bloomery.quality import (
 )
 from bloomery.transforms import (
     CONVERT_ANCHOR,
+    CONVERT_ARITY,
     CONVERT_FROM,
     CONVERT_MARKER,
     CONVERT_TO,
+    CONVERT_TYPE,
     neutral_type,
 )
-from bloomery.typing import LogicalType
+from bloomery.typing import parse_type
 
 if TYPE_CHECKING:
     from bloomery.emit.base import EmitContext
@@ -376,15 +378,11 @@ def _json_object(pairs: list[tuple[str, Expression]], ctx: EmitContext) -> Expre
 #: scoped to one subquery, so it cannot collide with anything outside it.
 _FX_ALIAS = "fx"
 
-#: How many expressions a bound marker carries: the amount, then the two
-#: currencies and the anchor ``resolve.build`` put there.
-_MARKER_ARITY = 4
-
 
 def _bound(marker: exp.Anonymous) -> bool:
     """Whether a marker carries the arguments the resolver binds into it."""
 
-    return len(marker.expressions) == _MARKER_ARITY
+    return len(marker.expressions) == CONVERT_ARITY
 
 
 def _markers(expr: Expression) -> list[exp.Anonymous]:
@@ -399,9 +397,7 @@ def _markers(expr: Expression) -> list[exp.Anonymous]:
     ]
 
 
-def _rate_subquery(
-    marker: exp.Anonymous, fx: FxRatesIR, declared: LogicalType, ctx: EmitContext
-) -> Expression:
+def _rate_subquery(marker: exp.Anonymous, fx: FxRatesIR, ctx: EmitContext) -> Expression:
     """One ``CONVERT_CURRENCY`` marker as the rate it stands for (RFC 0023 §5.4).
 
     A **correlated scalar subquery**, not a join::
@@ -433,14 +429,22 @@ def _rate_subquery(
     choice away from the feed, which can no longer say "this rate ended and
     nothing replaced it".
 
-    The product is **cast back to the column's declared type**, for the reason
+    The product is **cast back to the type the chain holds here** — carried in
+    the marker, because it is what ``convert`` declares as its output and only
+    the chain knows it — for the reason
     :func:`~bloomery.transforms._builtins._narrowed` gives for ``multiply`` and
     ``divide``: every engine widens decimal arithmetic differently, so an
     uncast ``decimal(12,4) * rate`` materialises as ``decimal(18,8)`` on DuckDB
     and something else again on Trino and PostgreSQL, while the IR goes on
     claiming ``decimal(12,4)``. Unlike those two the cast is *not* lossless by
     construction — a rate carries its own scale — so it rounds to the precision
-    the author declared, which is the only precision they asked for.
+    the chain declares at this point, which is the only precision anything
+    downstream was promised.
+
+    The running type rather than the *field's* type, for the same reason
+    ``multiply`` narrows to its own ``_arith_output``: a later widening step in
+    the same chain would otherwise absorb an overflow the compiler believes
+    cannot happen here.
     """
     namespace, relation = ctx.naming.relation(fx.relation, Layer.SILVER)
     anchor = guaranteed(
@@ -471,7 +475,12 @@ def _rate_subquery(
 
     product = exp.Mul(this=marker.expressions[0].copy(), expression=exp.paren(select.subquery()))
 
-    return exp.cast(product, neutral_type(declared))
+    running = parse_type(
+        marker.expressions[CONVERT_TYPE].this,
+        source_path=f"transform: convert on {fx.relation}",
+    )
+
+    return exp.cast(product, neutral_type(running))
 
 
 # ....................... #
@@ -525,14 +534,7 @@ def _lower_conversions(entity: EntityIR, ctx: EmitContext) -> EntityIR:
         replace(
             source,
             columns=tuple(
-                replace(
-                    column,
-                    expr=SqlExpr(
-                        _converted(
-                            column.expr.ast(), fx, column_type(entity, column.name), ctx
-                        ).sql()
-                    ),
-                )
+                replace(column, expr=SqlExpr(_converted(column.expr.ast(), fx, ctx).sql()))
                 if _markers(column.expr.ast())
                 else column
                 for column in source.columns
@@ -547,14 +549,12 @@ def _lower_conversions(entity: EntityIR, ctx: EmitContext) -> EntityIR:
 # ....................... #
 
 
-def _converted(
-    expr: Expression, fx: FxRatesIR, declared: LogicalType, ctx: EmitContext
-) -> Expression:
+def _converted(expr: Expression, fx: FxRatesIR, ctx: EmitContext) -> Expression:
     """One column expression with every marker in it replaced."""
 
     def rewrite(node: Expression) -> Expression:
         if isinstance(node, exp.Anonymous) and str(node.this).upper() == CONVERT_MARKER:
-            return _rate_subquery(node, fx, declared, ctx)
+            return _rate_subquery(node, fx, ctx)
 
         return node
 

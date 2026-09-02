@@ -9,7 +9,7 @@ from sqlglot import exp, parse_one
 
 from bloomery.errors import TypeCheckError
 from bloomery.resolve.build import _try_cast_shape
-from bloomery.transforms import DEFAULT_REGISTRY, ISO_TEXT_MARKER
+from bloomery.transforms import CONVERT_ARITY, CONVERT_TYPE, DEFAULT_REGISTRY, ISO_TEXT_MARKER
 from bloomery.typing import (
     ArgKind,
     BoolType,
@@ -236,8 +236,10 @@ def test_convert_typechecks_decimal_to_decimal() -> None:
     spec = DEFAULT_REGISTRY["convert"]
     assert spec.input_domain == (DecimalType,)
     assert spec.output_type(DecimalType(12, 4), ("EUR", "USD", "paid_at")) == DecimalType(12, 4)
-    rendered = spec.builder(exp.column("x"), "EUR", "USD", "paid_at").sql()
-    assert rendered == "CONVERT_CURRENCY(x, 'EUR', 'USD', 'paid_at')"
+    rendered = spec.builder(
+        exp.column("x"), "EUR", "USD", "paid_at", input_type=DecimalType(12, 4)
+    ).sql()
+    assert rendered == "CONVERT_CURRENCY(x, 'EUR', 'USD', 'paid_at', 'decimal(12,4)')"
 
 
 def test_convert_names_both_currencies_and_an_anchor() -> None:
@@ -251,6 +253,24 @@ def test_convert_names_both_currencies_and_an_anchor() -> None:
     spec = DEFAULT_REGISTRY["convert"]
     assert spec.arity == 3
     assert len(spec.arg_kinds) == spec.arity
+
+
+def test_the_marker_records_the_running_type_it_must_narrow_back_to() -> None:
+    """A conversion is decimal arithmetic, and every engine widens that
+    differently — so the product is cast back, the way `multiply` and `divide`
+    narrow to their own `_arith_output`.
+
+    The type it narrows to is the chain's *here*, not the field's declared
+    type: a later widening step in the same chain would otherwise absorb an
+    overflow the compiler believes cannot happen at this point. Only the chain
+    knows that type, so the builder records it and emit reads it back.
+    """
+    spec = DEFAULT_REGISTRY["convert"]
+    node = spec.builder(
+        exp.column("x"), "EUR", "USD", "paid_at", input_type=DecimalType(12, 4)
+    )
+    assert len(node.expressions) == CONVERT_ARITY
+    assert node.expressions[CONVERT_TYPE].this == "decimal(12,4)"
 
 
 def test_enum_map_builder_maps_pairs_and_passes_unmapped_through() -> None:

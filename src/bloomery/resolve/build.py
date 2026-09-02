@@ -102,6 +102,7 @@ from bloomery.steps import EMPTY_REGISTRY, StepRegistry
 from bloomery.steps.splice import parameter_literal, placeholders, splice
 from bloomery.transforms import (
     CONVERT_ANCHOR,
+    CONVERT_ARITY,
     CONVERT_FROM,
     CONVERT_MARKER,
     CONVERT_TO,
@@ -1753,7 +1754,7 @@ def _resolve_conversions(
     markers = [
         node
         for node in expr.find_all(exp.Anonymous)
-        if str(node.this).upper() == CONVERT_MARKER and len(node.expressions) == 4
+        if str(node.this).upper() == CONVERT_MARKER and len(node.expressions) == CONVERT_ARITY
     ]
 
     if not markers:

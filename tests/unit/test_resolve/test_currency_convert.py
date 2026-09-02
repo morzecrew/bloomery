@@ -237,3 +237,30 @@ def test_the_anchor_inherits_the_entitys_coercion_shape() -> None:
     assert "TRY_CAST(paid_at AS DATE)" in columns["paid_at"]
     assert "TRY_CAST(paid_at AS DATE)" in columns["amount_usd"]
     assert "CAST(paid_at AS DATE)" not in columns["amount_usd"].replace("TRY_CAST", "")
+
+
+def test_the_anchor_is_bound_in_the_emitted_sql_not_left_as_a_name() -> None:
+    """The resolver and the emit rewrite must agree on the marker's shape.
+
+    They each gate on how many expressions it carries, and for one commit they
+    spelled that count separately: adding the running type made the marker five
+    long, emit's check was updated and the resolver's was not, so the resolver
+    matched nothing and never bound the anchor. Emit then read position 3 —
+    still the field *name* — and emitted `'paid_at' >= fx.valid_from`, a string
+    literal compared against a date. Both guards passed; the SQL was nonsense.
+
+    Asserted on the emitted SQL rather than on the count, because the count is
+    the thing that was wrong and a test that reads it would have agreed with
+    the bug.
+    """
+    sources = _sources()
+    ir = build_project_ir(load_project(sources), catalog=_catalog())
+    converted = next(
+        column
+        for source in ir.entities[0].sources
+        for column in source.columns
+        if column.name == "amount_usd"
+    )
+
+    assert "CAST(paid_at AS DATE)" in converted.expr.sql
+    assert "'paid_at'" not in converted.expr.sql

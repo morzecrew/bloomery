@@ -30,6 +30,7 @@ from bloomery.typing import (
     StringType,
     TimestampType,
     VariantType,
+    render_type,
 )
 
 # ----------------------- #
@@ -765,8 +766,17 @@ def abs_(col: Expression, *, input_type: LogicalType) -> Expression:
 CONVERT_MARKER = "CONVERT_CURRENCY"
 
 #: Positions inside the marker call, after the amount at 0. Named so the
-#: builder here and the resolver in ``resolve.build`` index one vocabulary.
-CONVERT_FROM, CONVERT_TO, CONVERT_ANCHOR = 1, 2, 3
+#: builder here, the resolver in ``resolve.build`` and the emit-time rewrite
+#: index one vocabulary.
+CONVERT_FROM, CONVERT_TO, CONVERT_ANCHOR, CONVERT_TYPE = 1, 2, 3, 4
+
+#: How many expressions a well-formed marker carries — the amount plus the four
+#: above. Defined here rather than counted at each reader: the resolver and the
+#: emit-time rewrite both gate on it, and when the two spelled it separately,
+#: adding an argument updated one of them and left the other matching nothing.
+#: The anchor then stayed the field *name* all the way into the emitted SQL,
+#: where it compared a string literal against a date and neither guard noticed.
+CONVERT_ARITY = 5
 
 
 @transform(
@@ -775,8 +785,11 @@ CONVERT_FROM, CONVERT_TO, CONVERT_ANCHOR = 1, 2, 3
     arg_kinds=(ArgKind.STR, ArgKind.STR, ArgKind.STR),
     input=(DecimalType,),
     output=lambda t, _args: t,
+    types=True,
 )
-def convert(col: Expression, from_ccy: str, to_ccy: str, anchor: str) -> Expression:
+def convert(
+    col: Expression, from_ccy: str, to_ccy: str, anchor: str, *, input_type: LogicalType
+) -> Expression:
     """Convert a decimal amount between two declared currencies, as of a date
     (RFC 0023 §5.4).
 
@@ -799,6 +812,14 @@ def convert(col: Expression, from_ccy: str, to_ccy: str, anchor: str) -> Express
     The three-argument spelling replaced ``{convert: USD}``, which could not be
     finished rather than merely being unimplemented: a rate without a date is
     under-determined, so the old signature named no rate that exists.
+
+    The marker also carries the **running type** — what the chain holds where
+    this step sits, which is what conversion produces, since the declared
+    output is the input unchanged. Emit multiplies by the rate and narrows back
+    to it, exactly as :func:`multiply` and :func:`divide` narrow to their own
+    ``_arith_output``. Reaching for the *field's* type instead would let a
+    later widening step in the same chain absorb an overflow the compiler
+    believes cannot happen here.
     """
 
     return exp.Anonymous(
@@ -808,5 +829,6 @@ def convert(col: Expression, from_ccy: str, to_ccy: str, anchor: str) -> Express
             exp.Literal.string(from_ccy),
             exp.Literal.string(to_ccy),
             exp.Literal.string(anchor),
+            exp.Literal.string(render_type(input_type)),
         ],
     )

@@ -28,6 +28,7 @@ from bloomery.emit.lower.silver import reject_select, replay_statements
 from bloomery.errors import InvariantViolated, UnsupportedByTarget
 from bloomery.naming import DefaultNaming, PrefixNaming
 from bloomery.transforms import CONVERT_MARKER, DEFAULT_REGISTRY
+from bloomery.typing import DecimalType
 from support.compiling import load_fixture
 from support.plan_ir import column as plan_column
 from support.plan_ir import entity as plan_entity
@@ -167,7 +168,10 @@ def test_the_reject_and_replay_selects_convert_too() -> None:
             plan_column("payment_id", required=True),
             plan_column(
                 "amount_usd",
-                expr=f"{CONVERT_MARKER}(amount, 'EUR', 'USD', CAST(paid_at AS DATE))",
+                expr=(
+                    f"{CONVERT_MARKER}(amount, 'EUR', 'USD', "
+                    "CAST(paid_at AS DATE), 'decimal(12,4)')"
+                ),
             ),
         ),
     )
@@ -193,7 +197,10 @@ def test_the_reject_and_replay_selects_refuse_too() -> None:
             plan_column("payment_id", required=True),
             plan_column(
                 "amount_usd",
-                expr=f"{CONVERT_MARKER}(amount, 'EUR', 'USD', CAST(paid_at AS DATE))",
+                expr=(
+                    f"{CONVERT_MARKER}(amount, 'EUR', 'USD', "
+                    "CAST(paid_at AS DATE), 'decimal(12,4)')"
+                ),
             ),
         ),
     )
@@ -224,7 +231,9 @@ def test_the_marker_the_transform_builds_is_the_one_emit_lowers(
     resolver or a refusal looking for a name nothing produces passes every
     project, including the ones it exists to stop.
     """
-    node = DEFAULT_REGISTRY["convert"].builder(exp.column("amount"), "EUR", "USD", "paid_at")
+    node = DEFAULT_REGISTRY["convert"].builder(
+        exp.column("amount"), "EUR", "USD", "paid_at", input_type=DecimalType(12, 4)
+    )
     assert isinstance(node, exp.Anonymous)
     assert str(node.this).upper() == CONVERT_MARKER
 

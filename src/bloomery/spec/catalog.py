@@ -120,7 +120,13 @@ class FxRates(SpecModel):
     outside the namespace everything else in the project was scoped into — the
     one thing a naming policy exists to prevent (RFC 0008 §5.1).
 
-    **Both interval ends are required, and that is the whole design** (D11).
+    **Both interval columns must be declared, and that is the whole design**
+    (D11) — declared, which is not the same as populated: ``valid_to`` is
+    ``NULL`` on the rate that is currently in force, and the emitted lookup
+    reads that as open-ended. What is refused is a catalog that names no upper
+    bound at all, because then there is no interval to close and no way for a
+    feed to say a rate has ended.
+
     One end is not an interval: a fact row would match every rate at or before
     its anchor, and the conversion would multiply rather than convert — the
     same fan-out :class:`~bloomery.errors.HistoricalFanout` refuses on the
