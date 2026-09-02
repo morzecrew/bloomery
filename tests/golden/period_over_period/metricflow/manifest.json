@@ -173,7 +173,7 @@
             "offset_to_grain": null,
             "offset_window": null
           },
-          "period_agg": "first",
+          "period_agg": "last",
           "window": null
         },
         "denominator": null,
@@ -224,7 +224,7 @@
             "offset_to_grain": null,
             "offset_window": null
           },
-          "period_agg": "first",
+          "period_agg": "last",
           "window": {
             "count": 7,
             "granularity": "day"

@@ -698,11 +698,12 @@ def _metric(
             cumulative=PydanticCumulativeTypeParams(
                 window=_time_window(metric.cumulative.window),
                 grain_to_date=metric.cumulative.grain_to_date,
-                # MetricFlow's own default, pinned rather than left implicit:
-                # it decides what a cumulative metric means when the request
-                # asks for a grain coarser than the accumulation, and bloomery
-                # does not invent a divergence from the ecosystem there.
-                period_agg=PeriodAggregation.FIRST,
+                # Authored, not pinned. This decides what a cumulative metric
+                # means when the request asks for a grain coarser than the
+                # accumulation, and bloomery defaults it to `last` rather than
+                # to MetricFlow's `first` — see `PeriodAggregationName`, which
+                # carries the measurement that decided it.
+                period_agg=PeriodAggregation(metric.cumulative.period_agg),
                 metric=None,
             ),
         ),

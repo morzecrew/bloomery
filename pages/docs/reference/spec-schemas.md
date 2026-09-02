@@ -489,7 +489,20 @@ Exactly one of the two.
 ### CumulativeSpec
 
 Exactly one of the two. The metric keeps its own `agg`/`expr` and its own
-`additivity` — those describe the measure, this describes how it accumulates.
+`additivity` — those describe the measure, this describes how it accumulates, and
+a metric with neither `agg` nor `expr` has nothing to accumulate
+(`InvalidMetricShape`). `semi_additive` is refused here: its `over:` dimension is
+a date role and a window accumulates along that same axis.
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `period_agg` | `first` \| `last` \| `average` | no (`last`) | How a request coarser than the accumulation collapses each period |
+
+`last` rather than MetricFlow's own `first`, and it is this project's only
+deliberate divergence from it: on a month totalling 257 a `grain_to_date: month`
+metric reported **100** under `first` — the running total on the first day, which
+is not month-to-date by any reading. The key exists so the default is a default
+rather than a decision taken from the author.
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|

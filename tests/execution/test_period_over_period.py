@@ -250,29 +250,65 @@ def test_the_trailing_window_is_half_open_at_the_far_end(
     assert rows[date(2024, 3, 10)][1] == Decimal("7.0000") + Decimal("50.0000")
 
 
-def test_a_month_grain_request_collapses_the_series_to_its_first_point(
+def test_a_month_grain_request_reports_the_accumulation_at_the_period_s_end(
     conn: duckdb.DuckDBPyConnection,
 ) -> None:
     """What `period_agg` decides, executed rather than described.
 
-    A cumulative metric is a *series*, and asking for it at a grain coarser
-    than it accumulates to has to pick one point of each period.
-    MetricFlow's `period_agg` decides which, and its default — the one bloomery
-    pins rather than diverging from — is `first`. So March 2024 by month
-    reports **100**, the running total on 03-01, not the 257 the month
-    finished on.
+    A cumulative metric is a *series*, so asking for it at a grain coarser than
+    it accumulates to has to collapse each period to one value. bloomery
+    defaults that to `last`, so March 2024 by month reports the **257** the
+    month finished on.
 
-    Pinned because it is the surprising half of a defensible choice: the number
-    is right for what was asked and is not what most readers expect from a
-    metric named `_mtd`. A change in that default becomes a failure here rather
-    than a quiet change of meaning in everyone's dashboards.
+    This is the project's one deliberate divergence from MetricFlow, whose
+    default is `first` — which reported 100 here, the running total on 03-01. A
+    metric named `revenue_mtd` answering 100 for a month that totalled 257 is
+    not month-to-date by any reading, and the reason bloomery may choose is
+    that the choice is the author's: dbt exposes `period_agg` and pinning it
+    removed that, rather than inheriting a convention.
     """
     rows = by_month(conn, "revenue", "revenue_mtd")
 
-    assert rows[date(2024, 3, 1)] == (Decimal("257.0000"), Decimal("100.0000"))
+    assert rows[date(2024, 3, 1)] == (Decimal("257.0000"), Decimal("257.0000"))
     # Where a month holds one day, first and last coincide and the distinction
     # is invisible — which is why the March row above is the one that pins it.
     assert rows[date(2024, 5, 1)] == (Decimal("60.0000"), Decimal("60.0000"))
+
+
+def test_an_author_who_wants_the_period_s_first_point_can_ask_for_it(
+    conn: duckdb.DuckDBPyConnection,
+) -> None:
+    """The default is not the whole answer: `period_agg: first` is expressible,
+    and it is the value MetricFlow would have imposed."""
+    ir = variant_ir(
+        "  revenue_mtd_first:\n"
+        "    grain: sale\n"
+        "    additivity: additive\n"
+        "    agg: sum\n"
+        '    expr: "amount"\n'
+        "    cumulative: {grain_to_date: month, period_agg: first}\n",
+        served="revenue_mtd_first",
+    )
+    plan = PLANNER.plan(
+        ir,
+        MetricRequest(
+            metrics=("revenue", "revenue_mtd", "revenue_mtd_first"),
+            dimensions=("sold_month",),
+            time_grain=TimeGrain.MONTH,
+        ),
+        dialect="duckdb",
+    )
+    rows = {
+        normalize_month(row[0]): tuple(row[1:])
+        for row in conn.execute(plan.sql).fetchall()
+        if any(value is not None for value in row[1:])
+    }
+
+    assert rows[date(2024, 3, 1)] == (
+        Decimal("257.0000"),
+        Decimal("257.0000"),
+        Decimal("100.0000"),
+    )
 
 
 # ....................... #

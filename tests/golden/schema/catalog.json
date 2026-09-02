@@ -124,7 +124,7 @@
     },
     "CumulativeSpec": {
       "additionalProperties": false,
-      "description": "A metric's accumulation over time (RFC 0002 D10, lowered by RFC 0034\nD5): exactly one of a trailing ``window`` or a ``grain_to_date``.\n\n``{window: \"7 days\"}`` is a trailing seven-day total; ``{grain_to_date:\nmonth}`` is month-to-date. The metric keeps its own measure and its own\n``additivity`` \u2014 that describes the measure, while this describes how the\nmeasure accumulates (D6).",
+      "description": "A metric's accumulation over time (RFC 0002 D10, lowered by RFC 0034\nD5): exactly one of a trailing ``window`` or a ``grain_to_date``.\n\n``{window: \"7 days\"}`` is a trailing seven-day total; ``{grain_to_date:\nmonth}`` is month-to-date. The metric keeps its own measure and its own\n``additivity`` \u2014 that describes the measure, while this describes how the\nmeasure accumulates (D6).\n\n``period_agg`` decides what a request coarser than the accumulation gets;\nsee :data:`PeriodAggregationName` for why it defaults to ``last``.",
       "properties": {
         "grain_to_date": {
           "anyOf": [
@@ -144,6 +144,16 @@
           ],
           "default": null,
           "title": "Grain To Date"
+        },
+        "period_agg": {
+          "default": "last",
+          "enum": [
+            "first",
+            "last",
+            "average"
+          ],
+          "title": "Period Agg",
+          "type": "string"
         },
         "window": {
           "anyOf": [

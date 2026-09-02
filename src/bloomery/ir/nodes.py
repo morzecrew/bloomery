@@ -789,10 +789,18 @@ class CumulativeIR:
     """How a metric accumulates over time (RFC 0034 D5): exactly one of a
     trailing ``window`` or a ``grain_to_date`` period start. The metric keeps
     its own measure and its own additivity — those describe the measure, this
-    describes the accumulation (D6)."""
+    describes the accumulation (D6).
+
+    ``period_agg`` is what a request *coarser* than the accumulation gets:
+    ``first``, ``last`` or ``average`` of the period's series. It is not
+    defaulted here — the spec layer defaults it to ``last`` and this carries
+    what was decided, because a field that means "collapse a series" cannot
+    have an answer invented downstream.
+    """
 
     window: TimeWindow | None = None
     grain_to_date: str | None = None
+    period_agg: str = "last"
 
 
 # ....................... #

@@ -1564,6 +1564,7 @@ def _build_metrics(
                     CumulativeIR(
                         window=_time_window(metric.cumulative.window),
                         grain_to_date=metric.cumulative.grain_to_date,
+                        period_agg=metric.cumulative.period_agg,
                     )
                     if metric.cumulative is not None
                     else None

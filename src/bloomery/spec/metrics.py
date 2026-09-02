@@ -52,6 +52,7 @@ __all__ = [
     "MetricInputSpec",
     "MetricOffset",
     "MetricSet",
+    "PeriodAggregationName",
     "TimeGrainName",
     "TimeWindowString",
     "parse_time_window",
@@ -258,6 +259,24 @@ class DerivedSpec(SpecModel):
 # ....................... #
 
 
+#: How a cumulative metric collapses to one value when the request asks for a
+#: grain **coarser** than the accumulation — a month-to-date series asked for by
+#: month has one value per day and must answer with one.
+#:
+#: ``last`` by default, which is a deliberate divergence from MetricFlow's own
+#: ``first`` and the only one this project takes. Measured on the
+#: ``period_over_period`` fixture: March 2024 totalled 257, and under ``first``
+#: a metric named ``revenue_mtd`` reported **100** — the running total on the
+#: 1st, which is a number nobody asks for and is not month-to-date by any
+#: reading. ``last`` reports 257, the accumulation at the period's end, which is
+#: what the metric's own name claims.
+#:
+#: The key exists because the default is not the whole answer: dbt lets an
+#: author set this and bloomery pinned it, which removed a choice rather than
+#: inheriting a convention. An author who wants ``first`` writes ``first``.
+PeriodAggregationName = Literal["first", "last", "average"]
+
+
 class CumulativeSpec(SpecModel):
     """A metric's accumulation over time (RFC 0002 D10, lowered by RFC 0034
     D5): exactly one of a trailing ``window`` or a ``grain_to_date``.
@@ -266,10 +285,14 @@ class CumulativeSpec(SpecModel):
     month}`` is month-to-date. The metric keeps its own measure and its own
     ``additivity`` — that describes the measure, while this describes how the
     measure accumulates (D6).
+
+    ``period_agg`` decides what a request coarser than the accumulation gets;
+    see :data:`PeriodAggregationName` for why it defaults to ``last``.
     """
 
     window: TimeWindowString | None = None
     grain_to_date: TimeGrainName | None = None
+    period_agg: PeriodAggregationName = "last"
 
     # ....................... #
 

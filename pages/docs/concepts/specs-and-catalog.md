@@ -237,6 +237,18 @@ never presented as its unrestricted sibling.
       - {dimension: status, op: eq, values: [paid]}
 ```
 
+Two things are worth knowing before you write one. **A cumulative metric requested at a
+grain coarser than it accumulates to has to collapse each period to one value**, and
+`period_agg:` says how — `last` by default, so a `grain_to_date: month` metric asked for
+by month reports the accumulation at the month's end. That is a deliberate divergence from
+MetricFlow, whose default is `first`: on a month totalling 257 it reported 100, the
+running total on the first day, which is not month-to-date by any reading. Write
+`period_agg: first` (or `average`) to ask for something else. And **`cumulative:` on a
+`semi_additive` metric is refused**:
+a semi-additive metric may not be summed along its `over:` dimension, which is always a
+date role, and a window accumulates along exactly that one — both lower, and the product
+is a number with no reading.
+
 What each construct is refused for, and by which error, is in
 [spec schemas](../reference/spec-schemas.md#metric). One target boundary is worth
 knowing up front: **Cube expresses metric filters and refuses derived and cumulative

@@ -29,6 +29,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `^[a-z][a-z0-9_]*$` identifier — the one place a member name reaches a template that
   does not quote it, where every other field name reaches SQL through SQLGlot.
 
+  Two boundaries stated up front. A cumulative metric asked for at a grain coarser
+  than it accumulates to collapses each period to one value, and `period_agg:`
+  says how — **`last` by default**, so a month-to-date metric asked for by month
+  reports the accumulation at the month's end. That is this project's one
+  deliberate divergence from MetricFlow, whose default is `first`: on a month
+  totalling 257 it reported 100, the running total on the first day. Write
+  `period_agg: first` or `average` to ask for something else. And
+  `cumulative:` on a `semi_additive` metric is refused: the
+  `over:` dimension is a date role and a window accumulates along that same axis,
+  so the two lower into a number with no reading.
+
   A derived metric's inputs are its dependency edges: they need not be repeated in
   `requires_metrics:`, and reachability, cycle detection and the planner's coverage
   precheck all follow them. **Cube refuses derived and cumulative metrics** with

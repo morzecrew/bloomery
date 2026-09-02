@@ -114,6 +114,19 @@ CASES: list[tuple[str, tuple[str, ...], str, TimeGrain, dict]] = [
         },
     ),
     (
+        # The value `period_agg` decides. bloomery defaults to `last`, so a
+        # month-to-date metric asked for by month reports the accumulation at
+        # the month's end; MetricFlow's own `first` reported 100 here.
+        "period-collapse",
+        ("revenue", "revenue_mtd"),
+        "sold_month",
+        TimeGrain.MONTH,
+        {
+            _day(2024, 3, 1): (_D("257.0000"), _D("257.0000")),
+            _day(2024, 4, 1): (_D("40.0000"), _D("40.0000")),
+        },
+    ),
+    (
         "trailing-window",
         ("revenue", "revenue_trailing_7d"),
         "sold_day",

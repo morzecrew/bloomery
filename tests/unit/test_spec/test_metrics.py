@@ -86,6 +86,33 @@ def test_ratio_requires_both_members() -> None:
     assert excinfo.value.source_path == "metrics: metrics.m.ratio.denominator"
 
 
+def test_period_agg_defaults_to_last_and_is_authorable() -> None:
+    """The divergence from MetricFlow's `first`, and the key that makes it a
+    default rather than a decision taken away from the author."""
+    metrics = parse(
+        "metrics_version: 1\nmetrics:\n"
+        "  a: {cumulative: {grain_to_date: month}}\n"
+        "  b: {cumulative: {grain_to_date: month, period_agg: first}}\n"
+        "  c: {cumulative: {window: 7 days, period_agg: average}}\n"
+    ).metrics
+
+    assert metrics["a"].cumulative is not None
+    assert metrics["a"].cumulative.period_agg == "last"
+    assert metrics["b"].cumulative is not None
+    assert metrics["b"].cumulative.period_agg == "first"
+    assert metrics["c"].cumulative is not None
+    assert metrics["c"].cumulative.period_agg == "average"
+
+
+def test_an_unknown_period_agg_is_refused() -> None:
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(
+            "metrics_version: 1\nmetrics:\n  m:\n"
+            "    cumulative: {grain_to_date: month, period_agg: median}\n"
+        )
+    assert excinfo.value.source_path == "metrics: metrics.m.cumulative.period_agg"
+
+
 def test_cumulative_requires_exactly_one_form() -> None:
     with pytest.raises(SpecParseError) as excinfo:
         parse(
