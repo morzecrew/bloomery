@@ -18,7 +18,9 @@ from __future__ import annotations
 import pytest
 from sqlglot import exp
 
-from bloomery import Target, compile_project
+import pathlib
+
+from bloomery import Target, compile_project, load_project
 from bloomery.dialects import get_dialect
 from bloomery.emit import EmitContext
 from bloomery.emit.lower import entity_select
@@ -46,6 +48,7 @@ pytestmark = pytest.mark.unit
 
 REFUSED = "currency_convert_refusal"
 CONVERTS = "currency_convert"
+_FIXTURES = pathlib.Path(__file__).parents[2] / "fixtures" / CONVERTS
 
 #: Every cell that lowers a silver SELECT. Cube and MetricFlow are absent on
 #: purpose: they emit a semantic layer over column *names*, never the column
@@ -252,3 +255,34 @@ def test_an_unbound_marker_names_its_guarantor() -> None:
     with pytest.raises(InvariantViolated) as excinfo:
         entity_select(carrier, ctx)
     assert "resolve.build" in str(excinfo.value)
+
+
+def test_a_convert_that_is_not_the_last_step_is_still_rewritten() -> None:
+    """The rewrite descends; it does not only match at the root.
+
+    `convert` is decimal → decimal, so a chain may keep going after it —
+    `{to_decimal: [12, 4]}, {convert: [...]}, {round: 2}` is an ordinary thing
+    to want. In every fixture the marker happens to be the outermost node, so
+    the walk's "leave this node alone" branch was never exercised and a rewrite
+    that only matched the root would have passed the whole suite while emitting
+    `CONVERT_CURRENCY(...)` verbatim inside a `ROUND(...)`.
+    """
+    project, catalog = load_fixture(CONVERTS)
+    _ = project
+    sources = {
+        path.stem: path.read_text()
+        for path in sorted(_FIXTURES.glob("*.yaml"))
+        if path.stem != "catalog"
+    }
+    sources["mapping"] = sources["mapping"].replace(
+        "{to_decimal: [12, 4]}, {convert: [EUR, USD, paid_at]}",
+        "{to_decimal: [12, 4]}, {convert: [EUR, USD, paid_at]}, {round: 2}",
+    )
+    artifacts = compile_project(
+        load_project(sources), target=Target.SQLMESH, dialect="duckdb", catalog=catalog
+    )
+    sql = " ".join(next(a for a in artifacts if a.path.endswith("payment.sql")).content.split())
+
+    assert CONVERT_MARKER not in sql
+    assert "ROUND(" in sql
+    assert "SELECT fx.rate" in sql

@@ -425,7 +425,7 @@ def _rate_subquery(marker: exp.Anonymous, fx: FxRatesIR, ctx: EmitContext) -> Ex
     """
     namespace, relation = ctx.naming.relation(fx.relation, Layer.SILVER)
     anchor = guaranteed(
-        (marker.expressions[CONVERT_ANCHOR] for _ in range(1) if _bound(marker)),
+        (marker.expressions[CONVERT_ANCHOR],) if _bound(marker) else (),
         expected=(
             f"a {CONVERT_MARKER} marker carrying its two currencies and a lowered anchor, "
             f"not {len(marker.expressions)} expression(s)"

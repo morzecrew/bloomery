@@ -199,3 +199,41 @@ def test_a_key_field_is_a_valid_anchor() -> None:
     # the author wrote.
     assert "CAST(paid_at AS DATE)" in converted.expr.sql
     assert "'paid_at'" not in converted.expr.sql
+
+
+def test_the_anchor_inherits_the_entitys_coercion_shape() -> None:
+    """The anchor and the column it names must fail the same way.
+
+    An entity that opts into the quality system lowers produce-or-raise casts
+    as `TRY_CAST`, so a bad date becomes NULL and the implicit `coercible` rule
+    reports it. The anchor is a *second* lowering of that same chain, spliced
+    into another column — and if it kept a plain `CAST`, one unparseable date
+    would abort the whole model while the column beside it quietly flagged the
+    row.
+
+    It does not, and the reason is ordering rather than care: `_resolve_conversions`
+    runs before `shape(...)`, and `_try_cast_shape` rewrites every cast in the
+    tree it is handed, anchor included. That is worth a test precisely because
+    nothing about the two call sites says so — resolving conversions after
+    shaping would silently reintroduce the split.
+    """
+    sources = _sources()
+    sources["entity_model"] = sources["entity_model"].replace(
+        "      paid_at: {type: date}\n",
+        "      paid_at: {type: date}\n"
+        "    quarantine: {retention: 90d}\n"
+        "    quality:\n"
+        "      - {rule: expression, name: amount_present, "
+        'expr: "amount_eur IS NOT NULL", on_fail: flag}\n',
+    )
+    sources["mapping"] += "unmapped: ['$._ingested_at', '$._load_id', '$._source_row_id']\n"
+    ir = build_project_ir(load_project(sources), catalog=_catalog())
+    columns = {
+        column.name: column.expr.sql
+        for source in ir.entities[0].sources
+        for column in source.columns
+    }
+
+    assert "TRY_CAST(paid_at AS DATE)" in columns["paid_at"]
+    assert "TRY_CAST(paid_at AS DATE)" in columns["amount_usd"]
+    assert "CAST(paid_at AS DATE)" not in columns["amount_usd"].replace("TRY_CAST", "")
