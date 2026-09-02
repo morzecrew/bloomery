@@ -1883,7 +1883,7 @@ invalid SQL.</p>
 </tr>
 <tr>
 <td><code>scd: type2</code></td>
-<td>The collision check below would fire on every key holding versions from two sources, and telling a version from a collision needs validity columns nothing models yet</td>
+<td>The collision check below would fire on every key holding versions from two sources. Telling a version from a collision means reading the validity interval, and the union's lowering does not — the interval is modelled now (see <a href="../../concepts/wide-marts/#historical-dimensions-need-an-anchor">as-of joins</a>), but the merge audit does not consult it</td>
 </tr>
 <tr>
 <td>Any quality rule, <code>dedupe:</code> or <code>quarantine:</code></td>

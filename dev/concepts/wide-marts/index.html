@@ -821,13 +821,41 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#historical-dimensions-are-not-flattenable" class="md-nav__link">
+  <a href="#historical-dimensions-need-an-anchor" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Historical dimensions are not flattenable
+        Historical dimensions need an anchor
       </span>
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Historical dimensions need an anchor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#without-an-anchor-it-is-refused" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Without an anchor, it is refused
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-base-cannot-be-historical" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A <code>base:</code> cannot be historical
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1608,13 +1636,41 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#historical-dimensions-are-not-flattenable" class="md-nav__link">
+  <a href="#historical-dimensions-need-an-anchor" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Historical dimensions are not flattenable
+        Historical dimensions need an anchor
       </span>
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Historical dimensions need an anchor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#without-an-anchor-it-is-refused" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Without an anchor, it is refused
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#a-base-cannot-be-historical" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A <code>base:</code> cannot be historical
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1802,29 +1858,51 @@ column collisions are errors, never auto-renames; and a mart that carries measur
 declare at least one date role (<code>MartMissingTimeDimension</code>). Fan-out is refused where
 it would be <em>built</em>, not detected where it would be <em>summed</em> — the
 <a href="../guardrails/">guardrails</a> page shows the exact messages.</p>
-<h2 id="historical-dimensions-are-not-flattenable">Historical dimensions are not flattenable<a class="headerlink" href="#historical-dimensions-are-not-flattenable" title="Permanent link">&para;</a></h2>
+<h2 id="historical-dimensions-need-an-anchor">Historical dimensions need an anchor<a class="headerlink" href="#historical-dimensions-need-an-anchor" title="Permanent link">&para;</a></h2>
 <p>An entity declared <code>scd: type2</code> keeps its history: the silver relation holds one row per
-version per key. A mart cannot use one — neither as a <code>flatten:</code> target nor as its
-<code>base:</code> — and the refusal is <code>HistoricalFanout</code>.</p>
-<p>The emitted join is an equality on the relationship's columns and nothing else, so it
-matches <em>every version</em> of each key and multiplies the base grain by the version count.
-Nothing downstream notices, which is what makes it worth refusing rather than warning
-about: the declared <code>cardinality: many_to_one</code> is a claim about the domain and it stays
-perfectly true, so <code>FanoutRisk</code> sees nothing wrong, the row counts look plausible, and
-the number is silently multiplied. The <code>base:</code> side has no join and fails the same way
-for a different reason — the mart declares one row per entity while the relation holds
-one per entity per version, so a <code>count</code> returns revisions.</p>
-<p>Fixing it requires a join predicate against the validity interval, and bloomery has no
-way to express one: the anchor date — <em>as of when</em> — is intent, not something to be
-inferred, and the interval column names are currently invented privately by each target.
-Until that exists, the shipped answer is a <code>type1</code> current-view entity built from the
-historical one, which is what the refusal message recommends. Filtering to the current
-version automatically was considered and rejected: it silently converts a historical
-dimension into a current-view one, so a mart whose whole purpose is point-in-time
-attribution returns today's segment for a two-year-old order, with no diagnostic —
-the row counts would look right.</p>
-<p><code>scd: type2</code> itself is untouched. It remains fully supported as a silver target on both
-SQLMesh and dbt; only the mart-level combination is refused.</p>
+version per key. A mart can flatten one, and must say <strong>as of when</strong>:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">flatten</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">via</span><span class="p">:</span><span class="w"> </span><span class="nv">order_of_customer</span><span class="p p-Indicator">,</span><span class="nt"> prefix</span><span class="p">:</span><span class="w"> </span><span class="nv">customer_</span><span class="p p-Indicator">,</span><span class="nt"> as_of</span><span class="p">:</span><span class="w"> </span><span class="nv">order_date</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p><code>as_of</code> names a date or timestamp column of the mart's <strong>base</strong> entity — the fact's own
+date. That is the anchor the dimension is read at, so each order carries the customer
+segment that was current <em>when the order was placed</em>, not the segment as it is today.
+Two orders of the same customer can legitimately disagree about that customer's
+attributes, and that disagreement is the feature: it is what point-in-time attribution
+means.</p>
+<p>The emitted join gains the validity predicate:</p>
+<div class="highlight"><pre><span></span><code><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">silver</span><span class="p">.</span><span class="n">customer</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">customer_</span>
+<span class="w">  </span><span class="k">ON</span><span class="w">  </span><span class="ss">"order"</span><span class="p">.</span><span class="n">customer_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">customer_</span><span class="p">.</span><span class="n">customer_id</span>
+<span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="ss">"order"</span><span class="p">.</span><span class="n">order_date</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">customer_</span><span class="p">.</span><span class="n">valid_from</span>
+<span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="p">(</span><span class="n">customer_</span><span class="p">.</span><span class="n">valid_to</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">OR</span><span class="w"> </span><span class="ss">"order"</span><span class="p">.</span><span class="n">order_date</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">customer_</span><span class="p">.</span><span class="n">valid_to</span><span class="p">)</span>
+</code></pre></div>
+<p>The interval is half-open, so a version ending exactly when the next begins matches one
+of them rather than both, and <code>valid_to IS NULL</code> is the current version. Both targets are
+configured to spell that interval <code>valid_from</code>/<code>valid_to</code> — SQLMesh's own default names,
+and a rename on dbt, whose snapshots would otherwise call them <code>dbt_valid_from</code> and
+<code>dbt_valid_to</code>. Bloomery owning the two names is what lets one join serve both targets.</p>
+<p>An order whose date precedes every version of its customer matches nothing and its
+flattened columns are NULL, which is what a <code>LEFT JOIN</code> does everywhere else in a mart.</p>
+<h3 id="without-an-anchor-it-is-refused">Without an anchor, it is refused<a class="headerlink" href="#without-an-anchor-it-is-refused" title="Permanent link">&para;</a></h3>
+<p>Omit <code>as_of</code> and the flatten is <code>HistoricalFanout</code>. The join would be an equality on the
+relationship's columns and nothing else, so it matches <em>every version</em> of each key and
+multiplies the base grain by the version count. Nothing downstream notices: the declared
+<code>cardinality: many_to_one</code> is a claim about the domain and it stays perfectly true, so
+<code>FanoutRisk</code> sees nothing wrong, the row counts look plausible, and the number is
+silently multiplied. Filtering to the current version automatically was considered and
+rejected for the same reason — it silently converts a historical dimension into a
+current-view one, so a mart whose whole purpose is point-in-time attribution returns
+today's segment for a two-year-old order.</p>
+<p>An <code>as_of</code> on a dimension that is <em>not</em> <code>scd: type2</code> is refused too: there is no version
+to choose between, and the validity columns it would join against do not exist.</p>
+<h3 id="a-base-cannot-be-historical">A <code>base:</code> cannot be historical<a class="headerlink" href="#a-base-cannot-be-historical" title="Permanent link">&para;</a></h3>
+<p>A mart <strong>based</strong> on a <code>type2</code> entity is still refused, and an anchor cannot rescue it.
+There is no join to qualify. The mart declares one row per entity while the relation
+holds one per entity per version, so a <code>count</code> returns revisions — a grain lie no
+predicate addresses. Base the mart on a <code>type1</code> current-view entity built from the
+historical one.</p>
+<p><code>scd: type2</code> itself is unchanged. It remains fully supported as a silver target on both
+SQLMesh and dbt.</p>
 <h2 id="role-playing-dimensions">Role-playing dimensions<a class="headerlink" href="#role-playing-dimensions" title="Permanent link">&para;</a></h2>
 <p>An order has an order date and a ship date — the same date dimension playing two roles.
 This is the concept that breaks naive semantic layers (joining one dimension table

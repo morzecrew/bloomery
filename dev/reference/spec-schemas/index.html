@@ -3587,6 +3587,7 @@ above is what carries the portability claim.</p>
 <p>Discriminated on <code>via</code> vs <code>date</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="nt">flatten</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">via</span><span class="p">:</span><span class="w"> </span><span class="nv">item_of_order</span><span class="p p-Indicator">,</span><span class="nt"> prefix</span><span class="p">:</span><span class="w"> </span><span class="nv">order_</span><span class="p p-Indicator">}</span><span class="w">    </span><span class="c1"># flatten a relationship</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">via</span><span class="p">:</span><span class="w"> </span><span class="nv">order_of_customer</span><span class="p p-Indicator">,</span><span class="nt"> prefix</span><span class="p">:</span><span class="w"> </span><span class="nv">customer_</span><span class="p p-Indicator">,</span><span class="nt"> as_of</span><span class="p">:</span><span class="w"> </span><span class="nv">order_date</span><span class="p p-Indicator">}</span><span class="w">  </span><span class="c1"># ... as of a date</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">date</span><span class="p">:</span><span class="w"> </span><span class="nv">order_date</span><span class="p p-Indicator">,</span><span class="nt"> role</span><span class="p">:</span><span class="w"> </span><span class="nv">ordered</span><span class="p p-Indicator">}</span><span class="w">       </span><span class="c1"># declare a date role</span>
 </code></pre></div>
 <table>
@@ -3613,6 +3614,13 @@ above is what carries the portability claim.</p>
 <td>string, non-empty</td>
 <td>yes</td>
 <td>Prefix on every flattened column — mandatory, collisions are errors</td>
+</tr>
+<tr>
+<td>via</td>
+<td><code>as_of</code></td>
+<td>base date/timestamp column</td>
+<td>on <code>scd: type2</code></td>
+<td>The anchor: the instant the joined entity is read as of. Required to flatten a historical dimension, refused on any other</td>
 </tr>
 <tr>
 <td>date</td>
