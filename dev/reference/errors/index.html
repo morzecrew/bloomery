@@ -1879,7 +1879,7 @@ pulling in any pipeline stage.</p>
 <tr>
 <td><code>CurrencyMismatch</code></td>
 <td>guardrails</td>
-<td>Two distinct declared currencies meeting in one expression — unconditional, since <code>convert</code> is refused at emit</td>
+<td>Two distinct declared currencies meeting in one expression; no token waives it — <code>convert</code> answers it by producing a column declared in the target currency</td>
 </tr>
 <tr>
 <td><code>GrainMismatch</code></td>

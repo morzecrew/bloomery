@@ -1397,6 +1397,45 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Currency">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-rate-relation" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The rate relation
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-rate-table-has-to-guarantee" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What the rate table has to guarantee
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-this-does-to-currencymismatch" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What this does to <code>CurrencyMismatch</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1626,6 +1665,45 @@
       </span>
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Currency">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-rate-relation" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The rate relation
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-rate-table-has-to-guarantee" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What the rate table has to guarantee
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-this-does-to-currencymismatch" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What this does to <code>CurrencyMismatch</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1927,26 +2005,74 @@ to <code>decimal(p1+p2, s1+s2)</code>; crossing the 38-digit precision cap is a 
 <tbody>
 <tr>
 <td><code>convert</code></td>
-<td>currency (str)</td>
+<td>from (ISO-4217), to (ISO-4217), anchor (column name)</td>
 <td>decimal → decimal</td>
-<td><strong>Unimplemented — refused at emit.</strong> Whitelisted and typechecked, but a chain containing it cannot be compiled to SQL</td>
+<td>Converts an amount between two declared currencies at the rate that was current on the anchor's date</td>
 </tr>
 </tbody>
 </table>
-<p><code>convert</code> is refused rather than removed, and the distinction matters: it is not a
-feature that was withdrawn, it is a promise that was never kept. Converting a currency
-is a join against a <em>dated</em> rate table, and bloomery models no rate relation — so the
-step lowered to a <code>CONVERT_CURRENCY(...)</code> call that no engine defines. A project using
-it compiled clean and failed on its first run, which is the one place the architecture
-promises there will not be a failure. Compiling one now raises <code>UnsupportedByTarget</code>
-naming the column.</p>
-<p>The signature is also incomplete, which is why the refusal is not a stopgap: a rate
-without a date is under-determined, so whatever conversion eventually looks like, it
-names an anchor and <code>convert(x, 'USD')</code> has nowhere to put one. Shipping it as-is would
-pin a grammar that cannot express the feature.</p>
-<p>Until then, <code>CurrencyMismatch</code> is unconditional: two operands with distinct declared
-ISO-4217 codes may not meet, and there is no step that makes them. Derive the operands
-in one currency upstream of bloomery, or split the derivation per currency.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># entity_model.yaml — the converted amount is its own field</span>
+<span class="nt">amount_usd</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">"decimal(12,4)"</span><span class="p p-Indicator">,</span><span class="nt"> canonical</span><span class="p">:</span><span class="w"> </span><span class="nv">amount_usd</span><span class="p p-Indicator">}</span>
+
+<span class="c1"># mapping.yaml</span>
+<span class="nt">amount_usd</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.amount"</span>
+<span class="w">  </span><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">to_decimal</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">12</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]},</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">convert</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">EUR</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">USD</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">paid_at</span><span class="p p-Indicator">]}]</span>
+</code></pre></div>
+<p>Everything about that line is declared, and none of it is inferred. The source path
+carries no currency, so <code>from</code> is written out; the anchor could be guessed from a
+mart's date role, and a wrong guess is a plausible number computed against the wrong
+day, which is the failure class this project exists to refuse.</p>
+<p>The anchor names a <code>date</code> or <code>timestamp</code> column of the same entity, mapped by a direct
+<code>from:</code> path — a <code>fields:</code> entry or a <code>key:</code> one. A recipe or macro anchor is refused
+rather than spliced, because its whole derivation would be copied into every converted
+column. Both currency codes must be ISO-4217 (three uppercase letters): they are
+compared against the rate relation exactly as written, so <code>eur</code> would match no rate and
+convert every amount to <code>NULL</code> rather than failing.</p>
+<h3 id="the-rate-relation">The rate relation<a class="headerlink" href="#the-rate-relation" title="Permanent link">&para;</a></h3>
+<p>Conversion reads a table the operator supplies and bloomery never builds. Declare its
+shape once, in the catalog:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">fx_rates</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">relation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fx_rate</span><span class="w">      </span><span class="c1"># resolved through the naming policy, at the silver layer</span>
+<span class="w">  </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">from_ccy</span>
+<span class="w">  </span><span class="nt">to</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">to_ccy</span>
+<span class="w">  </span><span class="nt">rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rate</span>
+<span class="w">  </span><span class="nt">valid_from</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">valid_from</span>
+<span class="w">  </span><span class="nt">valid_to</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">valid_to</span><span class="w">     </span><span class="c1"># required</span>
+</code></pre></div>
+<p><strong>Both interval ends are required.</strong> One end is not an interval: a payment would match
+every rate at or before its date, and the lookup would multiply rather than convert.
+Deriving the upper bound with <code>LEAD(valid_from)</code> was considered and rejected — it makes
+every conversion a window function over the whole rate table, and it extends the newest
+rate forward forever, so a stale feed converts at last week's price instead of failing.</p>
+<p>A date that no interval covers converts to <code>NULL</code>, and that is deliberate: a miss stays
+visible, where the nearest neighbouring rate would be a number nobody could tell from a
+real one.</p>
+<h3 id="what-the-rate-table-has-to-guarantee">What the rate table has to guarantee<a class="headerlink" href="#what-the-rate-table-has-to-guarantee" title="Permanent link">&para;</a></h3>
+<p>bloomery reads this relation and emits no model for it, so it audits nothing about its
+contents. Two properties are the operator's to hold:</p>
+<ul>
+<li><strong>Intervals for one <code>(from, to)</code> pair must not overlap.</strong> The lookup is a scalar
+  subquery, so an overlapping feed matches more than one rate and the model fails loudly
+  at run time. That is the intended end of the spectrum — every shape that keeps running
+  picks one rate silently.</li>
+<li><strong>A rate must exist for every pair and date you convert.</strong> A code that matches nothing
+  converts to <code>NULL</code>, whether it is a typo, a currency you have not loaded, or a gap in
+  the feed. <code>convert</code> refuses a code that is not three uppercase letters, because that
+  much is checkable from the spec alone; whether <code>USD</code> rates were actually loaded is not.
+  Declare a <code>not_null</code> quality rule on the converted column if a missing rate should stop
+  the run rather than propagate.</li>
+</ul>
+<p>Without <code>fx_rates:</code> in the catalog, <code>convert</code> is refused at emit with
+<code>UnsupportedByTarget</code> naming the column — the transform stays whitelisted and
+typechecked, and the refusal names the declaration that would lift it.</p>
+<h3 id="what-this-does-to-currencymismatch">What this does to <code>CurrencyMismatch</code><a class="headerlink" href="#what-this-does-to-currencymismatch" title="Permanent link">&para;</a></h3>
+<p>Nothing, directly. Two operands with distinct declared ISO-4217 codes still may not
+meet, and no token waives that. What conversion adds is a third option where there were
+two: write the converted amount into a field the catalog declares in the target
+currency, and the arithmetic is same-currency arithmetic, which was never a violation.</p>
+<p>The error message names whichever fix is actually available — convert, when the catalog
+declares rates; declare rates or derive upstream, when it does not.</p>
 <h2 id="custom-transforms">Custom transforms<a class="headerlink" href="#custom-transforms" title="Permanent link">&para;</a></h2>
 <p><code>register_transform(spec)</code> adds an extension transform to a process-global overlay —
 a deployment-time act, typically an adapter package registering at import. A name

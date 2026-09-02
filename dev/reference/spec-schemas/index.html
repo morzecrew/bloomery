@@ -1314,6 +1314,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#fxrates" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        FxRates
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#canonicalfield" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1915,6 +1926,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#fxrates" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        FxRates
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#canonicalfield" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2464,8 +2486,67 @@ problem rather than a convenience. Minutes are absent because <code>m</code> wou
 <td>no</td>
 <td>The vertical-owned calendar</td>
 </tr>
+<tr>
+<td><code>fx_rates</code></td>
+<td>FxRates</td>
+<td>no</td>
+<td>The dated exchange-rate relation <code>convert</code> reads</td>
+</tr>
 </tbody>
 </table>
+<h3 id="fxrates">FxRates<a class="headerlink" href="#fxrates" title="Permanent link">&para;</a></h3>
+<p>The shape of a rate table the operator supplies; bloomery reads it and never builds it.
+See <a href="../transforms/#the-rate-relation">transforms</a> for what it is for.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>relation</code></td>
+<td>relation name</td>
+<td>yes</td>
+<td>Bare name, resolved through the naming policy at the silver layer</td>
+</tr>
+<tr>
+<td><code>from</code></td>
+<td>column name</td>
+<td>yes</td>
+<td>The currency a rate converts <em>from</em></td>
+</tr>
+<tr>
+<td><code>to</code></td>
+<td>column name</td>
+<td>yes</td>
+<td>The currency a rate converts <em>to</em></td>
+</tr>
+<tr>
+<td><code>rate</code></td>
+<td>column name</td>
+<td>yes</td>
+<td>The multiplier</td>
+</tr>
+<tr>
+<td><code>valid_from</code></td>
+<td>column name</td>
+<td>yes</td>
+<td>Inclusive start of the rate's validity</td>
+</tr>
+<tr>
+<td><code>valid_to</code></td>
+<td>column name</td>
+<td>yes</td>
+<td>Exclusive end, <code>NULL</code> for the live rate — required, because one end is not an interval</td>
+</tr>
+</tbody>
+</table>
+<p>No two roles may name the same column: each reads a different column of the rate
+relation, and a shared name makes the emitted predicate compare a column against itself.</p>
 <h3 id="canonicalfield">CanonicalField<a class="headerlink" href="#canonicalfield" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
