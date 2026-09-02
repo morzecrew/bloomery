@@ -75,6 +75,9 @@ __all__ = [
     "TransformStepIR",
     "Unit",
     "UnreachableMetric",
+    "VALIDITY_COLUMNS",
+    "VALID_FROM",
+    "VALID_TO",
     "quality_sort_key",
 ]
 
@@ -1046,9 +1049,19 @@ class ProjectIR:
     (RFC 0022 M19) adds ``via`` to every :class:`UnreachableMetric`. Version 6
     (RFC 0024 D17/D26) moves each column's lowered expression off
     :class:`ColumnIR` onto a per-source :class:`SourceColumnIR`, so an entity
-    can be built from more than one mapping. The bump is
+    can be built from more than one mapping. Version 7 (RFC 0023 §5.3) adds
+    ``as_of`` to every :class:`MartJoinIR`. The bump is
     the point — every artifact's fingerprint header moves, and ``plan()``
     refuses to diff across versions rather than misreading one as the other.
+
+    Version 7 is why a *nested* field addition bumps this at all. The encoder
+    writes field names per instance, so a project with no mart joins encodes no
+    ``MartJoinIR`` and its fingerprint does not move — two compilers of
+    different shape then agree on both the fingerprint and the version, and
+    ``plan()`` diffs across a schema change it cannot see. ``role_playing_dates``
+    is such a project in this tree: marts, goldens, a fingerprint, and not one
+    ``via:`` step. Version 5's ``UnreachableMetric.via`` had the same shape and
+    set the same precedent.
 
     Note that ``steps`` shifts every fingerprint even for a project with no
     steps at all: the canonical encoder writes each dataclass's field count
@@ -1057,7 +1070,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 6
+    bloomery_ir_version: int = 7
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

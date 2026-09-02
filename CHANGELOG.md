@@ -29,12 +29,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `ProjectIR.bloomery_ir_version` is **7** (was 6): `MartJoinIR` gained `as_of`, so the
+  canonical IR shape moved. `plan()` refuses to diff a version 6 IR against a version 7
+  one; recompile both sides with one compiler. Fingerprints move only for projects that
+  have mart joins — which is exactly why the version has to move for the rest.
+
 - Emitted artifacts name an `scd: type2` entity's validity interval `valid_from` /
   `valid_to` on **both** targets: the SQLMesh kind clause states them explicitly
   (they were already its defaults) and dbt snapshots rename theirs from
   `dbt_valid_from` / `dbt_valid_to`. Bloomery owning the two names is what lets one
-  as-of predicate serve both targets. A dbt project with existing snapshot tables
-  will see the new columns as a schema change.
+  as-of predicate serve both targets. **Migration:** a dbt project with existing
+  snapshot tables must rename their `dbt_valid_from` / `dbt_valid_to` columns to
+  `valid_from` / `valid_to`; dbt locates a version's interval by the configured
+  names, so a table still carrying the old ones no longer matches the config that
+  reads it. Rename before the next `dbt snapshot` run, on a backup.
 
 - A `type2` entity may no longer declare a field named `valid_from` or `valid_to`
   (`ResolutionError`); the snapshot writes those, so the relation would hold two
