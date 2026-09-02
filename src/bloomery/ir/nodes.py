@@ -1054,14 +1054,16 @@ class ProjectIR:
     the point — every artifact's fingerprint header moves, and ``plan()``
     refuses to diff across versions rather than misreading one as the other.
 
-    Version 7 is why a *nested* field addition bumps this at all. The encoder
-    writes field names per instance, so a project with no mart joins encodes no
-    ``MartJoinIR`` and its fingerprint does not move — two compilers of
-    different shape then agree on both the fingerprint and the version, and
-    ``plan()`` diffs across a schema change it cannot see. ``role_playing_dates``
+    Version 7 is why a *nested* field addition bumps this at all. Had the field
+    landed without one, the encoder — which writes field names per instance —
+    would have left every project with no mart joins encoding no ``MartJoinIR``
+    and carrying its old fingerprint, so two compilers of different shape would
+    have agreed on both the fingerprint and the version and ``plan()`` would
+    have diffed across a schema change it could not see. ``role_playing_dates``
     is such a project in this tree: marts, goldens, a fingerprint, and not one
-    ``via:`` step. Version 5's ``UnreachableMetric.via`` had the same shape and
-    set the same precedent.
+    ``via:`` step. With the bump the version is in the stream, so every
+    project's fingerprint moves — which is the whole point. Version 5's
+    ``UnreachableMetric.via`` had the same shape and set the same precedent.
 
     Note that ``steps`` shifts every fingerprint even for a project with no
     steps at all: the canonical encoder writes each dataclass's field count

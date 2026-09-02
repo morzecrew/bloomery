@@ -31,8 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ProjectIR.bloomery_ir_version` is **7** (was 6): `MartJoinIR` gained `as_of`, so the
   canonical IR shape moved. `plan()` refuses to diff a version 6 IR against a version 7
-  one; recompile both sides with one compiler. Fingerprints move only for projects that
-  have mart joins — which is exactly why the version has to move for the rest.
+  one; recompile both sides with one compiler. Every project's fingerprint moves, because
+  the version is part of the canonical stream — `as_of` on its own would have moved only
+  the fingerprints of projects that have mart joins, which is why the version had to move
+  for the rest.
 
 - Emitted artifacts name an `scd: type2` entity's validity interval `valid_from` /
   `valid_to` on **both** targets: the SQLMesh kind clause states them explicitly
