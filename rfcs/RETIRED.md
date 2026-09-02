@@ -68,6 +68,7 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0020 | Authoring ergonomics: schema export, CLI, fix suggestions | `d5b6f16` |
 | 0021 | Capability boundaries: identity resolution, dialects, closed questions | `68353d7` |
 | 0022 | `SpecEvidence`: spec analysis as a first-class output | `cc8c691` |
+| 0023 | Temporal joins: SCD2 flattening and currency conversion | `aeca6f1` |
 | 0025 | v0.1.0 release readiness | `e7f71a4` |
 | 0026 | The dbt singular-test surface | `d51daf8` |
 | 0027 | ISO 8601 timestamps across dialects | `f4ca53d` |

@@ -1,0 +1,12 @@
+metrics_version: 1
+metrics:
+  # The metric the ceiling made unexpressible: a converted EUR amount added to
+  # an amount that was already USD. Before RFC 0023 §5.4 the convert transform
+  # was refused at emit, so `amount_usd` could not exist, and adding a EUR
+  # column to a USD one is a CurrencyMismatch — there was no third option.
+  total_usd:
+    requires: [amount_usd, fee_usd]
+    grain: payment
+    additivity: additive
+    agg: sum
+    expr: amount_usd + fee_usd

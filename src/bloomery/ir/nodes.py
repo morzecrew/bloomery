@@ -46,6 +46,7 @@ __all__ = [
     "DateDimensionIR",
     "DedupeIR",
     "DimensionRef",
+    "FxRatesIR",
     "EntityIR",
     "Layer",
     "MartAssertIR",
@@ -910,6 +911,32 @@ class DateDimensionIR:
 
 
 # ....................... #
+
+
+@dataclass(frozen=True, slots=True)
+class FxRatesIR:
+    """The dated exchange-rate relation ``convert`` reads (RFC 0023 §5.4).
+
+    Names only — the relation the operator supplies and the five columns it
+    carries. ``relation`` is resolved through the naming policy at the silver
+    layer at emit, the same way a mart's join target is: the IR holds names and
+    emit holds the policy, so whatever scoping that policy applies reaches the
+    rate relation as well.
+
+    Both interval ends are here because one end is not an interval (D11): a
+    fact row would match every rate at or before its anchor and the conversion
+    would fan out instead of converting.
+    """
+
+    relation: str
+    from_currency: str
+    to_currency: str
+    rate: str
+    valid_from: str
+    valid_to: str
+
+
+# ....................... #
 # Root
 
 
@@ -1050,7 +1077,8 @@ class ProjectIR:
     (RFC 0024 D17/D26) moves each column's lowered expression off
     :class:`ColumnIR` onto a per-source :class:`SourceColumnIR`, so an entity
     can be built from more than one mapping. Version 7 (RFC 0023 §5.3) adds
-    ``as_of`` to every :class:`MartJoinIR`. The bump is
+    ``as_of`` to every :class:`MartJoinIR`. Version 8 (RFC 0023 §5.4) adds
+    ``fx_rates`` here. The bump is
     the point — every artifact's fingerprint header moves, and ``plan()``
     refuses to diff across versions rather than misreading one as the other.
 
@@ -1072,13 +1100,14 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 7
+    bloomery_ir_version: int = 8
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()
     relationships: tuple[RelationshipIR, ...] = ()
     marts: tuple[MartIR, ...] = ()
     date_dimension: DateDimensionIR | None = None
+    fx_rates: FxRatesIR | None = None
     reconcile: tuple[ReconcileIR, ...] = ()
     coverage: tuple[CoverageIR, ...] = ()
     steps: tuple[StepIR, ...] = ()

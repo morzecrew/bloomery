@@ -52,6 +52,24 @@ One per vertical, loaded via `load_catalog(text)`.
 | `canonical_relationships` | list of CanonicalRelationship | no (`[]`) | The canonical entity graph |
 | `metric_templates` | map name → MetricTemplate | no (`{}`) | Reusable metric definitions |
 | `date_dimension` | DateDimension | no | The vertical-owned calendar |
+| `fx_rates` | FxRates | no | The dated exchange-rate relation `convert` reads |
+
+### FxRates
+
+The shape of a rate table the operator supplies; bloomery reads it and never builds it.
+See [transforms](transforms.md#the-rate-relation) for what it is for.
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `relation` | relation name | yes | Bare name, resolved through the naming policy at the silver layer |
+| `from` | column name | yes | The currency a rate converts *from* |
+| `to` | column name | yes | The currency a rate converts *to* |
+| `rate` | column name | yes | The multiplier |
+| `valid_from` | column name | yes | Inclusive start of the rate's validity |
+| `valid_to` | column name | yes | Exclusive end, `NULL` for the live rate — required, because one end is not an interval |
+
+No two roles may name the same column: each reads a different column of the rate
+relation, and a shared name makes the emitted predicate compare a column against itself.
 
 ### CanonicalField
 

@@ -27,12 +27,13 @@ would return rows. The rows would be wrong, and nothing would say so.
 | `wrong-grain/` | `GrainViolation` | Duplicated an order-level shipping cost once per line, so `SUM` overstates by the line count |
 | `fanout/` | `FanoutRisk` | Multiplied the mart's rows once per match across a `one_to_many` relationship |
 | `mixed-currency/` | `CurrencyMismatch` | Added EUR to USD and returned a number that is the sum of two different things |
-| `unimplemented-convert/` | `UnsupportedByTarget` | Emitted a `CONVERT_CURRENCY(...)` call that exists in no engine |
+| `unimplemented-convert/` | `UnsupportedByTarget` | Asked to convert a currency with no `fx_rates:` declared to convert against |
 
 The last one is a different kind of refusal and the distinction is worth
-keeping: that spec is not *wrong*, it is *unsupported*. `convert` typechecks and
-passes every guardrail, and is refused only because no engine implements the
-call it would emit. A limitation that names itself is not the same as a defect.
+keeping: that spec is not *wrong*, it is *incomplete*. `convert` typechecks and
+passes every guardrail, and is refused only because the catalog declares no
+`fx_rates:` relation to read a rate from — add one and the same spec compiles to
+an as-of rate lookup. A gap that names what would close it is not a defect.
 
 ## What to read
 

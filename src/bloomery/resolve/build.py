@@ -30,6 +30,7 @@ shadows and lowered ``assert:`` audits.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import TYPE_CHECKING, cast
@@ -53,6 +54,7 @@ from bloomery.ir import (
     DateDimensionIR,
     DimensionRef,
     EntityIR,
+    FxRatesIR,
     Materialization,
     MetricIR,
     ProjectIR,
@@ -88,16 +90,33 @@ from bloomery.resolve.refs import mapping_doc
 from bloomery.resolve.resolution import Resolution, resolve
 from bloomery.resolve.steps import lower_steps, step_entities
 from bloomery.spec.catalog import Catalog
-from bloomery.spec.mapping import ALIAS_BOUND, MacroFieldMapping, RecipeFieldMapping
+from bloomery.spec.mapping import (
+    ALIAS_BOUND,
+    KeyField,
+    MacroFieldMapping,
+    RecipeFieldMapping,
+    SimpleFieldMapping,
+)
 from bloomery.spec.project import Project
 from bloomery.steps import EMPTY_REGISTRY, StepRegistry
 from bloomery.steps.splice import parameter_literal, placeholders, splice
-from bloomery.transforms import neutral_type, registry
+from bloomery.transforms import (
+    CONVERT_ANCHOR,
+    CONVERT_ARITY,
+    CONVERT_FROM,
+    CONVERT_MARKER,
+    CONVERT_TO,
+    neutral_type,
+    registry,
+)
 from bloomery.typing import (
     ChainCheck,
+    DateType,
     LogicalType,
     StringType,
+    TimestampType,
     parse_type,
+    render_type,
     typecheck_chain,
     typecheck_chains,
 )
@@ -106,7 +125,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from bloomery.spec.entity import Entity, Field
-    from bloomery.spec.mapping import Mapping, TransformStep
+    from bloomery.spec.mapping import FieldMapping, Mapping, TransformStep
     from bloomery.steps import StepManifest
     from bloomery.transforms import Registry
 
@@ -910,6 +929,22 @@ def _build_source(
             steps,
             source_path=f"{doc}: key.{field_name}",
         )
+        # Both loops, so no marker can reach emit with its anchor unbound: a
+        # key is a strange place to convert, but `convert` types decimal ->
+        # decimal and a decimal key is legal, and an unvisited path here would
+        # surface at emit as the "no rates declared" refusal on a project that
+        # declares them.
+        expr = _resolve_conversions(
+            expr,
+            entity_name,
+            entity,
+            mapping,
+            catalog,
+            reg,
+            steps,
+            column=field_name,
+            source_path=f"{doc}: key.{field_name}",
+        )
         add_column(field_name, field, declared, shape(expr))
         source_fields.append(
             SourceFieldIR(
@@ -964,6 +999,17 @@ def _build_source(
                 declared,
                 reg,
                 steps,
+                source_path=f"{doc}: fields.{field_name}",
+            )
+            expr = _resolve_conversions(
+                expr,
+                entity_name,
+                entity,
+                mapping,
+                catalog,
+                reg,
+                steps,
+                column=field_name,
                 source_path=f"{doc}: fields.{field_name}",
             )
             add_column(field_name, field, declared, shape(expr))
@@ -1486,6 +1532,30 @@ def _build_date_dimension(catalog: Catalog | None) -> DateDimensionIR | None:
 # ....................... #
 
 
+def _build_fx_rates(catalog: Catalog | None) -> FxRatesIR | None:
+    """Lower the catalog's exchange-rate relation (RFC 0023 §5.4).
+
+    ``None`` for every vertical that never converts, which is what the
+    ``convert`` refusal at emit reads: the transform stays legal and
+    typechecked, and is refused until a rate relation is declared here."""
+
+    if catalog is None or catalog.fx_rates is None:
+        return None
+
+    fx = catalog.fx_rates
+    return FxRatesIR(
+        relation=fx.relation,
+        from_currency=fx.from_,
+        to_currency=fx.to,
+        rate=fx.rate,
+        valid_from=fx.valid_from,
+        valid_to=fx.valid_to,
+    )
+
+
+# ....................... #
+
+
 def build_project_ir(
     project: Project,
     catalog: Catalog | None = None,
@@ -1555,6 +1625,7 @@ def _lower_draft(
         relationships=_build_relationships(project),
         marts=(),  # attached below, once the flattener has the entity draft
         date_dimension=_build_date_dimension(catalog),
+        fx_rates=_build_fx_rates(catalog),
         # Document-level reconcile checks (RFC 0016 §5.3): they relate two
         # entities, so they belong to neither — they live on the root.
         reconcile=lower_reconcile(project.entity_model),
@@ -1567,3 +1638,184 @@ def _lower_draft(
     # Mart flattening (RFC 0010 D6): pure, total — violations are re-derived
     # and raised by the guardrail stage below; only clean marts attach here.
     return replace(draft, marts=lower_marts(project.marts, draft).marts)
+
+
+# ....................... #
+# Currency conversion (RFC 0023 §5.4)
+
+#: The shape :data:`~bloomery.spec.common.CurrencyCode` enforces on a *declared*
+#: currency. A transform argument is an ``ArgKind.STR`` and never passed through
+#: that annotation, so the same rule is applied here — an unchecked code is not
+#: a parse error downstream, it is a predicate that matches no rate row.
+_CURRENCY_CODE = re.compile(r"[A-Z]{3}")
+
+
+def _anchor_expression(
+    anchor: str,
+    entity_name: str,
+    entity: Entity,
+    mapping: Mapping,
+    reg: Registry,
+    steps: StepRegistry,
+    *,
+    source_path: str,
+) -> Expression:
+    """The lowered expression for a ``convert`` anchor, or a refusal.
+
+    The anchor names a sibling column — a ``fields:`` entry or a ``key:`` one,
+    both of which are direct paths — and what the conversion needs is that
+    column's **value**, which in a branch SELECT is its own lowering, not a
+    reference to its output name. The silver name does not exist yet where the
+    conversion is projected: both are projections of one SELECT, and a lateral
+    column alias is a DuckDB extension that Postgres and Trino reject. So the
+    chain is lowered a second time, here, into the conversion.
+    """
+    field = entity.fields.get(anchor)
+
+    if field is None:
+        known = sorted(entity.fields)
+        msg = (
+            f"convert names anchor {anchor!r}, which entity {entity_name!r} does not "
+            f"declare; declared fields: {known}. The anchor dates the rate, so it has to "
+            "be a column of the row being converted (RFC 0023 §5.4)"
+        )
+        raise ResolutionError(msg, source_path=source_path)
+
+    declared = _field_type(entity_name, anchor, field)
+
+    if not isinstance(declared, DateType | TimestampType):
+        msg = (
+            f"convert names anchor {anchor!r}, which is {render_type(declared)} — an as-of "
+            "anchor is compared against the rate's validity interval, so it must be a "
+            "date or a timestamp (RFC 0023 §5.4). Fix: name the field that dates the "
+            "amount, or parse this one into a date first"
+        )
+        raise ResolutionError(msg, source_path=source_path)
+
+    lowering: KeyField | FieldMapping | None = mapping.fields.get(anchor) or mapping.key.get(anchor)
+
+    if lowering is None:
+        msg = (
+            f"convert names anchor {anchor!r}, which entity {entity_name!r} declares but "
+            f"mapping {mapping.source!r} does not lower. A merged entity's branches map "
+            "different columns (RFC 0024 §5.2 rule 3), and the branch that converts is "
+            "the one that has to supply the date"
+        )
+        raise ResolutionError(msg, source_path=source_path)
+
+    # Both direct-path shapes, and they are different classes: `key:` entries
+    # are `KeyField`, `fields:` entries are `SimpleFieldMapping`. Testing only
+    # the second refused a perfectly ordinary key anchor — and said it was
+    # "lowered by a step", which it was not.
+    if not isinstance(lowering, SimpleFieldMapping | KeyField):
+        kind = "recipe" if isinstance(lowering, RecipeFieldMapping) else "step"
+        msg = (
+            f"convert names anchor {anchor!r}, which is lowered by a {kind} rather than a "
+            "direct from: path. Only a direct path is re-lowered into the conversion "
+            "today, because a derived anchor would splice its whole derivation into every "
+            "converted column. Fix: map the anchor directly, or convert against a field "
+            "that is"
+        )
+        raise ResolutionError(msg, source_path=source_path)
+
+    return _lower_chain(
+        lowering.from_, lowering.transform, declared, reg, steps, source_path=source_path
+    )
+
+
+# ....................... #
+
+
+def _resolve_conversions(
+    expr: Expression,
+    entity_name: str,
+    entity: Entity,
+    mapping: Mapping,
+    catalog: Catalog | None,
+    reg: Registry,
+    steps: StepRegistry,
+    *,
+    column: str,
+    source_path: str,
+) -> Expression:
+    """Validate every ``convert`` in one lowered column and bind its anchor.
+
+    What comes out is still a :data:`CONVERT_MARKER` call — with the anchor's
+    *expression* in place of the field name it was written with. The rate
+    relation is named by the catalog and resolved through the naming policy,
+    which is an emit concern, so emit finishes the rewrite (RFC 0023 D4 keeps
+    the refusal there too, for the project that converts with no rates
+    declared).
+
+    The checks live here because here is where the entity, the mapping and the
+    catalog are all in scope, and where a refusal can name the document that
+    has to change.
+    """
+    markers = [
+        node
+        for node in expr.find_all(exp.Anonymous)
+        if str(node.this).upper() == CONVERT_MARKER and len(node.expressions) == CONVERT_ARITY
+    ]
+
+    if not markers:
+        return expr
+
+    declared_currency = _declared_currency(entity, catalog, column)
+
+    for marker in markers:
+        from_ccy = marker.expressions[CONVERT_FROM].this
+        to_ccy = marker.expressions[CONVERT_TO].this
+        anchor = marker.expressions[CONVERT_ANCHOR].this
+
+        for role, code in (("from", from_ccy), ("to", to_ccy)):
+            if not _CURRENCY_CODE.fullmatch(code):
+                msg = (
+                    f"convert names {code!r} as its {role} currency, which is not an "
+                    "ISO-4217 code (three uppercase letters). The code is compared "
+                    "against the rate relation as written, so this one would match no "
+                    "rate and convert every amount to NULL rather than failing"
+                )
+                raise ResolutionError(msg, source_path=source_path)
+
+        if from_ccy == to_ccy:
+            msg = (
+                f"convert asks for {from_ccy!r} to {to_ccy!r}, which converts nothing but "
+                "still joins the rate relation — a missing self-rate would turn the "
+                "amount into NULL. Fix: drop the convert step"
+            )
+            raise ResolutionError(msg, source_path=source_path)
+
+        if declared_currency is not None and declared_currency != to_ccy:
+            msg = (
+                f"convert produces {to_ccy!r} but column {column!r} is declared "
+                f"{declared_currency!r} in the catalog — the currency guardrail would then "
+                "reason about this column in a currency it is not in, which is how a "
+                "wrong number passes every check (RFC 0006 D4). Fix: convert to "
+                f"{declared_currency!r}, or declare the canonical field as {to_ccy!r}"
+            )
+            raise ResolutionError(msg, source_path=source_path)
+
+        marker.expressions[CONVERT_ANCHOR] = _anchor_expression(
+            anchor, entity_name, entity, mapping, reg, steps, source_path=source_path
+        )
+
+    return expr
+
+
+# ....................... #
+
+
+def _declared_currency(entity: Entity, catalog: Catalog | None, column: str) -> str | None:
+    """The catalog currency of the column being written, or ``None``.
+
+    ``None`` covers both "no catalog" and "no currency declared", which are the
+    same fact here: nothing to disagree with, so the conversion is unconstrained.
+    """
+    field = entity.fields.get(column)
+
+    if field is None or field.canonical is None or catalog is None:
+        return None
+
+    canonical = catalog.canonical_fields.get(field.canonical)
+
+    return None if canonical is None else canonical.currency

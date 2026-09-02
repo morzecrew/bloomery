@@ -111,6 +111,7 @@ def compile_project(
         dialect=get_dialect(dialect),
         naming=naming if naming is not None else DefaultNaming(),
         fingerprint=project_fingerprint(ir),
+        fx_rates=ir.fx_rates,
     )
     _check_pattern_transport(ir, context.dialect)
     return emitter.emit(ir, context)

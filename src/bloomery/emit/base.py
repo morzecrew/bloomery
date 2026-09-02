@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from sqlglot import exp
 
     from bloomery.dialects import DialectPort
-    from bloomery.ir import ProjectIR
+    from bloomery.ir import FxRatesIR, ProjectIR
     from bloomery.naming import NamingPolicy
 
 # ----------------------- #
@@ -174,6 +174,13 @@ class EmitContext:
     dialect: DialectPort
     naming: NamingPolicy
     fingerprint: str
+    #: The rate relation ``convert`` reads (RFC 0023 §5.4). Here rather than
+    #: threaded through the silver lowering because that is the only shape a
+    #: *relation reference inside a column expression* can take: the IR holds
+    #: the name, this holds the policy that turns it into a namespace, and the
+    #: column expression is built where both are in scope. Defaulted so every
+    #: caller that never converts is unchanged.
+    fx_rates: FxRatesIR | None = None
 
 
 # ....................... #

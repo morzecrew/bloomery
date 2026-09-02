@@ -9,7 +9,7 @@ from sqlglot import exp, parse_one
 
 from bloomery.errors import TypeCheckError
 from bloomery.resolve.build import _try_cast_shape
-from bloomery.transforms import DEFAULT_REGISTRY, ISO_TEXT_MARKER
+from bloomery.transforms import CONVERT_ARITY, CONVERT_TYPE, DEFAULT_REGISTRY, ISO_TEXT_MARKER
 from bloomery.typing import (
     ArgKind,
     BoolType,
@@ -64,7 +64,7 @@ CASES: dict[str, tuple[tuple[str | int, ...], LogicalType, tuple[type, ...], Log
     "abs": ((), DecimalType(12, 4), (IntType, DecimalType), DecimalType(12, 4)),
     "concat": (("!",), StringType(), (StringType,), StringType()),
     "json_path": (("$.a.b",), VariantType(), (VariantType, StringType), VariantType()),
-    "convert": (("USD",), DecimalType(12, 4), (DecimalType,), DecimalType(12, 4)),
+    "convert": (("EUR", "USD", "paid_at"), DecimalType(12, 4), (DecimalType,), DecimalType(12, 4)),
 }
 
 
@@ -231,12 +231,46 @@ def test_round_overflow_past_38_is_loud() -> None:
 
 def test_convert_typechecks_decimal_to_decimal() -> None:
     """RFC 0004 D3: `convert` is the currency-conversion marker; its semantic
-    obligations land with the currency guardrail (M4)."""
+    obligations land with the currency guardrail (M4) and the rate lookup
+    ``resolve.build`` binds into it (RFC 0023 §5.4)."""
     spec = DEFAULT_REGISTRY["convert"]
     assert spec.input_domain == (DecimalType,)
-    assert spec.output_type(DecimalType(12, 4), ("USD",)) == DecimalType(12, 4)
-    rendered = spec.builder(exp.column("x"), "USD").sql()
-    assert rendered == "CONVERT_CURRENCY(x, 'USD')"
+    assert spec.output_type(DecimalType(12, 4), ("EUR", "USD", "paid_at")) == DecimalType(12, 4)
+    rendered = spec.builder(
+        exp.column("x"), "EUR", "USD", "paid_at", input_type=DecimalType(12, 4)
+    ).sql()
+    assert rendered == "CONVERT_CURRENCY(x, 'EUR', 'USD', 'paid_at', 'decimal(12,4)')"
+
+
+def test_convert_names_both_currencies_and_an_anchor() -> None:
+    """The grammar change §5.4 said `convert` could not avoid.
+
+    ``{convert: USD}`` was not merely unimplemented, it was *incomplete*: a
+    rate is a dated fact, so a conversion that names no date names no rate that
+    exists. Both currencies are declared for the same reason the anchor is —
+    the source path carries no currency, and RFC 0021 closed inference.
+    """
+    spec = DEFAULT_REGISTRY["convert"]
+    assert spec.arity == 3
+    assert len(spec.arg_kinds) == spec.arity
+
+
+def test_the_marker_records_the_running_type_it_must_narrow_back_to() -> None:
+    """A conversion is decimal arithmetic, and every engine widens that
+    differently — so the product is cast back, the way `multiply` and `divide`
+    narrow to their own `_arith_output`.
+
+    The type it narrows to is the chain's *here*, not the field's declared
+    type: a later widening step in the same chain would otherwise absorb an
+    overflow the compiler believes cannot happen at this point. Only the chain
+    knows that type, so the builder records it and emit reads it back.
+    """
+    spec = DEFAULT_REGISTRY["convert"]
+    node = spec.builder(
+        exp.column("x"), "EUR", "USD", "paid_at", input_type=DecimalType(12, 4)
+    )
+    assert len(node.expressions) == CONVERT_ARITY
+    assert node.expressions[CONVERT_TYPE].this == "decimal(12,4)"
 
 
 def test_enum_map_builder_maps_pairs_and_passes_unmapped_through() -> None:
