@@ -4,8 +4,9 @@
   join landed** (§5.3); §5.4, currency as a declared relation, remains unscheduled.
   Per §9 the document stays rather than being retired: deleting the shipped halves would
   leave the surviving refusals with no recorded reason, and §5.4 is still a design.
-  Execution departures are D12–D17 for P1 and D18–D22 for the as-of join
-  ([`logs/T-0009.md`](../logs/T-0009.md)).
+  P1's execution departures are §11 rows D12–D17; the as-of join's are recorded in
+  [`logs/T-0009.md`](../logs/T-0009.md) as D-036–D-043, in the log's own numbering
+  rather than as §11 rows.
 - **Scope:** Two constructs that compile clean today and cannot be correct at run time,
   because both need a join against a **validity interval** and bloomery models none.
   Flattening a `scd: type2` entity into a mart emits an equality join on the business key,
@@ -414,7 +415,7 @@ Phase 2 tests are not specified here; the design is not scheduled.
 is a breaking change under the stability policy, and bloomery would owe a migration path for
 a construct that never produced a correct answer. Before the release it is a bug fix.
 
-**P2 — the as-of join (§5.3, §5.4).** Was unscheduled and demand-gated; the trigger
+**P2 — the as-of join (§5.3).** Was unscheduled and demand-gated; the trigger
 arrived and **§5.3 shipped**. The cost landed roughly where this paragraph put it: one
 spec field, one IR field, two shared constants, a predicate in the one join-emitting
 path, and a configuration line on each target so the two agree on what the interval is
