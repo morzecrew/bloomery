@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Currency conversion.** `convert` now lowers, against a dated rate relation the
+  catalog declares as `fx_rates:` — the relation plus its from/to/rate/valid_from/
+  valid_to columns. The transform reads
+  `{convert: [<from>, <to>, <date field>]}` and emits an as-of lookup of the rate
+  that was current on the anchor's date, so a EUR amount becomes the USD it was
+  worth *then*. A multi-currency business can express a converted metric: write the
+  conversion into a field the catalog declares in the target currency, and adding it
+  to a native amount in that currency is ordinary same-currency arithmetic.
+
+  A date no rate interval covers converts to `NULL` rather than to a neighbouring
+  rate, and both interval ends are required — one end is not an interval, and a
+  lookup with only a lower bound matches every rate at or before the anchor. Without
+  `fx_rates:` in the catalog `convert` is still refused at emit, now with a message
+  naming the declaration that would lift it. RFC 0023 §5.4.
+
 - **Historical dimensions can be used in marts.** A `flatten:` step onto an
   `scd: type2` entity now takes an `as_of:` anchor — a date or timestamp column of
   the mart's base — and emits a validity predicate, so each fact carries the
@@ -29,12 +44,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `ProjectIR.bloomery_ir_version` is **7** (was 6): `MartJoinIR` gained `as_of`, so the
-  canonical IR shape moved. `plan()` refuses to diff a version 6 IR against a version 7
-  one; recompile both sides with one compiler. Every project's fingerprint moves, because
-  the version is part of the canonical stream — `as_of` on its own would have moved only
-  the fingerprints of projects that have mart joins, which is why the version had to move
-  for the rest.
+- `convert` takes **three** arguments where it took one: `{convert: [EUR, USD,
+  paid_at]}` instead of `{convert: USD}`. A rate is a dated fact, so the old
+  signature named no rate that exists — it was incomplete rather than merely
+  unimplemented, which is why it was refused at emit rather than finished later. No
+  spec that compiled before is affected: every spec carrying the old spelling was
+  already refused.
+
+- `CurrencyMismatch` names the fix that is available rather than one fixed sentence:
+  converting, where the catalog declares rates; declaring rates or deriving upstream,
+  where it does not. The rule itself is unchanged and still has no escape token.
+
+- `ProjectIR.bloomery_ir_version` is **8** (was 6), across two shape changes in this
+  release: `MartJoinIR` gained `as_of` (7) and `ProjectIR` gained `fx_rates` (8).
+  `plan()` refuses to diff across versions; recompile both sides with one compiler.
+  Every project's fingerprint moves, because the version is itself part of the
+  canonical stream — `as_of` on its own would have moved only the fingerprints of
+  projects that have mart joins, which is why the version had to move for the rest.
 
 - Emitted artifacts name an `scd: type2` entity's validity interval `valid_from` /
   `valid_to` on **both** targets: the SQLMesh kind clause states them explicitly

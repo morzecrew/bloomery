@@ -1,3 +1,3 @@
 CurrencyMismatch
 source: mapping[psp__payments->payment]: fields.amount_total
-'+' combines 'amount_eur' (currency: EUR), 'amount_usd' (currency: USD); distinct declared codes may not meet (RFC 0006 D4). bloomery has no conversion to offer: a rate is a dated fact and no rate relation is modelled, so the convert transform that used to satisfy this rule is itself refused (RFC 0023 D4/D5). Fix: derive the operands in one currency upstream, or split the derivation per currency
+'+' combines 'amount_eur' (currency: EUR), 'amount_usd' (currency: USD); distinct declared codes may not meet (RFC 0006 D4). bloomery has no conversion to offer here: a rate is a dated fact and this catalog declares no 'fx_rates:' relation to read one from (RFC 0023 §5.4). Fix: declare fx_rates: and convert, derive the operands in one currency upstream, or split the derivation per currency

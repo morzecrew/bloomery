@@ -62,24 +62,61 @@ to `decimal(p1+p2, s1+s2)`; crossing the 38-digit precision cap is a loud
 
 | Name | Args | Input → output | Usage |
 |---|---|---|---|
-| `convert` | currency (str) | decimal → decimal | **Unimplemented — refused at emit.** Whitelisted and typechecked, but a chain containing it cannot be compiled to SQL |
+| `convert` | from (str), to (str), anchor (field name) | decimal → decimal | Converts an amount between two declared currencies at the rate that was current on the anchor's date |
 
-`convert` is refused rather than removed, and the distinction matters: it is not a
-feature that was withdrawn, it is a promise that was never kept. Converting a currency
-is a join against a *dated* rate table, and bloomery models no rate relation — so the
-step lowered to a `CONVERT_CURRENCY(...)` call that no engine defines. A project using
-it compiled clean and failed on its first run, which is the one place the architecture
-promises there will not be a failure. Compiling one now raises `UnsupportedByTarget`
-naming the column.
+```yaml
+# entity_model.yaml — the converted amount is its own field
+amount_usd: {type: "decimal(12,4)", canonical: amount_usd}
 
-The signature is also incomplete, which is why the refusal is not a stopgap: a rate
-without a date is under-determined, so whatever conversion eventually looks like, it
-names an anchor and `convert(x, 'USD')` has nowhere to put one. Shipping it as-is would
-pin a grammar that cannot express the feature.
+# mapping.yaml
+amount_usd:
+  from: "$.amount"
+  transform: [{to_decimal: [12, 4]}, {convert: [EUR, USD, paid_at]}]
+```
 
-Until then, `CurrencyMismatch` is unconditional: two operands with distinct declared
-ISO-4217 codes may not meet, and there is no step that makes them. Derive the operands
-in one currency upstream of bloomery, or split the derivation per currency.
+Everything about that line is declared, and none of it is inferred. The source path
+carries no currency, so `from` is written out; the anchor could be guessed from a
+mart's date role, and a wrong guess is a plausible number computed against the wrong
+day, which is the failure class this project exists to refuse.
+
+### The rate relation
+
+Conversion reads a table the operator supplies and bloomery never builds. Declare its
+shape once, in the catalog:
+
+```yaml
+fx_rates:
+  relation: fx_rate      # resolved through the naming policy, at the silver layer
+  from: from_ccy
+  to: to_ccy
+  rate: rate
+  valid_from: valid_from
+  valid_to: valid_to     # required
+```
+
+**Both interval ends are required.** One end is not an interval: a payment would match
+every rate at or before its date, and the lookup would multiply rather than convert.
+Deriving the upper bound with `LEAD(valid_from)` was considered and rejected — it makes
+every conversion a window function over the whole rate table, and it extends the newest
+rate forward forever, so a stale feed converts at last week's price instead of failing.
+
+A date no interval covers converts to `NULL`, and that is deliberate: a miss stays
+visible, where the nearest neighbouring rate would be a number nobody could tell from a
+real one.
+
+Without `fx_rates:` in the catalog, `convert` is refused at emit with
+`UnsupportedByTarget` naming the column — the transform stays whitelisted and
+typechecked, and the refusal names the declaration that would lift it.
+
+### What this does to `CurrencyMismatch`
+
+Nothing, directly. Two operands with distinct declared ISO-4217 codes still may not
+meet, and no token waives that. What conversion adds is a third option where there were
+two: write the converted amount into a field the catalog declares in the target
+currency, and the arithmetic is same-currency arithmetic, which was never a violation.
+
+The error message names whichever fix is actually available — convert, when the catalog
+declares rates; declare rates or derive upstream, when it does not.
 
 ## Custom transforms
 

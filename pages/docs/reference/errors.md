@@ -80,7 +80,7 @@ BloomeryError
 | `GuardrailError` | guardrails | The batched aggregate of guardrail violations, sorted by `(source_path, type name)` |
 | `UnitMismatch` | guardrails | `+`/`-` operands with differing declared `unit` (currency + count) |
 | `TaxBasisMismatch` | guardrails | `net` and `gross` — or an unknown basis beside a monetary operand — meeting in additive arithmetic |
-| `CurrencyMismatch` | guardrails | Two distinct declared currencies meeting in one expression — unconditional, since `convert` is refused at emit |
+| `CurrencyMismatch` | guardrails | Two distinct declared currencies meeting in one expression; no token waives it — `convert` answers it by producing a column declared in the target currency |
 | `GrainMismatch` | guardrails | An expression combining columns of different grains without explicit aggregation |
 | `AdditivityViolation` | guardrails | An aggregation contradicting the metric's declared additivity |
 | `AssertLoweringError` | guardrails | An `assert:` clause ill-typed against the field's logical type |

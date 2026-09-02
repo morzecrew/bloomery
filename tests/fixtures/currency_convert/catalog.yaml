@@ -1,0 +1,16 @@
+catalog_version: 1
+vertical: payments
+# The rate relation the operator supplies: bloomery reads it and never builds
+# it. Both interval ends are declared because one end is not an interval
+# (RFC 0023 D11) — a fact row would match every rate at or before its anchor.
+fx_rates:
+  relation: fx_rate
+  from: from_ccy
+  to: to_ccy
+  rate: rate
+  valid_from: valid_from
+  valid_to: valid_to
+canonical_fields:
+  amount_eur: {entity: payment, type: "decimal(12,4)", unit: currency, tax_basis: net, currency: EUR}
+  amount_usd: {entity: payment, type: "decimal(12,4)", unit: currency, tax_basis: net, currency: USD}
+  fee_usd: {entity: payment, type: "decimal(12,4)", unit: currency, tax_basis: net, currency: USD}

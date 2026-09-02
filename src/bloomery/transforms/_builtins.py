@@ -757,31 +757,56 @@ def abs_(col: Expression, *, input_type: LogicalType) -> Expression:
 # ....................... #
 
 
-#: The call :func:`convert` builds, and the token the emit side refuses on
-#: (RFC 0023 D4). Shared rather than spelled twice: a marker whose producer
-#: and whose refusal disagree about its name is a refusal that never fires.
+#: The call :func:`convert` builds, and the token the lowering resolves — or,
+#: where no rate relation is declared, the token the emit side refuses on
+#: (RFC 0023 D4/§5.4). Shared rather than spelled thrice: a marker whose
+#: producer, resolver and refusal disagree about its name is a refusal that
+#: never fires.
 CONVERT_MARKER = "CONVERT_CURRENCY"
+
+#: Positions inside the marker call, after the amount at 0. Named so the
+#: builder here and the resolver in ``resolve.build`` index one vocabulary.
+CONVERT_FROM, CONVERT_TO, CONVERT_ANCHOR = 1, 2, 3
 
 
 @transform(
-    "convert", arity=1, arg_kinds=(ArgKind.STR,), input=(DecimalType,), output=lambda t, _args: t
+    "convert",
+    arity=3,
+    arg_kinds=(ArgKind.STR, ArgKind.STR, ArgKind.STR),
+    input=(DecimalType,),
+    output=lambda t, _args: t,
 )
-def convert(col: Expression, currency: str) -> Expression:
-    """The conversion marker — **registered, typechecked, and refused at emit**
-    (RFC 0023 D4).
+def convert(col: Expression, from_ccy: str, to_ccy: str, anchor: str) -> Expression:
+    """Convert a decimal amount between two declared currencies, as of a date
+    (RFC 0023 §5.4).
 
-    It stays in the whitelist with an unchanged decimal → decimal typecheck, so
-    the spec surface does not move and the exported JSON Schema's transform
-    enum is stable. What it cannot do is reach SQL: a currency conversion is a
-    join against a dated rate table, bloomery models no rate relation, and the
-    :data:`CONVERT_MARKER` call this builds exists in no engine. Emitting it
-    produced a project that compiled clean and failed on its first run — the
-    one place the architecture promises there will not be a failure.
+    ``{convert: [EUR, USD, paid_at]}`` — the currency the column is in, the
+    currency it should end up in, and the field whose value dates the rate.
+    All three are declared because none can be safely inferred: the source path
+    carries no currency, and guessing the anchor from a mart's date role is the
+    "plausible number against the wrong version of history" this RFC refuses
+    (RFC 0021 closes inference).
 
-    The signature is also *incomplete*, which is why the refusal is not
-    provisional: a rate without a date is under-determined, so whatever
-    conversion eventually looks like, it names an anchor and this spelling does
-    not (RFC 0023 §5.4).
+    What this builds is a **marker**, not the conversion. The rate lives in a
+    relation named by the catalog and the anchor's value comes from a sibling
+    field's own lowering, and a transform builder sees neither — it gets an
+    expression and literals. So the chain carries the request forward and
+    ``resolve.build`` rewrites it into the as-of subquery once the catalog is
+    in scope. A marker that survives to emit is a conversion no catalog
+    declared rates for, which is exactly what :class:`UnsupportedByTarget`
+    then says.
+
+    The three-argument spelling replaced ``{convert: USD}``, which could not be
+    finished rather than merely being unimplemented: a rate without a date is
+    under-determined, so the old signature named no rate that exists.
     """
 
-    return exp.Anonymous(this=CONVERT_MARKER, expressions=[col, exp.Literal.string(currency)])
+    return exp.Anonymous(
+        this=CONVERT_MARKER,
+        expressions=[
+            col,
+            exp.Literal.string(from_ccy),
+            exp.Literal.string(to_ccy),
+            exp.Literal.string(anchor),
+        ],
+    )

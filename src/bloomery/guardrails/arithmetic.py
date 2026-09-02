@@ -156,20 +156,32 @@ def _check_tax(op: str, left: _Side, right: _Side, source_path: str) -> TaxBasis
 
 
 def _check_currency(
-    op: str, left: _Side, right: _Side, source_path: str
+    op: str, left: _Side, right: _Side, source_path: str, *, convertible: bool
 ) -> CurrencyMismatch | None:
     left_codes, right_codes = _declared_currencies(left), _declared_currencies(right)
 
     if len(left_codes) != 1 or len(right_codes) != 1 or left_codes == right_codes:
         return None
 
+    # The rule is unconditional; only the *fix* depends on whether this project
+    # can convert. Telling an author to derive upstream when a rate relation is
+    # right there sends them to rebuild what bloomery would do for them, and
+    # telling them to convert when nothing declares rates sends them to a
+    # refusal (RFC 0023 §5.4).
+    fix = (
+        "Fix: convert one operand with the convert transform "
+        "({convert: [<from>, <to>, <date field>]}), writing it into a column the catalog "
+        "declares in the target currency"
+        if convertible
+        else "bloomery has no conversion to offer here: a rate is a dated fact and this "
+        "catalog declares no 'fx_rates:' relation to read one from (RFC 0023 §5.4). Fix: "
+        "declare fx_rates: and convert, derive the operands in one currency upstream, or "
+        "split the derivation per currency"
+    )
     metas = left.metas + right.metas
     msg = (
         f"{op!r} combines {_described(metas, 'currency')}; distinct declared codes may "
-        "not meet (RFC 0006 D4). bloomery has no conversion to offer: a rate is a dated "
-        "fact and no rate relation is modelled, so the convert transform that used to "
-        "satisfy this rule is itself refused (RFC 0023 D4/D5). Fix: derive the operands "
-        "in one currency upstream, or split the derivation per currency"
+        f"not meet (RFC 0006 D4). {fix}"
     )
     return CurrencyMismatch(msg, source_path=source_path)
 
@@ -177,7 +189,9 @@ def _check_currency(
 # ....................... #
 
 
-def _walk(sql: str, lookup: dict[str, OperandMeta], source_path: str) -> list[GuardrailError]:
+def _walk(
+    sql: str, lookup: dict[str, OperandMeta], source_path: str, *, convertible: bool
+) -> list[GuardrailError]:
     """One expression's violations — at most one per rule (first offending
     node in deterministic walk order)."""
     found: dict[type[GuardrailError], GuardrailError] = {}
@@ -196,7 +210,7 @@ def _walk(sql: str, lookup: dict[str, OperandMeta], source_path: str) -> list[Gu
                 if tax_hit is not None:
                     found[TaxBasisMismatch] = tax_hit
         if CurrencyMismatch not in found:
-            currency_hit = _check_currency(op, left, right, source_path)
+            currency_hit = _check_currency(op, left, right, source_path, convertible=convertible)
             if currency_hit is not None:
                 found[CurrencyMismatch] = currency_hit
 
@@ -214,6 +228,7 @@ def check_arithmetic(
     """Every unit/tax/currency violation across all derivation and metric
     expressions, in walk order (the stage sorts before raising)."""
     violations: list[GuardrailError] = []
+    convertible = catalog is not None and catalog.fx_rates is not None
 
     for derivation in derivations:
         if derivation.expr is None:
@@ -223,7 +238,9 @@ def check_arithmetic(
             for name in derivation.operands
             if (meta := operand_meta(name, catalog)) is not None
         }
-        violations.extend(_walk(derivation.expr, lookup, derivation.source_path))
+        violations.extend(
+            _walk(derivation.expr, lookup, derivation.source_path, convertible=convertible)
+        )
 
     for metric in metrics:
         if metric.expr is None:
@@ -233,6 +250,13 @@ def check_arithmetic(
             for name in metric.depends_on
             if (meta := operand_meta(name, catalog)) is not None
         }
-        violations.extend(_walk(metric.expr.sql, lookup, f"metrics: metrics.{metric.name}"))
+        violations.extend(
+            _walk(
+                metric.expr.sql,
+                lookup,
+                f"metrics: metrics.{metric.name}",
+                convertible=convertible,
+            )
+        )
 
     return violations

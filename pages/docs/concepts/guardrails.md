@@ -50,16 +50,18 @@ exactly where money math happens.
 
 Two operands with *distinct declared* ISO-4217 codes may not meet: `CurrencyMismatch`,
 with no escape. Unlike tax basis, an absent code is compatible with anything —
-single-currency tenants are the common case, and forcing declaration everywhere would
+single-currency projects are the common case, and forcing declaration everywhere would
 train authors to paste a constant, destroying the signal. Declared-versus-declared is
 the bug worth refusing.
 
-The `convert` transform used to satisfy this rule, and no longer does. It has no
-lowering on any dialect — a conversion is a join against a dated rate table, and
-bloomery models no rate relation — so its marker bought a compile-time "yes" whose only
-outcome was a run-time failure. Both were removed together: `convert` is now
-[refused at emit](../reference/transforms.md#currency), and the currency rule is
-unconditional. Bring the operands into one currency upstream, or split the derivation.
+`convert` does not waive this rule — there is no token that does, and the one that
+used to was removed for buying a compile-time "yes" whose only outcome was a run-time
+failure. What [conversion](../reference/transforms.md#currency) offers instead is an
+*answer*: it produces a column the catalog declares in the target currency, and two
+operands in one currency were never a violation. That needs an `fx_rates:` relation in
+the catalog, because a rate is a dated fact and there is nothing to look one up in
+otherwise; without it the message says so, and names declaring rates or deriving
+upstream as the two ways forward.
 
 ## Grain: the fan-out guard
 

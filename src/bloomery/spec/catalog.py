@@ -16,7 +16,9 @@ from bloomery.spec.common import (
     AdditivityName,
     CardinalityName,
     CurrencyCode,
+    MemberName,
     RatioSpec,
+    RelationName,
     SemiAdditivePolicy,
     SpecModel,
     TypeString,
@@ -29,6 +31,7 @@ __all__ = [
     "CanonicalField",
     "CanonicalRelationship",
     "DateDimension",
+    "FxRates",
     "MetricTemplate",
     "Recipe",
 ]
@@ -102,6 +105,59 @@ class DateDimension(SpecModel):
 # ....................... #
 
 
+class FxRates(SpecModel):
+    """The dated exchange-rate relation the ``convert`` transform reads
+    (RFC 0023 §5.4).
+
+    Reference data, which is why it is a catalog concern rather than an
+    entity: nobody maps it, it has no grain bloomery owns, and it is shared by
+    every project the vertical serves. What is declared here is the *shape* of
+    a table the operator supplies — bloomery reads it and never builds it.
+
+    ``relation`` is a bare name resolved through the naming policy at the
+    silver layer, not a namespaced one. A hard-coded ``silver.fx_rate`` would
+    pass :class:`~bloomery.naming.PrefixNaming` unchanged and read a relation
+    outside the namespace everything else in the project was scoped into — the
+    one thing a naming policy exists to prevent (RFC 0008 §5.1).
+
+    **Both interval ends are required, and that is the whole design** (D11).
+    One end is not an interval: a fact row would match every rate at or before
+    its anchor, and the conversion would multiply rather than convert — the
+    same fan-out :class:`~bloomery.errors.HistoricalFanout` refuses on the
+    other side of this RFC. Deriving the upper bound with ``LEAD(valid_from)``
+    was rejected for making every conversion a window function over the whole
+    rate table, and for extending the newest rate to infinity, so that a stale
+    feed converts at last week's rate instead of failing.
+    """
+
+    relation: RelationName
+    from_: MemberName = Field(alias="from")
+    to: MemberName
+    rate: MemberName
+    valid_from: MemberName
+    valid_to: MemberName
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _distinct_columns(self) -> FxRates:
+        names = (self.from_, self.to, self.rate, self.valid_from, self.valid_to)
+        if len(set(names)) != len(names):
+            duplicated = sorted({name for name in names if names.count(name) > 1})
+            msg = (
+                f"fx_rates names the same column for more than one role: {duplicated} — "
+                "each of from/to/rate/valid_from/valid_to reads a different column of the "
+                "rate relation, and a shared name makes the emitted predicate compare a "
+                "column against itself"
+            )
+            raise ValueError(msg)
+
+        return self
+
+
+# ....................... #
+
+
 class MetricTemplate(SpecModel):
     """A catalog-level metric template a project metric may instantiate via
     ``template:`` (RFC 0002 §5.5). ``description`` merges like every other
@@ -137,3 +193,7 @@ class Catalog(SpecModel):
     canonical_relationships: tuple[CanonicalRelationship, ...] = ()
     metric_templates: dict[str, MetricTemplate] = Field(default_factory=dict)
     date_dimension: DateDimension | None = None
+    #: Absent for every vertical that never converts. Its absence is what the
+    #: ``convert`` refusal names (RFC 0023 §5.4): the transform stays legal,
+    #: typechecks, and is refused at emit until a rate relation is declared.
+    fx_rates: FxRates | None = None

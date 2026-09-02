@@ -12,16 +12,19 @@ the rule pipeline are built from it.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING, cast
 
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
 from bloomery.dialects import DialectFeature
+from bloomery.emit.lower.predicates import as_of_conditions
 from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.ir import (
     SOURCE_COLUMN,
     EntityIR,
+    FxRatesIR,
     Layer,
     OnFail,
     QualityRuleIR,
@@ -66,7 +69,7 @@ from bloomery.quality import (
     windowed,
     with_dedupe_qualify,
 )
-from bloomery.transforms import CONVERT_MARKER
+from bloomery.transforms import CONVERT_ANCHOR, CONVERT_FROM, CONVERT_MARKER, CONVERT_TO
 
 if TYPE_CHECKING:
     from bloomery.emit.base import EmitContext
@@ -362,45 +365,145 @@ def _json_object(pairs: list[tuple[str, Expression]], ctx: EmitContext) -> Expre
 # ....................... #
 
 
-def _require_no_currency_conversion(entity: EntityIR) -> None:
-    """Refuse a lowered column that carries the currency-conversion marker
-    (RFC 0023 D4).
+#: The alias the rate subquery binds its relation to. Short and fixed: it is
+#: scoped to one subquery, so it cannot collide with anything outside it.
+_FX_ALIAS = "fx"
 
-    Unconditional rather than dialect-conditional, because nothing about it is
-    a dialect's fault: a conversion is a join against a dated rate table, and
-    bloomery declares no rate relation for any target to join to. The
-    ``CONVERT_CURRENCY(…)`` call the transform builds exists in no engine, so
-    every dialect renders it beautifully and every engine fails on it — the
-    "compiles clean, aborts the run" shape RFC 0008 D3 refuses.
 
-    Checked here rather than in the guardrail stage because here is where the
+def _rate_subquery(marker: exp.Anonymous, fx: FxRatesIR, ctx: EmitContext) -> Expression:
+    """One ``CONVERT_CURRENCY`` marker as the rate it stands for (RFC 0023 §5.4).
+
+    A **correlated scalar subquery**, not a join::
+
+        (SELECT fx.rate FROM silver.fx_rate AS fx
+          WHERE fx.from_ccy = 'EUR' AND fx.to_ccy = 'USD'
+            AND <anchor> >= fx.valid_from
+            AND (fx.valid_to IS NULL OR <anchor> < fx.valid_to))
+
+    A join would be the more usual shape and is the wrong one here: ``convert``
+    is a transform, and a transform is a scalar expression inside one
+    projection of the branch SELECT. Adding a join would put the rate table in
+    the FROM clause of a SELECT that is also unioned across sources, deduped,
+    and re-run against the reject payload on replay — four shapes that would
+    each need to learn about it. A scalar expression needs none of them to
+    change, and replay in particular keeps working *because* it re-runs this
+    same expression (RFC 0016 §5.6).
+
+    The anchor arrives already lowered: ``resolve.build`` replaced the field
+    name the author wrote with that field's own lowering, because the anchor's
+    silver name does not exist yet where this is projected — both are
+    projections of one SELECT, and a lateral column alias is a DuckDB
+    extension Postgres and Trino reject.
+
+    A miss is NULL, deliberately (D11): with both interval ends declared, a gap
+    in the rate feed matches nothing, and NULL propagates into the amount
+    rather than resolving to a neighbouring rate. The alternative — extending
+    the newest rate forward — converts a stale feed at last week's price and
+    says nothing.
+    """
+    namespace, relation = ctx.naming.relation(fx.relation, Layer.SILVER)
+    anchor = marker.expressions[CONVERT_ANCHOR]
+    conditions = [
+        exp.EQ(
+            this=exp.column(fx.from_currency, table=_FX_ALIAS),
+            expression=marker.expressions[CONVERT_FROM].copy(),
+        ),
+        exp.EQ(
+            this=exp.column(fx.to_currency, table=_FX_ALIAS),
+            expression=marker.expressions[CONVERT_TO].copy(),
+        ),
+        *as_of_conditions(anchor, table=_FX_ALIAS, valid_from=fx.valid_from, valid_to=fx.valid_to),
+    ]
+    select = (
+        exp.Select()
+        .select(exp.column(fx.rate, table=_FX_ALIAS))
+        .from_(exp.table_(relation, db=namespace, alias=_FX_ALIAS))
+        .where(exp.and_(*conditions))
+    )
+
+    return exp.Mul(this=marker.expressions[0].copy(), expression=exp.paren(select.subquery()))
+
+
+# ....................... #
+
+
+def _lower_conversions(entity: EntityIR, ctx: EmitContext) -> EntityIR:
+    """Rewrite every currency-conversion marker into its rate subquery, or
+    refuse the entity that has one with no rates declared (RFC 0023 D4/§5.4).
+
+    Done here rather than in the guardrail stage because here is where the
     marker becomes SQL: :func:`_extract_select` is the one place a
     ``SourceColumnIR.expr`` is realized, so no emission path — model, reject
-    table, replay, or fail audit — can reach the marker without passing this.
+    table, replay, or fail audit — can reach a marker without passing this.
 
     Every source, not the first: a merged entity's branches carry independent
-    lowerings, so one may apply the transform where another does not, and a
-    check over one branch would pass the compile that emits the call.
-    """
+    lowerings, so one may convert where another does not, and a pass over one
+    branch would emit the other's marker untouched.
 
-    for column in (column for source in entity.sources for column in source.columns):
-        if not any(
-            str(call.this).upper() == CONVERT_MARKER
-            for call in column.expr.ast().find_all(exp.Anonymous)
-        ):
-            continue
+    The refusal is what remains of Phase 1's unconditional one. It is no longer
+    "no engine can do this" — one can, given rates — but "this project asked to
+    convert and declared nothing to convert against", which is a spec gap the
+    message can name precisely.
+    """
+    markers = [
+        (column, marker)
+        for source in entity.sources
+        for column in source.columns
+        for marker in column.expr.ast().find_all(exp.Anonymous)
+        if str(marker.this).upper() == CONVERT_MARKER
+    ]
+
+    if not markers:
+        return entity
+
+    if ctx.fx_rates is None:
+        column, _marker = markers[0]
         msg = (
             f"column {column.name!r} of entity {entity.name!r} applies the convert "
-            "transform, which has no lowering on any shipped dialect — a currency "
-            "conversion is a join against a dated rate table, and bloomery models no "
-            f"rate relation (RFC 0023 §5.4, D4). The emitted {CONVERT_MARKER}(...) call "
-            "exists in no engine, so the model would compile here and fail on its first "
-            "run. Fix: drop the convert step and keep the amounts in their source "
-            "currency, or convert upstream of bloomery"
+            "transform, but no rate relation is declared: a currency conversion is a "
+            "join against a dated rate table, and the catalog carries no 'fx_rates:' "
+            "(RFC 0023 §5.4). Emitted as-is the model would compile here and fail on "
+            "its first run. Fix: declare fx_rates: in the catalog with the relation and "
+            "its from/to/rate/valid_from/valid_to columns, or drop the convert step and "
+            "keep the amounts in their source currency"
         )
         raise UnsupportedByTarget(
             msg, source_path=f"entity_model: entities.{entity.name}.fields.{column.name}"
         )
+
+    fx = ctx.fx_rates
+    rewritten = tuple(
+        replace(
+            source,
+            columns=tuple(
+                replace(column, expr=SqlExpr(_converted(column.expr.ast(), fx, ctx).sql()))
+                if any(
+                    str(call.this).upper() == CONVERT_MARKER
+                    for call in column.expr.ast().find_all(exp.Anonymous)
+                )
+                else column
+                for column in source.columns
+            ),
+        )
+        for source in entity.sources
+    )
+
+    return replace(entity, sources=rewritten)
+
+
+# ....................... #
+
+
+def _converted(expr: Expression, fx: FxRatesIR, ctx: EmitContext) -> Expression:
+    """One column expression with every marker in it replaced."""
+
+    def rewrite(node: Expression) -> Expression:
+        if isinstance(node, exp.Anonymous) and str(node.this).upper() == CONVERT_MARKER:
+            return _rate_subquery(node, fx, ctx)
+
+        return node
+
+    return expr.transform(rewrite)
 
 
 # ....................... #
@@ -540,7 +643,7 @@ def _extract_select(
     one is itself, not a one-branch ``UNION`` — so nothing about the existing
     corpus moves except the fingerprint.
     """
-    _require_no_currency_conversion(entity)
+    entity = _lower_conversions(entity, ctx)
     branches = [
         _branch_select(entity, origin, ctx, include_raw=include_raw, from_payload=from_payload)
         for origin in entity.sources

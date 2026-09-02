@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, cast
 from sqlglot import exp, parse_one
 from sqlglot.expressions.core import Expression
 
+from bloomery.emit.lower.predicates import as_of_conditions
 from bloomery.errors import guaranteed
 from bloomery.ir import (
     VALID_FROM,
@@ -158,35 +159,22 @@ def _owned(owners: dict[str, tuple[str, str]], column: str) -> exp.Column:
 def _as_of_conditions(join: MartJoinIR, owners: dict[str, tuple[str, str]]) -> list[Expression]:
     """The validity-interval half of an as-of join (RFC 0023 §5.3), or ``[]``.
 
-    ``anchor >= valid_from AND (valid_to IS NULL OR anchor < valid_to)`` — the
-    half-open interval every SCD2 convention uses, so a row valid to the
-    instant another becomes valid matches exactly one of them rather than
-    both.
-
-    The open end is spelled ``IS NULL`` rather than §5.3's illustrative
-    ``COALESCE(valid_to, TIMESTAMP '9999-12-31')``: both targets write NULL
-    for the current version, and a sentinel would have to be a literal of the
-    interval's own type — which differs between a ``date`` anchor and a
-    ``timestamp`` one, on three dialects. ``IS NULL`` needs no literal and no
-    coercion, and says the same thing.
+    The predicate itself is :func:`as_of_conditions` in the lowering base,
+    shared with the currency conversion that reads a rate's interval the same
+    way (D6). What is local here is only what a *mart join* names: the
+    dimension's interval columns are the two IR constants, under this join's
+    prefix, and the anchor is a mart column resolved to the relation that owns
+    it.
     """
     if join.as_of is None:
         return []
 
-    anchor = _owned(owners, join.as_of)
-    valid_from = exp.column(VALID_FROM, table=join.prefix)
-    valid_to = exp.column(VALID_TO, table=join.prefix)
-
-    open_ended = exp.or_(
-        exp.Is(this=valid_to.copy(), expression=exp.null()),
-        exp.LT(this=anchor.copy(), expression=valid_to),
+    return as_of_conditions(
+        _owned(owners, join.as_of),
+        table=join.prefix,
+        valid_from=VALID_FROM,
+        valid_to=VALID_TO,
     )
-
-    # ``or_`` is annotated with the ``Condition`` base, like ``alias_`` above.
-    return [
-        exp.GTE(this=anchor.copy(), expression=valid_from),
-        cast("Expression", open_ended),
-    ]
 
 
 # ....................... #

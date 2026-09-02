@@ -157,6 +157,47 @@
       "title": "DateDimension",
       "type": "object"
     },
+    "FxRates": {
+      "additionalProperties": false,
+      "description": "The dated exchange-rate relation the ``convert`` transform reads\n(RFC 0023 \u00a75.4).\n\nReference data, which is why it is a catalog concern rather than an\nentity: nobody maps it, it has no grain bloomery owns, and it is shared by\nevery project the vertical serves. What is declared here is the *shape* of\na table the operator supplies \u2014 bloomery reads it and never builds it.\n\n``relation`` is a bare name resolved through the naming policy at the\nsilver layer, not a namespaced one. A hard-coded ``silver.fx_rate`` would\npass :class:`~bloomery.naming.PrefixNaming` unchanged and read a relation\noutside the namespace everything else in the project was scoped into \u2014 the\none thing a naming policy exists to prevent (RFC 0008 \u00a75.1).\n\n**Both interval ends are required, and that is the whole design** (D11).\nOne end is not an interval: a fact row would match every rate at or before\nits anchor, and the conversion would multiply rather than convert \u2014 the\nsame fan-out :class:`~bloomery.errors.HistoricalFanout` refuses on the\nother side of this RFC. Deriving the upper bound with ``LEAD(valid_from)``\nwas rejected for making every conversion a window function over the whole\nrate table, and for extending the newest rate to infinity, so that a stale\nfeed converts at last week's rate instead of failing.",
+      "properties": {
+        "from": {
+          "title": "From",
+          "type": "string"
+        },
+        "rate": {
+          "title": "Rate",
+          "type": "string"
+        },
+        "relation": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Relation",
+          "type": "string"
+        },
+        "to": {
+          "title": "To",
+          "type": "string"
+        },
+        "valid_from": {
+          "title": "Valid From",
+          "type": "string"
+        },
+        "valid_to": {
+          "title": "Valid To",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from",
+        "rate",
+        "relation",
+        "to",
+        "valid_from",
+        "valid_to"
+      ],
+      "title": "FxRates",
+      "type": "object"
+    },
     "MetricTemplate": {
       "additionalProperties": false,
       "description": "A catalog-level metric template a project metric may instantiate via\n``template:`` (RFC 0002 \u00a75.5). ``description`` merges like every other\ntemplate value: the metric's own wins, the template's is the fallback.",
@@ -375,6 +416,17 @@
       "anyOf": [
         {
           "$ref": "#/$defs/DateDimension"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "fx_rates": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FxRates"
         },
         {
           "type": "null"

@@ -67,7 +67,6 @@ know it has a companion recording where it turned out to be wrong.
 
 | # | Title | Status | One-line routing description |
 |---|---|---|---|
-| [0023](0023-temporal-joins-scd2-flattening-and-currency-conversion.md) | Temporal joins: SCD2 flattening and currency conversion | 🚧 In progress | Two constructs that compile clean and cannot be correct — flattening a historical dimension, and `convert` — both needing a join against a validity interval. |
 | [0024](0024-deterministic-union-merge.md) | Deterministic union merge | 🚧 In progress | Letting several mappings build one entity when they share a key space but no overlapping keys, so the entity model integrates sources instead of renaming one. Overlap stays a step. |
 | [0033](0033-observability-logging-and-a-warnings-channel.md) | Observability: logging and a warnings channel | 📝 Draft | Stage-level stdlib logging that stays silent by default and cannot touch artifact bytes, a typed compile-time advisory channel riding `SpecEvidence`, and `warnings` reserved for deprecation alone. |
 

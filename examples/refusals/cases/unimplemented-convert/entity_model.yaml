@@ -1,6 +1,8 @@
-# `convert` typechecks decimal -> decimal, passes every guardrail, and lowers to
-# a CONVERT_CURRENCY(...) call that exists in no engine. bloomery refuses it at
-# emit rather than shipping a project that compiles here and fails there.
+# `convert` typechecks decimal -> decimal and passes every guardrail, then asks
+# for a rate this project never declared. A conversion is a join against a dated
+# rate table; bloomery reads that table from the catalog's `fx_rates:`, and this
+# catalog has none. Refused at emit rather than shipped as SQL with no rate in
+# it (RFC 0023 §5.4).
 spec_version: 1
 entities:
   payment:
@@ -10,3 +12,4 @@ entities:
       payment_id: {type: string, required: true}
       amount_eur: {type: "decimal(12,2)"}
       amount_usd: {type: "decimal(12,2)"}
+      paid_at: {type: date}

@@ -67,10 +67,10 @@ CASE_NOTES: tuple[tuple[str, str, str], ...] = (
     ),
     (
         "unimplemented-convert",
-        "A transform with no lowering anywhere",
+        "A conversion with no rates to convert against",
         "`convert` typechecks decimal -> decimal and passes every guardrail, "
-        "then emits a CONVERT_CURRENCY(...) call that exists in no engine. "
-        "Refused at emit rather than shipped as SQL that fails at run time.",
+        "then asks for an exchange rate this catalog never declared. Refused "
+        "at emit rather than shipped as SQL with no rate in it.",
     ),
 )
 

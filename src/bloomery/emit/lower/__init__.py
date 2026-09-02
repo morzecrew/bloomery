@@ -32,6 +32,7 @@ from bloomery.emit.lower.marts import (
     measure_owners,
 )
 from bloomery.emit.lower.predicates import (
+    as_of_conditions,
     audit_predicate,
     column_type,
     enum_literal,
@@ -75,6 +76,7 @@ __all__ = [
     "COLLISION_COUNT_COLUMN",
     "ROW_ID_COUNT_COLUMN",
     "THIS_MODEL",
+    "as_of_conditions",
     "audit_predicate",
     "column_type",
     "collision_audit",

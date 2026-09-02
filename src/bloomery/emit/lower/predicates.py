@@ -6,6 +6,8 @@ an audit tests it with. Every other stage may read these; they read nothing.
 
 from __future__ import annotations
 
+from typing import cast
+
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
@@ -93,3 +95,47 @@ def audit_predicate(entity: EntityIR, audit: AuditIR, *, violations: bool) -> Ex
         return exp.NullSafeNEQ(this=column, expression=shadow)
 
     return exp.NullSafeEQ(this=column, expression=shadow)
+
+
+# ....................... #
+# The as-of predicate (RFC 0023 §5.3/§5.4, D6)
+
+
+def as_of_conditions(
+    anchor: Expression, *, table: str, valid_from: str, valid_to: str
+) -> list[Expression]:
+    """``anchor >= valid_from AND (valid_to IS NULL OR anchor < valid_to)``.
+
+    The half-open interval every validity convention uses, so a row valid to
+    the instant another becomes valid matches exactly one of them rather than
+    both.
+
+    One function because there is one construct. RFC 0023 D6 kept the SCD2
+    as-of join and the FX rate lookup in a single document precisely so they
+    would not be designed apart, and they differ only in what they name: a
+    mart's join reads a dimension's ``valid_from``/``valid_to`` under the join
+    prefix, a conversion reads the rate relation's declared interval columns
+    under the subquery's alias. Neither owns the shape.
+
+    It lives in the base of the lowering package rather than beside either
+    caller, because the two are sibling stages and stages compose downward.
+
+    The open end is spelled ``IS NULL`` rather than a sentinel: both SCD2
+    targets write NULL for the current version, a rate feed leaves the live
+    rate open the same way, and a sentinel would have to be a literal of the
+    interval's own type — which differs between a ``date`` anchor and a
+    ``timestamp`` one, on three dialects. ``IS NULL`` needs no literal and no
+    coercion, and says the same thing.
+    """
+    upper = exp.column(valid_to, table=table)
+    open_ended = exp.or_(
+        exp.Is(this=upper.copy(), expression=exp.null()),
+        exp.LT(this=anchor.copy(), expression=upper),
+    )
+
+    # ``or_`` is annotated with the ``Condition`` base, but returns an
+    # ``Expression`` here (cf. ir.nodes on ``parse_one``).
+    return [
+        exp.GTE(this=anchor.copy(), expression=exp.column(valid_from, table=table)),
+        cast("Expression", open_ended),
+    ]

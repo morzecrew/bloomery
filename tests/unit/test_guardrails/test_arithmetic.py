@@ -12,6 +12,7 @@ from bloomery.guardrails.arithmetic import check_arithmetic
 from bloomery.guardrails.operands import Derivation
 from bloomery.ir import Additivity, MetricIR, SqlExpr
 from bloomery.spec import Catalog
+from bloomery.spec.catalog import FxRates
 from bloomery.transforms import CONVERT_MARKER
 
 pytestmark = pytest.mark.unit
@@ -155,12 +156,45 @@ def test_absent_codes_are_compatible() -> None:
 def test_the_convert_marker_no_longer_satisfies_the_rule() -> None:
     # RFC 0023 D5. The marker used to be the escape hatch: its presence on
     # either side permitted the arithmetic. It bought a compile-time "yes"
-    # whose only outcome was a run-time failure, because the transform that
-    # produces it is refused at emit (D4) and no engine defines the call.
-    expr = f"{CONVERT_MARKER}(net_eur, 'USD') + net_usd"
+    # whose only outcome was a run-time failure, and removing it did not come
+    # back when conversion shipped (§5.4): a converted amount satisfies this
+    # rule by being *declared* in the target currency, not by carrying a token
+    # that waives it. A marker sitting in an expression still proves nothing.
+    expr = f"{CONVERT_MARKER}(net_eur, 'EUR', 'USD', 'paid_at') + net_usd"
     (violation,) = _check(expr, "net_eur", "net_usd")
     assert isinstance(violation, CurrencyMismatch)
-    assert "no rate relation is modelled" in str(violation)
+    assert "declares no 'fx_rates:' relation" in str(violation)
+
+
+def test_the_fix_the_mismatch_names_depends_on_whether_rates_are_declared() -> None:
+    """The rule never moves; the advice does.
+
+    Telling an author to derive upstream when a rate relation is right there
+    sends them to rebuild what bloomery would do for them. Telling them to
+    convert when nothing declares rates sends them to a refusal. Both were one
+    message until conversion shipped, and only one of them was ever true.
+    """
+    without = _check("net_eur + net_usd", "net_eur", "net_usd")
+    assert "declares no 'fx_rates:' relation" in str(without[0])
+    assert "convert transform" not in str(without[0])
+
+    convertible = CATALOG.model_copy(
+        update={
+            "fx_rates": FxRates.model_validate(
+                {
+                    "relation": "fx_rate",
+                    "from": "from_ccy",
+                    "to": "to_ccy",
+                    "rate": "rate",
+                    "valid_from": "valid_from",
+                    "valid_to": "valid_to",
+                }
+            )
+        }
+    )
+    (with_rates,) = _check("net_eur + net_usd", "net_eur", "net_usd", catalog=convertible)
+    assert "Fix: convert one operand with the convert transform" in str(with_rates)
+    assert "declares no" not in str(with_rates)
 
 
 def test_currency_mismatch_reports_once_per_expression() -> None:
