@@ -1218,12 +1218,22 @@ def _validity_collisions(entity_name: str, entity: Entity) -> list[ResolutionErr
     ``type1`` entity the names are ordinary and stay legal — which is why this
     is a refusal here rather than a reserved name everywhere (a business
     ``valid_from`` on a current-view dimension is a perfectly good column).
+
+    ``fields`` alone is the whole declared surface by the time this runs, which
+    is why the message can name that one path. ``resolve.refs`` has already
+    refused a mapping whose ``key:`` lowers a name the entity does not declare
+    ("key lowers unknown field") and an entity key column no mapping lowers
+    ("entity key column %r is not lowered by the mapping's key:"), and those two
+    compose into ``entity.key`` ⊆ ``entity.fields``. Reading ``key`` here as
+    well would be a union that can never differ —
+    ``test_a_validity_column_in_the_key_is_refused_before_this_check_sees_it``
+    is what fails if that stops being true, rather than this refusal quietly
+    narrowing.
     """
     if entity.scd != "type2":
         return []
 
-    declared = {*entity.fields, *entity.key}
-    collisions = sorted(name for name in declared if name in VALIDITY_COLUMNS)
+    collisions = sorted(name for name in entity.fields if name in VALIDITY_COLUMNS)
 
     if not collisions:
         return []

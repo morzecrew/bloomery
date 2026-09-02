@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 
 from bloomery import build_project_ir, load_catalog, load_project, project_fingerprint
-from bloomery.errors import ResolutionError, TypeCheckError
+from bloomery.errors import MissingReference, ResolutionError, TypeCheckError
 from bloomery.ir import (
     DateDimensionIR,
     DimensionRef,
@@ -791,3 +791,37 @@ def test_two_validity_collisions_report_together() -> None:
         "entity_model: entities.a.fields",
         "entity_model: entities.b.fields",
     ]
+
+
+def test_a_validity_column_in_the_key_is_refused_before_this_check_sees_it() -> None:
+    """The guarantor `_validity_collisions` reads `fields` alone on.
+
+    A reviewer asked what happens when `valid_from` is declared in `key:`
+    rather than `fields:`, since the refusal's `source_path` names `.fields`
+    unconditionally. The answer is that `resolve.refs` refuses first, in two
+    halves that compose into `entity.key` ⊆ `entity.fields` — and both are
+    pinned here, from the side that depends on them. If either stops firing,
+    `_validity_collisions` would silently miss a key-only collision instead of
+    this failing.
+    """
+    undeclared = _MERGE_ENTITY_MODEL.replace(
+        "    key: [event_id]\n", "    key: [event_id, valid_from]\n    scd: type2\n"
+    )
+    with pytest.raises(ResolutionError) as unlowered:
+        build_project_ir(load_project({"entity_model": undeclared, "mapping_a": _SRC_A_MAPPING}))
+    assert "entity key column 'valid_from' is not lowered by the mapping's key" in str(
+        unlowered.value
+    )
+
+    with pytest.raises(MissingReference) as unknown:
+        build_project_ir(
+            load_project(
+                {
+                    "entity_model": undeclared,
+                    "mapping_a": _SRC_A_MAPPING.replace(
+                        "key:\n", 'key:\n  valid_from: {from: "$.vf", transform: [to_string]}\n'
+                    ),
+                }
+            )
+        )
+    assert "key lowers unknown field 'valid_from' of entity 'event'" in str(unknown.value)
