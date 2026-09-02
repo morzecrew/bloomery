@@ -9,6 +9,7 @@ from dataclasses import replace
 
 import pytest
 from support import plan_ir
+from support.compiling import fixture_sources, load_fixture
 from support.ir_factory import build_project_ir as factory_ir
 
 from bloomery.errors import ContractViolation, PlanError, RenameTargetMissing
@@ -30,6 +31,7 @@ from bloomery.ir import (
     Unit,
     UnreachableMetric,
 )
+from bloomery import build_project_ir, load_project
 from bloomery.plan import Change, ChangeClass, plan
 from bloomery.typing import DecimalType, IntType, StringType, TimestampType, VariantType
 
@@ -906,3 +908,36 @@ def test_date_dimension_bounds_extension_is_additive_but_shrinking_is_breaking()
     assert (grow.old, grow.new) == ("2020-2030", "2019-2031")
     cut = only_change(plan_ir.project(date_dimension=dim), plan_ir.project(date_dimension=shrunk))
     assert cut.change_class is ChangeClass.BREAKING
+
+
+def test_the_rfc_0034_metric_forms_restate_when_they_change() -> None:
+    """A window, an offset or a filter is *what the metric computes*, so a
+    change to one is a restatement.
+
+    While these were missing from `_metric_definition`, `plan()` reported no
+    metric change at all for any of them — a window widened from seven days to
+    thirty, an offset moved from one year to two, a filter changed from
+    `status = paid` to `status != refunded` — so a deployment would have left
+    the old figures standing.
+    """
+    _project, catalog = load_fixture("period_over_period")
+    base = build_project_ir(*load_fixture("period_over_period"))
+
+    for anchor, replacement, metric in (
+        ('cumulative: {window: "7 days"}', 'cumulative: {window: "30 days"}', "revenue_trailing_7d"),
+        ('offset: {window: "1 year"}', 'offset: {window: "2 years"}', "revenue_yoy"),
+        (
+            "- {dimension: status, op: eq, values: [paid]}",
+            "- {dimension: status, op: ne, values: [refunded]}",
+            "paid_revenue",
+        ),
+    ):
+        sources = dict(fixture_sources("period_over_period"))
+        assert sources["metrics"].count(anchor) == 1, anchor
+        sources["metrics"] = sources["metrics"].replace(anchor, replacement)
+        changed = build_project_ir(load_project(sources), catalog)
+
+        subjects = {
+            change.subject: change.change_class for change in plan(base, changed).changes
+        }
+        assert subjects.get(f"metric:{metric}") is ChangeClass.RESTATING, anchor

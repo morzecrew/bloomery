@@ -1504,12 +1504,32 @@ def _diff_entities(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
 
 
 def _metric_definition(metric: MetricIR) -> tuple[object, ...]:
+    """Everything about a metric whose change restates it.
+
+    **Every** field that decides what the metric computes belongs here, and the
+    RFC 0034 three are the reason that is written down rather than assumed: a
+    window widened from seven days to thirty, an offset moved from one year to
+    two, a filter changed from ``status = paid`` to ``status != refunded`` are
+    each a different number over the same rows, and while they were missing
+    ``plan()`` reported no metric change at all — so a deployment would have
+    left the old figures standing.
+
+    ``expr`` is compared by its ``sql`` because :class:`SqlExpr` compares by
+    identity; ``derived`` carries its own ``SqlExpr``, so it is unpacked the
+    same way rather than compared whole.
+    """
+
+    derived = metric.derived
+
     return (
         metric.additivity,
         metric.agg,
         metric.expr.sql if metric.expr is not None else None,
         metric.ratio,
         metric.semi_additive,
+        metric.cumulative,
+        (derived.expr.sql, derived.inputs) if derived is not None else None,
+        metric.filter,
         metric.depends_on,
     )
 
