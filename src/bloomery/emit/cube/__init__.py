@@ -69,7 +69,7 @@ from bloomery.emit.base import (
     EmitContext,
     EmittedArtifact,
 )
-from bloomery.emit.lower import measure_owners
+from bloomery.emit.lower import measure_owners, metric_filter_sql
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import (
     Additivity,
@@ -204,6 +204,16 @@ def _stored_measure(metric: MetricIR, mart: MartIR) -> dict[str, object]:
         # Cube's ``count`` counts rows and takes no sql (see module docstring).
         entry["sql"] = metric.expr.sql
 
+    if metric.filter:
+        # Cube's own measure-level filter (RFC 0034): the same clauses the
+        # MetricFlow manifest carries, rendered by the shared function and
+        # differing only in how a column is spelled — `{CUBE}.col` here,
+        # `{{ Dimension('entity__col') }}` there (D15).
+        entry["filters"] = [
+            {"sql": metric_filter_sql(clause, ref=f"{{CUBE}}.{clause.dimension}")}
+            for clause in metric.filter
+        ]
+
     entry["meta"] = _metric_meta(metric)
     return entry
 
@@ -315,6 +325,50 @@ def _view_artifact(mart: MartIR, ctx: EmitContext) -> EmittedArtifact:
 # ....................... #
 
 
+def _refuse_time_shaped(ir: ProjectIR) -> None:
+    """Refuse the two RFC 0034 forms Cube has no measure shape for (D11).
+
+    Project-wide rather than per mart, and by *existence* rather than by a
+    mart naming the metric: a derived metric need not be listed in any mart's
+    ``measures:`` at all (RFC 0034 D4), so a per-mart check would let one pass
+    unmentioned — Cube would emit a complete-looking model quietly missing the
+    metric, which is the silent hole the refusal exists to prevent.
+
+    **Period-over-period is not missing from Cube, it lives elsewhere in it.**
+    Cube answers it at query time (``compareDateRange`` over a time dimension)
+    rather than as a stored measure definition, so there is nothing here to
+    emit and a Cube consumer is not blocked. A cumulative window maps onto
+    ``rolling_window`` in its trailing form only, and ``grain_to_date`` has no
+    equivalent; refusing both is one rule where supporting half would be a rule
+    and an exception.
+    """
+
+    for metric in ir.metrics:  # sorted by name on ProjectIR
+        if metric.derived is not None:
+            msg = (
+                f"metric {metric.name!r} is derived: over other metrics, which Cube has no "
+                "measure shape for — a stored measure aggregates a column, and an offset "
+                "input has no static form at all (Cube compares periods at query time via "
+                "compareDateRange). Fix: keep the metric for the MetricFlow manifest and "
+                "ask Cube for the comparison at query time, or express a division as "
+                "ratio: {numerator, denominator}, which does lower here"
+            )
+            raise UnsupportedByTarget(msg)
+
+        if metric.cumulative is not None:
+            msg = (
+                f"metric {metric.name!r} declares cumulative:, which Cube expresses only "
+                "as a trailing rolling_window — grain_to_date has no equivalent, and "
+                "supporting one form silently would make what a cumulative metric means "
+                "depend on which of the two was written. Fix: keep the metric for the "
+                "MetricFlow manifest, or drop cumulative: and accumulate downstream"
+            )
+            raise UnsupportedByTarget(msg)
+
+
+# ....................... #
+
+
 class CubeEmitter:
     """RFC 0008 §5.4: one cube per mart, one view per mart — YAML data model
     files, dialect-independent by construction."""
@@ -328,6 +382,7 @@ class CubeEmitter:
         content ending in exactly one newline (RFC 0003 §5.5 rule 5). A
         project without marts emits nothing — Cube has no silver surface."""
 
+        _refuse_time_shaped(ir)
         owners = measure_owners(ir)
         artifacts: list[EmittedArtifact] = []
 

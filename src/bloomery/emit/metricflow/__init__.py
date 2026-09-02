@@ -74,10 +74,16 @@ from metricflow_semantic_interfaces.implementations.elements.measure import (
     PydanticMeasure,
     PydanticNonAdditiveDimensionParameters,
 )
+from metricflow_semantic_interfaces.implementations.filters.where_filter import (
+    PydanticWhereFilter,
+    PydanticWhereFilterIntersection,
+)
 from metricflow_semantic_interfaces.implementations.metric import (
+    PydanticCumulativeTypeParams,
     PydanticMetric,
     PydanticMetricInput,
     PydanticMetricInputMeasure,
+    PydanticMetricTimeWindow,
     PydanticMetricTypeParams,
 )
 from metricflow_semantic_interfaces.implementations.node_relation import PydanticNodeRelation
@@ -96,10 +102,11 @@ from metricflow_semantic_interfaces.type_enums.aggregation_type import Aggregati
 from metricflow_semantic_interfaces.type_enums.dimension_type import DimensionType
 from metricflow_semantic_interfaces.type_enums.entity_type import EntityType
 from metricflow_semantic_interfaces.type_enums.metric_type import MetricType
+from metricflow_semantic_interfaces.type_enums.period_agg import PeriodAggregation
 from metricflow_semantic_interfaces.type_enums.time_granularity import TimeGranularity
 
-from bloomery.emit.lower import measure_owners
-from bloomery.errors import EmitError, UnsupportedByTarget
+from bloomery.emit.lower import measure_owners, metric_filter_sql
+from bloomery.errors import EmitError, UnsupportedByTarget, guaranteed
 from bloomery.ir import Additivity, Layer, SemiAdditiveRule
 
 if TYPE_CHECKING:
@@ -107,8 +114,10 @@ if TYPE_CHECKING:
         DateDimensionIR,
         EntityIR,
         MartIR,
+        MetricFilterIR,
         MetricIR,
         ProjectIR,
+        TimeWindow,
     )
     from bloomery.naming import NamingPolicy
 
@@ -430,25 +439,96 @@ def _metric_input(name: str) -> PydanticMetricInput:
 # ....................... #
 
 
+def _time_window(window: TimeWindow | None) -> PydanticMetricTimeWindow | None:
+    """One IR window as MetricFlow's own (RFC 0034 D2). The grain is already
+    singular and already one of ``day|week|month|quarter|year`` — the spec
+    grammar establishes both — so this is a rename, not a translation."""
+
+    if window is None:
+        return None
+
+    return PydanticMetricTimeWindow(count=window.count, granularity=window.grain)
+
+
+# ....................... #
+
+
+def _derived_input(
+    alias: str, metric: str, window: TimeWindow | None, to_grain: str | None
+) -> PydanticMetricInput:
+    """One input of a DERIVED metric: the metric read, the alias its expression
+    references, and the offset it is read at (RFC 0034 D1)."""
+
+    return PydanticMetricInput(
+        name=metric,
+        filter=None,
+        alias=alias,
+        offset_window=_time_window(window),
+        offset_to_grain=to_grain,
+    )
+
+
+# ....................... #
+
+
+def _where(
+    filters: tuple[MetricFilterIR, ...], *, entity: str
+) -> PydanticWhereFilterIntersection | None:
+    """A metric's ``filter:`` list as MetricFlow's where-filter intersection —
+    an intersection being an AND, which is what the clauses are (RFC 0034 D8).
+
+    The dimension is spelled the way MetricFlow names a group-by item,
+    ``{entity}__{column}``; the comparison, list shape and literal escaping come
+    from the shared renderer, so this target and Cube cannot disagree about
+    them (D15).
+    """
+
+    if not filters:
+        return None
+
+    return PydanticWhereFilterIntersection(
+        where_filters=[
+            PydanticWhereFilter(
+                where_sql_template=metric_filter_sql(
+                    clause, ref=f"{{{{ Dimension('{entity}__{clause.dimension}') }}}}"
+                )
+            )
+            for clause in filters
+        ]
+    )
+
+
+# ....................... #
+
+
 def _type_params(
     *,
     measure: PydanticMetricInputMeasure | None = None,
     numerator: PydanticMetricInput | None = None,
     denominator: PydanticMetricInput | None = None,
+    expr: str | None = None,
+    metrics: list[PydanticMetricInput] | None = None,
+    cumulative: PydanticCumulativeTypeParams | None = None,
 ) -> PydanticMetricTypeParams:
-    """``PydanticMetricTypeParams`` with every unused optional field pinned to
-    its ``None`` default (see the implicit-optional note above)."""
+    """``PydanticMetricTypeParams`` with every field this emitter does not use
+    pinned to its ``None`` default (see the implicit-optional note above).
+
+    ``window``/``grain_to_date`` stay pinned even though RFC 0034 lowers
+    cumulative metrics: they are the *legacy* spelling of what
+    ``cumulative_type_params`` now carries, and writing both would leave two
+    accounts of one window in the manifest for MSI's transformer to reconcile.
+    """
 
     return PydanticMetricTypeParams(
         measure=measure,
         numerator=numerator,
         denominator=denominator,
-        expr=None,
+        expr=expr,
         window=None,
         grain_to_date=None,
-        metrics=None,
+        metrics=metrics,
         conversion_type_params=None,
-        cumulative_type_params=None,
+        cumulative_type_params=cumulative,
         metric_aggregation_params=None,
     )
 
@@ -456,54 +536,152 @@ def _type_params(
 # ....................... #
 
 
-def _metrics(ir: ProjectIR, owners: dict[str, MartIR]) -> list[PydanticMetric]:
-    """One SIMPLE metric per emitted measure; one RATIO metric per ratio
-    whose component measures are both emitted. Sorted by name."""
+def _emittable(ir: ProjectIR, owners: dict[str, MartIR]) -> frozenset[str]:
+    """Every metric name this manifest will carry.
+
+    Three rounds rather than one, because a metric may be defined over another
+    (RFC 0034 D1): measures first, then the ratios whose components are
+    measures, then derived metrics over anything already established —
+    including other derived metrics — to a fixed point. It terminates because
+    the resolution DAG is acyclic and each round adds at least one name or
+    stops.
+
+    A metric whose inputs are not all emitted is simply absent, which is what
+    this emitter has always done with an unservable ratio: the planner's
+    coverage precheck refuses it by name at request time (RFC 0013 D6), where
+    the message can say which measure no mart carries.
+    """
+
     by_name = {metric.name: metric for metric in ir.metrics}
-    emitted_measures = {
-        name for name in owners if by_name[name].additivity is not Additivity.NON_ADDITIVE
-    }
-    metrics: list[PydanticMetric] = []
+    measures = {name for name in owners if by_name[name].additivity is not Additivity.NON_ADDITIVE}
+    emitted = set(measures)
+    emitted.update(
+        metric.name
+        for metric in ir.metrics
+        if metric.additivity is Additivity.NON_ADDITIVE
+        and metric.ratio is not None
+        and metric.ratio.numerator in measures
+        and metric.ratio.denominator in measures
+    )
 
-    for metric in ir.metrics:  # sorted by name on ProjectIR
-        if metric.name in emitted_measures:
-            metrics.append(
-                PydanticMetric(
-                    name=metric.name,
-                    description=metric.description,
-                    type=MetricType.SIMPLE,
-                    type_params=_type_params(
-                        measure=PydanticMetricInputMeasure(
-                            name=metric.name, filter=None, alias=None
-                        )
-                    ),
-                    filter=None,
-                    metadata=None,
-                    config=None,
-                )
-            )
-        elif (
-            metric.additivity is Additivity.NON_ADDITIVE
-            and metric.ratio is not None
-            and metric.ratio.numerator in emitted_measures
-            and metric.ratio.denominator in emitted_measures
-        ):
-            metrics.append(
-                PydanticMetric(
-                    name=metric.name,
-                    description=metric.description,
-                    type=MetricType.RATIO,
-                    type_params=_type_params(
-                        numerator=_metric_input(metric.ratio.numerator),
-                        denominator=_metric_input(metric.ratio.denominator),
-                    ),
-                    filter=None,
-                    metadata=None,
-                    config=None,
-                )
-            )
+    while True:
+        grown = {
+            metric.name
+            for metric in ir.metrics
+            if metric.derived is not None
+            and metric.name not in emitted
+            and all(input_.metric in emitted for input_ in metric.derived.inputs)
+        }
+        if not grown:
+            return frozenset(emitted)
+        emitted |= grown
 
-    return metrics
+
+# ....................... #
+
+
+def _metric(
+    metric: MetricIR, owners: dict[str, MartIR], emitted: frozenset[str]
+) -> PydanticMetric | None:
+    """One metric in MetricFlow's four shapes, or ``None`` when this manifest
+    does not carry it.
+
+    SIMPLE for a metric with a measure, CUMULATIVE when that measure carries a
+    window (RFC 0034 D5), RATIO for the fixed two-component decomposition, and
+    DERIVED for the general expression over aliased inputs (D1). ``filter:``
+    rides on the metric in every shape that can have one — a derived metric is
+    refused one at the guardrail stage (D9's sibling refusal), so ``owners``
+    always has the mart whose entity key names the filter's dimension.
+    """
+
+    if metric.name not in emitted:
+        return None
+
+    if metric.derived is not None:
+        return PydanticMetric(
+            name=metric.name,
+            description=metric.description,
+            type=MetricType.DERIVED,
+            type_params=_type_params(
+                expr=metric.derived.expr.sql,
+                metrics=[
+                    _derived_input(
+                        input_.alias, input_.metric, input_.offset_window, input_.offset_to_grain
+                    )
+                    for input_ in metric.derived.inputs
+                ],
+            ),
+            filter=None,
+            metadata=None,
+            config=None,
+        )
+
+    if metric.additivity is Additivity.NON_ADDITIVE:
+        ratio = guaranteed(
+            (metric.ratio for _ in (0,) if metric.ratio is not None),
+            expected=f"a ratio or derived decomposition on non-additive metric {metric.name!r}",
+            by="the additivity guardrail, which refuses a non-additive metric without one",
+        )
+        return PydanticMetric(
+            name=metric.name,
+            description=metric.description,
+            type=MetricType.RATIO,
+            type_params=_type_params(
+                numerator=_metric_input(ratio.numerator),
+                denominator=_metric_input(ratio.denominator),
+            ),
+            filter=None,
+            metadata=None,
+            config=None,
+        )
+
+    measure = PydanticMetricInputMeasure(name=metric.name, filter=None, alias=None)
+    where = _where(metric.filter, entity=owners[metric.name].grain)
+
+    if metric.cumulative is None:
+        return PydanticMetric(
+            name=metric.name,
+            description=metric.description,
+            type=MetricType.SIMPLE,
+            type_params=_type_params(measure=measure),
+            filter=where,
+            metadata=None,
+            config=None,
+        )
+
+    return PydanticMetric(
+        name=metric.name,
+        description=metric.description,
+        type=MetricType.CUMULATIVE,
+        type_params=_type_params(
+            measure=measure,
+            cumulative=PydanticCumulativeTypeParams(
+                window=_time_window(metric.cumulative.window),
+                grain_to_date=metric.cumulative.grain_to_date,
+                # MetricFlow's own default, pinned rather than left implicit:
+                # it decides what a cumulative metric means when the request
+                # asks for a grain coarser than the accumulation, and bloomery
+                # does not invent a divergence from the ecosystem there.
+                period_agg=PeriodAggregation.FIRST,
+                metric=None,
+            ),
+        ),
+        filter=where,
+        metadata=None,
+        config=None,
+    )
+
+
+# ....................... #
+
+
+def _metrics(ir: ProjectIR, owners: dict[str, MartIR]) -> list[PydanticMetric]:
+    """Every emitted metric, in ``ProjectIR`` order — which is sorted by name."""
+
+    emitted = _emittable(ir, owners)
+    built = (_metric(metric, owners, emitted) for metric in ir.metrics)
+
+    return [metric for metric in built if metric is not None]
 
 
 # ....................... #

@@ -102,8 +102,7 @@ relation, and a shared name makes the emitted predicate compare a column against
 
 ### MetricTemplate
 
-Same shape as a [Metric](#metric) minus `template`/`cumulative`, with `additivity`
-required. A project metric that names it via `template:` merges values with the
+Same shape as a [Metric](#metric) minus `template`, with `additivity` required. A project metric that names it via `template:` merges values with the
 metric's own winning.
 
 ### DateDimension
@@ -447,13 +446,72 @@ A metric is a template instantiation (`template:` plus overrides) or fully inlin
 | `expr` | string | no | Expression over the required names |
 | `ratio` | RatioSpec | with `non_additive` | Additive decomposition to recompute from |
 | `semi_additive` | SemiAdditivePolicy | with `semi_additive` | The dimension and rule |
-| `cumulative` | CumulativeSpec | no | Reserved surface: exactly one of `window` / `grain_to_date`; parse-validated only |
+| `cumulative` | CumulativeSpec | no | Accumulate this metric's own measure over time |
+| `derived` | DerivedSpec | with `non_additive` | Compute the metric from other metrics, optionally read at an offset |
+| `filter` | list of MetricFilter | no (`[]`) | Restrict the rows the metric aggregates; clauses are ANDed |
 
 ### RatioSpec
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `numerator` / `denominator` | metric name | yes | The additive components |
+
+### DerivedSpec
+
+A metric with no measure of its own, computed by an expression over others. The
+alias is the mapping key rather than a field, because the expression references it.
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `expr` | string | yes | Expression over the input aliases |
+| `inputs` | map alias → MetricInputSpec | yes (≥ 1) | What each alias reads |
+
+The expression must reference exactly the declared aliases — an unknown one and an
+unread one are both refused (`InvalidMetricShape`). The inputs are also the metric's
+dependency edges; they need not be repeated in `requires_metrics`.
+
+### MetricInputSpec
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `metric` | metric name | yes | The metric this alias reads |
+| `offset` | MetricOffset | no | How far back it is read |
+
+### MetricOffset
+
+Exactly one of the two.
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `window` | `"<count> <grain>"` | one of | A fixed distance back — `"1 year"`, `"7 days"` |
+| `to_grain` | `day` \| `week` \| `month` \| `quarter` \| `year` | one of | The start of the containing period |
+
+### CumulativeSpec
+
+Exactly one of the two. The metric keeps its own `agg`/`expr` and its own
+`additivity` — those describe the measure, this describes how it accumulates.
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `window` | `"<count> <grain>"` | one of | A trailing window — `"7 days"` |
+| `grain_to_date` | `day` \| `week` \| `month` \| `quarter` \| `year` | one of | Accumulate from the start of each period |
+
+### MetricFilter
+
+A typed predicate, never a SQL string: values are validated against the flattened
+column's declared logical type and are never cast.
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `dimension` | column name | yes | A **categorical** dimension of the mart carrying the metric |
+| `op` | `eq` \| `ne` \| `in` \| `not_in` \| `gt` \| `gte` \| `lt` \| `lte` \| `is_null` | yes | Comparison |
+| `values` | list of scalars | per operator | One for the comparisons, one bool for `is_null`, one or more for `in`/`not_in` |
+
+Deliberately narrower than the [query vocabulary](../how-to/plan-a-metric-request.md)
+a *request* may use: no `like`/`ilike`, whose escape language and case-folding
+portability buy nothing where the author already knows the values. A date-role
+dimension is refused — a metric pinned to one period is a constant, and the time
+relation belongs in `cumulative:` or an `offset:`.
 
 ### SemiAdditivePolicy
 

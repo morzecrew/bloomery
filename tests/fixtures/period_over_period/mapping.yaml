@@ -1,0 +1,12 @@
+mapping_version: 1
+source: shop__sales
+target: sale
+key:
+  sale_id: {from: "$.id", transform: [to_string]}
+fields:
+  amount: {from: "$.amount"}
+  units: {from: "$.units", transform: [to_int]}
+  is_test: {from: "$.is_test", transform: [to_bool]}
+  status: {from: "$.status"}
+  channel: {from: "$.channel"}
+  sold_at: {from: "$.sold_at", transform: [{parse_date: ISO8601}]}

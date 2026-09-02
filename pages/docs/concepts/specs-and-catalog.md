@@ -182,6 +182,66 @@ at query time is delegated to the embedded MetricFlow backend, which can express
 naming the rule). The [guardrails](guardrails.md) page walks the failure modes these
 classes prevent.
 
+### Metrics over time
+
+Three of the metric forms describe a relationship rather than an aggregate, and all
+three need the catalog's `date_dimension` — the time spine they are resolved against.
+
+**A derived metric is computed from other metrics**, by an expression over aliased
+inputs. Each input may be read at an `offset:`, which is what makes period-over-period
+expressible: the interesting case names one metric twice.
+
+```yaml
+metrics:
+  revenue_yoy:
+    additivity: non_additive
+    derived:
+      expr: "current - prior"
+      inputs:
+        current: {metric: revenue}
+        prior:   {metric: revenue, offset: {window: "1 year"}}
+```
+
+The offset's other form, `offset: {to_grain: month}`, is not a fixed distance back but
+the start of the containing period — each day against the first day of its own month.
+A derived metric is `non_additive` for the same reason a ratio is: it has no measure to
+store, and is recomputed from its inputs at the requested grain.
+
+**A cumulative metric accumulates its own measure** over a trailing `window:` or from
+the start of a `grain_to_date:` period. It keeps its `agg`/`expr` and its additivity —
+those describe the measure, while `cumulative:` describes how the measure accumulates.
+
+```yaml
+  revenue_mtd:
+    grain: sale
+    additivity: additive
+    agg: sum
+    expr: "amount"
+    cumulative: {grain_to_date: month}
+```
+
+**A metric filter restricts the rows a metric aggregates**, as typed clauses rather than
+a SQL string. `paid_revenue` is then a metric rather than a convention every caller has
+to remember; the filter is reported in the plan's explanation, so a restricted number is
+never presented as its unrestricted sibling.
+
+```yaml
+  paid_revenue:
+    grain: sale
+    additivity: additive
+    agg: sum
+    expr: "amount"
+    filter:
+      - {dimension: status, op: eq, values: [paid]}
+```
+
+What each construct is refused for, and by which error, is in
+[spec schemas](../reference/spec-schemas.md#metric). One target boundary is worth
+knowing up front: **Cube expresses metric filters and refuses derived and cumulative
+metrics** — it compares periods at query time (`compareDateRange`) rather than as a
+stored measure definition, and has no equivalent for `grain_to_date`. The MetricFlow
+manifest carries all four.
+
 ## Marts: the fifth spec kind
 
 A project may also carry a `marts:` document declaring the gold layer: wide, pre-joined

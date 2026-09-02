@@ -2,8 +2,9 @@
 
 Checked over ``MetricIR.additivity`` on the draft IR:
 
-- A ``non_additive`` metric declared without a ``ratio`` (or an equivalent
-  additive decomposition — an expression over additive dependencies) is
+- A ``non_additive`` metric declared without a ``ratio``, a ``derived:`` block
+  (RFC 0034 D1), or an equivalent additive decomposition — an expression over
+  additive dependencies — is
   :class:`~bloomery.errors.NonAdditiveWithoutComponents`: with nothing
   additive to recompute from at query time, the metric could only ever be
   answered by storing it, which the next rule forbids.
@@ -39,10 +40,17 @@ __all__ = [
 
 
 def _has_decomposition(metric: MetricIR) -> bool:
-    """An expression over declared dependencies is an additive decomposition
-    the planner can recompute from (RFC 0011 D5)."""
+    """A decomposition the planner can recompute the metric from (RFC 0011 D5):
+    an expression over declared dependencies, or the ``derived:`` block that
+    generalizes exactly that shape (RFC 0034 D1).
 
-    return metric.expr is not None and metric.depends_on != ()
+    ``derived:`` needs no ``depends_on`` test of its own — the template merge
+    unions its inputs into ``requires_metrics``, so a derived metric always has
+    the edges, and its own guard refuses one whose expression references an
+    alias the inputs do not declare.
+    """
+
+    return metric.derived is not None or (metric.expr is not None and metric.depends_on != ())
 
 
 # ....................... #
@@ -64,11 +72,12 @@ def _check_non_additive(metric: MetricIR, draft: ProjectIR, path: str) -> list[G
 
     if metric.ratio is None and not _has_decomposition(metric):
         msg = (
-            f"metric {metric.name!r} is non_additive but declares neither a ratio nor an "
-            "additive decomposition — there is nothing additive to recompute it from at "
-            "query time, so it could only ever be answered by storing it, which is "
-            "forbidden (RFC 0006 §5.4). Fix: add ratio: {numerator, denominator} naming "
-            "its additive components (or an expr over additive dependencies)"
+            f"metric {metric.name!r} is non_additive but declares neither a ratio, a "
+            "derived: block, nor an additive decomposition — there is nothing additive to "
+            "recompute it from at query time, so it could only ever be answered by storing "
+            "it, which is forbidden (RFC 0006 §5.4). Fix: add ratio: {numerator, "
+            "denominator} naming its additive components, a derived: expression over other "
+            "metrics, or an expr over additive dependencies"
         )
         violations.append(NonAdditiveWithoutComponents(msg, source_path=path))
 

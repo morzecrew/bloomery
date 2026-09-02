@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from bloomery.errors import PlannerError
+from bloomery.errors import PlannerError, guaranteed
 from bloomery.ir import Additivity, Layer, SemiAdditiveRule
 from bloomery.planner.request import Op, clause_predicates
 from bloomery.planner.result import Explanation, MeasureExplanation
@@ -27,7 +27,7 @@ from bloomery.planner.result import Explanation, MeasureExplanation
 if TYPE_CHECKING:
     from metricflow.engine.metricflow_engine import MetricFlowExplainResult
 
-    from bloomery.ir import MartIR, MetricIR, ProjectIR
+    from bloomery.ir import MartIR, MetricInputIR, MetricIR, ProjectIR
     from bloomery.naming import NamingPolicy
     from bloomery.planner.coverage import Coverage
     from bloomery.planner.names import ResolvedDimension
@@ -62,8 +62,90 @@ def _day_column(mart: MartIR, source_column: str) -> str:
 # ....................... #
 
 
+def _offset_note(input_: MetricInputIR) -> str:
+    """How far back one derived input reads, as prose (RFC 0034 D2)."""
+
+    if input_.offset_window is not None:
+        window = input_.offset_window
+        plural = "" if window.count == 1 else "s"
+        return f"{input_.alias} = {input_.metric} {window.count} {window.grain}{plural} earlier"
+
+    if input_.offset_to_grain is not None:
+        return f"{input_.alias} = {input_.metric} at the start of its {input_.offset_to_grain}"
+
+    return f"{input_.alias} = {input_.metric}"
+
+
+# ....................... #
+
+
+def _derived_explanation(metric: MetricIR, additivity: str) -> MeasureExplanation:
+    """A derived metric's provenance: the expression as written, and what each
+    alias reads (RFC 0034 D1).
+
+    The offsets are the part a reader cannot infer from the expression — the
+    SQL that comes back joins the measure to the time spine twice and names
+    neither hop — so the note spells them rather than saying "derived".
+    """
+
+    derived = guaranteed(
+        (metric.derived for _ in (0,) if metric.derived is not None),
+        expected=f"a derived block on metric {metric.name!r}",
+        by="this function's only caller, which tests for one before calling it",
+    )
+    inputs = ", ".join(_offset_note(input_) for input_ in derived.inputs)
+    note = f"derived — recomputed at the requested grain from {inputs}"
+
+    return MeasureExplanation(metric.name, derived.expr.sql, additivity, note)
+
+
+# ....................... #
+
+
+def _cumulative_note(metric: MetricIR, agg: str) -> str | None:
+    """The accumulation, when there is one (RFC 0034 D5). ``None`` says the
+    metric aggregates within each period like any other."""
+
+    if metric.cumulative is None:
+        return None
+
+    if metric.cumulative.window is not None:
+        window = metric.cumulative.window
+        plural = "" if window.count == 1 else "s"
+        span = f"a trailing {window.count} {window.grain}{plural}"
+    else:
+        span = f"the start of each {metric.cumulative.grain_to_date}"
+
+    return f"cumulative — {agg} accumulated over {span}, not per period"
+
+
+# ....................... #
+
+
+def _filter_note(metric: MetricIR) -> str:
+    """The rows a metric is restricted to, when it is (RFC 0034 D8).
+
+    Always said, never implied: a filtered metric that explains itself as its
+    unfiltered sibling is a number the reader has no way to question.
+    """
+
+    if not metric.filter:
+        return ""
+
+    clauses = "; ".join(
+        f"{clause.dimension} {clause.op} {list(clause.values)}" for clause in metric.filter
+    )
+    return f" (restricted to {clauses})"
+
+
+# ....................... #
+
+
 def _measure_explanation(metric: MetricIR, mart: MartIR) -> MeasureExplanation:
     additivity = metric.additivity.value
+
+    if metric.derived is not None:
+        return _derived_explanation(metric, additivity)
 
     if metric.additivity is Additivity.NON_ADDITIVE:
         if metric.ratio is None:  # pragma: no cover — coverage refused earlier
@@ -73,15 +155,19 @@ def _measure_explanation(metric: MetricIR, mart: MartIR) -> MeasureExplanation:
 
     agg = (metric.agg or "sum").upper()
     expr = f"{agg}({metric.expr.sql})" if metric.expr is not None else metric.name
+    restriction = _filter_note(metric)
+
+    if cumulative := _cumulative_note(metric, agg):
+        return MeasureExplanation(metric.name, expr, additivity, cumulative + restriction)
 
     if metric.additivity is Additivity.SEMI_ADDITIVE and metric.semi_additive is not None:
         policy = metric.semi_additive
         over = _day_column(mart, policy.over.qualified)
         window = _WINDOWS.get(policy.rule, policy.rule.value.upper())
         note = f"semi-additive {policy.rule.value} over {over} — {window}-join then SUM"
-        return MeasureExplanation(metric.name, expr, additivity, note)
+        return MeasureExplanation(metric.name, expr, additivity, note + restriction)
 
-    return MeasureExplanation(metric.name, expr, additivity, f"additive — {agg}")
+    return MeasureExplanation(metric.name, expr, additivity, f"additive — {agg}{restriction}")
 
 
 # ....................... #

@@ -16,7 +16,7 @@ from bloomery.errors import BloomeryError, ResolutionError
 if TYPE_CHECKING:
     from bloomery.spec.catalog import Catalog, MetricTemplate
     from bloomery.spec.common import RatioSpec, SemiAdditivePolicy
-    from bloomery.spec.metrics import Metric
+    from bloomery.spec.metrics import CumulativeSpec, DerivedSpec, Metric, MetricFilter
     from bloomery.spec.project import Project
 
 # ----------------------- #
@@ -44,6 +44,9 @@ class EffectiveMetric:
     expr: str | None
     ratio: RatioSpec | None
     semi_additive: SemiAdditivePolicy | None
+    cumulative: CumulativeSpec | None
+    derived: DerivedSpec | None
+    filter: tuple[MetricFilter, ...]
     description: str | None
     source_path: str
 
@@ -59,16 +62,29 @@ def _merge(name: str, metric: Metric, template: MetricTemplate | None) -> Effect
         msg = f"metric {name!r} declares no additivity, directly or via its template"
         raise ResolutionError(msg, source_path=source_path)
 
+    derived = metric.derived or (template.derived if template else None)
+    declared = metric.requires_metrics or (template.requires_metrics if template else ())
+    # RFC 0034 D3: a derived metric's inputs *are* its metric dependencies, so
+    # they are unioned in here rather than written twice by the author. The DAG,
+    # reachability, cycle detection and `MetricIR.depends_on` then need no
+    # knowledge of `derived:` at all — they read `requires_metrics` as always.
+    requires_metrics = (
+        tuple(sorted({*declared, *derived.input_metrics})) if derived is not None else declared
+    )
+
     return EffectiveMetric(
         name=name,
         requires=metric.requires or (template.requires if template else ()),
-        requires_metrics=metric.requires_metrics or (template.requires_metrics if template else ()),
+        requires_metrics=requires_metrics,
         grain=metric.grain or (template.grain if template else None),
         additivity=additivity,
         agg=metric.agg or (template.agg if template else None),
         expr=metric.expr or (template.expr if template else None),
         ratio=metric.ratio or (template.ratio if template else None),
         semi_additive=metric.semi_additive or (template.semi_additive if template else None),
+        cumulative=metric.cumulative or (template.cumulative if template else None),
+        derived=derived,
+        filter=metric.filter or (template.filter if template else ()),
         description=metric.description or (template.description if template else None),
         source_path=source_path,
     )

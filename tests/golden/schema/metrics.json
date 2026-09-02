@@ -2,11 +2,18 @@
   "$defs": {
     "CumulativeSpec": {
       "additionalProperties": false,
-      "description": "Reserved cumulative-metric form (RFC 0002 D10): exactly one of\n``window`` or ``grain_to_date``. No stage lowers it yet, so a metric\ncarrying one is refused at the guardrail stage\n(:class:`~bloomery.errors.UnsupportedCumulative`).",
+      "description": "A metric's accumulation over time (RFC 0002 D10, lowered by RFC 0034\nD5): exactly one of a trailing ``window`` or a ``grain_to_date``.\n\n``{window: \"7 days\"}`` is a trailing seven-day total; ``{grain_to_date:\nmonth}`` is month-to-date. The metric keeps its own measure and its own\n``additivity`` \u2014 that describes the measure, while this describes how the\nmeasure accumulates (D6).",
       "properties": {
         "grain_to_date": {
           "anyOf": [
             {
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "quarter",
+                "year"
+              ],
               "type": "string"
             },
             {
@@ -19,6 +26,7 @@
         "window": {
           "anyOf": [
             {
+              "pattern": "^[1-9][0-9]* (?:day|week|month|quarter|year)s?$",
               "type": "string"
             },
             {
@@ -30,6 +38,30 @@
         }
       },
       "title": "CumulativeSpec",
+      "type": "object"
+    },
+    "DerivedSpec": {
+      "additionalProperties": false,
+      "description": "A metric computed by an expression over other metrics (RFC 0034 D1).\n\n``inputs`` is a mapping keyed by alias rather than a list: the alias is\nthe input's identity because ``expr`` references it, and a mapping makes a\nduplicate alias unrepresentable instead of something to validate. That the\nexpression references only declared aliases is a guardrail \u2014 it needs the\nparsed expression, which lives a layer up.",
+      "properties": {
+        "expr": {
+          "title": "Expr",
+          "type": "string"
+        },
+        "inputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MetricInputSpec"
+          },
+          "minProperties": 1,
+          "title": "Inputs",
+          "type": "object"
+        }
+      },
+      "required": [
+        "expr",
+        "inputs"
+      ],
+      "title": "DerivedSpec",
       "type": "object"
     },
     "Metric": {
@@ -76,6 +108,17 @@
           ],
           "default": null
         },
+        "derived": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DerivedSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "description": {
           "anyOf": [
             {
@@ -99,6 +142,14 @@
           ],
           "default": null,
           "title": "Expr"
+        },
+        "filter": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/MetricFilter"
+          },
+          "title": "Filter",
+          "type": "array"
         },
         "grain": {
           "anyOf": [
@@ -164,6 +215,136 @@
         }
       },
       "title": "Metric",
+      "type": "object"
+    },
+    "MetricFilter": {
+      "additionalProperties": false,
+      "description": "One row-level restriction on a metric (RFC 0034 D8).\n\n``dimension`` names a column flattened on the mart carrying the metric;\nthat it is flattened, and that ``values`` fit its declared type, is a\nguardrail (D9) \u2014 this layer checks only the operator/arity coherence that\nis decidable from the document.",
+      "properties": {
+        "dimension": {
+          "title": "Dimension",
+          "type": "string"
+        },
+        "op": {
+          "enum": [
+            "eq",
+            "ne",
+            "in",
+            "not_in",
+            "gt",
+            "gte",
+            "lt",
+            "lte",
+            "is_null"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "values": {
+          "default": [],
+          "items": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "dimension",
+        "op"
+      ],
+      "title": "MetricFilter",
+      "type": "object"
+    },
+    "MetricInputSpec": {
+      "additionalProperties": false,
+      "description": "One input of a derived metric \u2014 the metric read, and optionally the\noffset it is read at. Its *alias* is the key it sits under in\n:attr:`DerivedSpec.inputs`, because the alias is what the expression\nreferences (RFC 0034 D1).",
+      "properties": {
+        "metric": {
+          "title": "Metric",
+          "type": "string"
+        },
+        "offset": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MetricOffset"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "metric"
+      ],
+      "title": "MetricInputSpec",
+      "type": "object"
+    },
+    "MetricOffset": {
+      "additionalProperties": false,
+      "description": "How far back a derived metric's input reads (RFC 0034 D2): exactly one\nof a fixed ``window`` or the start of the containing period.\n\n``{window: \"1 year\"}`` against a monthly grouping is the same month one\nyear earlier; ``{to_grain: month}`` against a daily grouping is the first\nday of each row's own month.",
+      "properties": {
+        "to_grain": {
+          "anyOf": [
+            {
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "quarter",
+                "year"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "To Grain"
+        },
+        "window": {
+          "anyOf": [
+            {
+              "pattern": "^[1-9][0-9]* (?:day|week|month|quarter|year)s?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Window"
+        }
+      },
+      "title": "MetricOffset",
       "type": "object"
     },
     "RatioSpec": {

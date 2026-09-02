@@ -55,13 +55,18 @@ __all__ = [
     "MartIR",
     "MartJoinIR",
     "Materialization",
+    "CumulativeIR",
+    "DerivedIR",
+    "MetricFilterIR",
     "MetricIR",
+    "MetricInputIR",
     "OnFail",
     "PartitionSpec",
     "ProjectIR",
     "QualityRuleIR",
     "QuarantineIR",
     "Ratio",
+    "TimeWindow",
     "ReconcileIR",
     "RelationshipIR",
     "SCDKind",
@@ -727,6 +732,93 @@ class Ratio:
 
 
 @dataclass(frozen=True, slots=True)
+class TimeWindow:
+    """A whole number of time units — ``(1, "year")``, ``(7, "day")``.
+
+    One node for the two places a window appears (RFC 0034 D2): a derived
+    input's offset and a cumulative metric's trailing window. ``grain`` is
+    singular and one of ``day|week|month|quarter|year``; the spec grammar
+    accepts the plural and :func:`~bloomery.spec.metrics.parse_time_window`
+    drops it, so the IR carries exactly one spelling of each grain.
+    """
+
+    count: int
+    grain: str
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
+class MetricInputIR:
+    """One input of a derived metric: the alias its expression references,
+    the metric read, and the offset it is read at (RFC 0034 D1).
+
+    At most one of ``offset_window``/``offset_to_grain`` is set — the spec
+    model refuses both and refuses neither-when-``offset``-is-written.
+    """
+
+    alias: str
+    metric: str
+    offset_window: TimeWindow | None = None
+    offset_to_grain: str | None = None
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
+class DerivedIR:
+    """A metric computed by an expression over other metrics (RFC 0034 D1).
+
+    ``inputs`` is sorted by alias, and the alias is what ``expr`` references.
+    Like a :class:`Ratio`, this decomposes a metric that has no measure of
+    its own — the planner recomputes it from the measures its inputs need
+    (RFC 0011 D5).
+    """
+
+    expr: SqlExpr
+    inputs: tuple[MetricInputIR, ...]
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
+class CumulativeIR:
+    """How a metric accumulates over time (RFC 0034 D5): exactly one of a
+    trailing ``window`` or a ``grain_to_date`` period start. The metric keeps
+    its own measure and its own additivity — those describe the measure, this
+    describes the accumulation (D6)."""
+
+    window: TimeWindow | None = None
+    grain_to_date: str | None = None
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
+class MetricFilterIR:
+    """One row-level restriction on a metric (RFC 0034 D8).
+
+    ``values`` carries text where the author wrote a date or timestamp — the
+    same carrier :class:`AuditIR` params use, and for the same reason: a
+    temporal literal reaches SQL as a quoted string compared in the column's
+    own type, and the canonical encoder has no tag for a ``date``. The
+    guardrail has already checked each value against the column's declared
+    type, so the renderers quote by value type and never cast.
+    """
+
+    dimension: str
+    op: str
+    values: tuple[str | int | bool | Decimal, ...]
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
 class MetricIR:
     """One reachable metric; ``depends_on`` keeps the DAG edges sorted for
     ``plan()``'s downstream-impact computation (RFC 0003 §5.1).
@@ -740,6 +832,13 @@ class MetricIR:
     expr: SqlExpr | None
     ratio: Ratio | None
     semi_additive: SemiAdditivePolicy | None
+    #: The RFC 0034 forms. ``derived`` decomposes a metric with no measure of
+    #: its own, like ``ratio`` and mutually exclusive with ``cumulative``,
+    #: which accumulates a metric that has one. ``filter`` restricts the rows
+    #: either aggregates.
+    cumulative: CumulativeIR | None = None
+    derived: DerivedIR | None = None
+    filter: tuple[MetricFilterIR, ...] = ()
     description: str | None = None
     depends_on: tuple[str, ...] = ()
 
@@ -1078,7 +1177,9 @@ class ProjectIR:
     :class:`ColumnIR` onto a per-source :class:`SourceColumnIR`, so an entity
     can be built from more than one mapping. Version 7 (RFC 0023 §5.3) adds
     ``as_of`` to every :class:`MartJoinIR`. Version 8 (RFC 0023 §5.4) adds
-    ``fx_rates`` here. The bump is
+    ``fx_rates`` here. Version 9
+    (RFC 0034 D14) adds ``cumulative``/``derived``/``filter`` to every
+    :class:`MetricIR`. The bump is
     the point — every artifact's fingerprint header moves, and ``plan()``
     refuses to diff across versions rather than misreading one as the other.
 
@@ -1100,7 +1201,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 8
+    bloomery_ir_version: int = 9
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

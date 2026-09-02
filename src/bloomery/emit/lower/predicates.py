@@ -2,17 +2,23 @@
 
 The base of the lowering package: a value's SQL literal form and the predicate
 an audit tests it with. Every other stage may read these; they read nothing.
+
+Also home to the two predicates the *semantic* targets share — the as-of
+interval (RFC 0023 D6) and a metric filter (RFC 0034 D15) — for the same
+reason: each is one construct that two callers spell, and a construct spelled
+twice is one that drifts.
 """
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import cast
 
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
 from bloomery.errors import guaranteed
-from bloomery.ir import AuditIR, EntityIR
+from bloomery.ir import AuditIR, EntityIR, MetricFilterIR
 from bloomery.transforms import neutral_type
 from bloomery.typing import DecimalType, IntType, LogicalType
 
@@ -140,3 +146,74 @@ def as_of_conditions(
         exp.GTE(this=anchor.copy(), expression=exp.column(valid_from, table=table)),
         cast("Expression", open_ended),
     ]
+
+
+# ....................... #
+# The metric-filter predicate (RFC 0034 D8, D15)
+
+#: The comparison operators, spelled once. ``in``/``not_in`` and ``is_null``
+#: are shapes rather than infix operators and are built below.
+_METRIC_FILTER_COMPARISONS = {
+    "eq": "=",
+    "ne": "<>",
+    "gt": ">",
+    "gte": ">=",
+    "lt": "<",
+    "lte": "<=",
+}
+
+
+def _metric_filter_literal(value: str | int | bool | Decimal) -> str:
+    """One authored filter value as a SQL literal.
+
+    ``bool`` precedes ``int`` because it is a subclass of one. Strings double
+    their quotes; they cannot carry a NUL or a template brace, both refused at
+    parse (RFC 0034 D13) rather than escaped per target, so this needs no
+    target-specific neutralization and stays shareable.
+    """
+
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+
+    if isinstance(value, (int, Decimal)):
+        return str(value)
+
+    escaped = value.replace("'", "''")
+    return f"'{escaped}'"
+
+
+# ....................... #
+
+
+def metric_filter_sql(clause: MetricFilterIR, *, ref: str) -> str:
+    """One metric-filter clause as SQL text, over the target's own spelling of
+    the column reference (RFC 0034 D15).
+
+    ``ref`` is what the target writes where a column goes —
+    ``{{ Dimension('order_item__status') }}`` in a MetricFlow where-filter,
+    ``{CUBE}.status`` in a Cube measure filter. Neither is a SQL identifier, so
+    the fragment is text rather than a SQLGlot expression: an AST would have to
+    carry the reference as an opaque node and be rendered straight back out.
+
+    What *is* shared is everything that can be got wrong — the operator
+    spellings, the list shape, quote doubling — because two copies of an
+    escaping rule is the defect this project keeps finding in itself. The
+    values reaching here have already been checked against the column's
+    declared type at the guardrail stage (D9), so nothing is cast.
+    """
+
+    if clause.op == "is_null":
+        return f"{ref} IS NULL" if clause.values[0] else f"{ref} IS NOT NULL"
+
+    literals = [_metric_filter_literal(value) for value in clause.values]
+
+    if clause.op in ("in", "not_in"):
+        keyword = "IN" if clause.op == "in" else "NOT IN"
+        return f"{ref} {keyword} ({', '.join(literals)})"
+
+    comparison = guaranteed(
+        (_METRIC_FILTER_COMPARISONS[op] for op in (clause.op,) if op in _METRIC_FILTER_COMPARISONS),
+        expected=f"a SQL spelling for metric-filter operator {clause.op!r}",
+        by="the spec layer's FilterOpName, which is a closed vocabulary",
+    )
+    return f"{ref} {comparison} {literals[0]}"

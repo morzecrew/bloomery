@@ -71,8 +71,9 @@ def test_partition_spec_identity_transform() -> None:
 
 def test_the_declared_ir_version_is_the_current_one() -> None:
     # RFC 0016 M12, RFC 0017 M13, `ProjectIR.coverage` + `MartIR.asserts`,
-    # `UnreachableMetric.via`, the per-source column split, `MartJoinIR.as_of`
-    # and now `ProjectIR.fx_rates` each change the IR shape; RFC 0003 D3 makes the version
+    # `UnreachableMetric.via`, the per-source column split, `MartJoinIR.as_of`,
+    # `ProjectIR.fx_rates` and now `MetricIR`'s cumulative/derived/filter each
+    # change the IR shape; RFC 0003 D3 makes the version
     # part of the fingerprint, so each bump is deliberate and loud. The M12/M13
     # wave nearly shipped without one: the fingerprints moved anyway (the
     # encoder covers field names and count), so nothing failed — but `plan()`
@@ -85,7 +86,7 @@ def test_the_declared_ir_version_is_the_current_one() -> None:
     # fingerprint does not move at all — two compilers of different shape then
     # agree on the fingerprint as well as the version. Named for what it pins
     # rather than for a number, because the number is what changes.
-    assert ProjectIR().bloomery_ir_version == 8
+    assert ProjectIR().bloomery_ir_version == 9
 
 
 def test_the_compiler_emits_the_declared_ir_version() -> None:

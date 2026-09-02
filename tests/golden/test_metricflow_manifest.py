@@ -24,6 +24,13 @@ MART_FIXTURES = [
     "ecom_basic",
     "multi_mart_refusal",
     "non_additive_aov",
+    # The only golden that carries the RFC 0034 shapes: DERIVED with both
+    # offset forms, CUMULATIVE with both window forms, and a SIMPLE metric with
+    # a where-filter. It is a manifest golden and nothing else — a metric shape
+    # never reaches the mart SQL, so the SQLMesh and dbt matrices would gain a
+    # fixture and no information, and Cube refuses this project outright
+    # (RFC 0034 D11), which its own unit test pins by message.
+    "period_over_period",
     "role_playing_dates",
     "semi_additive_inventory",
 ]

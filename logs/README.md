@@ -16,7 +16,13 @@ appending a row to the RFC's decision table, and that row cites the entry it cam
 | [T-0002](T-0002.md) | RFC 0029 — transform types the engine agrees with | 2 |
 | [T-0003](T-0003.md) | RFC 0026 — the dbt singular-test surface | 0 |
 | [T-0004](T-0004.md) | RFC 0024 P1 — deterministic union merge | 0 |
+| [T-0005](T-0005.md) | RFC 0031 P1 — lineage, the value and the traversal | 0 |
+| [T-0006](T-0006.md) | RFC 0031 P2 — the lineage CLI, `Direction.BOTH`, and the docs | 0 |
+| [T-0007](T-0007.md) | RFC 0030 — the unresolved-work report | 0 |
 | [T-0008](T-0008.md) | RFC 0032 — mapping identity | 0 |
+| [T-0009](T-0009.md) | RFC 0023 §5.3 — the as-of join | 0 |
+| [T-0010](T-0010.md) | RFC 0023 §5.4 — currency as a declared relation | 0 |
+| [T-0011](T-0011.md) | RFC 0034 — metrics over time | 1 |
 
 ## How to read an entry
 

@@ -23,6 +23,7 @@ from bloomery.spec.common import (
     SpecModel,
     TypeString,
 )
+from bloomery.spec.metrics import CumulativeSpec, DerivedSpec, MetricFilter
 
 # ----------------------- #
 
@@ -189,6 +190,12 @@ class MetricTemplate(SpecModel):
     expr: str | None = None
     ratio: RatioSpec | None = None
     semi_additive: SemiAdditivePolicy | None = None
+    #: The time-shaped forms merge like every other template value (RFC 0034):
+    #: a template may carry the accumulation, the derivation or the filter, and
+    #: the instantiating metric's own value wins.
+    cumulative: CumulativeSpec | None = None
+    derived: DerivedSpec | None = None
+    filter: tuple[MetricFilter, ...] = ()
 
 
 # ....................... #
