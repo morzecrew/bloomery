@@ -107,7 +107,7 @@ def mart_select(mart: MartIR, ctx: EmitContext) -> exp.Select:
         namespace, relation = ctx.naming.relation(join.entity, Layer.SILVER)
         conditions: list[Expression] = [
             exp.EQ(
-                this=exp.column(owners[from_column][1], table=owners[from_column][0]),
+                this=_owned(owners, from_column),
                 expression=exp.column(to_column, table=join.prefix),
             )
             for from_column, to_column in join.on
@@ -120,6 +120,36 @@ def mart_select(mart: MartIR, ctx: EmitContext) -> exp.Select:
         )
 
     return select
+
+
+# ....................... #
+
+
+def _owned(owners: dict[str, tuple[str, str]], column: str) -> exp.Column:
+    """A mart-namespace column name, resolved to the join alias that owns it.
+
+    Both halves of a join's ``ON`` read through here — the equality's left
+    side and an as-of anchor — because both are names in the mart's namespace
+    that have to be traced back to the relation they came from.
+
+    The lookup cannot miss, and :func:`guaranteed` is where that claim is
+    written down rather than left implicit in a ``KeyError``. Two separate
+    stages make it true: the flattener seeds every base column into the mart
+    (so an anchor, which it accepts only when it names one, is always there),
+    and it refuses a date role whose bucket would collide with an existing
+    column — which is what stops a ``ref``-carrying bucket from displacing the
+    base column this map is keyed on. Those guards live in another module, and
+    before this helper nothing here said they were being relied upon.
+    """
+    return guaranteed(
+        (
+            exp.column(owners[name][1], table=owners[name][0])
+            for name in (column,)
+            if name in owners
+        ),
+        expected=f"mart column {column!r} among the columns the flattener resolved",
+        by="the mart flattener, which seeds every base column and refuses a colliding role",
+    )
 
 
 # ....................... #
@@ -143,8 +173,7 @@ def _as_of_conditions(join: MartJoinIR, owners: dict[str, tuple[str, str]]) -> l
     if join.as_of is None:
         return []
 
-    owner_alias, owner_column = owners[join.as_of]
-    anchor = exp.column(owner_column, table=owner_alias)
+    anchor = _owned(owners, join.as_of)
     valid_from = exp.column(VALID_FROM, table=join.prefix)
     valid_to = exp.column(VALID_TO, table=join.prefix)
 

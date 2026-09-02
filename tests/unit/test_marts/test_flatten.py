@@ -8,6 +8,7 @@ import pytest
 
 from bloomery import build_project_ir, load_project
 from bloomery.errors import (
+    ResolutionError,
     FanoutRisk,
     GrainViolation,
     GuardrailError,
@@ -26,7 +27,8 @@ from bloomery.ir import OK_COLUMN
 from bloomery.marts import DATE_BUCKETS, HAS_QUALITY_FLAGS, MartLowering, lower_marts
 from bloomery.spec import MartSet
 from bloomery.typing import BoolType, DateType
-from support.compiling import load_fixture
+from support.compiling import load_fixture, spec_fixture_names
+from support.steps import registry_for
 from support.steps import registry_for
 from support.plan_ir import column as plan_column
 from support.plan_ir import entity as plan_entity
@@ -1103,3 +1105,77 @@ marts:
         "order": "ship_date",
         "customer": "order_date",
     }
+
+
+def test_a_date_role_may_not_displace_the_anchor_it_shares_a_name_with() -> None:
+    """The guard that makes the emitter's owner lookup total.
+
+    `mart_select` keys its owner map on columns with no `ref`, and a date-role
+    bucket carries one — so a bucket that *replaced* a base column would take
+    the anchor out of that map between the flattener accepting it and the
+    emitter reading it. Nothing in the emitter could tell; it would raise
+    `InvariantViolated` at best. What actually prevents it is the collision
+    rule, which refuses the role rather than overwriting, and this is the test
+    that says so from the anchor's side.
+    """
+    sources = _as_type2("customer")
+    sources = {
+        **sources,
+        "entity_model": sources["entity_model"].replace(
+            "      ordered_day: {type: int}\n", "      ordered_day: {type: date}\n"
+        ),
+        "mapping_items": sources["mapping_items"].replace(
+            '  ordered_day: {from: "$.odd", transform: [to_int]}\n',
+            '  ordered_day: {from: "$.odd", transform: [{parse_date: ISO8601}]}\n',
+        ),
+    }
+    marts_yaml = """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: item_of_order, prefix: order_}
+      - {via: order_of_customer, prefix: customer_, as_of: ordered_day}
+      - {date: order_date, role: ordered}
+"""
+    project = load_project({**sources, "marts": marts_yaml})
+    assert project.marts is not None
+    lowering = lower_marts(project.marts, build_project_ir(load_project(sources)))
+
+    assert lowering.marts == ()
+    assert any("collides with the column already flattened" in str(v) for v in lowering.violations)
+
+
+def test_every_anchor_the_flattener_accepts_is_a_column_the_emitter_can_own() -> None:
+    """The coupling between this module and `emit.lower.marts`, swept over the
+    whole fixture corpus rather than the shapes a test author thought to try.
+
+    The emitter resolves an anchor through a map keyed on the mart's columns
+    that carry no `ref`; this module is what decides an anchor is acceptable.
+    Neither states the other's part, so the invariant is asserted here: for
+    every mart the corpus lowers, every anchor is among the columns the
+    emitter will key on.
+    """
+    checked = 0
+
+    for name in sorted(spec_fixture_names()):
+        project, catalog = load_fixture(name)
+        try:
+            ir = build_project_ir(project, catalog, steps=registry_for(name))
+        except (GuardrailError, ResolutionError):
+            continue  # a refusal fixture lowers no mart to check
+
+        for mart in ir.marts:
+            ownable = {column.name for column in mart.columns if column.ref is None}
+            for join in mart.joins:
+                if join.as_of is None:
+                    continue
+                assert join.as_of in ownable, (
+                    f"{name}/{mart.name}: anchor {join.as_of!r} is not a column the "
+                    "emitter can resolve an owner for"
+                )
+                checked += 1
+
+    assert checked, "no as-of join in the corpus — this property would pass vacuously"
