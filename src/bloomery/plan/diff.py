@@ -119,6 +119,7 @@ if TYPE_CHECKING:
         DedupeIR,
         EntityIR,
         MartIR,
+        MetricFilterIR,
         MetricIR,
         QualityRuleIR,
         QuarantineIR,
@@ -1503,6 +1504,26 @@ def _diff_entities(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
 # ....................... #
 
 
+def _filter_key(clause: MetricFilterIR) -> tuple[str, ...]:
+    """A **total** order over filter clauses, for the normalization below.
+
+    Total is the whole requirement, and `(dimension, op)` was not: `sorted` is
+    stable, so two clauses sharing a dimension and an operator kept whatever
+    order they arrived in — and `amount >= 10 AND amount >= 20` written the
+    other way round then read as a different definition and restated the
+    metric.
+
+    The values join the key, rendered with `repr` because they are not mutually
+    orderable — `1 < "1"` raises — and because `repr` keeps `1`, `"1"` and
+    `True` apart, which a plain `str` would not.
+    """
+
+    return (clause.dimension, clause.op, *(repr(value) for value in clause.values))
+
+
+# ....................... #
+
+
 def _metric_definition(metric: MetricIR) -> tuple[object, ...]:
     """Everything about a metric whose change restates it.
 
@@ -1531,7 +1552,7 @@ def _metric_definition(metric: MetricIR) -> tuple[object, ...]:
         metric.semi_additive,
         metric.cumulative,
         (derived.expr.sql, derived.inputs) if derived is not None else None,
-        tuple(sorted(metric.filter, key=lambda clause: (clause.dimension, clause.op))),
+        tuple(sorted(metric.filter, key=_filter_key)),
         metric.depends_on,
     )
 

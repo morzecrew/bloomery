@@ -23,6 +23,7 @@ from bloomery.ir import (
     MartJoinIR,
     Materialization,
     PartitionSpec,
+    ProjectIR,
     RelationshipIR,
     SCDKind,
     SourceFieldIR,
@@ -973,3 +974,46 @@ def test_reordering_anded_filter_clauses_is_not_a_restatement() -> None:
 
     subjects = {change.subject for change in plan(base, swapped).changes}
     assert "metric:large_recent_revenue" not in subjects
+
+
+def test_two_clauses_sharing_a_dimension_and_operator_still_normalize() -> None:
+    """The sort key has to be *total*, and `(dimension, op)` was not.
+
+    `sorted` is stable, so two clauses sharing both kept whatever order they
+    arrived in — `amount >= 10 AND amount >= 20` written the other way round
+    read as a different definition and restated the metric. Redundant, but
+    legal: the diff stage does not get to decide what the spec accepts, so the
+    fix is the key rather than a new refusal.
+    """
+    _project, catalog = load_fixture("period_over_period")
+    anchor = (
+        '      - {dimension: amount, op: gte, values: ["50.00"]}\n'
+        '      - {dimension: sold_at, op: gte, values: ["2024-01-01"]}\n'
+    )
+
+    def ir_with(clauses: str) -> ProjectIR:
+        sources = dict(fixture_sources("period_over_period"))
+        assert sources["metrics"].count(anchor) == 1
+        sources["metrics"] = sources["metrics"].replace(anchor, clauses)
+        return build_project_ir(load_project(sources), catalog)
+
+    low_then_high = (
+        '      - {dimension: amount, op: gte, values: ["10.00"]}\n'
+        '      - {dimension: amount, op: gte, values: ["20.00"]}\n'
+    )
+    high_then_low = (
+        '      - {dimension: amount, op: gte, values: ["20.00"]}\n'
+        '      - {dimension: amount, op: gte, values: ["10.00"]}\n'
+    )
+    changed_value = (
+        '      - {dimension: amount, op: gte, values: ["10.00"]}\n'
+        '      - {dimension: amount, op: gte, values: ["30.00"]}\n'
+    )
+    subject = "metric:large_recent_revenue"
+
+    swapped = {c.subject for c in plan(ir_with(low_then_high), ir_with(high_then_low)).changes}
+    assert subject not in swapped
+
+    # ...and the key stays sensitive to the thing that does matter.
+    edited = {c.subject for c in plan(ir_with(low_then_high), ir_with(changed_value)).changes}
+    assert subject in edited
