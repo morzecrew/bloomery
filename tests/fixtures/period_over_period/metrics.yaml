@@ -18,6 +18,20 @@ metrics:
     filter:
       - {dimension: status, op: eq, values: [paid]}
 
+  # Two clauses, ANDed, over a decimal and a date — the shapes that are not
+  # strings. A filter literal has to reach SQL in the column's own type: Trino
+  # refuses `decimal <= varchar` and `date <= varchar` outright, and the other
+  # two dialects only rescued an untyped one by implicit cast.
+  large_recent_revenue:
+    description: Revenue on sales of at least 50.00 made from 2024 onward
+    grain: sale
+    additivity: additive
+    agg: sum
+    expr: "amount"
+    filter:
+      - {dimension: amount, op: gte, values: ["50.00"]}
+      - {dimension: sold_at, op: gte, values: ["2024-01-01"]}
+
   # Month-to-date: the same measure, accumulated from the start of its own
   # month (D5). `additivity` describes the measure; `cumulative` describes how
   # it accumulates (D6).

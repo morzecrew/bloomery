@@ -222,6 +222,30 @@ def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
         )
         violations.append(InvalidMetricShape(msg, source_path=path))
 
+    if metric.cumulative is not None and metric.additivity is Additivity.SEMI_ADDITIVE:
+        # Measured, not deduced: on the `period_over_period` fixture this
+        # combination reported 2707 on a day whose revenue was 100 and whose
+        # month totalled 257. A semi-additive metric declares that it may not be
+        # summed along its `over` dimension — which the emitter resolves to a
+        # date role, always — and a cumulative window accumulates along exactly
+        # that dimension. MetricFlow lowers both: the `last`/`first` rule joins
+        # the measure to its own MAX/MIN over the date, and the accumulation
+        # then sums the fanned-out rows.
+        msg = (
+            f"metric {metric.name!r} is semi_additive over "
+            f"{metric.semi_additive.over.qualified!r} and also declares cumulative:. "
+            if metric.semi_additive is not None
+            else f"metric {metric.name!r} is semi_additive and also declares cumulative:. "
+        ) + (
+            "A semi-additive metric may not be summed along its over: dimension, and that "
+            "dimension is a date role; a cumulative window accumulates along it. Both "
+            "lower, and the product is a number with no meaning — the rule's self-join "
+            "fans the measure out and the window then sums the copies (RFC 0034 D6). "
+            "Fix: drop one of the two — accumulate an additive metric, or keep the "
+            "point-in-time rule and read the series at its own grain"
+        )
+        violations.append(InvalidMetricShape(msg, source_path=path))
+
     if metric.cumulative is not None and _has_no_measure(metric):
         because = (
             "is non_additive"

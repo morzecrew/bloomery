@@ -2,6 +2,61 @@
   "metrics": [
     {
       "config": null,
+      "description": "Revenue on sales of at least 50.00 made from 2024 onward",
+      "filter": {
+        "where_filters": [
+          {
+            "where_sql_template": "{{ Dimension('sale__amount') }} >= 50.00"
+          },
+          {
+            "where_sql_template": "{{ Dimension('sale__sold_at') }} >= CAST('2024-01-01' AS DATE)"
+          }
+        ]
+      },
+      "label": null,
+      "metadata": null,
+      "name": "large_recent_revenue",
+      "time_granularity": null,
+      "type": "simple",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": null,
+        "denominator": null,
+        "expr": "amount",
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "large_recent_revenue"
+          }
+        ],
+        "is_private": false,
+        "join_to_timespine": false,
+        "measure": {
+          "alias": null,
+          "fill_nulls_with": null,
+          "filter": null,
+          "join_to_timespine": false,
+          "name": "large_recent_revenue"
+        },
+        "metric_aggregation_params": {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "sold_day",
+          "non_additive_dimension": null,
+          "semantic_model": "sales"
+        },
+        "metrics": null,
+        "numerator": null,
+        "window": null
+      }
+    },
+    {
+      "config": null,
       "description": "Revenue on sales that were paid for",
       "filter": {
         "where_filters": [
@@ -534,6 +589,19 @@
       ],
       "label": null,
       "measures": [
+        {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "sold_day",
+          "config": null,
+          "create_metric": null,
+          "description": null,
+          "expr": "amount",
+          "label": null,
+          "metadata": null,
+          "name": "large_recent_revenue",
+          "non_additive_dimension": null
+        },
         {
           "agg": "sum",
           "agg_params": null,

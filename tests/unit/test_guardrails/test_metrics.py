@@ -25,7 +25,7 @@ pytestmark = pytest.mark.unit
 
 FIXTURE = "period_over_period"
 
-_MEASURES = "measures: [paid_revenue, revenue, revenue_mtd, revenue_trailing_7d]"
+_MEASURES = "measures: [large_recent_revenue, paid_revenue, revenue, revenue_mtd, revenue_trailing_7d]"
 
 
 def compile_with(metric_yaml: str, *, served: str = "") -> ProjectIR:
@@ -128,6 +128,33 @@ def test_a_derived_metric_declared_additive_is_refused() -> None:
 
     assert isinstance(leaf, InvalidMetricShape)
     assert "no measure to aggregate" in str(leaf)
+
+
+def test_a_semi_additive_cumulative_metric_is_refused() -> None:
+    """Both constructs lower, and their product is meaningless.
+
+    Measured before it was refused: on this fixture the combination reported
+    **2707** on a day whose revenue was 100, in a month totalling 257. A
+    semi-additive metric declares that it may not be summed along its `over`
+    dimension — always a date role — and a cumulative window accumulates along
+    exactly that one, so the rule's self-join fans the measure out and the
+    window sums the copies. A number with no reading is the failure class this
+    compiler exists to refuse, and it compiled, emitted and planned.
+    """
+    leaf = one_violation(
+        "  balance_mtd:\n"
+        "    grain: sale\n"
+        "    additivity: semi_additive\n"
+        "    agg: sum\n"
+        '    expr: "amount"\n'
+        "    semi_additive: {over: sold_at, rule: last}\n"
+        "    cumulative: {grain_to_date: month}\n",
+        served="balance_mtd",
+    )
+
+    assert isinstance(leaf, InvalidMetricShape)
+    assert "'sold_at'" in str(leaf)
+    assert "fans the measure out" in str(leaf)
 
 
 @pytest.mark.parametrize(

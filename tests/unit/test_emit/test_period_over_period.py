@@ -9,6 +9,8 @@ from one function (D15).
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 
 from bloomery import Target, build_project_ir, compile_project, load_project
@@ -17,6 +19,15 @@ from bloomery.emit.metricflow import emit_manifest
 from bloomery.errors import GrainViolation, GuardrailError, UnsupportedByTarget
 from bloomery.ir import MetricFilterIR, project_fingerprint
 from bloomery.naming import DefaultNaming
+from bloomery.typing import (
+    BoolType,
+    DateType,
+    DecimalType,
+    IntType,
+    LogicalType,
+    StringType,
+    TimestampType,
+)
 from support.compiling import fixture_sources, load_fixture
 
 pytestmark = pytest.mark.unit
@@ -32,7 +43,7 @@ def manifest_metrics() -> dict[str, object]:
 
 #: The fixture's mart line, and the one that serves only the two metrics Cube
 #: can express. Named because three variants below rewrite it.
-_ALL_MEASURES = "measures: [paid_revenue, revenue, revenue_mtd, revenue_trailing_7d]"
+_ALL_MEASURES = "measures: [large_recent_revenue, paid_revenue, revenue, revenue_mtd, revenue_trailing_7d]"
 _SIMPLE_MEASURES = "measures: [paid_revenue, revenue]"
 
 
@@ -302,26 +313,44 @@ def test_cube_emits_a_measure_filter_for_a_filtered_metric() -> None:
 
 
 @pytest.mark.parametrize(
-    ("clause", "expected"),
+    ("clause", "declared", "expected"),
     [
-        (MetricFilterIR("status", "eq", ("paid",)), "REF = 'paid'"),
-        (MetricFilterIR("status", "ne", ("paid",)), "REF <> 'paid'"),
-        (MetricFilterIR("status", "in", ("paid", "shipped")), "REF IN ('paid', 'shipped')"),
-        (MetricFilterIR("status", "not_in", ("void",)), "REF NOT IN ('void')"),
-        (MetricFilterIR("n", "gt", (1,)), "REF > 1"),
-        (MetricFilterIR("n", "gte", (1,)), "REF >= 1"),
-        (MetricFilterIR("n", "lt", (1,)), "REF < 1"),
-        (MetricFilterIR("n", "lte", (1,)), "REF <= 1"),
-        (MetricFilterIR("flag", "eq", (True,)), "REF = TRUE"),
-        (MetricFilterIR("flag", "eq", (False,)), "REF = FALSE"),
-        (MetricFilterIR("x", "is_null", (True,)), "REF IS NULL"),
-        (MetricFilterIR("x", "is_null", (False,)), "REF IS NOT NULL"),
+        (MetricFilterIR("status", "eq", ("paid",)), StringType(), "REF = 'paid'"),
+        (MetricFilterIR("status", "ne", ("paid",)), StringType(), "REF <> 'paid'"),
+        (
+            MetricFilterIR("status", "in", ("paid", "shipped")),
+            StringType(),
+            "REF IN ('paid', 'shipped')",
+        ),
+        (MetricFilterIR("status", "not_in", ("void",)), StringType(), "REF NOT IN ('void')"),
+        (MetricFilterIR("n", "gt", (1,)), IntType(), "REF > 1"),
+        (MetricFilterIR("n", "gte", (1,)), IntType(), "REF >= 1"),
+        (MetricFilterIR("n", "lt", (1,)), IntType(), "REF < 1"),
+        (MetricFilterIR("n", "lte", (1,)), IntType(), "REF <= 1"),
+        (MetricFilterIR("flag", "eq", (True,)), BoolType(), "REF = TRUE"),
+        (MetricFilterIR("flag", "eq", (False,)), BoolType(), "REF = FALSE"),
+        (MetricFilterIR("x", "is_null", (True,)), StringType(), "REF IS NULL"),
+        (MetricFilterIR("x", "is_null", (False,)), StringType(), "REF IS NOT NULL"),
         # The one escaping rule, defined once because both targets read it.
-        (MetricFilterIR("name", "eq", ("O'Brien",)), "REF = 'O''Brien'"),
-        (MetricFilterIR("d", "gte", ("2024-01-01",)), "REF >= '2024-01-01'"),
+        (MetricFilterIR("name", "eq", ("O'Brien",)), StringType(), "REF = 'O''Brien'"),
+        # Typed, not quoted-and-hoped: Trino refuses `decimal <= varchar` and
+        # `date <= varchar` outright, and the other two dialects only rescued
+        # them by implicit cast.
+        (MetricFilterIR("amt", "gte", ("50.00",)), DecimalType(12, 4), "REF >= 50.00"),
+        (MetricFilterIR("amt", "gte", (Decimal("50.00"),)), DecimalType(12, 4), "REF >= 50.00"),
+        (
+            MetricFilterIR("d", "gte", ("2024-01-01",)),
+            DateType(),
+            "REF >= CAST('2024-01-01' AS DATE)",
+        ),
+        (
+            MetricFilterIR("t", "lt", ("2024-01-01T00:00:00",)),
+            TimestampType(),
+            "REF < CAST('2024-01-01T00:00:00' AS TIMESTAMP)",
+        ),
     ],
 )
 def test_every_operator_renders_once_for_both_targets(
-    clause: MetricFilterIR, expected: str
+    clause: MetricFilterIR, declared: LogicalType, expected: str
 ) -> None:
-    assert metric_filter_sql(clause, ref="REF") == expected
+    assert metric_filter_sql(clause, ref="REF", declared=declared) == expected

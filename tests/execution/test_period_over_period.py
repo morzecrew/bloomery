@@ -48,11 +48,11 @@ from decimal import Decimal
 
 import duckdb
 import pytest
-from support.compiling import compile_fixture
+from support.compiling import compile_fixture, fixture_sources, load_fixture
 from support.execution import materialize, warehouse
 from support.planning import fixture_ir, make_planner, normalize_month
 
-from bloomery import MetricRequest, TimeGrain
+from bloomery import MetricRequest, ProjectIR, TimeGrain, build_project_ir, load_project
 
 pytestmark = pytest.mark.execution
 
@@ -80,6 +80,28 @@ SALES = [
     # subtract, and must say so.
     ("s08", "60.00", "3", "false", "paid", "web", "2024-05-02"),
 ]
+
+
+#: The fixture's mart line, rewritten by `variant_ir` when a case needs a metric
+#: the fixture does not carry.
+_MEASURES = "measures: [large_recent_revenue, paid_revenue, revenue, revenue_mtd, revenue_trailing_7d]"
+
+
+def variant_ir(extra: str, *, served: str) -> ProjectIR:
+    """The fixture's IR plus one more measure-carrying metric.
+
+    The mart table is **not** rebuilt, and does not need to be: a mart's SELECT
+    projects its flattened columns and knows nothing about which metrics are
+    served from it, so a metric added here plans against the table the module
+    fixture already materialized.
+    """
+
+    sources = dict(fixture_sources(FIXTURE))
+    sources["metrics"] = sources["metrics"] + extra
+    assert _MEASURES in sources["marts"]
+    sources["marts"] = sources["marts"].replace(_MEASURES, _MEASURES[:-1] + f", {served}]")
+    _project, catalog = load_fixture(FIXTURE)
+    return build_project_ir(load_project(sources), catalog)
 
 
 @pytest.fixture(scope="module")
@@ -228,6 +250,31 @@ def test_the_trailing_window_is_half_open_at_the_far_end(
     assert rows[date(2024, 3, 10)][1] == Decimal("7.0000") + Decimal("50.0000")
 
 
+def test_a_month_grain_request_collapses_the_series_to_its_first_point(
+    conn: duckdb.DuckDBPyConnection,
+) -> None:
+    """What `period_agg` decides, executed rather than described.
+
+    A cumulative metric is a *series*, and asking for it at a grain coarser
+    than it accumulates to has to pick one point of each period.
+    MetricFlow's `period_agg` decides which, and its default — the one bloomery
+    pins rather than diverging from — is `first`. So March 2024 by month
+    reports **100**, the running total on 03-01, not the 257 the month
+    finished on.
+
+    Pinned because it is the surprising half of a defensible choice: the number
+    is right for what was asked and is not what most readers expect from a
+    metric named `_mtd`. A change in that default becomes a failure here rather
+    than a quiet change of meaning in everyone's dashboards.
+    """
+    rows = by_month(conn, "revenue", "revenue_mtd")
+
+    assert rows[date(2024, 3, 1)] == (Decimal("257.0000"), Decimal("100.0000"))
+    # Where a month holds one day, first and last coincide and the distinction
+    # is invisible — which is why the March row above is the one that pins it.
+    assert rows[date(2024, 5, 1)] == (Decimal("60.0000"), Decimal("60.0000"))
+
+
 # ....................... #
 # Metric filters (RFC 0034 D8)
 
@@ -247,6 +294,72 @@ def test_a_filtered_metric_counts_a_subset_of_the_rows_its_sibling_counts(
     # A month whose rows are all paid: the filter removes nothing, rather than
     # removing everything or being silently dropped.
     assert rows[date(2024, 4, 1)] == (Decimal("40.0000"), Decimal("40.0000"))
+
+
+def test_two_filter_clauses_are_anded(conn: duckdb.DuckDBPyConnection) -> None:
+    """That a where-filter intersection is an AND is MetricFlow's model; this
+    runs it.
+
+    March 2024 holds 257 in total, 207 of it paid, and exactly 100 of it both
+    paid *and* on the web channel — the refunded 50 is web, and the paid 7 and
+    100 are in store. An OR would report 257; either clause alone reports 207
+    or 150.
+    """
+    ir = variant_ir(
+        "  paid_web_revenue:\n"
+        "    grain: sale\n"
+        "    additivity: additive\n"
+        "    agg: sum\n"
+        '    expr: "amount"\n'
+        "    filter:\n"
+        "      - {dimension: status, op: eq, values: [paid]}\n"
+        "      - {dimension: channel, op: eq, values: [web]}\n",
+        served="paid_web_revenue",
+    )
+    plan = PLANNER.plan(
+        ir,
+        MetricRequest(
+            metrics=("revenue", "paid_revenue", "paid_web_revenue"),
+            dimensions=("sold_month",),
+            time_grain=TimeGrain.MONTH,
+        ),
+        dialect="duckdb",
+    )
+    rows = {
+        normalize_month(row[0]): tuple(row[1:])
+        for row in conn.execute(plan.sql).fetchall()
+        if any(value is not None for value in row[1:])
+    }
+
+    assert rows[date(2024, 3, 1)] == (
+        Decimal("257.0000"),
+        Decimal("207.0000"),
+        Decimal("100.0000"),
+    )
+    # April is all in store, so the second clause removes everything the first
+    # one kept — an AND that can reach empty, not a filter that quietly widens.
+    assert rows[date(2024, 4, 1)][2] is None
+
+
+def test_a_filter_reaches_sql_in_the_column_s_own_type(
+    conn: duckdb.DuckDBPyConnection,
+) -> None:
+    """A decimal bound and a date bound, both written through the string
+    carrier, both ANDed.
+
+    The carrier is how an exact decimal is written in YAML (RFC 0015 D5), and
+    rendering it as a *string* literal left the comparison to the engine's
+    coercion rules — which Trino does not have: it refuses
+    `decimal <= varchar` and `date <= varchar` outright. DuckDB coerces, so
+    this assertion holds either way; the engine tier is where the difference
+    shows, and this is the arithmetic it checks against.
+    """
+    rows = by_month(conn, "revenue", "large_recent_revenue")
+
+    # 100 + 50 + 100 — the 7.00 on 03-04 is under the amount bound.
+    assert rows[date(2024, 3, 1)] == (Decimal("257.0000"), Decimal("250.0000"))
+    # 2023 is excluded by the date bound even though its 100.00 clears the other.
+    assert rows[date(2023, 3, 1)] == (Decimal("100.0000"), None)
 
 
 def test_the_filter_is_reported_in_the_explanation(

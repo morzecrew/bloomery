@@ -122,7 +122,7 @@ from metricflow_semantic_interfaces.type_enums.metric_type import MetricType
 from metricflow_semantic_interfaces.type_enums.period_agg import PeriodAggregation
 from metricflow_semantic_interfaces.type_enums.time_granularity import TimeGranularity
 
-from bloomery.emit.lower import measure_owners, metric_filter_sql
+from bloomery.emit.lower import mart_column_type, measure_owners, metric_filter_sql
 from bloomery.errors import EmitError, UnsupportedByTarget, guaranteed
 from bloomery.ir import Additivity, Layer, SemiAdditiveRule
 
@@ -508,7 +508,7 @@ def _derived_input(
 
 
 def _where(
-    filters: tuple[MetricFilterIR, ...], *, entity: str
+    filters: tuple[MetricFilterIR, ...], *, mart: MartIR
 ) -> PydanticWhereFilterIntersection | None:
     """A metric's ``filter:`` list as MetricFlow's where-filter intersection —
     an intersection being an AND, which is what the clauses are (RFC 0034 D8).
@@ -522,11 +522,15 @@ def _where(
     if not filters:
         return None
 
+    entity = entity_key(mart)
+
     return PydanticWhereFilterIntersection(
         where_filters=[
             PydanticWhereFilter(
                 where_sql_template=metric_filter_sql(
-                    clause, ref=f"{{{{ Dimension('{entity}__{clause.dimension}') }}}}"
+                    clause,
+                    ref=f"{{{{ Dimension('{entity}__{clause.dimension}') }}}}",
+                    declared=mart_column_type(mart, clause.dimension),
                 )
             )
             for clause in filters
@@ -672,7 +676,7 @@ def _metric(
         )
 
     measure = PydanticMetricInputMeasure(name=metric.name, filter=None, alias=None)
-    where = _where(metric.filter, entity=entity_key(owners[metric.name]))
+    where = _where(metric.filter, mart=owners[metric.name])
 
     if metric.cumulative is None:
         return PydanticMetric(

@@ -69,7 +69,7 @@ from bloomery.emit.base import (
     EmitContext,
     EmittedArtifact,
 )
-from bloomery.emit.lower import measure_owners, metric_filter_sql
+from bloomery.emit.lower import mart_column_type, measure_owners, metric_filter_sql
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import (
     Additivity,
@@ -211,7 +211,13 @@ def _stored_measure(metric: MetricIR, mart: MartIR) -> dict[str, object]:
         # differing only in how a column is spelled — `{CUBE}.col` here,
         # `{{ Dimension('entity__col') }}` there (D15).
         entry["filters"] = [
-            {"sql": metric_filter_sql(clause, ref=f"{{CUBE}}.{clause.dimension}")}
+            {
+                "sql": metric_filter_sql(
+                    clause,
+                    ref=f"{{CUBE}}.{clause.dimension}",
+                    declared=mart_column_type(mart, clause.dimension),
+                )
+            }
             for clause in metric.filter
         ]
 

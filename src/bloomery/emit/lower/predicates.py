@@ -18,9 +18,9 @@ from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
 from bloomery.errors import guaranteed
-from bloomery.ir import AuditIR, EntityIR, MetricFilterIR
+from bloomery.ir import AuditIR, EntityIR, MartIR, MetricFilterIR
 from bloomery.transforms import neutral_type
-from bloomery.typing import DecimalType, IntType, LogicalType
+from bloomery.typing import DecimalType, IntType, LogicalType, StringType
 
 # ....................... #
 # Audit predicates (RFC 0006 §5.6/D7)
@@ -163,8 +163,22 @@ _METRIC_FILTER_COMPARISONS = {
 }
 
 
-def _metric_filter_literal(value: str | int | bool | Decimal) -> str:
-    """One authored filter value as a SQL literal.
+def _metric_filter_literal(value: str | int | bool | Decimal, declared: LogicalType) -> str:
+    """One authored filter value as a SQL literal **of the column's type**.
+
+    Typed rather than quoted-and-hoped, because two of the three shipped
+    dialects do not rescue an untyped one. Measured on Trino 483:
+
+        Cannot apply operator: decimal(12,4) <= varchar(4)
+        Cannot apply operator: date <= varchar(10)
+
+    So a filter on a decimal column written through the string carrier RFC 0015
+    D5 established — ``"50.00"``, which is how an exact decimal is written in
+    YAML — and a filter on any date or timestamp column were both broken on
+    Trino, and worked on DuckDB and PostgreSQL only by implicit cast. Numbers
+    now render unquoted and temporals render as an explicit ``CAST`` to the
+    neutral type, which is the spelling :func:`_bound_literal` already uses for
+    audit bounds and for the same reason.
 
     ``bool`` precedes ``int`` because it is a subclass of one. Strings double
     their quotes; they cannot carry a NUL or a template brace, both refused at
@@ -179,13 +193,39 @@ def _metric_filter_literal(value: str | int | bool | Decimal) -> str:
         return str(value)
 
     escaped = value.replace("'", "''")
-    return f"'{escaped}'"
+
+    if isinstance(declared, (IntType, DecimalType)):
+        # The string carrier for a number the guardrail has already parsed
+        # (RFC 0034 D9) — it reaches SQL as the number it carries.
+        return escaped
+
+    if isinstance(declared, StringType):
+        return f"'{escaped}'"
+
+    # A temporal, or any other type whose literal is written as text: cast, so
+    # the comparison never depends on the engine's coercion rules.
+    return f"CAST('{escaped}' AS {neutral_type(declared).sql()})"
 
 
 # ....................... #
 
 
-def metric_filter_sql(clause: MetricFilterIR, *, ref: str) -> str:
+def mart_column_type(mart: MartIR, column: str) -> LogicalType:
+    """The declared type of one mart column — what a metric filter's literal is
+    rendered as. The guardrail has already established that the column exists
+    and that the values fit it (RFC 0034 D9)."""
+
+    return guaranteed(
+        (candidate.type for candidate in mart.columns if candidate.name == column),
+        expected=f"column {column!r} on mart {mart.name!r}",
+        by="the metric-filter guardrail, which refuses a dimension the mart does not flatten",
+    )
+
+
+# ....................... #
+
+
+def metric_filter_sql(clause: MetricFilterIR, *, ref: str, declared: LogicalType) -> str:
     """One metric-filter clause as SQL text, over the target's own spelling of
     the column reference (RFC 0034 D15).
 
@@ -209,7 +249,7 @@ def metric_filter_sql(clause: MetricFilterIR, *, ref: str) -> str:
     if clause.op == "is_null":
         return f"{ref} IS NULL" if clause.values[0] else f"{ref} IS NOT NULL"
 
-    literals = [_metric_filter_literal(value) for value in clause.values]
+    literals = [_metric_filter_literal(value, declared) for value in clause.values]
 
     if clause.op in ("in", "not_in"):
         keyword = "IN" if clause.op == "in" else "NOT IN"

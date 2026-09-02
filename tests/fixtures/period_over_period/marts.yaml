@@ -8,4 +8,4 @@ marts:
     base: sale
     flatten:
       - {date: sold_at, role: sold}
-    measures: [paid_revenue, revenue, revenue_mtd, revenue_trailing_7d]
+    measures: [large_recent_revenue, paid_revenue, revenue, revenue_mtd, revenue_trailing_7d]
