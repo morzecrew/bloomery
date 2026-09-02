@@ -380,6 +380,13 @@ def _filtered(clause: str) -> str:
         '{dimension: sold_at, op: gte, values: ["2024-01-01"]}',
         # `is_null` compares nothing against the column, so no type has to fit.
         "{dimension: status, op: is_null, values: [false]}",
+        # A timestamp column takes a full instant *or* a bare date.
+        '{dimension: booked_at, op: gte, values: ["2024-01-01T09:00:00"]}',
+        '{dimension: booked_at, op: gte, values: ["2024-01-01"]}',
+        # Zero fits every (precision, scale) — the one value whose digit tuple
+        # strips to nothing.
+        '{dimension: amount, op: gte, values: [0]}',
+        '{dimension: amount, op: gte, values: ["0.0000"]}',
     ],
 )
 def test_a_value_in_the_columns_own_type_compiles(clause: str) -> None:
@@ -408,8 +415,12 @@ def test_a_value_in_the_columns_own_type_compiles(clause: str) -> None:
         # column cannot represent.
         '{dimension: amount, op: gte, values: ["1.12345"]}',
         '{dimension: amount, op: gte, values: ["999999999.0"]}',
-        # A temporal column takes an ISO carrier, not a number and not prose.
+        # A temporal column takes an ISO carrier, not a number and not prose —
+        # on a `timestamp` column as much as on a `date` one, and there the
+        # value is parsed as an instant before it is refused.
         "{dimension: sold_at, op: gte, values: [20240101]}",
+        '{dimension: booked_at, op: gte, values: ["not a timestamp"]}',
+        '{dimension: booked_at, op: gte, values: ["2024-01-01T99:00:00"]}',
         # ...and the carrier is *parsed*, not pattern-matched: these are the
         # right shape and no such day exists, and either would have reached SQL
         # as a literal the engine rejects at run time.

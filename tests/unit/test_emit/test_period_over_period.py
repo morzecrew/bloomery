@@ -351,10 +351,39 @@ def test_cube_emits_a_measure_filter_for_a_filtered_metric() -> None:
             TimestampType(),
             "REF < CAST('2024-01-01 00:00:00' AS TIMESTAMP)",
         ),
+        # A bare date against a timestamp column is a real instant, and comes
+        # out as one: normalization parses rather than substitutes, so midnight
+        # is written rather than left to the engine to infer.
         (
             MetricFilterIR("t", "lt", ("2024-01-01",)),
             TimestampType(),
-            "REF < CAST('2024-01-01' AS TIMESTAMP)",
+            "REF < CAST('2024-01-01 00:00:00' AS TIMESTAMP)",
+        ),
+        # The three other spellings `datetime.fromisoformat` accepts, which a
+        # `T`-only substitution left for Trino to reject.
+        (
+            MetricFilterIR("t", "lt", ("2024-01-01t09:00:00",)),
+            TimestampType(),
+            "REF < CAST('2024-01-01 09:00:00' AS TIMESTAMP)",
+        ),
+        (
+            MetricFilterIR("t", "lt", ("2024-01-01T09:00:00Z",)),
+            TimestampType(),
+            "REF < CAST('2024-01-01 09:00:00' AS TIMESTAMP)",
+        ),
+        # An offset is converted, not dropped: `timestamp` is zoneless UTC
+        # (RFC 0028), so 09:00+02:00 is the instant 07:00.
+        (
+            MetricFilterIR("t", "lt", ("2024-01-01T09:00:00+02:00",)),
+            TimestampType(),
+            "REF < CAST('2024-01-01 07:00:00' AS TIMESTAMP)",
+        ),
+        # A string column holding text that looks temporal is left alone —
+        # rewriting it would change what the comparison matches.
+        (
+            MetricFilterIR("s", "eq", ("2024-01-01T09:00:00",)),
+            StringType(),
+            "REF = '2024-01-01T09:00:00'",
         ),
     ],
 )

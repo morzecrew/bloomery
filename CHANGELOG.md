@@ -94,9 +94,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   converting, where the catalog declares rates; declaring rates or deriving upstream,
   where it does not. The rule itself is unchanged and still has no escape token.
 
-- `ProjectIR.bloomery_ir_version` is **9** (was 6), across three shape changes in this
-  release: `MartJoinIR` gained `as_of` (7), `ProjectIR` gained `fx_rates` (8), and
-  `MetricIR` gained `cumulative`/`derived`/`filter` (9).
+- `ProjectIR.bloomery_ir_version` is **10** (was 6), across four shape changes in this
+  release: `MartJoinIR` gained `as_of` (7), `ProjectIR` gained `fx_rates` (8),
+  `MetricIR` gained `cumulative`/`derived`/`filter` (9), and `CumulativeIR` gained
+  `period_agg` (10).
   `plan()` refuses to diff across versions; recompile both sides with one compiler.
   Every project's fingerprint moves, because the version is itself part of the
   canonical stream — `as_of` on its own would have moved only the fingerprints of

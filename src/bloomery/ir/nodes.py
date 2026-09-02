@@ -792,15 +792,15 @@ class CumulativeIR:
     describes the accumulation (D6).
 
     ``period_agg`` is what a request *coarser* than the accumulation gets:
-    ``first``, ``last`` or ``average`` of the period's series. It is not
-    defaulted here — the spec layer defaults it to ``last`` and this carries
-    what was decided, because a field that means "collapse a series" cannot
-    have an answer invented downstream.
+    ``first``, ``last`` or ``average`` of the period's series. It carries no
+    default and comes first for that reason — the spec layer defaults it to
+    ``last``, and a field meaning "collapse a series to one number" must not be
+    answerable by omission anywhere downstream.
     """
 
+    period_agg: str
     window: TimeWindow | None = None
     grain_to_date: str | None = None
-    period_agg: str = "last"
 
 
 # ....................... #
@@ -1187,7 +1187,11 @@ class ProjectIR:
     ``as_of`` to every :class:`MartJoinIR`. Version 8 (RFC 0023 §5.4) adds
     ``fx_rates`` here. Version 9
     (RFC 0034 D14) adds ``cumulative``/``derived``/``filter`` to every
-    :class:`MetricIR`. The bump is
+    :class:`MetricIR`, and version 10 adds ``period_agg`` to every
+    :class:`CumulativeIR` — a second shape change under the same RFC, and a
+    second number, because "the first one is not released yet" is a reason to
+    skip the bump only until someone diffs two IRs that both call themselves 9.
+    The bump is
     the point — every artifact's fingerprint header moves, and ``plan()``
     refuses to diff across versions rather than misreading one as the other.
 
@@ -1209,7 +1213,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 9
+    bloomery_ir_version: int = 10
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()
