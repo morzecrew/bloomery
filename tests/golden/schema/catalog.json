@@ -264,9 +264,10 @@
     },
     "MetricFilter": {
       "additionalProperties": false,
-      "description": "One row-level restriction on a metric (RFC 0034 D8).\n\n``dimension`` names a column flattened on the mart carrying the metric;\nthat it is flattened, and that ``values`` fit its declared type, is a\nguardrail (D9) \u2014 this layer checks only the operator/arity coherence that\nis decidable from the document.",
+      "description": "One row-level restriction on a metric (RFC 0034 D8).\n\n``dimension`` names a column flattened on the mart carrying the metric;\nthat it is flattened, and that ``values`` fit its declared type, is a\nguardrail (D9) \u2014 this layer checks only what is decidable from the\ndocument: the operator/arity coherence, and that the name is a bare\nidentifier. The second is not cosmetic \u2014 see\n:data:`~bloomery.spec.common.DimensionName`, which the reference is typed\nwith: this is the one place a member name reaches a template unquoted.",
       "properties": {
         "dimension": {
+          "pattern": "^[a-z][a-z0-9_]*$",
           "title": "Dimension",
           "type": "string"
         },

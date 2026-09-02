@@ -32,6 +32,7 @@ from pydantic import BeforeValidator, Field, StringConstraints, model_validator
 
 from bloomery.spec.common import (
     AdditivityName,
+    DimensionName,
     MemberName,
     RatioSpec,
     SemiAdditivePolicy,
@@ -147,11 +148,14 @@ class MetricFilter(SpecModel):
 
     ``dimension`` names a column flattened on the mart carrying the metric;
     that it is flattened, and that ``values`` fit its declared type, is a
-    guardrail (D9) — this layer checks only the operator/arity coherence that
-    is decidable from the document.
+    guardrail (D9) — this layer checks only what is decidable from the
+    document: the operator/arity coherence, and that the name is a bare
+    identifier. The second is not cosmetic — see
+    :data:`~bloomery.spec.common.DimensionName`, which the reference is typed
+    with: this is the one place a member name reaches a template unquoted.
     """
 
-    dimension: MemberName
+    dimension: DimensionName
     op: FilterOpName
     values: tuple[FilterValue, ...] = ()
 

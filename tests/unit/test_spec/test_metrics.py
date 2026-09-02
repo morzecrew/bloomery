@@ -7,6 +7,7 @@ import yaml
 
 from bloomery.errors import SpecParseError
 from bloomery.spec import MetricSet
+from bloomery.spec.metrics import parse_time_window
 from bloomery.spec.common import validate_document
 
 pytestmark = pytest.mark.unit
@@ -151,6 +152,22 @@ def test_the_window_grammar_accepts_singular_and_plural(window: str) -> None:
     parse(f'metrics_version: 1\nmetrics:\n  m:\n    cumulative: {{window: "{window}"}}\n')
 
 
+@pytest.mark.parametrize("grain", ["day", "week", "month", "quarter", "year"])
+def test_the_plural_is_dropped_so_one_window_has_one_spelling(grain: str) -> None:
+    """`parse_time_window` is the only place the plural is removed, and the
+    reason is *determinism*, not tidiness.
+
+    Nothing downstream notices: MetricFlow's manifest transformer normalizes
+    `"days"` to `"day"` itself, so the emitted artifact is identical either way.
+    What is not identical is the IR — `TimeWindow(grain="days")` and
+    `TimeWindow(grain="day")` are different values and fingerprint differently,
+    so two spellings of one window would report a change where none exists
+    (RFC 0003 §5.4). A mutation sweep found this: dropping the `rstrip` broke
+    nothing any other test could see.
+    """
+    assert parse_time_window(f"3 {grain}s") == parse_time_window(f"3 {grain}") == (3, grain)
+
+
 @pytest.mark.parametrize(
     "window",
     [
@@ -233,3 +250,21 @@ def test_a_non_finite_decimal_is_refused() -> None:
 
     with pytest.raises(ValueError, match="non-finite"):
         MetricFilter(dimension="amount", op="gt", values=(Decimal("NaN"),))
+
+
+def test_a_filter_dimension_must_be_a_bare_identifier() -> None:
+    """The one place a member name reaches a template unquoted (RFC 0034 D8).
+
+    `MemberName` is deliberately unpatterned because a field name reaches SQL
+    through SQLGlot, which quotes it. A metric filter breaks that premise: the
+    name is interpolated into `{{ Dimension('sale__<name>') }}` on MetricFlow
+    and `{CUBE}.<name>` on Cube. Before the pattern this emitted
+    `{{ Dimension('sale__evil') }} = 1 OR 1=1 --') }} = 'paid'` — a metric
+    declared as a restricted subset, silently matching every row.
+    """
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(
+            "metrics_version: 1\nmetrics:\n  m:\n    filter:\n"
+            "      - {dimension: \"evil') }} = 1 OR 1=1 --\", op: eq, values: [paid]}\n"
+        )
+    assert excinfo.value.source_path == "metrics: metrics.m.filter[0].dimension"

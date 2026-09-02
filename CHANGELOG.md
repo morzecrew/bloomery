@@ -25,7 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `paid_revenue` is a metric rather than a convention every caller has to remember.
   Values are checked against the flattened column's declared type at compile time and
   are never cast; the restriction is reported in the plan's explanation, so a filtered
-  number is never presented as its unfiltered sibling.
+  number is never presented as its unfiltered sibling. The dimension must be a bare
+  `^[a-z][a-z0-9_]*$` identifier — the one place a member name reaches a template that
+  does not quote it, where every other field name reaches SQL through SQLGlot.
 
   A derived metric's inputs are its dependency edges: they need not be repeated in
   `requires_metrics:`, and reachability, cycle detection and the planner's coverage

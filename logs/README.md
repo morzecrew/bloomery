@@ -22,7 +22,7 @@ appending a row to the RFC's decision table, and that row cites the entry it cam
 | [T-0008](T-0008.md) | RFC 0032 — mapping identity | 0 |
 | [T-0009](T-0009.md) | RFC 0023 §5.3 — the as-of join | 0 |
 | [T-0010](T-0010.md) | RFC 0023 §5.4 — currency as a declared relation | 0 |
-| [T-0011](T-0011.md) | RFC 0034 — metrics over time | 1 |
+| [T-0011](T-0011.md) | RFC 0034 — metrics over time | 2 |
 
 ## How to read an entry
 

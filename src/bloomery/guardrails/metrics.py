@@ -47,11 +47,16 @@ __all__ = [
     "check_metrics",
 ]
 
-#: ISO date/timestamp carriers, the spelling every temporal filter value takes
-#: by the time it reaches the IR (``resolve.build._metric_filters``). Reusing
-#: the quality layer's grammar would mean importing a sibling module for one
-#: regex; the two are checked against the same corpus by the type-conformance
-#: tier.
+#: The length of an ISO date, which is the shape every temporal filter value
+#: has by the time it reaches the IR (``resolve.build._metric_filters`` writes
+#: dates and timestamps as ``isoformat()``).
+#:
+#: A length-and-separator check rather than the quality layer's `_ISO_TEMPORAL`
+#: regex, because this is a *fit* test and that is a *validity* test: what fails
+#: here is a value in the wrong type — a number, a word — and the emitted
+#: literal is compared by the engine in the column's own type, which is where a
+#: malformed date is caught with the engine's own message. Deliberately not the
+#: same rule, so nothing is claimed about the two agreeing.
 _ISO_DATE_LENGTH = 10
 
 
@@ -186,13 +191,20 @@ def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
         )
         violations.append(InvalidMetricShape(msg, source_path=path))
 
-    if metric.derived is not None and metric.filter:
+    if metric.filter and metric.additivity is Additivity.NON_ADDITIVE:
+        # Every shape of non-additive metric, not just `derived:`. A ratio has
+        # the same hole and had it silently: the RATIO lowering carries no
+        # filter, so a metric declared as a restricted average returned the
+        # unrestricted one. The additivity is the right predicate because it is
+        # exactly the class that never emits a measure — ratio, derived, and the
+        # expression-over-components form alike.
         msg = (
-            f"metric {metric.name!r} is derived: and carries filter:. A derived metric's "
-            "rows are its inputs' rows, so a filter here restricts measures one level "
-            "down rather than the metric it is written on — a post-aggregate filter, "
-            "which bloomery does not express (RFC 0034 §9). Fix: filter the input "
-            "metrics and derive from the filtered ones"
+            f"metric {metric.name!r} is non_additive and carries filter:. A non-additive "
+            "metric is never a measure — it is recomputed from its components at query "
+            "time — so a filter here restricts those components rather than the metric it "
+            "is written on: a post-aggregate filter, which bloomery does not express "
+            "(RFC 0034 §9). Fix: filter the components and decompose from the filtered "
+            "ones"
         )
         violations.append(InvalidMetricShape(msg, source_path=path))
 

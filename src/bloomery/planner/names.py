@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING
 from metricflow_semantics.specs.dimension_spec import DimensionSpec
 from metricflow_semantics.specs.time_dimension_spec import TimeDimensionSpec
 
+from bloomery.emit.metricflow import entity_key as emit_entity_key
 from bloomery.errors import PlannerError
 from bloomery.ir import Additivity
 from bloomery.planner.request import TimeGrain
@@ -82,9 +83,16 @@ class ResolvedDimension:
 
 def entity_key(mart: MartIR) -> str:
     """The dunder key for a mart's semantic model: its grain entity name —
-    the primary entity in both key shapes the emitter produces."""
+    the primary entity in both key shapes the emitter produces.
 
-    return mart.grain
+    Delegated to the emitter that writes the manifest rather than restated
+    here. The name has to match what was emitted or every group-by resolves
+    against nothing, and two spellings of ``mart.grain`` in two packages is a
+    rule defined in neither. Re-exported under this name because the planner's
+    own vocabulary is where its callers look for it (RFC 0013 §5.1).
+    """
+
+    return emit_entity_key(mart)
 
 
 # ....................... #

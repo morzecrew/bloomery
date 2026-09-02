@@ -197,9 +197,13 @@ def metric_filter_sql(clause: MetricFilterIR, *, ref: str) -> str:
 
     What *is* shared is everything that can be got wrong — the operator
     spellings, the list shape, quote doubling — because two copies of an
-    escaping rule is the defect this project keeps finding in itself. The
-    values reaching here have already been checked against the column's
-    declared type at the guardrail stage (D9), so nothing is cast.
+    escaping rule is the defect this project keeps finding in itself.
+
+    Two invariants are relied on and neither is re-checked here, because both
+    are established before an IR node exists: ``values`` has the arity its
+    operator takes (``MetricFilter._arity`` refuses the rest at parse), so the
+    ``is_null`` branch may index it; and each value fits the column's declared
+    type (the guardrail stage, D9), so nothing is cast.
     """
 
     if clause.op == "is_null":

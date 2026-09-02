@@ -144,8 +144,9 @@ def _metric_meta(metric: MetricIR) -> dict[str, object]:
     meta: dict[str, object] = {"additivity": metric.additivity.value}
 
     if metric.grain:
-        # A derived metric (a ratio) has no grain of its own — its components
-        # carry theirs; an empty grain entry would be noise, not metadata.
+        # A metric with no measure of its own — a ratio, and since RFC 0034 a
+        # `derived:` metric — has no grain: its components carry theirs, and an
+        # empty grain entry would be noise rather than metadata.
         meta["grain"] = metric.grain
 
     if metric.semi_additive is not None:

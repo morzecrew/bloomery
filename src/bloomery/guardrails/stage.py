@@ -7,10 +7,13 @@ collected project-wide — together with the mart-level leaves the flattener
 reports (``GrainViolation``, ``FanoutRisk``, ``MartMissingTimeDimension`` —
 RFC 0006 D10, RFC 0010 §5.5) — and raised as **one** :class:`GuardrailError`
 aggregate, its leaves sorted by ``(source_path, type name)`` — authors fix a
-spec in one round-trip (RFC 0002 D6). The only amendments are the seventh
+spec in one round-trip (RFC 0002 D6). The only amendments are the eighth
 guard's path-conflict handling (shadow column + reconcile audit, RFC 0006
 D7) and the lowering of valid ``assert:`` clauses into entity audits
 (RFC 0006 D8); a project with neither returns the draft unchanged.
+
+The seventh is the metric-shape guard (RFC 0034), which replaced the blanket
+``cumulative:`` refusal when that surface stopped being reserved.
 """
 
 from __future__ import annotations
@@ -89,7 +92,7 @@ def _amended_entity(
 
 
 def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | None) -> ProjectIR:
-    """Run all seven guardrails plus the data-quality leaves over the draft IR
+    """Run all eight guardrails plus the data-quality leaves over the draft IR
     (RFC 0006 D9; RFC 0016 §5.9).
 
     Raises one aggregated :class:`GuardrailError` if any violation exists;

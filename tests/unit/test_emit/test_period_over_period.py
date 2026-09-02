@@ -14,8 +14,8 @@ import pytest
 from bloomery import Target, build_project_ir, compile_project, load_project
 from bloomery.emit.lower import metric_filter_sql
 from bloomery.emit.metricflow import emit_manifest
-from bloomery.errors import UnsupportedByTarget
-from bloomery.ir import MetricFilterIR
+from bloomery.errors import GrainViolation, GuardrailError, UnsupportedByTarget
+from bloomery.ir import MetricFilterIR, project_fingerprint
 from bloomery.naming import DefaultNaming
 from support.compiling import fixture_sources, load_fixture
 
@@ -30,25 +30,52 @@ def manifest_metrics() -> dict[str, object]:
     return {metric.name: metric for metric in manifest.metrics}
 
 
-def simple_only() -> tuple[object, object]:
-    """The fixture cut down to the metrics Cube can express.
+#: The fixture's mart line, and the one that serves only the two metrics Cube
+#: can express. Named because three variants below rewrite it.
+_ALL_MEASURES = "measures: [paid_revenue, revenue, revenue_mtd, revenue_trailing_7d]"
+_SIMPLE_MEASURES = "measures: [paid_revenue, revenue]"
+
+
+def variant(extra_metrics: str = "") -> tuple[object, object]:
+    """The fixture with its cumulative and derived metrics cut, plus whatever
+    ``extra_metrics`` adds back.
 
     Cube refuses a project carrying *any* derived or cumulative metric (D11),
     so the emittable half has to be a separate project rather than a separate
-    mart — this is that project, built by truncating one document instead of
-    duplicating five.
+    mart — this builds it by truncating one document instead of duplicating
+    five, and every case below that needs a *different* offending metric adds
+    exactly that one.
     """
 
     sources = dict(fixture_sources(FIXTURE))
     head, marker, _rest = sources["metrics"].partition("  # Month-to-date")
     assert marker, "the metrics document no longer has the cumulative section"
-    sources["metrics"] = head
-    sources["marts"] = sources["marts"].replace(
-        "measures: [paid_revenue, revenue, revenue_mtd, revenue_trailing_7d]",
-        "measures: [paid_revenue, revenue]",
-    )
+    sources["metrics"] = head + extra_metrics
+    assert _ALL_MEASURES in sources["marts"]
+    sources["marts"] = sources["marts"].replace(_ALL_MEASURES, _SIMPLE_MEASURES)
     _project, catalog = load_fixture(FIXTURE)
     return load_project(sources), catalog
+
+
+def with_metric(extra: str, *, served: str) -> dict[str, object]:
+    """The whole fixture plus one more measure-carrying metric, as emitted
+    manifest metrics by name.
+
+    The complement of :func:`variant`, which *removes* metrics to reach the
+    subset Cube can express. Cases that cross a new construct with an existing
+    one — a cumulative metric that is also filtered, a semi-additive one that is
+    — need the fixture intact and one metric added.
+    """
+
+    sources = dict(fixture_sources(FIXTURE))
+    sources["metrics"] = sources["metrics"] + extra
+    assert _ALL_MEASURES in sources["marts"]
+    sources["marts"] = sources["marts"].replace(_ALL_MEASURES, _ALL_MEASURES[:-1] + f", {served}]")
+    _project, catalog = load_fixture(FIXTURE)
+    manifest = emit_manifest(
+        build_project_ir(load_project(sources), catalog), naming=DefaultNaming()
+    )
+    return {metric.name: metric for metric in manifest.metrics}
 
 
 # ....................... #
@@ -124,6 +151,101 @@ def test_an_unfiltered_metric_carries_no_filter_at_all() -> None:
     assert manifest_metrics()["revenue"].filter is None
 
 
+def test_a_cumulative_metric_can_also_be_filtered() -> None:
+    """The two constructs are independent — the window says how the measure
+    accumulates, the filter says which rows it accumulates — and the lowering
+    has to carry both. Untested crossings are where a branch that "obviously"
+    composes turns out not to."""
+    metric = with_metric(
+        "  paid_revenue_mtd:\n"
+        "    grain: sale\n"
+        "    additivity: additive\n"
+        "    agg: sum\n"
+        '    expr: "amount"\n'
+        "    cumulative: {grain_to_date: month}\n"
+        "    filter: [{dimension: status, op: eq, values: [paid]}]\n",
+        served="paid_revenue_mtd",
+    )["paid_revenue_mtd"]
+
+    assert metric.type.value == "cumulative"
+    assert metric.type_params.cumulative_type_params.grain_to_date == "month"
+    assert metric.filter.where_filters[0].where_sql_template == (
+        "{{ Dimension('sale__status') }} = 'paid'"
+    )
+
+
+def test_a_semi_additive_metric_can_also_be_filtered() -> None:
+    """The same crossing on the third measure shape: the filter rides on the
+    metric, the `non_additive_dimension` on the measure, and neither displaces
+    the other."""
+    metrics = with_metric(
+        "  paid_balance:\n"
+        "    grain: sale\n"
+        "    additivity: semi_additive\n"
+        "    agg: sum\n"
+        '    expr: "amount"\n'
+        "    semi_additive: {over: sold_at, rule: last}\n"
+        "    filter: [{dimension: status, op: eq, values: [paid]}]\n",
+        served="paid_balance",
+    )
+
+    assert metrics["paid_balance"].filter.where_filters[0].where_sql_template == (
+        "{{ Dimension('sale__status') }} = 'paid'"
+    )
+
+
+def test_naming_a_derived_metric_in_measures_is_refused_not_inert() -> None:
+    """RFC 0034 D4's second half is **wrong**, and this is where it shows.
+
+    D4 (ASSUMED) says naming a derived metric in a mart's `measures:` "stays
+    legal and inert, as it is for a ratio". It is neither: a derived metric
+    declares no grain — it has no measure to have one — and the grain guardrail
+    requires a measure's grain to equal the mart's exactly (RFC 0010 D2). So the
+    mart refuses it.
+
+    The ratio precedent D4 reasoned from was never exercised: no fixture in the
+    corpus lists a grainless ratio in `measures:` either, so the claim was
+    inherited from a shape nobody had tried. The refusal is the right behaviour
+    — a mart cannot serve a metric it has no grain agreement with — and the
+    message's first remedy is the correct one.
+    """
+    sources = dict(fixture_sources(FIXTURE))
+    assert _ALL_MEASURES in sources["marts"]
+    sources["marts"] = sources["marts"].replace(
+        _ALL_MEASURES, _ALL_MEASURES[:-1] + ", revenue_yoy]"
+    )
+    _project, catalog = load_fixture(FIXTURE)
+
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(load_project(sources), catalog)
+    (leaf,) = excinfo.value.collected
+
+    assert isinstance(leaf, GrainViolation)
+    assert "remove it from this mart's measures" in str(leaf)
+
+
+def test_two_spellings_of_one_window_compile_to_one_ir() -> None:
+    """The consequence of dropping the plural, at the level where it shows.
+
+    `"7 days"` and `"7 day"` are the same window, and RFC 0003 §5.4 says the
+    fingerprint is a function of what the spec *means*. The manifest cannot
+    show this — MetricFlow's transformer normalizes the grain itself — so
+    without this assertion the normalization has no test at all.
+    """
+    sources = dict(fixture_sources(FIXTURE))
+    assert 'cumulative: {window: "7 days"}' in sources["metrics"]
+    singular = dict(sources)
+    singular["metrics"] = sources["metrics"].replace(
+        'cumulative: {window: "7 days"}', 'cumulative: {window: "7 day"}'
+    )
+    _project, catalog = load_fixture(FIXTURE)
+
+    plural_ir = build_project_ir(load_project(sources), catalog)
+    singular_ir = build_project_ir(load_project(singular), catalog)
+
+    assert project_fingerprint(plural_ir) == project_fingerprint(singular_ir)
+
+
 # ....................... #
 # Cube: refused per construct (RFC 0034 D11)
 
@@ -143,10 +265,7 @@ def test_cube_refuses_a_derived_metric_even_when_no_mart_names_it() -> None:
     """A derived metric need not appear in any mart's `measures:` (D4), so a
     per-mart check would let it pass unmentioned and Cube would emit a
     complete-looking model quietly missing the metric."""
-    sources = dict(fixture_sources(FIXTURE))
-    head, marker, _rest = sources["metrics"].partition("  # Month-to-date")
-    assert marker
-    sources["metrics"] = head + (
+    project, catalog = variant(
         "  revenue_yoy:\n"
         "    additivity: non_additive\n"
         "    derived:\n"
@@ -155,14 +274,9 @@ def test_cube_refuses_a_derived_metric_even_when_no_mart_names_it() -> None:
         "        current: {metric: revenue}\n"
         "        prior: {metric: revenue, offset: {window: 1 year}}\n"
     )
-    sources["marts"] = sources["marts"].replace(
-        "measures: [paid_revenue, revenue, revenue_mtd, revenue_trailing_7d]",
-        "measures: [paid_revenue, revenue]",
-    )
-    _project, catalog = load_fixture(FIXTURE)
 
     with pytest.raises(UnsupportedByTarget) as excinfo:
-        compile_project(load_project(sources), catalog=catalog, target=Target.CUBE, dialect="duckdb")
+        compile_project(project, catalog=catalog, target=Target.CUBE, dialect="duckdb")
 
     assert "'revenue_yoy'" in str(excinfo.value)
     assert "compareDateRange" in str(excinfo.value)
@@ -172,7 +286,7 @@ def test_cube_emits_a_measure_filter_for_a_filtered_metric() -> None:
     """The one RFC 0034 construct Cube does express, and it renders through the
     same function the MetricFlow where-filter does — only the column spelling
     differs."""
-    project, catalog = simple_only()
+    project, catalog = variant()
     artifact = next(
         a
         for a in compile_project(project, catalog=catalog, target=Target.CUBE, dialect="duckdb")

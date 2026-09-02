@@ -184,8 +184,10 @@ classes prevent.
 
 ### Metrics over time
 
-Three of the metric forms describe a relationship rather than an aggregate, and all
-three need the catalog's `date_dimension` — the time spine they are resolved against.
+Three of the metric forms describe a metric in terms of something other than its own
+aggregation: two of them in terms of *time*, and one in terms of a subset of rows. The
+two time-shaped ones are resolved against the catalog's `date_dimension` — the time
+spine, which any project with marts already needs.
 
 **A derived metric is computed from other metrics**, by an expression over aliased
 inputs. Each input may be read at an `offset:`, which is what makes period-over-period

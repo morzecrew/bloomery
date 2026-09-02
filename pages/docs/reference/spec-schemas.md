@@ -503,7 +503,7 @@ column's declared logical type and are never cast.
 
 | Field | Type | Required | Meaning |
 |---|---|---|---|
-| `dimension` | column name | yes | A **categorical** dimension of the mart carrying the metric |
+| `dimension` | column name, `^[a-z][a-z0-9_]*$` | yes | A **categorical** dimension of the mart carrying the metric |
 | `op` | `eq` \| `ne` \| `in` \| `not_in` \| `gt` \| `gte` \| `lt` \| `lte` \| `is_null` | yes | Comparison |
 | `values` | list of scalars | per operator | One for the comparisons, one bool for `is_null`, one or more for `in`/`not_in` |
 
@@ -512,6 +512,12 @@ a *request* may use: no `like`/`ilike`, whose escape language and case-folding
 portability buy nothing where the author already knows the values. A date-role
 dimension is refused — a metric pinned to one period is a constant, and the time
 relation belongs in `cumulative:` or an `offset:`.
+
+The name is pattern-constrained where a member name elsewhere is not, and that is
+load-bearing rather than tidy: this is the one place a member name reaches a template
+that does not quote it — `{{ Dimension('<entity>__<name>') }}` on MetricFlow,
+`{CUBE}.<name>` on Cube. Every other field name reaches SQL through SQLGlot, which
+quotes it.
 
 ### SemiAdditivePolicy
 

@@ -144,21 +144,36 @@ def test_a_non_additive_cumulative_metric_is_refused() -> None:
     assert "no measure" in str(leaf)
 
 
-def test_a_filter_on_a_derived_metric_is_refused() -> None:
-    """A derived metric's rows are its inputs' rows, so a filter here restricts
-    measures one level down — a post-aggregate filter, which RFC 0034 §9 keeps
-    out of scope rather than approximating."""
+@pytest.mark.parametrize(
+    ("shape", "body"),
+    [
+        (
+            "derived",
+            "    derived:\n"
+            '      expr: "a"\n'
+            "      inputs: {a: {metric: revenue}}\n",
+        ),
+        # The ratio is the case the audit found: it had the same hole and had
+        # it *silently* — the RATIO lowering carries no filter, so a metric
+        # declared as a restricted average returned the unrestricted one.
+        ("ratio", "    ratio: {numerator: revenue, denominator: revenue}\n"),
+    ],
+)
+def test_a_filter_on_a_metric_with_no_measure_is_refused(shape: str, body: str) -> None:
+    """A non-additive metric is never a measure, so a filter written on it
+    restricts its *components* rather than the metric it is written on — a
+    post-aggregate filter, which RFC 0034 §9 keeps out of scope rather than
+    approximating."""
     leaf = one_violation(
-        "  filtered_derived:\n"
+        f"  filtered_{shape}:\n"
         "    additivity: non_additive\n"
-        "    derived:\n"
-        '      expr: "a"\n'
-        "      inputs: {a: {metric: revenue}}\n"
-        "    filter: [{dimension: status, op: eq, values: [paid]}]\n"
+        + body
+        + "    filter: [{dimension: status, op: eq, values: [paid]}]\n"
     )
 
     assert isinstance(leaf, InvalidMetricShape)
     assert "post-aggregate filter" in str(leaf)
+    assert f"'filtered_{shape}'" in str(leaf)
 
 
 # ....................... #

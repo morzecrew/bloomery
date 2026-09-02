@@ -39,6 +39,23 @@ Deterministic choices pinned here (RFC 0013 R1; each is golden/unit-tested):
   metric, and only when both component measures are emitted (an unservable
   ratio is simply absent — the planner's coverage precheck refuses it by
   name at request time, RFC 0013 D6).
+- A ``derived:`` metric is never a measure either, and emits as a DERIVED
+  metric over aliased inputs, each carrying its ``offset_window`` or
+  ``offset_to_grain`` (RFC 0034 D1/D2). Which metrics are emitted at all is
+  a *fixed point* rather than one pass — a derived metric may read another —
+  and the same absence rule applies: inputs not all emitted, metric absent.
+- A ``cumulative:`` metric keeps its own measure and emits as a CUMULATIVE
+  metric carrying ``cumulative_type_params`` (D5). The legacy
+  ``type_params.window``/``grain_to_date`` pair stays pinned to ``None``:
+  writing both would leave two accounts of one window in the manifest.
+  ``period_agg`` is pinned to MetricFlow's own ``FIRST`` — it decides what a
+  cumulative metric means at a grain coarser than its accumulation, and
+  bloomery does not invent a divergence from the ecosystem there.
+- A ``filter:`` emits as the metric's ``where_filters`` intersection — an
+  intersection being an AND, which is what the clauses are (D8). The
+  dimension is spelled ``{entity}__{column}``, the only name MetricFlow's
+  resolver accepts inside a where-filter; the comparison and the literal
+  escaping come from the lowering package, shared with Cube (D15).
 - The time spine comes from the catalog date dimension via the naming
   policy — the same ``gold.dim_date`` relation the SQLMesh emitter builds
   (RFC 0008 D13). Marts without a declared date dimension are an
@@ -125,6 +142,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "emit_manifest",
+    "entity_key",
     "manifest_json",
     "measure_owners",
 ]
@@ -133,6 +151,24 @@ __all__ = [
 #: R4); the spec layer already rejects it as a member name (M1) — the emitter
 #: re-checks as defense in depth.
 _RESERVED_NAME = "metric_time"
+
+
+def entity_key(mart: MartIR) -> str:
+    """The dunder prefix of every group-by item on a mart's semantic model:
+    its grain entity name.
+
+    One definition, three readers. It is the PRIMARY entity's name in the
+    single-column-key shape and the model's ``primary_entity`` in the composite
+    one (:func:`_entities`); it prefixes the dimension inside a metric filter's
+    where-clause (RFC 0034 D8); and the planner spells every requested group-by
+    with it. The planner's :func:`bloomery.planner.names.entity_key` delegates
+    here rather than repeating ``mart.grain`` — a rule two modules must agree on
+    and that is defined in neither is the defect this codebase keeps finding in
+    itself.
+    """
+
+    return mart.grain
+
 
 _AGGREGATIONS: dict[str, AggregationType] = {
     "avg": AggregationType.AVERAGE,
@@ -252,7 +288,7 @@ def _entities(
     if base is not None and len(base.key) == 1:
         entities.append(
             PydanticEntity(
-                name=mart.grain,
+                name=entity_key(mart),
                 type=EntityType.PRIMARY,
                 expr=base.key[0],
                 description=None,
@@ -263,9 +299,9 @@ def _entities(
     else:
         # Composite key: no single natural key column exists, so the primary
         # entity is declared name-only on the model (RFC 0013 D3).
-        primary_entity = mart.grain
+        primary_entity = entity_key(mart)
 
-    used = {mart.grain}
+    used = {entity_key(mart)}
     join_keys: set[str] = set()
 
     for join in mart.joins:
@@ -636,7 +672,7 @@ def _metric(
         )
 
     measure = PydanticMetricInputMeasure(name=metric.name, filter=None, alias=None)
-    where = _where(metric.filter, entity=owners[metric.name].grain)
+    where = _where(metric.filter, entity=entity_key(owners[metric.name]))
 
     if metric.cumulative is None:
         return PydanticMetric(
