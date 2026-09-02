@@ -757,3 +757,37 @@ def test_a_type1_entity_may_carry_one() -> None:
     }
     ir = build_project_ir(load_project(sources))
     assert "valid_from" in {column.name for column in ir.entities[0].columns}
+
+
+def test_two_validity_collisions_report_together() -> None:
+    """RFC 0002 D6: refusals batch, so an author fixes a spec in one
+    round-trip. This check first raised on the entity it found, which sent an
+    author with two historical entities round twice — the exact cost the
+    batching discipline in this module exists to avoid."""
+    entities = "".join(
+        f"  {name}:\n"
+        f"    grain: one row per {name}\n"
+        f"    key: [{name}_id]\n"
+        "    scd: type2\n"
+        "    fields:\n"
+        f"      {name}_id: {{type: string, required: true}}\n"
+        f"      {column}: {{type: timestamp}}\n"
+        for name, column in (("a", "valid_from"), ("b", "valid_to"))
+    )
+    sources = {"entity_model": f"spec_version: 1\nentities:\n{entities}"}
+    for name, column in (("a", "valid_from"), ("b", "valid_to")):
+        sources[f"mapping_{name}"] = (
+            "mapping_version: 1\n"
+            f"source: src_{name}\n"
+            f"target: {name}\n"
+            f'key: {{{name}_id: {{from: "$.id", transform: [to_string]}}}}\n'
+            "fields:\n"
+            f'  {column}: {{from: "$.v", transform: [{{parse_ts: ISO8601}}]}}\n'
+        )
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources))
+    assert len(excinfo.value.collected) == 2
+    assert [error.source_path for error in excinfo.value.collected] == [
+        "entity_model: entities.a.fields",
+        "entity_model: entities.b.fields",
+    ]

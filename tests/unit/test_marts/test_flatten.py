@@ -1063,3 +1063,43 @@ marts:
     paths = [v.source_path for v in lowering.violations]
     assert "marts: marts.orders.base" in paths
     assert any("counts revisions" in str(v) for v in lowering.violations)
+
+
+def test_two_historical_dimensions_can_be_read_as_of_different_dates() -> None:
+    """The reason the anchor sits on the flatten step rather than on the mart
+    (RFC 0023 D8, logs/T-0009.md D-036): a mart-level default could not express
+    this, and the argument for the step-level spelling was untested until here.
+
+    `order` is read as of the ship date and `customer` — reached *through*
+    `order`, the two-hop shape — as of the order date, in one mart, and each
+    join carries its own anchor.
+    """
+    sources = _as_type2("customer")
+    anchor = "  order:\n"
+    assert anchor in sources["entity_model"]
+    sources = {
+        **sources,
+        "entity_model": sources["entity_model"].replace(
+            anchor, f"{anchor}    scd: type2\n", 1
+        ),
+    }
+    marts_yaml = """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: item_of_order, prefix: order_, as_of: ship_date}
+      - {via: order_of_customer, prefix: customer_, as_of: order_date}
+"""
+    project = load_project({**sources, "marts": marts_yaml})
+    assert project.marts is not None
+    lowering = lower_marts(project.marts, build_project_ir(load_project(sources)))
+
+    assert lowering.violations == ()
+    (mart,) = lowering.marts
+    assert {join.entity: join.as_of for join in mart.joins} == {
+        "order": "ship_date",
+        "customer": "order_date",
+    }

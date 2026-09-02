@@ -1068,7 +1068,6 @@ def _build_entity(
     #: The one mapping to lower rules from, or ``None`` when the entity is
     #: merged and there is no such thing (D29).
     sole = mappings[0] if len(mappings) == 1 else None
-    _refuse_validity_collision(entity_name, entity, schema)
     return EntityIR(
         name=entity_name,
         grain=entity.grain,
@@ -1208,10 +1207,8 @@ def _merge_refusals(
 # ....................... #
 
 
-def _refuse_validity_collision(
-    entity_name: str, entity: Entity, schema: dict[str, ColumnIR]
-) -> None:
-    """A ``type2`` entity may not carry a column named like its own validity
+def _validity_collisions(entity_name: str, entity: Entity) -> list[ResolutionError]:
+    """A ``type2`` entity may not declare a field named like its own validity
     interval (RFC 0023 §5.3).
 
     The target's snapshot machinery writes ``valid_from``/``valid_to`` onto the
@@ -1223,12 +1220,13 @@ def _refuse_validity_collision(
     ``valid_from`` on a current-view dimension is a perfectly good column).
     """
     if entity.scd != "type2":
-        return
+        return []
 
-    collisions = sorted(name for name in schema if name in VALIDITY_COLUMNS)
+    declared = {*entity.fields, *entity.key}
+    collisions = sorted(name for name in declared if name in VALIDITY_COLUMNS)
 
     if not collisions:
-        return
+        return []
 
     listed = ", ".join(repr(name) for name in collisions)
     msg = (
@@ -1238,7 +1236,7 @@ def _refuse_validity_collision(
         "as-of join could not tell them apart. Fix: rename the field, or declare the "
         "entity scd: type1"
     )
-    raise ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.fields")
+    return [ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.fields")]
 
 
 # ....................... #
@@ -1361,8 +1359,11 @@ def _build_entities(
     refusals = [
         error
         for entity_name in sorted(grouped)
-        for error in _merge_refusals(
-            entity_name, project.entity_model.entities[entity_name], grouped[entity_name]
+        for error in (
+            *_merge_refusals(
+                entity_name, project.entity_model.entities[entity_name], grouped[entity_name]
+            ),
+            *_validity_collisions(entity_name, project.entity_model.entities[entity_name]),
         )
     ]
 
