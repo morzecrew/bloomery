@@ -20,7 +20,7 @@ from sqlglot.expressions.core import Expression
 
 from bloomery.dialects import DialectFeature
 from bloomery.emit.lower.predicates import as_of_conditions
-from bloomery.errors import EmitError, UnsupportedByTarget
+from bloomery.errors import EmitError, UnsupportedByTarget, guaranteed
 from bloomery.ir import (
     SOURCE_COLUMN,
     EntityIR,
@@ -369,6 +369,28 @@ def _json_object(pairs: list[tuple[str, Expression]], ctx: EmitContext) -> Expre
 #: scoped to one subquery, so it cannot collide with anything outside it.
 _FX_ALIAS = "fx"
 
+#: How many expressions a bound marker carries: the amount, then the two
+#: currencies and the anchor ``resolve.build`` put there.
+_MARKER_ARITY = 4
+
+
+def _bound(marker: exp.Anonymous) -> bool:
+    """Whether a marker carries the arguments the resolver binds into it."""
+
+    return len(marker.expressions) == _MARKER_ARITY
+
+
+def _markers(expr: Expression) -> list[exp.Anonymous]:
+    """Every currency-conversion marker in one expression.
+
+    One predicate for all three readers here — the refusal, the rewrite, and
+    the walk inside it — because a marker the refusal recognises and the
+    rewrite does not is a marker emitted verbatim into SQL.
+    """
+    return [
+        node for node in expr.find_all(exp.Anonymous) if str(node.this).upper() == CONVERT_MARKER
+    ]
+
 
 def _rate_subquery(marker: exp.Anonymous, fx: FxRatesIR, ctx: EmitContext) -> Expression:
     """One ``CONVERT_CURRENCY`` marker as the rate it stands for (RFC 0023 §5.4).
@@ -402,7 +424,14 @@ def _rate_subquery(marker: exp.Anonymous, fx: FxRatesIR, ctx: EmitContext) -> Ex
     says nothing.
     """
     namespace, relation = ctx.naming.relation(fx.relation, Layer.SILVER)
-    anchor = marker.expressions[CONVERT_ANCHOR]
+    anchor = guaranteed(
+        (marker.expressions[CONVERT_ANCHOR] for _ in range(1) if _bound(marker)),
+        expected=(
+            f"a {CONVERT_MARKER} marker carrying its two currencies and a lowered anchor, "
+            f"not {len(marker.expressions)} expression(s)"
+        ),
+        by="resolve.build, which binds every convert step it lowers from key: or fields:",
+    )
     conditions = [
         exp.EQ(
             this=exp.column(fx.from_currency, table=_FX_ALIAS),
@@ -445,19 +474,18 @@ def _lower_conversions(entity: EntityIR, ctx: EmitContext) -> EntityIR:
     convert and declared nothing to convert against", which is a spec gap the
     message can name precisely.
     """
-    markers = [
-        (column, marker)
+    carriers = [
+        column
         for source in entity.sources
         for column in source.columns
-        for marker in column.expr.ast().find_all(exp.Anonymous)
-        if str(marker.this).upper() == CONVERT_MARKER
+        if _markers(column.expr.ast())
     ]
 
-    if not markers:
+    if not carriers:
         return entity
 
     if ctx.fx_rates is None:
-        column, _marker = markers[0]
+        column = carriers[0]
         msg = (
             f"column {column.name!r} of entity {entity.name!r} applies the convert "
             "transform, but no rate relation is declared: a currency conversion is a "
@@ -477,10 +505,7 @@ def _lower_conversions(entity: EntityIR, ctx: EmitContext) -> EntityIR:
             source,
             columns=tuple(
                 replace(column, expr=SqlExpr(_converted(column.expr.ast(), fx, ctx).sql()))
-                if any(
-                    str(call.this).upper() == CONVERT_MARKER
-                    for call in column.expr.ast().find_all(exp.Anonymous)
-                )
+                if _markers(column.expr.ast())
                 else column
                 for column in source.columns
             ),

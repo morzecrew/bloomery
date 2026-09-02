@@ -30,6 +30,7 @@ shadows and lowered ``assert:`` audits.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import TYPE_CHECKING, cast
@@ -91,6 +92,7 @@ from bloomery.resolve.steps import lower_steps, step_entities
 from bloomery.spec.catalog import Catalog
 from bloomery.spec.mapping import (
     ALIAS_BOUND,
+    KeyField,
     MacroFieldMapping,
     RecipeFieldMapping,
     SimpleFieldMapping,
@@ -122,7 +124,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from bloomery.spec.entity import Entity, Field
-    from bloomery.spec.mapping import Mapping, TransformStep
+    from bloomery.spec.mapping import FieldMapping, Mapping, TransformStep
     from bloomery.steps import StepManifest
     from bloomery.transforms import Registry
 
@@ -1640,6 +1642,12 @@ def _lower_draft(
 # ....................... #
 # Currency conversion (RFC 0023 §5.4)
 
+#: The shape :data:`~bloomery.spec.common.CurrencyCode` enforces on a *declared*
+#: currency. A transform argument is an ``ArgKind.STR`` and never passed through
+#: that annotation, so the same rule is applied here — an unchecked code is not
+#: a parse error downstream, it is a predicate that matches no rate row.
+_CURRENCY_CODE = re.compile(r"[A-Z]{3}")
+
 
 def _anchor_expression(
     anchor: str,
@@ -1653,8 +1661,9 @@ def _anchor_expression(
 ) -> Expression:
     """The lowered expression for a ``convert`` anchor, or a refusal.
 
-    The anchor names a sibling field, and what the conversion needs is that
-    field's **value**, which in a branch SELECT is its own lowering — not a
+    The anchor names a sibling column — a ``fields:`` entry or a ``key:`` one,
+    both of which are direct paths — and what the conversion needs is that
+    column's **value**, which in a branch SELECT is its own lowering, not a
     reference to its output name. The silver name does not exist yet where the
     conversion is projected: both are projections of one SELECT, and a lateral
     column alias is a DuckDB extension that Postgres and Trino reject. So the
@@ -1682,7 +1691,7 @@ def _anchor_expression(
         )
         raise ResolutionError(msg, source_path=source_path)
 
-    lowering = mapping.fields.get(anchor) or mapping.key.get(anchor)
+    lowering: KeyField | FieldMapping | None = mapping.fields.get(anchor) or mapping.key.get(anchor)
 
     if lowering is None:
         msg = (
@@ -1693,7 +1702,11 @@ def _anchor_expression(
         )
         raise ResolutionError(msg, source_path=source_path)
 
-    if not isinstance(lowering, SimpleFieldMapping):
+    # Both direct-path shapes, and they are different classes: `key:` entries
+    # are `KeyField`, `fields:` entries are `SimpleFieldMapping`. Testing only
+    # the second refused a perfectly ordinary key anchor — and said it was
+    # "lowered by a step", which it was not.
+    if not isinstance(lowering, SimpleFieldMapping | KeyField):
         kind = "recipe" if isinstance(lowering, RecipeFieldMapping) else "step"
         msg = (
             f"convert names anchor {anchor!r}, which is lowered by a {kind} rather than a "
@@ -1752,6 +1765,16 @@ def _resolve_conversions(
         from_ccy = marker.expressions[CONVERT_FROM].this
         to_ccy = marker.expressions[CONVERT_TO].this
         anchor = marker.expressions[CONVERT_ANCHOR].this
+
+        for role, code in (("from", from_ccy), ("to", to_ccy)):
+            if not _CURRENCY_CODE.fullmatch(code):
+                msg = (
+                    f"convert names {code!r} as its {role} currency, which is not an "
+                    "ISO-4217 code (three uppercase letters). The code is compared "
+                    "against the rate relation as written, so this one would match no "
+                    "rate and convert every amount to NULL rather than failing"
+                )
+                raise ResolutionError(msg, source_path=source_path)
 
         if from_ccy == to_ccy:
             msg = (

@@ -62,7 +62,7 @@ to `decimal(p1+p2, s1+s2)`; crossing the 38-digit precision cap is a loud
 
 | Name | Args | Input → output | Usage |
 |---|---|---|---|
-| `convert` | from (str), to (str), anchor (field name) | decimal → decimal | Converts an amount between two declared currencies at the rate that was current on the anchor's date |
+| `convert` | from (ISO-4217), to (ISO-4217), anchor (column name) | decimal → decimal | Converts an amount between two declared currencies at the rate that was current on the anchor's date |
 
 ```yaml
 # entity_model.yaml — the converted amount is its own field
@@ -78,6 +78,13 @@ Everything about that line is declared, and none of it is inferred. The source p
 carries no currency, so `from` is written out; the anchor could be guessed from a
 mart's date role, and a wrong guess is a plausible number computed against the wrong
 day, which is the failure class this project exists to refuse.
+
+The anchor names a `date` or `timestamp` column of the same entity, mapped by a direct
+`from:` path — a `fields:` entry or a `key:` one. A recipe or macro anchor is refused
+rather than spliced, because its whole derivation would be copied into every converted
+column. Both currency codes must be ISO-4217 (three uppercase letters): they are
+compared against the rate relation exactly as written, so `eur` would match no rate and
+convert every amount to `NULL` rather than failing.
 
 ### The rate relation
 

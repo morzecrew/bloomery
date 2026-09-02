@@ -23,7 +23,7 @@ from bloomery.dialects import get_dialect
 from bloomery.emit import EmitContext
 from bloomery.emit.lower import entity_select
 from bloomery.emit.lower.silver import reject_select, replay_statements
-from bloomery.errors import UnsupportedByTarget
+from bloomery.errors import InvariantViolated, UnsupportedByTarget
 from bloomery.naming import DefaultNaming, PrefixNaming
 from bloomery.transforms import CONVERT_MARKER, DEFAULT_REGISTRY
 from support.compiling import load_fixture
@@ -224,3 +224,31 @@ def test_the_marker_the_transform_builds_is_the_one_emit_lowers(
     node = DEFAULT_REGISTRY["convert"].builder(exp.column("amount"), "EUR", "USD", "paid_at")
     assert isinstance(node, exp.Anonymous)
     assert str(node.this).upper() == CONVERT_MARKER
+
+
+def test_an_unbound_marker_names_its_guarantor() -> None:
+    """The invariant the rewrite rests on, stated where it is relied upon.
+
+    `resolve.build` binds both currencies and the lowered anchor into every
+    marker it lowers, from `key:` and from `fields:` alike — so by emit a
+    marker always carries four expressions. The rewrite indexed the fourth
+    directly, which made a marker from anywhere else a bare `IndexError` with
+    nothing to say. Two modules were coupled by an invariant neither stated.
+    """
+    carrier = plan_entity(
+        name="payment",
+        key=("payment_id",),
+        columns=(
+            plan_column("payment_id", required=True),
+            plan_column("amount_usd", expr=f"{CONVERT_MARKER}(amount, 'USD')"),
+        ),
+    )
+    ctx = EmitContext(
+        fingerprint="blm1:test",
+        naming=DefaultNaming(),
+        dialect=get_dialect("duckdb"),
+        fx_rates=_FX,
+    )
+    with pytest.raises(InvariantViolated) as excinfo:
+        entity_select(carrier, ctx)
+    assert "resolve.build" in str(excinfo.value)

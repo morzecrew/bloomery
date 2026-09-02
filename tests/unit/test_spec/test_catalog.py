@@ -158,3 +158,48 @@ def test_date_dimension_rejects_non_day_grain() -> None:
     with pytest.raises(SpecParseError) as excinfo:
         load_catalog(text)
     assert excinfo.value.source_path == "catalog: date_dimension.grain"
+
+
+# ....................... #
+# fx_rates (RFC 0023 §5.4)
+
+FX = (
+    "catalog_version: 1\nvertical: x\n"
+    "fx_rates: {relation: fx_rate, from: from_ccy, to: to_ccy, rate: rate, "
+    "valid_from: valid_from, valid_to: valid_to}\n"
+)
+
+
+def test_fx_rates_parses() -> None:
+    catalog = load_catalog(FX)
+    assert catalog.fx_rates is not None
+    assert catalog.fx_rates.relation == "fx_rate"
+    assert catalog.fx_rates.from_ == "from_ccy"
+    assert (catalog.fx_rates.valid_from, catalog.fx_rates.valid_to) == ("valid_from", "valid_to")
+
+
+def test_fx_rates_is_optional() -> None:
+    """Absent for every vertical that never converts, and its absence is what
+    the `convert` refusal names."""
+    assert load_catalog("catalog_version: 1\nvertical: x\n").fx_rates is None
+
+
+def test_fx_rates_requires_both_interval_ends() -> None:
+    """RFC 0023 D11: one end is not an interval. Declaring only `valid_from`
+    would let a payment match every rate at or before its date."""
+    without_upper = FX.replace(", valid_to: valid_to", "")
+    with pytest.raises(SpecParseError) as excinfo:
+        load_catalog(without_upper)
+    assert excinfo.value.source_path == "catalog: fx_rates.valid_to"
+
+
+def test_fx_rates_refuses_one_column_in_two_roles() -> None:
+    """Each of the five reads a different column. A shared name makes the
+    emitted predicate compare a column against itself, which is true for every
+    row and silently converts at whatever rate comes first."""
+    collided = FX.replace("valid_from: valid_from", "valid_from: rate")
+    with pytest.raises(SpecParseError) as excinfo:
+        load_catalog(collided)
+    message = str(excinfo.value)
+    assert "same column for more than one role" in message
+    assert "'rate'" in message
