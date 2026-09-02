@@ -88,9 +88,9 @@ def test_every_mapped_field_appears_exactly_once() -> None:
     # the mapping too adds the 4 facts `multi_source`'s merged `order_line`
     # could not represent — the whole of what RFC 0032 recovers in this corpus,
     # reported as a number rather than a claim. RFC 0034's `period_over_period`
-    # fixture adds one mapping of seven fields, and the number moves with it:
+    # fixture adds one mapping of eight fields, and the number moves with it:
     # that is the corpus growing, which is exactly what this is meant to notice.
-    assert swept == 169, f"{swept} mapped (entity, field, mapping) triples across the corpus"
+    assert swept == 170, f"{swept} mapped (entity, field, mapping) triples across the corpus"
 
 
 def test_every_mappings_document_is_a_real_document() -> None:

@@ -2,6 +2,58 @@
   "metrics": [
     {
       "config": null,
+      "description": "Revenue on sales booked from 2024-03-01 onward",
+      "filter": {
+        "where_filters": [
+          {
+            "where_sql_template": "{{ Dimension('sale__booked_at') }} >= CAST('2024-03-01 00:00:00' AS TIMESTAMP)"
+          }
+        ]
+      },
+      "label": null,
+      "metadata": null,
+      "name": "booked_since_march",
+      "time_granularity": null,
+      "type": "simple",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": null,
+        "denominator": null,
+        "expr": "amount",
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "booked_since_march"
+          }
+        ],
+        "is_private": false,
+        "join_to_timespine": false,
+        "measure": {
+          "alias": null,
+          "fill_nulls_with": null,
+          "filter": null,
+          "join_to_timespine": false,
+          "name": "booked_since_march"
+        },
+        "metric_aggregation_params": {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "sold_day",
+          "non_additive_dimension": null,
+          "semantic_model": "sales"
+        },
+        "metrics": null,
+        "numerator": null,
+        "window": null
+      }
+    },
+    {
+      "config": null,
       "description": "Revenue on sales of at least 50.00 made from 2024 onward",
       "filter": {
         "where_filters": [
@@ -501,6 +553,17 @@
           "is_partition": false,
           "label": null,
           "metadata": null,
+          "name": "booked_at",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
           "name": "channel",
           "type": "categorical",
           "type_params": null
@@ -589,6 +652,19 @@
       ],
       "label": null,
       "measures": [
+        {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "sold_day",
+          "config": null,
+          "create_metric": null,
+          "description": null,
+          "expr": "amount",
+          "label": null,
+          "metadata": null,
+          "name": "booked_since_march",
+          "non_additive_dimension": null
+        },
         {
           "agg": "sum",
           "agg_params": null,

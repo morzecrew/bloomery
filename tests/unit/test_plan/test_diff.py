@@ -941,3 +941,35 @@ def test_the_rfc_0034_metric_forms_restate_when_they_change() -> None:
             change.subject: change.change_class for change in plan(base, changed).changes
         }
         assert subjects.get(f"metric:{metric}") is ChangeClass.RESTATING, anchor
+
+
+def test_reordering_anded_filter_clauses_is_not_a_restatement() -> None:
+    """The clauses are ANDed, so their order is the same restriction — and a
+    restatement schedules a backfill nobody needs.
+
+    The IR keeps the authored order because it reaches the artifact bytes; the
+    comparison sorts, because the artifact is allowed to change when the numbers
+    do not.
+    """
+    _project, catalog = load_fixture("period_over_period")
+    base = build_project_ir(*load_fixture("period_over_period"))
+
+    sources = dict(fixture_sources("period_over_period"))
+    anchor = (
+        "      - {dimension: amount, op: gte, values: [\"50.00\"]}\n"
+        "      - {dimension: sold_at, op: gte, values: [\"2024-01-01\"]}\n"
+    )
+    assert sources["metrics"].count(anchor) == 1
+    sources["metrics"] = sources["metrics"].replace(
+        anchor,
+        "      - {dimension: sold_at, op: gte, values: [\"2024-01-01\"]}\n"
+        "      - {dimension: amount, op: gte, values: [\"50.00\"]}\n",
+    )
+    swapped = build_project_ir(load_project(sources), catalog)
+
+    # The IR really did change — this is not a test that nothing happened.
+    metric = next(m for m in swapped.metrics if m.name == "large_recent_revenue")
+    assert [clause.dimension for clause in metric.filter] == ["sold_at", "amount"]
+
+    subjects = {change.subject for change in plan(base, swapped).changes}
+    assert "metric:large_recent_revenue" not in subjects

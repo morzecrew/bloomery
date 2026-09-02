@@ -93,19 +93,33 @@ def _within(value: Decimal, declared: DecimalType) -> bool:
     silently rounded, and digits before it beyond ``precision - scale`` cannot
     be stored at all.
 
-    Read through the exponent rather than through ``quantize``, which raises on
-    exactly the wide values this exists to reject, and without ``abs()``, which
-    rounds to the context's 28 digits.
+    The width is read off the value, not off its spelling, and that is the whole
+    difficulty. ``Decimal("1E+10")`` carries one digit and a *positive*
+    exponent, so counting ``digits`` alone calls it one integral digit and lets
+    it through; ``Decimal("1.23000")`` carries five and a scale of five, so
+    counting them all rejects a value a ``decimal(9,2)`` column holds exactly.
+    Trailing zeros are stripped by hand rather than by ``normalize()``, and the
+    exponent is read rather than ``quantize`` called, because both of those
+    consult the arithmetic context — 28 digits by default — and would round the
+    very values this exists to reject.
     """
 
     exponent = value.as_tuple().exponent
     if not isinstance(exponent, int):  # pragma: no cover — non-finite is refused above
         return False
 
-    digits = len(value.as_tuple().digits)
-    integral = digits + min(exponent, 0)
+    digits = list(value.as_tuple().digits)
 
-    return -exponent <= declared.scale and integral <= declared.precision - declared.scale
+    while exponent < 0 and digits and digits[-1] == 0:
+        digits.pop()
+        exponent += 1
+
+    if not digits or digits == [0]:
+        return True  # zero fits every (precision, scale)
+
+    integral = len(digits) + exponent
+
+    return max(-exponent, 0) <= declared.scale and integral <= declared.precision - declared.scale
 
 
 # ....................... #

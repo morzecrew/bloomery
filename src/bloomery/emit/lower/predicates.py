@@ -11,6 +11,7 @@ twice is one that drifts.
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 from typing import cast
 
@@ -39,6 +40,28 @@ def column_type(entity: EntityIR, name: str) -> LogicalType:
 # ....................... #
 
 
+#: The ISO 8601 date/time separator, which **Trino does not accept in a cast**:
+#: ``CAST('2024-01-01T00:00:00' AS TIMESTAMP)`` is an `INVALID_CAST_ARGUMENT`
+#: there, measured on Trino 483, while the space-separated form and a bare date
+#: both parse. DuckDB and PostgreSQL take either.
+#:
+#: So every temporal literal this module renders drops the ``T``. One rule, both
+#: callers: an audit bound (RFC 0006 §5.6) and a metric filter (RFC 0034 D8)
+#: build the same construct — a text literal cast to the column's neutral type
+#: — and the audit path carried this defect unexercised, no fixture asserting a
+#: `min`/`max` on a timestamp column.
+_ISO_SEPARATOR = re.compile(r"^(\d{4}-\d{2}-\d{2})T")
+
+
+def _temporal_text(value: str) -> str:
+    """One temporal literal in the spelling every shipped dialect casts."""
+
+    return _ISO_SEPARATOR.sub(r"\1 ", value)
+
+
+# ....................... #
+
+
 def _bound_literal(value: str, bound_type: LogicalType) -> Expression:
     """A typed literal for an audit bound: numeric columns take number
     literals, everything else a string literal cast to the column type (so
@@ -47,7 +70,7 @@ def _bound_literal(value: str, bound_type: LogicalType) -> Expression:
     if isinstance(bound_type, (IntType, DecimalType)):
         return exp.Literal.number(value)
 
-    return exp.cast(exp.Literal.string(value), neutral_type(bound_type))
+    return exp.cast(exp.Literal.string(_temporal_text(value)), neutral_type(bound_type))
 
 
 # ....................... #
@@ -203,8 +226,9 @@ def _metric_filter_literal(value: str | int | bool | Decimal, declared: LogicalT
         return f"'{escaped}'"
 
     # A temporal, or any other type whose literal is written as text: cast, so
-    # the comparison never depends on the engine's coercion rules.
-    return f"CAST('{escaped}' AS {neutral_type(declared).sql()})"
+    # the comparison never depends on the engine's coercion rules — and without
+    # the ISO `T`, which Trino refuses to cast (see `_ISO_SEPARATOR`).
+    return f"CAST('{_temporal_text(escaped)}' AS {neutral_type(declared).sql()})"
 
 
 # ....................... #

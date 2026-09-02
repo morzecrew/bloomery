@@ -10,3 +10,4 @@ fields:
   status: {from: "$.status"}
   channel: {from: "$.channel"}
   sold_at: {from: "$.sold_at", transform: [{parse_date: ISO8601}]}
+  booked_at: {from: "$.booked_at", transform: [{parse_ts: ISO8601}]}

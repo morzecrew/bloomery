@@ -43,7 +43,7 @@ def manifest_metrics() -> dict[str, object]:
 
 #: The fixture's mart line, and the one that serves only the two metrics Cube
 #: can express. Named because three variants below rewrite it.
-_ALL_MEASURES = "measures: [large_recent_revenue, paid_revenue, revenue, revenue_mtd, revenue_trailing_7d]"
+_ALL_MEASURES = "measures: [booked_since_march, large_recent_revenue, paid_revenue, revenue, revenue_mtd, revenue_trailing_7d]"
 _SIMPLE_MEASURES = "measures: [paid_revenue, revenue]"
 
 
@@ -343,10 +343,18 @@ def test_cube_emits_a_measure_filter_for_a_filtered_metric() -> None:
             DateType(),
             "REF >= CAST('2024-01-01' AS DATE)",
         ),
+        # The ISO `T` does not survive: Trino refuses
+        # `CAST('2024-01-01T00:00:00' AS TIMESTAMP)` with INVALID_CAST_ARGUMENT,
+        # while the space-separated form casts on all three dialects.
         (
             MetricFilterIR("t", "lt", ("2024-01-01T00:00:00",)),
             TimestampType(),
-            "REF < CAST('2024-01-01T00:00:00' AS TIMESTAMP)",
+            "REF < CAST('2024-01-01 00:00:00' AS TIMESTAMP)",
+        ),
+        (
+            MetricFilterIR("t", "lt", ("2024-01-01",)),
+            TimestampType(),
+            "REF < CAST('2024-01-01' AS TIMESTAMP)",
         ),
     ],
 )

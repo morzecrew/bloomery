@@ -19,3 +19,8 @@ entities:
       status: {type: string}
       channel: {type: string}
       sold_at: {type: date}
+      # A timestamp as well as a date, because they are not the same case: a
+      # timestamp literal written in ISO form carries a `T`, and Trino refuses
+      # to cast one (`INVALID_CAST_ARGUMENT`). Only a filter on this column
+      # runs that rendering through an engine.
+      booked_at: {type: timestamp}

@@ -46,18 +46,18 @@ PLANNER = make_planner()
 TRINO_IMAGE = "trinodb/trino:483"
 POSTGRES_IMAGE = "postgres:16-alpine"
 
-#: ``(id, amount, units, is_test, status, channel, sold_at)`` — the DuckDB
-#: tier's seed, unchanged, because a different seed would make a disagreement
-#: between engines unreadable.
+#: ``(id, amount, units, is_test, status, channel, sold_at, booked_at)`` — the
+#: DuckDB tier's seed, unchanged, because a different seed would make a
+#: disagreement between engines unreadable.
 SALES = [
-    ("s01", "100.00", "1", "false", "paid", "web", "2023-03-15"),
-    ("s02", "100.00", "1", "false", "paid", "web", "2024-03-01"),
-    ("s03", "7.00", "1", "false", "paid", "store", "2024-03-04"),
-    ("s04", "50.00", "2", "false", "refunded", "web", "2024-03-05"),
-    ("s05", "100.00", "1", "false", "paid", "store", "2024-03-11"),
-    ("s06", "40.00", "1", "false", "paid", "store", "2023-04-10"),
-    ("s07", "40.00", "1", "false", "paid", "store", "2024-04-10"),
-    ("s08", "60.00", "3", "false", "paid", "web", "2024-05-02"),
+    ("s01", "100.00", "1", "false", "paid", "web", "2023-03-15", "2023-03-15T09:00:00"),
+    ("s02", "100.00", "1", "false", "paid", "web", "2024-03-01", "2024-03-01T09:00:00"),
+    ("s03", "7.00", "1", "false", "paid", "store", "2024-03-04", "2024-03-04T09:00:00"),
+    ("s04", "50.00", "2", "false", "refunded", "web", "2024-03-05", "2024-03-05T09:00:00"),
+    ("s05", "100.00", "1", "false", "paid", "store", "2024-03-11", "2024-03-11T09:00:00"),
+    ("s06", "40.00", "1", "false", "paid", "store", "2023-04-10", "2023-04-10T09:00:00"),
+    ("s07", "40.00", "1", "false", "paid", "store", "2024-04-10", "2024-02-28T09:00:00"),
+    ("s08", "60.00", "3", "false", "paid", "web", "2024-05-02", "2024-05-02T09:00:00"),
 ]
 
 _D = Decimal
@@ -124,6 +124,20 @@ CASES: list[tuple[str, tuple[str, ...], str, TimeGrain, dict]] = [
         {
             _day(2024, 3, 1): (_D("257.0000"), _D("257.0000")),
             _day(2024, 4, 1): (_D("40.0000"), _D("40.0000")),
+        },
+    ),
+    (
+        # The ISO `T`: Trino refuses `CAST('2024-03-01T00:00:00' AS TIMESTAMP)`
+        # with INVALID_CAST_ARGUMENT, so a timestamp filter is the one shape
+        # only this engine can falsify. `s07` is booked in February and sold in
+        # April, so April reports revenue and no booked revenue.
+        "timestamp-filter",
+        ("revenue", "booked_since_march"),
+        "sold_month",
+        TimeGrain.MONTH,
+        {
+            _day(2024, 3, 1): (_D("257.0000"), _D("257.0000")),
+            _day(2024, 4, 1): (_D("40.0000"), None),
         },
     ),
     (
@@ -222,11 +236,11 @@ def postgres() -> Iterator[Callable[[str], list[tuple[object, ...]]]]:
             connection.execute(f"CREATE SCHEMA {schema}")
         connection.execute(
             "CREATE TABLE bronze.shop__sales (id TEXT, amount TEXT, units TEXT, "
-            "is_test TEXT, status TEXT, channel TEXT, sold_at TEXT)"
+            "is_test TEXT, status TEXT, channel TEXT, sold_at TEXT, booked_at TEXT)"
         )
         with connection.cursor() as cursor:
             cursor.executemany(
-                "INSERT INTO bronze.shop__sales VALUES (%s, %s, %s, %s, %s, %s, %s)", SALES
+                "INSERT INTO bronze.shop__sales VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", SALES
             )
         for artifact in sorted(
             (a for a in compile_fixture(FIXTURE, dialect="postgres") if a.path.endswith(".sql")),
@@ -277,7 +291,8 @@ def trino_engine() -> Iterator[Callable[[str], list[tuple[object, ...]]]]:
             run(f"CREATE SCHEMA IF NOT EXISTS memory.{schema}")
         run(
             "CREATE TABLE memory.bronze.shop__sales (id varchar, amount varchar, "
-            "units varchar, is_test varchar, status varchar, channel varchar, sold_at varchar)"
+            "units varchar, is_test varchar, status varchar, channel varchar, "
+            "sold_at varchar, booked_at varchar)"
         )
         run(
             "INSERT INTO memory.bronze.shop__sales VALUES "

@@ -32,6 +32,18 @@ metrics:
       - {dimension: amount, op: gte, values: ["50.00"]}
       - {dimension: sold_at, op: gte, values: ["2024-01-01"]}
 
+  # The timestamp half of the same problem: an ISO timestamp literal carries a
+  # `T` and Trino refuses to cast one, so this metric is the only thing in the
+  # corpus that runs that rendering through an engine.
+  booked_since_march:
+    description: Revenue on sales booked from 2024-03-01 onward
+    grain: sale
+    additivity: additive
+    agg: sum
+    expr: "amount"
+    filter:
+      - {dimension: booked_at, op: gte, values: ["2024-03-01T00:00:00"]}
+
   # Month-to-date: the same measure, accumulated from the start of its own
   # month (D5). `additivity` describes the measure; `cumulative` describes how
   # it accumulates (D6).

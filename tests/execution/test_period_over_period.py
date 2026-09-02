@@ -60,31 +60,35 @@ FIXTURE = "period_over_period"
 
 PLANNER = make_planner()
 
-#: ``(id, amount, units, is_test, status, channel, sold_at)`` as bronze holds
-#: them — text, like every payload. The dates are chosen so that every
-#: assertion below is arithmetic on two or three of these rows; ``units`` and
-#: ``is_test`` carry no metric and exist so the fixture has an integer and a
+#: ``(id, amount, units, is_test, status, channel, sold_at, booked_at)`` as
+#: bronze holds them — text, like every payload. The dates are chosen so that
+#: every assertion below is arithmetic on two or three of these rows; ``units``
+#: and ``is_test`` carry no metric and exist so the fixture has an integer and a
 #: boolean column to type a filter against.
 SALES = [
-    ("s01", "100.00", "1", "false", "paid", "web", "2023-03-15"),
-    ("s02", "100.00", "1", "false", "paid", "web", "2024-03-01"),
+    ("s01", "100.00", "1", "false", "paid", "web", "2023-03-15", "2023-03-15T09:00:00"),
+    ("s02", "100.00", "1", "false", "paid", "web", "2024-03-01", "2024-03-01T09:00:00"),
     # Exactly seven days before s05: the trailing-window boundary, seeded on
     # purpose rather than stepped around.
-    ("s03", "7.00", "1", "false", "paid", "store", "2024-03-04"),
+    ("s03", "7.00", "1", "false", "paid", "store", "2024-03-04", "2024-03-04T09:00:00"),
     # The row `paid_revenue` must not count.
-    ("s04", "50.00", "2", "false", "refunded", "web", "2024-03-05"),
-    ("s05", "100.00", "1", "false", "paid", "store", "2024-03-11"),
-    ("s06", "40.00", "1", "false", "paid", "store", "2023-04-10"),
-    ("s07", "40.00", "1", "false", "paid", "store", "2024-04-10"),
+    ("s04", "50.00", "2", "false", "refunded", "web", "2024-03-05", "2024-03-05T09:00:00"),
+    ("s05", "100.00", "1", "false", "paid", "store", "2024-03-11", "2024-03-11T09:00:00"),
+    # Booked in February, sold in April: the only row where the two dates fall
+    # on different sides of the `booked_since_march` bound.
+    ("s06", "40.00", "1", "false", "paid", "store", "2023-04-10", "2023-04-10T09:00:00"),
+    ("s07", "40.00", "1", "false", "paid", "store", "2024-04-10", "2024-02-28T09:00:00"),
     # No 2023-05 counterpart: the year-over-year comparison has nothing to
     # subtract, and must say so.
-    ("s08", "60.00", "3", "false", "paid", "web", "2024-05-02"),
+    ("s08", "60.00", "3", "false", "paid", "web", "2024-05-02", "2024-05-02T09:00:00"),
 ]
 
 
 #: The fixture's mart line, rewritten by `variant_ir` when a case needs a metric
 #: the fixture does not carry.
-_MEASURES = "measures: [large_recent_revenue, paid_revenue, revenue, revenue_mtd, revenue_trailing_7d]"
+_MEASURES = (
+    "measures: [booked_since_march, large_recent_revenue, paid_revenue, revenue, revenue_mtd, revenue_trailing_7d]"
+)
 
 
 def variant_ir(extra: str, *, served: str) -> ProjectIR:
@@ -109,9 +113,11 @@ def conn() -> Iterator[duckdb.DuckDBPyConnection]:
     connection = warehouse()
     connection.execute(
         "CREATE TABLE bronze.shop__sales (id VARCHAR, amount VARCHAR, units VARCHAR, "
-        "is_test VARCHAR, status VARCHAR, channel VARCHAR, sold_at VARCHAR)"
+        "is_test VARCHAR, status VARCHAR, channel VARCHAR, sold_at VARCHAR, booked_at VARCHAR)"
     )
-    connection.executemany("INSERT INTO bronze.shop__sales VALUES (?, ?, ?, ?, ?, ?, ?)", SALES)
+    connection.executemany(
+        "INSERT INTO bronze.shop__sales VALUES (?, ?, ?, ?, ?, ?, ?, ?)", SALES
+    )
     materialize(connection, compile_fixture(FIXTURE, dialect="duckdb"))
     yield connection
     connection.close()
@@ -396,6 +402,22 @@ def test_a_filter_reaches_sql_in_the_column_s_own_type(
     assert rows[date(2024, 3, 1)] == (Decimal("257.0000"), Decimal("250.0000"))
     # 2023 is excluded by the date bound even though its 100.00 clears the other.
     assert rows[date(2023, 3, 1)] == (Decimal("100.0000"), None)
+
+
+def test_a_timestamp_filter_reaches_sql_without_the_iso_separator(
+    conn: duckdb.DuckDBPyConnection,
+) -> None:
+    """The `T` in an ISO timestamp is the one thing Trino will not cast.
+
+    `s07` is the specimen: sold in April 2024 but booked on 2024-02-28, so it
+    is the only row where the sale date and the booking instant fall on
+    different sides of the bound. April therefore reports its revenue and no
+    booked revenue at all — which an off-by-a-row filter would not show.
+    """
+    rows = by_month(conn, "revenue", "booked_since_march")
+
+    assert rows[date(2024, 4, 1)] == (Decimal("40.0000"), None)
+    assert rows[date(2024, 3, 1)] == (Decimal("257.0000"), Decimal("257.0000"))
 
 
 def test_the_filter_is_reported_in_the_explanation(

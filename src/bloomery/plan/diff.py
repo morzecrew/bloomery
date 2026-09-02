@@ -1514,9 +1514,11 @@ def _metric_definition(metric: MetricIR) -> tuple[object, ...]:
     ``plan()`` reported no metric change at all — so a deployment would have
     left the old figures standing.
 
-    ``expr`` is compared by its ``sql`` because :class:`SqlExpr` compares by
-    identity; ``derived`` carries its own ``SqlExpr``, so it is unpacked the
-    same way rather than compared whole.
+    Compared by *meaning*, not by spelling, which is why ``filter`` is sorted
+    here and stays in authored order in the IR: the clauses are ANDed, so
+    reordering them is the same restriction and must not schedule a backfill.
+    The IR keeps the order because it reaches the artifact bytes, and the
+    artifact is allowed to change when the numbers do not.
     """
 
     derived = metric.derived
@@ -1529,7 +1531,7 @@ def _metric_definition(metric: MetricIR) -> tuple[object, ...]:
         metric.semi_additive,
         metric.cumulative,
         (derived.expr.sql, derived.inputs) if derived is not None else None,
-        metric.filter,
+        tuple(sorted(metric.filter, key=lambda clause: (clause.dimension, clause.op))),
         metric.depends_on,
     )
 

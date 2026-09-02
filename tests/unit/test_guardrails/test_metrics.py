@@ -25,7 +25,7 @@ pytestmark = pytest.mark.unit
 
 FIXTURE = "period_over_period"
 
-_MEASURES = "measures: [large_recent_revenue, paid_revenue, revenue, revenue_mtd, revenue_trailing_7d]"
+_MEASURES = "measures: [booked_since_march, large_recent_revenue, paid_revenue, revenue, revenue_mtd, revenue_trailing_7d]"
 
 
 def compile_with(metric_yaml: str, *, served: str = "") -> ProjectIR:
