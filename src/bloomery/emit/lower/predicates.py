@@ -68,7 +68,13 @@ def column_type(entity: EntityIR, name: str) -> LogicalType:
 #: neutral type — and the audit path carried the un-normalized form too,
 #: pre-existing and unexercised because no fixture asserts a ``min``/``max`` on
 #: a timestamp column.
-_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
+#:
+#: Rendered with ``isoformat`` rather than ``strftime``: ``%Y`` delegates year
+#: padding to the C library, which is free to write ``1-01-01`` for year 1, and
+#: RFC 0003 requires the same specs to produce byte-identical artifacts *across
+#: machines*. It does pad on this platform — the point is that nothing promises
+#: it will on the next one, and ``isoformat`` needs no promise. It also picks
+#: the microsecond suffix itself, so there is no second branch to keep in step.
 
 
 def _temporal_text(value: str, declared: LogicalType) -> str:
@@ -100,10 +106,7 @@ def _temporal_text(value: str, declared: LogicalType) -> str:
     if parsed.tzinfo is not None:
         parsed = parsed.astimezone(UTC).replace(tzinfo=None)
 
-    if parsed.microsecond:
-        return parsed.strftime(f"{_TIMESTAMP_FORMAT}.%f")
-
-    return parsed.strftime(_TIMESTAMP_FORMAT)
+    return parsed.isoformat(sep=" ", timespec="auto")
 
 
 # ....................... #

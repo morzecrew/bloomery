@@ -378,6 +378,20 @@ def test_cube_emits_a_measure_filter_for_a_filtered_metric() -> None:
             TimestampType(),
             "REF < CAST('2024-01-01 07:00:00' AS TIMESTAMP)",
         ),
+        # Sub-second precision survives, and a year below 1000 keeps its
+        # padding: `strftime("%Y")` delegates that to the C library, which is
+        # free to write `1-01-01`, and RFC 0003 wants the same bytes on every
+        # machine rather than on this one.
+        (
+            MetricFilterIR("t", "lt", ("2024-01-01T09:00:00.123456",)),
+            TimestampType(),
+            "REF < CAST('2024-01-01 09:00:00.123456' AS TIMESTAMP)",
+        ),
+        (
+            MetricFilterIR("t", "lt", ("0001-01-01T00:00:00",)),
+            TimestampType(),
+            "REF < CAST('0001-01-01 00:00:00' AS TIMESTAMP)",
+        ),
         # A string column holding text that looks temporal is left alone —
         # rewriting it would change what the comparison matches.
         (
