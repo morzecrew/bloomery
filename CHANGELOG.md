@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   conversion into a field the catalog declares in the target currency, and adding it
   to a native amount in that currency is ordinary same-currency arithmetic.
 
-  A date no rate interval covers converts to `NULL` rather than to a neighbouring
+  A date that no rate interval covers converts to `NULL` rather than to a neighbouring
   rate, and both interval ends are required — one end is not an interval, and a
   lookup with only a lower bound matches every rate at or before the anchor. Without
   `fx_rates:` in the catalog `convert` is still refused at emit, now with a message

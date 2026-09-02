@@ -107,9 +107,25 @@ Deriving the upper bound with `LEAD(valid_from)` was considered and rejected —
 every conversion a window function over the whole rate table, and it extends the newest
 rate forward forever, so a stale feed converts at last week's price instead of failing.
 
-A date no interval covers converts to `NULL`, and that is deliberate: a miss stays
+A date that no interval covers converts to `NULL`, and that is deliberate: a miss stays
 visible, where the nearest neighbouring rate would be a number nobody could tell from a
 real one.
+
+### What the rate table has to guarantee
+
+bloomery reads this relation and emits no model for it, so it audits nothing about its
+contents. Two properties are the operator's to hold:
+
+- **Intervals for one `(from, to)` pair must not overlap.** The lookup is a scalar
+  subquery, so an overlapping feed matches more than one rate and the model fails loudly
+  at run time. That is the intended end of the spectrum — every shape that keeps running
+  picks one rate silently.
+- **A rate must exist for every pair and date you convert.** A code that matches nothing
+  converts to `NULL`, whether it is a typo, a currency you have not loaded, or a gap in
+  the feed. `convert` refuses a code that is not three uppercase letters, because that
+  much is checkable from the spec alone; whether `USD` rates were actually loaded is not.
+  Declare a `not_null` quality rule on the converted column if a missing rate should stop
+  the run rather than propagate.
 
 Without `fx_rates:` in the catalog, `convert` is refused at emit with
 `UnsupportedByTarget` naming the column — the transform stays whitelisted and

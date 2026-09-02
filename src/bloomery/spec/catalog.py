@@ -126,8 +126,19 @@ class FxRates(SpecModel):
     same fan-out :class:`~bloomery.errors.HistoricalFanout` refuses on the
     other side of this RFC. Deriving the upper bound with ``LEAD(valid_from)``
     was rejected for making every conversion a window function over the whole
-    rate table, and for extending the newest rate to infinity, so that a stale
-    feed converts at last week's rate instead of failing.
+    rate table, and for taking the open end away from the feed: derived, the
+    newest rate always runs forward forever and a stale feed silently converts
+    at last week's price. Declared, ``valid_to: NULL`` says "still in force"
+    and *is* open-ended — the difference is that a feed which wants staleness
+    to stop converting can close the interval, and one deriving its bound
+    cannot.
+
+    The rows themselves are the operator's contract: intervals for one
+    ``(from, to)`` pair must not overlap. bloomery emits no model for this
+    relation and so audits nothing about it; an overlapping feed makes the
+    emitted scalar lookup match more than one rate and fail loudly at run time,
+    which is the right end of the spectrum — the alternative shapes all pick
+    one rate silently.
     """
 
     relation: RelationName

@@ -338,10 +338,15 @@ class CurrencyMismatch(GuardrailError):
     """Guardrail stage (RFC 0006 §5.2): two operands with distinct declared
     ISO-4217 currency codes.
 
-    Unconditional. A ``convert`` step in the chain used to satisfy the rule and
-    no longer does (RFC 0023 D5): the transform has no lowering on any dialect,
-    so the marker bought a compile-time pass whose only outcome was a run-time
-    failure.
+    Unconditional, and no token waives it. A ``convert`` marker in the chain
+    used to satisfy the rule and no longer does (RFC 0023 D5): it bought a
+    compile-time pass that asserted nothing about the value.
+
+    What ``convert`` offers since RFC 0023 §5.4 is an *answer* rather than an
+    escape — it converts an operand into a column the catalog declares in the
+    target currency, and two operands in one currency were never a violation.
+    The rule did not move; the remediation the message names does, depending on
+    whether the catalog declares an ``fx_rates:`` relation to convert against.
     """
 
 

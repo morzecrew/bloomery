@@ -122,7 +122,8 @@ def as_of_conditions(
 
     The open end is spelled ``IS NULL`` rather than a sentinel: both SCD2
     targets write NULL for the current version, a rate feed leaves the live
-    rate open the same way, and a sentinel would have to be a literal of the
+    rate open the same way — declared open, which is a statement the writer
+    made and can retract — and a sentinel would have to be a literal of the
     interval's own type — which differs between a ``date`` anchor and a
     ``timestamp`` one, on three dialects. ``IS NULL`` needs no literal and no
     coercion, and says the same thing.

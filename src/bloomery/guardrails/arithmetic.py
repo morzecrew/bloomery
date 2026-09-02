@@ -13,12 +13,14 @@ is how extensive quantities work):
   arithmetic rather than silently passing (RFC 0006 D3, worked example §5.7).
 - **Currency** (:class:`~bloomery.errors.CurrencyMismatch`): both sides
   declare distinct ISO-4217 codes. Absent codes are compatible — opt-in by
-  design (RFC 0006 D4). There is no escape: RFC 0023 D5 removed the
-  ``CONVERT_CURRENCY`` marker that used to permit the arithmetic, because the
-  ``convert`` transform it came from is refused at emit (D4), so the only
-  thing the escape could still do was turn a compile-time refusal into a
-  run-time failure. Until a rate relation exists, "you cannot add EUR to USD"
-  is unconditional — which is the honest state, not a stricter one.
+  design (RFC 0006 D4). The rule is unconditional and no token waives it:
+  RFC 0023 D5 removed the ``CONVERT_CURRENCY`` marker that used to permit the
+  arithmetic, because it bought a compile-time pass that asserted nothing
+  about the value, and shipping conversion did not bring it back. What
+  ``convert`` now offers (RFC 0023 §5.4) is an *answer* — it writes an operand
+  into a column the catalog declares in the target currency, and two operands
+  in one currency were never a violation. Only the remediation the message
+  names moves with that, on whether the catalog declares ``fx_rates:``.
 
 Each rule reports at most once per expression (the first offending node in
 walk order — deterministic, SQLGlot's walk is syntactic); violations across

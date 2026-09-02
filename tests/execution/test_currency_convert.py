@@ -191,3 +191,27 @@ def test_the_metric_the_ceiling_made_unexpressible(
     ).fetchone()
     assert total is not None
     assert total[0] == Decimal("342.0000")
+
+
+def test_the_converted_column_carries_the_type_it_declares(
+    warehouse: duckdb.DuckDBPyConnection,
+) -> None:
+    """A conversion is decimal arithmetic, and every engine widens that
+    differently.
+
+    `amount_usd` is declared `decimal(12,4)`. Uncast, the multiplication
+    materialised as `DECIMAL(18,8)` here — and `_narrowed`'s own docstring
+    records that the same expression is `decimal(22,4)` on Trino and
+    unconstrained `numeric` on PostgreSQL. No value is lost by that, but the
+    declaration stops being true and the precision cap is computed over numbers
+    the compiler tracks rather than the ones the engine uses.
+
+    Asserted against the *sibling* column rather than a literal, so the claim
+    is "the converted column is typed like an ordinary declared one" rather
+    than a string nobody would update.
+    """
+    types = {
+        row[1]: row[2] for row in warehouse.execute("PRAGMA table_info('silver.payment')").fetchall()
+    }
+
+    assert types["amount_usd"] == types["amount_eur"] == types["fee_usd"] == "DECIMAL(12,4)"
