@@ -51,33 +51,66 @@ declare at least one date role (`MartMissingTimeDimension`). Fan-out is refused 
 it would be *built*, not detected where it would be *summed* — the
 [guardrails](guardrails.md) page shows the exact messages.
 
-## Historical dimensions are not flattenable
+## Historical dimensions need an anchor
 
 An entity declared `scd: type2` keeps its history: the silver relation holds one row per
-version per key. A mart cannot use one — neither as a `flatten:` target nor as its
-`base:` — and the refusal is `HistoricalFanout`.
+version per key. A mart can flatten one, and must say **as of when**:
 
-The emitted join is an equality on the relationship's columns and nothing else, so it
-matches *every version* of each key and multiplies the base grain by the version count.
-Nothing downstream notices, which is what makes it worth refusing rather than warning
-about: the declared `cardinality: many_to_one` is a claim about the domain and it stays
-perfectly true, so `FanoutRisk` sees nothing wrong, the row counts look plausible, and
-the number is silently multiplied. The `base:` side has no join and fails the same way
-for a different reason — the mart declares one row per entity while the relation holds
-one per entity per version, so a `count` returns revisions.
+```yaml
+flatten:
+  - {via: order_of_customer, prefix: customer_, as_of: order_date}
+```
 
-Fixing it requires a join predicate against the validity interval, and bloomery has no
-way to express one: the anchor date — *as of when* — is intent, not something to be
-inferred, and the interval column names are currently invented privately by each target.
-Until that exists, the shipped answer is a `type1` current-view entity built from the
-historical one, which is what the refusal message recommends. Filtering to the current
-version automatically was considered and rejected: it silently converts a historical
-dimension into a current-view one, so a mart whose whole purpose is point-in-time
-attribution returns today's segment for a two-year-old order, with no diagnostic —
-the row counts would look right.
+`as_of` names a date or timestamp column of the mart's **base** entity — the fact's own
+date. That is the anchor the dimension is read at, so each order carries the customer
+segment that was current *when the order was placed*, not the segment as it is today.
+Two orders of the same customer can legitimately disagree about that customer's
+attributes, and that disagreement is the feature: it is what point-in-time attribution
+means.
 
-`scd: type2` itself is untouched. It remains fully supported as a silver target on both
-SQLMesh and dbt; only the mart-level combination is refused.
+The emitted join gains the validity predicate:
+
+```sql
+LEFT JOIN silver.customer AS customer_
+  ON  "order".customer_id = customer_.customer_id
+  AND "order".order_date >= customer_.valid_from
+  AND (customer_.valid_to IS NULL OR "order".order_date < customer_.valid_to)
+```
+
+The interval is half-open, so a version ending exactly when the next begins matches one
+of them rather than both, and `valid_to IS NULL` is the current version. Both targets are
+configured to spell that interval `valid_from`/`valid_to` — SQLMesh's own default names,
+and a rename on dbt, whose snapshots would otherwise call them `dbt_valid_from` and
+`dbt_valid_to`. Bloomery owning the two names is what lets one join serve both targets.
+
+An order whose date precedes every version of its customer matches nothing and its
+flattened columns are NULL, which is what a `LEFT JOIN` does everywhere else in a mart.
+
+### Without an anchor, it is refused
+
+Omit `as_of` and the flatten is `HistoricalFanout`. The join would be an equality on the
+relationship's columns and nothing else, so it matches *every version* of each key and
+multiplies the base grain by the version count. Nothing downstream notices: the declared
+`cardinality: many_to_one` is a claim about the domain and it stays perfectly true, so
+`FanoutRisk` sees nothing wrong, the row counts look plausible, and the number is
+silently multiplied. Filtering to the current version automatically was considered and
+rejected for the same reason — it silently converts a historical dimension into a
+current-view one, so a mart whose whole purpose is point-in-time attribution returns
+today's segment for a two-year-old order.
+
+An `as_of` on a dimension that is *not* `scd: type2` is refused too: there is no version
+to choose between, and the validity columns it would join against do not exist.
+
+### A `base:` cannot be historical
+
+A mart **based** on a `type2` entity is still refused, and an anchor cannot rescue it.
+There is no join to qualify. The mart declares one row per entity while the relation
+holds one per entity per version, so a `count` returns revisions — a grain lie no
+predicate addresses. Base the mart on a `type1` current-view entity built from the
+historical one.
+
+`scd: type2` itself is unchanged. It remains fully supported as a silver target on both
+SQLMesh and dbt.
 
 ## Role-playing dimensions
 

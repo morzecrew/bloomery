@@ -1,8 +1,12 @@
 # RFC 0023 — Temporal joins: SCD2 flattening and currency conversion
 
-- **Status:** 🚧 In progress — **P1 landed** (both refusals, §5.1/§5.2); P2 unscheduled.
-  Per §9 the document stays rather than being retired: deleting the shipped half would
-  leave the refusals with no recorded reason. Execution departures are D12–D17.
+- **Status:** 🚧 In progress — **P1 landed** (both refusals, §5.1/§5.2); **P2's as-of
+  join landed** (§5.3); §5.4, currency as a declared relation, remains unscheduled.
+  Per §9 the document stays rather than being retired: deleting the shipped halves would
+  leave the surviving refusals with no recorded reason, and §5.4 is still a design.
+  P1's execution departures are §11 rows D12–D17; the as-of join's are recorded in
+  [`logs/T-0009.md`](../logs/T-0009.md) as D-036–D-043, in the log's own numbering
+  rather than as §11 rows.
 - **Scope:** Two constructs that compile clean today and cannot be correct at run time,
   because both need a join against a **validity interval** and bloomery models none.
   Flattening a `scd: type2` entity into a mart emits an equality join on the business key,
@@ -411,8 +415,14 @@ Phase 2 tests are not specified here; the design is not scheduled.
 is a breaking change under the stability policy, and bloomery would owe a migration path for
 a construct that never produced a correct answer. Before the release it is a bug fix.
 
-**P2 — the as-of join (§5.3, §5.4).** Unscheduled and demand-gated. The trigger is a named
-consumer who needs point-in-time attribution or currency conversion; the cost is
-IR-and-spec surface plus a new lowering shape on both targets, and it is not small. Until
-then, D1's refusal message names the shipped workaround, which is what makes P2's absence a
-boundary rather than a gap.
+**P2 — the as-of join (§5.3).** Was unscheduled and demand-gated; the trigger
+arrived and **§5.3 shipped**. The cost landed roughly where this paragraph put it: one
+spec field, one IR field, two shared constants, a predicate in the one join-emitting
+path, and a configuration line on each target so the two agree on what the interval is
+called. What it did *not* need was a new lowering shape — the as-of join is the existing
+join with two more conditions.
+
+**§5.4 — currency as a declared relation — remains unscheduled.** It is the same
+mechanism pointed at a different right-hand side, and now that the mechanism exists its
+cost is the FX *relation* (a catalog surface, D11's both-ends requirement) rather than
+the join. The trigger is unchanged: a named consumer.

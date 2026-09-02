@@ -12,10 +12,13 @@ project fingerprint (RFC 0008 D9).
 ``incremental_by_key`` → ``INCREMENTAL_BY_UNIQUE_KEY``,
 ``incremental_by_partition`` → ``INCREMENTAL_BY_TIME_RANGE`` over the first
 partition column. SCD type 2 entities use the native kind first (RFC 0008
-§5.3): ``SCD_TYPE_2_BY_COLUMN (unique_key (...), columns *)`` — ``BY_COLUMN``
-over all columns, not ``BY_TIME``, because the IR declares no updated-at
-marker and inventing one would be silent degradation (syntax verified against
-the pinned sqlmesh).
+§5.3): ``SCD_TYPE_2_BY_COLUMN (unique_key (...), columns *, valid_from_name
+valid_from, valid_to_name valid_to)`` — ``BY_COLUMN`` over all columns, not
+``BY_TIME``, because the IR declares no updated-at marker and inventing one
+would be silent degradation (syntax verified against the pinned sqlmesh). The
+two ``_name`` arguments are SQLMesh's own defaults, spelled out because the
+as-of predicate (RFC 0023 §5.3) references those columns by name and dbt has
+to be moved onto them.
 
 Audits (RFC 0006 §5.6/D7 → RFC 0008 §5.3): ``not_null`` and ``enum`` lower
 builtin-style into the MODEL block (``not_null(columns := (...))``,
@@ -88,6 +91,8 @@ from bloomery.emit.lower import (
 from bloomery.emit.steps import step_artifacts
 from bloomery.errors import UnsupportedByTarget, guaranteed
 from bloomery.ir import (
+    VALID_FROM,
+    VALID_TO,
     AuditIR,
     DateDimensionIR,
     EntityIR,
@@ -307,7 +312,16 @@ def _kind_clause(entity: EntityIR) -> str:
     if entity.scd is SCDKind.TYPE2:
         # Native SCD (RFC 0008 §5.3): the SCD kind *is* the materialization —
         # it supersedes the resolved incrementality strategy.
-        return f"SCD_TYPE_2_BY_COLUMN (unique_key ({', '.join(entity.key)}), columns *)"
+        #
+        # The interval names are stated rather than defaulted, although they
+        # are SQLMesh's own defaults: an as-of join emits a predicate against
+        # these exact columns (RFC 0023 §5.3), so a SQLMesh release that
+        # changed its default would move the relation out from under a mart
+        # that still compiles. Spelling them is what makes the two facts one.
+        return (
+            f"SCD_TYPE_2_BY_COLUMN (unique_key ({', '.join(entity.key)}), columns *,"
+            f" valid_from_name {VALID_FROM}, valid_to_name {VALID_TO})"
+        )
 
     if entity.materialization is Materialization.INCREMENTAL_BY_KEY:
         return f"INCREMENTAL_BY_UNIQUE_KEY (unique_key ({', '.join(entity.key)}))"

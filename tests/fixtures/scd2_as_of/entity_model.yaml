@@ -1,0 +1,31 @@
+# The as-of join fixture (RFC 0023 §5.3). Identical to `scd2_mart_refusal`
+# except for its marts: `customer` is historical, `order` is a fact carrying
+# its own date, and the mart reads the dimension as of that date.
+#
+# The entity model is deliberately shared verbatim with the refusal fixture, so
+# the difference between "refused" and "compiled" is the `as_of:` clause in
+# marts.yaml and nothing else.
+spec_version: 1
+entities:
+  customer:
+    grain: one row per customer
+    key: [customer_id]
+    scd: type2
+    fields:
+      customer_id: {type: string, required: true}
+      segment: {type: string}
+      signed_up_at: {type: timestamp}
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      customer_id: {type: string}
+      amount: {type: "decimal(12,4)"}
+      order_date: {type: date}
+relationships:
+  - name: order_of_customer
+    from: order
+    to: customer
+    via: {customer_id: customer_id}
+    cardinality: many_to_one

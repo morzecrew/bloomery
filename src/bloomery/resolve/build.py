@@ -46,6 +46,7 @@ from bloomery.errors import (
 )
 from bloomery.guardrails import check_guardrails
 from bloomery.ir import (
+    VALIDITY_COLUMNS,
     Additivity,
     Cardinality,
     ColumnIR,
@@ -1176,9 +1177,10 @@ def _merge_refusals(
             f"entity {entity_name!r} declares 'scd: type2' and is built from {count} "
             "mappings. The collision audit a merge generates would fire on every key "
             "holding versions from two sources, and telling a version from a collision "
-            "needs validity columns nothing models yet (RFC 0023 §5.3) — so P1 refuses the "
-            "combination rather than shipping an audit that blocks correct data "
-            "(RFC 0024 D23). Fix: keep one mapping per historical entity"
+            "needs the audit to read the validity interval — which the union's own "
+            "lowering does not, even now that the interval is modelled (RFC 0023 §5.3). "
+            "So the combination stays refused rather than shipping an audit that blocks "
+            "correct data (RFC 0024 D23). Fix: keep one mapping per historical entity"
         )
         errors.append(ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.scd"))
 
@@ -1200,6 +1202,51 @@ def _merge_refusals(
             errors.append(ResolutionError(msg, source_path=f"{doc}: fields.{field_name}.direct"))
 
     return errors
+
+
+# ....................... #
+
+
+def _validity_collisions(entity_name: str, entity: Entity) -> list[ResolutionError]:
+    """A ``type2`` entity may not declare a field named like its own validity
+    interval (RFC 0023 §5.3).
+
+    The target's snapshot machinery writes ``valid_from``/``valid_to`` onto the
+    historical relation, so an authored column of that name is two columns with
+    one name: an as-of join would compare the anchor against whichever the
+    engine resolved, and neither answer is the one the author meant. On a
+    ``type1`` entity the names are ordinary and stay legal — which is why this
+    is a refusal here rather than a reserved name everywhere (a business
+    ``valid_from`` on a current-view dimension is a perfectly good column).
+
+    ``fields`` alone is the whole declared surface by the time this runs, which
+    is why the message can name that one path. ``resolve.refs`` has already
+    refused a mapping whose ``key:`` lowers a name the entity does not declare
+    ("key lowers unknown field") and an entity key column no mapping lowers
+    ("entity key column %r is not lowered by the mapping's key:"), and those two
+    compose into ``entity.key`` ⊆ ``entity.fields``. Reading ``key`` here as
+    well would be a union that can never differ —
+    ``test_a_validity_column_in_the_key_is_refused_before_this_check_sees_it``
+    is what fails if that stops being true, rather than this refusal quietly
+    narrowing.
+    """
+    if entity.scd != "type2":
+        return []
+
+    collisions = sorted(name for name in entity.fields if name in VALIDITY_COLUMNS)
+
+    if not collisions:
+        return []
+
+    listed = ", ".join(repr(name) for name in collisions)
+    msg = (
+        f"entity {entity_name!r} declares 'scd: type2' and carries {listed}, which is "
+        "what the target's snapshot writes for the version's own validity interval "
+        "(RFC 0023 §5.3) — the relation would hold two columns of that name and an "
+        "as-of join could not tell them apart. Fix: rename the field, or declare the "
+        "entity scd: type1"
+    )
+    return [ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.fields")]
 
 
 # ....................... #
@@ -1322,8 +1369,11 @@ def _build_entities(
     refusals = [
         error
         for entity_name in sorted(grouped)
-        for error in _merge_refusals(
-            entity_name, project.entity_model.entities[entity_name], grouped[entity_name]
+        for error in (
+            *_merge_refusals(
+                entity_name, project.entity_model.entities[entity_name], grouped[entity_name]
+            ),
+            *_validity_collisions(entity_name, project.entity_model.entities[entity_name]),
         )
     ]
 

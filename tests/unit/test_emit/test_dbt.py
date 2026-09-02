@@ -23,6 +23,8 @@ from bloomery.emit.lower import THIS_MODEL
 from bloomery.emit.sqlmesh import SQLMeshEmitter
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import (
+    VALID_FROM,
+    VALID_TO,
     AuditIR,
     ColumnIR,
     DedupeIR,
@@ -167,9 +169,21 @@ def test_scd2_lowers_to_a_check_strategy_snapshot() -> None:
     assert snapshot.content.rstrip("\n").endswith("{% endsnapshot %}")
     assert (
         "{{ config(target_schema='silver', unique_key='item_id', "
-        "strategy='check', check_cols='all') }}"
+        "strategy='check', check_cols='all', "
+        "snapshot_meta_column_names={'dbt_valid_from': 'valid_from', "
+        "'dbt_valid_to': 'valid_to'}) }}"
     ) in snapshot.content
     assert "FROM {{ source('bronze', 'src') }}" in snapshot.content
+
+
+def test_the_snapshot_names_its_interval_the_way_the_ir_does() -> None:
+    """Both targets must spell the validity interval identically or the as-of
+    join cannot be lowered once (RFC 0023 §5.3, D7): dbt's own defaults are
+    `dbt_valid_from`/`dbt_valid_to`, so the rename is what makes the shared
+    predicate resolve on this target too."""
+    snapshot = _emit(_entity(scd=SCDKind.TYPE2))["snapshots/item_snapshot.sql"]
+    assert f"'dbt_valid_from': '{VALID_FROM}'" in snapshot.content
+    assert f"'dbt_valid_to': '{VALID_TO}'" in snapshot.content
 
 
 def test_scd2_snapshot_respects_the_naming_policy_schema() -> None:

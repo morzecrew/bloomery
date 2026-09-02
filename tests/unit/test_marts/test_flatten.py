@@ -8,6 +8,7 @@ import pytest
 
 from bloomery import build_project_ir, load_project
 from bloomery.errors import (
+    ResolutionError,
     FanoutRisk,
     GrainViolation,
     GuardrailError,
@@ -26,7 +27,7 @@ from bloomery.ir import OK_COLUMN
 from bloomery.marts import DATE_BUCKETS, HAS_QUALITY_FLAGS, MartLowering, lower_marts
 from bloomery.spec import MartSet
 from bloomery.typing import BoolType, DateType
-from support.compiling import load_fixture
+from support.compiling import load_fixture, spec_fixture_names
 from support.steps import registry_for
 from support.plan_ir import column as plan_column
 from support.plan_ir import entity as plan_entity
@@ -958,3 +959,222 @@ def test_a_base_column_colliding_with_the_quality_dimension_is_refused() -> None
     assert violation.source_path == "marts: marts.items.base"
     assert "already" in str(violation)
     assert "never auto-renamed" in str(violation)
+
+
+# ....................... #
+# The as-of join (RFC 0023 §5.3) — the anchor that lifts the refusal
+
+
+#: The same chain, anchored. `order_item` is the base and carries `order_date`;
+#: `customer` is reached *through* `order`, which is the two-hop shape RFC 0023
+#: §5.3 calls the common case — the anchor is on the fact, the foreign key is
+#: not.
+_CHAIN_AS_OF = """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: item_of_order, prefix: order_}
+      - {via: order_of_customer, prefix: customer_, as_of: order_date}
+"""
+
+
+def test_an_anchor_lifts_the_historical_refusal() -> None:
+    """One clause is the whole difference from
+    `test_flattening_a_type2_entity_is_historical_fanout`, which is the
+    property the pair exists to pin."""
+    lowering = _historical("customer", _CHAIN_AS_OF)
+    assert lowering.violations == ()
+    (mart,) = lowering.marts
+    join = next(j for j in mart.joins if j.entity == "customer")
+    assert join.as_of == "order_date"
+
+
+def test_a_join_without_an_anchor_carries_none() -> None:
+    """The ordinary join is unchanged — `as_of` is absent, not defaulted to
+    something the emitter would have to special-case."""
+    lowering = lower_marts(_mart_set(_CHAIN_TO_CUSTOMER), _draft())
+    assert [join.as_of for join in lowering.marts[0].joins] == [None, None]
+
+
+def test_an_anchor_on_a_current_view_entity_is_refused() -> None:
+    """`as_of` over a type1 relation names a reading that does not exist: one
+    row per key, no version to choose, and no validity columns to join
+    against."""
+    anchored = _CHAIN_TO_CUSTOMER.replace(
+        "{via: order_of_customer, prefix: customer_}",
+        "{via: order_of_customer, prefix: customer_, as_of: order_date}",
+    )
+    lowering = lower_marts(_mart_set(anchored), _draft())
+    assert lowering.marts == ()
+    (violation,) = lowering.violations
+    assert isinstance(violation, HistoricalFanout)
+    assert violation.source_path == "marts: marts.items.flatten[1].via"
+    assert "is not scd: type2" in str(violation)
+    assert "no version to read the join as of" in str(violation)
+
+
+def test_an_anchor_naming_no_base_column_is_refused() -> None:
+    """The anchor is read off the base row, so a column that is not there
+    cannot be one — and the message lists what is."""
+    lowering = _historical(
+        "customer", _CHAIN_AS_OF.replace("as_of: order_date", "as_of: no_such_date")
+    )
+    assert lowering.marts == ()
+    (violation,) = lowering.violations
+    assert isinstance(violation, HistoricalFanout)
+    assert "names no column of the mart's base entity 'order_item'" in str(violation)
+    assert "order_date" in str(violation)  # the known-columns list routes the fix
+
+
+def test_a_non_temporal_anchor_is_refused() -> None:
+    """An anchor is compared against an interval, and only a date or timestamp
+    orders against one. `ordered_day` is an int on this corpus — a name that
+    reads like a date and is not, which is exactly the specimen worth pinning:
+    the comparison an engine would happily perform and answer wrongly."""
+    lowering = _historical(
+        "customer", _CHAIN_AS_OF.replace("as_of: order_date", "as_of: ordered_day")
+    )
+    assert lowering.marts == ()
+    (violation,) = lowering.violations
+    assert isinstance(violation, HistoricalFanout)
+    assert "which is int on 'order_item'" in str(violation)
+    assert "only a date or timestamp orders against one" in str(violation)
+
+
+def test_an_anchor_does_not_rescue_a_type2_base() -> None:
+    """The base side stays refused (RFC 0023 D2): there is no join to qualify,
+    and the grain lie — one row per entity declared over a relation holding one
+    per version — is untouched by any predicate."""
+    lowering = _historical(
+        "order",
+        """\
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    flatten:
+      - {via: order_of_customer, prefix: customer_, as_of: order_date}
+""",
+    )
+    assert lowering.marts == ()
+    paths = [v.source_path for v in lowering.violations]
+    assert "marts: marts.orders.base" in paths
+    assert any("counts revisions" in str(v) for v in lowering.violations)
+
+
+def test_two_historical_dimensions_can_be_read_as_of_different_dates() -> None:
+    """The reason the anchor sits on the flatten step rather than on the mart
+    (RFC 0023 D8, logs/T-0009.md D-036): a mart-level default could not express
+    this, and the argument for the step-level spelling was untested until here.
+
+    `order` is read as of the ship date and `customer` — reached *through*
+    `order`, the two-hop shape — as of the order date, in one mart, and each
+    join carries its own anchor.
+    """
+    sources = _as_type2("customer")
+    anchor = "  order:\n"
+    assert anchor in sources["entity_model"]
+    sources = {
+        **sources,
+        "entity_model": sources["entity_model"].replace(
+            anchor, f"{anchor}    scd: type2\n", 1
+        ),
+    }
+    marts_yaml = """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: item_of_order, prefix: order_, as_of: ship_date}
+      - {via: order_of_customer, prefix: customer_, as_of: order_date}
+"""
+    project = load_project({**sources, "marts": marts_yaml})
+    assert project.marts is not None
+    lowering = lower_marts(project.marts, build_project_ir(load_project(sources)))
+
+    assert lowering.violations == ()
+    (mart,) = lowering.marts
+    assert {join.entity: join.as_of for join in mart.joins} == {
+        "order": "ship_date",
+        "customer": "order_date",
+    }
+
+
+def test_a_date_role_may_not_displace_the_anchor_it_shares_a_name_with() -> None:
+    """The guard that makes the emitter's owner lookup total.
+
+    `mart_select` keys its owner map on columns with no `ref`, and a date-role
+    bucket carries one — so a bucket that *replaced* a base column would take
+    the anchor out of that map between the flattener accepting it and the
+    emitter reading it. Nothing in the emitter could tell; it would raise
+    `InvariantViolated` at best. What actually prevents it is the collision
+    rule, which refuses the role rather than overwriting, and this is the test
+    that says so from the anchor's side.
+    """
+    sources = _as_type2("customer")
+    sources = {
+        **sources,
+        "entity_model": sources["entity_model"].replace(
+            "      ordered_day: {type: int}\n", "      ordered_day: {type: date}\n"
+        ),
+        "mapping_items": sources["mapping_items"].replace(
+            '  ordered_day: {from: "$.odd", transform: [to_int]}\n',
+            '  ordered_day: {from: "$.odd", transform: [{parse_date: ISO8601}]}\n',
+        ),
+    }
+    marts_yaml = """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {via: item_of_order, prefix: order_}
+      - {via: order_of_customer, prefix: customer_, as_of: ordered_day}
+      - {date: order_date, role: ordered}
+"""
+    project = load_project({**sources, "marts": marts_yaml})
+    assert project.marts is not None
+    lowering = lower_marts(project.marts, build_project_ir(load_project(sources)))
+
+    assert lowering.marts == ()
+    assert any("collides with the column already flattened" in str(v) for v in lowering.violations)
+
+
+def test_every_anchor_the_flattener_accepts_is_a_column_the_emitter_can_own() -> None:
+    """The coupling between this module and `emit.lower.marts`, swept over the
+    whole fixture corpus rather than the shapes a test author thought to try.
+
+    The emitter resolves an anchor through a map keyed on the mart's columns
+    that carry no `ref`; this module is what decides an anchor is acceptable.
+    Neither states the other's part, so the invariant is asserted here: for
+    every mart the corpus lowers, every anchor is among the columns the
+    emitter will key on.
+    """
+    checked = 0
+
+    for name in sorted(spec_fixture_names()):
+        project, catalog = load_fixture(name)
+        try:
+            ir = build_project_ir(project, catalog, steps=registry_for(name))
+        except (GuardrailError, ResolutionError):
+            continue  # a refusal fixture lowers no mart to check
+
+        for mart in ir.marts:
+            ownable = {column.name for column in mart.columns if column.ref is None}
+            for join in mart.joins:
+                if join.as_of is None:
+                    continue
+                assert join.as_of in ownable, (
+                    f"{name}/{mart.name}: anchor {join.as_of!r} is not a column the "
+                    "emitter can resolve an owner for"
+                )
+                checked += 1
+
+    assert checked, "no as-of join in the corpus — this property would pass vacuously"

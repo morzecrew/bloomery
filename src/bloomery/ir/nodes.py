@@ -75,6 +75,9 @@ __all__ = [
     "TransformStepIR",
     "Unit",
     "UnreachableMetric",
+    "VALIDITY_COLUMNS",
+    "VALID_FROM",
+    "VALID_TO",
     "quality_sort_key",
 ]
 
@@ -116,6 +119,28 @@ REJECT_SUFFIX = "__reject"
 #: putting a constant into every relation forever to spare one classified
 #: change is how a schema move gets hidden from ``plan()``.
 SOURCE_COLUMN = "_source"
+
+#: The validity interval of an ``scd: type2`` relation (RFC 0023 §5.3, D7).
+#:
+#: Unlike every other name in this section these columns are not projected by
+#: bloomery's own lowering — the target's snapshot machinery writes them. That
+#: is exactly why they are named here: SQLMesh calls them ``valid_from`` /
+#: ``valid_to`` and dbt calls them ``dbt_valid_from`` / ``dbt_valid_to``, each
+#: privately, so before this pair existed bloomery did not know what the
+#: interval was called and could emit no predicate against it. Both emitters
+#: now *configure* their target to these names, which is what lets one as-of
+#: predicate serve both.
+#:
+#: Deliberately not underscore-prefixed like the generated columns above: these
+#: are written by the target under names it already treats as ordinary, and
+#: renaming them to bloomery's convention would buy nothing but a diff. They
+#: are refused as authored field names on a ``type2`` entity, where they would
+#: collide.
+VALID_FROM = "valid_from"
+VALID_TO = "valid_to"
+
+#: The two above, for membership tests and messages.
+VALIDITY_COLUMNS = (VALID_FROM, VALID_TO)
 
 
 # ....................... #
@@ -798,12 +823,23 @@ class MartJoinIR:
     the declared relationship, the joined entity, the column prefix (also the
     join alias), and the ``on`` pairs — (flattened from-side column in the
     mart's namespace, to-side entity column), sorted by from-side column.
-    Consumed only by the mart-building emitter; the planner never joins."""
+    Consumed only by the mart-building emitter; the planner never joins.
+
+    ``as_of`` is the anchor for an as-of join (RFC 0023 §5.3): the base-side
+    column the joined entity's validity interval is read against, already in
+    the mart's namespace like the left half of ``on``. ``None`` is an
+    ordinary equality join, which is every join over a non-historical
+    entity. The interval *column names* are not carried here — they are the
+    same two names on every target by construction
+    (:data:`~bloomery.ir.VALID_FROM` / :data:`~bloomery.ir.VALID_TO`), so a
+    per-entity copy would be a constant wearing a field.
+    """
 
     relationship: str
     entity: str
     prefix: str
     on: tuple[tuple[str, str], ...]
+    as_of: str | None = None
 
 
 # ....................... #
@@ -1013,9 +1049,21 @@ class ProjectIR:
     (RFC 0022 M19) adds ``via`` to every :class:`UnreachableMetric`. Version 6
     (RFC 0024 D17/D26) moves each column's lowered expression off
     :class:`ColumnIR` onto a per-source :class:`SourceColumnIR`, so an entity
-    can be built from more than one mapping. The bump is
+    can be built from more than one mapping. Version 7 (RFC 0023 §5.3) adds
+    ``as_of`` to every :class:`MartJoinIR`. The bump is
     the point — every artifact's fingerprint header moves, and ``plan()``
     refuses to diff across versions rather than misreading one as the other.
+
+    Version 7 is why a *nested* field addition bumps this at all. Had the field
+    landed without one, the encoder — which writes field names per instance —
+    would have left every project with no mart joins encoding no ``MartJoinIR``
+    and carrying its old fingerprint, so two compilers of different shape would
+    have agreed on both the fingerprint and the version and ``plan()`` would
+    have diffed across a schema change it could not see. ``role_playing_dates``
+    is such a project in this tree: marts, goldens, a fingerprint, and not one
+    ``via:`` step. With the bump the version is in the stream, so every
+    project's fingerprint moves — which is the whole point. Version 5's
+    ``UnreachableMetric.via`` had the same shape and set the same precedent.
 
     Note that ``steps`` shifts every fingerprint even for a project with no
     steps at all: the canonical encoder writes each dataclass's field count
@@ -1024,7 +1072,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 6
+    bloomery_ir_version: int = 7
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 
 from bloomery import build_project_ir, load_catalog, load_project, project_fingerprint
-from bloomery.errors import ResolutionError, TypeCheckError
+from bloomery.errors import MissingReference, ResolutionError, TypeCheckError
 from bloomery.ir import (
     DateDimensionIR,
     DimensionRef,
@@ -692,8 +692,9 @@ canonical_fields:
 
 def test_scd_type2_is_refused_on_a_merged_entity() -> None:
     """RFC 0024 D23: the collision audit would fire on every key holding
-    versions from two sources, and telling a version from a collision needs
-    validity columns nothing models."""
+    versions from two sources, and telling a version from a collision needs the
+    audit to read the validity interval — which the union's lowering does not,
+    even now that RFC 0023 §5.3 models the interval."""
     model = _MERGE_ENTITY_MODEL.replace(
         "    key: [event_id]\n", "    key: [event_id]\n    scd: type2\n"
     )
@@ -717,3 +718,110 @@ def test_the_refusals_are_batched() -> None:
     with pytest.raises(ResolutionError) as excinfo:
         build_project_ir(load_project(_merge_sources(entity_model=model)))
     assert len(excinfo.value.collected) >= 2
+
+
+def test_a_type2_entity_may_not_carry_a_validity_column_name() -> None:
+    """RFC 0023 §5.3: the target's snapshot writes `valid_from`/`valid_to` onto
+    the historical relation, so an authored column of that name would leave two
+    columns with one name and an as-of join comparing against whichever the
+    engine resolved."""
+    model = _MERGE_ENTITY_MODEL.replace(
+        "    key: [event_id]\n", "    key: [event_id]\n    scd: type2\n"
+    ).replace("      kind: {type: string}\n", "      valid_from: {type: timestamp}\n")
+    sources = {
+        "entity_model": model,
+        "mapping_a": _SRC_A_MAPPING.replace(
+            '  kind: {from: "$.type", transform: [to_string]}\n',
+            '  valid_from: {from: "$.vf", transform: [{parse_ts: ISO8601}]}\n',
+        ),
+    }
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources))
+    assert "carries 'valid_from'" in str(excinfo.value)
+    assert excinfo.value.source_path == "entity_model: entities.event.fields"
+
+
+def test_a_type1_entity_may_carry_one() -> None:
+    """The nearest non-trigger: on a current-view dimension the target writes
+    no interval, so `valid_from` is an ordinary business column and stays
+    legal. Reserving the name everywhere would refuse this."""
+    model = _MERGE_ENTITY_MODEL.replace(
+        "      kind: {type: string}\n", "      valid_from: {type: timestamp}\n"
+    )
+    sources = {
+        "entity_model": model,
+        "mapping_a": _SRC_A_MAPPING.replace(
+            '  kind: {from: "$.type", transform: [to_string]}\n',
+            '  valid_from: {from: "$.vf", transform: [{parse_ts: ISO8601}]}\n',
+        ),
+    }
+    ir = build_project_ir(load_project(sources))
+    assert "valid_from" in {column.name for column in ir.entities[0].columns}
+
+
+def test_two_validity_collisions_report_together() -> None:
+    """RFC 0002 D6: refusals batch, so an author fixes a spec in one
+    round-trip. This check first raised on the entity it found, which sent an
+    author with two historical entities round twice — the exact cost the
+    batching discipline in this module exists to avoid."""
+    entities = "".join(
+        f"  {name}:\n"
+        f"    grain: one row per {name}\n"
+        f"    key: [{name}_id]\n"
+        "    scd: type2\n"
+        "    fields:\n"
+        f"      {name}_id: {{type: string, required: true}}\n"
+        f"      {column}: {{type: timestamp}}\n"
+        for name, column in (("a", "valid_from"), ("b", "valid_to"))
+    )
+    sources = {"entity_model": f"spec_version: 1\nentities:\n{entities}"}
+    for name, column in (("a", "valid_from"), ("b", "valid_to")):
+        sources[f"mapping_{name}"] = (
+            "mapping_version: 1\n"
+            f"source: src_{name}\n"
+            f"target: {name}\n"
+            f'key: {{{name}_id: {{from: "$.id", transform: [to_string]}}}}\n'
+            "fields:\n"
+            f'  {column}: {{from: "$.v", transform: [{{parse_ts: ISO8601}}]}}\n'
+        )
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources))
+    assert len(excinfo.value.collected) == 2
+    assert [error.source_path for error in excinfo.value.collected] == [
+        "entity_model: entities.a.fields",
+        "entity_model: entities.b.fields",
+    ]
+
+
+def test_a_validity_column_in_the_key_is_refused_before_this_check_sees_it() -> None:
+    """The guarantor `_validity_collisions` reads `fields` alone on.
+
+    A reviewer asked what happens when `valid_from` is declared in `key:`
+    rather than `fields:`, since the refusal's `source_path` names `.fields`
+    unconditionally. The answer is that `resolve.refs` refuses first, in two
+    halves that compose into `entity.key` ⊆ `entity.fields` — and both are
+    pinned here, from the side that depends on them. If either stops firing,
+    `_validity_collisions` would silently miss a key-only collision instead of
+    this failing.
+    """
+    undeclared = _MERGE_ENTITY_MODEL.replace(
+        "    key: [event_id]\n", "    key: [event_id, valid_from]\n    scd: type2\n"
+    )
+    with pytest.raises(ResolutionError) as unlowered:
+        build_project_ir(load_project({"entity_model": undeclared, "mapping_a": _SRC_A_MAPPING}))
+    assert "entity key column 'valid_from' is not lowered by the mapping's key" in str(
+        unlowered.value
+    )
+
+    with pytest.raises(MissingReference) as unknown:
+        build_project_ir(
+            load_project(
+                {
+                    "entity_model": undeclared,
+                    "mapping_a": _SRC_A_MAPPING.replace(
+                        "key:\n", 'key:\n  valid_from: {from: "$.vf", transform: [to_string]}\n'
+                    ),
+                }
+            )
+        )
+    assert "key lowers unknown field 'valid_from' of entity 'event'" in str(unknown.value)

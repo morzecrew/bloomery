@@ -1,0 +1,10 @@
+# The date dimension marts are served through (RFC 0013 R1 rule 4); no
+# canonical fields — this fixture's subject is the mart layer, not derivation.
+catalog_version: 1
+vertical: ecom_retail
+
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2020
+  end_year: 2030

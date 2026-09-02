@@ -1,0 +1,22 @@
+# The as-of join (RFC 0023 §5.3): a historical dimension flattened into a mart
+# with an anchor, which is the whole of what makes it legal.
+#
+# `as_of: order_date` says *which instant* the customer is read at — the order's
+# own date — so each order matches the one version of its customer that was
+# current when the order was placed. Remove that one clause and this fixture
+# becomes `scd2_mart_refusal`'s flatten side: the join collapses to an equality
+# on customer_id, every order matches every version, and the mart silently
+# multiplies. The pair of fixtures is deliberately one line apart.
+#
+# There is no `customers` mart here. A mart *based* on a type2 entity stays
+# refused (RFC 0023 D2) — there is no join to qualify, and the grain lie is
+# unaffected by an anchor — and that side keeps its coverage next door.
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    flatten:
+      - {via: order_of_customer, prefix: customer_, as_of: order_date}
+      - {date: order_date, role: ordered}
+    measures: [revenue]

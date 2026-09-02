@@ -86,7 +86,7 @@ BloomeryError
 | `AssertLoweringError` | guardrails | An `assert:` clause ill-typed against the field's logical type |
 | `GrainViolation` | guardrails | A mart measure whose grain does not strictly equal the mart grain |
 | `FanoutRisk` | guardrails | A mart `via:` flatten step over a `one_to_many` relationship |
-| `HistoricalFanout` | guardrails | A mart that flattens — or is based on — an `scd: type2` entity, whose relation holds one row per version per key |
+| `HistoricalFanout` | guardrails | A mart that flattens an `scd: type2` entity without an `as_of:` anchor, declares one on a non-historical entity, or is based on a historical one |
 | `NonAdditiveWithoutComponents` | guardrails | A non-additive metric with no ratio/additive decomposition to recompute from |
 | `UnsupportedCumulative` | guardrails | A metric declaring `cumulative:` — reserved spec surface no stage lowers; compiled anyway it would aggregate per period instead of cumulatively |
 | `MartMissingTimeDimension` | guardrails | A measure-carrying mart that declares no date role |

@@ -88,7 +88,7 @@ def test_every_mapped_field_appears_exactly_once() -> None:
     # the mapping too adds the 4 facts `multi_source`'s merged `order_line`
     # could not represent — the whole of what RFC 0032 recovers in this corpus,
     # reported as a number rather than a claim.
-    assert swept == 150, f"{swept} mapped (entity, field, mapping) triples across the corpus"
+    assert swept == 157, f"{swept} mapped (entity, field, mapping) triples across the corpus"
 
 
 def test_every_mappings_document_is_a_real_document() -> None:

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Historical dimensions can be used in marts.** A `flatten:` step onto an
+  `scd: type2` entity now takes an `as_of:` anchor — a date or timestamp column of
+  the mart's base — and emits a validity predicate, so each fact carries the
+  dimension version that was current when the fact happened. Point-in-time
+  attribution ("revenue by the segment as it was then") is expressible; without an
+  anchor the flatten is still refused, and a `base:` on a historical entity still is
+  too. RFC 0023 §5.3.
+
 - The CLI's exit-code contract gained `3`: an exception no handler claims prints
   its traceback under an "internal error, please report" line instead of escaping
   raw, and a broken pipe (`bloomery schema | head`) now exits `0` quietly.
@@ -18,6 +26,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   past 10× its written nodes (floor: 10,000, so small documents get slack), and an
   alias inside its own anchor (a recursive value) are `SpecParseError`, never a
   `RecursionError` or memory exhaustion. Ordinary anchors and aliases are unaffected.
+
+### Changed
+
+- `ProjectIR.bloomery_ir_version` is **7** (was 6): `MartJoinIR` gained `as_of`, so the
+  canonical IR shape moved. `plan()` refuses to diff a version 6 IR against a version 7
+  one; recompile both sides with one compiler. Every project's fingerprint moves, because
+  the version is part of the canonical stream — `as_of` on its own would have moved only
+  the fingerprints of projects that have mart joins, which is why the version had to move
+  for the rest.
+
+- Emitted artifacts name an `scd: type2` entity's validity interval `valid_from` /
+  `valid_to` on **both** targets: the SQLMesh kind clause states them explicitly
+  (they were already its defaults) and dbt snapshots rename theirs from
+  `dbt_valid_from` / `dbt_valid_to`. Bloomery owning the two names is what lets one
+  as-of predicate serve both targets. **Migration:** a dbt project with existing
+  snapshot tables must rename their `dbt_valid_from` / `dbt_valid_to` columns to
+  `valid_from` / `valid_to`; dbt locates a version's interval by the configured
+  names, so a table still carrying the old ones no longer matches the config that
+  reads it. Rename before the next `dbt snapshot` run, on a backup.
+
+- A `type2` entity may no longer declare a field named `valid_from` or `valid_to`
+  (`ResolutionError`); the snapshot writes those, so the relation would hold two
+  columns of one name. On a `type1` entity both stay legal.
 
 ### Fixed
 

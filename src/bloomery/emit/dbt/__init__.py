@@ -126,6 +126,8 @@ from bloomery.emit.steps import (
 )
 from bloomery.errors import UnsupportedByTarget, guaranteed
 from bloomery.ir import (
+    VALID_FROM,
+    VALID_TO,
     AuditIR,
     DateDimensionIR,
     EntityIR,
@@ -444,9 +446,18 @@ def _snapshot_artifact(
         raise UnsupportedByTarget(msg)
 
     namespace, _relation = ctx.naming.relation(entity.name, Layer.SILVER)
+    # `snapshot_meta_column_names` renames dbt's `dbt_valid_from`/`dbt_valid_to`
+    # to the interval names the IR owns (RFC 0023 §5.3, D7). Without it the two
+    # targets name the same interval differently — which is precisely why no
+    # as-of predicate could be emitted before — and a mart's join, lowered once
+    # for every target, would reference columns that exist on SQLMesh's relation
+    # and not on dbt's. The other meta columns keep their dbt names: nothing
+    # bloomery emits reads them.
     config_line = (
         f"{{{{ config(target_schema='{namespace}', unique_key='{entity.key[0]}', "
-        "strategy='check', check_cols='all') }}"
+        "strategy='check', check_cols='all', "
+        f"snapshot_meta_column_names={{'dbt_valid_from': '{VALID_FROM}', "
+        f"'dbt_valid_to': '{VALID_TO}'}}) }}}}"
     )
     content = _SNAPSHOT_ENVELOPE.render(
         fingerprint=ctx.fingerprint,

@@ -113,7 +113,7 @@ All of it at once, so you fix a spec in one round trip rather than one error per
 | A mapping missing part of the entity's `key:` | A union on a partial key has no meaning |
 | A mapping missing a `required: true` field | The merge would NULL-fill a required column for that one source's rows, and the entity would look internally inconsistent rather than externally broken |
 | Two mappings reading the **same** relation | Branch order needs a total order, and two branches on one relation tie. Express two disjoint row sets of one table as one mapping with a filter |
-| `scd: type2` | The collision check below would fire on every key holding versions from two sources, and telling a version from a collision needs validity columns nothing models yet |
+| `scd: type2` | The collision check below would fire on every key holding versions from two sources. Telling a version from a collision means reading the validity interval, and the union's lowering does not — the interval is modelled now (see [as-of joins](../concepts/wide-marts.md#historical-dimensions-need-an-anchor)), but the merge audit does not consult it |
 | Any quality rule, `dedupe:` or `quarantine:` | See [the limits](#what-a-merged-entity-cannot-do-yet) |
 
 Types need no separate check: each mapping's transform chain is already checked against the

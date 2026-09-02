@@ -69,15 +69,23 @@ def test_partition_spec_identity_transform() -> None:
 # Data quality (RFC 0016 §5.3–§5.6)
 
 
-def test_ir_version_is_five() -> None:
-    # RFC 0016 M12, RFC 0017 M13, `ProjectIR.coverage` + `MartIR.asserts`, and
-    # now `UnreachableMetric.via` each change the IR shape; RFC 0003 D3 makes
-    # the version part of the fingerprint, so each bump is deliberate and loud.
-    # The M12/M13 wave nearly shipped without one: the fingerprints moved anyway
-    # (the encoder covers field names and count), so nothing failed — but
-    # `plan()` would have diffed a coverage-carrying IR against one without,
-    # both calling themselves v3.
-    assert ProjectIR().bloomery_ir_version == 6
+def test_the_declared_ir_version_is_the_current_one() -> None:
+    # RFC 0016 M12, RFC 0017 M13, `ProjectIR.coverage` + `MartIR.asserts`,
+    # `UnreachableMetric.via`, the per-source column split, and now
+    # `MartJoinIR.as_of` each change the IR shape; RFC 0003 D3 makes the version
+    # part of the fingerprint, so each bump is deliberate and loud. The M12/M13
+    # wave nearly shipped without one: the fingerprints moved anyway (the
+    # encoder covers field names and count), so nothing failed — but `plan()`
+    # would have diffed a coverage-carrying IR against one without, both calling
+    # themselves v3.
+    #
+    # `as_of` is the sharper form of that, and the reason this assertion is a
+    # literal rather than a comment. The encoder writes field names *per
+    # instance*, so a project with no mart joins encodes no `MartJoinIR` and its
+    # fingerprint does not move at all — two compilers of different shape then
+    # agree on the fingerprint as well as the version. Named for what it pins
+    # rather than for a number, because the number is what changes.
+    assert ProjectIR().bloomery_ir_version == 7
 
 
 def test_the_compiler_emits_the_declared_ir_version() -> None:

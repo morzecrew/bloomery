@@ -17,8 +17,10 @@ Validation is total — this module never raises. Violations are collected as
 (mart grain must equal the base grain, and measure grain must strictly equal
 mart grain — RFC 0010 D2), :class:`FanoutRisk` (a ``via:`` step that is not
 a declared, transitively reachable ``many_to_one``/``one_to_one``
-relationship — RFC 0010 D3), :class:`HistoricalFanout` (a ``via:`` step onto,
-or a ``base:`` of, an ``scd: type2`` entity — RFC 0023 D1/D2),
+relationship — RFC 0010 D3), :class:`HistoricalFanout` (a ``via:`` step onto an
+``scd: type2`` entity without an ``as_of:`` anchor, an anchor declared on an
+entity that is not historical or naming a base column that is not temporal,
+or a ``base:`` of a ``type2`` entity — RFC 0023 D1/D2, §5.3),
 :class:`MartMissingTimeDimension` (a
 measure-carrying mart without a date role — RFC 0010 D9), and untyped
 :class:`GuardrailError` leaves for collisions and unresolvable names. The
@@ -150,49 +152,132 @@ def _grain_prose(entity_name: str, entities: dict[str, EntityIR]) -> str:
 # ....................... #
 
 
-#: What a `type2` entity's author is told to do instead, on both sides of the
-#: refusal. There is exactly one shipped answer (RFC 0023 §5.1) and it is the
-#: whole reason the refusal is a boundary rather than a gap, so the two
-#: messages say it in the same words.
-_HISTORICAL_FIX = (
+#: What a `type2` entity's author is told to do instead. The two sides of the
+#: refusal used to share one line, because there was one shipped answer; the
+#: as-of join (RFC 0023 §5.3) gave the *flatten* side a better one and left the
+#: base side where it was, so they are now two.
+#:
+#: A join can be qualified by an anchor. A base cannot: there is nothing to
+#: qualify, and the grain lie — a mart declaring one row per entity over a
+#: relation holding one per version — is untouched by any predicate. Telling a
+#: base-side author to add an `as_of:` would route them to a clause with
+#: nowhere to go.
+_HISTORICAL_FLATTEN_FIX = (
+    "Fix: declare an anchor — as_of: <a date or timestamp column of the base> — "
+    "to read the dimension as of that instant, or declare the entity scd: type1"
+)
+
+_HISTORICAL_BASE_FIX = (
     "Fix: declare the entity scd: type1, or build a type1 current-view entity "
-    "from it and use that here"
+    "from it and base the mart on that"
 )
 
 
 def _historical_leaf(
-    rel: RelationshipIR, entities: dict[str, EntityIR], step_path: str
+    step: ViaStep,
+    rel: RelationshipIR,
+    entities: dict[str, EntityIR],
+    base: EntityIR,
+    step_path: str,
 ) -> list[GuardrailError]:
-    """The ``HistoricalFanout`` for this step, or ``[]`` (RFC 0023 D1).
+    """The leaves for the historical/anchor pairing on this step (RFC 0023
+    D1, §5.3), or ``[]``.
 
-    The join this step produces is an equality on the relationship's columns
-    and nothing else; a ``type2`` relation holds one row per version per key,
-    so it matches every version and multiplies the base grain. Nothing
-    downstream notices — the declared cardinality is about the domain, and it
-    is usually correct.
+    Three states, and only the first two are refusals:
+
+    * ``type2`` with no ``as_of:`` — the join would be an equality on the
+      relationship's columns and nothing else, and a ``type2`` relation holds
+      one row per version per key, so it matches every version and multiplies
+      the base grain. Nothing downstream notices: the declared cardinality is
+      about the domain, and it is usually correct.
+    * ``as_of:`` on a relation that is not ``type2`` — there is no version to
+      choose between, so the anchor names a reading that does not exist. Left
+      accepted it would emit a predicate against columns the relation does
+      not have.
+    * ``type2`` with a valid ``as_of:`` — the as-of join, which is the whole
+      of RFC 0023 §5.3.
 
     A list rather than an optional so the callers can splice it into whatever
-    they were already returning: this leaf never *replaces* a structural
-    refusal, it accompanies one.
+    they were already returning: these leaves never *replace* a structural
+    refusal, they accompany one.
 
     An entity no mapping lowers yields ``[]``: it has no ``scd`` to read, and
     its own leaf is the one worth reporting.
     """
     to_entity = entities.get(rel.to_entity)
 
-    if to_entity is None or to_entity.scd is not SCDKind.TYPE2:
+    if to_entity is None:
         return []
 
-    msg = (
-        f"flatten step joins entity {rel.to_entity!r} through relationship "
-        f"{rel.name!r} ({rel.cardinality}), and {rel.to_entity!r} is declared "
-        "scd: type2 — the emitted join carries no validity predicate, so it "
-        f"matches every version of each {rel.to_entity!r} key and each base row "
-        "is multiplied by that key's version count. The declared cardinality is a "
-        "claim about the domain; the relation holds one row per version "
-        f"(RFC 0023 D1). {_HISTORICAL_FIX}"
-    )
-    return [HistoricalFanout(msg, source_path=step_path)]
+    historical = to_entity.scd is SCDKind.TYPE2
+
+    if historical and step.as_of is None:
+        msg = (
+            f"flatten step joins entity {rel.to_entity!r} through relationship "
+            f"{rel.name!r} ({rel.cardinality}), and {rel.to_entity!r} is declared "
+            "scd: type2 — without an anchor the emitted join carries no validity "
+            f"predicate, so it matches every version of each {rel.to_entity!r} key "
+            "and each base row is multiplied by that key's version count. The "
+            "declared cardinality is a claim about the domain; the relation holds "
+            f"one row per version (RFC 0023 D1). {_HISTORICAL_FLATTEN_FIX}"
+        )
+        return [HistoricalFanout(msg, source_path=step_path)]
+
+    if not historical and step.as_of is not None:
+        msg = (
+            f"flatten step declares as_of: {step.as_of!r}, but {rel.to_entity!r} is not "
+            "scd: type2 — it holds one row per key, so there is no version to read the "
+            "join as of, and the validity columns the anchor joins against do not exist "
+            "on it (RFC 0023 §5.3). Fix: drop the as_of, or declare the entity scd: type2"
+        )
+        return [HistoricalFanout(msg, source_path=step_path)]
+
+    if step.as_of is None:
+        return []
+
+    return _anchor_leaves(step.as_of, base, rel, step_path)
+
+
+# ....................... #
+
+
+def _anchor_leaves(
+    as_of: str, base: EntityIR, rel: RelationshipIR, step_path: str
+) -> list[GuardrailError]:
+    """The anchor must be a temporal column *of the base entity*.
+
+    On the base rather than anywhere in the mart because that is where a fact's
+    own date lives, including in the two-hop shape RFC 0023 §5.3 calls the
+    common case: there the anchor is on the fact and only the foreign key comes
+    through another flatten. Refusing a non-temporal anchor here rather than
+    letting it reach SQL is the same call the SQLMesh time-column check makes —
+    comparing a string to an interval bound is a comparison an engine will
+    happily perform and answer wrongly.
+    """
+    column = next((c for c in base.columns if c.name == as_of), None)
+
+    if column is None:
+        known = sorted(c.name for c in base.columns)
+        msg = (
+            f"flatten step declares as_of: {as_of!r}, which names no column of the mart's "
+            f"base entity {base.name!r}; known: {known}. The anchor is the fact's own "
+            "date, so it is read from the base row (RFC 0023 §5.3). Fix: name a date or "
+            "timestamp column of the base"
+        )
+        return [HistoricalFanout(msg, source_path=step_path)]
+
+    if not isinstance(column.type, DateType | TimestampType):
+        # `_type_name`, not the dataclass repr: the author wrote `type: int`,
+        # and telling them `IntType()` names a class they have never seen.
+        msg = (
+            f"flatten step declares as_of: {as_of!r}, which is {_type_name(column.type)} on "
+            f"{base.name!r} — an anchor is compared against {rel.to_entity!r}'s validity "
+            "interval, and only a date or timestamp orders against one (RFC 0023 §5.3). "
+            "Fix: name a date or timestamp column of the base"
+        )
+        return [HistoricalFanout(msg, source_path=step_path)]
+
+    return []
 
 
 # ....................... #
@@ -204,6 +289,7 @@ def _flatten_via(
     path: str,
     draft: ProjectIR,
     entities: dict[str, EntityIR],
+    base: EntityIR,
     state: _Flatten,
 ) -> list[GuardrailError]:
     """One ``via:`` step: validate the relationship, record the resolved join,
@@ -223,7 +309,7 @@ def _flatten_via(
     # return it was the second reason that never got reported — and putting it
     # first would only have suppressed the other one instead. The stage exists
     # so an author fixes a spec in one round-trip, so both leaves go out.
-    historical = _historical_leaf(rel, entities, step_path)
+    historical = _historical_leaf(step, rel, entities, base, step_path)
 
     if rel.cardinality is Cardinality.ONE_TO_MANY:
         msg = (
@@ -262,6 +348,7 @@ def _flatten_via(
             entity=rel.to_entity,
             prefix=step.prefix,
             on=tuple((f"{from_prefix}{from_col}", to_col) for from_col, to_col in rel.via),
+            as_of=step.as_of,
         )
     )
     violations: list[GuardrailError] = []
@@ -650,7 +737,7 @@ def _lower_mart(
             f"mart base names entity {mart.base!r}, which is declared scd: type2 — the "
             f"relation holds one row per {mart.base!r} version, while the mart's grain "
             f"({mart.grain!r}) claims one row per {mart.base!r}. Every measure over it "
-            f"counts revisions (RFC 0023 D2). {_HISTORICAL_FIX}"
+            f"counts revisions (RFC 0023 D2). {_HISTORICAL_BASE_FIX}"
         )
         violations.append(HistoricalFanout(msg, source_path=f"{path}.base"))
 
@@ -680,7 +767,7 @@ def _lower_mart(
 
     for index, step in enumerate(mart.flatten):
         if isinstance(step, ViaStep):
-            violations.extend(_flatten_via(step, index, path, draft, entities, state))
+            violations.extend(_flatten_via(step, index, path, draft, entities, base, state))
         else:
             violations.extend(_flatten_date(step, index, path, base, state))
 
