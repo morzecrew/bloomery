@@ -199,8 +199,20 @@
     },
     "ViaStep": {
       "additionalProperties": false,
-      "description": "Flatten one declared relationship into the mart, prefixing every\nflattened column with ``prefix`` (RFC 0010 D3 \u2014 prefixes mandatory,\nso an empty prefix is a parse error, not a silent no-op).",
+      "description": "Flatten one declared relationship into the mart, prefixing every\nflattened column with ``prefix`` (RFC 0010 D3 \u2014 prefixes mandatory,\nso an empty prefix is a parse error, not a silent no-op).\n\n``as_of`` names the **anchor**: a date or timestamp column of the mart's\nbase entity, and the instant the joined entity is read *as of* (RFC 0023\n\u00a75.3, D8). It is required to flatten an ``scd: type2`` entity and refused\non any other, because a historical relation joined without one matches\nevery version of each key and multiplies the base grain, while a\ncurrent-view relation has no version to choose between.\n\nDeclared, never inferred: which date history is read on is intent, and\nRFC 0021 closed inference. The anchor sits here rather than on the mart\nbecause it qualifies *this* join \u2014 two historical dimensions in one mart\ncan legitimately be read as of different dates.",
       "properties": {
+        "as_of": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "As Of"
+        },
         "prefix": {
           "minLength": 1,
           "title": "Prefix",
