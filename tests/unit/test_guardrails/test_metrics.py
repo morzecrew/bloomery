@@ -213,6 +213,30 @@ def test_a_filter_on_a_metric_with_no_measure_is_refused(shape: str, body: str) 
     assert f"'filtered_{shape}'" in str(leaf)
 
 
+@pytest.mark.parametrize(
+    ("body", "also"),
+    [
+        ("    ratio: {numerator: revenue, denominator: revenue}\n", "ratio:"),
+        ('    agg: sum\n    expr: "amount"\n', "agg:, expr:"),
+    ],
+)
+def test_a_derived_metric_may_not_also_declare_another_shape(body: str, also: str) -> None:
+    """The emitter branches on `derived` first, so a second declaration is not
+    refused, not merged and not reported — it is dropped, and the metric quietly
+    means only half of what it says."""
+    leaf = one_violation(
+        "  two_shapes:\n"
+        "    additivity: non_additive\n"
+        + body
+        + "    derived:\n"
+        '      expr: "a"\n'
+        "      inputs: {a: {metric: revenue}}\n"
+    )
+
+    assert isinstance(leaf, InvalidMetricShape)
+    assert f"and also {also}" in str(leaf)
+
+
 # ....................... #
 # The expression against its inputs (RFC 0034 D1)
 
@@ -347,6 +371,8 @@ def _filtered(clause: str) -> str:
         # The RFC 0015 D5 carrier: `"50.5"` is how an exact decimal is written
         # in YAML, and it must not be read as an ill-typed string.
         '{dimension: amount, op: gte, values: ["50.5"]}',
+        # Exactly the declared precision and scale still fits.
+        '{dimension: amount, op: gte, values: ["12345678.1234"]}',
         "{dimension: amount, op: gte, values: [50]}",
         "{dimension: units, op: gte, values: [1]}",
         "{dimension: is_test, op: eq, values: [false]}",
@@ -376,6 +402,12 @@ def test_a_value_in_the_columns_own_type_compiles(clause: str) -> None:
         "{dimension: units, op: gte, values: [\"3\"]}",
         '{dimension: amount, op: gte, values: ["not a number"]}',
         "{dimension: status, op: eq, values: [1]}",
+        # A decimal the column cannot hold: `amount` is decimal(12, 4), so four
+        # fractional digits and eight integral ones. The literal is never cast
+        # (RFC 0013 D8), so a wider one reaches the engine as a number the
+        # column cannot represent.
+        '{dimension: amount, op: gte, values: ["1.12345"]}',
+        '{dimension: amount, op: gte, values: ["999999999.0"]}',
         # A temporal column takes an ISO carrier, not a number and not prose.
         "{dimension: sold_at, op: gte, values: [20240101]}",
         # ...and the carrier is *parsed*, not pattern-matched: these are the

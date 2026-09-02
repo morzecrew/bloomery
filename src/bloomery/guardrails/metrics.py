@@ -82,6 +82,35 @@ def _is_temporal(value: str, *, with_time: bool) -> bool:
     return True
 
 
+def _within(value: Decimal, declared: DecimalType) -> bool:
+    """Whether a decimal literal fits the column's declared ``(precision,
+    scale)``.
+
+    Finiteness alone let a 23-digit value through against a ``decimal(12,4)``
+    column, and the emitted literal is never cast (RFC 0013 D8) — so the
+    comparison reached the engine as a number the column cannot represent. Both
+    halves are checked: digits after the point beyond ``scale`` would be
+    silently rounded, and digits before it beyond ``precision - scale`` cannot
+    be stored at all.
+
+    Read through the exponent rather than through ``quantize``, which raises on
+    exactly the wide values this exists to reject, and without ``abs()``, which
+    rounds to the context's 28 digits.
+    """
+
+    exponent = value.as_tuple().exponent
+    if not isinstance(exponent, int):  # pragma: no cover — non-finite is refused above
+        return False
+
+    digits = len(value.as_tuple().digits)
+    integral = digits + min(exponent, 0)
+
+    return -exponent <= declared.scale and integral <= declared.precision - declared.scale
+
+
+# ....................... #
+
+
 def _fits(value: str | int | bool | Decimal, declared: LogicalType) -> bool:
     """Whether one filter value can be compared against a column of this type
     without a cast (RFC 0013 D8's rule, applied at compile time).
@@ -103,12 +132,11 @@ def _fits(value: str | int | bool | Decimal, declared: LogicalType) -> bool:
         return isinstance(value, int)
 
     if isinstance(declared, DecimalType):
-        if isinstance(value, (int, Decimal)):
-            return True
         try:
-            return Decimal(value).is_finite()
+            parsed = Decimal(value)
         except InvalidOperation:
             return False
+        return parsed.is_finite() and _within(parsed, declared)
 
     if isinstance(declared, StringType):
         return isinstance(value, str)
@@ -210,6 +238,29 @@ def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
             "metric has no measure of its own and a cumulative window accumulates one, "
             "so the two name mutually exclusive shapes (RFC 0034 D7). Fix: accumulate a "
             "simple metric, then derive from *it*"
+        )
+        violations.append(InvalidMetricShape(msg, source_path=path))
+
+    if metric.derived is not None and (
+        metric.ratio is not None or metric.agg is not None or metric.expr is not None
+    ):
+        # The emitter branches on `derived` first, so the other declaration is
+        # not refused, not merged and not reported — it is dropped, and the
+        # metric quietly means only half of what it says.
+        also = sorted(
+            name
+            for name, present in (
+                ("ratio:", metric.ratio is not None),
+                ("agg:", metric.agg is not None),
+                ("expr:", metric.expr is not None),
+            )
+            if present
+        )
+        msg = (
+            f"metric {metric.name!r} declares derived: and also {', '.join(also)}. A metric "
+            "has one shape: the emitter lowers the derived expression and silently discards "
+            "the rest, so the metric would mean less than it says (RFC 0034 D1). Fix: keep "
+            "the derivation, or drop it and keep the measure"
         )
         violations.append(InvalidMetricShape(msg, source_path=path))
 
