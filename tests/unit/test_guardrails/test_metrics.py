@@ -130,18 +130,28 @@ def test_a_derived_metric_declared_additive_is_refused() -> None:
     assert "no measure to aggregate" in str(leaf)
 
 
-def test_a_non_additive_cumulative_metric_is_refused() -> None:
+@pytest.mark.parametrize(
+    ("body", "because"),
+    [
+        (
+            "    additivity: non_additive\n"
+            "    ratio: {numerator: revenue, denominator: revenue}\n",
+            "is non_additive",
+        ),
+        # The second way to have nothing to accumulate, and the one that used to
+        # reach the emitter: an additive metric with no aggregation at all
+        # failed there as an `UnsupportedByTarget` in MetricFlow's vocabulary.
+        ("    additivity: additive\n", "declares neither agg: nor expr:"),
+    ],
+)
+def test_a_cumulative_metric_with_no_measure_is_refused(body: str, because: str) -> None:
     """There is nothing to accumulate: the additivity describes the measure and
     the window describes how it accumulates (D6)."""
-    leaf = one_violation(
-        "  hollow_mtd:\n"
-        "    additivity: non_additive\n"
-        "    ratio: {numerator: revenue, denominator: revenue}\n"
-        "    cumulative: {grain_to_date: month}\n"
-    )
+    leaf = one_violation("  hollow_mtd:\n" + body + "    cumulative: {grain_to_date: month}\n")
 
     assert isinstance(leaf, InvalidMetricShape)
-    assert "no measure" in str(leaf)
+    assert "no measure to accumulate" in str(leaf)
+    assert because in str(leaf)
 
 
 @pytest.mark.parametrize(

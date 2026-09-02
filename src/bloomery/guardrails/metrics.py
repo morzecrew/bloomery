@@ -180,6 +180,25 @@ def _check_filter(
 # ....................... #
 
 
+def _has_no_measure(metric: MetricIR) -> bool:
+    """Whether this metric has nothing of its own to aggregate.
+
+    Two ways to arrive there and the window is meaningless under both: a
+    non-additive metric is recomputed from components and never emits a
+    measure, and a metric with no ``agg:``/``expr:`` has no aggregation to
+    emit one from. The second reached the emitter before this, failing there as
+    an `UnsupportedByTarget` in MetricFlow's vocabulary rather than here in the
+    spec's — the stage argument D9 already makes for filters.
+    """
+
+    return metric.additivity is Additivity.NON_ADDITIVE or (
+        metric.agg is None and metric.expr is None
+    )
+
+
+# ....................... #
+
+
 def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
     """The metric's own declaration, read against itself (RFC 0034 D5–D7)."""
 
@@ -203,12 +222,17 @@ def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
         )
         violations.append(InvalidMetricShape(msg, source_path=path))
 
-    if metric.cumulative is not None and metric.additivity is Additivity.NON_ADDITIVE:
+    if metric.cumulative is not None and _has_no_measure(metric):
+        because = (
+            "is non_additive"
+            if metric.additivity is Additivity.NON_ADDITIVE
+            else "declares neither agg: nor expr:"
+        )
         msg = (
-            f"metric {metric.name!r} is cumulative: but non_additive, so it has no measure "
-            "to accumulate. The additivity describes the measure and the window describes "
-            "how it accumulates (RFC 0034 D6). Fix: declare the aggregation this "
-            "accumulates — agg:/expr: with an additive or semi_additive additivity"
+            f"metric {metric.name!r} is cumulative: but {because}, so it has no measure to "
+            "accumulate. The additivity describes the measure and the window describes how "
+            "it accumulates (RFC 0034 D6). Fix: declare the aggregation this accumulates — "
+            "agg:/expr: with an additive or semi_additive additivity"
         )
         violations.append(InvalidMetricShape(msg, source_path=path))
 
