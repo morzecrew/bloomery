@@ -175,8 +175,6 @@ def _seed_sources(database: pathlib.Path, fixture: str) -> None:
             for column in tree.find_all(exp.Column):
                 if column.name:
                     declared.setdefault(column.name, declared_type(column))
-    import duckdb  # local, as `_seed_sources` does: the driver is a test dep
-
     connection = duckdb.connect(str(database))
     try:
         for (namespace, relation), declared in sorted(columns.items()):
@@ -230,8 +228,6 @@ def test_the_build_would_notice_a_model_that_lands_in_the_wrong_schema(
     _seed_sources(database, "ecom_basic")
     (tmp_path / "macros/generate_schema_name.sql").unlink()
     assert _run(tmp_path, "build").success
-    import duckdb  # local, as `_seed_sources` does: the driver is a test dep
-
     connection = duckdb.connect(str(database))
     try:
         schemas = {
@@ -358,8 +354,6 @@ def _insert(database: pathlib.Path, rows: tuple[tuple[str, dict[str, object]], .
     a positional insert would silently depend on that, and on its ordering.
     """
     import duckdb
-
-    import duckdb  # local, as `_seed_sources` does: the driver is a test dep
 
     connection = duckdb.connect(str(database))
     try:
