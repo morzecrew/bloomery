@@ -240,6 +240,10 @@ junit-*.xml
 coverage-data/
 .envrc
 .claude/projects/
+# Repowise regenerates this on every index, so it churns on unrelated commits
+# and lands in whichever branch happens to be checked out. The skills beside it
+# stay committed — they are project conventions, this is derived state.
+.claude/CLAUDE.md
 
 # NOTE: rfcs/ is deliberately committed here — the RFC corpus is a deliverable.
 
