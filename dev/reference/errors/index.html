@@ -1761,7 +1761,8 @@ pulling in any pipeline stage.</p>
 │   ├── FanoutRisk
 │   ├── HistoricalFanout
 │   ├── NonAdditiveWithoutComponents
-│   ├── UnsupportedCumulative
+│   ├── InvalidMetricShape
+│   ├── MetricFilterInvalid
 │   ├── MartMissingTimeDimension
 │   ├── QuarantineRetentionMissing
 │   ├── DedupeTieBreakMissing
@@ -1917,9 +1918,14 @@ pulling in any pipeline stage.</p>
 <td>A non-additive metric with no ratio/additive decomposition to recompute from</td>
 </tr>
 <tr>
-<td><code>UnsupportedCumulative</code></td>
+<td><code>InvalidMetricShape</code></td>
 <td>guardrails</td>
-<td>A metric declaring <code>cumulative:</code> — reserved spec surface no stage lowers; compiled anyway it would aggregate per period instead of cumulatively</td>
+<td>A metric whose declaration contradicts itself — <code>derived:</code> beside <code>cumulative:</code>, a derived metric declared additive, a cumulative one with no measure to accumulate, or a derived expression referencing an alias its <code>inputs:</code> do not declare</td>
+</tr>
+<tr>
+<td><code>MetricFilterInvalid</code></td>
+<td>guardrails</td>
+<td>A metric <code>filter:</code> naming a dimension the carrying mart does not flatten, a date-role dimension, or a value that does not fit the column's declared type</td>
 </tr>
 <tr>
 <td><code>MartMissingTimeDimension</code></td>

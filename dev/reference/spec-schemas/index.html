@@ -1602,6 +1602,61 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#derivedspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        DerivedSpec
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metricinputspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        MetricInputSpec
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metricoffset" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        MetricOffset
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cumulativespec" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        CumulativeSpec
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metricfilter" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        MetricFilter
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#semiadditivepolicy" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2214,6 +2269,61 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#derivedspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        DerivedSpec
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metricinputspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        MetricInputSpec
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metricoffset" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        MetricOffset
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cumulativespec" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        CumulativeSpec
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metricfilter" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        MetricFilter
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#semiadditivepolicy" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2671,8 +2781,7 @@ relation, and a shared name makes the emitted predicate compare a column against
 </tbody>
 </table>
 <h3 id="metrictemplate">MetricTemplate<a class="headerlink" href="#metrictemplate" title="Permanent link">&para;</a></h3>
-<p>Same shape as a <a href="#metric">Metric</a> minus <code>template</code>/<code>cumulative</code>, with <code>additivity</code>
-required. A project metric that names it via <code>template:</code> merges values with the
+<p>Same shape as a <a href="#metric">Metric</a> minus <code>template</code>, with <code>additivity</code> required. A project metric that names it via <code>template:</code> merges values with the
 metric's own winning.</p>
 <h3 id="datedimension">DateDimension<a class="headerlink" href="#datedimension" title="Permanent link">&para;</a></h3>
 <table>
@@ -3535,7 +3644,19 @@ above is what carries the portability claim.</p>
 <td><code>cumulative</code></td>
 <td>CumulativeSpec</td>
 <td>no</td>
-<td>Reserved surface: exactly one of <code>window</code> / <code>grain_to_date</code>; parse-validated only</td>
+<td>Accumulate this metric's own measure over time</td>
+</tr>
+<tr>
+<td><code>derived</code></td>
+<td>DerivedSpec</td>
+<td>with <code>non_additive</code></td>
+<td>Compute the metric from other metrics, optionally read at an offset</td>
+</tr>
+<tr>
+<td><code>filter</code></td>
+<td>list of MetricFilter</td>
+<td>no (<code>[]</code>)</td>
+<td>Restrict the rows the metric aggregates; clauses are ANDed</td>
 </tr>
 </tbody>
 </table>
@@ -3558,6 +3679,183 @@ above is what carries the portability claim.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="derivedspec">DerivedSpec<a class="headerlink" href="#derivedspec" title="Permanent link">&para;</a></h3>
+<p>A metric with no measure of its own, computed by an expression over others. The
+alias is the mapping key rather than a field, because the expression references it.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>expr</code></td>
+<td>string</td>
+<td>yes</td>
+<td>Expression over the input aliases</td>
+</tr>
+<tr>
+<td><code>inputs</code></td>
+<td>map alias → MetricInputSpec</td>
+<td>yes (≥ 1)</td>
+<td>What each alias reads</td>
+</tr>
+</tbody>
+</table>
+<p>The expression must reference exactly the declared aliases — an unknown one and an
+unread one are both refused (<code>InvalidMetricShape</code>). The inputs are also the metric's
+dependency edges; they need not be repeated in <code>requires_metrics</code>.</p>
+<h3 id="metricinputspec">MetricInputSpec<a class="headerlink" href="#metricinputspec" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>metric</code></td>
+<td>metric name</td>
+<td>yes</td>
+<td>The metric this alias reads</td>
+</tr>
+<tr>
+<td><code>offset</code></td>
+<td>MetricOffset</td>
+<td>no</td>
+<td>How far back it is read</td>
+</tr>
+</tbody>
+</table>
+<h3 id="metricoffset">MetricOffset<a class="headerlink" href="#metricoffset" title="Permanent link">&para;</a></h3>
+<p>Exactly one of the two.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>window</code></td>
+<td><code>"&lt;count&gt; &lt;grain&gt;"</code></td>
+<td>one of</td>
+<td>A fixed distance back — <code>"1 year"</code>, <code>"7 days"</code></td>
+</tr>
+<tr>
+<td><code>to_grain</code></td>
+<td><code>day</code> | <code>week</code> | <code>month</code> | <code>quarter</code> | <code>year</code></td>
+<td>one of</td>
+<td>The start of the containing period</td>
+</tr>
+</tbody>
+</table>
+<h3 id="cumulativespec">CumulativeSpec<a class="headerlink" href="#cumulativespec" title="Permanent link">&para;</a></h3>
+<p>Exactly one of the two. The metric keeps its own <code>agg</code>/<code>expr</code> and its own
+<code>additivity</code> — those describe the measure, this describes how it accumulates, and
+a metric with neither <code>agg</code> nor <code>expr</code> has nothing to accumulate
+(<code>InvalidMetricShape</code>). <code>semi_additive</code> is refused here: its <code>over:</code> dimension is
+a date role and a window accumulates along that same axis.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>period_agg</code></td>
+<td><code>first</code> | <code>last</code> | <code>average</code></td>
+<td>no (<code>last</code>)</td>
+<td>How a request coarser than the accumulation collapses each period</td>
+</tr>
+</tbody>
+</table>
+<p><code>last</code> rather than MetricFlow's own <code>first</code>, and it is this project's only
+deliberate divergence from it: on a month totalling 257 a <code>grain_to_date: month</code>
+metric reported <strong>100</strong> under <code>first</code> — the running total on the first day, which
+is not month-to-date by any reading. The key exists so the default is a default
+rather than a decision taken from the author.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>window</code></td>
+<td><code>"&lt;count&gt; &lt;grain&gt;"</code></td>
+<td>one of</td>
+<td>A trailing window — <code>"7 days"</code></td>
+</tr>
+<tr>
+<td><code>grain_to_date</code></td>
+<td><code>day</code> | <code>week</code> | <code>month</code> | <code>quarter</code> | <code>year</code></td>
+<td>one of</td>
+<td>Accumulate from the start of each period</td>
+</tr>
+</tbody>
+</table>
+<h3 id="metricfilter">MetricFilter<a class="headerlink" href="#metricfilter" title="Permanent link">&para;</a></h3>
+<p>A typed predicate, never a SQL string: values are validated against the flattened
+column's declared logical type and are never cast.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dimension</code></td>
+<td>column name, <code>^[a-z][a-z0-9_]*$</code></td>
+<td>yes</td>
+<td>A <strong>categorical</strong> dimension of the mart carrying the metric</td>
+</tr>
+<tr>
+<td><code>op</code></td>
+<td><code>eq</code> | <code>ne</code> | <code>in</code> | <code>not_in</code> | <code>gt</code> | <code>gte</code> | <code>lt</code> | <code>lte</code> | <code>is_null</code></td>
+<td>yes</td>
+<td>Comparison</td>
+</tr>
+<tr>
+<td><code>values</code></td>
+<td>list of scalars</td>
+<td>per operator</td>
+<td>One for the comparisons, one bool for <code>is_null</code>, one or more for <code>in</code>/<code>not_in</code></td>
+</tr>
+</tbody>
+</table>
+<p>Deliberately narrower than the <a href="../../how-to/plan-a-metric-request/">query vocabulary</a>
+a <em>request</em> may use: no <code>like</code>/<code>ilike</code>, whose escape language and case-folding
+portability buy nothing where the author already knows the values. A date-role
+dimension is refused — a metric pinned to one period is a constant, and the time
+relation belongs in <code>cumulative:</code> or an <code>offset:</code>.</p>
+<p>The name is pattern-constrained where a member name elsewhere is not, and that is
+load-bearing rather than tidy: this is the one place a member name reaches a template
+that does not quote it — <code>{{ Dimension('&lt;entity&gt;__&lt;name&gt;') }}</code> on MetricFlow,
+<code>{CUBE}.&lt;name&gt;</code> on Cube. Every other field name reaches SQL through SQLGlot, which
+quotes it.</p>
 <h3 id="semiadditivepolicy">SemiAdditivePolicy<a class="headerlink" href="#semiadditivepolicy" title="Permanent link">&para;</a></h3>
 <table>
 <thead>

@@ -722,6 +722,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="MetricSet: measures and additivity classes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#metrics-over-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Metrics over time
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1650,6 +1667,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="MetricSet: measures and additivity classes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#metrics-over-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Metrics over time
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1922,6 +1956,66 @@ at query time is delegated to the embedded MetricFlow backend, which can express
 <code>last</code> and <code>first</code> semi-additive rules (<code>avg</code>/<code>max</code>/<code>min</code> raise <code>UnsupportedByTarget</code>
 naming the rule). The <a href="../guardrails/">guardrails</a> page walks the failure modes these
 classes prevent.</p>
+<h3 id="metrics-over-time">Metrics over time<a class="headerlink" href="#metrics-over-time" title="Permanent link">&para;</a></h3>
+<p>Three of the metric forms describe a metric in terms of something other than its own
+aggregation: two of them in terms of <em>time</em>, and one in terms of a subset of rows. The
+two time-shaped ones are resolved against the catalog's <code>date_dimension</code> — the time
+spine, which any project with marts already needs.</p>
+<p><strong>A derived metric is computed from other metrics</strong>, by an expression over aliased
+inputs. Each input may be read at an <code>offset:</code>, which is what makes period-over-period
+expressible: the interesting case names one metric twice.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">metrics</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">revenue_yoy</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">additivity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">non_additive</span>
+<span class="w">    </span><span class="nt">derived</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">expr</span><span class="p">:</span><span class="w"> </span><span class="s">"current</span><span class="nv"> </span><span class="s">-</span><span class="nv"> </span><span class="s">prior"</span>
+<span class="w">      </span><span class="nt">inputs</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">current</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="nv">revenue</span><span class="p p-Indicator">}</span>
+<span class="w">        </span><span class="nt">prior</span><span class="p">:</span><span class="w">   </span><span class="p p-Indicator">{</span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="nv">revenue</span><span class="p p-Indicator">,</span><span class="nt"> offset</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">window</span><span class="p">:</span><span class="w"> </span><span class="s">"1</span><span class="nv"> </span><span class="s">year"</span><span class="p p-Indicator">}}</span>
+</code></pre></div>
+<p>The offset's other form, <code>offset: {to_grain: month}</code>, is not a fixed distance back but
+the start of the containing period — each day against the first day of its own month.
+A derived metric is <code>non_additive</code> for the same reason a ratio is: it has no measure to
+store, and is recomputed from its inputs at the requested grain.</p>
+<p><strong>A cumulative metric accumulates its own measure</strong> over a trailing <code>window:</code> or from
+the start of a <code>grain_to_date:</code> period. It keeps its <code>agg</code>/<code>expr</code> and its additivity —
+those describe the measure, while <code>cumulative:</code> describes how the measure accumulates.</p>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="nt">revenue_mtd</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sale</span>
+<span class="w">    </span><span class="nt">additivity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">additive</span>
+<span class="w">    </span><span class="nt">agg</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sum</span>
+<span class="w">    </span><span class="nt">expr</span><span class="p">:</span><span class="w"> </span><span class="s">"amount"</span>
+<span class="w">    </span><span class="nt">cumulative</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">grain_to_date</span><span class="p">:</span><span class="w"> </span><span class="nv">month</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p><strong>A metric filter restricts the rows a metric aggregates</strong>, as typed clauses rather than
+a SQL string. <code>paid_revenue</code> is then a metric rather than a convention every caller has
+to remember; the filter is reported in the plan's explanation, so a restricted number is
+never presented as its unrestricted sibling.</p>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="nt">paid_revenue</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sale</span>
+<span class="w">    </span><span class="nt">additivity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">additive</span>
+<span class="w">    </span><span class="nt">agg</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sum</span>
+<span class="w">    </span><span class="nt">expr</span><span class="p">:</span><span class="w"> </span><span class="s">"amount"</span>
+<span class="w">    </span><span class="nt">filter</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">dimension</span><span class="p">:</span><span class="w"> </span><span class="nv">status</span><span class="p p-Indicator">,</span><span class="nt"> op</span><span class="p">:</span><span class="w"> </span><span class="nv">eq</span><span class="p p-Indicator">,</span><span class="nt"> values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">paid</span><span class="p p-Indicator">]}</span>
+</code></pre></div>
+<p>Two things are worth knowing before you write one. <strong>A cumulative metric requested at a
+grain coarser than it accumulates to has to collapse each period to one value</strong>, and
+<code>period_agg:</code> says how — <code>last</code> by default, so a <code>grain_to_date: month</code> metric asked for
+by month reports the accumulation at the month's end. That is a deliberate divergence from
+MetricFlow, whose default is <code>first</code>: on a month totalling 257 it reported 100, the
+running total on the first day, which is not month-to-date by any reading. Write
+<code>period_agg: first</code> (or <code>average</code>) to ask for something else. And <strong><code>cumulative:</code> on a
+<code>semi_additive</code> metric is refused</strong>:
+a semi-additive metric may not be summed along its <code>over:</code> dimension, which is always a
+date role, and a window accumulates along exactly that one — both lower, and the product
+is a number with no reading.</p>
+<p>What each construct is refused for, and by which error, is in
+<a href="../../reference/spec-schemas/#metric">spec schemas</a>. One target boundary is worth
+knowing up front: <strong>Cube expresses metric filters and refuses derived and cumulative
+metrics</strong> — it compares periods at query time (<code>compareDateRange</code>) rather than as a
+stored measure definition, and has no equivalent for <code>grain_to_date</code>. The MetricFlow
+manifest carries all four.</p>
 <h2 id="marts-the-fifth-spec-kind">Marts: the fifth spec kind<a class="headerlink" href="#marts-the-fifth-spec-kind" title="Permanent link">&para;</a></h2>
 <p>A project may also carry a <code>marts:</code> document declaring the gold layer: wide, pre-joined
 tables at a fixed grain, with dimensions flattened in at build time. Marts are the
