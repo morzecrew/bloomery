@@ -54,7 +54,12 @@ USING (
         TRY_CAST(raw ->> '$.properties' ->> '$.gift_note' AS TEXT) AS gift_note,
         TRY_CAST(raw ->> '$.position' AS BIGINT) AS line_no,
         TRY_CAST(raw ->> '$.order' ->> '$.id' AS TEXT) AS order_id,
-        TRY_CAST(raw ->> '$.created_at' AS TIMESTAMP) AS placed_at,
+        TRY_CAST(CASE
+          WHEN SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%+%'
+          OR SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%-%'
+          THEN NULL
+          ELSE REPLACE(REPLACE(CAST(raw ->> '$.created_at' AS TEXT), 'T', ' '), 't', ' ')
+        END AS TIMESTAMP) AS placed_at,
         TRY_CAST(raw ->> '$.quantity' AS BIGINT) AS quantity,
         TRY_CAST(raw ->> '$.variant' ->> '$.sku' AS TEXT) AS sku,
         CASE TRY_CAST(raw ->> '$.financial_status' AS TEXT)
@@ -87,7 +92,12 @@ USING (
             raw ->> '$.order' ->> '$.id'
           ) IS NULL
         ) AS _branch_order_id_coercible,
-        TRY_CAST(raw ->> '$.created_at' AS TIMESTAMP) IS NULL
+        TRY_CAST(CASE
+          WHEN SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%+%'
+          OR SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%-%'
+          THEN NULL
+          ELSE REPLACE(REPLACE(CAST(raw ->> '$.created_at' AS TEXT), 'T', ' '), 't', ' ')
+        END AS TIMESTAMP) IS NULL
         AND (
           NOT (
             raw ->> '$.created_at'
@@ -137,7 +147,12 @@ USING (
         CAST(NULL AS TEXT) AS gift_note,
         TRY_CAST(raw ->> '$.item_index' AS BIGINT) AS line_no,
         TRY_CAST(raw ->> '$.order_number' AS TEXT) AS order_id,
-        TRY_CAST(raw ->> '$.created' AS TIMESTAMP) AS placed_at,
+        TRY_CAST(CASE
+          WHEN SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%+%'
+          OR SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%-%'
+          THEN NULL
+          ELSE REPLACE(REPLACE(CAST(raw ->> '$.created' AS TEXT), 'T', ' '), 't', ' ')
+        END AS TIMESTAMP) AS placed_at,
         TRY_CAST(raw ->> '$.qty' AS BIGINT) AS quantity,
         TRY_CAST(raw ->> '$.product_sku' AS TEXT) AS sku,
         CASE TRY_CAST(raw ->> '$.state' AS TEXT)
@@ -163,7 +178,12 @@ USING (
             raw ->> '$.order_number'
           ) IS NULL
         ) AS _branch_order_id_coercible,
-        TRY_CAST(raw ->> '$.created' AS TIMESTAMP) IS NULL
+        TRY_CAST(CASE
+          WHEN SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%+%'
+          OR SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%-%'
+          THEN NULL
+          ELSE REPLACE(REPLACE(CAST(raw ->> '$.created' AS TEXT), 'T', ' '), 't', ' ')
+        END AS TIMESTAMP) IS NULL
         AND (
           NOT (
             raw ->> '$.created'
@@ -427,7 +447,12 @@ USING (
       TRY_CAST(raw ->> '$.properties' ->> '$.gift_note' AS TEXT) AS gift_note,
       TRY_CAST(raw ->> '$.position' AS BIGINT) AS line_no,
       TRY_CAST(raw ->> '$.order' ->> '$.id' AS TEXT) AS order_id,
-      TRY_CAST(raw ->> '$.created_at' AS TIMESTAMP) AS placed_at,
+      TRY_CAST(CASE
+        WHEN SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%-%'
+        THEN NULL
+        ELSE REPLACE(REPLACE(CAST(raw ->> '$.created_at' AS TEXT), 'T', ' '), 't', ' ')
+      END AS TIMESTAMP) AS placed_at,
       TRY_CAST(raw ->> '$.quantity' AS BIGINT) AS quantity,
       TRY_CAST(raw ->> '$.variant' ->> '$.sku' AS TEXT) AS sku,
       CASE TRY_CAST(raw ->> '$.financial_status' AS TEXT)
@@ -460,7 +485,12 @@ USING (
           raw ->> '$.order' ->> '$.id'
         ) IS NULL
       ) AS _branch_order_id_coercible,
-      TRY_CAST(raw ->> '$.created_at' AS TIMESTAMP) IS NULL
+      TRY_CAST(CASE
+        WHEN SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%-%'
+        THEN NULL
+        ELSE REPLACE(REPLACE(CAST(raw ->> '$.created_at' AS TEXT), 'T', ' '), 't', ' ')
+      END AS TIMESTAMP) IS NULL
       AND (
         NOT (
           raw ->> '$.created_at'
@@ -510,7 +540,12 @@ USING (
       CAST(NULL AS TEXT) AS gift_note,
       TRY_CAST(raw ->> '$.item_index' AS BIGINT) AS line_no,
       TRY_CAST(raw ->> '$.order_number' AS TEXT) AS order_id,
-      TRY_CAST(raw ->> '$.created' AS TIMESTAMP) AS placed_at,
+      TRY_CAST(CASE
+        WHEN SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%-%'
+        THEN NULL
+        ELSE REPLACE(REPLACE(CAST(raw ->> '$.created' AS TEXT), 'T', ' '), 't', ' ')
+      END AS TIMESTAMP) AS placed_at,
       TRY_CAST(raw ->> '$.qty' AS BIGINT) AS quantity,
       TRY_CAST(raw ->> '$.product_sku' AS TEXT) AS sku,
       CASE TRY_CAST(raw ->> '$.state' AS TEXT)
@@ -536,7 +571,12 @@ USING (
           raw ->> '$.order_number'
         ) IS NULL
       ) AS _branch_order_id_coercible,
-      TRY_CAST(raw ->> '$.created' AS TIMESTAMP) IS NULL
+      TRY_CAST(CASE
+        WHEN SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%-%'
+        THEN NULL
+        ELSE REPLACE(REPLACE(CAST(raw ->> '$.created' AS TEXT), 'T', ' '), 't', ' ')
+      END AS TIMESTAMP) IS NULL
       AND (
         NOT (
           raw ->> '$.created'

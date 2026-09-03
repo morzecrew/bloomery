@@ -65,3 +65,75 @@ def test_the_stored_value_is_the_utc_wall_clock() -> None:
         f"SELECT CAST(({_to_utc_sql('duckdb', 'placed_at')}) AS VARCHAR) AS v FROM t"
     ).fetchall()
     assert result[0][0].startswith("2026-01-06 22:30:00")
+
+
+def _iso_parse_sql(port_name: str, column: str) -> str:
+    """``parse_ts: ISO8601`` as it is emitted, RFC 0036's guard included."""
+    built = DEFAULT_REGISTRY["parse_ts"].builder(exp.column(column), "ISO8601")
+    return get_dialect(port_name).render(canon(built).ast())
+
+
+def test_the_offset_guard_refuses_an_offset_and_keeps_the_rest() -> None:
+    """RFC 0036 §2's table on DuckDB, executed rather than rendered.
+
+    Both directions from one table: the two offsets become NULL, and the
+    in-contract spellings keep the exact value they had. The second half is the
+    one worth running — a guard that refused something in contract would pass
+    every assertion written about the refusal.
+
+    The **lowercase** `t` is in the table for its own reason. DuckDB's cast
+    raises on `2026-01-06t12:00:00` — *Conversion Error: invalid timestamp
+    field format* — where PostgreSQL and Trino read it and ISO 8601 permits it,
+    so a bare entity aborted the run on it and a quality-carrying one
+    quarantined the row. This port normalizes both separators now, through the
+    same function Trino uses; without that, this row raises here rather than
+    returning a wrong value, which is why it belongs beside the offsets.
+    """
+    conn = duckdb.connect()
+    try:
+        expression = _iso_parse_sql("duckdb", "written")
+        seen = {}
+        for text in (
+            "2026-01-06T12:00:00",
+            "2026-01-06t12:00:00",
+            "2026-01-06 12:00:00",
+            "2026-01-06T12:00:00Z",
+            "2026-01-06T12:00:00+01:00",
+            "2026-01-06T12:00:00-05:00",
+        ):
+            row = conn.execute(
+                f"SELECT ({expression}) FROM (SELECT '{text}' AS written)"  # noqa: S608 — literals are ours
+            ).fetchone()
+            assert row is not None
+            seen[text] = str(row[0]) if row[0] is not None else None
+        assert seen == {
+            "2026-01-06T12:00:00": "2026-01-06 12:00:00",
+            "2026-01-06t12:00:00": "2026-01-06 12:00:00",
+            "2026-01-06 12:00:00": "2026-01-06 12:00:00",
+            "2026-01-06T12:00:00Z": "2026-01-06 12:00:00",
+            "2026-01-06T12:00:00+01:00": None,
+            "2026-01-06T12:00:00-05:00": None,
+        }
+    finally:
+        conn.close()
+
+
+def test_the_offset_guard_plans_over_a_bronze_column_that_is_not_text() -> None:
+    """The guard's window is cast because the marker does not only sit on a
+    transform chain: RFC 0016 D21's metadata audit puts it on `_ingested_at`,
+    which is whatever the project landed.
+
+    Executed rather than asserted on the rendered string, because the failure
+    this guards against is a *binder* error — `substring(TIMESTAMP, INTEGER)`
+    matches no function — and a rendering assertion cannot see it. It would
+    have refused to compile the audit rather than refuse the value, on the one
+    column no `coercible` rule can reach.
+    """
+    conn = duckdb.connect()
+    try:
+        conn.execute("CREATE TABLE bronze AS SELECT CAST('2026-01-06 09:00:00' AS TIMESTAMP) AS x")
+        row = conn.execute(f"SELECT ({_iso_parse_sql('duckdb', 'x')}) FROM bronze").fetchone()
+        assert row is not None
+        assert str(row[0]) == "2026-01-06 09:00:00"
+    finally:
+        conn.close()

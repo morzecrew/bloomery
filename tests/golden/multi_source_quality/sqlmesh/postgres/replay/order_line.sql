@@ -83,9 +83,29 @@ USING (
             THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.order') ->> 'id' AS TEXT)
           END AS order_id,
           CASE
-            WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at'), 'TIMESTAMP')
-            AND NOT LOWER(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at')) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-            THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS TIMESTAMP)
+            WHEN PG_INPUT_IS_VALID(
+              CASE
+                WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%+%'
+                OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%-%'
+                THEN NULL
+                ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created_at')
+              END,
+              'TIMESTAMP'
+            )
+            AND NOT LOWER(
+              CASE
+                WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%+%'
+                OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%-%'
+                THEN NULL
+                ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created_at')
+              END
+            ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+            THEN CAST(CASE
+              WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%+%'
+              OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%-%'
+              THEN NULL
+              ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created_at')
+            END AS TIMESTAMP)
           END AS placed_at,
           CASE
             WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.quantity'), 'BIGINT')
@@ -135,9 +155,29 @@ USING (
             NOT JSON_EXTRACT_PATH_TEXT(raw, '$.order') ->> 'id' IS NULL
           ) AS _branch_order_id_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at'), 'TIMESTAMP')
-            AND NOT LOWER(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at')) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-            THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS TIMESTAMP)
+            WHEN PG_INPUT_IS_VALID(
+              CASE
+                WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%+%'
+                OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%-%'
+                THEN NULL
+                ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created_at')
+              END,
+              'TIMESTAMP'
+            )
+            AND NOT LOWER(
+              CASE
+                WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%+%'
+                OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%-%'
+                THEN NULL
+                ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created_at')
+              END
+            ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+            THEN CAST(CASE
+              WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%+%'
+              OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%-%'
+              THEN NULL
+              ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created_at')
+            END AS TIMESTAMP)
           END IS NULL
           AND (
             NOT JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') IS NULL
@@ -205,9 +245,29 @@ USING (
             THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.order_number') AS TEXT)
           END AS order_id,
           CASE
-            WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.created'), 'TIMESTAMP')
-            AND NOT LOWER(JSON_EXTRACT_PATH_TEXT(raw, '$.created')) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-            THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS TIMESTAMP)
+            WHEN PG_INPUT_IS_VALID(
+              CASE
+                WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%+%'
+                OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%-%'
+                THEN NULL
+                ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created')
+              END,
+              'TIMESTAMP'
+            )
+            AND NOT LOWER(
+              CASE
+                WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%+%'
+                OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%-%'
+                THEN NULL
+                ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created')
+              END
+            ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+            THEN CAST(CASE
+              WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%+%'
+              OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%-%'
+              THEN NULL
+              ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created')
+            END AS TIMESTAMP)
           END AS placed_at,
           CASE
             WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.qty'), 'BIGINT')
@@ -249,9 +309,29 @@ USING (
             NOT JSON_EXTRACT_PATH_TEXT(raw, '$.order_number') IS NULL
           ) AS _branch_order_id_coercible,
           CASE
-            WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.created'), 'TIMESTAMP')
-            AND NOT LOWER(JSON_EXTRACT_PATH_TEXT(raw, '$.created')) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-            THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS TIMESTAMP)
+            WHEN PG_INPUT_IS_VALID(
+              CASE
+                WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%+%'
+                OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%-%'
+                THEN NULL
+                ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created')
+              END,
+              'TIMESTAMP'
+            )
+            AND NOT LOWER(
+              CASE
+                WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%+%'
+                OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%-%'
+                THEN NULL
+                ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created')
+              END
+            ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+            THEN CAST(CASE
+              WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%+%'
+              OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%-%'
+              THEN NULL
+              ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created')
+            END AS TIMESTAMP)
           END IS NULL
           AND (
             NOT JSON_EXTRACT_PATH_TEXT(raw, '$.created') IS NULL
@@ -534,9 +614,29 @@ USING (
         THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.order') ->> 'id' AS TEXT)
       END AS order_id,
       CASE
-        WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at'), 'TIMESTAMP')
-        AND NOT LOWER(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at')) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-        THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS TIMESTAMP)
+        WHEN PG_INPUT_IS_VALID(
+          CASE
+            WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%-%'
+            THEN NULL
+            ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created_at')
+          END,
+          'TIMESTAMP'
+        )
+        AND NOT LOWER(
+          CASE
+            WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%-%'
+            THEN NULL
+            ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created_at')
+          END
+        ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+        THEN CAST(CASE
+          WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%+%'
+          OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%-%'
+          THEN NULL
+          ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created_at')
+        END AS TIMESTAMP)
       END AS placed_at,
       CASE
         WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.quantity'), 'BIGINT')
@@ -586,9 +686,29 @@ USING (
         NOT JSON_EXTRACT_PATH_TEXT(raw, '$.order') ->> 'id' IS NULL
       ) AS _branch_order_id_coercible,
       CASE
-        WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at'), 'TIMESTAMP')
-        AND NOT LOWER(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at')) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-        THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS TIMESTAMP)
+        WHEN PG_INPUT_IS_VALID(
+          CASE
+            WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%-%'
+            THEN NULL
+            ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created_at')
+          END,
+          'TIMESTAMP'
+        )
+        AND NOT LOWER(
+          CASE
+            WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%-%'
+            THEN NULL
+            ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created_at')
+          END
+        ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+        THEN CAST(CASE
+          WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%+%'
+          OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') AS VARCHAR) FROM 11) LIKE '%-%'
+          THEN NULL
+          ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created_at')
+        END AS TIMESTAMP)
       END IS NULL
       AND (
         NOT JSON_EXTRACT_PATH_TEXT(raw, '$.created_at') IS NULL
@@ -656,9 +776,29 @@ USING (
         THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.order_number') AS TEXT)
       END AS order_id,
       CASE
-        WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.created'), 'TIMESTAMP')
-        AND NOT LOWER(JSON_EXTRACT_PATH_TEXT(raw, '$.created')) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-        THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS TIMESTAMP)
+        WHEN PG_INPUT_IS_VALID(
+          CASE
+            WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%-%'
+            THEN NULL
+            ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created')
+          END,
+          'TIMESTAMP'
+        )
+        AND NOT LOWER(
+          CASE
+            WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%-%'
+            THEN NULL
+            ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created')
+          END
+        ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+        THEN CAST(CASE
+          WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%+%'
+          OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%-%'
+          THEN NULL
+          ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created')
+        END AS TIMESTAMP)
       END AS placed_at,
       CASE
         WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.qty'), 'BIGINT')
@@ -700,9 +840,29 @@ USING (
         NOT JSON_EXTRACT_PATH_TEXT(raw, '$.order_number') IS NULL
       ) AS _branch_order_id_coercible,
       CASE
-        WHEN PG_INPUT_IS_VALID(JSON_EXTRACT_PATH_TEXT(raw, '$.created'), 'TIMESTAMP')
-        AND NOT LOWER(JSON_EXTRACT_PATH_TEXT(raw, '$.created')) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-        THEN CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS TIMESTAMP)
+        WHEN PG_INPUT_IS_VALID(
+          CASE
+            WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%-%'
+            THEN NULL
+            ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created')
+          END,
+          'TIMESTAMP'
+        )
+        AND NOT LOWER(
+          CASE
+            WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%-%'
+            THEN NULL
+            ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created')
+          END
+        ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+        THEN CAST(CASE
+          WHEN SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%+%'
+          OR SUBSTRING(CAST(JSON_EXTRACT_PATH_TEXT(raw, '$.created') AS VARCHAR) FROM 11) LIKE '%-%'
+          THEN NULL
+          ELSE JSON_EXTRACT_PATH_TEXT(raw, '$.created')
+        END AS TIMESTAMP)
       END IS NULL
       AND (
         NOT JSON_EXTRACT_PATH_TEXT(raw, '$.created') IS NULL

@@ -1,0 +1,19 @@
+# `direct:` on a merged entity (RFC 0024 D36, answering D28): the path-conflict
+# fixture with a second shop unioned in. Both shops derive `net_price` from a
+# line total and both also carry it directly — at *different* paths, which is
+# the whole point: the shadow one branch projects has to be that branch's own
+# extraction, off a relation the other branch's path need not exist on.
+#
+# The key is composite for the same reason `multi_source`'s is: a generated
+# check that dropped a component would pass against a single-column key while
+# merging distinct composite keys.
+spec_version: 1
+entities:
+  item:
+    grain: one row per item on an order, across both shops
+    key: [order_id, line_no]
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      net_price: {type: "decimal(12,4)", canonical: net_price}
+      quantity: {type: int, canonical: quantity}

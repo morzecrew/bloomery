@@ -12,7 +12,12 @@ SELECT
   CAST(index AS BIGINT) AS line_no,
   CAST(AT_TIMEZONE(
     WITH_TIMEZONE(
-      CAST(REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ') AS TIMESTAMP),
+      CAST(CASE
+        WHEN SUBSTR(CAST(created_at AS VARCHAR), 11) LIKE '%+%'
+        OR SUBSTR(CAST(created_at AS VARCHAR), 11) LIKE '%-%'
+        THEN NULL
+        ELSE REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ')
+      END AS TIMESTAMP),
       'Europe/Paris'
     ),
     'UTC'

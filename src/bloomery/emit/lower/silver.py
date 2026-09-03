@@ -159,45 +159,6 @@ def reject_relation(entity: EntityIR) -> str:
 # ....................... #
 
 
-def _sole_source(entity: EntityIR, feature: str) -> SourceIR:
-    """The entity's one source, for a surface that has no merged form.
-
-    The reject projection, the replay merge, the conservation audit and the
-    quality mart are all built from compile-time literals off *the* mapping —
-    its relation, its version — and from ``_source_row_id``, which is unique
-    within one source relation (RFC 0016 D21). RFC 0024 D14 refuses ``dedupe:``
-    and ``quarantine:`` on a merged entity for exactly that reason.
-
-    Those two blocks are **not** the emission condition for every caller,
-    which is how this raised for a project the resolver admitted: a
-    ``reconcile:`` naming a merged entity emits a quality mart with no
-    ``dedupe:`` or ``quarantine:`` anywhere, and reached here to fail as an
-    internal assertion on SQLMesh while Cube compiled the same project.
-    The guardrail stage now refuses that side (see
-    :func:`bloomery.guardrails.quality._resolve_side`), so the invariant holds
-    again — but it holds because three refusals cover the callers, not because
-    two do.
-
-    This stays because the alternative spelling — ``entity.sources[0]`` —
-    reads as a choice among N and would quietly become one on the day P2
-    lifts D14.
-    """
-
-    if len(entity.sources) != 1:
-        msg = (
-            f"{feature} on entity {entity.name!r} was built from "
-            f"{len(entity.sources)} sources; it is defined for one (RFC 0024 D14 refuses "
-            "the blocks that emit it on a merged entity, so this is a resolver "
-            "invariant that has stopped holding)"
-        )
-        raise EmitError(msg)
-
-    return entity.sources[0]
-
-
-# ....................... #
-
-
 def _arrays(ctx: EmitContext) -> bool:
     return ctx.dialect.supports(DialectFeature.ARRAY)
 

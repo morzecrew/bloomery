@@ -1296,22 +1296,152 @@ def _merge_refusals(
         )
         errors.append(ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.scd"))
 
-    for mapping in mappings:
-        doc = mapping_doc(mapping)
-        for field_name in sorted(mapping.fields):
-            field_mapping = mapping.fields[field_name]
-            if not isinstance(field_mapping, RecipeFieldMapping) or field_mapping.direct is None:
-                continue
-            msg = (
-                f"entity {entity_name!r} is built from {count} mappings and this one records "
-                f"a direct: path for {field_name!r}. 'direct:' is per mapping, so a merged "
-                f"entity can have one on this source and none on another — which leaves the "
-                f"'{field_name}__direct' shadow NULL for the other's rows, indistinguishable "
-                "from a genuinely NULL direct value, and the reconcile audit either reports a "
-                "false disagreement or silently stops checking (RFC 0024 D28). Fix: drop "
-                "'direct:' while the entity is merged"
+    errors.extend(_direct_agreement_refusals(entity_name, mappings))
+
+    return errors
+
+
+# ....................... #
+
+
+def _direct_path(mapping: Mapping, field_name: str) -> str | None:
+    """The ``direct:`` path this mapping records for ``field_name``, if any.
+
+    ``None`` covers three cases, and they are the same answer to D36's
+    question — this branch contributes no shadow: the mapping recorded no
+    path, it lowered the column with a plain ``from:``, or it lowered the
+    column under ``key:``. Only :class:`RecipeFieldMapping` carries ``direct``
+    at all, which is why the last two cannot record one.
+    """
+    field_mapping = mapping.fields.get(field_name)
+
+    if not isinstance(field_mapping, RecipeFieldMapping):
+        return None
+
+    return field_mapping.direct
+
+
+# ....................... #
+
+
+def _reachable_direct(mapping: Mapping, field_name: str) -> bool:
+    """Whether this mapping *could* record a ``direct:`` path for the column.
+
+    Only where it already lowers it as a recipe. A plain ``from:`` mapping
+    would have to gain a ``recipe:`` first — ``direct:`` is the path-conflict
+    state and there is no conflict without a derivation (RFC 0006 §5.5) — and
+    a column lowered under ``key:`` cannot carry one at all, since
+    :class:`~bloomery.spec.mapping.KeyFieldMapping` has no such key. The
+    refusal below reads this so that it offers each mapping a fix it can
+    actually perform.
+    """
+
+    return isinstance(mapping.fields.get(field_name), RecipeFieldMapping)
+
+
+# ....................... #
+
+
+def _direct_agreement_refusals(
+    entity_name: str, mappings: tuple[Mapping, ...]
+) -> list[ResolutionError]:
+    """Every mapping that produces the column records a ``direct:`` path, or
+    none does (RFC 0024 D36).
+
+    D28 refused the combination outright. What it argued from was real and is
+    what this preserves: a shadow NULL for one branch's rows is
+    indistinguishable from a genuinely NULL direct value, so the reconcile
+    audit either reports a false disagreement or quietly stops checking — the
+    failure mode this project ranks worst, a check that stops checking. Under
+    agreement no branch's shadow is NULL for want of a path, so the audit keeps
+    the meaning it has on one source: the recipe-derived value against the
+    direct value *that row's own mapping* extracted (D32's principle, applied
+    to a second reader).
+
+    **Scoped to the mappings that produce the column**, like
+    :func:`_rule_agreement_refusals` and for the same reason: §5.2 rule 3 lets
+    a source omit an optional field and fills it with a typed NULL. A branch
+    that maps nothing for the field derives nothing, so there is nothing for a
+    shadow to disagree with, and requiring a path there would be unfixable —
+    ``direct:`` is a key of a *field mapping*, and that mapping does not exist.
+
+    No ``len(mappings) < 2`` guard, unlike :func:`_rule_agreement_refusals`
+    beside it: the caller returns before reaching either, so that guard is
+    unreachable in both — and here it would also be redundant, since one
+    mapping cannot be in ``recording`` and ``silent`` at once and the loop
+    finds nothing to report.
+    """
+    errors: list[ResolutionError] = []
+    fields = sorted({name for mapping in mappings for name in _produced(mapping)})
+
+    for field_name in fields:
+        # ``_produced``, not ``mapping.fields``: ``resolve.refs`` lets a mapping
+        # lower a *declared non-key* entity field under ``key:`` (it refuses
+        # only an undeclared name, and the same field under both blocks), so a
+        # column can be produced by one branch's ``fields:`` and another's
+        # ``key:``. Scoped to ``fields`` alone, that second branch is invisible
+        # here, ``_fill`` gives it a typed NULL shadow, and the blocking
+        # reconcile audit reports every one of its rows as a disagreement —
+        # a false refusal on correct data. The sibling ``_produced`` has
+        # always meant key ∪ fields; reading it here is what keeps the two
+        # agreement checks scoped the same way.
+        producing = [mapping for mapping in mappings if field_name in _produced(mapping)]
+        recording = [m for m in producing if _direct_path(m, field_name) is not None]
+        silent = [m for m in producing if _direct_path(m, field_name) is None]
+
+        if not recording or not silent:
+            continue
+
+        named = ", ".join(sorted(mapping_doc(mapping) for mapping in silent))
+        witness = min(recording, key=lambda mapping: mapping.source)
+        # The fix each silent mapping can perform, which is not the same one.
+        # Only a recipe mapping can record a ``direct:`` path — it is the
+        # path-conflict state and there is no conflict without a derivation
+        # (RFC 0006 §5.5) — so a column lowered under ``key:`` or by a plain
+        # ``from:`` names a key that block does not have.
+        #
+        # Where *any* silent mapping is of that kind, adding paths to the
+        # others is not a fix: the refusal fires while a single silent
+        # producer remains, so removing the paths is the only thing that
+        # resolves it. The message says which mappings could take one anyway —
+        # omitting them made the "lower it without a recipe" clause false
+        # about mappings that do have one.
+        #
+        # **Every** recording mapping is named on the removal side, not just
+        # the witness. The refusal is over the whole entity, so dropping one
+        # mapping's path while another still declares one leaves it firing on
+        # the next compile — a remedy an author can follow to the letter and
+        # arrive back here. The witness stays the ``source_path``, which is a
+        # cursor position and has to be one document.
+        addable = sorted(mapping_doc(m) for m in silent if _reachable_direct(m, field_name))
+        blocked = sorted(mapping_doc(m) for m in silent if not _reachable_direct(m, field_name))
+        recorded = ", ".join(sorted(mapping_doc(m) for m in recording))
+        if not blocked:
+            remedy = (
+                f"record a direct: path for {field_name!r} in {', '.join(addable)} too, or "
+                f"drop it from {recorded}"
             )
-            errors.append(ResolutionError(msg, source_path=f"{doc}: fields.{field_name}.direct"))
+        else:
+            remedy = (
+                f"drop 'direct:' from {recorded}. {', '.join(blocked)} "
+                f"lower{'' if len(blocked) > 1 else 's'} {field_name!r} without a recipe "
+                "(under 'key:', or as a plain 'from:') and only a recipe mapping can record "
+                "a direct: path, so this stays refused while any such path is there"
+            )
+            if addable:
+                remedy += f" — giving {', '.join(addable)} one as well would not lift it"
+        msg = (
+            f"entity {entity_name!r} is built from {len(mappings)} mappings and only "
+            f"{len(recording)} of the {len(producing)} that produce {field_name!r} record a "
+            f"direct: path for it. 'direct:' is per mapping, so this leaves the "
+            f"'{field_name}__direct' shadow NULL for the rows of {named}, indistinguishable "
+            "from a genuinely NULL direct value, and the reconcile audit either reports a "
+            "false disagreement or silently stops checking (RFC 0024 D36, answering D28). "
+            f"Fix: {remedy}"
+        )
+        errors.append(
+            ResolutionError(msg, source_path=f"{mapping_doc(witness)}: fields.{field_name}.direct")
+        )
 
     return errors
 
@@ -1359,6 +1489,65 @@ def _validity_collisions(entity_name: str, entity: Entity) -> list[ResolutionErr
         "entity scd: type1"
     )
     return [ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.fields")]
+
+
+# ....................... #
+
+
+#: What the path-conflict guardrail appends to a field's name for its shadow
+#: (RFC 0006 §5.5, D7). Declared here rather than imported from
+#: ``guardrails.conflict`` because the refusal below runs one stage earlier —
+#: ``guardrails`` sits under ``resolve``, and the shadow does not exist yet
+#: when the collision has to be refused. Both spellings are pinned together by
+#: ``test_the_shadow_suffix_is_the_one_the_guardrail_appends``.
+DIRECT_SUFFIX = "__direct"
+
+
+def _shadow_collisions(
+    entity_name: str, entity: Entity, mappings: tuple[Mapping, ...]
+) -> list[ResolutionError]:
+    """No authored field may occupy the name a ``direct:`` path's shadow takes.
+
+    The guardrail stage adds ``<field>__direct`` beside a field that records
+    both a recipe and a direct path, and it adds it only when the entity does
+    not already carry a column of that name — an ordinary guard against
+    amending the same entity twice (the stage is idempotent by contract). With
+    an *authored* column of that name the two coincide: the shadow is dropped
+    as already present, the reconcile audit is emitted anyway, and it compares
+    the derived value against a column the author mapped from somewhere else
+    entirely. That audit is blocking, so the result is a run stopped by a
+    comparison nobody asked for, with nothing anywhere naming the collision.
+
+    Conditional rather than a name reserved everywhere, for
+    :func:`_validity_collisions`' reason: ``price__direct`` is a perfectly good
+    business column on an entity where ``price`` records no ``direct:`` path,
+    and refusing it there would cost a real name to prevent nothing.
+    """
+    recording = {
+        field_name
+        for mapping in mappings
+        for field_name in mapping.fields
+        if _direct_path(mapping, field_name) is not None
+    }
+    collisions = sorted(
+        (field_name, f"{field_name}{DIRECT_SUFFIX}")
+        for field_name in recording
+        if f"{field_name}{DIRECT_SUFFIX}" in entity.fields
+    )
+
+    return [
+        ResolutionError(
+            f"entity {entity_name!r} declares a field {shadow!r} and records a direct: path "
+            f"for {field_name!r}, whose shadow column takes that same name (RFC 0006 §5.5). "
+            "The generated shadow would be dropped as already present while the reconcile "
+            f"audit still reads {shadow!r}, so the audit would compare {field_name!r} against "
+            "the authored column — and it is blocking, so it stops the run on a comparison "
+            f"nobody declared. Fix: rename the {shadow!r} field, or drop 'direct:' from "
+            f"{field_name!r}",
+            source_path=f"entity_model: entities.{entity_name}.fields.{shadow}",
+        )
+        for field_name, shadow in collisions
+    ]
 
 
 # ....................... #
@@ -1621,6 +1810,11 @@ def _build_entities(
                 steps,
             ),
             *_validity_collisions(entity_name, project.entity_model.entities[entity_name]),
+            *_shadow_collisions(
+                entity_name,
+                project.entity_model.entities[entity_name],
+                grouped[entity_name],
+            ),
         )
     ]
 

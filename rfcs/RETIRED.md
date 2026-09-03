@@ -78,6 +78,7 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0031 | Lineage | `bcae31d` |
 | 0032 | Mapping identity | `3f7b574` |
 | 0034 | Metrics over time | `6b71926` |
+| 0035 | The reject table on a merged entity | `8287f75` |
 
 ## Not in the table
 

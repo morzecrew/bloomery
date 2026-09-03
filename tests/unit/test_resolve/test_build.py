@@ -21,6 +21,7 @@ from bloomery.ir import (
     UnreachableMetric,
 )
 from bloomery.quality import dedupe_sort_columns
+from bloomery.resolve.build import DIRECT_SUFFIX
 from bloomery.typing import DecimalType, StringType, TimestampType
 from support.compiling import load_fixture
 
@@ -676,11 +677,14 @@ def test_a_mapping_lowering_a_partial_key_is_refused() -> None:
 
 
 def test_a_direct_path_is_refused_on_a_merged_entity() -> None:
-    """RFC 0024 D28. `direct:` is per mapping, so a merged entity can have one
-    on one source and none on another — which leaves the shadow NULL for the
-    other's rows, indistinguishable from a genuinely NULL direct value, and the
-    reconcile audit either reports a false disagreement or quietly stops
-    checking."""
+    """RFC 0024 D36, answering D28. `direct:` is per mapping, so a merged
+    entity can have one on one source and none on another — which leaves the
+    shadow NULL for the other's rows, indistinguishable from a genuinely NULL
+    direct value, and the reconcile audit either reports a false disagreement
+    or quietly stops checking.
+
+    D36 lifted the blanket refusal and kept this one: what is refused is
+    *disagreement*, and the fixture below is the disagreeing shape."""
     sources = _merge_sources(
         entity_model="""\
 spec_version: 1
@@ -727,8 +731,397 @@ canonical_fields:
     with pytest.raises(ResolutionError) as excinfo:
         build_project_ir(load_project(sources), catalog)
     message = str(excinfo.value)
-    assert "RFC 0024 D28" in message
+    assert "RFC 0024 D36" in message
     assert "kind__direct" in message
+    # Both documents named: the one that must gain a path and the one that
+    # could drop it, because either is a fix and the author picks.
+    assert "mapping[src_z->event]" in message
+    assert "mapping[src_a->event]" in message
+
+
+def test_a_direct_path_agreed_by_every_mapping_is_accepted() -> None:
+    """RFC 0024 D36's other half, and the one a refusal test cannot reach: an
+    agreeing merge compiles, and each branch projects **its own** path.
+
+    Without this the D36 change would pass its suite by refusing everything,
+    which is what the pre-D36 code already did.
+    """
+    sources = _merge_sources(
+        entity_model="""\
+spec_version: 1
+entities:
+  event:
+    grain: one row per event
+    key: [event_id]
+    fields:
+      event_id: {type: string, required: true}
+      kind: {type: string, canonical: kind}
+""",
+        mapping_z="""\
+mapping_version: 1
+source: src_a
+target: event
+key:
+  event_id: {from: "$.identifier", transform: [to_string]}
+fields:
+  kind:
+    recipe: passthrough
+    from: {value: "$.type"}
+    direct: "$.kind_a"
+""",
+        mapping_a="""\
+mapping_version: 1
+source: src_z
+target: event
+key:
+  event_id: {from: "$.id", transform: [to_string]}
+fields:
+  kind:
+    recipe: passthrough
+    from: {value: "$.kind"}
+    direct: "$.kind_z"
+""",
+    )
+    catalog = load_catalog("""\
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  kind:
+    entity: event
+    type: string
+    recipes:
+      - {id: passthrough, requires: [value], expr: "value"}
+""")
+    ir = build_project_ir(load_project(sources), catalog)
+    (entity,) = ir.entities
+    assert "kind__direct" in {column.name for column in entity.columns}
+    lowered = {
+        source.relation: next(
+            column for column in source.columns if column.name == "kind__direct"
+        ).expr.sql
+        for source in entity.sources
+    }
+    assert lowered == {"src_a": "CAST(kind_a AS TEXT)", "src_z": "CAST(kind_z AS TEXT)"}
+
+
+def test_a_key_lowered_column_counts_as_producing_it() -> None:
+    """RFC 0024 D36. `resolve.refs` lets a mapping lower a **declared non-key**
+    entity field under `key:` — it refuses only an undeclared name, and the
+    same field under both blocks — so a column can be produced by one branch's
+    `fields:` and another's `key:`.
+
+    Scoped to `fields:` alone the second branch is invisible to the agreement
+    check, `_fill` hands it a typed NULL shadow, and the blocking reconcile
+    audit reports every one of its rows as a disagreement: a false refusal on
+    correct data, which is the worst failure a generated check has.
+    """
+    sources = _merge_sources(
+        entity_model="""\
+spec_version: 1
+entities:
+  item:
+    grain: one row per item
+    key: [item_id]
+    fields:
+      item_id: {type: string, required: true}
+      net_price: {type: "decimal(12,4)", canonical: net_price}
+""",
+        mapping_z="""\
+mapping_version: 1
+source: src_a
+target: item
+key:
+  item_id: {from: "$.id", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.total", quantity: "$.qty"}
+    direct: "$.price"
+""",
+        mapping_a="""\
+mapping_version: 1
+source: src_z
+target: item
+key:
+  item_id: {from: "$.identifier", transform: [to_string]}
+  net_price: {from: "$.unit_price", transform: [{to_decimal: [12, 4]}]}
+""",
+    )
+    catalog = load_catalog("""\
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  net_price:
+    entity: item
+    type: decimal(12,4)
+    recipes:
+      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+""")
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources), catalog)
+    message = str(excinfo.value)
+    assert "RFC 0024 D36" in message
+    # The fix has to be one the silent mapping can perform: a `key:` block has
+    # no `direct` key, so "record a direct: path there too" names nothing.
+    assert "only a recipe mapping can record a direct: path" in message
+    assert "record a direct: path for 'net_price' in" not in message
+
+
+def test_a_mixed_silent_set_names_what_each_mapping_can_actually_do() -> None:
+    """Three mappings: one records a `direct:` path, one lowers the column with
+    a recipe and no path, one lowers it under `key:`.
+
+    The middle mapping *could* take a path and the last one could not, so a
+    message saying "the other mappings lower it without a recipe" is false
+    about the middle one. And adding a path there would not lift the refusal —
+    it fires while a single silent producer remains — so the only complete fix
+    is still dropping the witness's path. The message has to say both.
+    """
+    sources = {
+        "entity_model": """\
+spec_version: 1
+entities:
+  item:
+    grain: one row per item
+    key: [item_id]
+    fields:
+      item_id: {type: string, required: true}
+      net_price: {type: "decimal(12,4)", canonical: net_price}
+""",
+        "mapping_a": """\
+mapping_version: 1
+source: src_a
+target: item
+key:
+  item_id: {from: "$.id", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.total", quantity: "$.qty"}
+    direct: "$.price"
+""",
+        "mapping_b": """\
+mapping_version: 1
+source: src_b
+target: item
+key:
+  item_id: {from: "$.ident", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.gross", quantity: "$.units"}
+""",
+        "mapping_c": """\
+mapping_version: 1
+source: src_c
+target: item
+key:
+  item_id: {from: "$.identifier", transform: [to_string]}
+  net_price: {from: "$.unit_price", transform: [{to_decimal: [12, 4]}]}
+""",
+    }
+    catalog = load_catalog("""\
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  net_price:
+    entity: item
+    type: decimal(12,4)
+    recipes:
+      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+""")
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources), catalog)
+    message = str(excinfo.value)
+    # The one that cannot take a path is named as the reason, and the one that
+    # could is named as the thing that would not help.
+    assert "mapping[src_c->item] lowers 'net_price' without a recipe" in message
+    assert "giving mapping[src_b->item] one as well would not lift it" in message
+    assert "drop 'direct:' from mapping[src_a->item]" in message
+
+
+def test_the_removal_remedy_names_every_recording_mapping() -> None:
+    """Two mappings record a `direct:` path and a third does not.
+
+    The refusal is over the whole entity, so dropping one mapping's path while
+    another still declares one leaves it firing on the next compile — a remedy
+    an author can follow to the letter and arrive back at the same error. The
+    `source_path` stays one document, because a cursor position is one place.
+    """
+    sources = {
+        "entity_model": """\
+spec_version: 1
+entities:
+  item:
+    grain: one row per item
+    key: [item_id]
+    fields:
+      item_id: {type: string, required: true}
+      net_price: {type: "decimal(12,4)", canonical: net_price}
+""",
+        "mapping_a": """\
+mapping_version: 1
+source: src_a
+target: item
+key:
+  item_id: {from: "$.id", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.total", quantity: "$.qty"}
+    direct: "$.price"
+""",
+        "mapping_b": """\
+mapping_version: 1
+source: src_b
+target: item
+key:
+  item_id: {from: "$.ident", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.gross", quantity: "$.units"}
+    direct: "$.unit_amount"
+""",
+        "mapping_c": """\
+mapping_version: 1
+source: src_c
+target: item
+key:
+  item_id: {from: "$.identifier", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.amount", quantity: "$.count"}
+""",
+    }
+    catalog = load_catalog("""\
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  net_price:
+    entity: item
+    type: decimal(12,4)
+    recipes:
+      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+""")
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources), catalog)
+    message = str(excinfo.value)
+    assert "drop it from mapping[src_a->item], mapping[src_b->item]" in message
+    assert excinfo.value.source_path == "mapping[src_a->item]: fields.net_price.direct"
+
+
+def test_a_field_occupying_the_shadow_name_is_refused() -> None:
+    """RFC 0006 §5.5. The guardrail adds `<field>__direct` only when the entity
+    does not already carry that column — an idempotence guard — so an
+    *authored* column of that name silently takes the shadow's place while the
+    reconcile audit goes on referencing it.
+
+    The audit then compares the derived value against a column the author
+    mapped from somewhere else, and it is blocking, so the run stops on a
+    comparison nobody declared.
+    """
+    sources = {
+        "entity_model": """\
+spec_version: 1
+entities:
+  item:
+    grain: one row per item
+    key: [item_id]
+    fields:
+      item_id: {type: string, required: true}
+      net_price: {type: "decimal(12,4)", canonical: net_price}
+      net_price__direct: {type: "decimal(12,4)"}
+""",
+        "mapping": """\
+mapping_version: 1
+source: shop__items
+target: item
+key:
+  item_id: {from: "$.id", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.total", quantity: "$.qty"}
+    direct: "$.price"
+  net_price__direct: {from: "$.something_else", transform: [{to_decimal: [12, 4]}]}
+""",
+    }
+    catalog = load_catalog("""\
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  net_price:
+    entity: item
+    type: decimal(12,4)
+    recipes:
+      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+""")
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources), catalog)
+    message = str(excinfo.value)
+    assert "net_price__direct" in message
+    assert "RFC 0006 §5.5" in message
+
+
+def test_a_shadow_name_without_a_direct_path_stays_legal() -> None:
+    """The other half: the refusal is conditional, like the validity-column one
+    beside it. `price__direct` is a perfectly good business column on an entity
+    where `price` records no `direct:` path, and reserving the suffix
+    everywhere would cost a real name to prevent nothing."""
+    sources = {
+        "entity_model": """\
+spec_version: 1
+entities:
+  item:
+    grain: one row per item
+    key: [item_id]
+    fields:
+      item_id: {type: string, required: true}
+      net_price: {type: "decimal(12,4)"}
+      net_price__direct: {type: "decimal(12,4)"}
+""",
+        "mapping": """\
+mapping_version: 1
+source: shop__items
+target: item
+key:
+  item_id: {from: "$.id", transform: [to_string]}
+fields:
+  net_price: {from: "$.total", transform: [{to_decimal: [12, 4]}]}
+  net_price__direct: {from: "$.price", transform: [{to_decimal: [12, 4]}]}
+""",
+    }
+    ir = build_project_ir(load_project(sources))
+    (entity,) = ir.entities
+    assert {column.name for column in entity.columns} == {
+        "item_id",
+        "net_price",
+        "net_price__direct",
+    }
+    assert entity.audits == ()
+
+
+def test_the_shadow_suffix_is_the_one_the_guardrail_appends() -> None:
+    """`resolve.build` names the collision one stage before `guardrails`
+    creates it — `guardrails` sits under `resolve`, so the constant cannot be
+    imported from where it is used. Two spellings of one string is how a
+    refusal comes to guard a name nothing generates."""
+    from bloomery.guardrails.conflict import _shadow_column  # noqa: PLC0415
+    from bloomery.ir import ColumnIR  # noqa: PLC0415
+    from bloomery.typing import StringType  # noqa: PLC0415
+
+    column = ColumnIR(
+        name="net_price",
+        type=StringType(),
+        canonical=None,
+        unit=None,
+        tax_basis=None,
+        renamed_from=None,
+        required=False,
+    )
+    assert _shadow_column(column).name == f"net_price{DIRECT_SUFFIX}"
 
 
 def test_scd_type2_is_refused_on_a_merged_entity() -> None:

@@ -168,7 +168,47 @@ def test_a_port_that_strips_the_marker_renders_normally() -> None:
         exp.Anonymous(this="BLM_ISO_TEXT", expressions=[exp.column("x")]),
         exp.DataType.build("TIMESTAMP"),
     )
-    assert _Careful().render(node) == "CAST(x AS TIMESTAMP)"
+    assert _Careful().render(node) == (
+        "CAST(CASE\n"
+        "  WHEN SUBSTRING(CAST(x AS TEXT), 11) LIKE '%+%'\n"
+        "  OR SUBSTRING(CAST(x AS TEXT), 11) LIKE '%-%'\n"
+        "  THEN NULL\n"
+        "  ELSE x\n"
+        "END AS TIMESTAMP)"
+    )
+
+
+@pytest.mark.parametrize(
+    ("dialect", "window"),
+    [
+        (DuckDBDialect(), "SUBSTRING(CAST(_ingested_at AS TEXT), 11)"),
+        (PostgresDialect(), "SUBSTRING(CAST(_ingested_at AS VARCHAR) FROM 11)"),
+        (TrinoDialect(), "SUBSTR(CAST(_ingested_at AS VARCHAR), 11)"),
+    ],
+    ids=lambda value: getattr(value, "name", "window"),
+)
+def test_the_offset_guard_reads_its_operand_as_text_on_every_port(
+    dialect: DialectPort, window: str
+) -> None:
+    """RFC 0036's guard takes its window over an explicit cast, on all three.
+
+    The marked operand is text in a transform chain by `parse_ts`'s declared
+    input type — but on RFC 0016 D21's metadata audit the marker sits on a
+    **bronze column**, which is whatever the project landed. Measured: none of
+    the three engines plans `SUBSTRING(<timestamp>, 11)`, so a guard reading
+    the operand raw would refuse to *compile* the audit instead of refusing the
+    value, on the one column no `coercible` rule can reach. It is the same
+    totality the Trino port already bought with the cast before its `replace`,
+    and the guard has to buy it too or the port's is undone one node above.
+    """
+    node = exp.TryCast(
+        this=exp.Anonymous(this="BLM_ISO_TEXT", expressions=[exp.column("_ingested_at")]),
+        to=exp.DataType.build("TIMESTAMP"),
+    )
+    # The window's own operand, not merely some cast in the expression: Trino's
+    # `replace` spelling casts too, and asserting on that would pass here while
+    # the window still read a raw timestamp.
+    assert window in dialect.render(node)
 
 
 @pytest.mark.parametrize(

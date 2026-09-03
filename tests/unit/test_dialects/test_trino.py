@@ -158,9 +158,13 @@ def test_the_iso_text_marker_becomes_a_separator_rewrite(to: str, expected: str)
     rewrite accepts both spellings and is a no-op on a value that never had a
     `T` (RFC 0027).
     """
-    assert (
-        DIALECT.render(_iso_cast(to))
-        == f"CAST(REPLACE(REPLACE(CAST(x AS VARCHAR), 'T', ' '), 't', ' ') AS {expected})"
+    assert DIALECT.render(_iso_cast(to)) == (
+        "CAST(CASE\n"
+        "  WHEN SUBSTR(CAST(x AS VARCHAR), 11) LIKE '%+%'\n"
+        "  OR SUBSTR(CAST(x AS VARCHAR), 11) LIKE '%-%'\n"
+        "  THEN NULL\n"
+        "  ELSE REPLACE(REPLACE(CAST(x AS VARCHAR), 'T', ' '), 't', ' ')\n"
+        f"END AS {expected})"
     )
 
 
@@ -177,8 +181,12 @@ def test_the_marker_is_rewritten_inside_a_try_cast() -> None:
         to=exp.DataType.build("TIMESTAMP"),
     )
     assert DIALECT.render(node) == (
-        "TRY_CAST(REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ') "
-        "AS TIMESTAMP)"
+        "TRY_CAST(CASE\n"
+        "  WHEN SUBSTR(CAST(created_at AS VARCHAR), 11) LIKE '%+%'\n"
+        "  OR SUBSTR(CAST(created_at AS VARCHAR), 11) LIKE '%-%'\n"
+        "  THEN NULL\n"
+        "  ELSE REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ')\n"
+        "END AS TIMESTAMP)"
     )
 
 

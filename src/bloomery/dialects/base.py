@@ -33,12 +33,107 @@ from bloomery.typing import (
 
 __all__ = [
     "DialectFeature",
+    "space_separated",
     "strip_iso_text",
     "utc_from_zone",
     "capture_group",
     "DialectPort",
     "SQLGlotDialect",
 ]
+
+
+#: The first character after an ISO 8601 calendar date. ``YYYY-MM-DD`` is ten
+#: characters, so every ``-`` belonging to the date sits behind this window and
+#: every ``+`` or ``-`` inside it belongs to a UTC offset (RFC 0036 D5).
+_OFFSET_WINDOW = 11
+
+
+def _without_offset(text: Expression, parsed: Expression) -> Expression:
+    """``parsed``, or NULL when ``text`` carries a numeric UTC offset.
+
+    ``parse_ts: ISO8601`` reads a *local wall clock*, and ``to_utc`` is the only
+    door into the always-UTC ``timestamp`` type (RFC 0028). Text spelling its
+    own offset — ``2026-01-06T12:00:00+01:00`` — says something that contract
+    does not let it say, and every engine bloomery targets resolves the
+    contradiction the same silent way: it discards the offset and keeps the
+    wall clock, so the instant is wrong by the offset and nothing reports it.
+    Measured identically on PostgreSQL 16, Trino 483 and DuckDB — this is not a
+    port divergence, which is why the guard is here and not in one of them
+    (RFC 0036 D6).
+
+    NULL rather than a conversion, because converting would make one
+    declaration mean two different things depending on the row's bytes
+    (RFC 0036 D2), and NULL is what the rest of the system already reads: the
+    implicit ``coercible`` rule, the reject table, and RFC 0016 D21's blocking
+    metadata audit.
+
+    A ``Z`` suffix is deliberately **not** refused. It names UTC, which is the
+    zone the target type is already in, so truncating it loses nothing — where
+    a numeric offset loses exactly the difference (RFC 0036 D4).
+
+    The window is taken over an explicit ``VARCHAR`` cast for the reason the
+    Trino port already casts before its own ``replace``: the marker is text in
+    a transform chain by ``parse_ts``'s declared input type, but on RFC 0016
+    D21's metadata audit it sits on a **bronze column**, which is whatever the
+    project landed. Against a project that lands ``_ingested_at`` typed,
+    ``SUBSTRING(<timestamp>, 11)`` does not plan on any of the three engines —
+    so a guard reading the operand raw would refuse to compile the audit rather
+    than refuse the value, on the one column no ``coercible`` rule can reach.
+    The cast is a no-op on the text this normally sees.
+    """
+    window = exp.Substring(
+        this=exp.cast(text, exp.DataType.build("VARCHAR")),
+        start=exp.Literal.number(_OFFSET_WINDOW),
+    )
+    offset_bearing = exp.or_(
+        exp.Like(this=window, expression=exp.Literal.string("%+%")),
+        exp.Like(this=window.copy(), expression=exp.Literal.string("%-%")),
+    )
+    return exp.Case(ifs=[exp.If(this=offset_bearing, true=exp.null())], default=parsed)
+
+
+# ....................... #
+
+
+def space_separated(text: Expression) -> Expression:
+    """``text`` with either ISO 8601 date/time separator rewritten to a space.
+
+    Shared by every port whose own cast will not take a separator ISO 8601
+    permits, because the spelling is one body and the engines that need it need
+    the *same* one:
+
+    * **Trino** takes neither ``T`` nor ``t`` — measured, ``TRY_CAST`` returns
+      NULL for both;
+    * **DuckDB** takes ``T`` and raises on ``t`` — ``Conversion Error: invalid
+      timestamp field format``, so a plain ``CAST`` aborts the run and a
+      ``TRY_CAST`` on a quality-carrying entity quarantines the row;
+    * **PostgreSQL** takes both and calls this on nothing.
+
+    ``CAST(… AS VARCHAR)`` first, because the marked operand is not always
+    text. A transform chain's is, by ``parse_ts``'s declared input type, and
+    there the cast is a no-op — but RFC 0016 D21's metadata audit marks a
+    *bronze column*, and a project is free to land ``_ingested_at`` already
+    typed. Trino's ``replace`` takes varchar and nothing else, and DuckDB's
+    binder matches no ``replace(TIMESTAMP, …)`` either: a port's spelling has to
+    be total over what it may be handed, not over what its first caller
+    happened to hand it.
+
+    Applied to the *text* rather than to the cast, because the cast may already
+    have become a ``TRY_CAST`` (RFC 0027 D4). A no-op on a value that never had
+    a separator.
+    """
+    replaced = cast("Expression", exp.cast(text, exp.DataType.build("VARCHAR")))
+
+    for separator in ("T", "t"):
+        replaced = cast(
+            "Expression",
+            exp.func("replace", replaced, exp.Literal.string(separator), exp.Literal.string(" ")),
+        )
+
+    return replaced
+
+
+# ....................... #
 
 
 def strip_iso_text(node: Expression, spelling: Callable[[Expression], Expression]) -> Expression:
@@ -57,11 +152,17 @@ def strip_iso_text(node: Expression, spelling: Callable[[Expression], Expression
     refused by :meth:`SQLGlotDialect.render` rather than left to emit a
     function no engine defines — the alternative, defaulting to identity,
     would give a port whose cast rejects the separator silently NULL data.
+
+    Every replacement is wrapped in :func:`_without_offset`, so the refusal of
+    offset-bearing text lands on every port at once — including one written
+    later, which inherits it by satisfying the "must call this" rule rather
+    than by remembering a second one (RFC 0036 D3).
     """
 
     def replace(child: Expression) -> Expression:
         if isinstance(child, exp.Anonymous) and child.name.upper() == ISO_TEXT_MARKER:
-            return spelling(child.expressions[0])
+            text = child.expressions[0]
+            return _without_offset(text.copy(), spelling(text))
 
         return child
 

@@ -1,0 +1,18 @@
+catalog_version: 1
+vertical: ecom_retail
+
+canonical_fields:
+  net_price:
+    entity: item
+    type: decimal(12,4)
+    unit: currency
+    tax_basis: net
+    recipes:
+      - {id: direct, requires: [net_price]}
+      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+  quantity:
+    entity: item
+    type: int
+    unit: count
+    recipes:
+      - {id: direct, requires: [quantity]}

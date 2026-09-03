@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from bloomery.errors import guaranteed
+from bloomery.quality import opts_in
 from bloomery.spec.mapping import RecipeFieldMapping, mapping_doc
 
 if TYPE_CHECKING:
@@ -57,14 +58,38 @@ class Derivation:
     """One recorded recipe derivation, addressed for violation reporting:
     the target entity and field, the catalog recipe's expression and operand
     names (``requires``), and the optional ``direct:`` path whose presence is
-    the path-conflict state (RFC 0006 §5.5)."""
+    the path-conflict state (RFC 0006 §5.5).
+
+    ``source`` is the bronze relation the mapping that recorded this reads.
+    A derivation is a **per-mapping** fact about a shared entity node, so an
+    entity built from several mappings has one of these per branch — the shape
+    RFC 0024 D26 split for a column's expression and D32 for a rule's inputs.
+    It reaches here so that ``direct:`` can fan out the same way (D36): the
+    shadow a branch projects is the path *that branch's* own mapping named,
+    and no other relation need have it.
+
+    ``cleaned`` is :func:`~bloomery.quality.opts_in` for this entity and this
+    mapping — whether the builder lowered its columns produce-or-raise or
+    NULL-on-failure (RFC 0016 §5.2, D3). The shadow is the one lowering built
+    *after* the builder has run, so it does not inherit that choice by being
+    in the loop that makes it; carrying the answer here is what keeps the
+    amendment from re-deciding it, or from getting it wrong by looking at the
+    IR's shape instead.
+
+    Neither has a default. A ``Derivation`` built without ``cleaned`` would
+    claim produce-or-raise, which is the pre-fix bug spelled as a convenience
+    — and the fact is never absent at the one site that builds these, so a
+    default could only ever paper over a caller that had stopped supplying it.
+    """
 
     source_path: str
+    source: str
     entity: str
     field: str
     expr: str | None
     operands: tuple[str, ...]
     direct: str | None
+    cleaned: bool
 
 
 # ....................... #
@@ -109,7 +134,8 @@ def collect_derivations(project: Project, catalog: Catalog | None) -> tuple[Deri
             field_mapping = mapping.fields[field_name]
             if not isinstance(field_mapping, RecipeFieldMapping) or catalog is None:
                 continue
-            canonical = project.entity_model.entities[mapping.target].fields[field_name].canonical
+            entity = project.entity_model.entities[mapping.target]
+            canonical = entity.fields[field_name].canonical
             if canonical is None:
                 continue
             recipes = catalog.canonical_fields[canonical].recipes
@@ -121,6 +147,8 @@ def collect_derivations(project: Project, catalog: Catalog | None) -> tuple[Deri
             derivations.append(
                 Derivation(
                     source_path=f"{doc}: fields.{field_name}",
+                    source=mapping.source,
+                    cleaned=opts_in(entity, mapping),
                     entity=mapping.target,
                     field=field_name,
                     expr=recipe.expr,

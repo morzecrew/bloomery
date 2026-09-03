@@ -117,6 +117,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   alias inside its own anchor (a recursive value) are `SpecParseError`, never a
   `RecursionError` or memory exhaustion. Ordinary anchors and aliases are unaffected.
 
+- **`direct:` now works on a merged entity.** It was refused outright: `direct:` is
+  declared per mapping, so an entity built from several could carry a path on one source
+  and none on another, leaving the `<field>__direct` shadow NULL for the other's rows —
+  indistinguishable from a genuinely NULL direct value, with the reconciliation audit
+  either reporting a disagreement that is not there or quietly no longer checking.
+
+  What actually blocked it was arity, not NULLs: one shadow projection stood for every
+  source, so each branch would have carried the other's extraction — a `$.price` read off
+  a relation that has no `$.price`. The shadow now fans out per source like every other
+  lowering, and each branch reconciles against the path *its own* mapping named. The
+  entity still gets one shadow column and one reconciliation audit.
+
+  What is refused is narrower and is disagreement about whether the conflict exists:
+  among the mappings that produce a column, all record a `direct:` path or none does,
+  with both documents named. A column only one mapping produces is unaffected.
+
 ### Changed
 
 - `convert` takes **three** arguments where it took one: `{convert: [EUR, USD,
@@ -155,6 +171,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   columns of one name. On a `type1` entity both stay legal.
 
 ### Fixed
+
+- **A timestamp carrying a UTC offset is no longer silently truncated.**
+  `{parse_ts: ISO8601}` over `2026-01-06T12:00:00+01:00` produced `12:00` on
+  DuckDB, PostgreSQL and Trino alike — the offset discarded, the instant an hour
+  wrong, and no error, no NULL and no audit anywhere in the pipeline to say so.
+  `parse_ts` reads a *local wall clock* and `to_utc` is the only door into UTC, so
+  such text states something the declaration already claimed to know; it now
+  produces NULL, identically on every engine.
+
+  NULL is what the rest of the system can already see: the implicit `coercible`
+  rule flags it, `on_fail: quarantine` diverts the row, and the ingestion-metadata
+  audit stops the run for `_ingested_at`. A `Z` suffix is deliberately kept — it
+  names the zone the `timestamp` type is already in, so dropping it loses nothing.
+
+  **This moves data on upgrade.** A source whose timestamps carry offsets stored
+  plausible wrong values before and stores NULLs now. Add a `coercible` rule on
+  the affected columns before promoting the upgrade, and normalise the offsets
+  upstream — bloomery does not convert them, because reading the offset would make
+  one declaration mean a local clock on one row and an instant on the next.
+
+- **`{parse_ts: ISO8601}` no longer stops the run on a lowercase `t` on DuckDB.**
+  ISO 8601 permits `2026-01-06t12:00:00`, PostgreSQL and Trino both read it, and DuckDB's
+  cast raises *invalid timestamp field format* — so a bare entity aborted and a
+  quality-carrying one quarantined the row, on text the other two ports read fine. The
+  DuckDB port normalizes both separators before the cast now, through the same function
+  the Trino port already used for its own version of this.
+
+- **A `direct:` path on an entity in the quality system no longer aborts the run.** Every
+  cast on such an entity is NULL-on-failure so the implicit `coercible` rule can see the
+  failure — every cast except the `<field>__direct` shadow, which is built after the
+  builder has run and did not inherit the shape. A direct value that would not cast raised
+  an engine conversion error from the middle of the model SELECT, naming neither the
+  column nor the reconciliation check. It lands as NULL now and the reconciliation audit
+  reports the row as a disagreement, which is what it is.
 
 - A metric declaring `cumulative:` no longer compiles as a plain simple metric —
   per-period aggregation where a running total was declared, which is what 0.2.0

@@ -170,6 +170,24 @@ def test_path_conflict_loads_clean() -> None:
     assert net_price.direct == "$.price"  # the recorded path-conflict state
 
 
+def test_path_conflict_merged_loads_clean() -> None:
+    """The same conflict on an entity built from two mappings (RFC 0024 D36).
+
+    Both shops record a path and the two paths *differ* — which is the fixture's
+    reason to exist: one shadow for the whole entity would have given each
+    branch the other's extraction, off a relation that need not carry it.
+    """
+    project = load_fixture_project("path_conflict_merged")
+    assert [mapping.source for mapping in project.mappings] == ["woo__items", "shopify__items"]
+    paths = {}
+    for mapping in project.mappings:
+        net_price = mapping.fields["net_price"]
+        assert isinstance(net_price, RecipeFieldMapping)
+        assert net_price.recipe == "from_total"
+        paths[mapping.source] = net_price.direct
+    assert paths == {"woo__items": "$.unit_amount", "shopify__items": "$.price"}
+
+
 def test_dirty_corpus_loads_clean() -> None:
     """The spec side of the dirty-data corpus (RFC 0016 §6). One entity per
     failure family, plus the two sides ``refs.csv``'s ``_parent_status``

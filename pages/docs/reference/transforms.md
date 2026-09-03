@@ -33,9 +33,46 @@ feeds the next step's input. Args are spec-level literals, written as a bare nam
 | `to_int` | — | string, int, decimal, bool → int | `[to_int]` — cast to integer |
 | `to_decimal` | precision (int), scale (int) | string, int, decimal → decimal(p, s) | `[{to_decimal: [12, 2]}]` — cast with explicit shape |
 | `to_bool` | — | string, int, bool → bool | `[to_bool]` — cast to boolean |
-| `parse_ts` | format (str) | string → timestamp | `[{parse_ts: ISO8601}]` — parse a timestamp; `ISO8601` means the engine's native parse, any other string is an explicit format |
+| `parse_ts` | format (str) | string → timestamp | `[{parse_ts: ISO8601}]` — parse a timestamp as a **local wall clock**; `ISO8601` means the engine's native parse, any other string is an explicit format. Text carrying a UTC offset is refused as NULL — see below |
 | `parse_date` | format (str) | string → date | `[{parse_date: ISO8601}]` — parse a date |
 | `to_utc` | zone (str) | timestamp → timestamp | `[{to_utc: Europe/Paris}]` — interpret a zoneless local timestamp in `zone`; the only door into the always-UTC timestamp type |
+
+### A timestamp that states its own offset
+
+`parse_ts` reads a local wall clock, and `to_utc` is the only door into UTC. So
+`2026-01-06T12:00:00+01:00` is text that says something the transform is not allowed to
+believe. Which zone a column is written in is the spec's statement to make — the absence
+of a `to_utc` says UTC, its presence says the zone it names — and here the data
+contradicts it.
+
+Every engine bloomery targets resolves that disagreement the same silent way — it drops
+the offset and keeps `12:00`, an hour off the instant the row actually carries, with
+nothing downstream able to see it. bloomery produces **NULL** for such a value instead,
+identically on DuckDB, PostgreSQL and Trino.
+
+A NULL is something the rest of the system already knows how to report. On an entity with
+a `quality:` block, the implicit `coercible` rule reads it as a failed cast and its
+default disposition sends the row to the
+[reject table](../concepts/data-quality.md); for the `_ingested_at` ingestion-metadata
+column — the one no rule can reach, because ingestion metadata is never a mapped field —
+the generated audit stops the run outright. On an entity with no `quality:` block the
+value is simply NULL, which is better than a wrong number and is still quiet.
+
+Two things it deliberately does **not** do:
+
+- **It does not convert.** Reading the offset would make one declaration mean a local
+  clock on one row and an instant on the next, decided by the bytes. Normalise upstream,
+  or state the zone once with `to_utc` on a source that has been normalised.
+- **It does not refuse `Z`.** `Z` names UTC, which is the zone the `timestamp` type is
+  already in, so nothing is lost by dropping it — where a numeric offset loses exactly
+  the difference between the wall clock and the instant.
+
+**On upgrade**, a source whose timestamps carry offsets produced plausible, wrong values
+before this landed and produces NULLs after it. That is the point of the change, and it
+is still a value moving under you: check the affected columns with a `coercible` rule
+before you promote the upgrade.
+
+`parse_date: ISO8601` is unaffected — an ISO date has no time and therefore no offset.
 
 ## Null handling and JSON
 

@@ -8,7 +8,12 @@ from typing import ClassVar, cast
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
-from bloomery.dialects.base import SQLGlotDialect, strip_iso_text, utc_from_zone
+from bloomery.dialects.base import (
+    SQLGlotDialect,
+    space_separated,
+    strip_iso_text,
+    utc_from_zone,
+)
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -53,9 +58,13 @@ class DuckDBDialect(SQLGlotDialect):
         never heard of. Verified live: the ``normalize`` rule's execution tier
         fails without this.
 
-        The ISO-text marker strips to nothing: DuckDB's own cast takes both
-        ``2026-01-06T12:00:00`` and the space-separated spelling, so there is
-        nothing for this port to add (RFC 0027).
+        The ISO-text marker becomes a separator rewrite, for one spelling out
+        of the three ISO 8601 permits. DuckDB's cast takes ``T`` and the space
+        form and **raises** on the lowercase ``t`` — *Conversion Error: invalid
+        timestamp field format* — so a bare entity aborted the run on it and a
+        quality-carrying one quarantined the row, on text PostgreSQL and Trino
+        both read. This port used to add nothing here, and its docstring said
+        so; the claim was measured false (RFC 0027, RFC 0036).
         """
 
         def utc(interpretation: Expression) -> Expression:
@@ -63,7 +72,7 @@ class DuckDBDialect(SQLGlotDialect):
             # the UTC wall clock, identically under any session (RFC 0028 §3).
             return exp.AtTimeZone(this=interpretation, zone=exp.Literal.string("UTC"))
 
-        rewritten = strip_iso_text(node.copy(), lambda text: text)
+        rewritten = strip_iso_text(node.copy(), space_separated)
         rewritten = utc_from_zone(rewritten, utc)
         rewritten = rewritten.transform(_nfc_normalize)
         return super().render(rewritten)

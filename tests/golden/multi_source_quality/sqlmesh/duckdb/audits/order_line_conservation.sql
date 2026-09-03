@@ -16,7 +16,12 @@ WITH _survivors AS (
       TRY_CAST(properties ->> '$.gift_note' AS TEXT) AS gift_note,
       TRY_CAST(position AS BIGINT) AS line_no,
       TRY_CAST("order" ->> '$.id' AS TEXT) AS order_id,
-      TRY_CAST(created_at AS TIMESTAMP) AS placed_at,
+      TRY_CAST(CASE
+        WHEN SUBSTRING(CAST(created_at AS TEXT), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(created_at AS TEXT), 11) LIKE '%-%'
+        THEN NULL
+        ELSE REPLACE(REPLACE(CAST(created_at AS TEXT), 'T', ' '), 't', ' ')
+      END AS TIMESTAMP) AS placed_at,
       TRY_CAST(quantity AS BIGINT) AS quantity,
       TRY_CAST(variant ->> '$.sku' AS TEXT) AS sku,
       CASE TRY_CAST(financial_status AS TEXT)
@@ -46,7 +51,13 @@ WITH _survivors AS (
           "order" ->> '$.id'
         ) IS NULL
       ) AS _branch_order_id_coercible,
-      TRY_CAST(created_at AS TIMESTAMP) IS NULL AND (
+      TRY_CAST(CASE
+        WHEN SUBSTRING(CAST(created_at AS TEXT), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(created_at AS TEXT), 11) LIKE '%-%'
+        THEN NULL
+        ELSE REPLACE(REPLACE(CAST(created_at AS TEXT), 'T', ' '), 't', ' ')
+      END AS TIMESTAMP) IS NULL
+      AND (
         NOT created_at IS NULL
       ) AS _branch_placed_at_coercible,
       TRY_CAST(quantity AS BIGINT) IS NULL AND (
@@ -86,7 +97,12 @@ WITH _survivors AS (
       CAST(NULL AS TEXT) AS gift_note,
       TRY_CAST(item_index AS BIGINT) AS line_no,
       TRY_CAST(order_number AS TEXT) AS order_id,
-      TRY_CAST(created AS TIMESTAMP) AS placed_at,
+      TRY_CAST(CASE
+        WHEN SUBSTRING(CAST(created AS TEXT), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(created AS TEXT), 11) LIKE '%-%'
+        THEN NULL
+        ELSE REPLACE(REPLACE(CAST(created AS TEXT), 'T', ' '), 't', ' ')
+      END AS TIMESTAMP) AS placed_at,
       TRY_CAST(qty AS BIGINT) AS quantity,
       TRY_CAST(product_sku AS TEXT) AS sku,
       CASE TRY_CAST(state AS TEXT)
@@ -106,7 +122,13 @@ WITH _survivors AS (
       TRY_CAST(order_number AS TEXT) IS NULL AND (
         NOT order_number IS NULL
       ) AS _branch_order_id_coercible,
-      TRY_CAST(created AS TIMESTAMP) IS NULL AND (
+      TRY_CAST(CASE
+        WHEN SUBSTRING(CAST(created AS TEXT), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(created AS TEXT), 11) LIKE '%-%'
+        THEN NULL
+        ELSE REPLACE(REPLACE(CAST(created AS TEXT), 'T', ' '), 't', ' ')
+      END AS TIMESTAMP) IS NULL
+      AND (
         NOT created IS NULL
       ) AS _branch_placed_at_coercible,
       TRY_CAST(qty AS BIGINT) IS NULL AND (

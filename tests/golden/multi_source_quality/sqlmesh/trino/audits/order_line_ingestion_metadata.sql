@@ -21,5 +21,10 @@ WHERE
     (
       NOT _ingested_at IS NULL
     )
-    AND TRY_CAST(REPLACE(REPLACE(CAST(_ingested_at AS VARCHAR), 'T', ' '), 't', ' ') AS TIMESTAMP) IS NULL
+    AND TRY_CAST(CASE
+      WHEN SUBSTR(CAST(_ingested_at AS VARCHAR), 11) LIKE '%+%'
+      OR SUBSTR(CAST(_ingested_at AS VARCHAR), 11) LIKE '%-%'
+      THEN NULL
+      ELSE REPLACE(REPLACE(CAST(_ingested_at AS VARCHAR), 'T', ' '), 't', ' ')
+    END AS TIMESTAMP) IS NULL
   )
