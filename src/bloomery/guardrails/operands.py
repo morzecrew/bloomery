@@ -75,6 +75,11 @@ class Derivation:
     in the loop that makes it; carrying the answer here is what keeps the
     amendment from re-deciding it, or from getting it wrong by looking at the
     IR's shape instead.
+
+    Neither has a default. A ``Derivation`` built without ``cleaned`` would
+    claim produce-or-raise, which is the pre-fix bug spelled as a convenience
+    — and the fact is never absent at the one site that builds these, so a
+    default could only ever paper over a caller that had stopped supplying it.
     """
 
     source_path: str
@@ -84,7 +89,7 @@ class Derivation:
     expr: str | None
     operands: tuple[str, ...]
     direct: str | None
-    cleaned: bool = False
+    cleaned: bool
 
 
 # ....................... #

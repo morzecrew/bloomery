@@ -75,6 +75,7 @@ def _derivation(entity: str, expr: str | None, *operands: str) -> Derivation:
     return Derivation(
         source_path=f"mapping[s->{entity}]: fields.f",
         source="s",
+        cleaned=False,
         entity=entity,
         field="f",
         expr=expr,
