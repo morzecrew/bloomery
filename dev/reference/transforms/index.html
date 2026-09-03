@@ -1364,6 +1364,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Casts and parses">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-timestamp-that-states-its-own-offset" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A timestamp that states its own offset
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1632,6 +1649,23 @@
       </span>
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Casts and parses">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-timestamp-that-states-its-own-offset" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A timestamp that states its own offset
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1905,7 +1939,7 @@ feeds the next step's input. Args are spec-level literals, written as a bare nam
 <td><code>parse_ts</code></td>
 <td>format (str)</td>
 <td>string → timestamp</td>
-<td><code>[{parse_ts: ISO8601}]</code> — parse a timestamp; <code>ISO8601</code> means the engine's native parse, any other string is an explicit format</td>
+<td><code>[{parse_ts: ISO8601}]</code> — parse a timestamp as a <strong>local wall clock</strong>; <code>ISO8601</code> means the engine's native parse, any other string is an explicit format. Text carrying a UTC offset is refused as NULL — see below</td>
 </tr>
 <tr>
 <td><code>parse_date</code></td>
@@ -1921,6 +1955,37 @@ feeds the next step's input. Args are spec-level literals, written as a bare nam
 </tr>
 </tbody>
 </table>
+<h3 id="a-timestamp-that-states-its-own-offset">A timestamp that states its own offset<a class="headerlink" href="#a-timestamp-that-states-its-own-offset" title="Permanent link">&para;</a></h3>
+<p><code>parse_ts</code> reads a local wall clock, and <code>to_utc</code> is the only door into UTC. So
+<code>2026-01-06T12:00:00+01:00</code> is text that says something the transform is not allowed to
+believe. Which zone a column is written in is the spec's statement to make — the absence
+of a <code>to_utc</code> says UTC, its presence says the zone it names — and here the data
+contradicts it.</p>
+<p>Every engine bloomery targets resolves that disagreement the same silent way — it drops
+the offset and keeps <code>12:00</code>, an hour off the instant the row actually carries, with
+nothing downstream able to see it. bloomery produces <strong>NULL</strong> for such a value instead,
+identically on DuckDB, PostgreSQL and Trino.</p>
+<p>A NULL is something the rest of the system already knows how to report. On an entity with
+a <code>quality:</code> block, the implicit <code>coercible</code> rule reads it as a failed cast and its
+default disposition sends the row to the
+<a href="../../concepts/data-quality/">reject table</a>; for the <code>_ingested_at</code> ingestion-metadata
+column — the one no rule can reach, because ingestion metadata is never a mapped field —
+the generated audit stops the run outright. On an entity with no <code>quality:</code> block the
+value is simply NULL, which is better than a wrong number and is still quiet.</p>
+<p>Two things it deliberately does <strong>not</strong> do:</p>
+<ul>
+<li><strong>It does not convert.</strong> Reading the offset would make one declaration mean a local
+  clock on one row and an instant on the next, decided by the bytes. Normalise upstream,
+  or state the zone once with <code>to_utc</code> on a source that has been normalised.</li>
+<li><strong>It does not refuse <code>Z</code>.</strong> <code>Z</code> names UTC, which is the zone the <code>timestamp</code> type is
+  already in, so nothing is lost by dropping it — where a numeric offset loses exactly
+  the difference between the wall clock and the instant.</li>
+</ul>
+<p><strong>On upgrade</strong>, a source whose timestamps carry offsets produced plausible, wrong values
+before this landed and produces NULLs after it. That is the point of the change, and it
+is still a value moving under you: check the affected columns with a <code>coercible</code> rule
+before you promote the upgrade.</p>
+<p><code>parse_date: ISO8601</code> is unaffected — an ISO date has no time and therefore no offset.</p>
 <h2 id="null-handling-and-json">Null handling and JSON<a class="headerlink" href="#null-handling-and-json" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

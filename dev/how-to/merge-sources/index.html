@@ -1170,6 +1170,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-direct-path-on-a-merged-entity" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A direct path on a merged entity
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-one-thing-only-the-warehouse-can-check" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1652,6 +1663,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#a-direct-path-on-a-merged-entity" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A direct path on a merged entity
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-one-thing-only-the-warehouse-can-check" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1889,11 +1911,42 @@ invalid SQL.</p>
 <td>Two mappings declaring <strong>different</strong> rules for a column they both produce</td>
 <td>The rules run once over the merged relation, so a set taken from one mapping would silently drop what the others wrote. See <a href="#cleaning-a-merged-entity">cleaning a merged entity</a></td>
 </tr>
+<tr>
+<td>Some but not all of the mappings producing a column recording a <code>direct:</code> path</td>
+<td>The <code>__direct</code> shadow would be NULL for the other source's rows, which is indistinguishable from a genuinely NULL direct value — so the reconciliation audit either reports a disagreement that is not there or quietly stops checking. See <a href="#a-direct-path-on-a-merged-entity">a direct path on a merged entity</a></td>
+</tr>
 </tbody>
 </table>
 <p>Types need no separate check: each mapping's transform chain is already checked against the
 entity's <em>declaration</em>, so two mappings cannot disagree about a column's type without both
 failing first.</p>
+<h2 id="a-direct-path-on-a-merged-entity">A direct path on a merged entity<a class="headerlink" href="#a-direct-path-on-a-merged-entity" title="Permanent link">&para;</a></h2>
+<p><a href="../../concepts/guardrails/#path-conflict-the-guardrail-that-does-not-raise"><code>direct:</code></a> records that a source carries a field
+directly <em>as well as</em> through a recipe, and the compiler emits both plus a reconciliation
+audit rather than picking one. On a merged entity each source names its own path:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># mapping_shopify.yaml</span>
+<span class="nt">fields</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">net_price</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">recipe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">from_total</span>
+<span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">line_total</span><span class="p">:</span><span class="w"> </span><span class="s">"$.total"</span><span class="p p-Indicator">,</span><span class="nt"> quantity</span><span class="p">:</span><span class="w"> </span><span class="s">"$.quantity"</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">direct</span><span class="p">:</span><span class="w"> </span><span class="s">"$.price"</span>
+
+<span class="c1"># mapping_woo.yaml — same recipe, same conflict, a different path</span>
+<span class="nt">fields</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">net_price</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">recipe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">from_total</span>
+<span class="w">    </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">line_total</span><span class="p">:</span><span class="w"> </span><span class="s">"$.line_gross"</span><span class="p p-Indicator">,</span><span class="nt"> quantity</span><span class="p">:</span><span class="w"> </span><span class="s">"$.qty"</span><span class="p p-Indicator">}</span>
+<span class="w">    </span><span class="nt">direct</span><span class="p">:</span><span class="w"> </span><span class="s">"$.unit_amount"</span>
+</code></pre></div>
+<p>You get <strong>one</strong> <code>net_price__direct</code> column and <strong>one</strong> reconciliation audit, and each
+branch of the union projects its own extraction — <code>$.price</code> is read off the Shopify
+relation only, which is the only relation that has it.</p>
+<p>What both mappings have to agree on is <em>whether</em> the conflict exists. Every mapping that
+produces the column records a path, or none does.</p>
+<p>A source that does not map the field at all is outside that: it already gets a typed NULL
+for the derived column, it gets one for the shadow too, and the audit compares NULL with
+NULL and reports nothing. There is no path to require there — <code>direct:</code> is part of a
+field mapping, and that source has none.</p>
 <h2 id="the-one-thing-only-the-warehouse-can-check">The one thing only the warehouse can check<a class="headerlink" href="#the-one-thing-only-the-warehouse-can-check" title="Permanent link">&para;</a></h2>
 <p>Compilation has no data, so it cannot know the key sets are disjoint. A generated audit
 does, and it is emitted for merged entities only:</p>

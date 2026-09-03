@@ -1927,21 +1927,57 @@ same shape: one spelling, two meanings, and no error to tell you which you got. 
 is a caveat you have to work around any more — the port closes both — but both are worth
 knowing, because each moved data on upgrade.</p>
 <h3 id="parse_ts-iso8601-and-the-t-separator"><code>parse_ts: ISO8601</code> and the <code>T</code> separator<a class="headerlink" href="#parse_ts-iso8601-and-the-t-separator" title="Permanent link">&para;</a></h3>
-<p><code>CAST('2026-01-06T12:00:00' AS TIMESTAMP)</code> is <code>NULL</code> on Trino and a timestamp on DuckDB
-and PostgreSQL: Trino's cast takes only the space-separated spelling, though ISO 8601
-defines the <code>T</code>.</p>
-<p>No error was ever raised for this. Outside the quality system it was a silent NULL;
-inside it the generated <code>coercible</code> rule read "the projection is NULL although the source
-was not" as a coercion failure, so <strong>every row of the source was quarantined</strong> while the
-diagnosis pointed at data that was fine.</p>
-<p>The Trino port now normalizes the separator before the cast, so both spellings parse and
-a value that is genuinely not a timestamp still fails as one. The rewrite is applied to
-the text rather than to the cast, so it survives the cast becoming a <code>TRY_CAST</code> for an
-entity in the quality system.</p>
+<p>ISO 8601 permits three spellings of the separator — <code>T</code>, <code>t</code>, and (by the profile most
+tools follow) a space — and each engine takes a different subset:</p>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>DuckDB</th>
+<th>PostgreSQL</th>
+<th>Trino</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>2026-01-06T12:00:00</code></td>
+<td>parses</td>
+<td>parses</td>
+<td><code>NULL</code></td>
+</tr>
+<tr>
+<td><code>2026-01-06t12:00:00</code></td>
+<td><strong>raises</strong></td>
+<td>parses</td>
+<td><code>NULL</code></td>
+</tr>
+<tr>
+<td><code>2026-01-06 12:00:00</code></td>
+<td>parses</td>
+<td>parses</td>
+<td>parses</td>
+</tr>
+</tbody>
+</table>
+<p>No error was ever raised for the Trino column. Outside the quality system it was a silent
+NULL; inside it the generated <code>coercible</code> rule read "the projection is NULL although the
+source was not" as a coercion failure, so <strong>every row of the source was quarantined</strong>
+while the diagnosis pointed at data that was fine. DuckDB's lowercase cell is the loud
+version of the same problem: a plain cast stops the run outright, and inside the quality
+system it quarantines the row.</p>
+<p>Both ports normalize the separator before the cast now, through the same function, so
+every spelling parses and a value that is genuinely not a timestamp still fails as one.
+The rewrite is applied to the text rather than to the cast, so it survives the cast
+becoming a <code>TRY_CAST</code> for an entity in the quality system. PostgreSQL needs neither and
+adds neither.</p>
 <p><code>parse_date: ISO8601</code> is deliberately <em>not</em> normalized. An ISO date has no <code>T</code>, and the
 case that would need it — a full timestamp handed to a date parser — is not helped:
 Trino cannot cast <code>2026-01-06 12:00:00</code> to <code>DATE</code> either, so rewriting only turns a NULL
 into a hard <code>INVALID_CAST_ARGUMENT</code>.</p>
+<p>The offset guard beside it is <strong>not</strong> a divergence and is not absorbed here: all three
+engines truncate a <code>+01:00</code> identically, so the refusal lives in the shared rendering
+path and every port inherits the same guard around whatever its own cast spelling is. It is documented with the transform, in
+<a href="../transforms/#a-timestamp-that-states-its-own-offset">Transforms</a>.</p>
 <h3 id="to_utc-the-zone-argument-and-the-zone-that-came-back"><code>to_utc</code>, the zone argument, and the zone that came back<a class="headerlink" href="#to_utc-the-zone-argument-and-the-zone-that-came-back" title="Permanent link">&para;</a></h3>
 <p>Two problems, one after the other, both now closed.</p>
 <p>Trino's <code>AT TIME ZONE</code> promotes a zoneless timestamp with the <strong>session</strong> zone before
