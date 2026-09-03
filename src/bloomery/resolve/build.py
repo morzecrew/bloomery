@@ -1430,7 +1430,25 @@ def _merged_rules(
 
     for mapping in mappings:
         for rule in _lowered_rules(entity_name, entity, mapping, relationships, steps):
-            by_name.setdefault(rule.name, rule)
+            existing = by_name.setdefault(rule.name, rule)
+            if existing == rule:
+                continue
+            # Two *different* rules under one generated name. For a column
+            # every mapping produces this cannot happen — the agreement
+            # refusal ran first — so what is left is two distinct columns
+            # whose names fold to one rule name (`_rule_name` lowercases and
+            # replaces non-identifier characters, so `Order-Id` and `Order_Id`
+            # both give `order_id_coercible`). Keeping the first would leave
+            # the other column with no check at all, silently.
+            msg = (
+                f"entity {entity_name!r} is built from {len(mappings)} mappings that "
+                f"generate two different rules named {rule.name!r} — one on column "
+                f"{existing.column!r}, one on {rule.column!r}. Generated names are folded "
+                "to the [a-z0-9_]+ shape a flag list can carry unescaped (RFC 0016 D23), so "
+                "two columns can fold to one name; merging them would drop one column's "
+                "check without saying so. Fix: rename one of the two fields"
+            )
+            raise ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.fields")
 
     return tuple(sorted(by_name.values(), key=quality_sort_key))
 
@@ -1482,31 +1500,39 @@ def _rule_agreement_refusals(
     if len(mappings) < 2:
         return []
 
-    reference = mappings[0]
-    baseline = _lowered_rules(entity_name, entity, reference, relationships, steps)
+    lowered = {
+        mapping.source: _lowered_rules(entity_name, entity, mapping, relationships, steps)
+        for mapping in mappings
+    }
     errors: list[ResolutionError] = []
 
-    for mapping in mappings[1:]:
-        candidate = _lowered_rules(entity_name, entity, mapping, relationships, steps)
-        shared = _produced(reference) & _produced(mapping)
-        left = _rules_over(baseline, shared)
-        right = _rules_over(candidate, shared)
+    # **Every pair**, not every mapping against the first. A column only some
+    # mappings produce is excluded from any comparison the others are in, so
+    # against `mappings[0]` alone two *other* mappings could disagree about it
+    # and never meet: with A, B and C and an optional column that B and C both
+    # map, `A ∩ B` and `A ∩ C` exclude it and B is never compared with C. Both
+    # rules then land in the union and one silently wins by name.
+    for index, reference in enumerate(mappings):
+        for mapping in mappings[index + 1 :]:
+            shared = _produced(reference) & _produced(mapping)
+            left = _rules_over(lowered[reference.source], shared)
+            right = _rules_over(lowered[mapping.source], shared)
 
-        if left == right:
-            continue
+            if left == right:
+                continue
 
-        msg = (
-            f"entity {entity_name!r} is built from {len(mappings)} mappings whose 'quality:' "
-            f"declarations disagree: {_rule_disagreement(left, right)}. The rules are "
-            "evaluated once over the merged relation, so a set lowered from one mapping would "
-            "silently drop what the others declared (RFC 0024 D33). Fix: declare the same "
-            f"rules — and the same transform chains where they generate one — in "
-            f"{mapping_doc(reference)} and {mapping_doc(mapping)}, or keep one mapping per "
-            "entity"
-        )
-        errors.append(
-            ResolutionError(msg, source_path=f"{mapping_doc(mapping)}: fields"),
-        )
+            msg = (
+                f"entity {entity_name!r} is built from {len(mappings)} mappings whose "
+                f"'quality:' declarations disagree: {_rule_disagreement(left, right)}. The "
+                "rules are evaluated once over the merged relation, so a set lowered from one "
+                "mapping would silently drop what the others declared (RFC 0024 D33). Fix: "
+                "declare the same rules — and the same transform chains where they generate "
+                f"one — in {mapping_doc(reference)} and {mapping_doc(mapping)}, or keep one "
+                "mapping per entity"
+            )
+            errors.append(
+                ResolutionError(msg, source_path=f"{mapping_doc(mapping)}: fields"),
+            )
 
     return errors
 
