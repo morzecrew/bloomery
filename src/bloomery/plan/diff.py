@@ -530,7 +530,9 @@ def _recipe_label(entity: EntityIR, name: str, relations: tuple[str, ...]) -> st
     The bare id for the ordinary single-source column, so a reported change
     reads as it always has; the distinct ids, sorted, once an entity is merged —
     two mappings may record different recipes for one column (D28), and naming
-    one of them would be the silent pick D29 refuses elsewhere.
+    one of them would be the silent pick this feature refuses everywhere else —
+    D33 refuses two mappings whose rules disagree rather than choosing between
+    them, for the same reason.
     """
     lowerings = _lowerings(entity, name)
     recipes = [lowerings[relation].recipe_id for relation in relations if relation in lowerings]

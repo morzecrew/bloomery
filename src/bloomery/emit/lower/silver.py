@@ -1275,10 +1275,10 @@ def entity_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     if isinstance(extract, exp.Select):
         return extract.select(flags, ok)
 
-    # A merged entity carries no quality rules (RFC 0024 D29), so the union is
-    # the whole body and the two generated columns ride one level above it.
-    # ``.select()`` on a ``UNION`` would attach them to its last branch alone,
-    # which parses and is wrong — the other branches would be short two
+    # A merged entity that declares no rules and no `dedupe:` — the union is
+    # then the whole body, and the two generated columns ride one level above
+    # it. ``.select()`` on a ``UNION`` would attach them to its last branch
+    # alone, which parses and is wrong: the other branches would be short two
     # columns.
     return exp.Select().select(exp.Star(), flags, ok).from_(extract.subquery(alias=_EXTRACT_ALIAS))
 

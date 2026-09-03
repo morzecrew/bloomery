@@ -6,7 +6,12 @@ from __future__ import annotations
 import pytest
 
 from bloomery import build_project_ir, load_catalog, load_project, project_fingerprint
-from bloomery.errors import MissingReference, ResolutionError, TypeCheckError
+from bloomery.errors import (
+    GuardrailError,
+    MissingReference,
+    ResolutionError,
+    TypeCheckError,
+)
 from bloomery.ir import (
     DateDimensionIR,
     DimensionRef,
@@ -867,3 +872,37 @@ def test_a_validity_column_in_the_key_is_refused_before_this_check_sees_it() -> 
             )
         )
     assert "key lowers unknown field 'valid_from' of entity 'event'" in str(unknown.value)
+
+
+def test_a_rule_may_not_read_the_provenance_column() -> None:
+    """`_source` is a column of the merged relation and is **not** readable by a
+    rule (RFC 0024 D6, D9).
+
+    D6 argues rules judge the merged relation, so a rule branching on which
+    source a row came from would be judging per source over a relation the
+    union built to be judged once. The refusal is not new code — an
+    `expression` rule is checked against the entity's lowered columns plus the
+    ingestion metadata, and `_source` is in neither set — which is why it is
+    pinned here rather than assumed: it is the reason RFC 0024 D9's contract
+    half still has nothing to protect now that P2 allows rules at all.
+    """
+    metadata = 'unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]\n'
+    model = _MERGE_ENTITY_MODEL.replace(
+        "      note: {type: string}\n",
+        "      note: {type: string}\n"
+        "    quarantine: {retention: 90d}\n"
+        "    quality:\n"
+        '      - {rule: expression, name: not_legacy, expr: "_source <> \'src_a\'", '
+        "on_fail: flag}\n",
+    )
+    sources = _merge_sources(
+        entity_model=model,
+        mapping_a=_SRC_Z_MAPPING + metadata,
+        mapping_z=_SRC_A_MAPPING + metadata,
+    )
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(load_project(sources))
+    # Not a bare `"_source" in message`: `_source_row_id` is in the message's
+    # own list of known columns, so that assertion would pass on any refusal
+    # mentioning either.
+    assert "reads _source, which the entity does not declare" in str(excinfo.value)

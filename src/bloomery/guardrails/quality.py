@@ -247,12 +247,16 @@ def _check_retention(entity_name: str, entity: Entity, draft: ProjectIR) -> list
     if entity.quarantine is not None:
         return []
 
-    lowered = next((e for e in draft.entities if e.name == entity_name), None)
-    quarantining = [
-        rule
-        for rule in (lowered.quality if lowered is not None else ())
-        if disposition(rule) is OnFail.QUARANTINE
-    ]
+    # Raised rather than defaulted to "no rules": a lookup that silently misses
+    # would turn "this entity needs a retention window" into "this entity has
+    # no rules", which is the one direction this check must never fail in — the
+    # same reason `_check_expression_rules` reaches the draft this way.
+    lowered = guaranteed(
+        (ent for ent in draft.entities if ent.name == entity_name),
+        expected=f"the lowered entity {entity_name!r}",
+        by="the caller, which skips an entity no mapping targets",
+    )
+    quarantining = [rule for rule in lowered.quality if disposition(rule) is OnFail.QUARANTINE]
 
     if not quarantining:
         return []
