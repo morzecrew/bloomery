@@ -158,7 +158,10 @@ def test_the_iso_text_marker_becomes_a_separator_rewrite(to: str, expected: str)
     rewrite accepts both spellings and is a no-op on a value that never had a
     `T` (RFC 0027).
     """
-    assert DIALECT.render(_iso_cast(to)) == f"CAST(REPLACE(x, 'T', ' ') AS {expected})"
+    assert (
+        DIALECT.render(_iso_cast(to))
+        == f"CAST(REPLACE(CAST(x AS VARCHAR), 'T', ' ') AS {expected})"
+    )
 
 
 def test_the_marker_is_rewritten_inside_a_try_cast() -> None:
@@ -173,4 +176,24 @@ def test_the_marker_is_rewritten_inside_a_try_cast() -> None:
         this=exp.Anonymous(this="BLM_ISO_TEXT", expressions=[exp.column("created_at")]),
         to=exp.DataType.build("TIMESTAMP"),
     )
-    assert DIALECT.render(node) == "TRY_CAST(REPLACE(created_at, 'T', ' ') AS TIMESTAMP)"
+    assert DIALECT.render(node) == (
+        "TRY_CAST(REPLACE(CAST(created_at AS VARCHAR), 'T', ' ') AS TIMESTAMP)"
+    )
+
+
+def test_the_rewrite_survives_an_operand_that_is_not_text() -> None:
+    """The marked operand is text in a transform chain, by `parse_ts`'s declared
+    input type — and is whatever the project landed when the marker is on a
+    **bronze column**, which is where RFC 0016 D21's metadata audit puts it.
+
+    Trino's `replace` takes varchar and nothing else, so the unguarded spelling
+    did not plan at all against a project that lands `_ingested_at` typed:
+    *Unexpected parameters (timestamp(6), varchar, varchar) for function
+    replace*. The inner `CAST(… AS VARCHAR)` is a no-op on the chain's text and
+    is what makes the port's spelling total over what it may be handed.
+    """
+    node = exp.TryCast(
+        this=exp.Anonymous(this="BLM_ISO_TEXT", expressions=[exp.column("_ingested_at")]),
+        to=exp.DataType.build("TIMESTAMP"),
+    )
+    assert "CAST(_ingested_at AS VARCHAR)" in DIALECT.render(node)

@@ -20,5 +20,6 @@ WHERE
   OR (
     (
       NOT _ingested_at IS NULL
-    ) AND TRY_CAST(_ingested_at AS TIMESTAMP) IS NULL
+    )
+    AND TRY_CAST(REPLACE(CAST(_ingested_at AS VARCHAR), 'T', ' ') AS TIMESTAMP) IS NULL
   )

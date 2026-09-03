@@ -73,7 +73,7 @@ USING (
           TRY_CAST(JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.properties'), '$.gift_note') AS VARCHAR) AS gift_note,
           TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.position') AS BIGINT) AS line_no,
           TRY_CAST(JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.order'), '$.id') AS VARCHAR) AS order_id,
-          TRY_CAST(REPLACE(JSON_EXTRACT_SCALAR(raw, '$.created_at'), 'T', ' ') AS TIMESTAMP) AS placed_at,
+          TRY_CAST(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 'T', ' ') AS TIMESTAMP) AS placed_at,
           TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.quantity') AS BIGINT) AS quantity,
           TRY_CAST(JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.variant'), '$.sku') AS VARCHAR) AS sku,
           CASE TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.financial_status') AS VARCHAR)
@@ -100,7 +100,7 @@ USING (
           AND (
             NOT JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.order'), '$.id') IS NULL
           ) AS _branch_order_id_coercible,
-          TRY_CAST(REPLACE(JSON_EXTRACT_SCALAR(raw, '$.created_at'), 'T', ' ') AS TIMESTAMP) IS NULL
+          TRY_CAST(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 'T', ' ') AS TIMESTAMP) IS NULL
           AND (
             NOT JSON_EXTRACT_SCALAR(raw, '$.created_at') IS NULL
           ) AS _branch_placed_at_coercible,
@@ -142,7 +142,7 @@ USING (
           CAST(NULL AS VARCHAR) AS gift_note,
           TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.item_index') AS BIGINT) AS line_no,
           TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.order_number') AS VARCHAR) AS order_id,
-          TRY_CAST(REPLACE(JSON_EXTRACT_SCALAR(raw, '$.created'), 'T', ' ') AS TIMESTAMP) AS placed_at,
+          TRY_CAST(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 'T', ' ') AS TIMESTAMP) AS placed_at,
           TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.qty') AS BIGINT) AS quantity,
           TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.product_sku') AS VARCHAR) AS sku,
           CASE TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.state') AS VARCHAR)
@@ -164,7 +164,7 @@ USING (
           AND (
             NOT JSON_EXTRACT_SCALAR(raw, '$.order_number') IS NULL
           ) AS _branch_order_id_coercible,
-          TRY_CAST(REPLACE(JSON_EXTRACT_SCALAR(raw, '$.created'), 'T', ' ') AS TIMESTAMP) IS NULL
+          TRY_CAST(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 'T', ' ') AS TIMESTAMP) IS NULL
           AND (
             NOT JSON_EXTRACT_SCALAR(raw, '$.created') IS NULL
           ) AS _branch_placed_at_coercible,
@@ -416,7 +416,7 @@ USING (
       TRY_CAST(JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.properties'), '$.gift_note') AS VARCHAR) AS gift_note,
       TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.position') AS BIGINT) AS line_no,
       TRY_CAST(JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.order'), '$.id') AS VARCHAR) AS order_id,
-      TRY_CAST(REPLACE(JSON_EXTRACT_SCALAR(raw, '$.created_at'), 'T', ' ') AS TIMESTAMP) AS placed_at,
+      TRY_CAST(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 'T', ' ') AS TIMESTAMP) AS placed_at,
       TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.quantity') AS BIGINT) AS quantity,
       TRY_CAST(JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.variant'), '$.sku') AS VARCHAR) AS sku,
       CASE TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.financial_status') AS VARCHAR)
@@ -443,7 +443,7 @@ USING (
       AND (
         NOT JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.order'), '$.id') IS NULL
       ) AS _branch_order_id_coercible,
-      TRY_CAST(REPLACE(JSON_EXTRACT_SCALAR(raw, '$.created_at'), 'T', ' ') AS TIMESTAMP) IS NULL
+      TRY_CAST(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 'T', ' ') AS TIMESTAMP) IS NULL
       AND (
         NOT JSON_EXTRACT_SCALAR(raw, '$.created_at') IS NULL
       ) AS _branch_placed_at_coercible,
@@ -485,7 +485,7 @@ USING (
       CAST(NULL AS VARCHAR) AS gift_note,
       TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.item_index') AS BIGINT) AS line_no,
       TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.order_number') AS VARCHAR) AS order_id,
-      TRY_CAST(REPLACE(JSON_EXTRACT_SCALAR(raw, '$.created'), 'T', ' ') AS TIMESTAMP) AS placed_at,
+      TRY_CAST(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 'T', ' ') AS TIMESTAMP) AS placed_at,
       TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.qty') AS BIGINT) AS quantity,
       TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.product_sku') AS VARCHAR) AS sku,
       CASE TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.state') AS VARCHAR)
@@ -507,7 +507,7 @@ USING (
       AND (
         NOT JSON_EXTRACT_SCALAR(raw, '$.order_number') IS NULL
       ) AS _branch_order_id_coercible,
-      TRY_CAST(REPLACE(JSON_EXTRACT_SCALAR(raw, '$.created'), 'T', ' ') AS TIMESTAMP) IS NULL
+      TRY_CAST(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 'T', ' ') AS TIMESTAMP) IS NULL
       AND (
         NOT JSON_EXTRACT_SCALAR(raw, '$.created') IS NULL
       ) AS _branch_placed_at_coercible,

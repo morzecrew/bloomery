@@ -77,6 +77,7 @@ from bloomery.transforms import (
     CONVERT_MARKER,
     CONVERT_TO,
     CONVERT_TYPE,
+    iso_text,
     neutral_type,
 )
 from bloomery.typing import parse_type
@@ -1450,7 +1451,15 @@ def _uncastable_ingested_at() -> Expression:
     corrupt one.
     """
     ingested = exp.column(_INGESTED_AT_COLUMN)
-    castable = exp.TryCast(this=ingested.copy(), to=exp.DataType.build("TIMESTAMP"))
+    # Marked as ISO text (RFC 0027), which is what makes the question the same
+    # question on every engine. Unmarked, this is a bare `TRY_CAST(text AS
+    # TIMESTAMP)` — and Trino's cast does not accept the ISO `T` separator, so
+    # `TRY_CAST('2026-01-06T12:00:00' AS TIMESTAMP)` is NULL there and the audit
+    # reported *every* row as an uncastable timestamp. A blocking audit, so the
+    # run stopped on correct data: the worst failure available to a generated
+    # check (RFC 0024 D13). `parse_ts: ISO8601` already went through the marker;
+    # this cast asks the same thing of the same text and did not.
+    castable = exp.TryCast(this=iso_text(ingested.copy()), to=exp.DataType.build("TIMESTAMP"))
     return conjunction(
         [
             exp.Not(this=exp.Is(this=ingested, expression=exp.null())),

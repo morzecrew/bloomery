@@ -85,14 +85,27 @@ class TrinoDialect(SQLGlotDialect):
         one layer down. ``CAST('2026-01-06T12:00:00' AS TIMESTAMP)`` is NULL on
         Trino and a timestamp on the other two ports — Trino takes only the
         space-separated spelling, and `CAST(… AS DATE)` refuses the ``T`` form
-        as well. ``REPLACE(text, 'T', ' ')`` accepts both and is a no-op on a
-        value that never had one; it is applied to the *text* rather than to
-        the cast because the cast may already have become a ``TRY_CAST``
-        (RFC 0027 D4).
+        as well. ``REPLACE(CAST(text AS VARCHAR), 'T', ' ')`` accepts both and is a
+        no-op on a value that never had one; it is applied to the *text* rather
+        than to the cast because the cast may already have become a
+        ``TRY_CAST`` (RFC 0027 D4).
         """
 
         def space_separated(text: Expression) -> Expression:
-            replaced = exp.func("replace", text, exp.Literal.string("T"), exp.Literal.string(" "))
+            # `CAST(… AS VARCHAR)` first, because the marked operand is not
+            # always text. A transform chain's is, by `parse_ts`'s declared
+            # input type, and there the cast is a no-op — but RFC 0016 D21's
+            # metadata audit marks a *bronze column*, and a project is free to
+            # land `_ingested_at` already typed. Trino's `replace` takes
+            # varchar and nothing else, so the unguarded spelling did not plan
+            # at all there: "Unexpected parameters (timestamp(6), varchar,
+            # varchar) for function replace". A port's spelling has to be total
+            # over what it may be handed, not over what its first caller
+            # happened to hand it.
+            text_form = exp.cast(text, exp.DataType.build("VARCHAR"))
+            replaced = exp.func(
+                "replace", text_form, exp.Literal.string("T"), exp.Literal.string(" ")
+            )
             return cast("Expression", replaced)
 
         def utc(at_zone: Expression) -> Expression:

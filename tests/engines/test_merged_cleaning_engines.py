@@ -133,9 +133,18 @@ CASES: list[tuple[str, str, list[tuple[object, ...]]]] = [
 #: a hardcoded ``PARTITION BY _source_row_id``, on the only target that supports
 #: quarantine.
 AUDIT_CASES: list[tuple[str, str, int]] = [
-    # Blocking, and it must be **silent** here: `s1` is one row identity in two
-    # source relations, which RFC 0016 D21 makes legal, and an audit partitioned
-    # by the identity alone reports it and stops the run on correct data.
+    # Blocking, and it must be **silent** here, for two separate reasons that
+    # both used to break it:
+    #
+    #   * `s1` is one row identity in two source relations, which RFC 0016 D21
+    #     makes legal — an audit partitioned by the identity alone reports it;
+    #   * every row's `_ingested_at` is ISO 8601 with a `T`, and Trino's cast
+    #     does not accept that separator, so an *unmarked* `TRY_CAST` reads
+    #     every row as an uncastable timestamp (RFC 0027's marker is what makes
+    #     the question the same question on every engine).
+    #
+    # The seed writes the `T` deliberately: it is the spelling a real bronze
+    # layer ships, and the one that was broken.
     ("ingestion-metadata", "order_line_ingestion_metadata", 0),
     # Blocking, and silent: no key is held by both shops in this seed.
     ("source-collision", "order_line_source_collision", 0),
@@ -361,35 +370,7 @@ def test_the_emitted_audits_are_silent_on_postgres(
 
 
 @pytest.mark.engine("trino")
-@pytest.mark.parametrize(
-    "case_index",
-    [
-        pytest.param(
-            0,
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "PRE-EXISTING, not this branch: the D21 metadata audit reports a false "
-                    "violation on Trino for every row whose bronze `_ingested_at` is "
-                    "ISO-8601 with a `T`. Its third clause is `_ingested_at IS NOT NULL AND "
-                    "TRY_CAST(_ingested_at AS TIMESTAMP) IS NULL` (RFC 0016 D25/D31), and "
-                    "measured on trinodb/trino:483: "
-                    "TRY_CAST('2024-03-10T00:00:00' AS TIMESTAMP) is NULL while "
-                    "TRY_CAST('2024-03-10 00:00:00' AS TIMESTAMP) parses. The audit is "
-                    "blocking, so this stops a run on correct data — the worst failure "
-                    "available to a generated audit (RFC 0024 D13). Unchanged by this "
-                    "branch (`_uncastable_ingested_at` is byte-identical to main); it is "
-                    "reachable here because this is the first test in the repository to run "
-                    "that audit against Trino. Fixing it changes a shipped audit on one "
-                    "target for every entity that dedupes or quarantines, so it is its own "
-                    "change: see logs/T-0012.md, self-audit finding F-6."
-                ),
-            ),
-        ),
-        *range(1, len(AUDIT_CASES)),
-    ],
-    ids=[c[0] for c in AUDIT_CASES],
-)
+@pytest.mark.parametrize("case_index", range(len(AUDIT_CASES)), ids=[c[0] for c in AUDIT_CASES])
 def test_the_emitted_audits_are_silent_on_trino(
     trino_engine: Callable[[str], list[tuple[object, ...]]], case_index: int
 ) -> None:

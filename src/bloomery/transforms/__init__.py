@@ -17,6 +17,7 @@ from bloomery.transforms._builtins import (
     CONVERT_TYPE,
     DIVIDE_MARKER,
     ISO_TEXT_MARKER,
+    iso_text,
 )
 from bloomery.transforms.registry import (
     Builder,
@@ -40,6 +41,7 @@ __all__ = [
     "CONVERT_TYPE",
     "DIVIDE_MARKER",
     "ISO_TEXT_MARKER",
+    "iso_text",
     "DEFAULT_REGISTRY",
     "Builder",
     "OutputType",
