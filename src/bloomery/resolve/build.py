@@ -1394,22 +1394,34 @@ def _direct_agreement_refusals(
 
         named = ", ".join(sorted(mapping_doc(mapping) for mapping in silent))
         witness = min(recording, key=lambda mapping: mapping.source)
-        # The fix each silent mapping can perform, which is not the same one:
-        # a recipe mapping adds the key, and anything else has to stop being
-        # what it is first. Offering "record a direct: path" to a mapping that
-        # lowers the column under ``key:`` names a key that block does not have.
-        addable = [m for m in silent if _reachable_direct(m, field_name)]
-        remedy = (
-            f"record a direct: path for {field_name!r} in "
-            f"{', '.join(sorted(mapping_doc(m) for m in addable))} too, or drop it from "
-            f"{mapping_doc(witness)}"
-            if len(addable) == len(silent)
-            else (
-                f"drop 'direct:' from {mapping_doc(witness)} — the other mappings lower "
-                f"{field_name!r} without a recipe (under 'key:', or as a plain 'from:'), and "
-                "only a recipe mapping can record a direct: path"
+        # The fix each silent mapping can perform, which is not the same one.
+        # Only a recipe mapping can record a ``direct:`` path — it is the
+        # path-conflict state and there is no conflict without a derivation
+        # (RFC 0006 §5.5) — so a column lowered under ``key:`` or by a plain
+        # ``from:`` names a key that block does not have.
+        #
+        # Where *any* silent mapping is of that kind, adding paths to the
+        # others is not a fix: the refusal fires while a single silent
+        # producer remains, so dropping the witness's path is the only thing
+        # that resolves it. The message says which mappings could take one
+        # anyway — omitting them made the "lower it without a recipe" clause
+        # false about mappings that do have one.
+        addable = sorted(mapping_doc(m) for m in silent if _reachable_direct(m, field_name))
+        blocked = sorted(mapping_doc(m) for m in silent if not _reachable_direct(m, field_name))
+        if not blocked:
+            remedy = (
+                f"record a direct: path for {field_name!r} in {', '.join(addable)} too, or "
+                f"drop it from {mapping_doc(witness)}"
             )
-        )
+        else:
+            remedy = (
+                f"drop 'direct:' from {mapping_doc(witness)}. {', '.join(blocked)} "
+                f"lower{'' if len(blocked) > 1 else 's'} {field_name!r} without a recipe "
+                "(under 'key:', or as a plain 'from:') and only a recipe mapping can record "
+                "a direct: path, so this stays refused while that path is there"
+            )
+            if addable:
+                remedy += f" — giving {', '.join(addable)} one as well would not lift it"
         msg = (
             f"entity {entity_name!r} is built from {len(mappings)} mappings and only "
             f"{len(recording)} of the {len(producing)} that produce {field_name!r} record a "

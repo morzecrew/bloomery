@@ -867,6 +867,79 @@ canonical_fields:
     assert "record a direct: path for 'net_price' in" not in message
 
 
+def test_a_mixed_silent_set_names_what_each_mapping_can_actually_do() -> None:
+    """Three mappings: one records a `direct:` path, one lowers the column with
+    a recipe and no path, one lowers it under `key:`.
+
+    The middle mapping *could* take a path and the last one could not, so a
+    message saying "the other mappings lower it without a recipe" is false
+    about the middle one. And adding a path there would not lift the refusal —
+    it fires while a single silent producer remains — so the only complete fix
+    is still dropping the witness's path. The message has to say both.
+    """
+    sources = {
+        "entity_model": """\
+spec_version: 1
+entities:
+  item:
+    grain: one row per item
+    key: [item_id]
+    fields:
+      item_id: {type: string, required: true}
+      net_price: {type: "decimal(12,4)", canonical: net_price}
+""",
+        "mapping_a": """\
+mapping_version: 1
+source: src_a
+target: item
+key:
+  item_id: {from: "$.id", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.total", quantity: "$.qty"}
+    direct: "$.price"
+""",
+        "mapping_b": """\
+mapping_version: 1
+source: src_b
+target: item
+key:
+  item_id: {from: "$.ident", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.gross", quantity: "$.units"}
+""",
+        "mapping_c": """\
+mapping_version: 1
+source: src_c
+target: item
+key:
+  item_id: {from: "$.identifier", transform: [to_string]}
+  net_price: {from: "$.unit_price", transform: [{to_decimal: [12, 4]}]}
+""",
+    }
+    catalog = load_catalog("""\
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  net_price:
+    entity: item
+    type: decimal(12,4)
+    recipes:
+      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+""")
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources), catalog)
+    message = str(excinfo.value)
+    # The one that cannot take a path is named as the reason, and the one that
+    # could is named as the thing that would not help.
+    assert "mapping[src_c->item] lowers 'net_price' without a recipe" in message
+    assert "giving mapping[src_b->item] one as well would not lift it" in message
+    assert "drop 'direct:' from mapping[src_a->item]" in message
+
+
 def test_a_field_occupying_the_shadow_name_is_refused() -> None:
     """RFC 0006 §5.5. The guardrail adds `<field>__direct` only when the entity
     does not already carry that column — an idempotence guard — so an
