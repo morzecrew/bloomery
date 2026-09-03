@@ -59,7 +59,7 @@ query relation:
 # exists for into something that cannot fail and therefore shows nothing.
 break-it:
     echo "▶ inserting a woo line whose key already exists in shopify"
-    {{ _trino }} --execute "INSERT INTO iceberg.bronze.woo__order_lines VALUES ('SH-1001', '1', 'C-001', 'SKU-DUP', '1', '9.99', '0.00', '2026-03-01 00:00:00')"
+    {{ _trino }} --execute "INSERT INTO iceberg.bronze.woo__order_lines VALUES ('SH-1001', '1', 'C-001', 'SKU-DUP', '1', '9.99', '0.00', '2026-03-01T00:00:00', TIMESTAMP '2026-03-02 00:00:00', 'load-break-it', 'woo-break')"
     echo "▶ rebuilding silver.order_line — the audit should stop this"
     cd {{ justfile_directory() }}/out || exit 1; \
     plan=$(uv run sqlmesh plan --auto-apply --restate-model 'silver.order_line' 2>&1); \

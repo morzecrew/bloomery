@@ -42,6 +42,28 @@ entities:
       # *misspelled* field is already a compile error against this model.
       gift_note: {type: string}
 
+    # A merged entity cleans exactly the way a single-source one does
+    # (RFC 0024 P2). What differs is underneath: the rules are one set over the
+    # merged relation, and their *inputs* are per shop — the coercion marker
+    # compares against the paths that branch actually reads, so one rule judges
+    # rows from two systems that share no column name.
+    #
+    # This is what makes the example's own pitch compose. Bronze is dirty and
+    # the mappings clean it; a merge that could not be cleaned would have meant
+    # every merged entity opting out of that, which is the layer this project
+    # is named for.
+    quarantine: {retention: 90d}
+
+    # `_source` joins the sort key immediately ahead of the row identity, and
+    # that is not decoration: `_source_row_id` is unique within *one* source
+    # relation, so two shops sharing an entity key would otherwise compare
+    # equal and the survivor would be undefined. The collision audit refuses
+    # that shape, but an audit runs after the model materializes.
+    dedupe:
+      keep: latest_by
+      field: ordered_at
+      tie_break: [_source_row_id]
+
   # ....................... #
   customer:
     grain: one row per customer

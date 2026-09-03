@@ -48,3 +48,9 @@ fields:
   ordered_at: {from: "$.payload.created_at", transform: [{parse_ts: ISO8601}]}
 
   gift_note: {from: "$.payload.gift_note", transform: [to_string]}
+
+# The ingestion-metadata contract (RFC 0016 D21), acknowledged rather than
+# mapped — see `mapping_crm.yaml`. **Both** shops must supply it: the reject
+# table holds rows from either, and each one points back at the row it came
+# from through its own `source_relation`.
+unmapped: ["$._ingested_at", "$._load_id", "$._source_row_id"]

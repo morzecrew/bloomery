@@ -124,6 +124,18 @@ SHOW_WHAT_LANDED = (
         "FROM iceberg.silver.order_line GROUP BY _source ORDER BY _source",
     ),
     (
+        "the merge cleans: the legacy shop wrote 'two' where a quantity goes, and the\n"
+        "  reject row names the shop it came from — one reject table, both branches",
+        "SELECT source_relation, failed_rules, key_values FROM "
+        "iceberg.silver.order_line__reject",
+    ),
+    (
+        "one rule, two shops, each branch comparing against the paths it reads:\n"
+        "  the platform shop's lines are untouched by the legacy shop's bad row",
+        "SELECT _source, count(*) AS lines, sum(amount) AS amount "
+        "FROM iceberg.silver.order_line GROUP BY _source ORDER BY _source",
+    ),
+    (
         "C-002 arrived in two loads; dedupe kept the later revision and only that one",
         "SELECT customer_id, email, segment, updated_at FROM iceberg.silver.customer "
         "WHERE customer_id = 'C-002'",
