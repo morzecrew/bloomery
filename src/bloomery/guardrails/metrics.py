@@ -1,0 +1,414 @@
+"""The metric-shape guard (RFC 0034 D5, D7, D9) — the refusals the four
+time- and filter-shaped metric forms need.
+
+Everything here is decidable from the draft IR, and every failure is a *model*
+error rather than a target's inability: a metric that declares two mutually
+exclusive shapes, an expression naming an input that does not exist, a filter
+on a dimension no mart flattens. Each one would otherwise reach a semantic
+emitter as an invalid manifest or — worse — compile clean and answer with a
+number nobody asked for.
+
+This replaces the blanket ``cumulative:`` refusal that stood while nothing
+lowered it (RFC 0002 D10). The refusal was right for as long as it held; what
+survives it is narrower and named per case, because "reserved surface" is no
+longer why any of these fail.
+"""
+
+from __future__ import annotations
+
+from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
+from typing import TYPE_CHECKING
+
+from sqlglot import exp
+
+from bloomery.errors import (
+    GuardrailError,
+    InvalidMetricShape,
+    MetricFilterInvalid,
+    guaranteed,
+)
+from bloomery.ir import Additivity
+from bloomery.typing import (
+    BoolType,
+    DateType,
+    DecimalType,
+    IntType,
+    StringType,
+    TimestampType,
+)
+
+if TYPE_CHECKING:
+    from bloomery.ir import MartIR, MetricFilterIR, MetricIR, ProjectIR
+    from bloomery.typing import LogicalType
+
+# ----------------------- #
+
+__all__ = [
+    "check_metrics",
+]
+
+
+def _is_temporal(value: str, *, with_time: bool) -> bool:
+    """Whether a filter value really is the ISO temporal it looks like.
+
+    Parsed rather than pattern-matched. A length-and-separator check passes
+    ``"2026-99-99"``, which then reaches SQL as a literal compared against a
+    date column and fails on the engine — a model error decidable from the spec
+    alone, surfacing at run time with the engine's message instead of at compile
+    time with the column's name. That is the trade RFC 0016 D13 already refused
+    for range bounds, and it is refused here for the same reason.
+
+    ``date.fromisoformat`` accepts only a date; a ``timestamp`` column takes
+    either, because a date is a valid instant in it and
+    ``resolve.build._metric_filters`` writes whichever the author wrote.
+    """
+
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        pass
+    else:
+        return True
+
+    if not with_time:
+        return False
+
+    try:
+        datetime.fromisoformat(value)
+    except ValueError:
+        return False
+
+    return True
+
+
+def _within(value: Decimal, declared: DecimalType) -> bool:
+    """Whether a decimal literal fits the column's declared ``(precision,
+    scale)``.
+
+    Finiteness alone let a 23-digit value through against a ``decimal(12,4)``
+    column, and the emitted literal is never cast (RFC 0013 D8) — so the
+    comparison reached the engine as a number the column cannot represent. Both
+    halves are checked: digits after the point beyond ``scale`` would be
+    silently rounded, and digits before it beyond ``precision - scale`` cannot
+    be stored at all.
+
+    The width is read off the value, not off its spelling, and that is the whole
+    difficulty. ``Decimal("1E+10")`` carries one digit and a *positive*
+    exponent, so counting ``digits`` alone calls it one integral digit and lets
+    it through; ``Decimal("1.23000")`` carries five and a scale of five, so
+    counting them all rejects a value a ``decimal(9,2)`` column holds exactly.
+    Trailing zeros are stripped by hand rather than by ``normalize()``, and the
+    exponent is read rather than ``quantize`` called, because both of those
+    consult the arithmetic context — 28 digits by default — and would round the
+    very values this exists to reject.
+    """
+
+    exponent = value.as_tuple().exponent
+    if not isinstance(exponent, int):  # pragma: no cover — non-finite is refused above
+        return False
+
+    digits = list(value.as_tuple().digits)
+
+    while exponent < 0 and digits and digits[-1] == 0:
+        digits.pop()
+        exponent += 1
+
+    if not digits or digits == [0]:
+        return True  # zero fits every (precision, scale)
+
+    integral = len(digits) + exponent
+
+    return max(-exponent, 0) <= declared.scale and integral <= declared.precision - declared.scale
+
+
+# ....................... #
+
+
+def _fits(value: str | int | bool | Decimal, declared: LogicalType) -> bool:
+    """Whether one filter value can be compared against a column of this type
+    without a cast (RFC 0013 D8's rule, applied at compile time).
+
+    ``str`` is the carrier for decimals YAML would round and for temporals the
+    IR has no tag for, so it is accepted against a numeric or temporal column
+    only when it parses as one — never as an implicit cast of arbitrary text.
+    """
+
+    if isinstance(declared, BoolType):
+        return isinstance(value, bool)
+
+    # ``bool`` is an ``int`` subclass, and a boolean against a numeric column
+    # is an authoring mistake rather than a narrowing.
+    if isinstance(value, bool):
+        return False
+
+    if isinstance(declared, IntType):
+        return isinstance(value, int)
+
+    if isinstance(declared, DecimalType):
+        try:
+            parsed = Decimal(value)
+        except InvalidOperation:
+            return False
+        return parsed.is_finite() and _within(parsed, declared)
+
+    if isinstance(declared, StringType):
+        return isinstance(value, str)
+
+    if isinstance(declared, (DateType, TimestampType)):
+        return isinstance(value, str) and _is_temporal(
+            value, with_time=isinstance(declared, TimestampType)
+        )
+
+    return False  # pragma: no cover — the logical-type set is closed
+
+
+# ....................... #
+
+
+def _check_filter(
+    metric: MetricIR, clause: MetricFilterIR, mart: MartIR, path: str
+) -> list[GuardrailError]:
+    """One filter clause against one mart carrying the metric (RFC 0034 D9)."""
+
+    categorical = {
+        dimension.column: dimension for dimension in mart.dimensions if dimension.ref.role is None
+    }
+
+    if clause.dimension not in categorical:
+        roles = sorted(
+            dimension.column for dimension in mart.dimensions if dimension.ref.role is not None
+        )
+        if clause.dimension in roles:
+            msg = (
+                f"metric {metric.name!r} filters on date-role dimension "
+                f"{clause.dimension!r}. A metric restricted to a fixed period is a "
+                "constant, not a metric — express the time relation as cumulative: "
+                "{window|grain_to_date} or as a derived metric with an offset: "
+                "(RFC 0034)"
+            )
+            return [MetricFilterInvalid(msg, source_path=path)]
+
+        known = sorted(categorical)
+        msg = (
+            f"metric {metric.name!r} filters on {clause.dimension!r}, which mart "
+            f"{mart.name!r} does not flatten as a categorical dimension; known: {known}. "
+            "Fix: flatten the column onto the mart, or filter on one it already carries"
+        )
+        return [MetricFilterInvalid(msg, source_path=path)]
+
+    if clause.op == "is_null":
+        return []
+
+    declared = guaranteed(
+        (column.type for column in mart.columns if column.name == clause.dimension),
+        expected=f"a column backing dimension {clause.dimension!r} of mart {mart.name!r}",
+        by="the mart flattener, which builds every dimension from a column it flattened",
+    )
+    unfit = [value for value in clause.values if not _fits(value, declared)]
+
+    if unfit:
+        msg = (
+            f"metric {metric.name!r} filters {clause.dimension!r} "
+            f"({type(declared).__name__}) against {unfit!r}, which does not fit the "
+            "column's declared type — filter values are never cast (RFC 0013 D8). "
+            "Fix: write the value in the column's own type"
+        )
+        return [MetricFilterInvalid(msg, source_path=path)]
+
+    return []
+
+
+# ....................... #
+
+
+def _has_no_measure(metric: MetricIR) -> bool:
+    """Whether this metric has nothing of its own to aggregate.
+
+    Two ways to arrive there and the window is meaningless under both: a
+    non-additive metric is recomputed from components and never emits a
+    measure, and a metric with no ``agg:``/``expr:`` has no aggregation to
+    emit one from. The second reached the emitter before this, failing there as
+    an `UnsupportedByTarget` in MetricFlow's vocabulary rather than here in the
+    spec's — the stage argument D9 already makes for filters.
+    """
+
+    return metric.additivity is Additivity.NON_ADDITIVE or (
+        metric.agg is None and metric.expr is None
+    )
+
+
+# ....................... #
+
+
+def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
+    """The metric's own declaration, read against itself (RFC 0034 D5–D7)."""
+
+    violations: list[GuardrailError] = []
+
+    if metric.cumulative is not None and metric.derived is not None:
+        msg = (
+            f"metric {metric.name!r} declares both derived: and cumulative:. A derived "
+            "metric has no measure of its own and a cumulative window accumulates one, "
+            "so the two name mutually exclusive shapes (RFC 0034 D7). Fix: accumulate a "
+            "simple metric, then derive from *it*"
+        )
+        violations.append(InvalidMetricShape(msg, source_path=path))
+
+    if metric.derived is not None and (
+        metric.ratio is not None or metric.agg is not None or metric.expr is not None
+    ):
+        # The emitter branches on `derived` first, so the other declaration is
+        # not refused, not merged and not reported — it is dropped, and the
+        # metric quietly means only half of what it says.
+        also = sorted(
+            name
+            for name, present in (
+                ("ratio:", metric.ratio is not None),
+                ("agg:", metric.agg is not None),
+                ("expr:", metric.expr is not None),
+            )
+            if present
+        )
+        msg = (
+            f"metric {metric.name!r} declares derived: and also {', '.join(also)}. A metric "
+            "has one shape: the emitter lowers the derived expression and silently discards "
+            "the rest, so the metric would mean less than it says (RFC 0034 D1). Fix: keep "
+            "the derivation, or drop it and keep the measure"
+        )
+        violations.append(InvalidMetricShape(msg, source_path=path))
+
+    if metric.derived is not None and metric.additivity is not Additivity.NON_ADDITIVE:
+        msg = (
+            f"metric {metric.name!r} is derived: but declares additivity "
+            f"{metric.additivity.value!r}. A derived metric has no measure to aggregate — "
+            "it is recomputed from its inputs at query time, which is what non_additive "
+            "means (RFC 0011 D5). Fix: additivity: non_additive"
+        )
+        violations.append(InvalidMetricShape(msg, source_path=path))
+
+    if metric.cumulative is not None and metric.additivity is Additivity.SEMI_ADDITIVE:
+        # Measured, not deduced: on the `period_over_period` fixture this
+        # combination reported 2707 on a day whose revenue was 100 and whose
+        # month totalled 257. A semi-additive metric declares that it may not be
+        # summed along its `over` dimension — which the emitter resolves to a
+        # date role, always — and a cumulative window accumulates along exactly
+        # that dimension. MetricFlow lowers both: the `last`/`first` rule joins
+        # the measure to its own MAX/MIN over the date, and the accumulation
+        # then sums the fanned-out rows.
+        msg = (
+            f"metric {metric.name!r} is semi_additive over "
+            f"{metric.semi_additive.over.qualified!r} and also declares cumulative:. "
+            if metric.semi_additive is not None
+            else f"metric {metric.name!r} is semi_additive and also declares cumulative:. "
+        ) + (
+            "A semi-additive metric may not be summed along its over: dimension, and that "
+            "dimension is a date role; a cumulative window accumulates along it. Both "
+            "lower, and the product is a number with no meaning — the rule's self-join "
+            "fans the measure out and the window then sums the copies (RFC 0034 D6). "
+            "Fix: drop one of the two — accumulate an additive metric, or keep the "
+            "point-in-time rule and read the series at its own grain"
+        )
+        violations.append(InvalidMetricShape(msg, source_path=path))
+
+    if metric.cumulative is not None and _has_no_measure(metric):
+        because = (
+            "is non_additive"
+            if metric.additivity is Additivity.NON_ADDITIVE
+            else "declares neither agg: nor expr:"
+        )
+        msg = (
+            f"metric {metric.name!r} is cumulative: but {because}, so it has no measure to "
+            "accumulate. The additivity describes the measure and the window describes how "
+            "it accumulates (RFC 0034 D6). Fix: declare the aggregation this accumulates — "
+            "agg:/expr: with an additive or semi_additive additivity"
+        )
+        violations.append(InvalidMetricShape(msg, source_path=path))
+
+    if metric.filter and metric.additivity is Additivity.NON_ADDITIVE:
+        # Every shape of non-additive metric, not just `derived:`. A ratio has
+        # the same hole and had it silently: the RATIO lowering carries no
+        # filter, so a metric declared as a restricted average returned the
+        # unrestricted one. The additivity is the right predicate because it is
+        # exactly the class that never emits a measure — ratio, derived, and the
+        # expression-over-components form alike.
+        msg = (
+            f"metric {metric.name!r} is non_additive and carries filter:. A non-additive "
+            "metric is never a measure — it is recomputed from its components at query "
+            "time — so a filter here restricts those components rather than the metric it "
+            "is written on: a post-aggregate filter, which bloomery does not express "
+            "(RFC 0034 §9). Fix: filter the components and decompose from the filtered "
+            "ones"
+        )
+        violations.append(InvalidMetricShape(msg, source_path=path))
+
+    violations.extend(_check_aliases(metric, path))
+
+    return violations
+
+
+# ....................... #
+
+
+def _check_aliases(metric: MetricIR, path: str) -> list[GuardrailError]:
+    """A derived expression references exactly its declared aliases.
+
+    Both directions are refused. An **unknown** alias is a manifest MetricFlow
+    would reject or, worse, resolve against something else. An **unused** one
+    is an input computed and discarded: the offset join runs, the column is
+    never read, and the author meant something they did not write.
+    """
+
+    if metric.derived is None:
+        return []
+
+    declared = {input_.alias for input_ in metric.derived.inputs}
+    referenced = {column.name for column in metric.derived.expr.ast().find_all(exp.Column)}
+    violations: list[GuardrailError] = []
+
+    if unknown := sorted(referenced - declared):
+        msg = (
+            f"derived metric {metric.name!r} references {unknown} in its expr, which its "
+            f"inputs: do not declare; declared: {sorted(declared)}. Fix: add the input, or "
+            "correct the alias"
+        )
+        violations.append(InvalidMetricShape(msg, source_path=path))
+
+    if unused := sorted(declared - referenced):
+        msg = (
+            f"derived metric {metric.name!r} declares inputs {unused} its expr never "
+            "references — each one is a metric read and discarded. Fix: remove the input, "
+            "or reference it"
+        )
+        violations.append(InvalidMetricShape(msg, source_path=path))
+
+    return violations
+
+
+# ....................... #
+
+
+def check_metrics(draft: ProjectIR) -> list[GuardrailError]:
+    """Every metric-shape and metric-filter violation across the draft.
+
+    Filters are checked against **every** mart listing the metric among its
+    measures, rather than against the one that will own it: ownership is the
+    cheapest-mart rule of RFC 0010 D8, which lives in the lowering package a
+    layer above this one, and checking every candidate is a superset of what
+    correctness needs (RFC 0034 D9). A metric no mart lists carries no
+    checkable filter and none is claimed.
+    """
+
+    violations: list[GuardrailError] = []
+
+    for metric in draft.metrics:
+        path = f"metrics: metrics.{metric.name}"
+        violations.extend(_check_shape(metric, path))
+
+        for mart in draft.marts:
+            if metric.name not in mart.measures:
+                continue
+            for clause in metric.filter:
+                violations.extend(_check_filter(metric, clause, mart, path))
+
+    return violations

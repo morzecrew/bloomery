@@ -1,0 +1,13 @@
+# The time spine every RFC 0034 construct needs: a cumulative window joins the
+# measure to it over a range, and an offset reads the same measure at an
+# earlier point on it. A project with marts and no date_dimension is already an
+# EmitError at manifest time (RFC 0013 R1 rule 4); here it is load-bearing
+# rather than merely required.
+catalog_version: 1
+vertical: retail
+
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2022
+  end_year: 2026

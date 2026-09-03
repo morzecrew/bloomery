@@ -234,3 +234,63 @@ def test_categorical_dimensions_ignore_time_grain() -> None:
         naming=NAMING,
     )
     assert resolved.dimensions == (ResolvedDimension(name="store"),)
+
+
+# ....................... #
+# Derived metrics (RFC 0034 §8)
+
+
+def test_a_derived_metric_resolves_to_the_mart_carrying_its_inputs() -> None:
+    """It has no measure of its own, so coverage follows the decomposition —
+    exactly as it does for a ratio (RFC 0011 D5)."""
+    assert check(
+        fixture_ir("period_over_period"),
+        MetricRequest(metrics=("revenue_yoy",), dimensions=("sold_month",)),
+        naming=NAMING,
+    ) == "sales"
+
+
+def test_a_derived_metric_needs_its_input_measure_served() -> None:
+    """The refusal names the *input*, not the derived metric — the fix is a
+    mart carrying the input, and naming the wrapper would route to the wrong
+    document."""
+    ir = fixture_ir("period_over_period")
+    stripped = replace(
+        ir,
+        marts=tuple(
+            replace(mart, measures=tuple(m for m in mart.measures if m != "revenue"))
+            for mart in ir.marts
+        ),
+    )
+    with pytest.raises(UnreachableAtGrain) as excinfo:
+        check(
+            stripped,
+            MetricRequest(metrics=("revenue_yoy",), dimensions=("sold_month",)),
+            naming=NAMING,
+        )
+
+    assert "metric 'revenue'" in str(excinfo.value)
+    assert "requested derived metric 'revenue_yoy'" in str(excinfo.value)
+
+
+def test_one_input_named_twice_is_required_once() -> None:
+    """`revenue_yoy` reads `revenue` at two offsets. The offsets are
+    MetricFlow's to render; coverage needs the measure once, and a second
+    entry would make a single-mart request look like a two-mart one."""
+    ir = fixture_ir("period_over_period")
+    yoy = next(metric for metric in ir.metrics if metric.name == "revenue_yoy")
+
+    assert [input_.metric for input_ in yoy.derived.inputs] == ["revenue", "revenue"]
+    assert check(
+        ir,
+        MetricRequest(metrics=("revenue_yoy", "revenue"), dimensions=("sold_month",)),
+        naming=NAMING,
+    ) == "sales"
+
+
+def test_a_cumulative_metric_requires_its_own_measure() -> None:
+    assert check(
+        fixture_ir("period_over_period"),
+        MetricRequest(metrics=("revenue_mtd",), dimensions=("sold_day",)),
+        naming=NAMING,
+    ) == "sales"

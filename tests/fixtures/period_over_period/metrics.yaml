@@ -1,0 +1,86 @@
+# Every RFC 0034 construct, once each.
+metrics_version: 1
+metrics:
+  revenue:
+    grain: sale
+    additivity: additive
+    agg: sum
+    expr: "amount"
+
+  # A metric restricted to a subset of rows (D8) — its own measure, filtered,
+  # rather than a filter every caller has to remember to add.
+  paid_revenue:
+    description: Revenue on sales that were paid for
+    grain: sale
+    additivity: additive
+    agg: sum
+    expr: "amount"
+    filter:
+      - {dimension: status, op: eq, values: [paid]}
+
+  # Two clauses, ANDed, over a decimal and a date — the shapes that are not
+  # strings. A filter literal has to reach SQL in the column's own type: Trino
+  # refuses `decimal <= varchar` and `date <= varchar` outright, and the other
+  # two dialects only rescued an untyped one by implicit cast.
+  large_recent_revenue:
+    description: Revenue on sales of at least 50.00 made from 2024 onward
+    grain: sale
+    additivity: additive
+    agg: sum
+    expr: "amount"
+    filter:
+      - {dimension: amount, op: gte, values: ["50.00"]}
+      - {dimension: sold_at, op: gte, values: ["2024-01-01"]}
+
+  # The timestamp half of the same problem: an ISO timestamp literal carries a
+  # `T` and Trino refuses to cast one, so this metric is the only thing in the
+  # corpus that runs that rendering through an engine.
+  booked_since_march:
+    description: Revenue on sales booked from 2024-03-01 onward
+    grain: sale
+    additivity: additive
+    agg: sum
+    expr: "amount"
+    filter:
+      - {dimension: booked_at, op: gte, values: ["2024-03-01T00:00:00"]}
+
+  # Month-to-date: the same measure, accumulated from the start of its own
+  # month (D5). `additivity` describes the measure; `cumulative` describes how
+  # it accumulates (D6).
+  revenue_mtd:
+    grain: sale
+    additivity: additive
+    agg: sum
+    expr: "amount"
+    cumulative: {grain_to_date: month}
+
+  # The other cumulative form: a trailing window rather than a period start.
+  revenue_trailing_7d:
+    grain: sale
+    additivity: additive
+    agg: sum
+    expr: "amount"
+    cumulative: {window: "7 days"}
+
+  # The question the ceiling made unaskable: this period against the same
+  # period a year earlier (D1, D2). The inputs name one metric twice, which is
+  # why the alias is the identity rather than a field.
+  revenue_yoy:
+    description: Revenue minus the same period one year earlier
+    additivity: non_additive
+    derived:
+      expr: "current - prior"
+      inputs:
+        current: {metric: revenue}
+        prior: {metric: revenue, offset: {window: "1 year"}}
+
+  # The offset's other form: not a fixed distance back, but the start of the
+  # containing period.
+  revenue_vs_month_start:
+    description: Revenue against the first day of its own month
+    additivity: non_additive
+    derived:
+      expr: "current - month_start"
+      inputs:
+        current: {metric: revenue}
+        month_start: {metric: revenue, offset: {to_grain: month}}

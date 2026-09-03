@@ -186,3 +186,64 @@ def test_reference_failures_are_batched_across_kinds() -> None:
     assert all(isinstance(item, MissingReference) for item in error.collected)
     assert "mapping[src__lines->order]: target" in str(error)
     assert "metrics: metrics.rev.template" in str(error)
+
+
+def test_a_derived_metric_reading_an_unknown_metric_is_a_missing_reference() -> None:
+    """The reference stage runs *before* the template merge and reads the spec
+    models directly, so it validates `derived.inputs` itself (RFC 0034 D3) —
+    through the same `input_metrics` property the merge reads, so the two
+    cannot disagree about what a derived metric depends on."""
+    metrics = (
+        "metrics_version: 1\n"
+        "metrics:\n"
+        "  revenue: {grain: order_item, additivity: additive, agg: sum, expr: unit_price}\n"
+        "  revenue_yoy:\n"
+        "    additivity: non_additive\n"
+        "    derived:\n"
+        '      expr: "current - prior"\n'
+        "      inputs:\n"
+        "        current: {metric: revenue}\n"
+        "        prior: {metric: revenu, offset: {window: 1 year}}\n"
+    )
+    project = load_project({"entity_model": ENTITY_MODEL, "mapping": MAPPING, "metrics": metrics})
+    with pytest.raises(ResolutionError) as excinfo:
+        resolve(project, None)
+    (leaf,) = [
+        error for error in excinfo.value.collected if "derived metric" in str(error)
+    ]
+
+    assert isinstance(leaf, MissingReference)
+    assert "unknown metric 'revenu'" in str(leaf)
+    assert leaf.source_path == "metrics: metrics.revenue_yoy.derived.inputs.prior"
+
+
+def test_each_unknown_derived_input_names_its_own_alias() -> None:
+    """Two bad inputs are two source paths, not one repeated.
+
+    The alias is the identity the author wrote — it is the mapping key, so it
+    always exists — and reporting the block instead would send them to the same
+    line twice, which is the round-trip RFC 0002 D6's batching exists to avoid.
+    """
+    metrics = (
+        "metrics_version: 1\n"
+        "metrics:\n"
+        "  revenue: {grain: order_item, additivity: additive, agg: sum, expr: unit_price}\n"
+        "  revenue_yoy:\n"
+        "    additivity: non_additive\n"
+        "    derived:\n"
+        '      expr: "current - prior"\n'
+        "      inputs:\n"
+        "        current: {metric: revenu}\n"
+        "        prior: {metric: revenoo, offset: {window: 1 year}}\n"
+    )
+    project = load_project({"entity_model": ENTITY_MODEL, "mapping": MAPPING, "metrics": metrics})
+    with pytest.raises(ResolutionError) as excinfo:
+        resolve(project, None)
+    paths = {
+        error.source_path for error in excinfo.value.collected if "derived metric" in str(error)
+    }
+
+    assert paths == {
+        "metrics: metrics.revenue_yoy.derived.inputs.current",
+        "metrics: metrics.revenue_yoy.derived.inputs.prior",
+    }

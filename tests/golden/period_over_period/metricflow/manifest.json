@@ -1,0 +1,745 @@
+{
+  "metrics": [
+    {
+      "config": null,
+      "description": "Revenue on sales booked from 2024-03-01 onward",
+      "filter": {
+        "where_filters": [
+          {
+            "where_sql_template": "{{ Dimension('sale__booked_at') }} >= CAST('2024-03-01 00:00:00' AS TIMESTAMP)"
+          }
+        ]
+      },
+      "label": null,
+      "metadata": null,
+      "name": "booked_since_march",
+      "time_granularity": null,
+      "type": "simple",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": null,
+        "denominator": null,
+        "expr": "amount",
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "booked_since_march"
+          }
+        ],
+        "is_private": false,
+        "join_to_timespine": false,
+        "measure": {
+          "alias": null,
+          "fill_nulls_with": null,
+          "filter": null,
+          "join_to_timespine": false,
+          "name": "booked_since_march"
+        },
+        "metric_aggregation_params": {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "sold_day",
+          "non_additive_dimension": null,
+          "semantic_model": "sales"
+        },
+        "metrics": null,
+        "numerator": null,
+        "window": null
+      }
+    },
+    {
+      "config": null,
+      "description": "Revenue on sales of at least 50.00 made from 2024 onward",
+      "filter": {
+        "where_filters": [
+          {
+            "where_sql_template": "{{ Dimension('sale__amount') }} >= 50.00"
+          },
+          {
+            "where_sql_template": "{{ Dimension('sale__sold_at') }} >= CAST('2024-01-01' AS DATE)"
+          }
+        ]
+      },
+      "label": null,
+      "metadata": null,
+      "name": "large_recent_revenue",
+      "time_granularity": null,
+      "type": "simple",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": null,
+        "denominator": null,
+        "expr": "amount",
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "large_recent_revenue"
+          }
+        ],
+        "is_private": false,
+        "join_to_timespine": false,
+        "measure": {
+          "alias": null,
+          "fill_nulls_with": null,
+          "filter": null,
+          "join_to_timespine": false,
+          "name": "large_recent_revenue"
+        },
+        "metric_aggregation_params": {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "sold_day",
+          "non_additive_dimension": null,
+          "semantic_model": "sales"
+        },
+        "metrics": null,
+        "numerator": null,
+        "window": null
+      }
+    },
+    {
+      "config": null,
+      "description": "Revenue on sales that were paid for",
+      "filter": {
+        "where_filters": [
+          {
+            "where_sql_template": "{{ Dimension('sale__status') }} = 'paid'"
+          }
+        ]
+      },
+      "label": null,
+      "metadata": null,
+      "name": "paid_revenue",
+      "time_granularity": null,
+      "type": "simple",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": null,
+        "denominator": null,
+        "expr": "amount",
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "paid_revenue"
+          }
+        ],
+        "is_private": false,
+        "join_to_timespine": false,
+        "measure": {
+          "alias": null,
+          "fill_nulls_with": null,
+          "filter": null,
+          "join_to_timespine": false,
+          "name": "paid_revenue"
+        },
+        "metric_aggregation_params": {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "sold_day",
+          "non_additive_dimension": null,
+          "semantic_model": "sales"
+        },
+        "metrics": null,
+        "numerator": null,
+        "window": null
+      }
+    },
+    {
+      "config": null,
+      "description": null,
+      "filter": null,
+      "label": null,
+      "metadata": null,
+      "name": "revenue",
+      "time_granularity": null,
+      "type": "simple",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": null,
+        "denominator": null,
+        "expr": "amount",
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "revenue"
+          }
+        ],
+        "is_private": false,
+        "join_to_timespine": false,
+        "measure": {
+          "alias": null,
+          "fill_nulls_with": null,
+          "filter": null,
+          "join_to_timespine": false,
+          "name": "revenue"
+        },
+        "metric_aggregation_params": {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "sold_day",
+          "non_additive_dimension": null,
+          "semantic_model": "sales"
+        },
+        "metrics": null,
+        "numerator": null,
+        "window": null
+      }
+    },
+    {
+      "config": null,
+      "description": null,
+      "filter": null,
+      "label": null,
+      "metadata": null,
+      "name": "revenue_mtd",
+      "time_granularity": null,
+      "type": "cumulative",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": {
+          "grain_to_date": "month",
+          "metric": {
+            "alias": null,
+            "filter": null,
+            "name": "revenue_mtd_1",
+            "offset_to_grain": null,
+            "offset_window": null
+          },
+          "period_agg": "last",
+          "window": null
+        },
+        "denominator": null,
+        "expr": null,
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "revenue_mtd"
+          }
+        ],
+        "is_private": false,
+        "join_to_timespine": false,
+        "measure": {
+          "alias": null,
+          "fill_nulls_with": null,
+          "filter": null,
+          "join_to_timespine": false,
+          "name": "revenue_mtd"
+        },
+        "metric_aggregation_params": null,
+        "metrics": null,
+        "numerator": null,
+        "window": null
+      }
+    },
+    {
+      "config": null,
+      "description": null,
+      "filter": null,
+      "label": null,
+      "metadata": null,
+      "name": "revenue_trailing_7d",
+      "time_granularity": null,
+      "type": "cumulative",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": {
+          "grain_to_date": null,
+          "metric": {
+            "alias": null,
+            "filter": null,
+            "name": "revenue_trailing_7d_1",
+            "offset_to_grain": null,
+            "offset_window": null
+          },
+          "period_agg": "last",
+          "window": {
+            "count": 7,
+            "granularity": "day"
+          }
+        },
+        "denominator": null,
+        "expr": null,
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "revenue_trailing_7d"
+          }
+        ],
+        "is_private": false,
+        "join_to_timespine": false,
+        "measure": {
+          "alias": null,
+          "fill_nulls_with": null,
+          "filter": null,
+          "join_to_timespine": false,
+          "name": "revenue_trailing_7d"
+        },
+        "metric_aggregation_params": null,
+        "metrics": null,
+        "numerator": null,
+        "window": null
+      }
+    },
+    {
+      "config": null,
+      "description": "Revenue against the first day of its own month",
+      "filter": null,
+      "label": null,
+      "metadata": null,
+      "name": "revenue_vs_month_start",
+      "time_granularity": null,
+      "type": "derived",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": null,
+        "denominator": null,
+        "expr": "current - month_start",
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "revenue"
+          }
+        ],
+        "is_private": false,
+        "join_to_timespine": false,
+        "measure": null,
+        "metric_aggregation_params": null,
+        "metrics": [
+          {
+            "alias": "current",
+            "filter": null,
+            "name": "revenue",
+            "offset_to_grain": null,
+            "offset_window": null
+          },
+          {
+            "alias": "month_start",
+            "filter": null,
+            "name": "revenue",
+            "offset_to_grain": "month",
+            "offset_window": null
+          }
+        ],
+        "numerator": null,
+        "window": null
+      }
+    },
+    {
+      "config": null,
+      "description": "Revenue minus the same period one year earlier",
+      "filter": null,
+      "label": null,
+      "metadata": null,
+      "name": "revenue_yoy",
+      "time_granularity": null,
+      "type": "derived",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": null,
+        "denominator": null,
+        "expr": "current - prior",
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "revenue"
+          }
+        ],
+        "is_private": false,
+        "join_to_timespine": false,
+        "measure": null,
+        "metric_aggregation_params": null,
+        "metrics": [
+          {
+            "alias": "current",
+            "filter": null,
+            "name": "revenue",
+            "offset_to_grain": null,
+            "offset_window": null
+          },
+          {
+            "alias": "prior",
+            "filter": null,
+            "name": "revenue",
+            "offset_to_grain": null,
+            "offset_window": {
+              "count": 1,
+              "granularity": "year"
+            }
+          }
+        ],
+        "numerator": null,
+        "window": null
+      }
+    },
+    {
+      "config": null,
+      "description": null,
+      "filter": null,
+      "label": null,
+      "metadata": null,
+      "name": "revenue_mtd_1",
+      "time_granularity": null,
+      "type": "simple",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": null,
+        "denominator": null,
+        "expr": "amount",
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "revenue_mtd"
+          }
+        ],
+        "is_private": true,
+        "join_to_timespine": false,
+        "measure": {
+          "alias": null,
+          "fill_nulls_with": null,
+          "filter": null,
+          "join_to_timespine": false,
+          "name": "revenue_mtd"
+        },
+        "metric_aggregation_params": {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "sold_day",
+          "non_additive_dimension": null,
+          "semantic_model": "sales"
+        },
+        "metrics": null,
+        "numerator": null,
+        "window": null
+      }
+    },
+    {
+      "config": null,
+      "description": null,
+      "filter": null,
+      "label": null,
+      "metadata": null,
+      "name": "revenue_trailing_7d_1",
+      "time_granularity": null,
+      "type": "simple",
+      "type_params": {
+        "conversion_type_params": null,
+        "cumulative_type_params": null,
+        "denominator": null,
+        "expr": "amount",
+        "fill_nulls_with": null,
+        "grain_to_date": null,
+        "input_measures": [
+          {
+            "alias": null,
+            "fill_nulls_with": null,
+            "filter": null,
+            "join_to_timespine": false,
+            "name": "revenue_trailing_7d"
+          }
+        ],
+        "is_private": true,
+        "join_to_timespine": false,
+        "measure": {
+          "alias": null,
+          "fill_nulls_with": null,
+          "filter": null,
+          "join_to_timespine": false,
+          "name": "revenue_trailing_7d"
+        },
+        "metric_aggregation_params": {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "sold_day",
+          "non_additive_dimension": null,
+          "semantic_model": "sales"
+        },
+        "metrics": null,
+        "numerator": null,
+        "window": null
+      }
+    }
+  ],
+  "project_configuration": {
+    "dsi_package_version": {
+      "major_version": "0",
+      "minor_version": "212",
+      "patch_version": "0"
+    },
+    "metadata": null,
+    "time_spine_table_configurations": [],
+    "time_spines": [
+      {
+        "custom_granularities": [],
+        "node_relation": {
+          "alias": "dim_date",
+          "database": null,
+          "relation_name": "gold.dim_date",
+          "schema_name": "gold"
+        },
+        "primary_column": {
+          "name": "date_day",
+          "time_granularity": "day"
+        }
+      }
+    ]
+  },
+  "saved_queries": [],
+  "semantic_models": [
+    {
+      "config": null,
+      "defaults": null,
+      "description": null,
+      "dimensions": [
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "amount",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "booked_at",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "channel",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "is_test",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "sale_id",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "sold_at",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "sold_day",
+          "type": "time",
+          "type_params": {
+            "time_granularity": "day",
+            "validity_params": null
+          }
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "status",
+          "type": "categorical",
+          "type_params": null
+        },
+        {
+          "config": null,
+          "description": null,
+          "expr": null,
+          "is_partition": false,
+          "label": null,
+          "metadata": null,
+          "name": "units",
+          "type": "categorical",
+          "type_params": null
+        }
+      ],
+      "entities": [
+        {
+          "config": null,
+          "description": null,
+          "expr": "sale_id",
+          "label": null,
+          "metadata": null,
+          "name": "sale",
+          "role": null,
+          "type": "primary"
+        }
+      ],
+      "label": null,
+      "measures": [
+        {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "sold_day",
+          "config": null,
+          "create_metric": null,
+          "description": null,
+          "expr": "amount",
+          "label": null,
+          "metadata": null,
+          "name": "booked_since_march",
+          "non_additive_dimension": null
+        },
+        {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "sold_day",
+          "config": null,
+          "create_metric": null,
+          "description": null,
+          "expr": "amount",
+          "label": null,
+          "metadata": null,
+          "name": "large_recent_revenue",
+          "non_additive_dimension": null
+        },
+        {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "sold_day",
+          "config": null,
+          "create_metric": null,
+          "description": null,
+          "expr": "amount",
+          "label": null,
+          "metadata": null,
+          "name": "paid_revenue",
+          "non_additive_dimension": null
+        },
+        {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "sold_day",
+          "config": null,
+          "create_metric": null,
+          "description": null,
+          "expr": "amount",
+          "label": null,
+          "metadata": null,
+          "name": "revenue",
+          "non_additive_dimension": null
+        },
+        {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "sold_day",
+          "config": null,
+          "create_metric": null,
+          "description": null,
+          "expr": "amount",
+          "label": null,
+          "metadata": null,
+          "name": "revenue_mtd",
+          "non_additive_dimension": null
+        },
+        {
+          "agg": "sum",
+          "agg_params": null,
+          "agg_time_dimension": "sold_day",
+          "config": null,
+          "create_metric": null,
+          "description": null,
+          "expr": "amount",
+          "label": null,
+          "metadata": null,
+          "name": "revenue_trailing_7d",
+          "non_additive_dimension": null
+        }
+      ],
+      "metadata": null,
+      "name": "sales",
+      "node_relation": {
+        "alias": "mart_sales",
+        "database": null,
+        "relation_name": "gold.mart_sales",
+        "schema_name": "gold"
+      },
+      "primary_entity": null
+    }
+  ]
+}

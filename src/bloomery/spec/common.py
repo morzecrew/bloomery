@@ -33,9 +33,11 @@ __all__ = [
     "AdditivityName",
     "CardinalityName",
     "CurrencyCode",
+    "DimensionName",
     "JsonPath",
     "MaterializationName",
     "MemberName",
+    "IDENTIFIER_PATTERN",
     "RELATION_NAME_PATTERN",
     "RelationName",
     "ParameterValue",
@@ -155,6 +157,18 @@ JsonPath = Annotated[str, StringConstraints(pattern=JSONPATH_PATTERN)]
 CurrencyCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")]
 MemberName = Annotated[str, AfterValidator(_reject_reserved_member)]
 
+#: A bare lower-snake identifier — the shape a name must have to be safe in a
+#: context that does not quote it. Two such contexts exist, and they are
+#: deliberately the *only* two: the SQLMesh ``MODEL (...)`` envelope, which is
+#: Jinja over pre-rendered strings (:data:`RelationName`, RFC 0002 D14), and a
+#: metric filter's dimension reference, which is Jinja on MetricFlow and
+#: ``{member}`` templating on Cube (:data:`DimensionName`, RFC 0034 D8).
+#:
+#: One constant because it is one rule. Both names below travel outside
+#: SQLGlot's quoting, so both need it; a second spelling of the same pattern is
+#: how the two would come to differ about what an identifier is.
+IDENTIFIER_PATTERN = r"^[a-z][a-z0-9_]*$"
+
 #: A name that becomes a **relation** — an entity or a mart (RFC 0002 D14).
 #:
 #: Stricter than :data:`MemberName` because it travels further. A field name
@@ -165,9 +179,28 @@ MemberName = Annotated[str, AfterValidator(_reject_reserved_member)]
 #: verbatim. The pattern is the fix rather than escaping at the envelope: a
 #: relation name has no business carrying anything but identifier characters,
 #: and ``StepRef`` is pinned the same way for the same reason.
-RELATION_NAME_PATTERN = r"^[a-z][a-z0-9_]*$"
+RELATION_NAME_PATTERN = IDENTIFIER_PATTERN
 RelationName = Annotated[
     str, StringConstraints(pattern=RELATION_NAME_PATTERN), AfterValidator(_reject_reserved_relation)
+]
+
+#: A member name *referenced from a place that does not quote it* — today, the
+#: dimension of a metric filter (RFC 0034 D8).
+#:
+#: :data:`MemberName` is deliberately unpatterned, on the reasoning quoted
+#: above: a field name reaches SQL through SQLGlot, which quotes it. A metric
+#: filter breaks that premise — the name is interpolated into
+#: ``{{ Dimension('<entity>__<name>') }}`` on MetricFlow and ``{CUBE}.<name>``
+#: on Cube, and neither is SQLGlot. A field named ``evil') }} = 1 OR 1=1 --``
+#: therefore closed the template and made the filter match every row: a metric
+#: declared as a restricted subset silently returning the whole population.
+#:
+#: The pattern rather than per-target escaping, for the same reason D13 refuses
+#: template braces in a *value*: two escaping rules that can disagree is worse
+#: than one refusal both targets inherit. Filtering on a column whose name is
+#: not a bare identifier is the narrow thing this gives up.
+DimensionName = Annotated[
+    str, StringConstraints(pattern=IDENTIFIER_PATTERN), AfterValidator(_reject_reserved_member)
 ]
 
 AdditivityName = Literal["additive", "semi_additive", "non_additive"]

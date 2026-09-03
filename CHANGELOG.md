@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Metrics over time: period-over-period, cumulative windows and metric filters.**
+  "Revenue vs. the same month last year" is expressible. A metric may now be
+  `derived:` — an expression over other metrics, each read through an alias and
+  optionally at an `offset:` of a fixed `window:` ("1 year") or the start of a
+  containing period (`to_grain: month`). The alias is the mapping key rather than a
+  field, because the interesting case names one metric twice.
+
+  `cumulative:` lowers at last, in both its forms: a trailing `window:` and a
+  `grain_to_date:` accumulation. It sits beside `agg:`/`expr:` rather than replacing
+  them — the additivity describes the measure, the window describes how the measure
+  accumulates.
+
+  A metric may carry a `filter:` — typed clauses, never a SQL string — so
+  `paid_revenue` is a metric rather than a convention every caller has to remember.
+  Values are checked against the flattened column's declared type at compile time and
+  are never cast; the restriction is reported in the plan's explanation, so a filtered
+  number is never presented as its unfiltered sibling. The dimension must be a bare
+  `^[a-z][a-z0-9_]*$` identifier — the one place a member name reaches a template that
+  does not quote it, where every other field name reaches SQL through SQLGlot.
+
+  Two boundaries stated up front. A cumulative metric asked for at a grain coarser
+  than it accumulates to collapses each period to one value, and `period_agg:`
+  says how — **`last` by default**, so a month-to-date metric asked for by month
+  reports the accumulation at the month's end. That is this project's one
+  deliberate divergence from MetricFlow, whose default is `first`: on a month
+  totalling 257 it reported 100, the running total on the first day. Write
+  `period_agg: first` or `average` to ask for something else. And
+  `cumulative:` on a `semi_additive` metric is refused: the
+  `over:` dimension is a date role and a window accumulates along that same axis,
+  so the two lower into a number with no reading.
+
+  A derived metric's inputs are its dependency edges: they need not be repeated in
+  `requires_metrics:`, and reachability, cycle detection and the planner's coverage
+  precheck all follow them. **Cube refuses derived and cumulative metrics** with
+  `UnsupportedByTarget` naming the construct — it compares periods at query time
+  rather than as a stored measure definition, and has no `grain_to_date` equivalent —
+  and emits metric filters as measure filters. The MetricFlow manifest carries all
+  four. RFC 0034.
+
 - **Currency conversion.** `convert` now lowers, against a dated rate relation the
   catalog declares as `fx_rates:` — the relation plus its from/to/rate/valid_from/
   valid_to columns. The transform reads
@@ -55,8 +94,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   converting, where the catalog declares rates; declaring rates or deriving upstream,
   where it does not. The rule itself is unchanged and still has no escape token.
 
-- `ProjectIR.bloomery_ir_version` is **8** (was 6), across two shape changes in this
-  release: `MartJoinIR` gained `as_of` (7) and `ProjectIR` gained `fx_rates` (8).
+- `ProjectIR.bloomery_ir_version` is **10** (was 6), across four shape changes in this
+  release: `MartJoinIR` gained `as_of` (7), `ProjectIR` gained `fx_rates` (8),
+  `MetricIR` gained `cumulative`/`derived`/`filter` (9), and `CumulativeIR` gained
+  `period_agg` (10).
   `plan()` refuses to diff across versions; recompile both sides with one compiler.
   Every project's fingerprint moves, because the version is itself part of the
   canonical stream — `as_of` on its own would have moved only the fingerprints of
@@ -78,10 +119,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- A metric declaring `cumulative:` is now refused at compile time
-  (`UnsupportedCumulative`). It was accepted and silently compiled as a plain
-  simple metric — per-period aggregation where a running total was declared. A
-  spec that compiled with `cumulative:` now fails until the clause is removed.
+- A metric declaring `cumulative:` no longer compiles as a plain simple metric —
+  per-period aggregation where a running total was declared, which is what 0.2.0
+  did, silently. It is lowered now (see Added). It was briefly refused outright
+  earlier in this same unreleased window, which no release ever carried; what
+  survives that refusal is narrower and named per case (`InvalidMetricShape`).
 
 - A `coalesce`/`nullif` literal that cannot survive the cast into its column's
   decimal type — too wide for the declared `(p, s)`, or not a number — is now
@@ -98,6 +140,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with no check at all; the shipped three dialects are unaffected.
 
 ### Removed
+
+- `UnsupportedCumulative`. The class named reserved surface no stage lowered, and
+  the surface is no longer reserved. A metric that cannot mean what it says is now
+  `InvalidMetricShape`; a filter that cannot be lowered is `MetricFilterInvalid`.
 
 - The unenforced target-capability surface: `Feature`, `TargetCapabilities`,
   each emitter's `capabilities()`, and `METRICFLOW_PLANNER_CAPABILITIES`.

@@ -8,7 +8,8 @@ twice (here first, MetricFlow's resolver second).
 Rules, in order:
 
 1. every requested metric exists (``UnknownMember`` with a did-you-mean);
-   a non-additive ratio requires its component measures;
+   a non-additive ratio requires its component measures, and a derived metric
+   requires whatever its inputs need, transitively (RFC 0034 §8);
 2. all required measures live on **one** mart — ownership by the exact rule
    the emitter placed measures with (cheapest ``cost_hint``, ties
    lexicographic — :func:`bloomery.emit.metricflow.measure_owners`), so
@@ -114,6 +115,52 @@ def _gold_relation(mart: MartIR, naming: NamingPolicy) -> str:
 # ....................... #
 
 
+def _measures_of(ir: ProjectIR, metric: MetricIR, seen: set[str]) -> tuple[str, ...]:
+    """The measures one metric needs, following decompositions (RFC 0011 D5).
+
+    A ratio needs both components; a derived metric needs whatever its inputs
+    need, transitively — a derived metric over a ratio over two simple metrics
+    needs the two simple measures (RFC 0034 §8). ``seen`` bounds the walk: the
+    resolution DAG is acyclic, so it can only be reached twice by a diamond,
+    but a cycle that somehow arrived here would hang rather than refuse, and a
+    planner that hangs is worse than one that is wrong.
+    """
+
+    if metric.name in seen:
+        return ()
+
+    seen.add(metric.name)
+
+    if metric.derived is not None:
+        return tuple(
+            measure
+            for input_ in metric.derived.inputs
+            for measure in _measures_of(
+                ir,
+                guaranteed(
+                    (m for m in ir.metrics if m.name == input_.metric),
+                    expected=f"derived input {input_.metric!r} of metric {metric.name!r}",
+                    by="reachability, which drops a metric whose inputs are unreachable",
+                ),
+                seen,
+            )
+        )
+
+    if metric.additivity is Additivity.NON_ADDITIVE:
+        if metric.ratio is None:  # pragma: no cover — guardrails refuse this at compile
+            msg = (
+                f"non-additive metric {metric.name!r} carries neither a ratio nor a derived "
+                "decomposition — the guardrail stage should have refused it (RFC 0006 D6)"
+            )
+            raise PlannerError(msg)
+        return (metric.ratio.numerator, metric.ratio.denominator)
+
+    return (metric.name,)
+
+
+# ....................... #
+
+
 def _required_measures(ir: ProjectIR, name: str) -> tuple[MetricIR, tuple[str, ...]]:
     """The metric named in the request and the measure names a mart must
     carry to serve it (a ratio needs both components — RFC 0011 D5)."""
@@ -133,16 +180,7 @@ def _required_measures(ir: ProjectIR, name: str) -> tuple[MetricIR, tuple[str, .
             f"unknown metric {name!r}{_did_you_mean(closest, known)}", did_you_mean=closest
         )
 
-    if metric.additivity is Additivity.NON_ADDITIVE:
-        if metric.ratio is None:  # pragma: no cover — guardrails refuse this at compile
-            msg = (
-                f"non-additive metric {name!r} carries no ratio decomposition — "
-                "the guardrail stage should have refused it (RFC 0006 D6)"
-            )
-            raise PlannerError(msg)
-        return metric, (metric.ratio.numerator, metric.ratio.denominator)
-
-    return metric, (name,)
+    return metric, _measures_of(ir, metric, set())
 
 
 # ....................... #
@@ -156,7 +194,8 @@ def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) 
     entries: dict[str, tuple[str, MartIR]] = {}  # measure -> (grain, owner)
 
     for requested in request.metrics:
-        _metric, required = _required_measures(ir, requested)
+        metric, required = _required_measures(ir, requested)
+        shape = "derived metric" if metric.derived is not None else "ratio"
         for measure in required:
             owner = owners.get(measure)
             if owner is None:
@@ -164,7 +203,7 @@ def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) 
                 suffix = (
                     ""
                     if measure == requested
-                    else f" (a component of the requested ratio {requested!r})"
+                    else f" (a component of the requested {shape} {requested!r})"
                 )
                 msg = (
                     f"metric {measure!r}{suffix} (grain: {grain}) is served by no mart — "

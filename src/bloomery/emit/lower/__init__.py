@@ -36,6 +36,8 @@ from bloomery.emit.lower.predicates import (
     audit_predicate,
     column_type,
     enum_literal,
+    mart_column_type,
+    metric_filter_sql,
 )
 from bloomery.emit.lower.quality_mart import quality_mart_select
 from bloomery.emit.lower.reconcile import (
@@ -93,9 +95,11 @@ __all__ = [
     "ingestion_audit_predicate",
     "mart_assert_name",
     "mart_assert_select",
+    "mart_column_type",
     "mart_select",
     "measure_owners",
     "metadata_audit_select",
+    "metric_filter_sql",
     "quality_mart_select",
     "reconcile_audit_blocking",
     "reconcile_audit_predicate",

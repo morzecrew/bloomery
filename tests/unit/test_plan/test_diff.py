@@ -9,6 +9,7 @@ from dataclasses import replace
 
 import pytest
 from support import plan_ir
+from support.compiling import fixture_sources, load_fixture
 from support.ir_factory import build_project_ir as factory_ir
 
 from bloomery.errors import ContractViolation, PlanError, RenameTargetMissing
@@ -22,6 +23,7 @@ from bloomery.ir import (
     MartJoinIR,
     Materialization,
     PartitionSpec,
+    ProjectIR,
     RelationshipIR,
     SCDKind,
     SourceFieldIR,
@@ -30,6 +32,7 @@ from bloomery.ir import (
     Unit,
     UnreachableMetric,
 )
+from bloomery import build_project_ir, load_project
 from bloomery.plan import Change, ChangeClass, plan
 from bloomery.typing import DecimalType, IntType, StringType, TimestampType, VariantType
 
@@ -906,3 +909,153 @@ def test_date_dimension_bounds_extension_is_additive_but_shrinking_is_breaking()
     assert (grow.old, grow.new) == ("2020-2030", "2019-2031")
     cut = only_change(plan_ir.project(date_dimension=dim), plan_ir.project(date_dimension=shrunk))
     assert cut.change_class is ChangeClass.BREAKING
+
+
+def test_the_rfc_0034_metric_forms_restate_when_they_change() -> None:
+    """A window, an offset or a filter is *what the metric computes*, so a
+    change to one is a restatement.
+
+    While these were missing from `_metric_definition`, `plan()` reported no
+    metric change at all for any of them — a window widened from seven days to
+    thirty, an offset moved from one year to two, a filter changed from
+    `status = paid` to `status != refunded` — so a deployment would have left
+    the old figures standing.
+    """
+    _project, catalog = load_fixture("period_over_period")
+    base = build_project_ir(*load_fixture("period_over_period"))
+
+    for anchor, replacement, metric in (
+        ('cumulative: {window: "7 days"}', 'cumulative: {window: "30 days"}', "revenue_trailing_7d"),
+        ('offset: {window: "1 year"}', 'offset: {window: "2 years"}', "revenue_yoy"),
+        (
+            "- {dimension: status, op: eq, values: [paid]}",
+            "- {dimension: status, op: ne, values: [refunded]}",
+            "paid_revenue",
+        ),
+    ):
+        sources = dict(fixture_sources("period_over_period"))
+        assert sources["metrics"].count(anchor) == 1, anchor
+        sources["metrics"] = sources["metrics"].replace(anchor, replacement)
+        changed = build_project_ir(load_project(sources), catalog)
+
+        subjects = {
+            change.subject: change.change_class for change in plan(base, changed).changes
+        }
+        assert subjects.get(f"metric:{metric}") is ChangeClass.RESTATING, anchor
+
+
+def test_reordering_anded_filter_clauses_is_not_a_restatement() -> None:
+    """The clauses are ANDed, so their order is the same restriction — and a
+    restatement schedules a backfill nobody needs.
+
+    The IR keeps the authored order because it reaches the artifact bytes; the
+    comparison sorts, because the artifact is allowed to change when the numbers
+    do not.
+    """
+    _project, catalog = load_fixture("period_over_period")
+    base = build_project_ir(*load_fixture("period_over_period"))
+
+    sources = dict(fixture_sources("period_over_period"))
+    anchor = (
+        "      - {dimension: amount, op: gte, values: [\"50.00\"]}\n"
+        "      - {dimension: sold_at, op: gte, values: [\"2024-01-01\"]}\n"
+    )
+    assert sources["metrics"].count(anchor) == 1
+    sources["metrics"] = sources["metrics"].replace(
+        anchor,
+        "      - {dimension: sold_at, op: gte, values: [\"2024-01-01\"]}\n"
+        "      - {dimension: amount, op: gte, values: [\"50.00\"]}\n",
+    )
+    swapped = build_project_ir(load_project(sources), catalog)
+
+    # The IR really did change — this is not a test that nothing happened.
+    metric = next(m for m in swapped.metrics if m.name == "large_recent_revenue")
+    assert [clause.dimension for clause in metric.filter] == ["sold_at", "amount"]
+
+    subjects = {change.subject for change in plan(base, swapped).changes}
+    assert "metric:large_recent_revenue" not in subjects
+
+
+def test_two_clauses_sharing_a_dimension_and_operator_still_normalize() -> None:
+    """The sort key has to be *total*, and `(dimension, op)` was not.
+
+    `sorted` is stable, so two clauses sharing both kept whatever order they
+    arrived in — `amount >= 10 AND amount >= 20` written the other way round
+    read as a different definition and restated the metric. Redundant, but
+    legal: the diff stage does not get to decide what the spec accepts, so the
+    fix is the key rather than a new refusal.
+    """
+    _project, catalog = load_fixture("period_over_period")
+    anchor = (
+        '      - {dimension: amount, op: gte, values: ["50.00"]}\n'
+        '      - {dimension: sold_at, op: gte, values: ["2024-01-01"]}\n'
+    )
+
+    def ir_with(clauses: str) -> ProjectIR:
+        sources = dict(fixture_sources("period_over_period"))
+        assert sources["metrics"].count(anchor) == 1
+        sources["metrics"] = sources["metrics"].replace(anchor, clauses)
+        return build_project_ir(load_project(sources), catalog)
+
+    low_then_high = (
+        '      - {dimension: amount, op: gte, values: ["10.00"]}\n'
+        '      - {dimension: amount, op: gte, values: ["20.00"]}\n'
+    )
+    high_then_low = (
+        '      - {dimension: amount, op: gte, values: ["20.00"]}\n'
+        '      - {dimension: amount, op: gte, values: ["10.00"]}\n'
+    )
+    changed_value = (
+        '      - {dimension: amount, op: gte, values: ["10.00"]}\n'
+        '      - {dimension: amount, op: gte, values: ["30.00"]}\n'
+    )
+    subject = "metric:large_recent_revenue"
+
+    swapped = {c.subject for c in plan(ir_with(low_then_high), ir_with(high_then_low)).changes}
+    assert subject not in swapped
+
+    # ...and the key stays sensitive to the thing that does matter.
+    edited = {c.subject for c in plan(ir_with(low_then_high), ir_with(changed_value)).changes}
+    assert subject in edited
+
+
+def test_reordering_membership_values_is_not_a_restatement() -> None:
+    """`status IN (paid, refunded)` and `status IN (refunded, paid)` restrict the
+    same rows, so the second spelling must not schedule a backfill.
+
+    Same principle as the clause order above: the IR keeps what was authored
+    because it reaches the artifact bytes, and the comparison normalizes because
+    the artifact is allowed to change when the numbers do not. Membership is the
+    one operator whose values are a *set* — repeating a value is as inert as
+    reordering one — so the key drops both distinctions, and only for `in` and
+    `not_in`, where `gte` values are positional.
+    """
+    _project, catalog = load_fixture("period_over_period")
+    anchor = (
+        '      - {dimension: amount, op: gte, values: ["50.00"]}\n'
+        '      - {dimension: sold_at, op: gte, values: ["2024-01-01"]}\n'
+    )
+
+    def ir_with(clauses: str) -> ProjectIR:
+        sources = dict(fixture_sources("period_over_period"))
+        assert sources["metrics"].count(anchor) == 1
+        sources["metrics"] = sources["metrics"].replace(anchor, clauses)
+        return build_project_ir(load_project(sources), catalog)
+
+    authored = '      - {dimension: status, op: in, values: [paid, refunded]}\n'
+    reversed_values = '      - {dimension: status, op: in, values: [refunded, paid]}\n'
+    repeated = '      - {dimension: status, op: in, values: [paid, refunded, paid]}\n'
+    other_set = '      - {dimension: status, op: in, values: [paid, pending]}\n'
+    subject = "metric:large_recent_revenue"
+
+    # The IR really does differ — this is not a test that nothing happened.
+    metric = next(m for m in ir_with(reversed_values).metrics if m.name == "large_recent_revenue")
+    assert metric.filter[0].values == ("refunded", "paid")
+
+    for spelling in (reversed_values, repeated):
+        subjects = {c.subject for c in plan(ir_with(authored), ir_with(spelling)).changes}
+        assert subject not in subjects, spelling
+
+    # ...and a genuinely different set still restates.
+    edited = {c.subject for c in plan(ir_with(authored), ir_with(other_set)).changes}
+    assert subject in edited

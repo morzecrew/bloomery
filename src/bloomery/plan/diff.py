@@ -119,6 +119,7 @@ if TYPE_CHECKING:
         DedupeIR,
         EntityIR,
         MartIR,
+        MetricFilterIR,
         MetricIR,
         QualityRuleIR,
         QuarantineIR,
@@ -1503,13 +1504,66 @@ def _diff_entities(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
 # ....................... #
 
 
+def _filter_key(clause: MetricFilterIR) -> tuple[str, ...]:
+    """A **total** order over filter clauses, for the normalization below.
+
+    Total is the whole requirement, and `(dimension, op)` was not: `sorted` is
+    stable, so two clauses sharing a dimension and an operator kept whatever
+    order they arrived in — and `amount >= 10 AND amount >= 20` written the
+    other way round then read as a different definition and restated the
+    metric.
+
+    The values join the key, rendered with `repr` because they are not mutually
+    orderable — `1 < "1"` raises — and because `repr` keeps `1`, `"1"` and
+    `True` apart, which a plain `str` would not.
+
+    Membership values are a *set*: `status IN (paid, refunded)` restricts what
+    `status IN (refunded, paid)` restricts, and repeating a value adds nothing,
+    so the key drops both distinctions. Only for `in` and `not_in` — every other
+    operator takes its values positionally, and `gte 10` is not `gte 20`.
+    """
+
+    values = [repr(value) for value in clause.values]
+    if clause.op in ("in", "not_in"):
+        values = sorted(set(values))
+    return (clause.dimension, clause.op, *values)
+
+
+# ....................... #
+
+
 def _metric_definition(metric: MetricIR) -> tuple[object, ...]:
+    """Everything about a metric whose change restates it.
+
+    **Every** field that decides what the metric computes belongs here, and the
+    RFC 0034 three are the reason that is written down rather than assumed: a
+    window widened from seven days to thirty, an offset moved from one year to
+    two, a filter changed from ``status = paid`` to ``status != refunded`` are
+    each a different number over the same rows, and while they were missing
+    ``plan()`` reported no metric change at all — so a deployment would have
+    left the old figures standing.
+
+    Compared by *meaning*, not by spelling, which is why ``filter`` enters as
+    sorted `_filter_key` values and stays in authored order in the IR: the
+    clauses are ANDed, so reordering them is the same restriction and must not
+    schedule a backfill. The key rather than the clause, because normalizing has
+    to reach *inside* one — sorting `MetricFilterIR` objects orders the clauses
+    but still compares the values verbatim. The IR keeps what was authored
+    because it reaches the artifact bytes, and the artifact is allowed to change
+    when the numbers do not.
+    """
+
+    derived = metric.derived
+
     return (
         metric.additivity,
         metric.agg,
         metric.expr.sql if metric.expr is not None else None,
         metric.ratio,
         metric.semi_additive,
+        metric.cumulative,
+        (derived.expr.sql, derived.inputs) if derived is not None else None,
+        tuple(sorted(_filter_key(clause) for clause in metric.filter)),
         metric.depends_on,
     )
 

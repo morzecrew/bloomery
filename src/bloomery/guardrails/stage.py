@@ -2,15 +2,18 @@
 (RFC 0006 §5.1, D2, D9).
 
 Stage four of the pipeline, invoked from ``build_project_ir``'s seam after
-typecheck. Pure: six guards are read-only checks whose violations are
+typecheck. Pure: seven guards are read-only checks whose violations are
 collected project-wide — together with the mart-level leaves the flattener
 reports (``GrainViolation``, ``FanoutRisk``, ``MartMissingTimeDimension`` —
 RFC 0006 D10, RFC 0010 §5.5) — and raised as **one** :class:`GuardrailError`
 aggregate, its leaves sorted by ``(source_path, type name)`` — authors fix a
-spec in one round-trip (RFC 0002 D6). The only amendments are the seventh
+spec in one round-trip (RFC 0002 D6). The only amendments are the eighth
 guard's path-conflict handling (shadow column + reconcile audit, RFC 0006
 D7) and the lowering of valid ``assert:`` clauses into entity audits
 (RFC 0006 D8); a project with neither returns the draft unchanged.
+
+The seventh is the metric-shape guard (RFC 0034), which replaced the blanket
+``cumulative:`` refusal when that surface stopped being reserved.
 """
 
 from __future__ import annotations
@@ -18,12 +21,13 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from bloomery.errors import GuardrailError, UnsupportedCumulative
+from bloomery.errors import GuardrailError
 from bloomery.guardrails.additivity import check_additivity
 from bloomery.guardrails.arithmetic import check_arithmetic
 from bloomery.guardrails.asserts import lower_asserts
 from bloomery.guardrails.conflict import path_conflict_amendments
 from bloomery.guardrails.grain import check_grain
+from bloomery.guardrails.metrics import check_metrics
 from bloomery.guardrails.operands import collect_derivations
 from bloomery.guardrails.quality import check_quality
 from bloomery.marts import lower_marts
@@ -87,37 +91,8 @@ def _amended_entity(
 # ....................... #
 
 
-def _check_reserved(project: Project) -> list[GuardrailError]:
-    """Refuse reserved spec surface nothing lowers (RFC 0002 D10).
-
-    ``cumulative:`` parse-validates and is read by no later stage, so without
-    this check the metric compiles as a plain simple metric — per-period
-    aggregation where a running total was declared, silently. Checked over the
-    spec rather than the draft IR because the IR deliberately has no field for
-    it: the defect is exactly that the declaration never reaches the IR.
-    """
-    if project.metric_set is None:
-        return []
-
-    return [
-        UnsupportedCumulative(
-            f"metric {name!r} declares cumulative:, which bloomery does not lower yet — "
-            "compiled anyway it would aggregate per period instead of cumulatively, a "
-            "wrong number with no signal (RFC 0002 D10 reserves the surface). Fix: "
-            "remove cumulative: and compute the running total downstream, or express "
-            "the metric over a pre-accumulated column",
-            source_path=f"metrics: metrics.{name}.cumulative",
-        )
-        for name, metric in project.metric_set.metrics.items()
-        if metric.cumulative is not None
-    ]
-
-
-# ....................... #
-
-
 def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | None) -> ProjectIR:
-    """Run all seven guardrails plus the data-quality leaves over the draft IR
+    """Run all eight guardrails plus the data-quality leaves over the draft IR
     (RFC 0006 D9; RFC 0016 §5.9).
 
     Raises one aggregated :class:`GuardrailError` if any violation exists;
@@ -129,7 +104,7 @@ def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | N
     violations = check_arithmetic(derivations, draft.metrics, catalog)
     violations.extend(check_grain(derivations, draft, project, catalog))
     violations.extend(check_additivity(draft))
-    violations.extend(_check_reserved(project))
+    violations.extend(check_metrics(draft))
     # Mart-level checks (RFC 0006 D10): the flattener re-runs here as a pure
     # sibling stage; its leaves batch into the same aggregate as the rest.
     violations.extend(lower_marts(project.marts, draft).violations)

@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, replace
+from datetime import date, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING, cast
 
@@ -51,11 +52,15 @@ from bloomery.ir import (
     Additivity,
     Cardinality,
     ColumnIR,
+    CumulativeIR,
     DateDimensionIR,
+    DerivedIR,
     DimensionRef,
     EntityIR,
     FxRatesIR,
     Materialization,
+    MetricFilterIR,
+    MetricInputIR,
     MetricIR,
     ProjectIR,
     Ratio,
@@ -67,6 +72,7 @@ from bloomery.ir import (
     SourceFieldIR,
     SourceIR,
     TaxBasis,
+    TimeWindow,
     TransformStepIR,
     Unit,
     canon,
@@ -97,6 +103,7 @@ from bloomery.spec.mapping import (
     RecipeFieldMapping,
     SimpleFieldMapping,
 )
+from bloomery.spec.metrics import parse_time_window
 from bloomery.spec.project import Project
 from bloomery.steps import EMPTY_REGISTRY, StepRegistry
 from bloomery.steps.splice import parameter_literal, placeholders, splice
@@ -126,6 +133,7 @@ if TYPE_CHECKING:
 
     from bloomery.spec.entity import Entity, Field
     from bloomery.spec.mapping import FieldMapping, Mapping, TransformStep
+    from bloomery.spec.metrics import DerivedSpec, MetricFilter
     from bloomery.steps import StepManifest
     from bloomery.transforms import Registry
 
@@ -1447,6 +1455,77 @@ def _build_entities(
 # ....................... #
 
 
+def _time_window(window: str | None) -> TimeWindow | None:
+    """``"3 months"`` → ``TimeWindow(3, "month")``. The spec pattern has already
+    established the shape; :func:`parse_time_window` is the one place the plural
+    is dropped, so the IR carries a single spelling of each grain."""
+
+    if window is None:
+        return None
+
+    count, grain = parse_time_window(window)
+    return TimeWindow(count=count, grain=grain)
+
+
+# ....................... #
+
+
+def _derived(derived: DerivedSpec | None) -> DerivedIR | None:
+    """The ``derived:`` block as IR — inputs sorted by alias (RFC 0034 D1).
+
+    The alias is the mapping key rather than a field, so it cannot be missing
+    and cannot repeat; sorting it here is what makes the tuple deterministic
+    without a set ever reaching output (RFC 0003).
+    """
+
+    if derived is None:
+        return None
+
+    return DerivedIR(
+        # ``parse_one`` is annotated with the ``Expr`` base, but every node it
+        # returns is an ``Expression`` (cf. ir.nodes).
+        expr=canon(cast("Expression", parse_one(derived.expr))),
+        inputs=tuple(
+            MetricInputIR(
+                alias=alias,
+                metric=spec.metric,
+                offset_window=_time_window(spec.offset.window if spec.offset else None),
+                offset_to_grain=spec.offset.to_grain if spec.offset else None,
+            )
+            for alias, spec in sorted(derived.inputs.items())
+        ),
+    )
+
+
+# ....................... #
+
+
+def _metric_filters(filters: tuple[MetricFilter, ...]) -> tuple[MetricFilterIR, ...]:
+    """The ``filter:`` list as IR, in authored order — the clauses are ANDed,
+    so the order is cosmetic in SQL and load-bearing in the artifact bytes.
+
+    A ``date``/``datetime`` value becomes its ISO text, the carrier
+    :class:`~bloomery.ir.AuditIR` params already use: a temporal literal
+    reaches SQL as a quoted string compared in the column's own type, and the
+    canonical encoder has no tag for a ``date`` (RFC 0003 §5.4).
+    """
+
+    return tuple(
+        MetricFilterIR(
+            dimension=clause.dimension,
+            op=clause.op,
+            values=tuple(
+                value.isoformat() if isinstance(value, (date, datetime)) else value
+                for value in clause.values
+            ),
+        )
+        for clause in filters
+    )
+
+
+# ....................... #
+
+
 def _build_metrics(
     project: Project, catalog: Catalog | None, reachable: tuple[str, ...]
 ) -> tuple[MetricIR, ...]:
@@ -1481,6 +1560,17 @@ def _build_metrics(
                     else None
                 ),
                 semi_additive=semi_additive,
+                cumulative=(
+                    CumulativeIR(
+                        period_agg=metric.cumulative.period_agg,
+                        window=_time_window(metric.cumulative.window),
+                        grain_to_date=metric.cumulative.grain_to_date,
+                    )
+                    if metric.cumulative is not None
+                    else None
+                ),
+                derived=_derived(metric.derived),
+                filter=_metric_filters(metric.filter),
                 description=metric.description,
                 depends_on=tuple(sorted({*metric.requires, *metric.requires_metrics})),
             )

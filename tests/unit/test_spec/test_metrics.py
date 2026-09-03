@@ -7,6 +7,7 @@ import yaml
 
 from bloomery.errors import SpecParseError
 from bloomery.spec import MetricSet
+from bloomery.spec.metrics import parse_time_window
 from bloomery.spec.common import validate_document
 
 pytestmark = pytest.mark.unit
@@ -85,6 +86,33 @@ def test_ratio_requires_both_members() -> None:
     assert excinfo.value.source_path == "metrics: metrics.m.ratio.denominator"
 
 
+def test_period_agg_defaults_to_last_and_is_authorable() -> None:
+    """The divergence from MetricFlow's `first`, and the key that makes it a
+    default rather than a decision taken away from the author."""
+    metrics = parse(
+        "metrics_version: 1\nmetrics:\n"
+        "  a: {cumulative: {grain_to_date: month}}\n"
+        "  b: {cumulative: {grain_to_date: month, period_agg: first}}\n"
+        "  c: {cumulative: {window: 7 days, period_agg: average}}\n"
+    ).metrics
+
+    assert metrics["a"].cumulative is not None
+    assert metrics["a"].cumulative.period_agg == "last"
+    assert metrics["b"].cumulative is not None
+    assert metrics["b"].cumulative.period_agg == "first"
+    assert metrics["c"].cumulative is not None
+    assert metrics["c"].cumulative.period_agg == "average"
+
+
+def test_an_unknown_period_agg_is_refused() -> None:
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(
+            "metrics_version: 1\nmetrics:\n  m:\n"
+            "    cumulative: {grain_to_date: month, period_agg: median}\n"
+        )
+    assert excinfo.value.source_path == "metrics: metrics.m.cumulative.period_agg"
+
+
 def test_cumulative_requires_exactly_one_form() -> None:
     with pytest.raises(SpecParseError) as excinfo:
         parse(
@@ -105,3 +133,165 @@ def test_unknown_key_rejected() -> None:
     with pytest.raises(SpecParseError) as excinfo:
         parse("metrics_version: 1\nmetrics:\n  m: {additivty: additive}\n")
     assert excinfo.value.source_path == "metrics: metrics.m.additivty"
+
+
+# ....................... #
+# The RFC 0034 grammar: derived, offsets, filters
+
+
+DERIVED = """
+metrics_version: 1
+metrics:
+  revenue_yoy:
+    additivity: non_additive
+    derived:
+      expr: "current - prior"
+      inputs:
+        current: {metric: revenue}
+        prior: {metric: revenue, offset: {window: 1 year}}
+"""
+
+
+def test_derived_parses_with_aliased_inputs() -> None:
+    derived = parse(DERIVED).metrics["revenue_yoy"].derived
+    assert derived is not None
+    assert sorted(derived.inputs) == ["current", "prior"]
+    assert derived.inputs["prior"].offset is not None
+    assert derived.inputs["prior"].offset.window == "1 year"
+
+
+def test_input_metrics_is_the_single_definition_of_what_a_derived_metric_needs() -> None:
+    """Both the reference checker and the template merge read this property
+    (RFC 0034 D3); it de-duplicates, so naming one metric twice is one edge."""
+    derived = parse(DERIVED).metrics["revenue_yoy"].derived
+    assert derived is not None
+    assert derived.input_metrics == ("revenue",)
+
+
+def test_derived_needs_at_least_one_input() -> None:
+    with pytest.raises(SpecParseError) as excinfo:
+        parse('metrics_version: 1\nmetrics:\n  m:\n    derived: {expr: "1", inputs: {}}\n')
+    assert excinfo.value.source_path == "metrics: metrics.m.derived.inputs"
+
+
+@pytest.mark.parametrize("window", ["1 year", "7 days", "3 months", "2 quarters", "1 week"])
+def test_the_window_grammar_accepts_singular_and_plural(window: str) -> None:
+    parse(f'metrics_version: 1\nmetrics:\n  m:\n    cumulative: {{window: "{window}"}}\n')
+
+
+@pytest.mark.parametrize("grain", ["day", "week", "month", "quarter", "year"])
+def test_the_plural_is_dropped_so_one_window_has_one_spelling(grain: str) -> None:
+    """`parse_time_window` is the only place the plural is removed, and the
+    reason is *determinism*, not tidiness.
+
+    Nothing downstream notices: MetricFlow's manifest transformer normalizes
+    `"days"` to `"day"` itself, so the emitted artifact is identical either way.
+    What is not identical is the IR — `TimeWindow(grain="days")` and
+    `TimeWindow(grain="day")` are different values and fingerprint differently,
+    so two spellings of one window would report a change where none exists
+    (RFC 0003 §5.4). A mutation sweep found this: dropping the `rstrip` broke
+    nothing any other test could see.
+    """
+    assert parse_time_window(f"3 {grain}s") == parse_time_window(f"3 {grain}") == (3, grain)
+
+
+@pytest.mark.parametrize(
+    "window",
+    [
+        "0 days",  # a window of nothing is the metric written the long way
+        "1 hour",  # the emitted time spine is day-grain (RFC 0008 D13)
+        "year",  # no count
+        "1year",  # no separator
+        "1 fortnight",
+    ],
+)
+def test_the_window_grammar_refuses_everything_else(window: str) -> None:
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(f'metrics_version: 1\nmetrics:\n  m:\n    cumulative: {{window: "{window}"}}\n')
+    assert excinfo.value.source_path == "metrics: metrics.m.cumulative.window"
+
+
+def test_offset_requires_exactly_one_form() -> None:
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(
+            'metrics_version: 1\nmetrics:\n  m:\n    derived:\n      expr: "a"\n'
+            "      inputs:\n        a: {metric: r, offset: {}}\n"
+        )
+    assert "exactly one" in str(excinfo.value)
+
+
+def test_filter_parses_typed_values() -> None:
+    metric = parse(
+        "metrics_version: 1\nmetrics:\n  m:\n    filter:\n"
+        "      - {dimension: status, op: in, values: [paid, shipped]}\n"
+        "      - {dimension: line_no, op: gte, values: [1]}\n"
+    ).metrics["m"]
+    assert [clause.op for clause in metric.filter] == ["in", "gte"]
+    assert metric.filter[0].values == ("paid", "shipped")
+    assert metric.filter[1].values == (1,)
+
+
+@pytest.mark.parametrize(
+    ("clause", "fragment"),
+    [
+        ("{dimension: s, op: eq, values: [a, b]}", "exactly 1 value"),
+        ("{dimension: s, op: in, values: []}", "at least one value"),
+        ("{dimension: s, op: is_null, values: [1]}", "exactly one bool"),
+        # RFC 0003 D5 — no float ever reaches an emission path.
+        ("{dimension: s, op: eq, values: [1.5]}", "is a float"),
+        # RFC 0034 D13 — both semantic targets template with braces.
+        ('{dimension: s, op: eq, values: ["a{b}c"]}', "template brace"),
+    ],
+)
+def test_filter_grammar_refusals(clause: str, fragment: str) -> None:
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(f"metrics_version: 1\nmetrics:\n  m:\n    filter: [{clause}]\n")
+    assert fragment in str(excinfo.value)
+
+
+def test_a_quoted_decimal_survives_as_an_exact_value() -> None:
+    """The string carrier RFC 0015 D5 established: YAML would round `1.5` to a
+    float, and the quoted form is how an exact decimal is written."""
+    metric = parse(
+        'metrics_version: 1\nmetrics:\n  m:\n    filter: [{dimension: s, op: gt, values: ["1.5"]}]\n'
+    ).metrics["m"]
+    assert metric.filter[0].values == ("1.5",)
+
+
+def test_a_nul_byte_in_a_filter_value_is_refused() -> None:
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(
+            "metrics_version: 1\nmetrics:\n  m:\n"
+            '    filter: [{dimension: s, op: eq, values: ["a\\0b"]}]\n'
+        )
+    assert "NUL byte" in str(excinfo.value)
+
+
+def test_a_non_finite_decimal_is_refused() -> None:
+    """Not reachable from YAML — a `nan` there is a float and is refused as
+    one — but an untyped caller can construct the model directly, and
+    `amount < nan` is never TRUE on some engines and always TRUE on others."""
+    from decimal import Decimal
+
+    from bloomery.spec.metrics import MetricFilter
+
+    with pytest.raises(ValueError, match="non-finite"):
+        MetricFilter(dimension="amount", op="gt", values=(Decimal("NaN"),))
+
+
+def test_a_filter_dimension_must_be_a_bare_identifier() -> None:
+    """The one place a member name reaches a template unquoted (RFC 0034 D8).
+
+    `MemberName` is deliberately unpatterned because a field name reaches SQL
+    through SQLGlot, which quotes it. A metric filter breaks that premise: the
+    name is interpolated into `{{ Dimension('sale__<name>') }}` on MetricFlow
+    and `{CUBE}.<name>` on Cube. Before the pattern this emitted
+    `{{ Dimension('sale__evil') }} = 1 OR 1=1 --') }} = 'paid'` — a metric
+    declared as a restricted subset, silently matching every row.
+    """
+    with pytest.raises(SpecParseError) as excinfo:
+        parse(
+            "metrics_version: 1\nmetrics:\n  m:\n    filter:\n"
+            "      - {dimension: \"evil') }} = 1 OR 1=1 --\", op: eq, values: [paid]}\n"
+        )
+    assert excinfo.value.source_path == "metrics: metrics.m.filter[0].dimension"

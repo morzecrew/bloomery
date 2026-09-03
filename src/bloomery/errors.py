@@ -61,8 +61,9 @@ __all__ = [
     "guaranteed",
     "FanoutRisk",
     "HistoricalFanout",
+    "InvalidMetricShape",
+    "MetricFilterInvalid",
     "NonAdditiveWithoutComponents",
-    "UnsupportedCumulative",
     "MartMissingTimeDimension",
     "QuarantineRetentionMissing",
     "DedupeTieBreakMissing",
@@ -433,14 +434,31 @@ class NonAdditiveWithoutComponents(GuardrailError):
 # ....................... #
 
 
-class UnsupportedCumulative(GuardrailError):
-    """Guardrail stage: a metric declaring ``cumulative:``, which is reserved
-    spec surface (RFC 0002 D10) that no stage lowers.
+class InvalidMetricShape(GuardrailError):
+    """Guardrail stage (RFC 0034 D5–D7): a metric whose declaration contradicts
+    itself — ``derived:`` beside ``cumulative:``, a derived metric declared
+    additive, a cumulative one with no measure to accumulate, or a derived
+    expression referencing an alias its ``inputs:`` do not declare.
 
-    Refused rather than dropped: until the lowering ships, a ``cumulative:``
-    metric would compile as a plain simple metric and every artifact would
-    aggregate per period instead of cumulatively — a wrong number with no
-    signal, which the compiler exists to refuse.
+    This is the narrower successor to the blanket ``cumulative:`` refusal that
+    stood while nothing lowered it (RFC 0002 D10). That refusal named reserved
+    surface; these name a metric that cannot mean what it says.
+    """
+
+
+# ....................... #
+
+
+class MetricFilterInvalid(GuardrailError):
+    """Guardrail stage (RFC 0034 D9): a metric ``filter:`` naming a dimension
+    the carrying mart does not flatten, a date-role dimension (a metric pinned
+    to one period is a constant), or a value that does not fit the column's
+    declared type.
+
+    Compile time rather than emit time: a filter is part of the *model*, and
+    every fact needed to check it — the marts, their columns, the declared
+    types — is in the draft IR. Left to the emitter it would surface as an
+    invalid manifest naming MetricFlow's vocabulary rather than the spec's.
     """
 
 

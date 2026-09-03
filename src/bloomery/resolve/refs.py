@@ -267,6 +267,26 @@ def _check_metrics(project: Project, catalog: Catalog | None, errors: list[Bloom
                         source_path=f"{path}.requires_metrics[{index}]",
                     )
                 )
+        # RFC 0034 D3: the same dependency set the template merge unions into
+        # `requires_metrics`, checked here because this stage runs *before* the
+        # merge and reads the spec models directly. The merge reads
+        # `DerivedSpec.input_metrics` — the distinct metrics, sorted — while
+        # this reader walks `inputs` by alias, because a *reference* failure has
+        # to name the input it is about and the alias is that name.
+        derived = metric.derived or (template.derived if template else None)
+        if derived is not None:
+            # By alias, not by the block: two unknown inputs would otherwise
+            # share one source path, and the alias is the identity the author
+            # wrote — the same reason `requires_metrics` reports its index.
+            for alias in sorted(derived.inputs):
+                input_metric = derived.inputs[alias].metric
+                if input_metric not in metric_names:
+                    errors.append(
+                        MissingReference(
+                            f"derived metric reads unknown metric {input_metric!r}",
+                            source_path=f"{path}.derived.inputs.{alias}",
+                        )
+                    )
 
 
 # ....................... #
