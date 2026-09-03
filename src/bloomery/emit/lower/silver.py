@@ -1794,9 +1794,20 @@ def conservation_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     if diverted is None:  # pragma: no cover — a quarantine block implies rules
         diverted = exp.false()
 
+    # Scoped by the **pair** on a merged entity, not by the row identity alone.
+    # That identity is unique within one source relation (RFC 0016 D21), and
+    # this audit reads `@this_model` — which is not always this run's rows: an
+    # entity with `partition_by:` materializes INCREMENTAL_BY_PARTITION by
+    # default (RFC 0002 D7), and any project may declare an incremental kind
+    # outright. A stale row from one shop whose identity matches a current
+    # survivor's from another is then counted, `entity_rows` is inflated, and
+    # the conservation audit is blocking — so it stops the run on correct data.
     in_scope = exp.In(
-        this=exp.column(ROW_ID_COLUMN, table=_ENTITY_ALIAS),
-        query=exp.Select().select(exp.column(ROW_ID_COLUMN)).from_(_SURVIVORS_CTE).subquery(),
+        this=_identity_operand(entity, table=_ENTITY_ALIAS, provenance=SOURCE_COLUMN),
+        query=exp.Select()
+        .select(*_replay_identity(entity, table=None))
+        .from_(_SURVIVORS_CTE)
+        .subquery(),
     )
     entity_rows = exp.Subquery(
         this=exp.Select()
@@ -1987,6 +1998,26 @@ def _replay_identity(
     """
     names = [ROW_ID_COLUMN] if len(entity.sources) == 1 else [provenance, ROW_ID_COLUMN]
     return [exp.column(name, table=table) for name in names]
+
+
+# ....................... #
+
+
+def _identity_operand(entity: EntityIR, *, table: str | None, provenance: str) -> Expression:
+    """The left-hand side of an ``IN`` over :func:`_replay_identity`.
+
+    A bare column where the identity is one column, a row constructor where it
+    is the pair. Degenerating rather than always wrapping keeps a single-source
+    entity's emitted SQL exactly what it was — `(x) IN (…)` is a one-element
+    row constructor, which is a different expression from `x IN (…)` and not
+    one every engine treats identically.
+    """
+    columns = _replay_identity(entity, table=table, provenance=provenance)
+
+    if len(columns) == 1:
+        return columns[0]
+
+    return exp.Tuple(expressions=columns)
 
 
 # ....................... #
@@ -2283,11 +2314,7 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
                     # a merged entity's model (D18/D19), so the pair is
                     # available on both sides.
                     exp.In(
-                        this=exp.Tuple(
-                            expressions=_replay_identity(
-                                entity, table=None, provenance="source_relation"
-                            )
-                        ),
+                        this=_identity_operand(entity, table=None, provenance="source_relation"),
                         query=exp.Select()
                         .select(*_replay_identity(entity, table=_TARGET_ALIAS))
                         .from_(

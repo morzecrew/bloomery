@@ -169,7 +169,7 @@ WHEN NOT MATCHED THEN INSERT (
 UPDATE silver.inventory_level__reject SET resolved_at = CURRENT_TIMESTAMP, last_evaluated_at = CURRENT_TIMESTAMP
 WHERE
   resolved_at IS NULL
-  AND (_source_row_id) IN (
+  AND _source_row_id IN (
     SELECT
       _target._source_row_id
     FROM silver.inventory_level AS _target

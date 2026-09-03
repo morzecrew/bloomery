@@ -178,8 +178,9 @@ FROM (
         COUNT(*)
       FROM @this_model AS _entity
       WHERE
-        _entity._source_row_id IN (
+        (_entity._source, _entity._source_row_id) IN (
           SELECT
+            _source,
             _source_row_id
           FROM _survivors
         )

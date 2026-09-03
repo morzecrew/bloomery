@@ -764,3 +764,35 @@ def test_a_single_source_surface_says_so_when_the_invariant_stops_holding() -> N
     assert "the reject table" in message
     assert "2 sources" in message
     assert "RFC 0024 D14" in message
+
+
+def test_a_merged_entity_scopes_the_conservation_audit_by_the_source_pair() -> None:
+    """`_source_row_id` is unique within **one** source relation (RFC 0016 D21).
+
+    The conservation audit reads `@this_model`, and that is not always this
+    run's rows: an entity with `partition_by:` materializes
+    `INCREMENTAL_BY_PARTITION` by default (RFC 0002 D7) and any project may
+    declare an incremental kind outright. Scoped by the identity alone, a stale
+    row from one shop whose identity matches a current survivor's from another
+    is counted, `entity_rows` inflates, and this audit is **blocking** — so it
+    stops the run on correct data, which is the worst failure available to a
+    generated audit (RFC 0024 D13).
+
+    Pinned for both shapes, because the single-source spelling must not move:
+    `(x) IN (…)` is a one-element row constructor and a different expression
+    from `x IN (…)`.
+    """
+    merged = next(
+        artifact
+        for artifact in compile_fixture("multi_source_quality")
+        if artifact.path.endswith("order_line_conservation.sql")
+    )
+    assert "(_entity._source, _entity._source_row_id) IN (" in merged.content
+
+    single = next(
+        artifact
+        for artifact in compile_fixture("semi_additive_inventory")
+        if artifact.path.endswith("inventory_level_conservation.sql")
+    )
+    assert "_entity._source_row_id IN (" in single.content
+    assert "_entity._source," not in single.content
