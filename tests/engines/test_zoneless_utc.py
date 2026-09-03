@@ -15,12 +15,20 @@ The second is the one a merged entity would have shipped: it needs no session
 change, no unusual reader, nothing but two shops in two cities. Before the fix
 the pair landed in different days.
 
+RFC 0036's guard joins them, on the same argument and against the same
+contract: ``parse_ts: ISO8601`` reads a local wall clock, so text that spells
+its own UTC offset is out of contract, and every one of these engines answered
+it by discarding the offset and keeping the clock. This tier is the only one
+that can keep that table true — a rendered-SQL assertion pins the shape of the
+guard and says nothing about whether the engine agrees with it.
+
 Opt-in (Docker required); excluded from ``just test``.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterator
+from datetime import datetime
 
 import psycopg
 import pytest
@@ -42,6 +50,33 @@ BERLIN = ("2026-01-06 23:30:00", "Europe/Berlin")
 TOKYO = ("2026-01-07 07:30:00", "Asia/Tokyo")
 INSTANT_DATE = "2026-01-06"
 SESSIONS = ("UTC", "Pacific/Kiritimati")
+
+#: RFC 0036 §2's table, as `(text, expected)` — the value `parse_ts: ISO8601`
+#: must produce, with ``None`` for the two inputs the guard refuses. Compared
+#: as ``datetime`` rather than as rendered text: the engines disagree about
+#: trailing fractional digits and nothing here is a claim about their
+#: formatting.
+#:
+#: The two offsets point in opposite directions on purpose. A guard matching
+#: only `+` would leave `-05:00` truncated, and a truncated `-05:00` is five
+#: hours *early* where `+01:00` is one hour late — a single-sign assertion
+#: cannot tell that from a pass.
+NOON = datetime(2026, 1, 6, 12, 0)
+ISO_TEXTS = (
+    ("2026-01-06T12:00:00", NOON),
+    ("2026-01-06t12:00:00", NOON),
+    ("2026-01-06 12:00:00", NOON),
+    ("2026-01-06T12:00:00Z", NOON),
+    ("2026-01-06", datetime(2026, 1, 6, 0, 0)),
+    ("2026-01-06T12:00:00+01:00", None),
+    ("2026-01-06T12:00:00-05:00", None),
+)
+
+
+def _iso_parse_sql(port_name: str, column: str) -> str:
+    """``parse_ts: ISO8601`` as it is emitted, guard included."""
+    built = DEFAULT_REGISTRY["parse_ts"].builder(exp.column(column), "ISO8601")
+    return get_dialect(port_name).render(canon(built).ast())
 
 
 def _to_utc_sql(port_name: str, column: str, zone: str) -> str:
@@ -119,6 +154,33 @@ def test_postgres_parse_ts_keeps_the_clock_that_was_written(
     assert next(iter(seen.values())).startswith(local)
 
 
+@pytest.mark.engine("postgres")
+def test_postgres_refuses_an_offset_and_keeps_every_other_iso_form(
+    postgres: psycopg.Connection,
+) -> None:
+    """RFC 0036 §2, executed. PostgreSQL's own cast reads
+    ``2026-01-06T12:00:00+01:00`` as ``12:00`` — the offset silently discarded
+    and the instant an hour wrong, with nothing downstream able to see it.
+
+    Both halves are asserted from the one table, because the guard's real risk
+    is not that it fails to refuse: it is that it refuses something in
+    contract. A ``Z`` suffix, a bare date and both separators must come through
+    untouched, and only running them says so.
+    """
+    expression = _iso_parse_sql("postgres", "written")
+    seen = {}
+    for text, _ in ISO_TEXTS:
+        # The literal is inlined rather than bound: the guard's SQL contains
+        # `'%+%'`, and psycopg reads a `%` as a placeholder whenever a
+        # parameter sequence is passed at all.
+        row = postgres.execute(
+            f"SELECT ({expression}) FROM (SELECT CAST('{text}' AS TEXT) AS written) s"
+        ).fetchone()
+        assert row is not None
+        seen[text] = row[0]
+    assert seen == dict(ISO_TEXTS)
+
+
 # ....................... #
 # Trino
 
@@ -185,3 +247,24 @@ def test_trino_two_mappings_at_one_instant_land_in_one_day(
     berlin_date, tokyo_date, same_instant = trino_cursor.fetchall()[0]
     assert same_instant, "the fixture no longer holds one instant in two zones"
     assert str(berlin_date) == str(tokyo_date) == INSTANT_DATE
+
+
+@pytest.mark.engine("trino")
+def test_trino_refuses_an_offset_and_keeps_every_other_iso_form(
+    trino_cursor: trino.dbapi.Cursor,
+) -> None:
+    """RFC 0036 §2 on the third engine, and the one where the guard shares an
+    expression with the separator rewrite.
+
+    Trino's cast takes neither ISO separator, so here the guard wraps a
+    ``REPLACE(REPLACE(CAST(… AS VARCHAR) …))`` rather than a bare column — and
+    it reads the *unrewritten* text, which is what makes position 11 mean what
+    RFC 0036 D5 says it means. Both lowercase and uppercase ``T`` are in the
+    table for that reason.
+    """
+    expression = _iso_parse_sql("trino", "written")
+    seen = {}
+    for text, _ in ISO_TEXTS:
+        trino_cursor.execute(f"SELECT ({expression}) FROM (SELECT '{text}' AS written)")
+        seen[text] = trino_cursor.fetchall()[0][0]
+    assert seen == dict(ISO_TEXTS)

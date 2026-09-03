@@ -156,6 +156,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A timestamp carrying a UTC offset is no longer silently truncated.**
+  `{parse_ts: ISO8601}` over `2026-01-06T12:00:00+01:00` produced `12:00` on
+  DuckDB, PostgreSQL and Trino alike — the offset discarded, the instant an hour
+  wrong, and no error, no NULL and no audit anywhere in the pipeline to say so.
+  `parse_ts` reads a *local wall clock* and `to_utc` is the only door into UTC, so
+  such text states something the declaration already claimed to know; it now
+  produces NULL, identically on every engine.
+
+  NULL is what the rest of the system can already see: the implicit `coercible`
+  rule flags it, `on_fail: quarantine` diverts the row, and the ingestion-metadata
+  audit stops the run for `_ingested_at`. A `Z` suffix is deliberately kept — it
+  names the zone the `timestamp` type is already in, so dropping it loses nothing.
+
+  **This moves data on upgrade.** A source whose timestamps carry offsets stored
+  plausible wrong values before and stores NULLs now. Add a `coercible` rule on
+  the affected columns before promoting the upgrade, and normalise the offsets
+  upstream — bloomery does not convert them, because reading the offset would make
+  one declaration mean a local clock on one row and an instant on the next.
+
 - A metric declaring `cumulative:` no longer compiles as a plain simple metric —
   per-period aggregation where a running total was declared, which is what 0.2.0
   did, silently. It is lowered now (see Added). It was briefly refused outright

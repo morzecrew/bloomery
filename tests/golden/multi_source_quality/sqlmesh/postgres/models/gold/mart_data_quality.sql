@@ -71,9 +71,29 @@ FROM (
               THEN CAST("order" ->> 'id' AS TEXT)
             END AS order_id,
             CASE
-              WHEN PG_INPUT_IS_VALID(created_at, 'TIMESTAMP')
-              AND NOT LOWER(created_at) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-              THEN CAST(created_at AS TIMESTAMP)
+              WHEN PG_INPUT_IS_VALID(
+                CASE
+                  WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
+                  OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+                  THEN NULL
+                  ELSE created_at
+                END,
+                'TIMESTAMP'
+              )
+              AND NOT LOWER(
+                CASE
+                  WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
+                  OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+                  THEN NULL
+                  ELSE created_at
+                END
+              ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+              THEN CAST(CASE
+                WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
+                OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+                THEN NULL
+                ELSE created_at
+              END AS TIMESTAMP)
             END AS placed_at,
             CASE WHEN PG_INPUT_IS_VALID(quantity, 'BIGINT') THEN CAST(quantity AS BIGINT) END AS quantity,
             CASE
@@ -117,9 +137,29 @@ FROM (
               NOT "order" ->> 'id' IS NULL
             ) AS _branch_order_id_coercible,
             CASE
-              WHEN PG_INPUT_IS_VALID(created_at, 'TIMESTAMP')
-              AND NOT LOWER(created_at) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-              THEN CAST(created_at AS TIMESTAMP)
+              WHEN PG_INPUT_IS_VALID(
+                CASE
+                  WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
+                  OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+                  THEN NULL
+                  ELSE created_at
+                END,
+                'TIMESTAMP'
+              )
+              AND NOT LOWER(
+                CASE
+                  WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
+                  OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+                  THEN NULL
+                  ELSE created_at
+                END
+              ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+              THEN CAST(CASE
+                WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
+                OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+                THEN NULL
+                ELSE created_at
+              END AS TIMESTAMP)
             END IS NULL
             AND (
               NOT created_at IS NULL
@@ -182,9 +222,26 @@ FROM (
               THEN CAST(order_number AS TEXT)
             END AS order_id,
             CASE
-              WHEN PG_INPUT_IS_VALID(created, 'TIMESTAMP')
-              AND NOT LOWER(created) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-              THEN CAST(created AS TIMESTAMP)
+              WHEN PG_INPUT_IS_VALID(
+                CASE
+                  WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+                  THEN NULL
+                  ELSE created
+                END,
+                'TIMESTAMP'
+              )
+              AND NOT LOWER(
+                CASE
+                  WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+                  THEN NULL
+                  ELSE created
+                END
+              ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+              THEN CAST(CASE
+                WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+                THEN NULL
+                ELSE created
+              END AS TIMESTAMP)
             END AS placed_at,
             CASE WHEN PG_INPUT_IS_VALID(qty, 'BIGINT') THEN CAST(qty AS BIGINT) END AS quantity,
             CASE WHEN PG_INPUT_IS_VALID(product_sku, 'TEXT') THEN CAST(product_sku AS TEXT) END AS sku,
@@ -214,9 +271,26 @@ FROM (
               NOT order_number IS NULL
             ) AS _branch_order_id_coercible,
             CASE
-              WHEN PG_INPUT_IS_VALID(created, 'TIMESTAMP')
-              AND NOT LOWER(created) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-              THEN CAST(created AS TIMESTAMP)
+              WHEN PG_INPUT_IS_VALID(
+                CASE
+                  WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+                  THEN NULL
+                  ELSE created
+                END,
+                'TIMESTAMP'
+              )
+              AND NOT LOWER(
+                CASE
+                  WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+                  THEN NULL
+                  ELSE created
+                END
+              ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+              THEN CAST(CASE
+                WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+                THEN NULL
+                ELSE created
+              END AS TIMESTAMP)
             END IS NULL
             AND (
               NOT created IS NULL
@@ -274,9 +348,29 @@ FROM (
                   THEN CAST("order" ->> 'id' AS TEXT)
                 END AS order_id,
                 CASE
-                  WHEN PG_INPUT_IS_VALID(created_at, 'TIMESTAMP')
-                  AND NOT LOWER(created_at) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-                  THEN CAST(created_at AS TIMESTAMP)
+                  WHEN PG_INPUT_IS_VALID(
+                    CASE
+                      WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
+                      OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+                      THEN NULL
+                      ELSE created_at
+                    END,
+                    'TIMESTAMP'
+                  )
+                  AND NOT LOWER(
+                    CASE
+                      WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
+                      OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+                      THEN NULL
+                      ELSE created_at
+                    END
+                  ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+                  THEN CAST(CASE
+                    WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
+                    OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+                    THEN NULL
+                    ELSE created_at
+                  END AS TIMESTAMP)
                 END AS placed_at,
                 CASE WHEN PG_INPUT_IS_VALID(quantity, 'BIGINT') THEN CAST(quantity AS BIGINT) END AS quantity,
                 CASE
@@ -320,9 +414,29 @@ FROM (
                   NOT "order" ->> 'id' IS NULL
                 ) AS _branch_order_id_coercible,
                 CASE
-                  WHEN PG_INPUT_IS_VALID(created_at, 'TIMESTAMP')
-                  AND NOT LOWER(created_at) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-                  THEN CAST(created_at AS TIMESTAMP)
+                  WHEN PG_INPUT_IS_VALID(
+                    CASE
+                      WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
+                      OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+                      THEN NULL
+                      ELSE created_at
+                    END,
+                    'TIMESTAMP'
+                  )
+                  AND NOT LOWER(
+                    CASE
+                      WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
+                      OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+                      THEN NULL
+                      ELSE created_at
+                    END
+                  ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+                  THEN CAST(CASE
+                    WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
+                    OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+                    THEN NULL
+                    ELSE created_at
+                  END AS TIMESTAMP)
                 END IS NULL
                 AND (
                   NOT created_at IS NULL
@@ -385,9 +499,26 @@ FROM (
                   THEN CAST(order_number AS TEXT)
                 END AS order_id,
                 CASE
-                  WHEN PG_INPUT_IS_VALID(created, 'TIMESTAMP')
-                  AND NOT LOWER(created) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-                  THEN CAST(created AS TIMESTAMP)
+                  WHEN PG_INPUT_IS_VALID(
+                    CASE
+                      WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+                      THEN NULL
+                      ELSE created
+                    END,
+                    'TIMESTAMP'
+                  )
+                  AND NOT LOWER(
+                    CASE
+                      WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+                      THEN NULL
+                      ELSE created
+                    END
+                  ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+                  THEN CAST(CASE
+                    WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+                    THEN NULL
+                    ELSE created
+                  END AS TIMESTAMP)
                 END AS placed_at,
                 CASE WHEN PG_INPUT_IS_VALID(qty, 'BIGINT') THEN CAST(qty AS BIGINT) END AS quantity,
                 CASE WHEN PG_INPUT_IS_VALID(product_sku, 'TEXT') THEN CAST(product_sku AS TEXT) END AS sku,
@@ -417,9 +548,26 @@ FROM (
                   NOT order_number IS NULL
                 ) AS _branch_order_id_coercible,
                 CASE
-                  WHEN PG_INPUT_IS_VALID(created, 'TIMESTAMP')
-                  AND NOT LOWER(created) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-                  THEN CAST(created AS TIMESTAMP)
+                  WHEN PG_INPUT_IS_VALID(
+                    CASE
+                      WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+                      THEN NULL
+                      ELSE created
+                    END,
+                    'TIMESTAMP'
+                  )
+                  AND NOT LOWER(
+                    CASE
+                      WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+                      THEN NULL
+                      ELSE created
+                    END
+                  ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+                  THEN CAST(CASE
+                    WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+                    THEN NULL
+                    ELSE created
+                  END AS TIMESTAMP)
                 END IS NULL
                 AND (
                   NOT created IS NULL

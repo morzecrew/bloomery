@@ -41,6 +41,46 @@ __all__ = [
 ]
 
 
+#: The first character after an ISO 8601 calendar date. ``YYYY-MM-DD`` is ten
+#: characters, so every ``-`` belonging to the date sits behind this window and
+#: every ``+`` or ``-`` inside it belongs to a UTC offset (RFC 0036 D5).
+_OFFSET_WINDOW = 11
+
+
+def _without_offset(text: Expression, parsed: Expression) -> Expression:
+    """``parsed``, or NULL when ``text`` carries a numeric UTC offset.
+
+    ``parse_ts: ISO8601`` reads a *local wall clock*, and ``to_utc`` is the only
+    door into the always-UTC ``timestamp`` type (RFC 0028). Text spelling its
+    own offset — ``2026-01-06T12:00:00+01:00`` — says something that contract
+    does not let it say, and every engine bloomery targets resolves the
+    contradiction the same silent way: it discards the offset and keeps the
+    wall clock, so the instant is wrong by the offset and nothing reports it.
+    Measured identically on PostgreSQL 16, Trino 483 and DuckDB — this is not a
+    port divergence, which is why the guard is here and not in one of them
+    (RFC 0036 D6).
+
+    NULL rather than a conversion, because converting would make one
+    declaration mean two different things depending on the row's bytes
+    (RFC 0036 D2), and NULL is what the rest of the system already reads: the
+    implicit ``coercible`` rule, the reject table, and RFC 0016 D21's blocking
+    metadata audit.
+
+    A ``Z`` suffix is deliberately **not** refused. It names UTC, which is the
+    zone the target type is already in, so truncating it loses nothing — where
+    a numeric offset loses exactly the difference (RFC 0036 D4).
+    """
+    window = exp.Substring(this=text, start=exp.Literal.number(_OFFSET_WINDOW))
+    offset_bearing = exp.or_(
+        exp.Like(this=window, expression=exp.Literal.string("%+%")),
+        exp.Like(this=window.copy(), expression=exp.Literal.string("%-%")),
+    )
+    return exp.Case(ifs=[exp.If(this=offset_bearing, true=exp.null())], default=parsed)
+
+
+# ....................... #
+
+
 def strip_iso_text(node: Expression, spelling: Callable[[Expression], Expression]) -> Expression:
     """Replace every ISO-text marker in ``node`` with ``spelling(inner)``.
 
@@ -57,11 +97,17 @@ def strip_iso_text(node: Expression, spelling: Callable[[Expression], Expression
     refused by :meth:`SQLGlotDialect.render` rather than left to emit a
     function no engine defines — the alternative, defaulting to identity,
     would give a port whose cast rejects the separator silently NULL data.
+
+    Every replacement is wrapped in :func:`_without_offset`, so the refusal of
+    offset-bearing text lands on every port at once — including one written
+    later, which inherits it by satisfying the "must call this" rule rather
+    than by remembering a second one (RFC 0036 D3).
     """
 
     def replace(child: Expression) -> Expression:
         if isinstance(child, exp.Anonymous) and child.name.upper() == ISO_TEXT_MARKER:
-            return spelling(child.expressions[0])
+            text = child.expressions[0]
+            return _without_offset(text.copy(), spelling(text))
 
         return child
 

@@ -38,7 +38,7 @@ Two consequences worth knowing:
 
 ## Allocating a number
 
-The next free number is **0036**. Before creating an RFC, read the number above — do not
+The next free number is **0037**. Before creating an RFC, read the number above — do not
 compute it from `ls`, which no longer sees retired documents. **Numbers are never reused**:
 0001–0022 are retired and permanently spent. Update this section in the same change that
 mints a number.
@@ -70,6 +70,7 @@ know it has a companion recording where it turned out to be wrong.
 | [0024](0024-deterministic-union-merge.md) | Deterministic union merge | 🚧 In progress | Letting several mappings build one entity when they share a key space but no overlapping keys, so the entity model integrates sources instead of renaming one. Overlap stays a step. |
 | [0033](0033-observability-logging-and-a-warnings-channel.md) | Observability: logging and a warnings channel | 📝 Draft | Stage-level stdlib logging that stays silent by default and cannot touch artifact bytes, a typed compile-time advisory channel riding `SpecEvidence`, and `warnings` reserved for deprecation alone. |
 | [0035](0035-the-reject-table-on-a-merged-entity.md) | The reject table on a merged entity | 🚧 In progress | Quarantining rows on an entity built from several mappings: one reject table still, with provenance projected per branch so replay re-runs each row's own mapping. Shipped; live until a mainline commit exists to retire it at. |
+| [0036](0036-the-offset-bearing-timestamp.md) | The offset-bearing timestamp | 📝 Draft | An ISO 8601 timestamp carrying a UTC offset is out of `parse_ts`'s local-clock contract and every engine truncates it silently, so one shared guard makes it NULL instead. |
 
 ## Status legend
 

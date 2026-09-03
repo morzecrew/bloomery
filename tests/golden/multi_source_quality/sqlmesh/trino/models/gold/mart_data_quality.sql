@@ -64,7 +64,11 @@ FROM (
             TRY_CAST(JSON_EXTRACT_SCALAR(properties, '$.gift_note') AS VARCHAR) AS gift_note,
             TRY_CAST(position AS BIGINT) AS line_no,
             TRY_CAST(JSON_EXTRACT_SCALAR("order", '$.id') AS VARCHAR) AS order_id,
-            TRY_CAST(REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ') AS TIMESTAMP) AS placed_at,
+            TRY_CAST(CASE
+              WHEN SUBSTR(created_at, 11) LIKE '%+%' OR SUBSTR(created_at, 11) LIKE '%-%'
+              THEN NULL
+              ELSE REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ')
+            END AS TIMESTAMP) AS placed_at,
             TRY_CAST(quantity AS BIGINT) AS quantity,
             TRY_CAST(JSON_EXTRACT_SCALAR(variant, '$.sku') AS VARCHAR) AS sku,
             CASE TRY_CAST(financial_status AS VARCHAR)
@@ -90,7 +94,11 @@ FROM (
             AND (
               NOT JSON_EXTRACT_SCALAR("order", '$.id') IS NULL
             ) AS _branch_order_id_coercible,
-            TRY_CAST(REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ') AS TIMESTAMP) IS NULL
+            TRY_CAST(CASE
+              WHEN SUBSTR(created_at, 11) LIKE '%+%' OR SUBSTR(created_at, 11) LIKE '%-%'
+              THEN NULL
+              ELSE REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ')
+            END AS TIMESTAMP) IS NULL
             AND (
               NOT created_at IS NULL
             ) AS _branch_placed_at_coercible,
@@ -129,7 +137,11 @@ FROM (
             CAST(NULL AS VARCHAR) AS gift_note,
             TRY_CAST(item_index AS BIGINT) AS line_no,
             TRY_CAST(order_number AS VARCHAR) AS order_id,
-            TRY_CAST(REPLACE(REPLACE(CAST(created AS VARCHAR), 'T', ' '), 't', ' ') AS TIMESTAMP) AS placed_at,
+            TRY_CAST(CASE
+              WHEN SUBSTR(created, 11) LIKE '%+%' OR SUBSTR(created, 11) LIKE '%-%'
+              THEN NULL
+              ELSE REPLACE(REPLACE(CAST(created AS VARCHAR), 'T', ' '), 't', ' ')
+            END AS TIMESTAMP) AS placed_at,
             TRY_CAST(qty AS BIGINT) AS quantity,
             TRY_CAST(product_sku AS VARCHAR) AS sku,
             CASE TRY_CAST(state AS VARCHAR)
@@ -149,7 +161,11 @@ FROM (
             TRY_CAST(order_number AS VARCHAR) IS NULL AND (
               NOT order_number IS NULL
             ) AS _branch_order_id_coercible,
-            TRY_CAST(REPLACE(REPLACE(CAST(created AS VARCHAR), 'T', ' '), 't', ' ') AS TIMESTAMP) IS NULL
+            TRY_CAST(CASE
+              WHEN SUBSTR(created, 11) LIKE '%+%' OR SUBSTR(created, 11) LIKE '%-%'
+              THEN NULL
+              ELSE REPLACE(REPLACE(CAST(created AS VARCHAR), 'T', ' '), 't', ' ')
+            END AS TIMESTAMP) IS NULL
             AND (
               NOT created IS NULL
             ) AS _branch_placed_at_coercible,
@@ -197,7 +213,11 @@ FROM (
                 TRY_CAST(JSON_EXTRACT_SCALAR(properties, '$.gift_note') AS VARCHAR) AS gift_note,
                 TRY_CAST(position AS BIGINT) AS line_no,
                 TRY_CAST(JSON_EXTRACT_SCALAR("order", '$.id') AS VARCHAR) AS order_id,
-                TRY_CAST(REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ') AS TIMESTAMP) AS placed_at,
+                TRY_CAST(CASE
+                  WHEN SUBSTR(created_at, 11) LIKE '%+%' OR SUBSTR(created_at, 11) LIKE '%-%'
+                  THEN NULL
+                  ELSE REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ')
+                END AS TIMESTAMP) AS placed_at,
                 TRY_CAST(quantity AS BIGINT) AS quantity,
                 TRY_CAST(JSON_EXTRACT_SCALAR(variant, '$.sku') AS VARCHAR) AS sku,
                 CASE TRY_CAST(financial_status AS VARCHAR)
@@ -223,7 +243,11 @@ FROM (
                 AND (
                   NOT JSON_EXTRACT_SCALAR("order", '$.id') IS NULL
                 ) AS _branch_order_id_coercible,
-                TRY_CAST(REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ') AS TIMESTAMP) IS NULL
+                TRY_CAST(CASE
+                  WHEN SUBSTR(created_at, 11) LIKE '%+%' OR SUBSTR(created_at, 11) LIKE '%-%'
+                  THEN NULL
+                  ELSE REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ')
+                END AS TIMESTAMP) IS NULL
                 AND (
                   NOT created_at IS NULL
                 ) AS _branch_placed_at_coercible,
@@ -262,7 +286,11 @@ FROM (
                 CAST(NULL AS VARCHAR) AS gift_note,
                 TRY_CAST(item_index AS BIGINT) AS line_no,
                 TRY_CAST(order_number AS VARCHAR) AS order_id,
-                TRY_CAST(REPLACE(REPLACE(CAST(created AS VARCHAR), 'T', ' '), 't', ' ') AS TIMESTAMP) AS placed_at,
+                TRY_CAST(CASE
+                  WHEN SUBSTR(created, 11) LIKE '%+%' OR SUBSTR(created, 11) LIKE '%-%'
+                  THEN NULL
+                  ELSE REPLACE(REPLACE(CAST(created AS VARCHAR), 'T', ' '), 't', ' ')
+                END AS TIMESTAMP) AS placed_at,
                 TRY_CAST(qty AS BIGINT) AS quantity,
                 TRY_CAST(product_sku AS VARCHAR) AS sku,
                 CASE TRY_CAST(state AS VARCHAR)
@@ -282,7 +310,11 @@ FROM (
                 TRY_CAST(order_number AS VARCHAR) IS NULL AND (
                   NOT order_number IS NULL
                 ) AS _branch_order_id_coercible,
-                TRY_CAST(REPLACE(REPLACE(CAST(created AS VARCHAR), 'T', ' '), 't', ' ') AS TIMESTAMP) IS NULL
+                TRY_CAST(CASE
+                  WHEN SUBSTR(created, 11) LIKE '%+%' OR SUBSTR(created, 11) LIKE '%-%'
+                  THEN NULL
+                  ELSE REPLACE(REPLACE(CAST(created AS VARCHAR), 'T', ' '), 't', ' ')
+                END AS TIMESTAMP) IS NULL
                 AND (
                   NOT created IS NULL
                 ) AS _branch_placed_at_coercible,

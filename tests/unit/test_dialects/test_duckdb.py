@@ -64,10 +64,16 @@ def _iso_cast() -> exp.Expression:
 
 def test_the_iso_text_marker_is_stripped() -> None:
     """DuckDB's own cast takes `2026-01-06T12:00:00` and the space-separated
-    spelling alike, so the marker strips to nothing and this port's SQL is
-    byte-identical to what it emitted before the marker existed.
+    spelling alike, so the marker adds no separator rewrite on this port — what
+    is left is the offset guard every port carries (RFC 0036 D3).
 
     A port that left the marker in place would emit `BLM_ISO_TEXT(x)`, which no
     engine defines — deliberately louder than silently NULL data (RFC 0027).
     """
-    assert DIALECT.render(_iso_cast()) == "CAST(x AS TIMESTAMP)"
+    assert DIALECT.render(_iso_cast()) == (
+        "CAST(CASE\n"
+        "  WHEN SUBSTRING(x, 11) LIKE '%+%' OR SUBSTRING(x, 11) LIKE '%-%'\n"
+        "  THEN NULL\n"
+        "  ELSE x\n"
+        "END AS TIMESTAMP)"
+    )

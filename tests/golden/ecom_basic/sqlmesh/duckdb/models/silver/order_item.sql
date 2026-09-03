@@ -10,7 +10,11 @@ MODEL (
 
 SELECT
   CAST(index AS BIGINT) AS line_no,
-  CAST(created_at AS TIMESTAMP) AT TIME ZONE 'Europe/Paris' AT TIME ZONE 'UTC' AS order_date,
+  CAST(CASE
+    WHEN SUBSTRING(created_at, 11) LIKE '%+%' OR SUBSTRING(created_at, 11) LIKE '%-%'
+    THEN NULL
+    ELSE created_at
+  END AS TIMESTAMP) AT TIME ZONE 'Europe/Paris' AT TIME ZONE 'UTC' AS order_date,
   CAST(order_id AS TEXT) AS order_id,
   CAST(qty AS BIGINT) AS quantity,
   CAST(total / qty AS DECIMAL(12, 4)) AS unit_price,

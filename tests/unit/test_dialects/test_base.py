@@ -168,7 +168,13 @@ def test_a_port_that_strips_the_marker_renders_normally() -> None:
         exp.Anonymous(this="BLM_ISO_TEXT", expressions=[exp.column("x")]),
         exp.DataType.build("TIMESTAMP"),
     )
-    assert _Careful().render(node) == "CAST(x AS TIMESTAMP)"
+    assert _Careful().render(node) == (
+        "CAST(CASE\n"
+        "  WHEN SUBSTRING(x, 11) LIKE '%+%' OR SUBSTRING(x, 11) LIKE '%-%'\n"
+        "  THEN NULL\n"
+        "  ELSE x\n"
+        "END AS TIMESTAMP)"
+    )
 
 
 @pytest.mark.parametrize(
