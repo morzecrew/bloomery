@@ -169,6 +169,86 @@ canonical_fields:
     assert lowered == {"src_a": "CAST(kind_direct AS TEXT)", "src_z": "CAST(NULL AS TEXT)"}
 
 
+#: A path conflict on an entity that joins the quality system. The `direct:`
+#: path and the recipe read the same two bronze columns, so the only thing that
+#: differs between the two lowerings is which one the shadow gets.
+_CLEANED = {
+    "entity_model": """\
+spec_version: 1
+entities:
+  item:
+    grain: one row per item
+    key: [item_id]
+    quarantine: {retention: 90d}
+    fields:
+      item_id: {type: string, required: true}
+      net_price: {type: "decimal(12,4)", canonical: net_price}
+""",
+    "mapping": """\
+mapping_version: 1
+source: shop__items
+target: item
+key:
+  item_id: {from: "$.id", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.total", quantity: "$.qty"}
+    direct: "$.price"
+    quality:
+      - {rule: coercible, on_fail: flag}
+unmapped: ["$._ingested_at", "$._load_id", "$._source_row_id"]
+""",
+}
+
+_CLEANED_CATALOG = """\
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  net_price:
+    entity: item
+    type: decimal(12,4)
+    unit: currency
+    tax_basis: net
+    recipes:
+      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+"""
+
+
+def test_the_shadow_takes_the_coercion_shape_of_the_entity_it_lands_on() -> None:
+    """RFC 0016 §5.2/D3. On an entity in the quality system every cast is
+    NULL-on-failure so the implicit `coercible` rule can see the failure — and
+    the shadow is the one lowering built *after* the builder, so it does not
+    inherit that by being in the loop that makes it.
+
+    It was a plain `CAST` unconditionally: one produce-or-raise column in a
+    SELECT whose every other cast is `TRY_CAST`, so a `direct:` value that
+    would not cast aborted the run with an engine conversion error on an entity
+    whose contract is that such a value is routed and reported.
+    """
+    ir = build_project_ir(load_project(_CLEANED), load_catalog(_CLEANED_CATALOG))
+    (entity,) = ir.entities
+    lowered = {column.name: column.expr.sql for column in entity.sources[0].columns}
+    assert lowered["net_price"] == "TRY_CAST(total / qty AS DECIMAL(12, 4))"
+    assert lowered["net_price__direct"] == "TRY_CAST(price AS DECIMAL(12, 4))"
+
+
+def test_the_shadow_stays_produce_or_raise_off_the_quality_system() -> None:
+    """The other half, and the one a single assertion would let drift: an
+    entity with no quality surface keeps the shipped lowering, shadow included.
+
+    Without it, a shadow hard-wired to `TRY_CAST` would pass the test above and
+    silently turn every path conflict outside the quality system into a NULL
+    where the project asked to be stopped.
+    """
+    project, catalog = load_fixture("path_conflict")
+    ir = build_project_ir(project, catalog)
+    (entity,) = ir.entities
+    lowered = {column.name: column.expr.sql for column in entity.sources[0].columns}
+    assert lowered["net_price"] == "CAST(total / qty AS DECIMAL(12, 4))"
+    assert lowered["net_price__direct"] == "CAST(price AS DECIMAL(12, 4))"
+
+
 def test_derivations_without_a_direct_path_amend_nothing() -> None:
     project, catalog = load_fixture("ecom_basic")
     draft = build_project_ir(project, catalog)

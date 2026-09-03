@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from bloomery.errors import guaranteed
+from bloomery.quality import opts_in
 from bloomery.spec.mapping import RecipeFieldMapping, mapping_doc
 
 if TYPE_CHECKING:
@@ -66,6 +67,14 @@ class Derivation:
     It reaches here so that ``direct:`` can fan out the same way (D36): the
     shadow a branch projects is the path *that branch's* own mapping named,
     and no other relation need have it.
+
+    ``cleaned`` is :func:`~bloomery.quality.opts_in` for this entity and this
+    mapping — whether the builder lowered its columns produce-or-raise or
+    NULL-on-failure (RFC 0016 §5.2, D3). The shadow is the one lowering built
+    *after* the builder has run, so it does not inherit that choice by being
+    in the loop that makes it; carrying the answer here is what keeps the
+    amendment from re-deciding it, or from getting it wrong by looking at the
+    IR's shape instead.
     """
 
     source_path: str
@@ -75,6 +84,7 @@ class Derivation:
     expr: str | None
     operands: tuple[str, ...]
     direct: str | None
+    cleaned: bool = False
 
 
 # ....................... #
@@ -119,7 +129,8 @@ def collect_derivations(project: Project, catalog: Catalog | None) -> tuple[Deri
             field_mapping = mapping.fields[field_name]
             if not isinstance(field_mapping, RecipeFieldMapping) or catalog is None:
                 continue
-            canonical = project.entity_model.entities[mapping.target].fields[field_name].canonical
+            entity = project.entity_model.entities[mapping.target]
+            canonical = entity.fields[field_name].canonical
             if canonical is None:
                 continue
             recipes = catalog.canonical_fields[canonical].recipes
@@ -132,6 +143,7 @@ def collect_derivations(project: Project, catalog: Catalog | None) -> tuple[Deri
                 Derivation(
                     source_path=f"{doc}: fields.{field_name}",
                     source=mapping.source,
+                    cleaned=opts_in(entity, mapping),
                     entity=mapping.target,
                     field=field_name,
                     expr=recipe.expr,

@@ -159,6 +159,12 @@ the *silence*, not the spec. Both paths are individually valid, so there is noth
 the author to fix at compile time; raising would force them to delete information to
 make the error go away, which is strictly worse than measuring the disagreement.
 
+On an entity in the [data-quality system](data-quality.md) the shadow is cast the same way
+every other column is — NULL on failure, not produce-or-raise — so a direct value that will
+not cast lands as NULL and the reconciliation audit reports the row as a disagreement,
+which it is. It used to abort the run with an engine conversion error naming neither the
+column nor the check.
+
 On an entity [merged from several sources](../how-to/merge-sources.md#a-direct-path-on-a-merged-entity)
 the shadow is projected per branch, from that mapping's own path, so the audit compares
 each row against the direct value its own source carried. What is refused there is

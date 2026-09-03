@@ -58,7 +58,7 @@ USING (
           WHEN SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%+%'
           OR SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%-%'
           THEN NULL
-          ELSE raw ->> '$.created_at'
+          ELSE REPLACE(REPLACE(CAST(raw ->> '$.created_at' AS TEXT), 'T', ' '), 't', ' ')
         END AS TIMESTAMP) AS placed_at,
         TRY_CAST(raw ->> '$.quantity' AS BIGINT) AS quantity,
         TRY_CAST(raw ->> '$.variant' ->> '$.sku' AS TEXT) AS sku,
@@ -96,7 +96,7 @@ USING (
           WHEN SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%+%'
           OR SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%-%'
           THEN NULL
-          ELSE raw ->> '$.created_at'
+          ELSE REPLACE(REPLACE(CAST(raw ->> '$.created_at' AS TEXT), 'T', ' '), 't', ' ')
         END AS TIMESTAMP) IS NULL
         AND (
           NOT (
@@ -151,7 +151,7 @@ USING (
           WHEN SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%+%'
           OR SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%-%'
           THEN NULL
-          ELSE raw ->> '$.created'
+          ELSE REPLACE(REPLACE(CAST(raw ->> '$.created' AS TEXT), 'T', ' '), 't', ' ')
         END AS TIMESTAMP) AS placed_at,
         TRY_CAST(raw ->> '$.qty' AS BIGINT) AS quantity,
         TRY_CAST(raw ->> '$.product_sku' AS TEXT) AS sku,
@@ -182,7 +182,7 @@ USING (
           WHEN SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%+%'
           OR SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%-%'
           THEN NULL
-          ELSE raw ->> '$.created'
+          ELSE REPLACE(REPLACE(CAST(raw ->> '$.created' AS TEXT), 'T', ' '), 't', ' ')
         END AS TIMESTAMP) IS NULL
         AND (
           NOT (
@@ -451,7 +451,7 @@ USING (
         WHEN SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%+%'
         OR SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%-%'
         THEN NULL
-        ELSE raw ->> '$.created_at'
+        ELSE REPLACE(REPLACE(CAST(raw ->> '$.created_at' AS TEXT), 'T', ' '), 't', ' ')
       END AS TIMESTAMP) AS placed_at,
       TRY_CAST(raw ->> '$.quantity' AS BIGINT) AS quantity,
       TRY_CAST(raw ->> '$.variant' ->> '$.sku' AS TEXT) AS sku,
@@ -489,7 +489,7 @@ USING (
         WHEN SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%+%'
         OR SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%-%'
         THEN NULL
-        ELSE raw ->> '$.created_at'
+        ELSE REPLACE(REPLACE(CAST(raw ->> '$.created_at' AS TEXT), 'T', ' '), 't', ' ')
       END AS TIMESTAMP) IS NULL
       AND (
         NOT (
@@ -544,7 +544,7 @@ USING (
         WHEN SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%+%'
         OR SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%-%'
         THEN NULL
-        ELSE raw ->> '$.created'
+        ELSE REPLACE(REPLACE(CAST(raw ->> '$.created' AS TEXT), 'T', ' '), 't', ' ')
       END AS TIMESTAMP) AS placed_at,
       TRY_CAST(raw ->> '$.qty' AS BIGINT) AS quantity,
       TRY_CAST(raw ->> '$.product_sku' AS TEXT) AS sku,
@@ -575,7 +575,7 @@ USING (
         WHEN SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%+%'
         OR SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%-%'
         THEN NULL
-        ELSE raw ->> '$.created'
+        ELSE REPLACE(REPLACE(CAST(raw ->> '$.created' AS TEXT), 'T', ' '), 't', ' ')
       END AS TIMESTAMP) IS NULL
       AND (
         NOT (

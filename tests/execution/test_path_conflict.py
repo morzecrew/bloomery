@@ -9,6 +9,7 @@ from decimal import Decimal
 import duckdb
 import pytest
 
+from bloomery import Target, compile_project, load_catalog, load_project
 from bloomery.emit import ArtifactKind
 from support.compiling import compile_fixture, extract_select
 from support.execution import warehouse
@@ -128,3 +129,105 @@ def test_a_merged_entity_reconciles_each_branch_against_its_own_path(
     # One per shop, and the pair is the point: an audit reading one branch's
     # shadow for both would have found either two rows from one source or none.
     assert len(disagreeing) == 2
+
+
+#: The path conflict on an entity that joins the quality system. `$.price`
+#: lands as text so one row can carry a value that will not cast — the case
+#: that used to abort the run.
+_CLEANED = {
+    "entity_model": """\
+spec_version: 1
+entities:
+  item:
+    grain: one row per item
+    key: [item_id]
+    quarantine: {retention: 90d}
+    fields:
+      item_id: {type: string, required: true}
+      net_price: {type: "decimal(12,4)", canonical: net_price}
+""",
+    "mapping": """\
+mapping_version: 1
+source: shop__items
+target: item
+key:
+  item_id: {from: "$.id", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.total", quantity: "$.qty"}
+    direct: "$.price"
+    quality:
+      - {rule: coercible, on_fail: flag}
+unmapped: ["$._ingested_at", "$._load_id", "$._source_row_id"]
+""",
+}
+
+_CLEANED_CATALOG = """\
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  net_price:
+    entity: item
+    type: decimal(12,4)
+    unit: currency
+    tax_basis: net
+    recipes:
+      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+"""
+
+
+def test_a_direct_value_that_will_not_cast_no_longer_aborts_a_cleaned_entity(
+    conn: duckdb.DuckDBPyConnection,
+) -> None:
+    """RFC 0016 §5.2/D3 reaching the shadow.
+
+    Executed rather than asserted on the IR, because the defect was a run-time
+    abort: a plain `CAST('not-a-price' AS DECIMAL)` raises inside the model
+    SELECT, and the failure is an engine conversion error naming neither the
+    column nor the reconcile check. The whole claim is that the SELECT now
+    completes — so the test has to run it.
+
+    The row is kept rather than dropped: `net_price` casts fine from the total
+    and the quantity, so `coercible` has nothing to say about it, and what is
+    wrong is that the two paths disagree. That is the reconcile audit's
+    question, and it answers it.
+    """
+    conn.execute(
+        "CREATE TABLE bronze.shop__items ("
+        "id VARCHAR, total DECIMAL(12, 4), qty BIGINT, price VARCHAR, "
+        "_ingested_at VARCHAR, _load_id VARCHAR, _source_row_id VARCHAR)"
+    )
+    conn.executemany(
+        "INSERT INTO bronze.shop__items VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+            ("i1", Decimal("30.00"), 3, "10.00", "2026-01-06 09:00:00", "l1", "r1"),
+            ("i2", Decimal("30.00"), 3, "not-a-price", "2026-01-06 09:00:00", "l1", "r2"),
+        ],
+    )
+    artifacts = compile_project(
+        load_project(_CLEANED),
+        target=Target.SQLMESH,
+        dialect="duckdb",
+        catalog=load_catalog(_CLEANED_CATALOG),
+    )
+    model = next(
+        a
+        for a in artifacts
+        if a.kind is ArtifactKind.MODEL and a.path.endswith("silver/item.sql")
+    )
+    audit = next(
+        a for a in artifacts if a.kind is ArtifactKind.AUDIT and "reconcile" in a.path
+    )
+
+    conn.execute(f"CREATE TABLE silver.item AS {extract_select(model.content)}")
+    rows = conn.execute(
+        "SELECT item_id, net_price, net_price__direct FROM silver.item ORDER BY item_id"
+    ).fetchall()
+    assert rows == [
+        ("i1", Decimal("10.00"), Decimal("10.00")),
+        ("i2", Decimal("10.00"), None),
+    ]
+
+    audit_select = extract_select(audit.content).replace("@this_model", "silver.item")
+    assert [row[0] for row in conn.execute(audit_select).fetchall()] == ["i2"]

@@ -69,19 +69,27 @@ knowing, because each moved data on upgrade.
 
 ### `parse_ts: ISO8601` and the `T` separator
 
-`CAST('2026-01-06T12:00:00' AS TIMESTAMP)` is `NULL` on Trino and a timestamp on DuckDB
-and PostgreSQL: Trino's cast takes only the space-separated spelling, though ISO 8601
-defines the `T`.
+ISO 8601 permits three spellings of the separator — `T`, `t`, and (by the profile most
+tools follow) a space — and each engine takes a different subset:
 
-No error was ever raised for this. Outside the quality system it was a silent NULL;
-inside it the generated `coercible` rule read "the projection is NULL although the source
-was not" as a coercion failure, so **every row of the source was quarantined** while the
-diagnosis pointed at data that was fine.
+| Input | DuckDB | PostgreSQL | Trino |
+|---|---|---|---|
+| `2026-01-06T12:00:00` | parses | parses | `NULL` |
+| `2026-01-06t12:00:00` | **raises** | parses | `NULL` |
+| `2026-01-06 12:00:00` | parses | parses | parses |
 
-The Trino port now normalizes the separator before the cast, so both spellings parse and
-a value that is genuinely not a timestamp still fails as one. The rewrite is applied to
-the text rather than to the cast, so it survives the cast becoming a `TRY_CAST` for an
-entity in the quality system.
+No error was ever raised for the Trino column. Outside the quality system it was a silent
+NULL; inside it the generated `coercible` rule read "the projection is NULL although the
+source was not" as a coercion failure, so **every row of the source was quarantined**
+while the diagnosis pointed at data that was fine. DuckDB's lowercase cell is the loud
+version of the same problem: a plain cast stops the run outright, and inside the quality
+system it quarantines the row.
+
+Both ports normalize the separator before the cast now, through the same function, so
+every spelling parses and a value that is genuinely not a timestamp still fails as one.
+The rewrite is applied to the text rather than to the cast, so it survives the cast
+becoming a `TRY_CAST` for an entity in the quality system. PostgreSQL needs neither and
+adds neither.
 
 `parse_date: ISO8601` is deliberately *not* normalized. An ISO date has no `T`, and the
 case that would need it — a full timestamp handed to a date parser — is not helped:

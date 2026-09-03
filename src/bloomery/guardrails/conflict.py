@@ -80,9 +80,21 @@ def _shadow_column(derived: ColumnIR) -> ColumnIR:
 # ....................... #
 
 
-def _shadow_projection(derived: ColumnIR, direct: str) -> SourceColumnIR:
+def _shadow_projection(derived: ColumnIR, direct: str, *, cleaned: bool) -> SourceColumnIR:
     """One branch's projection of the shadow: a declared-type cast of *that
     mapping's* direct extraction (RFC 0005 lowering rules).
+
+    ``TRY_CAST`` when the entity is in the quality system, ``CAST`` otherwise —
+    the same choice the builder makes for every other column (RFC 0016 §5.2,
+    D3), carried here on the :class:`~bloomery.guardrails.operands.Derivation`
+    because this lowering is built after the builder has run and so is not in
+    the loop that makes it. It was a plain ``CAST`` unconditionally, which put
+    one produce-or-raise column into a SELECT whose every other cast is
+    NULL-on-failure: a `direct:` value that would not cast aborted the run on
+    an entity whose whole contract is that a value which will not cast is
+    routed and reported. Now it becomes NULL, the reconcile audit reports the
+    row as a disagreement — which it is — and the failure is the feature's own
+    rather than an engine conversion error from the middle of a SELECT.
 
     Per source, because ``direct:`` is per mapping (RFC 0024 D36). Under D28
     this was one projection for one entity and the combination was refused
@@ -97,10 +109,10 @@ def _shadow_projection(derived: ColumnIR, direct: str) -> SourceColumnIR:
     guardrail stage adds after the builder has run.
     """
 
-    return SourceColumnIR(
-        name=f"{derived.name}__direct",
-        expr=canon(exp.cast(extraction(direct), neutral_type(derived.type))),
-    )
+    lowered = extraction(direct)
+    type_ = exp.DataType.build(neutral_type(derived.type))
+    shaped = exp.TryCast(this=lowered, to=type_) if cleaned else exp.Cast(this=lowered, to=type_)
+    return SourceColumnIR(name=f"{derived.name}__direct", expr=canon(shaped))
 
 
 # ....................... #
@@ -180,7 +192,9 @@ def path_conflict_amendments(
                 )
             )
 
-        shadow.projections[derivation.source] = _shadow_projection(derived, derivation.direct)
+        shadow.projections[derivation.source] = _shadow_projection(
+            derived, derivation.direct, cleaned=derivation.cleaned
+        )
 
     for entity_name, entity_shadows in shadows.items():
         relations = tuple(source.relation for source in entities[entity_name].sources)

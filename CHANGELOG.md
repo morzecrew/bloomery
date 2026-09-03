@@ -191,6 +191,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   upstream — bloomery does not convert them, because reading the offset would make
   one declaration mean a local clock on one row and an instant on the next.
 
+- **`{parse_ts: ISO8601}` no longer stops the run on a lowercase `t` on DuckDB.**
+  ISO 8601 permits `2026-01-06t12:00:00`, PostgreSQL and Trino both read it, and DuckDB's
+  cast raises *invalid timestamp field format* — so a bare entity aborted and a
+  quality-carrying one quarantined the row, on text the other two ports read fine. The
+  DuckDB port normalizes both separators before the cast now, through the same function
+  the Trino port already used for its own version of this.
+
+- **A `direct:` path on an entity in the quality system no longer aborts the run.** Every
+  cast on such an entity is NULL-on-failure so the implicit `coercible` rule can see the
+  failure — every cast except the `<field>__direct` shadow, which is built after the
+  builder has run and did not inherit the shape. A direct value that would not cast raised
+  an engine conversion error from the middle of the model SELECT, naming neither the
+  column nor the reconciliation check. It lands as NULL now and the reconciliation audit
+  reports the row as a disagreement, which is what it is.
+
 - A metric declaring `cumulative:` no longer compiles as a plain simple metric —
   per-period aggregation where a running total was declared, which is what 0.2.0
   did, silently. It is lowered now (see Added). It was briefly refused outright

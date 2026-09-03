@@ -33,6 +33,7 @@ from bloomery.typing import (
 
 __all__ = [
     "DialectFeature",
+    "space_separated",
     "strip_iso_text",
     "utc_from_zone",
     "capture_group",
@@ -89,6 +90,47 @@ def _without_offset(text: Expression, parsed: Expression) -> Expression:
         exp.Like(this=window.copy(), expression=exp.Literal.string("%-%")),
     )
     return exp.Case(ifs=[exp.If(this=offset_bearing, true=exp.null())], default=parsed)
+
+
+# ....................... #
+
+
+def space_separated(text: Expression) -> Expression:
+    """``text`` with either ISO 8601 date/time separator rewritten to a space.
+
+    Shared by every port whose own cast will not take a separator ISO 8601
+    permits, because the spelling is one body and the engines that need it need
+    the *same* one:
+
+    * **Trino** takes neither ``T`` nor ``t`` — measured, ``TRY_CAST`` returns
+      NULL for both;
+    * **DuckDB** takes ``T`` and raises on ``t`` — ``Conversion Error: invalid
+      timestamp field format``, so a plain ``CAST`` aborts the run and a
+      ``TRY_CAST`` on a quality-carrying entity quarantines the row;
+    * **PostgreSQL** takes both and calls this on nothing.
+
+    ``CAST(… AS VARCHAR)`` first, because the marked operand is not always
+    text. A transform chain's is, by ``parse_ts``'s declared input type, and
+    there the cast is a no-op — but RFC 0016 D21's metadata audit marks a
+    *bronze column*, and a project is free to land ``_ingested_at`` already
+    typed. Trino's ``replace`` takes varchar and nothing else, and DuckDB's
+    binder matches no ``replace(TIMESTAMP, …)`` either: a port's spelling has to
+    be total over what it may be handed, not over what its first caller
+    happened to hand it.
+
+    Applied to the *text* rather than to the cast, because the cast may already
+    have become a ``TRY_CAST`` (RFC 0027 D4). A no-op on a value that never had
+    a separator.
+    """
+    replaced = cast("Expression", exp.cast(text, exp.DataType.build("VARCHAR")))
+
+    for separator in ("T", "t"):
+        replaced = cast(
+            "Expression",
+            exp.func("replace", replaced, exp.Literal.string(separator), exp.Literal.string(" ")),
+        )
+
+    return replaced
 
 
 # ....................... #

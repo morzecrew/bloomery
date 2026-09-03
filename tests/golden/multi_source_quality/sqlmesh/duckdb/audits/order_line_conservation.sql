@@ -20,7 +20,7 @@ WITH _survivors AS (
         WHEN SUBSTRING(CAST(created_at AS TEXT), 11) LIKE '%+%'
         OR SUBSTRING(CAST(created_at AS TEXT), 11) LIKE '%-%'
         THEN NULL
-        ELSE created_at
+        ELSE REPLACE(REPLACE(CAST(created_at AS TEXT), 'T', ' '), 't', ' ')
       END AS TIMESTAMP) AS placed_at,
       TRY_CAST(quantity AS BIGINT) AS quantity,
       TRY_CAST(variant ->> '$.sku' AS TEXT) AS sku,
@@ -55,7 +55,7 @@ WITH _survivors AS (
         WHEN SUBSTRING(CAST(created_at AS TEXT), 11) LIKE '%+%'
         OR SUBSTRING(CAST(created_at AS TEXT), 11) LIKE '%-%'
         THEN NULL
-        ELSE created_at
+        ELSE REPLACE(REPLACE(CAST(created_at AS TEXT), 'T', ' '), 't', ' ')
       END AS TIMESTAMP) IS NULL
       AND (
         NOT created_at IS NULL
@@ -101,7 +101,7 @@ WITH _survivors AS (
         WHEN SUBSTRING(CAST(created AS TEXT), 11) LIKE '%+%'
         OR SUBSTRING(CAST(created AS TEXT), 11) LIKE '%-%'
         THEN NULL
-        ELSE created
+        ELSE REPLACE(REPLACE(CAST(created AS TEXT), 'T', ' '), 't', ' ')
       END AS TIMESTAMP) AS placed_at,
       TRY_CAST(qty AS BIGINT) AS quantity,
       TRY_CAST(product_sku AS TEXT) AS sku,
@@ -126,7 +126,7 @@ WITH _survivors AS (
         WHEN SUBSTRING(CAST(created AS TEXT), 11) LIKE '%+%'
         OR SUBSTRING(CAST(created AS TEXT), 11) LIKE '%-%'
         THEN NULL
-        ELSE created
+        ELSE REPLACE(REPLACE(CAST(created AS TEXT), 'T', ' '), 't', ' ')
       END AS TIMESTAMP) IS NULL
       AND (
         NOT created IS NULL

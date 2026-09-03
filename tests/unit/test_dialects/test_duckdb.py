@@ -62,10 +62,12 @@ def _iso_cast() -> exp.Expression:
     )
 
 
-def test_the_iso_text_marker_is_stripped() -> None:
-    """DuckDB's own cast takes `2026-01-06T12:00:00` and the space-separated
-    spelling alike, so the marker adds no separator rewrite on this port — what
-    is left is the offset guard every port carries (RFC 0036 D3).
+def test_the_iso_text_marker_becomes_a_separator_rewrite() -> None:
+    """DuckDB's cast takes `2026-01-06T12:00:00` and the space-separated
+    spelling — and **raises** on `2026-01-06t12:00:00`, which ISO 8601 permits
+    and the other two ports read. So this port normalizes both separators, as
+    Trino does and through the same function, and carries the offset guard
+    every port carries (RFC 0036 D3).
 
     A port that left the marker in place would emit `BLM_ISO_TEXT(x)`, which no
     engine defines — deliberately louder than silently NULL data (RFC 0027).
@@ -75,6 +77,6 @@ def test_the_iso_text_marker_is_stripped() -> None:
         "  WHEN SUBSTRING(CAST(x AS TEXT), 11) LIKE '%+%'\n"
         "  OR SUBSTRING(CAST(x AS TEXT), 11) LIKE '%-%'\n"
         "  THEN NULL\n"
-        "  ELSE x\n"
+        "  ELSE REPLACE(REPLACE(CAST(x AS TEXT), 'T', ' '), 't', ' ')\n"
         "END AS TIMESTAMP)"
     )

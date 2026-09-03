@@ -4,12 +4,17 @@ port-validation milestone."""
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import ClassVar, cast
+from typing import ClassVar
 
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
-from bloomery.dialects.base import SQLGlotDialect, strip_iso_text, utc_from_zone
+from bloomery.dialects.base import (
+    SQLGlotDialect,
+    space_separated,
+    strip_iso_text,
+    utc_from_zone,
+)
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -90,37 +95,6 @@ class TrinoDialect(SQLGlotDialect):
         than to the cast because the cast may already have become a
         ``TRY_CAST`` (RFC 0027 D4).
         """
-
-        def space_separated(text: Expression) -> Expression:
-            # `CAST(… AS VARCHAR)` first, because the marked operand is not
-            # always text. A transform chain's is, by `parse_ts`'s declared
-            # input type, and there the cast is a no-op — but RFC 0016 D21's
-            # metadata audit marks a *bronze column*, and a project is free to
-            # land `_ingested_at` already typed. Trino's `replace` takes
-            # varchar and nothing else, so the unguarded spelling did not plan
-            # at all there: "Unexpected parameters (timestamp(6), varchar,
-            # varchar) for function replace". A port's spelling has to be total
-            # over what it may be handed, not over what its first caller
-            # happened to hand it.
-            text_form = exp.cast(text, exp.DataType.build("VARCHAR"))
-            # Both separators ISO 8601 permits. Measured on trinodb/trino:483:
-            # `TRY_CAST('2026-01-06t12:00:00' AS TIMESTAMP)` is NULL where the
-            # uppercase form parses, and DuckDB and Postgres take either — so
-            # the lowercase spelling was a NULL projection here and nowhere
-            # else, which is a quarantined row or a blocking audit on data the
-            # other two ports read fine.
-            replaced = cast("Expression", text_form)
-            for separator in ("T", "t"):
-                replaced = cast(
-                    "Expression",
-                    exp.func(
-                        "replace",
-                        replaced,
-                        exp.Literal.string(separator),
-                        exp.Literal.string(" "),
-                    ),
-                )
-            return replaced
 
         def utc(at_zone: Expression) -> Expression:
             # `with_timezone` states the zone the zoneless text was written in;

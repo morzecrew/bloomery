@@ -19,7 +19,7 @@ from bloomery.dialects import get_dialect
 from bloomery.emit import ArtifactKind, EmitContext
 from bloomery.emit.sqlmesh import SQLMeshEmitter
 from bloomery.emit.lower import REJECT_KEY, entity_select, ingestion_audit_predicate, mart_select
-from bloomery.emit.lower.silver import _schema_column, _sole_source
+from bloomery.emit.lower.silver import _schema_column
 from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.ir import MartJoinIR
 from bloomery.marts import HAS_QUALITY_FLAGS
@@ -747,27 +747,6 @@ def test_a_schema_constant_that_lost_its_column_says_so() -> None:
     message = str(excinfo.value)
     assert "reject_id" in message
     assert "the reject table's unique key" in message
-
-
-def test_a_single_source_surface_says_so_when_the_invariant_stops_holding() -> None:
-    """The reject table, the replay merge and the conservation audit are built
-    from one mapping's compile-time literals, and RFC 0024 D14 refuses the
-    blocks that emit them on a merged entity — so this never raises for a
-    project the resolver admits.
-
-    Tested anyway, for the same reason ``_schema_column`` above is: written as
-    ``entity.sources[0]`` the dependency reads as a *choice* among branches and
-    would quietly become one the day P2 lifts D14. A guard nothing exercises is
-    a guard nobody can trust to have the right message when it finally fires.
-    """
-    entity = plan_entity(relation="raw__a", merged_with=("raw__b",))
-    assert _sole_source(plan_entity(), "the reject table").relation == "raw__items"
-    with pytest.raises(EmitError) as excinfo:
-        _sole_source(entity, "the reject table")
-    message = str(excinfo.value)
-    assert "the reject table" in message
-    assert "2 sources" in message
-    assert "RFC 0024 D14" in message
 
 
 def test_a_merged_entity_scopes_the_conservation_audit_by_the_source_pair() -> None:

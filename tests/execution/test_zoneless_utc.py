@@ -81,14 +81,13 @@ def test_the_offset_guard_refuses_an_offset_and_keeps_the_rest() -> None:
     one worth running — a guard that refused something in contract would pass
     every assertion written about the refusal.
 
-    The **lowercase** `t` separator is absent from this table and is in
-    :mod:`tests.engines.test_zoneless_utc`'s, which is not an oversight:
-    measured here, DuckDB's plain `CAST` *raises* on `2026-01-06t12:00:00`
-    ("invalid timestamp field format") where PostgreSQL and Trino both read it.
-    That predates this guard and is untouched by it — a `TRY_CAST` on a
-    quality-carrying entity gives NULL, and the plain cast a bare entity emits
-    aborts the run. It is RFC 0027's separator question rather than RFC 0036's
-    offset one, and it is recorded in `logs/T-0013.md`.
+    The **lowercase** `t` is in the table for its own reason. DuckDB's cast
+    raises on `2026-01-06t12:00:00` — *Conversion Error: invalid timestamp
+    field format* — where PostgreSQL and Trino read it and ISO 8601 permits it,
+    so a bare entity aborted the run on it and a quality-carrying one
+    quarantined the row. This port normalizes both separators now, through the
+    same function Trino uses; without that, this row raises here rather than
+    returning a wrong value, which is why it belongs beside the offsets.
     """
     conn = duckdb.connect()
     try:
@@ -96,6 +95,7 @@ def test_the_offset_guard_refuses_an_offset_and_keeps_the_rest() -> None:
         seen = {}
         for text in (
             "2026-01-06T12:00:00",
+            "2026-01-06t12:00:00",
             "2026-01-06 12:00:00",
             "2026-01-06T12:00:00Z",
             "2026-01-06T12:00:00+01:00",
@@ -108,6 +108,7 @@ def test_the_offset_guard_refuses_an_offset_and_keeps_the_rest() -> None:
             seen[text] = str(row[0]) if row[0] is not None else None
         assert seen == {
             "2026-01-06T12:00:00": "2026-01-06 12:00:00",
+            "2026-01-06t12:00:00": "2026-01-06 12:00:00",
             "2026-01-06 12:00:00": "2026-01-06 12:00:00",
             "2026-01-06T12:00:00Z": "2026-01-06 12:00:00",
             "2026-01-06T12:00:00+01:00": None,
