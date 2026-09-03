@@ -810,19 +810,25 @@ def _rule_settings(
 
 
 def _settings_signature(
-    rule: QualityRuleIR, entity: EntityIR
+    rule: QualityRuleIR, entity: EntityIR, relations: tuple[str, ...]
 ) -> tuple[object, tuple[tuple[str, tuple[tuple[str, str], ...]], ...]]:
     """What "the settings changed" compares: the rule's own params, and each
-    branch's facts **keyed by its relation**.
+    branch's facts **keyed by its relation**, over the relations both sides of
+    the diff share.
 
     Keyed rather than unioned for the reason :func:`_rule_settings` gives, and
-    by relation rather than by position because the two sides of a diff need
-    not have the same sources.
+    by relation rather than by position because the two sides need not have the
+    same sources — which is also why it is restricted to `relations` rather
+    than reading `entity.sources`. Unrestricted, *adding a mapping* changed the
+    facts tuple of every branched rule by growing it, so an `ADDITIVE` source
+    addition (D9) also reported every `coercible` rule as RESTATING and put the
+    entity in the backfill scope. The implicit `coercible` rule exists on every
+    column of a quality-carrying entity, so that was every column.
+
+    The same restriction is what :func:`_semantic_signature` already does, for
+    the same reason.
     """
-    facts = tuple(
-        (source.relation, _rule_settings(rule, entity, source.relation))
-        for source in entity.sources
-    )
+    facts = tuple((relation, _rule_settings(rule, entity, relation)) for relation in relations)
     return (tuple((n, v) for n, v in rule.params if n != "on_missing"), facts)
 
 
@@ -1081,7 +1087,10 @@ def _quality_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
         facets: list[str] = []
         if old_label != new_label:
             facets.append("disposition")
-        if _settings_signature(old_rule, old_e) != _settings_signature(new_rule, new_e):
+        shared = _shared_relations(old_e, new_e)
+        if _settings_signature(old_rule, old_e, shared) != _settings_signature(
+            new_rule, new_e, shared
+        ):
             facets.append("settings")
         if not facets:
             continue
