@@ -4,8 +4,8 @@
   2026-09-03: the named consumer is the project's own lakehouse example, whose pitch is
   dirty bronze cleaned on the way to silver, and a union merge that cannot be cleaned
   composes with none of it. D16's second gate on P2c is discharged by
-  [RFC 0035](0035-the-reject-table-on-a-merged-entity.md), which argues against RFC 0016 D10
-  directly and keeps it. Departures are recorded in [`logs/T-0012.md`](../logs/T-0012.md).
+  RFC 0035 (retired — see [`RETIRED.md`](RETIRED.md)), which argued against RFC 0016 D10
+  directly and kept it. Departures are recorded in [`logs/T-0012.md`](../logs/T-0012.md).
   The union,
   its compile-time checks, the collision audit, `_source`, the plan-classifier rows, the
   `multi_source` fixture and the docs pair are shipped — five departures and one prose
@@ -659,8 +659,8 @@ that proves the audit moved rather than this document merely saying so.
 **P2c — `quarantine:`.**
 
 > **Settled (execution).** Both of P2c's gates are open. The RFC this paragraph calls
-> unwritten is [RFC 0035](0035-the-reject-table-on-a-merged-entity.md), which argues against
-> RFC 0016 D10 directly as D16 requires and *keeps* it; D31's consumer is named in the
+> unwritten is RFC 0035, since retired, which argued against
+> RFC 0016 D10 directly as D16 requires and *kept* it; D31's consumer is named in the
 > status line above. The paragraph is left standing rather than rewritten, because what it
 > demanded is the thing RFC 0035 has to be read against.
 
