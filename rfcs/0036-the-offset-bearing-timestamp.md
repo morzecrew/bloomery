@@ -1,6 +1,11 @@
 # RFC 0036 — The offset-bearing timestamp
 
-- **Status:** 📝 Draft
+- **Status:** 🚧 In progress — **shipped; retired one change from now.** Every decision
+  below is built and under test, and §12's single phase landed whole. It stays live only
+  because a retirement row has to name a commit that already holds this document and is
+  reachable from `main`, and no such commit exists until the change that ships it lands
+  ([`RETIRED.md`](RETIRED.md) argues why that cannot be the deleting commit). Rows added
+  by execution cite [`logs/T-0013.md`](../logs/T-0013.md).
 - **Scope:** One expression, in one place: the guard `strip_iso_text` wraps around
   every `parse_ts: ISO8601` cast so that text carrying a **numeric UTC offset** yields
   NULL instead of a truncated wall clock. No spec-layer surface, no IR change, no new
