@@ -436,8 +436,9 @@ WHEN NOT MATCHED THEN INSERT (
 UPDATE silver.order_line__reject SET resolved_at = CURRENT_TIMESTAMP, last_evaluated_at = CURRENT_TIMESTAMP
 WHERE
   resolved_at IS NULL
-  AND _source_row_id IN (
+  AND (source_relation, _source_row_id) IN (
     SELECT
+      _target._source,
       _target._source_row_id
     FROM silver.order_line AS _target
   );
@@ -445,6 +446,7 @@ WHERE
 MERGE INTO silver.order_line__reject AS _target
 USING (
   SELECT
+    _extract._source,
     _extract._source_row_id,
     ARRAY_CAT(
       ARRAY_CAT(
@@ -754,7 +756,8 @@ USING (
       resolved_at IS NULL AND source_relation = 'woo__order_lines'
   ) AS _extract
 ) AS _replay
-ON _target._source_row_id = _replay._source_row_id
+ON _target.source_relation = _replay._source
+AND _target._source_row_id = _replay._source_row_id
 WHEN MATCHED AND _target.resolved_at IS NULL THEN UPDATE SET
   failed_rules = _replay.failed_rules,
   last_evaluated_at = CURRENT_TIMESTAMP;

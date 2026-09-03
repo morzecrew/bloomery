@@ -11,7 +11,10 @@ MODEL (
 SELECT
   CAST(index AS BIGINT) AS line_no,
   CAST(AT_TIMEZONE(
-    WITH_TIMEZONE(CAST(REPLACE(CAST(created_at AS VARCHAR), 'T', ' ') AS TIMESTAMP), 'Europe/Paris'),
+    WITH_TIMEZONE(
+      CAST(REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ') AS TIMESTAMP),
+      'Europe/Paris'
+    ),
     'UTC'
   ) AS TIMESTAMP) AS order_date,
   CAST(order_id AS VARCHAR) AS order_id,

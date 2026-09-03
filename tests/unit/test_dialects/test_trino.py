@@ -160,7 +160,7 @@ def test_the_iso_text_marker_becomes_a_separator_rewrite(to: str, expected: str)
     """
     assert (
         DIALECT.render(_iso_cast(to))
-        == f"CAST(REPLACE(CAST(x AS VARCHAR), 'T', ' ') AS {expected})"
+        == f"CAST(REPLACE(REPLACE(CAST(x AS VARCHAR), 'T', ' '), 't', ' ') AS {expected})"
     )
 
 
@@ -177,8 +177,23 @@ def test_the_marker_is_rewritten_inside_a_try_cast() -> None:
         to=exp.DataType.build("TIMESTAMP"),
     )
     assert DIALECT.render(node) == (
-        "TRY_CAST(REPLACE(CAST(created_at AS VARCHAR), 'T', ' ') AS TIMESTAMP)"
+        "TRY_CAST(REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ') "
+        "AS TIMESTAMP)"
     )
+
+
+def test_both_iso_separators_are_normalized() -> None:
+    """ISO 8601 permits `T` and `t`, and Trino takes neither.
+
+    Measured on trinodb/trino:483: `TRY_CAST('2026-01-06T12:00:00' AS
+    TIMESTAMP)` is NULL and so is the lowercase form, while DuckDB and
+    Postgres read both. A port that normalized only the uppercase spelling left
+    the lowercase one as a NULL projection here and nowhere else — a
+    quarantined row, or a blocking audit, on data the other two ports read.
+    """
+    rendered = DIALECT.render(_iso_cast())
+    assert "'T', ' '" in rendered
+    assert "'t', ' '" in rendered
 
 
 def test_the_rewrite_survives_an_operand_that_is_not_text() -> None:

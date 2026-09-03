@@ -21,5 +21,5 @@ WHERE
     (
       NOT _ingested_at IS NULL
     )
-    AND TRY_CAST(REPLACE(CAST(_ingested_at AS VARCHAR), 'T', ' ') AS TIMESTAMP) IS NULL
+    AND TRY_CAST(REPLACE(REPLACE(CAST(_ingested_at AS VARCHAR), 'T', ' '), 't', ' ') AS TIMESTAMP) IS NULL
   )

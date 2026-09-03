@@ -73,7 +73,11 @@ USING (
           TRY_CAST(JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.properties'), '$.gift_note') AS VARCHAR) AS gift_note,
           TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.position') AS BIGINT) AS line_no,
           TRY_CAST(JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.order'), '$.id') AS VARCHAR) AS order_id,
-          TRY_CAST(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 'T', ' ') AS TIMESTAMP) AS placed_at,
+          TRY_CAST(REPLACE(
+            REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 'T', ' '),
+            't',
+            ' '
+          ) AS TIMESTAMP) AS placed_at,
           TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.quantity') AS BIGINT) AS quantity,
           TRY_CAST(JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.variant'), '$.sku') AS VARCHAR) AS sku,
           CASE TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.financial_status') AS VARCHAR)
@@ -100,7 +104,11 @@ USING (
           AND (
             NOT JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.order'), '$.id') IS NULL
           ) AS _branch_order_id_coercible,
-          TRY_CAST(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 'T', ' ') AS TIMESTAMP) IS NULL
+          TRY_CAST(REPLACE(
+            REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 'T', ' '),
+            't',
+            ' '
+          ) AS TIMESTAMP) IS NULL
           AND (
             NOT JSON_EXTRACT_SCALAR(raw, '$.created_at') IS NULL
           ) AS _branch_placed_at_coercible,
@@ -142,7 +150,7 @@ USING (
           CAST(NULL AS VARCHAR) AS gift_note,
           TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.item_index') AS BIGINT) AS line_no,
           TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.order_number') AS VARCHAR) AS order_id,
-          TRY_CAST(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 'T', ' ') AS TIMESTAMP) AS placed_at,
+          TRY_CAST(REPLACE(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 'T', ' '), 't', ' ') AS TIMESTAMP) AS placed_at,
           TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.qty') AS BIGINT) AS quantity,
           TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.product_sku') AS VARCHAR) AS sku,
           CASE TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.state') AS VARCHAR)
@@ -164,7 +172,7 @@ USING (
           AND (
             NOT JSON_EXTRACT_SCALAR(raw, '$.order_number') IS NULL
           ) AS _branch_order_id_coercible,
-          TRY_CAST(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 'T', ' ') AS TIMESTAMP) IS NULL
+          TRY_CAST(REPLACE(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 'T', ' '), 't', ' ') AS TIMESTAMP) IS NULL
           AND (
             NOT JSON_EXTRACT_SCALAR(raw, '$.created') IS NULL
           ) AS _branch_placed_at_coercible,
@@ -330,8 +338,9 @@ WHEN NOT MATCHED THEN INSERT (
 UPDATE silver.order_line__reject SET resolved_at = CURRENT_TIMESTAMP, last_evaluated_at = CURRENT_TIMESTAMP
 WHERE
   resolved_at IS NULL
-  AND _source_row_id IN (
+  AND (source_relation, _source_row_id) IN (
     SELECT
+      _target._source,
       _target._source_row_id
     FROM silver.order_line AS _target
   );
@@ -339,6 +348,7 @@ WHERE
 MERGE INTO silver.order_line__reject AS _target
 USING (
   SELECT
+    _extract._source,
     _extract._source_row_id,
     CONCAT(
       CONCAT(
@@ -416,7 +426,11 @@ USING (
       TRY_CAST(JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.properties'), '$.gift_note') AS VARCHAR) AS gift_note,
       TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.position') AS BIGINT) AS line_no,
       TRY_CAST(JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.order'), '$.id') AS VARCHAR) AS order_id,
-      TRY_CAST(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 'T', ' ') AS TIMESTAMP) AS placed_at,
+      TRY_CAST(REPLACE(
+        REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 'T', ' '),
+        't',
+        ' '
+      ) AS TIMESTAMP) AS placed_at,
       TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.quantity') AS BIGINT) AS quantity,
       TRY_CAST(JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.variant'), '$.sku') AS VARCHAR) AS sku,
       CASE TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.financial_status') AS VARCHAR)
@@ -443,7 +457,11 @@ USING (
       AND (
         NOT JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.order'), '$.id') IS NULL
       ) AS _branch_order_id_coercible,
-      TRY_CAST(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 'T', ' ') AS TIMESTAMP) IS NULL
+      TRY_CAST(REPLACE(
+        REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 'T', ' '),
+        't',
+        ' '
+      ) AS TIMESTAMP) IS NULL
       AND (
         NOT JSON_EXTRACT_SCALAR(raw, '$.created_at') IS NULL
       ) AS _branch_placed_at_coercible,
@@ -485,7 +503,7 @@ USING (
       CAST(NULL AS VARCHAR) AS gift_note,
       TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.item_index') AS BIGINT) AS line_no,
       TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.order_number') AS VARCHAR) AS order_id,
-      TRY_CAST(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 'T', ' ') AS TIMESTAMP) AS placed_at,
+      TRY_CAST(REPLACE(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 'T', ' '), 't', ' ') AS TIMESTAMP) AS placed_at,
       TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.qty') AS BIGINT) AS quantity,
       TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.product_sku') AS VARCHAR) AS sku,
       CASE TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.state') AS VARCHAR)
@@ -507,7 +525,7 @@ USING (
       AND (
         NOT JSON_EXTRACT_SCALAR(raw, '$.order_number') IS NULL
       ) AS _branch_order_id_coercible,
-      TRY_CAST(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 'T', ' ') AS TIMESTAMP) IS NULL
+      TRY_CAST(REPLACE(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 'T', ' '), 't', ' ') AS TIMESTAMP) IS NULL
       AND (
         NOT JSON_EXTRACT_SCALAR(raw, '$.created') IS NULL
       ) AS _branch_placed_at_coercible,
@@ -542,7 +560,8 @@ USING (
       resolved_at IS NULL AND source_relation = 'woo__order_lines'
   ) AS _extract
 ) AS _replay
-ON _target._source_row_id = _replay._source_row_id
+ON _target.source_relation = _replay._source
+AND _target._source_row_id = _replay._source_row_id
 WHEN MATCHED AND _target.resolved_at IS NULL THEN UPDATE SET
   failed_rules = _replay.failed_rules,
   last_evaluated_at = CURRENT_TIMESTAMP;

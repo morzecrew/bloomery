@@ -103,10 +103,24 @@ class TrinoDialect(SQLGlotDialect):
             # over what it may be handed, not over what its first caller
             # happened to hand it.
             text_form = exp.cast(text, exp.DataType.build("VARCHAR"))
-            replaced = exp.func(
-                "replace", text_form, exp.Literal.string("T"), exp.Literal.string(" ")
-            )
-            return cast("Expression", replaced)
+            # Both separators ISO 8601 permits. Measured on trinodb/trino:483:
+            # `TRY_CAST('2026-01-06t12:00:00' AS TIMESTAMP)` is NULL where the
+            # uppercase form parses, and DuckDB and Postgres take either — so
+            # the lowercase spelling was a NULL projection here and nowhere
+            # else, which is a quarantined row or a blocking audit on data the
+            # other two ports read fine.
+            replaced = cast("Expression", text_form)
+            for separator in ("T", "t"):
+                replaced = cast(
+                    "Expression",
+                    exp.func(
+                        "replace",
+                        replaced,
+                        exp.Literal.string(separator),
+                        exp.Literal.string(" "),
+                    ),
+                )
+            return replaced
 
         def utc(at_zone: Expression) -> Expression:
             # `with_timezone` states the zone the zoneless text was written in;
