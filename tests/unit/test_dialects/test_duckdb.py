@@ -72,7 +72,8 @@ def test_the_iso_text_marker_is_stripped() -> None:
     """
     assert DIALECT.render(_iso_cast()) == (
         "CAST(CASE\n"
-        "  WHEN SUBSTRING(x, 11) LIKE '%+%' OR SUBSTRING(x, 11) LIKE '%-%'\n"
+        "  WHEN SUBSTRING(CAST(x AS TEXT), 11) LIKE '%+%'\n"
+        "  OR SUBSTRING(CAST(x AS TEXT), 11) LIKE '%-%'\n"
         "  THEN NULL\n"
         "  ELSE x\n"
         "END AS TIMESTAMP)"

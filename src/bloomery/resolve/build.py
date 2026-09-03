@@ -1344,21 +1344,24 @@ def _direct_agreement_refusals(
     that maps nothing for the field derives nothing, so there is nothing for a
     shadow to disagree with, and requiring a path there would be unfixable —
     ``direct:`` is a key of a *field mapping*, and that mapping does not exist.
-    """
-    if len(mappings) < 2:
-        return []
 
+    No ``len(mappings) < 2`` guard, unlike :func:`_rule_agreement_refusals`
+    beside it: the caller returns before reaching either, so that guard is
+    unreachable in both — and here it would also be redundant, since one
+    mapping cannot be in ``recording`` and ``silent`` at once and the loop
+    finds nothing to report.
+    """
     errors: list[ResolutionError] = []
     fields = sorted({name for mapping in mappings for name in mapping.fields})
 
     for field_name in fields:
         producing = [mapping for mapping in mappings if field_name in mapping.fields]
         recording = [m for m in producing if _direct_path(m, field_name) is not None]
+        silent = [m for m in producing if _direct_path(m, field_name) is None]
 
-        if not recording or len(recording) == len(producing):
+        if not recording or not silent:
             continue
 
-        silent = [m for m in producing if _direct_path(m, field_name) is None]
         named = ", ".join(sorted(mapping_doc(mapping) for mapping in silent))
         witness = min(recording, key=lambda mapping: mapping.source)
         msg = (

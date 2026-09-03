@@ -62,7 +62,8 @@ FROM (
           TRY_CAST(position AS BIGINT) AS line_no,
           TRY_CAST(JSON_EXTRACT_SCALAR("order", '$.id') AS VARCHAR) AS order_id,
           TRY_CAST(CASE
-            WHEN SUBSTR(created_at, 11) LIKE '%+%' OR SUBSTR(created_at, 11) LIKE '%-%'
+            WHEN SUBSTR(CAST(created_at AS VARCHAR), 11) LIKE '%+%'
+            OR SUBSTR(CAST(created_at AS VARCHAR), 11) LIKE '%-%'
             THEN NULL
             ELSE REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ')
           END AS TIMESTAMP) AS placed_at,
@@ -92,7 +93,8 @@ FROM (
             NOT JSON_EXTRACT_SCALAR("order", '$.id') IS NULL
           ) AS _branch_order_id_coercible,
           TRY_CAST(CASE
-            WHEN SUBSTR(created_at, 11) LIKE '%+%' OR SUBSTR(created_at, 11) LIKE '%-%'
+            WHEN SUBSTR(CAST(created_at AS VARCHAR), 11) LIKE '%+%'
+            OR SUBSTR(CAST(created_at AS VARCHAR), 11) LIKE '%-%'
             THEN NULL
             ELSE REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ')
           END AS TIMESTAMP) IS NULL
@@ -135,7 +137,8 @@ FROM (
           TRY_CAST(item_index AS BIGINT) AS line_no,
           TRY_CAST(order_number AS VARCHAR) AS order_id,
           TRY_CAST(CASE
-            WHEN SUBSTR(created, 11) LIKE '%+%' OR SUBSTR(created, 11) LIKE '%-%'
+            WHEN SUBSTR(CAST(created AS VARCHAR), 11) LIKE '%+%'
+            OR SUBSTR(CAST(created AS VARCHAR), 11) LIKE '%-%'
             THEN NULL
             ELSE REPLACE(REPLACE(CAST(created AS VARCHAR), 'T', ' '), 't', ' ')
           END AS TIMESTAMP) AS placed_at,
@@ -159,7 +162,8 @@ FROM (
             NOT order_number IS NULL
           ) AS _branch_order_id_coercible,
           TRY_CAST(CASE
-            WHEN SUBSTR(created, 11) LIKE '%+%' OR SUBSTR(created, 11) LIKE '%-%'
+            WHEN SUBSTR(CAST(created AS VARCHAR), 11) LIKE '%+%'
+            OR SUBSTR(CAST(created AS VARCHAR), 11) LIKE '%-%'
             THEN NULL
             ELSE REPLACE(REPLACE(CAST(created AS VARCHAR), 'T', ' '), 't', ' ')
           END AS TIMESTAMP) IS NULL

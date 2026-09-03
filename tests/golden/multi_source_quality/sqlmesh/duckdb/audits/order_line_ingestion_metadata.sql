@@ -22,7 +22,8 @@ WHERE
       NOT _ingested_at IS NULL
     )
     AND TRY_CAST(CASE
-      WHEN SUBSTRING(_ingested_at, 11) LIKE '%+%' OR SUBSTRING(_ingested_at, 11) LIKE '%-%'
+      WHEN SUBSTRING(CAST(_ingested_at AS TEXT), 11) LIKE '%+%'
+      OR SUBSTRING(CAST(_ingested_at AS TEXT), 11) LIKE '%-%'
       THEN NULL
       ELSE _ingested_at
     END AS TIMESTAMP) IS NULL

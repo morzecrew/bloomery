@@ -11,7 +11,8 @@ MODEL (
 SELECT
   CAST(index AS BIGINT) AS line_no,
   CAST(CASE
-    WHEN SUBSTRING(created_at, 11) LIKE '%+%' OR SUBSTRING(created_at, 11) LIKE '%-%'
+    WHEN SUBSTRING(CAST(created_at AS TEXT), 11) LIKE '%+%'
+    OR SUBSTRING(CAST(created_at AS TEXT), 11) LIKE '%-%'
     THEN NULL
     ELSE created_at
   END AS TIMESTAMP) AT TIME ZONE 'Europe/Paris' AT TIME ZONE 'UTC' AS order_date,

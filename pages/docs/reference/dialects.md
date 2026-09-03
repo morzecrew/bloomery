@@ -90,7 +90,7 @@ into a hard `INVALID_CAST_ARGUMENT`.
 
 The offset guard beside it is **not** a divergence and is not absorbed here: all three
 engines truncate a `+01:00` identically, so the refusal lives in the shared rendering
-path and every port carries the same `CASE`. It is documented with the transform, in
+path and every port inherits the same guard around whatever its own cast spelling is. It is documented with the transform, in
 [Transforms](transforms.md#a-timestamp-that-states-its-own-offset).
 
 ### `to_utc`, the zone argument, and the zone that came back

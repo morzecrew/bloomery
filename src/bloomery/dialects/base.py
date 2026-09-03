@@ -69,8 +69,21 @@ def _without_offset(text: Expression, parsed: Expression) -> Expression:
     A ``Z`` suffix is deliberately **not** refused. It names UTC, which is the
     zone the target type is already in, so truncating it loses nothing — where
     a numeric offset loses exactly the difference (RFC 0036 D4).
+
+    The window is taken over an explicit ``VARCHAR`` cast for the reason the
+    Trino port already casts before its own ``replace``: the marker is text in
+    a transform chain by ``parse_ts``'s declared input type, but on RFC 0016
+    D21's metadata audit it sits on a **bronze column**, which is whatever the
+    project landed. Against a project that lands ``_ingested_at`` typed,
+    ``SUBSTRING(<timestamp>, 11)`` does not plan on any of the three engines —
+    so a guard reading the operand raw would refuse to compile the audit rather
+    than refuse the value, on the one column no ``coercible`` rule can reach.
+    The cast is a no-op on the text this normally sees.
     """
-    window = exp.Substring(this=text, start=exp.Literal.number(_OFFSET_WINDOW))
+    window = exp.Substring(
+        this=exp.cast(text, exp.DataType.build("VARCHAR")),
+        start=exp.Literal.number(_OFFSET_WINDOW),
+    )
     offset_bearing = exp.or_(
         exp.Like(this=window, expression=exp.Literal.string("%+%")),
         exp.Like(this=window.copy(), expression=exp.Literal.string("%-%")),

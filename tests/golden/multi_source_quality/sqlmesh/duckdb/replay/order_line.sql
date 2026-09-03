@@ -55,8 +55,8 @@ USING (
         TRY_CAST(raw ->> '$.position' AS BIGINT) AS line_no,
         TRY_CAST(raw ->> '$.order' ->> '$.id' AS TEXT) AS order_id,
         TRY_CAST(CASE
-          WHEN SUBSTRING(raw ->> '$.created_at', 11) LIKE '%+%'
-          OR SUBSTRING(raw ->> '$.created_at', 11) LIKE '%-%'
+          WHEN SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%+%'
+          OR SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%-%'
           THEN NULL
           ELSE raw ->> '$.created_at'
         END AS TIMESTAMP) AS placed_at,
@@ -93,8 +93,8 @@ USING (
           ) IS NULL
         ) AS _branch_order_id_coercible,
         TRY_CAST(CASE
-          WHEN SUBSTRING(raw ->> '$.created_at', 11) LIKE '%+%'
-          OR SUBSTRING(raw ->> '$.created_at', 11) LIKE '%-%'
+          WHEN SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%+%'
+          OR SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%-%'
           THEN NULL
           ELSE raw ->> '$.created_at'
         END AS TIMESTAMP) IS NULL
@@ -148,8 +148,8 @@ USING (
         TRY_CAST(raw ->> '$.item_index' AS BIGINT) AS line_no,
         TRY_CAST(raw ->> '$.order_number' AS TEXT) AS order_id,
         TRY_CAST(CASE
-          WHEN SUBSTRING(raw ->> '$.created', 11) LIKE '%+%'
-          OR SUBSTRING(raw ->> '$.created', 11) LIKE '%-%'
+          WHEN SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%+%'
+          OR SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%-%'
           THEN NULL
           ELSE raw ->> '$.created'
         END AS TIMESTAMP) AS placed_at,
@@ -179,8 +179,8 @@ USING (
           ) IS NULL
         ) AS _branch_order_id_coercible,
         TRY_CAST(CASE
-          WHEN SUBSTRING(raw ->> '$.created', 11) LIKE '%+%'
-          OR SUBSTRING(raw ->> '$.created', 11) LIKE '%-%'
+          WHEN SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%+%'
+          OR SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%-%'
           THEN NULL
           ELSE raw ->> '$.created'
         END AS TIMESTAMP) IS NULL
@@ -448,8 +448,8 @@ USING (
       TRY_CAST(raw ->> '$.position' AS BIGINT) AS line_no,
       TRY_CAST(raw ->> '$.order' ->> '$.id' AS TEXT) AS order_id,
       TRY_CAST(CASE
-        WHEN SUBSTRING(raw ->> '$.created_at', 11) LIKE '%+%'
-        OR SUBSTRING(raw ->> '$.created_at', 11) LIKE '%-%'
+        WHEN SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%-%'
         THEN NULL
         ELSE raw ->> '$.created_at'
       END AS TIMESTAMP) AS placed_at,
@@ -486,8 +486,8 @@ USING (
         ) IS NULL
       ) AS _branch_order_id_coercible,
       TRY_CAST(CASE
-        WHEN SUBSTRING(raw ->> '$.created_at', 11) LIKE '%+%'
-        OR SUBSTRING(raw ->> '$.created_at', 11) LIKE '%-%'
+        WHEN SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(raw ->> '$.created_at' AS TEXT), 11) LIKE '%-%'
         THEN NULL
         ELSE raw ->> '$.created_at'
       END AS TIMESTAMP) IS NULL
@@ -541,8 +541,8 @@ USING (
       TRY_CAST(raw ->> '$.item_index' AS BIGINT) AS line_no,
       TRY_CAST(raw ->> '$.order_number' AS TEXT) AS order_id,
       TRY_CAST(CASE
-        WHEN SUBSTRING(raw ->> '$.created', 11) LIKE '%+%'
-        OR SUBSTRING(raw ->> '$.created', 11) LIKE '%-%'
+        WHEN SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%-%'
         THEN NULL
         ELSE raw ->> '$.created'
       END AS TIMESTAMP) AS placed_at,
@@ -572,8 +572,8 @@ USING (
         ) IS NULL
       ) AS _branch_order_id_coercible,
       TRY_CAST(CASE
-        WHEN SUBSTRING(raw ->> '$.created', 11) LIKE '%+%'
-        OR SUBSTRING(raw ->> '$.created', 11) LIKE '%-%'
+        WHEN SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%+%'
+        OR SUBSTRING(CAST(raw ->> '$.created' AS TEXT), 11) LIKE '%-%'
         THEN NULL
         ELSE raw ->> '$.created'
       END AS TIMESTAMP) IS NULL

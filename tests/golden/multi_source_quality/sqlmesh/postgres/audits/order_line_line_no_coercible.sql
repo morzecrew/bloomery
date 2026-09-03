@@ -39,8 +39,8 @@ FROM (
         CASE
           WHEN PG_INPUT_IS_VALID(
             CASE
-              WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
-              OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+              WHEN SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%+%'
+              OR SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%-%'
               THEN NULL
               ELSE created_at
             END,
@@ -48,15 +48,15 @@ FROM (
           )
           AND NOT LOWER(
             CASE
-              WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
-              OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+              WHEN SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%+%'
+              OR SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%-%'
               THEN NULL
               ELSE created_at
             END
           ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
           THEN CAST(CASE
-            WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
-            OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+            WHEN SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%-%'
             THEN NULL
             ELSE created_at
           END AS TIMESTAMP)
@@ -105,8 +105,8 @@ FROM (
         CASE
           WHEN PG_INPUT_IS_VALID(
             CASE
-              WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
-              OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+              WHEN SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%+%'
+              OR SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%-%'
               THEN NULL
               ELSE created_at
             END,
@@ -114,15 +114,15 @@ FROM (
           )
           AND NOT LOWER(
             CASE
-              WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
-              OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+              WHEN SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%+%'
+              OR SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%-%'
               THEN NULL
               ELSE created_at
             END
           ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
           THEN CAST(CASE
-            WHEN SUBSTRING(created_at FROM 11) LIKE '%+%'
-            OR SUBSTRING(created_at FROM 11) LIKE '%-%'
+            WHEN SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(created_at AS VARCHAR) FROM 11) LIKE '%-%'
             THEN NULL
             ELSE created_at
           END AS TIMESTAMP)
@@ -190,7 +190,8 @@ FROM (
         CASE
           WHEN PG_INPUT_IS_VALID(
             CASE
-              WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+              WHEN SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%+%'
+              OR SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%-%'
               THEN NULL
               ELSE created
             END,
@@ -198,13 +199,15 @@ FROM (
           )
           AND NOT LOWER(
             CASE
-              WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+              WHEN SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%+%'
+              OR SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%-%'
               THEN NULL
               ELSE created
             END
           ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
           THEN CAST(CASE
-            WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+            WHEN SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%-%'
             THEN NULL
             ELSE created
           END AS TIMESTAMP)
@@ -239,7 +242,8 @@ FROM (
         CASE
           WHEN PG_INPUT_IS_VALID(
             CASE
-              WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+              WHEN SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%+%'
+              OR SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%-%'
               THEN NULL
               ELSE created
             END,
@@ -247,13 +251,15 @@ FROM (
           )
           AND NOT LOWER(
             CASE
-              WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+              WHEN SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%+%'
+              OR SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%-%'
               THEN NULL
               ELSE created
             END
           ) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
           THEN CAST(CASE
-            WHEN SUBSTRING(created FROM 11) LIKE '%+%' OR SUBSTRING(created FROM 11) LIKE '%-%'
+            WHEN SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%+%'
+            OR SUBSTRING(CAST(created AS VARCHAR) FROM 11) LIKE '%-%'
             THEN NULL
             ELSE created
           END AS TIMESTAMP)

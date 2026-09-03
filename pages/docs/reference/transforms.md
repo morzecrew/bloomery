@@ -41,8 +41,9 @@ feeds the next step's input. Args are spec-level literals, written as a bare nam
 
 `parse_ts` reads a local wall clock, and `to_utc` is the only door into UTC. So
 `2026-01-06T12:00:00+01:00` is text that says something the transform is not allowed to
-believe: the spec has already declared what zone this column is written in, and the data
-disagrees.
+believe. Which zone a column is written in is the spec's statement to make — the absence
+of a `to_utc` says UTC, its presence says the zone it names — and here the data
+contradicts it.
 
 Every engine bloomery targets resolves that disagreement the same silent way — it drops
 the offset and keeps `12:00`, an hour off the instant the row actually carries, with
@@ -50,9 +51,12 @@ nothing downstream able to see it. bloomery produces **NULL** for such a value i
 identically on DuckDB, PostgreSQL and Trino.
 
 A NULL is something the rest of the system already knows how to report. On an entity with
-a `quality:` block the implicit `coercible` rule flags it and `on_fail: quarantine` sends
-the row to the [reject table](../concepts/data-quality.md); for the `_ingested_at`
-ingestion-metadata column the generated audit stops the run outright.
+a `quality:` block, the implicit `coercible` rule reads it as a failed cast and its
+default disposition sends the row to the
+[reject table](../concepts/data-quality.md); for the `_ingested_at` ingestion-metadata
+column — the one no rule can reach, because ingestion metadata is never a mapped field —
+the generated audit stops the run outright. On an entity with no `quality:` block the
+value is simply NULL, which is better than a wrong number and is still quiet.
 
 Two things it deliberately does **not** do:
 

@@ -35,10 +35,15 @@ __all__ = [
 ]
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class Shadow:
     """One field's ``__direct`` shadow: the entity column, and the projection
     each source relation contributes to it.
+
+    Mutable, and deliberately not frozen like the IR nodes it carries: it is
+    filled branch by branch as the derivations are walked and then completed by
+    :func:`_fill`, so ``frozen=True`` would have been true of the binding and
+    false of the dict — a claim the reader has to check rather than read.
 
     The pair travels together for the reason :func:`resolve.build._column_pair`
     gives — a schema column with no projection is a column the SELECT cannot
@@ -101,6 +106,27 @@ def _shadow_projection(derived: ColumnIR, direct: str) -> SourceColumnIR:
 # ....................... #
 
 
+def _fill(shadow: Shadow, relations: tuple[str, ...]) -> None:
+    """A typed ``NULL`` projection for every branch that recorded no path.
+
+    Only a branch that does not produce the column at all reaches this: D36's
+    refusal has already stopped a mapping that produces it and stays silent.
+    The spelling is ``resolve.build._filled``'s, and cast for its reason — an
+    untyped null makes the union's column type depend on which branch the
+    engine reads first, which is the whole thing a fixed branch order buys.
+    """
+    for relation in relations:
+        if relation in shadow.projections:
+            continue
+        shadow.projections[relation] = SourceColumnIR(
+            name=shadow.column.name,
+            expr=canon(exp.cast(exp.null(), neutral_type(shadow.column.type))),
+        )
+
+
+# ....................... #
+
+
 def path_conflict_amendments(
     derivations: tuple[Derivation, ...], draft: ProjectIR
 ) -> tuple[dict[str, list[Shadow]], dict[str, list[AuditIR]]]:
@@ -117,8 +143,13 @@ def path_conflict_amendments(
     what an entity's own schema has no way to express.
 
     Every mapping that produces the column records a ``direct:`` or none does;
-    ``resolve.build`` has refused the entity otherwise (D36), so a shadow is
-    never NULL on some branch for want of a path.
+    ``resolve.build`` has refused the entity otherwise (D36). A mapping that
+    does not produce the column at all is outside that refusal — §5.2 rule 3
+    lets a source omit an optional field — so its branch gets a typed NULL
+    projection, exactly as the builder's ``_filled`` gives it one for the
+    derived column itself. The shadow is then NULL on that branch beside a
+    derived value that is also NULL, and ``IS DISTINCT FROM`` reports no
+    disagreement, which is the true statement about those rows.
     """
     entities: dict[str, EntityIR] = {entity.name: entity for entity in draft.entities}
     shadows: dict[str, list[Shadow]] = {}
@@ -150,5 +181,10 @@ def path_conflict_amendments(
             )
 
         shadow.projections[derivation.source] = _shadow_projection(derived, derivation.direct)
+
+    for entity_name, entity_shadows in shadows.items():
+        relations = tuple(source.relation for source in entities[entity_name].sources)
+        for shadow in entity_shadows:
+            _fill(shadow, relations)
 
     return shadows, audits

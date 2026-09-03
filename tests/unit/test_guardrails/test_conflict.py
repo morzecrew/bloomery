@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from bloomery import build_project_ir
+from bloomery import build_project_ir, load_catalog, load_project
 from bloomery.guardrails.conflict import path_conflict_amendments
 from bloomery.guardrails.operands import collect_derivations
 from bloomery.ir import AuditIR
@@ -102,6 +102,71 @@ def test_a_merged_entity_carries_the_shadow_on_every_branch_of_the_ir() -> None:
     assert entity.audits == (
         AuditIR(kind="reconcile", column="net_price", params=(("shadow", "net_price__direct"),)),
     )
+
+
+def test_a_branch_that_does_not_map_the_column_gets_a_typed_null_shadow() -> None:
+    """The case D36's refusal deliberately does not reach (RFC 0024 §5.2 rule
+    3): one mapping declares the optional field with a `direct:` path and the
+    other does not declare the field at all.
+
+    There is nothing to refuse — a mapping with no field mapping has nowhere to
+    hang a `direct:` — so the branch is NULL-filled for the shadow exactly as
+    it already is for the derived column, and the reconcile audit compares NULL
+    against NULL and reports nothing. Before the fill this raised
+    `InvariantViolated` at compile time on a legal spec.
+    """
+    sources = {
+        "entity_model": """\
+spec_version: 1
+entities:
+  event:
+    grain: one row per event
+    key: [event_id]
+    fields:
+      event_id: {type: string, required: true}
+      kind: {type: string, canonical: kind}
+""",
+        "mapping_a": """\
+mapping_version: 1
+source: src_a
+target: event
+key:
+  event_id: {from: "$.identifier", transform: [to_string]}
+fields:
+  kind:
+    recipe: passthrough
+    from: {value: "$.type"}
+    direct: "$.kind_direct"
+""",
+        "mapping_b": """\
+mapping_version: 1
+source: src_z
+target: event
+key:
+  event_id: {from: "$.id", transform: [to_string]}
+""",
+    }
+    catalog = load_catalog("""\
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  kind:
+    entity: event
+    type: string
+    recipes:
+      - {id: passthrough, requires: [value], expr: "value"}
+""")
+    ir = build_project_ir(load_project(sources), catalog)
+    (entity,) = ir.entities
+    lowered = {
+        source.relation: next(
+            column for column in source.columns if column.name == "kind__direct"
+        ).expr.sql
+        for source in entity.sources
+    }
+    # Typed, not a bare NULL: an untyped null makes the union's column type
+    # depend on which branch the engine reads first.
+    assert lowered == {"src_a": "CAST(kind_direct AS TEXT)", "src_z": "CAST(NULL AS TEXT)"}
 
 
 def test_derivations_without_a_direct_path_amend_nothing() -> None:

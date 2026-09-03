@@ -74,10 +74,11 @@ def _amended_entity(
     # branch's path need not exist on this relation, which is what made D28
     # refuse the combination while one shadow stood for every source.
     #
-    # ``guaranteed`` rather than a ``.get``: every mapping producing the column
-    # records a path or the entity was refused in ``resolve.build``, so a
-    # missing entry here is that refusal having stopped working, and the
-    # NULL-filled column it would produce is exactly the silence D28 named.
+    # ``guaranteed`` rather than a ``.get``: ``path_conflict_amendments``
+    # completes every shadow over the entity's own sources, so a missing entry
+    # here is that completion having stopped working — and what a ``.get``
+    # would produce instead is a branch with no projection for a column the
+    # schema carries, which compiles clean and fails on the first run.
     sources = tuple(
         replace(
             source,
@@ -97,8 +98,8 @@ def _amended_entity(
                                     f"{source.relation!r} of entity {entity.name!r}"
                                 ),
                                 by=(
-                                    "the D36 agreement refusal, which requires every mapping "
-                                    "producing the column to record a 'direct:' path"
+                                    "path_conflict_amendments, which projects a path or a "
+                                    "typed NULL for every source of the entity (RFC 0024 D36)"
                                 ),
                             )
                             for shadow in extra

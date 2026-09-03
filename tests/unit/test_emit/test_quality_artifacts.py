@@ -208,7 +208,7 @@ def test_the_ingestion_metadata_audit_is_generated_and_referenced() -> None:
     # RFC 0036: the cast is guarded, so an offset-bearing `_ingested_at` is
     # NULL and this blocking audit is what reports it — the metadata column no
     # `coercible` rule can reach is also the one this refusal has to reach.
-    assert "SUBSTRING(_ingested_at, 11) LIKE '%+%'" in audit
+    assert "SUBSTRING(CAST(_ingested_at AS TEXT), 11) LIKE '%+%'" in audit
     assert "END AS TIMESTAMP) IS NULL" in audit
 
 

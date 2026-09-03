@@ -160,7 +160,8 @@ def test_the_iso_text_marker_becomes_a_separator_rewrite(to: str, expected: str)
     """
     assert DIALECT.render(_iso_cast(to)) == (
         "CAST(CASE\n"
-        "  WHEN SUBSTR(x, 11) LIKE '%+%' OR SUBSTR(x, 11) LIKE '%-%'\n"
+        "  WHEN SUBSTR(CAST(x AS VARCHAR), 11) LIKE '%+%'\n"
+        "  OR SUBSTR(CAST(x AS VARCHAR), 11) LIKE '%-%'\n"
         "  THEN NULL\n"
         "  ELSE REPLACE(REPLACE(CAST(x AS VARCHAR), 'T', ' '), 't', ' ')\n"
         f"END AS {expected})"
@@ -181,7 +182,8 @@ def test_the_marker_is_rewritten_inside_a_try_cast() -> None:
     )
     assert DIALECT.render(node) == (
         "TRY_CAST(CASE\n"
-        "  WHEN SUBSTR(created_at, 11) LIKE '%+%' OR SUBSTR(created_at, 11) LIKE '%-%'\n"
+        "  WHEN SUBSTR(CAST(created_at AS VARCHAR), 11) LIKE '%+%'\n"
+        "  OR SUBSTR(CAST(created_at AS VARCHAR), 11) LIKE '%-%'\n"
         "  THEN NULL\n"
         "  ELSE REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ')\n"
         "END AS TIMESTAMP)"

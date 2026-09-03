@@ -13,7 +13,8 @@ SELECT
   CAST(AT_TIMEZONE(
     WITH_TIMEZONE(
       CAST(CASE
-        WHEN SUBSTR(created_at, 11) LIKE '%+%' OR SUBSTR(created_at, 11) LIKE '%-%'
+        WHEN SUBSTR(CAST(created_at AS VARCHAR), 11) LIKE '%+%'
+        OR SUBSTR(CAST(created_at AS VARCHAR), 11) LIKE '%-%'
         THEN NULL
         ELSE REPLACE(REPLACE(CAST(created_at AS VARCHAR), 'T', ' '), 't', ' ')
       END AS TIMESTAMP),

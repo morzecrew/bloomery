@@ -148,9 +148,12 @@ branch of the union projects its own extraction — `$.price` is read off the Sh
 relation only, which is the only relation that has it.
 
 What both mappings have to agree on is *whether* the conflict exists. Every mapping that
-produces the column records a path, or none does; a column only one mapping produces at
-all is untouched by this, since a source that does not map a field has nothing to
-reconcile.
+produces the column records a path, or none does.
+
+A source that does not map the field at all is outside that: it already gets a typed NULL
+for the derived column, it gets one for the shadow too, and the audit compares NULL with
+NULL and reports nothing. There is no path to require there — `direct:` is part of a
+field mapping, and that source has none.
 
 ## The one thing only the warehouse can check
 

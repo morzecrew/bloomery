@@ -74,8 +74,8 @@ USING (
           TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.position') AS BIGINT) AS line_no,
           TRY_CAST(JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.order'), '$.id') AS VARCHAR) AS order_id,
           TRY_CAST(CASE
-            WHEN SUBSTR(JSON_EXTRACT_SCALAR(raw, '$.created_at'), 11) LIKE '%+%'
-            OR SUBSTR(JSON_EXTRACT_SCALAR(raw, '$.created_at'), 11) LIKE '%-%'
+            WHEN SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 11) LIKE '%+%'
+            OR SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 11) LIKE '%-%'
             THEN NULL
             ELSE REPLACE(
               REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 'T', ' '),
@@ -110,8 +110,8 @@ USING (
             NOT JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.order'), '$.id') IS NULL
           ) AS _branch_order_id_coercible,
           TRY_CAST(CASE
-            WHEN SUBSTR(JSON_EXTRACT_SCALAR(raw, '$.created_at'), 11) LIKE '%+%'
-            OR SUBSTR(JSON_EXTRACT_SCALAR(raw, '$.created_at'), 11) LIKE '%-%'
+            WHEN SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 11) LIKE '%+%'
+            OR SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 11) LIKE '%-%'
             THEN NULL
             ELSE REPLACE(
               REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 'T', ' '),
@@ -161,8 +161,8 @@ USING (
           TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.item_index') AS BIGINT) AS line_no,
           TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.order_number') AS VARCHAR) AS order_id,
           TRY_CAST(CASE
-            WHEN SUBSTR(JSON_EXTRACT_SCALAR(raw, '$.created'), 11) LIKE '%+%'
-            OR SUBSTR(JSON_EXTRACT_SCALAR(raw, '$.created'), 11) LIKE '%-%'
+            WHEN SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 11) LIKE '%+%'
+            OR SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 11) LIKE '%-%'
             THEN NULL
             ELSE REPLACE(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 'T', ' '), 't', ' ')
           END AS TIMESTAMP) AS placed_at,
@@ -188,8 +188,8 @@ USING (
             NOT JSON_EXTRACT_SCALAR(raw, '$.order_number') IS NULL
           ) AS _branch_order_id_coercible,
           TRY_CAST(CASE
-            WHEN SUBSTR(JSON_EXTRACT_SCALAR(raw, '$.created'), 11) LIKE '%+%'
-            OR SUBSTR(JSON_EXTRACT_SCALAR(raw, '$.created'), 11) LIKE '%-%'
+            WHEN SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 11) LIKE '%+%'
+            OR SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 11) LIKE '%-%'
             THEN NULL
             ELSE REPLACE(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 'T', ' '), 't', ' ')
           END AS TIMESTAMP) IS NULL
@@ -447,8 +447,8 @@ USING (
       TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.position') AS BIGINT) AS line_no,
       TRY_CAST(JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.order'), '$.id') AS VARCHAR) AS order_id,
       TRY_CAST(CASE
-        WHEN SUBSTR(JSON_EXTRACT_SCALAR(raw, '$.created_at'), 11) LIKE '%+%'
-        OR SUBSTR(JSON_EXTRACT_SCALAR(raw, '$.created_at'), 11) LIKE '%-%'
+        WHEN SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 11) LIKE '%+%'
+        OR SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 11) LIKE '%-%'
         THEN NULL
         ELSE REPLACE(
           REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 'T', ' '),
@@ -483,8 +483,8 @@ USING (
         NOT JSON_EXTRACT_SCALAR(JSON_EXTRACT_SCALAR(raw, '$.order'), '$.id') IS NULL
       ) AS _branch_order_id_coercible,
       TRY_CAST(CASE
-        WHEN SUBSTR(JSON_EXTRACT_SCALAR(raw, '$.created_at'), 11) LIKE '%+%'
-        OR SUBSTR(JSON_EXTRACT_SCALAR(raw, '$.created_at'), 11) LIKE '%-%'
+        WHEN SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 11) LIKE '%+%'
+        OR SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 11) LIKE '%-%'
         THEN NULL
         ELSE REPLACE(
           REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created_at') AS VARCHAR), 'T', ' '),
@@ -534,8 +534,8 @@ USING (
       TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.item_index') AS BIGINT) AS line_no,
       TRY_CAST(JSON_EXTRACT_SCALAR(raw, '$.order_number') AS VARCHAR) AS order_id,
       TRY_CAST(CASE
-        WHEN SUBSTR(JSON_EXTRACT_SCALAR(raw, '$.created'), 11) LIKE '%+%'
-        OR SUBSTR(JSON_EXTRACT_SCALAR(raw, '$.created'), 11) LIKE '%-%'
+        WHEN SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 11) LIKE '%+%'
+        OR SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 11) LIKE '%-%'
         THEN NULL
         ELSE REPLACE(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 'T', ' '), 't', ' ')
       END AS TIMESTAMP) AS placed_at,
@@ -561,8 +561,8 @@ USING (
         NOT JSON_EXTRACT_SCALAR(raw, '$.order_number') IS NULL
       ) AS _branch_order_id_coercible,
       TRY_CAST(CASE
-        WHEN SUBSTR(JSON_EXTRACT_SCALAR(raw, '$.created'), 11) LIKE '%+%'
-        OR SUBSTR(JSON_EXTRACT_SCALAR(raw, '$.created'), 11) LIKE '%-%'
+        WHEN SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 11) LIKE '%+%'
+        OR SUBSTR(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 11) LIKE '%-%'
         THEN NULL
         ELSE REPLACE(REPLACE(CAST(JSON_EXTRACT_SCALAR(raw, '$.created') AS VARCHAR), 'T', ' '), 't', ' ')
       END AS TIMESTAMP) IS NULL
