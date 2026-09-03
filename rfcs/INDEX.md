@@ -69,7 +69,7 @@ know it has a companion recording where it turned out to be wrong.
 |---|---|---|---|
 | [0024](0024-deterministic-union-merge.md) | Deterministic union merge | 🚧 In progress | Letting several mappings build one entity when they share a key space but no overlapping keys, so the entity model integrates sources instead of renaming one. Overlap stays a step. |
 | [0033](0033-observability-logging-and-a-warnings-channel.md) | Observability: logging and a warnings channel | 📝 Draft | Stage-level stdlib logging that stays silent by default and cannot touch artifact bytes, a typed compile-time advisory channel riding `SpecEvidence`, and `warnings` reserved for deprecation alone. |
-| [0035](0035-the-reject-table-on-a-merged-entity.md) | The reject table on a merged entity | 📝 Draft | Quarantining rows on an entity built from several mappings: one reject table still, with provenance projected per branch so replay re-runs each row's own mapping. |
+| [0035](0035-the-reject-table-on-a-merged-entity.md) | The reject table on a merged entity | 🚧 In progress | Quarantining rows on an entity built from several mappings: one reject table still, with provenance projected per branch so replay re-runs each row's own mapping. Shipped; live until a mainline commit exists to retire it at. |
 
 ## Status legend
 

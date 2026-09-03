@@ -1,6 +1,9 @@
 # RFC 0035 — The reject table on a merged entity
 
-- **Status:** 📝 Draft — design locked, written to be executed with RFC 0024 P2c.
+- **Status:** 🚧 In progress — **shipped; retired one change from now.** Every decision
+  below is implemented. The row stays live because a retirement must name a commit the
+  mainline can reach ([`RETIRED.md`](RETIRED.md) argues why) and this document was born
+  on the branch that executes it, so no such commit exists yet.
 - **Scope:** `quarantine:` on an entity built from more than one mapping: what the
   `<entity>__reject` table holds, and how replay re-runs the right mapping against each
   reject row. RFC 0024 D16 (`LOCKED`) says reopening RFC 0016 D10 — one reject table per
@@ -57,9 +60,13 @@ emitted for a merged entity, because it has no reject table to account against. 
 entity shape where rows come from several places is the shape with no runtime statement
 that rows are conserved.
 
-## 3. Current state
+## 3. Current state (the pre-P2c baseline)
 
-Verified against this tree, not from memory.
+Verified against the tree **as it was when this document was written** — every "is"
+below is now a "was", and deliberately not rewritten: this section is the argument's
+premise, and a premise edited to match its conclusion stops being evidence.
+`reject_select` no longer calls `_sole_source` and replay filters each branch by
+`source_relation`, because §5 happened.
 
 **The reject projection is per entity and reads one mapping.**
 `reject_select` (`emit/lower/silver.py`) opens with

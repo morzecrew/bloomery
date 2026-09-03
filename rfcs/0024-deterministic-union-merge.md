@@ -652,7 +652,15 @@ reading the model to reading the union stage. That is also what makes §6's defe
 writable at last — a collision `dedupe:` *would have collapsed* — and it is the only test
 that proves the audit moved rather than this document merely saying so.
 
-**P2c — `quarantine:`.** Blocked on an RFC that is not written. The reject table's
+**P2c — `quarantine:`.**
+
+> **Settled (execution).** Both of P2c's gates are open. The RFC this paragraph calls
+> unwritten is [RFC 0035](0035-the-reject-table-on-a-merged-entity.md), which argues against
+> RFC 0016 D10 directly as D16 requires and *keeps* it; D31's consumer is named in the
+> status line above. The paragraph is left standing rather than rewritten, because what it
+> demanded is the thing RFC 0035 has to be read against.
+
+Blocked on an RFC that is not written. The reject table's
 `source_relation`, `mapping` and `mapping_version` are compile-time literals off one mapping
 (`quality/reject.py`), and RFC 0016 D10 chose one table per entity *because* per-mapping
 tables make replay N-way. D16 is `LOCKED` that reopening it gets its own document, argued
@@ -665,8 +673,10 @@ handed P2 a choice and D36 makes it, so what is left is execution — `Derivatio
 its source, a per-source shadow, one refusal, and a merged variant of the `path_conflict`
 fixture. Deliberately **not** folded into the change that lands P2a–P2c: that change is
 the quality system on a merged entity, `direct:` is RFC 0006's path-conflict feature
-merely intersecting it, and the two are separately reviewable. `direct:` appears twice in
-the whole corpus, so nothing waits on it.
+merely intersecting it, and the two are separately reviewable. `direct:` appears **once**
+in the fixture corpus — D28's own count, `tests/fixtures/path_conflict/mapping.yaml` — so
+nothing waits on it. (Inline specs inside test modules use it too; they are not projects,
+and neither row counts them.)
 
 **Not P2 — the dbt target.** D30 makes merged entities SQLMesh-only, and lifting that needs
 a singular-test surface in an emitter whose whole test vocabulary is `schema.yml` entries.
