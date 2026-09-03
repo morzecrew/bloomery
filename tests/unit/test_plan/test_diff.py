@@ -1017,3 +1017,45 @@ def test_two_clauses_sharing_a_dimension_and_operator_still_normalize() -> None:
     # ...and the key stays sensitive to the thing that does matter.
     edited = {c.subject for c in plan(ir_with(low_then_high), ir_with(changed_value)).changes}
     assert subject in edited
+
+
+def test_reordering_membership_values_is_not_a_restatement() -> None:
+    """`status IN (paid, refunded)` and `status IN (refunded, paid)` restrict the
+    same rows, so the second spelling must not schedule a backfill.
+
+    Same principle as the clause order above: the IR keeps what was authored
+    because it reaches the artifact bytes, and the comparison normalizes because
+    the artifact is allowed to change when the numbers do not. Membership is the
+    one operator whose values are a *set* — repeating a value is as inert as
+    reordering one — so the key drops both distinctions, and only for `in` and
+    `not_in`, where `gte` values are positional.
+    """
+    _project, catalog = load_fixture("period_over_period")
+    anchor = (
+        '      - {dimension: amount, op: gte, values: ["50.00"]}\n'
+        '      - {dimension: sold_at, op: gte, values: ["2024-01-01"]}\n'
+    )
+
+    def ir_with(clauses: str) -> ProjectIR:
+        sources = dict(fixture_sources("period_over_period"))
+        assert sources["metrics"].count(anchor) == 1
+        sources["metrics"] = sources["metrics"].replace(anchor, clauses)
+        return build_project_ir(load_project(sources), catalog)
+
+    authored = '      - {dimension: status, op: in, values: [paid, refunded]}\n'
+    reversed_values = '      - {dimension: status, op: in, values: [refunded, paid]}\n'
+    repeated = '      - {dimension: status, op: in, values: [paid, refunded, paid]}\n'
+    other_set = '      - {dimension: status, op: in, values: [paid, pending]}\n'
+    subject = "metric:large_recent_revenue"
+
+    # The IR really does differ — this is not a test that nothing happened.
+    metric = next(m for m in ir_with(reversed_values).metrics if m.name == "large_recent_revenue")
+    assert metric.filter[0].values == ("refunded", "paid")
+
+    for spelling in (reversed_values, repeated):
+        subjects = {c.subject for c in plan(ir_with(authored), ir_with(spelling)).changes}
+        assert subject not in subjects, spelling
+
+    # ...and a genuinely different set still restates.
+    edited = {c.subject for c in plan(ir_with(authored), ir_with(other_set)).changes}
+    assert subject in edited

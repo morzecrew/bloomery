@@ -1516,9 +1516,17 @@ def _filter_key(clause: MetricFilterIR) -> tuple[str, ...]:
     The values join the key, rendered with `repr` because they are not mutually
     orderable — `1 < "1"` raises — and because `repr` keeps `1`, `"1"` and
     `True` apart, which a plain `str` would not.
+
+    Membership values are a *set*: `status IN (paid, refunded)` restricts what
+    `status IN (refunded, paid)` restricts, and repeating a value adds nothing,
+    so the key drops both distinctions. Only for `in` and `not_in` — every other
+    operator takes its values positionally, and `gte 10` is not `gte 20`.
     """
 
-    return (clause.dimension, clause.op, *(repr(value) for value in clause.values))
+    values = [repr(value) for value in clause.values]
+    if clause.op in ("in", "not_in"):
+        values = sorted(set(values))
+    return (clause.dimension, clause.op, *values)
 
 
 # ....................... #
@@ -1535,11 +1543,14 @@ def _metric_definition(metric: MetricIR) -> tuple[object, ...]:
     ``plan()`` reported no metric change at all — so a deployment would have
     left the old figures standing.
 
-    Compared by *meaning*, not by spelling, which is why ``filter`` is sorted
-    here and stays in authored order in the IR: the clauses are ANDed, so
-    reordering them is the same restriction and must not schedule a backfill.
-    The IR keeps the order because it reaches the artifact bytes, and the
-    artifact is allowed to change when the numbers do not.
+    Compared by *meaning*, not by spelling, which is why ``filter`` enters as
+    sorted `_filter_key` values and stays in authored order in the IR: the
+    clauses are ANDed, so reordering them is the same restriction and must not
+    schedule a backfill. The key rather than the clause, because normalizing has
+    to reach *inside* one — sorting `MetricFilterIR` objects orders the clauses
+    but still compares the values verbatim. The IR keeps what was authored
+    because it reaches the artifact bytes, and the artifact is allowed to change
+    when the numbers do not.
     """
 
     derived = metric.derived
@@ -1552,7 +1563,7 @@ def _metric_definition(metric: MetricIR) -> tuple[object, ...]:
         metric.semi_additive,
         metric.cumulative,
         (derived.expr.sql, derived.inputs) if derived is not None else None,
-        tuple(sorted(metric.filter, key=_filter_key)),
+        tuple(sorted(_filter_key(clause) for clause in metric.filter)),
         metric.depends_on,
     )
 
