@@ -21,6 +21,7 @@ from bloomery.ir import (
     UnreachableMetric,
 )
 from bloomery.quality import dedupe_sort_columns
+from bloomery.resolve.build import DIRECT_SUFFIX
 from bloomery.typing import DecimalType, StringType, TimestampType
 from support.compiling import load_fixture
 
@@ -801,6 +802,181 @@ canonical_fields:
         for source in entity.sources
     }
     assert lowered == {"src_a": "CAST(kind_a AS TEXT)", "src_z": "CAST(kind_z AS TEXT)"}
+
+
+def test_a_key_lowered_column_counts_as_producing_it() -> None:
+    """RFC 0024 D36. `resolve.refs` lets a mapping lower a **declared non-key**
+    entity field under `key:` — it refuses only an undeclared name, and the
+    same field under both blocks — so a column can be produced by one branch's
+    `fields:` and another's `key:`.
+
+    Scoped to `fields:` alone the second branch is invisible to the agreement
+    check, `_fill` hands it a typed NULL shadow, and the blocking reconcile
+    audit reports every one of its rows as a disagreement: a false refusal on
+    correct data, which is the worst failure a generated check has.
+    """
+    sources = _merge_sources(
+        entity_model="""\
+spec_version: 1
+entities:
+  item:
+    grain: one row per item
+    key: [item_id]
+    fields:
+      item_id: {type: string, required: true}
+      net_price: {type: "decimal(12,4)", canonical: net_price}
+""",
+        mapping_z="""\
+mapping_version: 1
+source: src_a
+target: item
+key:
+  item_id: {from: "$.id", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.total", quantity: "$.qty"}
+    direct: "$.price"
+""",
+        mapping_a="""\
+mapping_version: 1
+source: src_z
+target: item
+key:
+  item_id: {from: "$.identifier", transform: [to_string]}
+  net_price: {from: "$.unit_price", transform: [{to_decimal: [12, 4]}]}
+""",
+    )
+    catalog = load_catalog("""\
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  net_price:
+    entity: item
+    type: decimal(12,4)
+    recipes:
+      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+""")
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources), catalog)
+    message = str(excinfo.value)
+    assert "RFC 0024 D36" in message
+    # The fix has to be one the silent mapping can perform: a `key:` block has
+    # no `direct` key, so "record a direct: path there too" names nothing.
+    assert "only a recipe mapping can record a direct: path" in message
+    assert "record a direct: path for 'net_price' in" not in message
+
+
+def test_a_field_occupying_the_shadow_name_is_refused() -> None:
+    """RFC 0006 §5.5. The guardrail adds `<field>__direct` only when the entity
+    does not already carry that column — an idempotence guard — so an
+    *authored* column of that name silently takes the shadow's place while the
+    reconcile audit goes on referencing it.
+
+    The audit then compares the derived value against a column the author
+    mapped from somewhere else, and it is blocking, so the run stops on a
+    comparison nobody declared.
+    """
+    sources = {
+        "entity_model": """\
+spec_version: 1
+entities:
+  item:
+    grain: one row per item
+    key: [item_id]
+    fields:
+      item_id: {type: string, required: true}
+      net_price: {type: "decimal(12,4)", canonical: net_price}
+      net_price__direct: {type: "decimal(12,4)"}
+""",
+        "mapping": """\
+mapping_version: 1
+source: shop__items
+target: item
+key:
+  item_id: {from: "$.id", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.total", quantity: "$.qty"}
+    direct: "$.price"
+  net_price__direct: {from: "$.something_else", transform: [{to_decimal: [12, 4]}]}
+""",
+    }
+    catalog = load_catalog("""\
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  net_price:
+    entity: item
+    type: decimal(12,4)
+    recipes:
+      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+""")
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources), catalog)
+    message = str(excinfo.value)
+    assert "net_price__direct" in message
+    assert "RFC 0006 §5.5" in message
+
+
+def test_a_shadow_name_without_a_direct_path_stays_legal() -> None:
+    """The other half: the refusal is conditional, like the validity-column one
+    beside it. `price__direct` is a perfectly good business column on an entity
+    where `price` records no `direct:` path, and reserving the suffix
+    everywhere would cost a real name to prevent nothing."""
+    sources = {
+        "entity_model": """\
+spec_version: 1
+entities:
+  item:
+    grain: one row per item
+    key: [item_id]
+    fields:
+      item_id: {type: string, required: true}
+      net_price: {type: "decimal(12,4)"}
+      net_price__direct: {type: "decimal(12,4)"}
+""",
+        "mapping": """\
+mapping_version: 1
+source: shop__items
+target: item
+key:
+  item_id: {from: "$.id", transform: [to_string]}
+fields:
+  net_price: {from: "$.total", transform: [{to_decimal: [12, 4]}]}
+  net_price__direct: {from: "$.price", transform: [{to_decimal: [12, 4]}]}
+""",
+    }
+    ir = build_project_ir(load_project(sources))
+    (entity,) = ir.entities
+    assert {column.name for column in entity.columns} == {
+        "item_id",
+        "net_price",
+        "net_price__direct",
+    }
+    assert entity.audits == ()
+
+
+def test_the_shadow_suffix_is_the_one_the_guardrail_appends() -> None:
+    """`resolve.build` names the collision one stage before `guardrails`
+    creates it — `guardrails` sits under `resolve`, so the constant cannot be
+    imported from where it is used. Two spellings of one string is how a
+    refusal comes to guard a name nothing generates."""
+    from bloomery.guardrails.conflict import _shadow_column  # noqa: PLC0415
+    from bloomery.ir import ColumnIR  # noqa: PLC0415
+    from bloomery.typing import StringType  # noqa: PLC0415
+
+    column = ColumnIR(
+        name="net_price",
+        type=StringType(),
+        canonical=None,
+        unit=None,
+        tax_basis=None,
+        renamed_from=None,
+        required=False,
+    )
+    assert _shadow_column(column).name == f"net_price{DIRECT_SUFFIX}"
 
 
 def test_scd_type2_is_refused_on_a_merged_entity() -> None:
