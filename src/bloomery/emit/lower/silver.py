@@ -1971,6 +1971,27 @@ def _one_winner_per_key(select: exp.Select, entity: EntityIR) -> exp.Select:
 # ....................... #
 
 
+def _replay_identity(
+    entity: EntityIR, *, table: str | None, provenance: str = SOURCE_COLUMN
+) -> list[Expression]:
+    """What identifies one reject row for replay's two stamping statements.
+
+    ``_source_row_id`` alone on a single-source entity, and the
+    ``(<provenance>, _source_row_id)`` pair once the reject table holds rows
+    from several relations — the identity is unique *within* a source
+    (RFC 0016 D21) and says nothing across a union.
+
+    ``provenance`` because the two sides spell it differently and always have:
+    the entity model carries ``_source`` (RFC 0024 D18) and the reject table
+    carries ``source_relation`` (RFC 0016 §5.6). They hold the same value.
+    """
+    names = [ROW_ID_COLUMN] if len(entity.sources) == 1 else [provenance, ROW_ID_COLUMN]
+    return [exp.column(name, table=table) for name in names]
+
+
+# ....................... #
+
+
 def _replay_candidates(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     """The unresolved reject rows that now pass, re-derived from ``raw`` — one
     per entity key.
@@ -2018,7 +2039,7 @@ def _reevaluated(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     select = (
         exp.Select()
         .select(
-            exp.column(ROW_ID_COLUMN, table=_EXTRACT_ALIAS),
+            *_replay_identity(entity, table=_EXTRACT_ALIAS),
             exp.alias_(flags_expression(pairs, arrays=_arrays(ctx)), "failed_rules"),
         )
         .from_(_extract_select(entity, ctx, from_payload=True).subquery(alias=_EXTRACT_ALIAS))
@@ -2051,8 +2072,20 @@ def _dedupe_columns(entity: EntityIR, table: str) -> list[Expression]:
     would pick a different one.
     """
     merged = len(entity.sources) > 1
-    order = dedupe_order(entity.dedupe, table=table, merged=merged) if entity.dedupe else ()
-    return [term.this for term in order] or [exp.column(ROW_ID_COLUMN, table=table)]
+
+    if entity.dedupe is not None:
+        return [term.this for term in dedupe_order(entity.dedupe, table=table, merged=merged)]
+
+    # The no-`dedupe:` form, and it carries `_source` for the same reason the
+    # dedupe order does (RFC 0024 D35): the row identity is unique within *one*
+    # source relation, so two rejected rows from different shops on one entity
+    # key compare equal without it. This has to agree term for term with
+    # :func:`_one_winner_per_key`'s own no-`dedupe:` order — one ranks the
+    # candidates against each other, the other ranks a candidate against the
+    # incumbent, and a replay whose two comparisons disagree can keep an
+    # incumbent that should have lost.
+    tail = [SOURCE_COLUMN, ROW_ID_COLUMN] if merged else [ROW_ID_COLUMN]
+    return [exp.column(name, table=table) for name in tail]
 
 
 # ....................... #
@@ -2240,10 +2273,23 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
             this=conjunction(
                 [
                     exp.Is(this=exp.column("resolved_at"), expression=exp.null()),
+                    # Matched on the **pair**, not the row identity: that is
+                    # unique within one source relation (RFC 0016 D21) and a
+                    # merged entity's reject table holds rows from several, so
+                    # two shops can quarantine one identity. Keyed by the
+                    # identity alone, admitting one shop's row stamped the
+                    # other's resolved — a still-failing row marked drained,
+                    # which never replays again. `_source` is a real column of
+                    # a merged entity's model (D18/D19), so the pair is
+                    # available on both sides.
                     exp.In(
-                        this=exp.column(ROW_ID_COLUMN),
+                        this=exp.Tuple(
+                            expressions=_replay_identity(
+                                entity, table=None, provenance="source_relation"
+                            )
+                        ),
                         query=exp.Select()
-                        .select(exp.column(ROW_ID_COLUMN, table=_TARGET_ALIAS))
+                        .select(*_replay_identity(entity, table=_TARGET_ALIAS))
                         .from_(
                             exp.table_(entity_relation, db=entity_namespace, alias=_TARGET_ALIAS)
                         )
@@ -2256,9 +2302,18 @@ def replay_statements(entity: EntityIR, ctx: EmitContext) -> tuple[Expression, .
     still_failing = exp.Merge(
         this=exp.table_(reject_rel, db=reject_namespace, alias=_TARGET_ALIAS),
         using=_reevaluated(entity, ctx).subquery(alias=_REPLAY_ALIAS),
-        on=exp.EQ(
-            this=exp.column(ROW_ID_COLUMN, table=_TARGET_ALIAS),
-            expression=exp.column(ROW_ID_COLUMN, table=_REPLAY_ALIAS),
+        # The same pair, for the same reason: a MERGE whose ON matches two
+        # target rows for one source row is not a narrower update, it is an
+        # undefined one.
+        on=conjunction(
+            [
+                exp.EQ(this=target, expression=source)
+                for target, source in zip(
+                    _replay_identity(entity, table=_TARGET_ALIAS, provenance="source_relation"),
+                    _replay_identity(entity, table=_REPLAY_ALIAS),
+                    strict=True,
+                )
+            ]
         ),
         whens=exp.Whens(
             expressions=[

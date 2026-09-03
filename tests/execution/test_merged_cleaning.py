@@ -70,7 +70,14 @@ _WOO = (
     # (row_id, order_number, item_index, product_sku, qty, created, state)
     ("s1", "B-1", 1, "SKU-9", "4", "2024-03-01T00:00:00", "COMPLETE"),
     ("w2", "B-2", 1, "SKU-8", "twelve", "2024-03-02T00:00:00", "COMPLETE"),
-    ("w3", "B-3", 1, "SKU-7", "1", "2024-03-03T00:00:00", "reversed"),
+    # `s3` is Shopify's *quarantined* row's identity, reused here by a row that
+    # replay later admits. Two reject rows, one identity, two shops — legal
+    # under RFC 0016 D21, since the identity is unique within one source
+    # relation and says nothing across the union. It is the case every "key it
+    # by the row identity" shortcut gets wrong: when this row is admitted,
+    # Shopify's — which still fails — must not be stamped resolved on its
+    # account.
+    ("s3", "B-3", 1, "SKU-7", "1", "2024-03-03T00:00:00", "reversed"),
 )
 
 
@@ -184,7 +191,7 @@ def test_one_raw_value_is_admissible_on_one_branch_and_not_the_other(
         "WHERE list_contains(failed_rules, 'status_in_enum') ORDER BY _source_row_id",
     )
     assert ("s2",) in kept
-    assert diverted == [("s3",), ("w3",)]
+    assert diverted == [("s3",), ("s3",)]
 
 
 def test_every_row_lands_on_exactly_one_side(built: duckdb.DuckDBPyConnection) -> None:
@@ -209,12 +216,14 @@ def test_each_reject_row_carries_the_mapping_that_produced_it(
     rows = _rows(
         built,
         "SELECT _source_row_id, source_relation, mapping, mapping_version "
-        "FROM silver.order_line__reject ORDER BY _source_row_id",
+        "FROM silver.order_line__reject ORDER BY _source_row_id, source_relation",
     )
     assert rows == [
         ("s3", "shopify__order_lines", "shopify__order_lines->order_line", 1),
+        # Same identity, other shop, its own row — which is the whole point of
+        # `reject_id` being a digest of the *pair* (RFC 0016 D21, RFC 0035 D1).
+        ("s3", "woo__order_lines", "woo__order_lines->order_line", 1),
         ("w2", "woo__order_lines", "woo__order_lines->order_line", 1),
-        ("w3", "woo__order_lines", "woo__order_lines->order_line", 1),
     ]
 
 
@@ -334,19 +343,23 @@ def test_a_widening_replays_only_the_branch_that_widened(
 
     admitted = _rows(
         built,
-        "SELECT _source_row_id FROM silver.order_line WHERE status = 'closed' "
-        "AND _source_row_id = 'w3'",
+        "SELECT _source_row_id, _source FROM silver.order_line WHERE status = 'closed' "
+        "AND _source = 'woo__order_lines' AND _source_row_id = 's3'",
     )
-    assert admitted == [("w3",)]
+    assert admitted == [("s3", "woo__order_lines")]
 
     unresolved = _rows(
         built,
-        "SELECT _source_row_id FROM silver.order_line__reject WHERE resolved_at IS NULL "
-        "ORDER BY _source_row_id",
+        "SELECT _source_row_id, source_relation FROM silver.order_line__reject "
+        "WHERE resolved_at IS NULL ORDER BY _source_row_id, source_relation",
     )
-    # `s3` stays: no chain maps `unheard_of`. `w2` stays: its quantity is still
-    # uncastable. Only the branch that widened drained.
-    assert unresolved == [("s3",), ("w2",)]
+    # Woo's `s3` drained. Shopify's `s3` — same identity, different shop, still
+    # failing because no chain maps `unheard_of` — must **not** have been
+    # stamped resolved on its account, and `w2`'s quantity is still uncastable.
+    assert unresolved == [
+        ("s3", "shopify__order_lines"),
+        ("w2", "woo__order_lines"),
+    ]
 
 
 #: The audits bloomery emitted for this fixture, and the number of violations
