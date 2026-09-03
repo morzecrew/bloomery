@@ -58,9 +58,17 @@ _SHOPIFY = (
 #: Woo's bronze rows, read from entirely different paths. ``w2``'s quantity is
 #: uncastable; ``w3`` carries the raw value Shopify's chain maps and Woo's does
 #: not.
+#:
+#: The first row's identity is ``s1`` — the **same** identity Shopify's first row
+#: carries. RFC 0016 D21 makes the row identity unique within *one* source
+#: relation and says nothing across the union, so two shops with ordinary
+#: per-table sequences collide immediately. That is the ordinary case, not a
+#: contrived one, and it is what RFC 0024 D34's partition exists for: without it
+#: the blocking metadata audit reports these two rows and stops the run on
+#: correct data.
 _WOO = (
     # (row_id, order_number, item_index, product_sku, qty, created, state)
-    ("w1", "B-1", 1, "SKU-9", "4", "2024-03-01T00:00:00", "COMPLETE"),
+    ("s1", "B-1", 1, "SKU-9", "4", "2024-03-01T00:00:00", "COMPLETE"),
     ("w2", "B-2", 1, "SKU-8", "twelve", "2024-03-02T00:00:00", "COMPLETE"),
     ("w3", "B-3", 1, "SKU-7", "1", "2024-03-03T00:00:00", "reversed"),
 )
@@ -74,7 +82,7 @@ def _seed(connection: duckdb.DuckDBPyConnection) -> None:
         CREATE TABLE bronze.shopify__order_lines (
           "order" JSON, position VARCHAR, variant JSON, quantity VARCHAR,
           properties JSON, created_at VARCHAR, financial_status VARCHAR,
-          _load_id VARCHAR, _ingested_at TIMESTAMP, _source_row_id VARCHAR
+          _load_id VARCHAR, _ingested_at VARCHAR, _source_row_id VARCHAR
         )
         """
     )
@@ -83,14 +91,14 @@ def _seed(connection: duckdb.DuckDBPyConnection) -> None:
         CREATE TABLE bronze.woo__order_lines (
           order_number VARCHAR, item_index VARCHAR, product_sku VARCHAR, qty VARCHAR,
           created VARCHAR, state VARCHAR,
-          _load_id VARCHAR, _ingested_at TIMESTAMP, _source_row_id VARCHAR
+          _load_id VARCHAR, _ingested_at VARCHAR, _source_row_id VARCHAR
         )
         """
     )
     connection.executemany(
         "INSERT INTO bronze.shopify__order_lines VALUES "
         "(json_object('id', ?), ?, json_object('sku', ?), ?, json_object('gift_note', NULL), "
-        "?, ?, 'load-1', TIMESTAMP '2024-03-10 00:00:00', ?)",
+        "?, ?, 'load-1', '2024-03-10T00:00:00', ?)",
         [
             (order, str(position), sku, str(quantity), created, status, row_id)
             for row_id, order, position, sku, quantity, created, status in _SHOPIFY
@@ -98,7 +106,7 @@ def _seed(connection: duckdb.DuckDBPyConnection) -> None:
     )
     connection.executemany(
         "INSERT INTO bronze.woo__order_lines VALUES "
-        "(?, ?, ?, ?, ?, ?, 'load-1', TIMESTAMP '2024-03-10 00:00:00', ?)",
+        "(?, ?, ?, ?, ?, ?, 'load-1', '2024-03-10T00:00:00', ?)",
         [
             (order, str(index), sku, qty, created, state, row_id)
             for row_id, order, index, sku, qty, created, state in _WOO
@@ -248,7 +256,7 @@ def test_the_dedupe_order_is_total_across_sources(built: duckdb.DuckDBPyConnecti
     built.execute(
         "INSERT INTO bronze.woo__order_lines VALUES "
         "('A-1', '1', 'SKU-DUP', '9', '2024-03-01T00:00:00', 'COMPLETE', "
-        "'load-2', TIMESTAMP '2024-03-11 00:00:00', 'w9')"
+        "'load-2', '2024-03-11T00:00:00', 'w9')"
     )
     materialize(built, compile_fixture(FIXTURE))
     survivors = _rows(
@@ -274,7 +282,7 @@ def test_the_collision_audit_reads_the_union_and_not_the_deduped_model(
     built.execute(
         "INSERT INTO bronze.woo__order_lines VALUES "
         "('A-1', '1', 'SKU-DUP', '9', '2024-03-01T00:00:00', 'COMPLETE', "
-        "'load-2', TIMESTAMP '2024-03-11 00:00:00', 'w9')"
+        "'load-2', '2024-03-11T00:00:00', 'w9')"
     )
     materialize(built, compile_fixture(FIXTURE))
     audit = next(
@@ -339,3 +347,36 @@ def test_a_widening_replays_only_the_branch_that_widened(
     # `s3` stays: no chain maps `unheard_of`. `w2` stays: its quantity is still
     # uncastable. Only the branch that widened drained.
     assert unresolved == [("s3",), ("w2",)]
+
+
+#: The audits bloomery emitted for this fixture, and the number of violations
+#: each must report against the seed. Every one is **blocking**, so a false
+#: positive here does not degrade a number — it stops the run on correct data.
+AUDITS = (
+    # RFC 0016 D21's metadata audit. `s1` is one row identity in **two** source
+    # relations, which D21 makes legal: the identity is unique within a source,
+    # not across the union. Partitioned by the identity alone this reports two
+    # rows and halts. That is the shape RFC 0024 D34 exists for, and it is
+    # asserted here by running the emitted body rather than by re-deriving it —
+    # the lowering had it right for a commit while the SQLMesh envelope emitted
+    # its own hardcoded partition, and every test that wrote its own query
+    # passed.
+    "order_line_ingestion_metadata",
+    # RFC 0024 D5: no key is held by both shops in this seed.
+    "order_line_source_collision",
+    # RFC 0016 §6's accounting law: rows in equal rows kept plus rows diverted.
+    "order_line_conservation",
+)
+
+
+@pytest.mark.parametrize("audit", AUDITS)
+def test_every_emitted_audit_is_silent_on_correct_data(
+    built: duckdb.DuckDBPyConnection, audit: str
+) -> None:
+    """Each generated audit, run **as emitted**, reports nothing."""
+    artifact = next(a for a in compile_fixture(FIXTURE) if a.path == f"audits/{audit}.sql")
+    body = artifact.content[artifact.content.index(");") + 2 :].replace(
+        "@this_model", "silver.order_line"
+    )
+    violations = _rows(built, f"SELECT COUNT(*) FROM ({body.strip()}) AS _violations")
+    assert violations == [(0,)], f"{audit} fired on correct data"

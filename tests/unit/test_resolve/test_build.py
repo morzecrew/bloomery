@@ -906,3 +906,47 @@ def test_a_rule_may_not_read_the_provenance_column() -> None:
     # own list of known columns, so that assertion would pass on any refusal
     # mentioning either.
     assert "reads _source, which the entity does not declare" in str(excinfo.value)
+
+
+def test_a_rule_on_a_column_only_one_mapping_produces_reaches_the_entity() -> None:
+    """The rule set is the **union** over every mapping, not the first one's.
+
+    §5.2 rule 3 lets a source omit an optional field and fills it with a typed
+    NULL, so a column can be produced by one branch and not another — and its
+    rules are still the entity's. Taking `mappings[0]`'s set would drop them
+    silently, and which rules survived would depend on nothing but which source
+    relation sorts first.
+
+    `note` is exactly that column here: `src_z` maps it, `src_a` does not, and
+    `src_a` is the first branch. The generated `coercible` rule for it can only
+    come from the second mapping.
+    """
+    metadata = 'unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]\n'
+    sources = _merge_sources(
+        entity_model=_MERGE_ENTITY_MODEL.replace(
+            "      note: {type: string}\n",
+            "      note: {type: string}\n    quarantine: {retention: 90d}\n",
+        ),
+        mapping_a=_SRC_Z_MAPPING.replace(
+            '  kind: {from: "$.kind", transform: [to_string]}\n',
+            '  kind:\n    from: "$.kind"\n    transform: [to_string]\n'
+            "    quality:\n      - {rule: not_null, on_fail: flag}\n",
+        )
+        + metadata,
+        mapping_z=_SRC_A_MAPPING.replace(
+            '  kind: {from: "$.type", transform: [to_string]}\n',
+            '  kind:\n    from: "$.type"\n    transform: [to_string]\n'
+            "    quality:\n      - {rule: not_null, on_fail: flag}\n",
+        )
+        + metadata,
+    )
+    ir = build_project_ir(load_project(sources))
+    (entity,) = ir.entities
+    assert [source.relation for source in entity.sources] == ["src_a", "src_z"]
+    assert "note" not in _SRC_A_MAPPING  # the first branch does not produce it
+    assert "note_coercible" in {rule.name for rule in entity.quality}
+
+    # …and the branch that does not map it carries no source paths for it, so
+    # the marker is inert there rather than reporting every one of its rows.
+    src_a = next(source for source in entity.sources if source.relation == "src_a")
+    assert next(c.sources for c in src_a.columns if c.name == "note") == ()

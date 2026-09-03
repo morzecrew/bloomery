@@ -34,7 +34,9 @@ from pathlib import PurePosixPath
 import psycopg
 import pytest
 import trino
-from support.compiling import compile_fixture, extract_select
+from support.compiling import compile_fixture, expand_engine_macros, extract_select
+
+from bloomery.emit import ArtifactKind
 from testcontainers.community.postgres import PostgresContainer
 from testcontainers.community.trino import TrinoContainer
 
@@ -73,7 +75,7 @@ CASES: list[tuple[str, str, list[tuple[object, ...]]]] = [
         # One rule over the union, each branch comparing against its own path.
         "coercible-reads-its-own-path",
         "SELECT _source_row_id, source_relation FROM silver.order_line__reject "
-        "WHERE failed_rules LIKE '%quantity_coercible%' ORDER BY _source_row_id",
+        "WHERE {failed:quantity_coercible} ORDER BY _source_row_id",
         [("w2", "woo__order_lines")],
     ),
     (
@@ -81,7 +83,7 @@ CASES: list[tuple[str, str, list[tuple[object, ...]]]] = [
         # same raw text (RFC 0024 D32).
         "in-enum-admits-per-branch",
         "SELECT _source_row_id FROM silver.order_line__reject "
-        "WHERE failed_rules LIKE '%status_in_enum%' ORDER BY _source_row_id",
+        "WHERE {failed:status_in_enum} ORDER BY _source_row_id",
         [("s3",), ("w3",)],
     ),
     (
@@ -119,25 +121,53 @@ CASES: list[tuple[str, str, list[tuple[object, ...]]]] = [
         "+ (SELECT COUNT(*) FROM silver.order_line__reject)",
         [(6,)],
     ),
-    (
-        # D21's metadata audit must be **silent**: `s1` is one row identity in
-        # two source relations, which is legal, and an audit partitioned by the
-        # identity alone would have reported it and stopped the run.
-        "the-metadata-audit-is-silent-on-a-shared-row-identity",
-        "SELECT COUNT(*) FROM (SELECT _source, _source_row_id, COUNT(*) AS n "
-        "FROM silver.order_line GROUP BY _source, _source_row_id HAVING COUNT(*) > 1) AS d",
-        [(0,)],
-    ),
+]
+
+#: The audits, run as **bloomery emitted them** — body and all, with
+#: ``@this_model`` resolved. Asserted separately from :data:`CASES` because they
+#: are the one class of artifact whose text a hand-written query cannot stand in
+#: for: an audit is a claim about what stops the run, and a test that rewrote
+#: the claim would pass while the emitted body was wrong. The metadata audit was
+#: exactly that for one commit — the lowering partitioned by
+#: ``(_source, _source_row_id)`` (RFC 0024 D34) and the SQLMesh envelope emitted
+#: a hardcoded ``PARTITION BY _source_row_id``, on the only target that supports
+#: quarantine.
+AUDIT_CASES: list[tuple[str, str, int]] = [
+    # Blocking, and it must be **silent** here: `s1` is one row identity in two
+    # source relations, which RFC 0016 D21 makes legal, and an audit partitioned
+    # by the identity alone reports it and stops the run on correct data.
+    ("ingestion-metadata", "order_line_ingestion_metadata", 0),
+    # Blocking, and silent: no key is held by both shops in this seed.
+    ("source-collision", "order_line_source_collision", 0),
+    # The accounting law, on every production run.
+    ("conservation", "order_line_conservation", 0),
 ]
 
 IDS = [case[0] for case in CASES]
+
+#: ``failed_rules`` is a real array on both engines (RFC 0016 D23 — the flag
+#: collection is an array where the dialect has one), and the two spell
+#: membership differently. One expectations table, one placeholder, rather than
+#: two copies of every case: the claim under test is that the engines *agree*,
+#: and a claim about agreement written twice can drift.
+MEMBERSHIP = {
+    "postgres": "'{rule}' = ANY(failed_rules)",
+    "trino": "contains(failed_rules, '{rule}')",
+}
+
+
+def _bind(sql: str, dialect: str) -> str:
+    """Resolve the ``{failed:<rule>}`` placeholders for one engine."""
+    for rule in ("quantity_coercible", "status_in_enum"):
+        sql = sql.replace(f"{{failed:{rule}}}", MEMBERSHIP[dialect].format(rule=rule))
+    return sql
 
 
 def check(run: Callable[[str], list[tuple[object, ...]]], case_index: int, engine: str) -> None:
     """One case, executed on one engine, against the shared expectations."""
 
     _label, sql, expected = CASES[case_index]
-    rows = [tuple(row) for row in run(sql)]
+    rows = [tuple(row) for row in run(_bind(sql, engine))]
     normalized = [tuple(int(v) if isinstance(v, (int, float)) else v for v in row) for row in rows]
     assert normalized == expected, f"{engine}: {normalized} != {expected}"
 
@@ -147,6 +177,15 @@ def _ordered(dialect: str) -> list[tuple[str, str, str]]:
     the engine's scheduler stood in for, exactly as the DuckDB tier's
     :func:`support.execution.materialize` stands in for it there."""
 
+    # `ArtifactKind.MODEL`, not "every `.sql`": audits and the replay artifact
+    # are `.sql` too and are neither relations nor runnable here — an audit
+    # reads `@this_model` and replay is a MERGE. They have their own assertions
+    # below, run as emitted.
+    models = [
+        artifact
+        for artifact in compile_fixture(FIXTURE, dialect=dialect)
+        if artifact.kind is ArtifactKind.MODEL and artifact.path.endswith(".sql")
+    ]
     return [
         (
             PurePosixPath(artifact.path).parent.name,
@@ -154,8 +193,7 @@ def _ordered(dialect: str) -> list[tuple[str, str, str]]:
             extract_select(artifact.content),
         )
         for artifact in sorted(
-            (a for a in compile_fixture(FIXTURE, dialect=dialect) if a.path.endswith(".sql")),
-            key=lambda a: PurePosixPath(a.path).parent.name != "silver",
+            models, key=lambda a: PurePosixPath(a.path).parent.name != "silver"
         )
     ]
 
@@ -174,30 +212,35 @@ def postgres() -> Iterator[Callable[[str], list[tuple[object, ...]]]]:
             password=container.password,
             dbname=container.dbname,
         )
+        # Autocommit: a case whose SQL is refused would otherwise abort the
+        # transaction and every later case would report
+        # `InFailedSqlTransaction` instead of its own result — one failure
+        # wearing thirteen names.
+        connection.autocommit = True
         connection.execute("SET TIME ZONE 'UTC'")
         for schema in ("bronze", "silver", "gold"):
             connection.execute(f"CREATE SCHEMA {schema}")
         connection.execute(
             'CREATE TABLE bronze.shopify__order_lines ("order" JSONB, position TEXT, '
             "variant JSONB, quantity TEXT, properties JSONB, created_at TEXT, "
-            "financial_status TEXT, _load_id TEXT, _ingested_at TIMESTAMP, _source_row_id TEXT)"
+            "financial_status TEXT, _load_id TEXT, _ingested_at TEXT, _source_row_id TEXT)"
         )
         connection.execute(
             "CREATE TABLE bronze.woo__order_lines (order_number TEXT, item_index TEXT, "
             "product_sku TEXT, qty TEXT, created TEXT, state TEXT, _load_id TEXT, "
-            "_ingested_at TIMESTAMP, _source_row_id TEXT)"
+            "_ingested_at TEXT, _source_row_id TEXT)"
         )
         with connection.cursor() as cursor:
             cursor.executemany(
                 "INSERT INTO bronze.shopify__order_lines VALUES "
                 "(jsonb_build_object('id', %s::text), %s, jsonb_build_object('sku', %s::text), "
                 "%s, jsonb_build_object('gift_note', NULL), %s, %s, 'load-1', "
-                "TIMESTAMP '2024-03-10 00:00:00', %s)",
+                "'2024-03-10T00:00:00', %s)",
                 SHOPIFY,
             )
             cursor.executemany(
                 "INSERT INTO bronze.woo__order_lines VALUES "
-                "(%s, %s, %s, %s, %s, %s, 'load-1', TIMESTAMP '2024-03-10 00:00:00', %s)",
+                "(%s, %s, %s, %s, %s, %s, 'load-1', '2024-03-10T00:00:00', %s)",
                 WOO,
             )
         for namespace, relation, select in _ordered("postgres"):
@@ -244,19 +287,19 @@ def trino_engine() -> Iterator[Callable[[str], list[tuple[object, ...]]]]:
             'CREATE TABLE memory.bronze.shopify__order_lines ("order" varchar, '
             "position varchar, variant varchar, quantity varchar, properties varchar, "
             "created_at varchar, financial_status varchar, _load_id varchar, "
-            "_ingested_at timestamp, _source_row_id varchar)"
+            "_ingested_at varchar, _source_row_id varchar)"
         )
         run(
             "CREATE TABLE memory.bronze.woo__order_lines (order_number varchar, "
             "item_index varchar, product_sku varchar, qty varchar, created varchar, "
-            "state varchar, _load_id varchar, _ingested_at timestamp, _source_row_id varchar)"
+            "state varchar, _load_id varchar, _ingested_at varchar, _source_row_id varchar)"
         )
         run(
             "INSERT INTO memory.bronze.shopify__order_lines VALUES "
             + ", ".join(
                 f"('{{\"id\":\"{order}\"}}', '{position}', '{{\"sku\":\"{sku}\"}}', "
                 f"'{quantity}', '{{\"gift_note\":null}}', '{created}', '{status}', 'load-1', "
-                f"TIMESTAMP '2024-03-10 00:00:00', '{row_id}')"
+                f"'2024-03-10T00:00:00', '{row_id}')"
                 for order, position, sku, quantity, created, status, row_id in SHOPIFY
             )
         )
@@ -264,7 +307,7 @@ def trino_engine() -> Iterator[Callable[[str], list[tuple[object, ...]]]]:
             "INSERT INTO memory.bronze.woo__order_lines VALUES "
             + ", ".join(
                 "(" + ", ".join(f"'{value}'" for value in row[:6])
-                + ", 'load-1', TIMESTAMP '2024-03-10 00:00:00', "
+                + ", 'load-1', '2024-03-10T00:00:00', "
                 + f"'{row[6]}')"
                 for row in WOO
             )
@@ -280,8 +323,77 @@ def trino_engine() -> Iterator[Callable[[str], list[tuple[object, ...]]]]:
 def test_the_cleaned_merge_runs_on_trino(
     trino_engine: Callable[[str], list[tuple[object, ...]]], case_index: int
 ) -> None:
-    check(
-        lambda sql: trino_engine(sql.replace("silver.", "memory.silver.")),
-        case_index,
-        "trino",
+    check(lambda sql: trino_engine(sql.replace("silver.", "memory.silver.")), case_index, "trino")
+
+
+def _audit_body(name: str, dialect: str, relation: str) -> str:
+    """One emitted audit, ready to run: its SELECT with ``@this_model`` bound.
+
+    ``@this_model`` is SQLMesh's macro for the audited relation and this tier
+    has no SQLMesh — the same substitution
+    :func:`support.compiling.expand_engine_macros` makes everywhere else, for
+    the same reason.
+    """
+    artifact = next(
+        a
+        for a in compile_fixture(FIXTURE, dialect=dialect)
+        if a.path == f"audits/{name}.sql"
     )
+    body = artifact.content[artifact.content.index(");") + 2 :]
+    return expand_engine_macros(body.replace("@this_model", relation)).strip()
+
+
+def check_audit(
+    run: Callable[[str], list[tuple[object, ...]]], case_index: int, dialect: str, relation: str
+) -> None:
+    """One emitted audit, executed, against the row count it must report."""
+    _label, name, expected = AUDIT_CASES[case_index]
+    rows = run(f"SELECT COUNT(*) FROM ({_audit_body(name, dialect, relation)}) AS _violations")
+    assert int(rows[0][0]) == expected, f"{dialect} {name}: {rows[0][0]} violation(s), not {expected}"
+
+
+@pytest.mark.engine("postgres")
+@pytest.mark.parametrize("case_index", range(len(AUDIT_CASES)), ids=[c[0] for c in AUDIT_CASES])
+def test_the_emitted_audits_are_silent_on_postgres(
+    postgres: Callable[[str], list[tuple[object, ...]]], case_index: int
+) -> None:
+    check_audit(postgres, case_index, "postgres", "silver.order_line")
+
+
+@pytest.mark.engine("trino")
+@pytest.mark.parametrize(
+    "case_index",
+    [
+        pytest.param(
+            0,
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason=(
+                    "PRE-EXISTING, not this branch: the D21 metadata audit reports a false "
+                    "violation on Trino for every row whose bronze `_ingested_at` is "
+                    "ISO-8601 with a `T`. Its third clause is `_ingested_at IS NOT NULL AND "
+                    "TRY_CAST(_ingested_at AS TIMESTAMP) IS NULL` (RFC 0016 D25/D31), and "
+                    "measured on trinodb/trino:483: "
+                    "TRY_CAST('2024-03-10T00:00:00' AS TIMESTAMP) is NULL while "
+                    "TRY_CAST('2024-03-10 00:00:00' AS TIMESTAMP) parses. The audit is "
+                    "blocking, so this stops a run on correct data — the worst failure "
+                    "available to a generated audit (RFC 0024 D13). Unchanged by this "
+                    "branch (`_uncastable_ingested_at` is byte-identical to main); it is "
+                    "reachable here because this is the first test in the repository to run "
+                    "that audit against Trino. Fixing it changes a shipped audit on one "
+                    "target for every entity that dedupes or quarantines, so it is its own "
+                    "change: see logs/T-0012.md, self-audit finding F-6."
+                ),
+            ),
+        ),
+        *range(1, len(AUDIT_CASES)),
+    ],
+    ids=[c[0] for c in AUDIT_CASES],
+)
+def test_the_emitted_audits_are_silent_on_trino(
+    trino_engine: Callable[[str], list[tuple[object, ...]]], case_index: int
+) -> None:
+    # No blanket rewrite here: :func:`_audit_body` is handed the qualified
+    # relation, so the body already reads `memory.silver.…` and replacing again
+    # produces `memory.memory.silver.…`.
+    check_audit(trino_engine, case_index, "trino", "memory.silver.order_line")

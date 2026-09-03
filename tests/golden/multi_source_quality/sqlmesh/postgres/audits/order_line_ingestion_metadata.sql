@@ -4,19 +4,26 @@ AUDIT (
   name order_line_ingestion_metadata
 );
 
-SELECT * FROM (
-  SELECT *, COUNT(*) OVER (PARTITION BY _source_row_id) AS _row_id_count FROM @this_model
-) AS _metadata WHERE _ingested_at IS NULL
-OR _load_id IS NULL
-OR _source_row_id IS NULL
-OR _row_id_count > 1
-OR (
-  (
-    NOT _ingested_at IS NULL
+SELECT
+  *
+FROM (
+  SELECT
+    *,
+    COUNT(*) OVER (PARTITION BY _source, _source_row_id) AS _row_id_count
+  FROM @this_model
+) AS _metadata
+WHERE
+  _ingested_at IS NULL
+  OR _load_id IS NULL
+  OR _source_row_id IS NULL
+  OR _row_id_count > 1
+  OR (
+    (
+      NOT _ingested_at IS NULL
+    )
+    AND CASE
+      WHEN PG_INPUT_IS_VALID(_ingested_at, 'TIMESTAMP')
+      AND NOT LOWER(_ingested_at) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
+      THEN CAST(_ingested_at AS TIMESTAMP)
+    END IS NULL
   )
-  AND CASE
-    WHEN PG_INPUT_IS_VALID(_ingested_at, 'TIMESTAMP')
-    AND NOT LOWER(_ingested_at) ~ '^[[:space:]]*(now|today|tomorrow|yesterday)[[:space:]]*$'
-    THEN CAST(_ingested_at AS TIMESTAMP)
-  END IS NULL
-)

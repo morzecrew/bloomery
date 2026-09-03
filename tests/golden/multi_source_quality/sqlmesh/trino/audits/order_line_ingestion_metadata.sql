@@ -4,14 +4,21 @@ AUDIT (
   name order_line_ingestion_metadata
 );
 
-SELECT * FROM (
-  SELECT *, COUNT(*) OVER (PARTITION BY _source_row_id) AS _row_id_count FROM @this_model
-) AS _metadata WHERE _ingested_at IS NULL
-OR _load_id IS NULL
-OR _source_row_id IS NULL
-OR _row_id_count > 1
-OR (
-  (
-    NOT _ingested_at IS NULL
-  ) AND TRY_CAST(_ingested_at AS TIMESTAMP) IS NULL
-)
+SELECT
+  *
+FROM (
+  SELECT
+    *,
+    COUNT(*) OVER (PARTITION BY _source, _source_row_id) AS _row_id_count
+  FROM @this_model
+) AS _metadata
+WHERE
+  _ingested_at IS NULL
+  OR _load_id IS NULL
+  OR _source_row_id IS NULL
+  OR _row_id_count > 1
+  OR (
+    (
+      NOT _ingested_at IS NULL
+    ) AND TRY_CAST(_ingested_at AS TIMESTAMP) IS NULL
+  )
