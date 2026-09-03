@@ -86,9 +86,16 @@ fix-it:
     {{ _trino }} --execute "DELETE FROM iceberg.bronze.woo__order_lines WHERE product_sku = 'SKU-DUP'"
     cd {{ justfile_directory() }}/out && uv run sqlmesh plan --auto-apply --restate-model 'silver.order_line'
 
-# Tear the stack down. Every service is tmpfs-backed, so nothing survives.
+# Tear the stack down. Every service is tmpfs-backed, so the warehouse does not
+# survive — and SQLMesh's own state must not either. That state lives in
+# `out/state.db` on *this* machine, so `compose down -v` alone leaves it holding
+# snapshots of tables the next `up` will not have: the plan then reuses a
+# fingerprint for every model you did not edit and the run fails with
+# `TABLE_NOT_FOUND` on those and only those, which reads exactly like a bug in
+# whatever you did change.
 down:
     {{ _compose }} down -v
+    rm -rf {{ justfile_directory() }}/out/state.db {{ justfile_directory() }}/out/.cache
 
 # Follow the logs of one service: `just logs lakekeeper`
 logs service="":
