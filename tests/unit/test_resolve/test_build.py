@@ -940,6 +940,78 @@ canonical_fields:
     assert "drop 'direct:' from mapping[src_a->item]" in message
 
 
+def test_the_removal_remedy_names_every_recording_mapping() -> None:
+    """Two mappings record a `direct:` path and a third does not.
+
+    The refusal is over the whole entity, so dropping one mapping's path while
+    another still declares one leaves it firing on the next compile — a remedy
+    an author can follow to the letter and arrive back at the same error. The
+    `source_path` stays one document, because a cursor position is one place.
+    """
+    sources = {
+        "entity_model": """\
+spec_version: 1
+entities:
+  item:
+    grain: one row per item
+    key: [item_id]
+    fields:
+      item_id: {type: string, required: true}
+      net_price: {type: "decimal(12,4)", canonical: net_price}
+""",
+        "mapping_a": """\
+mapping_version: 1
+source: src_a
+target: item
+key:
+  item_id: {from: "$.id", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.total", quantity: "$.qty"}
+    direct: "$.price"
+""",
+        "mapping_b": """\
+mapping_version: 1
+source: src_b
+target: item
+key:
+  item_id: {from: "$.ident", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.gross", quantity: "$.units"}
+    direct: "$.unit_amount"
+""",
+        "mapping_c": """\
+mapping_version: 1
+source: src_c
+target: item
+key:
+  item_id: {from: "$.identifier", transform: [to_string]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.amount", quantity: "$.count"}
+""",
+    }
+    catalog = load_catalog("""\
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  net_price:
+    entity: item
+    type: decimal(12,4)
+    recipes:
+      - {id: from_total, requires: [line_total, quantity], expr: "line_total / quantity"}
+""")
+    with pytest.raises(ResolutionError) as excinfo:
+        build_project_ir(load_project(sources), catalog)
+    message = str(excinfo.value)
+    assert "drop it from mapping[src_a->item], mapping[src_b->item]" in message
+    assert excinfo.value.source_path == "mapping[src_a->item]: fields.net_price.direct"
+
+
 def test_a_field_occupying_the_shadow_name_is_refused() -> None:
     """RFC 0006 §5.5. The guardrail adds `<field>__direct` only when the entity
     does not already carry that column — an idempotence guard — so an

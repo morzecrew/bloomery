@@ -1402,23 +1402,31 @@ def _direct_agreement_refusals(
         #
         # Where *any* silent mapping is of that kind, adding paths to the
         # others is not a fix: the refusal fires while a single silent
-        # producer remains, so dropping the witness's path is the only thing
-        # that resolves it. The message says which mappings could take one
-        # anyway — omitting them made the "lower it without a recipe" clause
-        # false about mappings that do have one.
+        # producer remains, so removing the paths is the only thing that
+        # resolves it. The message says which mappings could take one anyway —
+        # omitting them made the "lower it without a recipe" clause false
+        # about mappings that do have one.
+        #
+        # **Every** recording mapping is named on the removal side, not just
+        # the witness. The refusal is over the whole entity, so dropping one
+        # mapping's path while another still declares one leaves it firing on
+        # the next compile — a remedy an author can follow to the letter and
+        # arrive back here. The witness stays the ``source_path``, which is a
+        # cursor position and has to be one document.
         addable = sorted(mapping_doc(m) for m in silent if _reachable_direct(m, field_name))
         blocked = sorted(mapping_doc(m) for m in silent if not _reachable_direct(m, field_name))
+        recorded = ", ".join(sorted(mapping_doc(m) for m in recording))
         if not blocked:
             remedy = (
                 f"record a direct: path for {field_name!r} in {', '.join(addable)} too, or "
-                f"drop it from {mapping_doc(witness)}"
+                f"drop it from {recorded}"
             )
         else:
             remedy = (
-                f"drop 'direct:' from {mapping_doc(witness)}. {', '.join(blocked)} "
+                f"drop 'direct:' from {recorded}. {', '.join(blocked)} "
                 f"lower{'' if len(blocked) > 1 else 's'} {field_name!r} without a recipe "
                 "(under 'key:', or as a plain 'from:') and only a recipe mapping can record "
-                "a direct: path, so this stays refused while that path is there"
+                "a direct: path, so this stays refused while any such path is there"
             )
             if addable:
                 remedy += f" — giving {', '.join(addable)} one as well would not lift it"
