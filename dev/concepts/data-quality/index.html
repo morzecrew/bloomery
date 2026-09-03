@@ -2049,8 +2049,11 @@ are the ones that could still surprise you: <code>.</code> excludes newline on R
 on Postgres, and <code>\d</code>/<code>\w</code>/<code>\s</code> are ASCII on RE2 but locale-defined on Postgres.</p>
 <h2 id="the-reject-table-and-the-replay-lifecycle">The reject table and the replay lifecycle<a class="headerlink" href="#the-reject-table-and-the-replay-lifecycle" title="Permanent link">&para;</a></h2>
 <p>One <code>&lt;entity&gt;__reject</code> table per entity — never one per mapping, which would multiply
-into small files and make replay N-way. It holds the quarantined bronze payload plus
-enough identity to be idempotent:</p>
+into small files and make replay N-way. That holds for a
+<a href="../../how-to/merge-sources/">merged entity</a> too: its rows come from several mappings and
+each one records which, so replay re-runs the mapping that produced each row rather than
+applying one of them to all. The table holds the quarantined bronze payload plus enough
+identity to be idempotent:</p>
 <table>
 <thead>
 <tr>
@@ -2061,11 +2064,11 @@ enough identity to be idempotent:</p>
 <tbody>
 <tr>
 <td><code>reject_id</code></td>
-<td>SHA-256 over the canonical <code>(source_relation, _source_row_id)</code> pair — recomputable from the row itself</td>
+<td>SHA-256 over the canonical <code>(source_relation, _source_row_id)</code> pair — recomputable from the row itself, and the <em>pair</em> because the row identity is unique within one source relation and a merged entity holds rows from several</td>
 </tr>
 <tr>
 <td><code>source_relation</code>, <code>mapping</code>, <code>mapping_version</code></td>
-<td>Where the row came from and which mapping judged it</td>
+<td>Where the row came from and which mapping judged it — per row, so a merged entity's table names every branch</td>
 </tr>
 <tr>
 <td><code>failed_rules</code></td>

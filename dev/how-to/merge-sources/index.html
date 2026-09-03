@@ -1181,10 +1181,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-a-merged-entity-cannot-do-yet" class="md-nav__link">
+  <a href="#cleaning-a-merged-entity" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        What a merged entity cannot do yet
+        Cleaning a merged entity
       </span>
     </span>
   </a>
@@ -1663,10 +1663,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#what-a-merged-entity-cannot-do-yet" class="md-nav__link">
+  <a href="#cleaning-a-merged-entity" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        What a merged entity cannot do yet
+        Cleaning a merged entity
       </span>
     </span>
   </a>
@@ -1886,8 +1886,8 @@ invalid SQL.</p>
 <td>The collision check below would fire on every key holding versions from two sources. Telling a version from a collision means reading the validity interval, and the union's lowering does not — the interval is modelled now (see <a href="../../concepts/wide-marts/#historical-dimensions-need-an-anchor">as-of joins</a>), but the merge audit does not consult it</td>
 </tr>
 <tr>
-<td>Any quality rule, <code>dedupe:</code> or <code>quarantine:</code></td>
-<td>See <a href="#what-a-merged-entity-cannot-do-yet">the limits</a></td>
+<td>Two mappings declaring <strong>different</strong> rules for a column they both produce</td>
+<td>The rules run once over the merged relation, so a set taken from one mapping would silently drop what the others wrote. See <a href="#cleaning-a-merged-entity">cleaning a merged entity</a></td>
 </tr>
 </tbody>
 </table>
@@ -1921,18 +1921,44 @@ merge — go to <a href="../resolve-identities/">Resolve identities across syste
 correct split — it is the same one <code>dedupe</code> and <code>referential</code> live with — but do not
 read a successful compile as proof the sources are disjoint.</p>
 </div>
-<h2 id="what-a-merged-entity-cannot-do-yet">What a merged entity cannot do yet<a class="headerlink" href="#what-a-merged-entity-cannot-do-yet" title="Permanent link">&para;</a></h2>
-<p>A merged entity is outside the data-quality system for now: no <code>quality:</code> rules on the
-entity or on its mappings' fields, no <code>dedupe:</code>, no <code>quarantine:</code>. Each is refused at
-compile time with a message saying why.</p>
-<p>The reason is not squeamishness. Quality rules are lowered <strong>per mapping</strong> — a generated
-coercion rule carries one mapping's source paths into a rule the merged relation evaluates
-once, and the other source's bronze relation need not have the column it names. Shipping
-that would emit a check that is wrong rather than absent.</p>
-<p><code>assert:</code>, <code>references:</code> and <code>coverage:</code> are unaffected: they are declared on the entity
-model and never read a mapping. For a required field on a merged entity, <code>assert: {not_null:
-true}</code> is the runtime check you want — <code>required:</code> proves every mapping <em>declares</em> the
-field, and says nothing about what its source path returns per row.</p>
+<h2 id="cleaning-a-merged-entity">Cleaning a merged entity<a class="headerlink" href="#cleaning-a-merged-entity" title="Permanent link">&para;</a></h2>
+<p>A merged entity takes the whole <a href="../add-quality-rules/">data-quality system</a>: <code>quality:</code>
+rules on the entity and on its mappings' fields, <code>dedupe:</code>, and <code>quarantine:</code> with its
+reject table and replay. Nothing about declaring them differs from a single-source entity.</p>
+<p>What differs is underneath, and it is worth knowing because it decides what the compiler
+asks of you. <strong>The rules are one set, evaluated once over the merged relation. Their inputs
+are per source.</strong> A coercion rule compares the produced column against the raw paths it
+reads, and the two shops read different paths; an <code>in_enum</code> rule admits what the chain's
+<code>enum_map</code> maps, and the two shops map different spellings. Each branch computes its own
+verdict below the union and the rule reads the result, so one rule can judge rows from
+sources that share no column name at all.</p>
+<p>That is why <strong>every mapping of a merged entity must declare the same rules for a column
+they both produce</strong>. A rule is written on a mapping's field, and two mappings writing
+different ones is not a merge rule to invent — it is two contradictory statements, refused
+with both documents named. A column only <em>one</em> mapping produces is a different case and is
+not refused: its rules join the entity's set, and on the branch that maps nothing the
+coercion marker reads "no sources, no evidence" rather than reporting every one of that
+source's rows as a failed cast.</p>
+<p>Two more things happen on their own:</p>
+<ul>
+<li><strong><code>dedupe:</code> sorts by <code>_source</code></strong> immediately before the row identity. That identity is
+  unique within <em>one</em> source relation, so without the extra term two rows from different
+  shops on one key compare equal and the survivor is undefined.</li>
+<li><strong>The collision audit reads the union</strong>, not the finished model. With <code>dedupe:</code> in
+  between, a key held by both shops is collapsed to one row before the model exists — an
+  audit reading the model would find one source per key and pass, on exactly the data it
+  is there to refuse.</li>
+</ul>
+<p><code>assert:</code>, <code>references:</code> and <code>coverage:</code> were never affected: they are declared on the
+entity model and never read a mapping. For a required field on a merged entity,
+<code>assert: {not_null: true}</code> is the runtime check you want — <code>required:</code> proves every mapping
+<em>declares</em> the field, and says nothing about what its source path returns per row.</p>
+<div class="admonition note">
+<p class="admonition-title">One target</p>
+<p><code>quarantine:</code> needs a reject model, which the dbt emitter does not lower — merged or
+not. A merged entity that quarantines compiles for SQLMesh; one that only flags
+compiles for both.</p>
+</div>
 <h2 id="how-it-shows-up-in-plan">How it shows up in <code>plan()</code><a class="headerlink" href="#how-it-shows-up-in-plan" title="Permanent link">&para;</a></h2>
 <p>No new change class:</p>
 <table>
@@ -1992,8 +2018,8 @@ bloomery emits to dbt, not only this one.</p>
   collision audit stopping the plan</li>
 <li><a href="../resolve-identities/">Resolve identities across systems</a> — different key spaces, which
   needs matching rather than merging</li>
-<li><a href="../add-quality-rules/">Add quality rules</a> — the system a merged entity is currently
-  outside of</li>
+<li><a href="../add-quality-rules/">Add quality rules</a> — the system a merged entity joins the same
+  way any other entity does</li>
 <li><a href="../evolve-a-spec/">Evolve a spec</a> — how <code>plan()</code> classifies the changes above</li>
 </ul>
 
