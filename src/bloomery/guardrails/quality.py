@@ -62,7 +62,6 @@ from bloomery.quality import (
     ReconcileSide,
     disposition,
     generated_rule_names,
-    lower_quality,
     mapped_fields,
     nullifying_steps,
     parse_side,
@@ -236,15 +235,22 @@ def _check_dedupe_disposition(
 # ....................... #
 
 
-def _check_retention(
-    entity_name: str, entity: Entity, mapping: Mapping, relationships: tuple[Relationship, ...]
-) -> list[GuardrailError]:
+def _check_retention(entity_name: str, entity: Entity, draft: ProjectIR) -> list[GuardrailError]:
+    """An entity holding a quarantine disposition declares its retention.
+
+    Read off the **draft**, not re-lowered per mapping. A merged entity's rules
+    are one set over every mapping (RFC 0024 D32/D33), so lowering per mapping
+    reported the same missing block once per branch, each naming a different
+    subset of the rules — one defect, N messages, none of them the whole
+    account.
+    """
     if entity.quarantine is not None:
         return []
 
+    lowered = next((e for e in draft.entities if e.name == entity_name), None)
     quarantining = [
         rule
-        for rule in lower_quality(entity, mapping, relationships)
+        for rule in (lowered.quality if lowered is not None else ())
         if disposition(rule) is OnFail.QUARANTINE
     ]
 
@@ -1239,6 +1245,10 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
         errors.extend(_check_dedupe_columns(entity_name, entity))
         errors.extend(_check_referential(entity_name, entity, relationships))
         errors.extend(_check_expression_rules(entity_name, entity, draft))
+        # This one reads the *lowered* rules rather than the opt-in flag: the
+        # draft's rule tuple is empty for an entity that never joined the
+        # quality system, so it is silently satisfied there.
+        errors.extend(_check_retention(entity_name, entity, draft))
         for mapping in mappings:
             errors.extend(_check_dedupe_disposition(entity_name, entity, mapping))
             errors.extend(_check_ingestion_metadata(entity_name, entity, mapping))
@@ -1246,10 +1256,6 @@ def check_quality(draft: ProjectIR, project: Project) -> list[GuardrailError]:
             errors.extend(_check_patterns(entity_name, mapping))
             errors.extend(_check_chain_derived_rules(entity_name, entity, mapping))
             errors.extend(_check_rule_names(entity_name, entity, mapping, relationships))
-            # This one reads the *lowered* rules rather than the opt-in flag:
-            # ``lower_quality`` is empty for an entity that never joined the
-            # quality system, so it is silently satisfied there.
-            errors.extend(_check_retention(entity_name, entity, mapping, relationships))
 
     # Project-level, not per entity: a reconcile check relates two entities and
     # belongs to neither, and the reserved metric names are one flat namespace.

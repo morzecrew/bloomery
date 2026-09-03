@@ -32,6 +32,23 @@ EXPECTED_PATHS = {
         "audits/order_line_source_collision.sql",
         "models/silver/order_line.sql",
     ],
+    # The cleaned merge, on both engines. What it adds over the row above is
+    # every construct P2 introduced: the dedupe `QUALIFY` over a union, a
+    # metadata audit partitioned by `(_source, _source_row_id)` (RFC 0024 D34),
+    # a per-branch `reject_id` digest — which is spelled differently on every
+    # engine (RFC 0016 D83) and whose whole point is that they agree — and a
+    # replay whose branches filter on `source_relation` (RFC 0035 D3).
+    "multi_source_quality": [
+        "audits/order_line_conservation.sql",
+        "audits/order_line_ingestion_metadata.sql",
+        "audits/order_line_line_no_coercible.sql",
+        "audits/order_line_placed_at_coercible.sql",
+        "audits/order_line_source_collision.sql",
+        "models/gold/mart_data_quality.sql",
+        "models/silver/order_line.sql",
+        "models/silver/order_line__reject.sql",
+        "replay/order_line.sql",
+    ],
     "ecom_basic": [
         "models/gold/dim_date.sql",
         "models/gold/mart_order_items.sql",

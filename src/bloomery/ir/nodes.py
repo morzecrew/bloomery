@@ -419,6 +419,24 @@ class SourceColumnIR:
     name: str
     expr: SqlExpr
     recipe_id: str | None = None
+    #: The canonical SQL of every raw extraction this branch reads for the
+    #: column — what the ``coercible`` marker compares the produced value
+    #: against (RFC 0024 D32). Per source rather than on the rule, because the
+    #: paths are one mapping's and the rule is evaluated once over the merged
+    #: relation: carrying them on the rule would make source B's branch read
+    #: source A's ``$.a.b`` off a bronze relation that need not have it.
+    #: Empty for a column outside the quality system.
+    sources: tuple[str, ...] = ()
+    #: This branch's ``enum_map`` targets, deduplicated and sorted — the set
+    #: ``in_enum`` admits for rows from this source (RFC 0024 D32). Two
+    #: mappings may map different spellings onto different vocabularies, so
+    #: the admissible set is a branch fact exactly as ``sources`` is.
+    enum_values: tuple[str, ...] = ()
+    #: This branch's ``enum_map`` spellings, deduplicated and sorted. Carried
+    #: for the same reason the rule used to carry them: a widening that points
+    #: a new spelling at an existing target changes no target, and ``plan()``
+    #: could not see it otherwise (RFC 0016 §6).
+    enum_spellings: tuple[str, ...] = ()
 
 
 # ....................... #
@@ -1191,6 +1209,10 @@ class ProjectIR:
     :class:`CumulativeIR` — a second shape change under the same RFC, and a
     second number, because "the first one is not released yet" is a reason to
     skip the bump only until someone diffs two IRs that both call themselves 9.
+    Version 11 (RFC 0024 D32) adds ``sources``, ``enum_values`` and
+    ``enum_spellings`` to every :class:`SourceColumnIR`: a merged entity's
+    rules are evaluated once over the union, so the per-mapping facts they read
+    move onto the per-mapping node.
     The bump is
     the point — every artifact's fingerprint header moves, and ``plan()``
     refuses to diff across versions rather than misreading one as the other.
@@ -1213,7 +1235,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 10
+    bloomery_ir_version: int = 11
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()

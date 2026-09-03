@@ -16,9 +16,10 @@
 #                quality system is something an entity joins, not something
 #                the compiler does to every table it touches.
 #
-# A merged entity may not carry `quality:` in this release (RFC 0024 D29 — rule
-# lowering is per mapping and has no merged form yet), which is why the quality
-# rules live on `customer`. `assert:` is unaffected and works on both.
+# A merged entity may carry the whole quality system — rules, `dedupe:` and
+# `quarantine:` alike (RFC 0024 P2). The rules live on `customer` here because
+# that is the shape this example is teaching: one entity inside the system, one
+# outside it, and the merge shown on its own so each idea arrives alone.
 spec_version: 1
 
 entities:

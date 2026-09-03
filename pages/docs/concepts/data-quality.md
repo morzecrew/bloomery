@@ -227,13 +227,16 @@ on Postgres, and `\d`/`\w`/`\s` are ASCII on RE2 but locale-defined on Postgres.
 ## The reject table and the replay lifecycle
 
 One `<entity>__reject` table per entity — never one per mapping, which would multiply
-into small files and make replay N-way. It holds the quarantined bronze payload plus
-enough identity to be idempotent:
+into small files and make replay N-way. That holds for a
+[merged entity](../how-to/merge-sources.md) too: its rows come from several mappings and
+each one records which, so replay re-runs the mapping that produced each row rather than
+applying one of them to all. The table holds the quarantined bronze payload plus enough
+identity to be idempotent:
 
 | Column | What it is |
 |---|---|
-| `reject_id` | SHA-256 over the canonical `(source_relation, _source_row_id)` pair — recomputable from the row itself |
-| `source_relation`, `mapping`, `mapping_version` | Where the row came from and which mapping judged it |
+| `reject_id` | SHA-256 over the canonical `(source_relation, _source_row_id)` pair — recomputable from the row itself, and the *pair* because the row identity is unique within one source relation and a merged entity holds rows from several |
+| `source_relation`, `mapping`, `mapping_version` | Where the row came from and which mapping judged it — per row, so a merged entity's table names every branch |
 | `failed_rules` | Every rule the row failed, flag-level failures included |
 | `key_values`, `raw` | The entity key (best-effort) and the bronze payload |
 | `_load_id`, `_ingested_at`, `_source_row_id` | The ingestion-metadata contract |

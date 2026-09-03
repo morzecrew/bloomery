@@ -236,9 +236,10 @@ this stack into anything that matters.
 
 ## Not covered here
 
-- **dbt and Cube.** The same shape compiles to both, but a merged entity, a
-  quarantine policy, a reconcile check, a coverage check and a mart assertion
-  are all refused on dbt — each for a stated reason. `examples/targets/` runs a
+- **dbt and Cube.** The same shape compiles to both, but a quarantine policy, a
+  reconcile check, a coverage check and a mart assertion are all refused on
+  dbt — each for a stated reason. (A merged entity is not: dbt grew the
+  singular-test surface its collision audit needs.) `examples/targets/` runs a
   project that stays inside what all three targets support, and
   `examples/refusals/` shows one of these refusals in full.
 - **Metric requests.** `examples/quickstart/` plans one and prints the SQL and

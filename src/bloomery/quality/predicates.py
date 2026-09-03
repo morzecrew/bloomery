@@ -42,7 +42,11 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 __all__ = [
+    "BRANCH_KINDS",
     "WINDOWED_KINDS",
+    "branch_alias",
+    "branch_violation",
+    "branched",
     "conjunction",
     "disjunction",
     "disposition",
@@ -59,7 +63,6 @@ __all__ = [
     "repairs",
     "routing_predicate",
     "sole_via_column",
-    "source_alias",
     "unknown_member_case",
     "verdict",
     "violation",
@@ -161,23 +164,6 @@ def indexed_params(rule: QualityRuleIR, prefix: str) -> tuple[str, ...]:
 # ....................... #
 
 
-def source_alias(rule: QualityRuleIR, index: int) -> str:
-    """The projection name a ``coercible`` rule's *n*-th source hides behind.
-
-    The marker compares the produced column against the raw source paths it
-    reads, but those paths live one level down, in the extract SELECT — by the
-    time the rules run they are behind a subquery. So the extract level
-    projects each source under this deterministic name and the predicate
-    references it. One convention, spelled once, used by the builder below and
-    by the emitter that projects them.
-    """
-
-    return f"_src_{rule.name}_{index:04d}"
-
-
-# ....................... #
-
-
 def repairs(rule: QualityRuleIR) -> bool:
     """Whether this rule carries a repair recipe (RFC 0016 D87)."""
 
@@ -238,6 +224,45 @@ def windowed(rule: QualityRuleIR) -> bool:
     """Whether this rule's predicate must be projected before it can be used."""
 
     return rule.kind in WINDOWED_KINDS
+
+
+# ....................... #
+
+
+#: The kinds whose predicate is built from facts that belong to **one branch**
+#: of a union merge rather than to the entity (RFC 0024 D32): the raw source
+#: paths ``coercible`` compares against, and the ``enum_map`` chain that defines
+#: what ``in_enum`` admits. Two mappings may read different paths and map
+#: different spellings, so the rule is evaluated once over the merged relation
+#: while its *inputs* are computed per branch and projected under
+#: :func:`branch_alias` — the same device :data:`WINDOWED_KINDS` already uses
+#: for a different reason.
+#:
+#: The distinction between the two sets is worth keeping straight. A windowed
+#: rule is projected because SQL forbids a window outside a projection; a
+#: branched one is projected because the fact it reads exists only below the
+#: union. Nothing stops a future kind from being both.
+BRANCH_KINDS = frozenset({"coercible", "in_enum"})
+
+
+def branched(rule: QualityRuleIR) -> bool:
+    """Whether this rule reads a fact only one union branch knows (D32)."""
+
+    return rule.kind in BRANCH_KINDS
+
+
+# ....................... #
+
+
+def branch_alias(rule: QualityRuleIR) -> str:
+    """The projection name a branched rule's verdict is computed under.
+
+    One name for every branch: each branch computes its own expression and
+    projects it here, which is what makes the union type-check and what lets
+    the rule above the union reference a single column.
+    """
+
+    return f"_branch_{rule.name}"
 
 
 # ....................... #
@@ -306,8 +331,13 @@ def qualify_columns(node: Expression, table: str | None) -> Expression:
 # ....................... #
 
 
-def _coercible(rule: QualityRuleIR, table: str | None) -> Expression:
-    """The coercion-failure marker (RFC 0016 §5.2, D3).
+def _coercible(
+    rule: QualityRuleIR,
+    sources: Sequence[Expression],
+    value: Expression | None,
+    table: str | None,
+) -> Expression:
+    """The coercion-failure marker (RFC 0016 §5.2, D3), for **one branch**.
 
     Transform chains lower ``TRY_CAST``-shaped, so a failed coercion produces
     ``NULL`` rather than raising. A bare ``col IS NULL`` would then also fire
@@ -315,13 +345,21 @@ def _coercible(rule: QualityRuleIR, table: str | None) -> Expression:
     *although every source path it reads was not*". Conservative by
     construction: a recipe over ``(total, qty)`` with a null ``total`` yields a
     legitimate null, not a coercion failure.
+
+    ``sources`` is this branch's raw extractions for the column (RFC 0024 D32).
+    **Empty means FALSE, not the empty conjunction's TRUE**, and the difference
+    is the whole reason this is spelled out: a branch that does not map the
+    column at all projects a typed NULL for it, so a vacuously-true marker
+    would report a coercion failure on every one of that source's rows — the
+    false positive on correct data that the "although every source was not
+    null" clause exists to prevent. No inputs is no evidence.
     """
-    column = exp.column(rule.column or "", table=table)
+    if not sources:
+        return exp.false()
+
+    column = exp.column(rule.column or "", table=table) if value is None else value
     parts: list[Expression] = [is_null(column)]
-    parts.extend(
-        is_not_null(exp.column(source_alias(rule, index), table=table))
-        for index, _source in enumerate(indexed_params(rule, "source"))
-    )
+    parts.extend(is_not_null(source.copy()) for source in sources)
 
     return conjunction(parts)
 
@@ -472,27 +510,46 @@ def _charset(rule: QualityRuleIR, table: str | None) -> Expression:
 # ....................... #
 
 
-def _not_in(rule: QualityRuleIR, table: str | None, members: Sequence[Expression]) -> Expression:
-    return exp.Not(
-        this=exp.In(this=exp.column(rule.column or "", table=table), expressions=list(members))
-    )
+def _not_in(
+    rule: QualityRuleIR,
+    table: str | None,
+    members: Sequence[Expression],
+    *,
+    value: Expression | None = None,
+) -> Expression:
+    column = exp.column(rule.column or "", table=table) if value is None else value
+    return exp.Not(this=exp.In(this=column, expressions=list(members)))
 
 
 # ....................... #
 
 
-def _in_enum(rule: QualityRuleIR, table: str | None) -> Expression:
-    """The value survived its ``enum_map`` chain unmapped (RFC 0016 §5.2).
+def _in_enum(
+    rule: QualityRuleIR, values: Sequence[str], value: Expression | None, table: str | None
+) -> Expression:
+    """The value survived its ``enum_map`` chain unmapped (RFC 0016 §5.2), for
+    **one branch**.
 
     The admissible set *is* the chain's mapping — resolved at lowering from
     the ``enum_map`` step's targets, never restated by the author, so the two
     cannot drift. ``col NOT IN (...)`` is ``UNKNOWN`` for a null column (D19).
 
+    ``values`` is this branch's targets (RFC 0024 D32): two mappings may map
+    their own spellings onto their own vocabularies, and a merged admissible
+    set would admit, for one source, a value only the *other* source's chain
+    produces — which is a rule that has quietly stopped checking.
+
+    **Empty means FALSE**, for the same reason :func:`_coercible`'s empty case
+    does: a branch that maps nothing here admits nothing to judge, and
+    ``col NOT IN ()`` is not a predicate.
+
     Members are always **string** literals: an ``enum_map`` chain maps text to
     text, so the admissible set is textual by construction.
     """
-    members = [exp.Literal.string(value) for value in indexed_params(rule, "value")]
-    return _not_in(rule, table, members)
+    if not values:
+        return exp.false()
+
+    return _not_in(rule, table, [exp.Literal.string(member) for member in values], value=value)
 
 
 # ....................... #
@@ -588,10 +645,11 @@ def _referential(rule: QualityRuleIR, table: str | None) -> Expression:
 # ....................... #
 
 
+#: One builder per kind, minus :data:`BRANCH_KINDS` — those two take a branch's
+#: facts as well as the rule, so they are unreachable through
+#: :func:`violation` and are reached through :func:`branch_violation` instead.
 _BUILDERS = {
-    "coercible": _coercible,
     "expression": _expression,
-    "in_enum": _in_enum,
     "in_set": _in_set,
     "length": _length,
     "not_null": _not_null,
@@ -644,7 +702,21 @@ def violation(rule: QualityRuleIR, *, table: str | None = None) -> Expression:
 
     ``table`` qualifies the rule's own column references; the ``referential``
     probe always qualifies the referenced side with :func:`ref_alias`.
+
+    A :data:`BRANCH_KINDS` rule is **not** buildable here: its predicate needs
+    one branch's source paths or ``enum_map`` targets, which the rule
+    deliberately no longer carries (RFC 0024 D32). Asking for one is a caller
+    that has lost track of which side of the union it is on, so it raises
+    rather than returning something plausible.
     """
+    if branched(rule):
+        msg = (
+            f"rule {rule.name!r} is {rule.kind!r}, whose predicate is built per union branch "
+            "from that branch's own facts (RFC 0024 D32) — call branch_violation() with the "
+            "branch's SourceColumnIR, or verdict() to read the projected result"
+        )
+        raise KeyError(msg)
+
     builder = _BUILDERS.get(rule.kind)
 
     if builder is None:  # pragma: no cover — the catalogue is closed (D5/D6)
@@ -652,6 +724,52 @@ def violation(rule: QualityRuleIR, *, table: str | None = None) -> Expression:
         raise KeyError(msg)
 
     return builder(rule, table)
+
+
+# ....................... #
+
+
+def branch_violation(
+    rule: QualityRuleIR,
+    *,
+    sources: Sequence[Expression] = (),
+    enum_values: Sequence[str] = (),
+    value: Expression | None = None,
+    table: str | None = None,
+) -> Expression:
+    """One branch's violation predicate for a :data:`BRANCH_KINDS` rule.
+
+    ``sources`` are this branch's raw extractions **as expressions** and
+    ``enum_values`` its ``enum_map`` targets — the branch facts
+    :class:`SourceColumnIR` carries for the rule's column. Expressions rather
+    than the paths the IR stores, because a caller building the replay form has
+    already rewritten them to read out of the reject payload; rewriting the
+    finished predicate instead would rewrite the ``value`` a second time. They are passed
+    separately rather than as the node itself so that this module keeps
+    depending on the IR's *values* and not on its shape, which is what lets the
+    rule × disposition matrix build one without a resolver.
+
+    ``value`` is what the rule's column *is*, for a caller building this below
+    the projection that defines it. It is passed in rather than substituted
+    afterwards, and that is not a preference: a rewrite of "every bare
+    reference to the column name" also rewrites the **source paths**, which are
+    bare bronze column references and very often carry the same name as the
+    column they produce. Done that way, ``coercible`` on a column mapped
+    straight from its own name rendered as
+    ``TRY_CAST(x) IS NULL AND NOT TRY_CAST(x) IS NULL`` — a rule that had
+    quietly stopped checking, which is the failure RFC 0024 D28 refuses by
+    name.
+    """
+    if rule.kind == "coercible":
+        return _coercible(rule, sources, value, table)
+
+    if rule.kind == "in_enum":
+        return _in_enum(rule, enum_values, value, table)
+
+    msg = (  # pragma: no cover — BRANCH_KINDS is closed and both members are above
+        f"rule kind {rule.kind!r} is not branched; call violation()"
+    )
+    raise KeyError(msg)
 
 
 # ....................... #
@@ -679,6 +797,12 @@ def verdict(rule: QualityRuleIR, table: str | None = None) -> Expression:
 
     if windowed(rule):
         return exp.column(window_alias(rule), table=table)
+
+    # Branched the same way and for a different reason: the fact this rule
+    # reads exists only below the union, so every branch computed it and
+    # projected it under one name (RFC 0024 D32, :func:`branch_alias`).
+    if branched(rule):
+        return exp.column(branch_alias(rule), table=table)
 
     return violation(rule, table=table)
 

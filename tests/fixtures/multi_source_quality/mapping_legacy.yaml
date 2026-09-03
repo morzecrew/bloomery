@@ -1,0 +1,25 @@
+# The shop being migrated away from. Document order opposes branch order for
+# the reason `multi_source/mapping_legacy.yaml` gives: `mapping_legacy` parses
+# first and `woo__order_lines` unions second, so D3 is pinned by a check rather
+# than by a coincidence of filenames.
+mapping_version: 1
+source: woo__order_lines
+target: order_line
+key:
+  order_id: {from: "$.order_number", transform: [to_string]}
+  line_no: {from: "$.item_index", transform: [to_int]}
+fields:
+  sku: {from: "$.product_sku", transform: [to_string]}
+  quantity: {from: "$.qty", transform: [to_int]}
+  placed_at: {from: "$.created", transform: [{parse_ts: ISO8601}]}
+  # This shop spells its statuses its own way, and `enum_map` maps them onto
+  # the entity's vocabulary. The admissible set `in_enum` judges by is *this*
+  # chain's targets (RFC 0024 D32) — the rule agrees with the other mapping's,
+  # as D33 requires, and the chain feeding it does not and may not.
+  status:
+    from: "$.state"
+    transform: [to_string, {enum_map: [PROCESSING, open, COMPLETE, closed]}]
+    quality:
+      - {rule: in_enum, on_fail: quarantine}
+unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
+# `gift_note` is absent: this shop has no such concept.

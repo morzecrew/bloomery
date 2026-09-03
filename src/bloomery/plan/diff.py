@@ -112,7 +112,7 @@ from bloomery.typing import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
     from bloomery.ir import (
         ColumnIR,
@@ -125,7 +125,6 @@ if TYPE_CHECKING:
         QuarantineIR,
         ReconcileIR,
         SourceColumnIR,
-        SourceIR,
         StepIR,
         TransformStepIR,
     )
@@ -244,26 +243,21 @@ def _dropped_entity(entity: EntityIR, acc: _Acc) -> None:
 # ....................... #
 
 
-def _reject_source(entity: EntityIR) -> SourceIR:
-    """The one source behind a reject table (RFC 0016 §5.6).
+def _reject_versions(entity: EntityIR) -> tuple[tuple[str, int], ...]:
+    """Each branch's ``(relation, mapping_version)`` behind the reject table.
 
-    Every caller is gated on a ``quarantine:`` block existing on both sides of
-    the diff, and RFC 0024 D14 refuses that block on a merged entity — so the
-    reject schema is a fact of exactly one mapping and this is not a choice
-    among branches. Spelled as an accessor so it stops being true loudly if
-    P2 ever lets both hold at once.
+    One pair for the ordinary entity, so a reported change reads as it always
+    has. Several once an entity is merged: RFC 0035 D2 projects the provenance
+    stamp per branch, so a version bump on **any** mapping changes what the
+    reject table records from then on — and pairing it with the relation is
+    what stops a mapping added at version 1 from reading as no change at all.
+
+    This accessor used to raise on a merged entity, which was the honest
+    spelling while RFC 0024 D14 refused ``quarantine:`` there; P2c lifted the
+    refusal, and the raise would now fire on every plan of a cleaned merge.
     """
 
-    if len(entity.sources) != 1:
-        msg = (
-            f"the reject schema of entity {entity.name!r} was diffed across "
-            f"{len(entity.sources)} sources; a reject table records one mapping's "
-            "relation and version (RFC 0016 §5.6), and RFC 0024 D14 refuses "
-            "'quarantine:' on a merged entity"
-        )
-        raise PlanError(msg)
-
-    return entity.sources[0]
+    return tuple((source.relation, source.mapping_version) for source in entity.sources)
 
 
 # ....................... #
@@ -757,14 +751,77 @@ def _rule_identity(rule: QualityRuleIR) -> tuple[str, str, str]:
 # ....................... #
 
 
-def _rule_settings(rule: QualityRuleIR) -> tuple[tuple[str, str], ...]:
-    """The rule's params minus its disposition, which is reported separately.
+#: The branch facts each :data:`~bloomery.quality.BRANCH_KINDS` rule reads,
+#: as ``(family, attribute)`` pairs on :class:`~bloomery.ir.SourceColumnIR`
+#: (RFC 0024 D32). Written as families so the settings this module builds keep
+#: the ``<family>_NNNN`` spelling the params had — :func:`_members` splits on
+#: it, and a second convention here would be a second place to keep in step.
+_BRANCH_FAMILIES: dict[str, tuple[tuple[str, str], ...]] = {
+    "coercible": (("source", "sources"),),
+    "in_enum": (("value", "enum_values"), ("spelling", "enum_spellings")),
+}
+
+
+def _rule_settings(
+    rule: QualityRuleIR, entity: EntityIR, relation: str | None = None
+) -> tuple[tuple[str, str], ...]:
+    """The rule's params minus its disposition, which is reported separately,
+    plus the branch facts it reads.
 
     ``referential`` carries ``on_missing`` *as* a param, so leaving it in
     would report a disposition change twice, in two different vocabularies.
-    """
 
-    return tuple((name, value) for name, value in rule.params if name != "on_missing")
+    A branched rule's settings are **not** all on the rule: RFC 0024 D32 moved
+    the ``coercible`` source paths and the ``in_enum`` admissible set onto each
+    source's column, because they are one mapping's and the rule is evaluated
+    once over the union. Read only from the rule, an ``enum_map`` widening
+    changed nothing here at all — and that widening is the named case
+    RFC 0016 §6 asks ``plan()`` to see, the one that frees rows sitting in the
+    reject table.
+
+    ``relation`` restricts the branch facts to one source, and the caller that
+    asks "can a quarantined row come back" **must** pass it. Unioned, a branch
+    that gained a value another branch already had is invisible: two shops, one
+    ``in_enum``, and the shop that learns a spelling the other one already knew
+    changes no union at all — while every row it quarantined on that value is
+    now admissible. The union is right only for "did anything change".
+    """
+    settings = [(name, value) for name, value in rule.params if name != "on_missing"]
+    sources = [s for s in entity.sources if relation is None or s.relation == relation]
+
+    for family, attribute in _BRANCH_FAMILIES.get(rule.kind, ()):
+        values: set[str] = set()
+
+        for source in sources:
+            for column in source.columns:
+                if column.name == rule.column:
+                    values |= set(getattr(column, attribute))
+
+        settings.extend(
+            (f"{family}_{index:04d}", value) for index, value in enumerate(sorted(values))
+        )
+
+    return tuple(settings)
+
+
+# ....................... #
+
+
+def _settings_signature(
+    rule: QualityRuleIR, entity: EntityIR
+) -> tuple[object, tuple[tuple[str, tuple[tuple[str, str], ...]], ...]]:
+    """What "the settings changed" compares: the rule's own params, and each
+    branch's facts **keyed by its relation**.
+
+    Keyed rather than unioned for the reason :func:`_rule_settings` gives, and
+    by relation rather than by position because the two sides of a diff need
+    not have the same sources.
+    """
+    facts = tuple(
+        (source.relation, _rule_settings(rule, entity, source.relation))
+        for source in entity.sources
+    )
+    return (tuple((n, v) for n, v in rule.params if n != "on_missing"), facts)
 
 
 # ....................... #
@@ -832,7 +889,12 @@ def _members(kind: str, settings: tuple[tuple[str, str], ...]) -> frozenset[str]
 # ....................... #
 
 
-def _admits_previously_rejected(old_rule: QualityRuleIR, new_rule: QualityRuleIR) -> bool | None:
+def _admits_previously_rejected(
+    old_rule: QualityRuleIR,
+    new_rule: QualityRuleIR,
+    old_settings: tuple[tuple[str, str], ...],
+    new_settings: tuple[tuple[str, str], ...],
+) -> bool | None:
     """Whether the settings change admits any value the old rule **rejected**:
     ``True`` some quarantined row can now come back, ``False`` none can,
     ``None`` undecidable.
@@ -854,8 +916,6 @@ def _admits_previously_rejected(old_rule: QualityRuleIR, new_rule: QualityRuleIR
     do with the three-valued answer; it is not this function's business to
     pretend.
     """
-    old_settings, new_settings = _rule_settings(old_rule), _rule_settings(new_rule)
-
     if old_settings == new_settings:
         return False
 
@@ -1011,7 +1071,7 @@ def _quality_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
                 f"quality rule removed ({kind})",
                 old=_disposition_label(old_rule),
             )
-            _replay(old_rule, None, new_e, acc)
+            _replay(old_rule, None, old_e, new_e, acc)
             continue
         if old_rule is None or new_rule is None:  # pragma: no cover — one map held it
             continue
@@ -1019,7 +1079,7 @@ def _quality_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
         facets: list[str] = []
         if old_label != new_label:
             facets.append("disposition")
-        if _rule_settings(old_rule) != _rule_settings(new_rule):
+        if _settings_signature(old_rule, old_e) != _settings_signature(new_rule, new_e):
             facets.append("settings")
         if not facets:
             continue
@@ -1031,14 +1091,18 @@ def _quality_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
             old=old_label,
             new=new_label,
         )
-        _replay(old_rule, new_rule, new_e, acc)
+        _replay(old_rule, new_rule, old_e, new_e, acc)
 
 
 # ....................... #
 
 
 def _replay(
-    old_rule: QualityRuleIR, new_rule: QualityRuleIR | None, entity: EntityIR, acc: _Acc
+    old_rule: QualityRuleIR,
+    new_rule: QualityRuleIR | None,
+    old_entity: EntityIR,
+    entity: EntityIR,
+    acc: _Acc,
 ) -> None:
     """Name the entity's reject table only when this change can let rows that
     are **sitting in it** back into the entity (RFC 0016 D52).
@@ -1086,8 +1150,28 @@ def _replay(
         acc.replay.add(entity.name)
         return
 
-    if _admits_previously_rejected(old_rule, new_rule) is not False:
-        acc.replay.add(entity.name)
+    # Per branch, because a row is admitted by the branch that produced it
+    # (RFC 0024 D32). Over the shared relations only: a mapping present on one
+    # side alone has either no reject rows yet or no branch left to replay
+    # them. With no shared relation the question is asked once, unrestricted,
+    # which is the conservative direction this function already takes.
+    shared = sorted(
+        {source.relation for source in old_entity.sources}
+        & {source.relation for source in entity.sources}
+    )
+    branches: Sequence[str | None] = shared or [None]
+
+    for relation in branches:
+        admits = _admits_previously_rejected(
+            old_rule,
+            new_rule,
+            _rule_settings(old_rule, old_entity, relation),
+            _rule_settings(new_rule, entity, relation),
+        )
+
+        if admits is not False:
+            acc.replay.add(entity.name)
+            return
 
 
 # ....................... #
@@ -1230,9 +1314,28 @@ def _raw_payload_columns(entity: EntityIR) -> frozenset[str]:
     Redaction is diffed by :func:`_quarantine_changes` and deliberately left out
     here, so a ``redact:`` edit is never reported twice.
     """
-    origin = _reject_source(entity)
-    paths = {field.source_path for field in origin.fields} | set(origin.unmapped)
+    # Every branch: each writes its own payload (RFC 0035 §5.3), and what the
+    # table can carry is the union of what its branches put there.
+    paths = {
+        path
+        for origin in entity.sources
+        for path in ({field.source_path for field in origin.fields} | set(origin.unmapped))
+    }
     return frozenset(payload_key(path) for path in paths)
+
+
+# ....................... #
+
+
+def _render_versions(versions: tuple[tuple[str, int], ...]) -> str:
+    """``1`` for a single-source entity, ``woo=1, shopify=2`` for a merged one —
+    the bare number where there is only one, so the ordinary plan line is
+    unchanged."""
+
+    if len(versions) == 1:
+        return str(versions[0][1])
+
+    return ", ".join(f"{relation}={version}" for relation, version in versions)
 
 
 # ....................... #
@@ -1264,15 +1367,17 @@ def _reject_schema_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
 
     subject = f"quarantine:{new_e.name}"
 
-    if _reject_source(old_e).mapping_version != _reject_source(new_e).mapping_version:
+    old_versions, new_versions = _reject_versions(old_e), _reject_versions(new_e)
+
+    if old_versions != new_versions:
         acc.changes.append(
             Change(
                 new_e.name,
                 subject,
                 ChangeClass.ADDITIVE,
                 "mapping_version changed (reject provenance stamp)",
-                old=str(_reject_source(old_e).mapping_version),
-                new=str(_reject_source(new_e).mapping_version),
+                old=_render_versions(old_versions),
+                new=_render_versions(new_versions),
             )
         )
 

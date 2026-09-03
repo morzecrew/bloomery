@@ -723,7 +723,7 @@ def _quality_audits(entity: EntityIR, ctx: EmitContext) -> tuple[list[str], list
         content = _COLLISION_AUDIT_ENVELOPE.render(
             fingerprint=ctx.fingerprint,
             name=name,
-            select=ctx.dialect.render(collision_audit_select(entity)),
+            select=ctx.dialect.render(collision_audit_select(entity, ctx)),
         )
         artifacts.append(
             EmittedArtifact.create(

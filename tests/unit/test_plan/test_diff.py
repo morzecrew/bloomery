@@ -13,7 +13,10 @@ from support.compiling import fixture_sources, load_fixture
 from support.ir_factory import build_project_ir as factory_ir
 
 from bloomery.errors import ContractViolation, PlanError, RenameTargetMissing
-from bloomery.plan.diff import _reject_source  # pyright: ignore[reportPrivateUsage]
+from bloomery.plan.diff import (  # pyright: ignore[reportPrivateUsage]
+    _reject_versions,
+    _render_versions,
+)
 from bloomery.ir import (
     AuditIR,
     Cardinality,
@@ -366,17 +369,25 @@ def test_changed_source_relation_is_restating_at_the_entity_subject() -> None:
 # RFC 0021's reusable question answers "yes" for this feature.
 
 
-def test_the_reject_schema_diff_says_so_when_the_invariant_stops_holding() -> None:
-    """`quarantine:` is refused on a merged entity (RFC 0024 D14), so the reject
-    schema is always one mapping's — but written as `sources[0]` that reads as a
-    choice among branches. The guard is exercised so its message is known to be
-    right on the day P2 lifts D14."""
+def test_the_reject_provenance_stamp_names_every_branch() -> None:
+    """A merged entity's reject rows carry the mapping that produced each one
+    (RFC 0035 D2), so a version bump on **any** branch changes what the table
+    records from then on.
+
+    This replaces a test of a guard that used to raise here. The guard was the
+    honest spelling while RFC 0024 D14 refused `quarantine:` on a merged
+    entity; P2c lifted the refusal, and a raise would now fire on every plan of
+    a cleaned merge.
+    """
+    assert _reject_versions(plan_ir.entity(relation="raw__a")) == (("raw__a", 1),)
     merged = plan_ir.entity(relation="raw__a", merged_with=("raw__b",))
-    with pytest.raises(PlanError) as excinfo:
-        _reject_source(merged)
-    message = str(excinfo.value)
-    assert "2 sources" in message
-    assert "RFC 0024 D14" in message
+    assert _reject_versions(merged) == (("raw__a", 1), ("raw__b", 1))
+
+    # The bare number where there is one branch, so the ordinary plan line is
+    # unchanged; the pairs once there are several, because a mapping added at
+    # version 1 would otherwise read as no change at all.
+    assert _render_versions((("raw__a", 1),)) == "1"
+    assert _render_versions((("raw__a", 1), ("raw__b", 2))) == "raw__a=1, raw__b=2"
 
 
 def test_a_mapping_added_to_a_single_source_entity_is_additive() -> None:

@@ -655,7 +655,7 @@ def _entity_test_artifacts(
         artifacts.append(
             _singular_test(
                 name=f"{entity.name}_source_collision",
-                select=_render(collision_audit_select(entity, relation=relation), references, ctx),
+                select=_render(collision_audit_select(entity, ctx), references, ctx),
                 # RFC 0024 D5: blocking, and not configurable to a weaker
                 # disposition. A key in two sources is either genuine
                 # duplication or a shared key space by accident, and both are
