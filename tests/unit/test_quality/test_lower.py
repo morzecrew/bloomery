@@ -97,14 +97,27 @@ def test_rules_are_canonically_sorted_and_uniquely_named() -> None:
     assert len({rule.name for rule in rules}) == len(rules)
 
 
-def test_the_coercible_rule_carries_the_sources_its_marker_needs() -> None:
-    _project, entity, mapping = _entity()
+def test_the_branch_carries_the_sources_the_coercible_marker_needs() -> None:
+    """The paths the marker compares against live on the **source** column, not
+    on the rule (RFC 0024 D32).
+
+    They were rule params until a merged entity made that wrong: one rule is
+    evaluated over the union, and a path is one mapping's — carrying it on the
+    rule would have source B's branch read source A's JSONPath off a bronze
+    relation that need not have it. The rule keeps no source params at all,
+    which is the other half of the same assertion.
+    """
+    project, catalog = load_fixture("semi_additive_inventory")
+    ir = build_project_ir(project, catalog)
+    entity = next(e for e in ir.entities if e.name == "inventory_level")
+    (origin,) = entity.sources
+    column = next(c for c in origin.columns if c.name == "stock_level")
+    assert column.sources == ("on_hand",)
+
     rule = next(
-        r
-        for r in lower_quality(entity, mapping, ())
-        if r.column == "stock_level" and r.kind == "coercible"
+        r for r in entity.quality if r.column == "stock_level" and r.kind == "coercible"
     )
-    assert params_of(rule) == {"source_0000": "on_hand"}
+    assert rule.params == ()
 
 
 def test_range_rules_with_one_bound_are_named_for_that_bound() -> None:
@@ -175,6 +188,14 @@ unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
 }
 
 
+def _enum_column(documents: dict[str, str]) -> SourceColumnIR:
+    """The ``status`` projection of the enum project's one source."""
+    ir = build_project_ir(load_project(documents), None)
+    (entity,) = ir.entities
+    (origin,) = entity.sources
+    return next(column for column in origin.columns if column.name == "status")
+
+
 def test_in_enum_reads_its_admissible_set_off_the_chain() -> None:
     """The set *is* the chain's mapping (RFC 0016 §5.2): restating it in the
     rule would let the two drift.
@@ -182,18 +203,16 @@ def test_in_enum_reads_its_admissible_set_off_the_chain() -> None:
     Both halves of the chain are carried (D49): the ``enum_map`` targets and
     the source spellings that reach them, because ``enum_map`` passes an
     unmapped value through — so the raw values ``in_enum`` admits are the
-    spellings *plus* the targets, and a rule whose params showed only the
-    targets could not see a widening that adds a spelling for one.
+    spellings *plus* the targets, and a set showing only the targets could not
+    see a widening that adds a spelling for one.
+
+    Both live on the branch rather than on the rule (RFC 0024 D32): two
+    mappings map their own spellings onto their own vocabularies, so the
+    admissible set is a fact about one source's chain.
     """
-    project = load_project(ENUM_PROJECT)
-    entity = project.entity_model.entities["order"]
-    rule = next(r for r in lower_quality(entity, project.mappings[0], ()) if r.kind == "in_enum")
-    assert params_of(rule) == {
-        "spelling_0000": "PAID",
-        "spelling_0001": "SHIPPED",
-        "value_0000": "paid",
-        "value_0001": "shipped",
-    }
+    column = _enum_column(ENUM_PROJECT)
+    assert column.enum_values == ("paid", "shipped")
+    assert column.enum_spellings == ("PAID", "SHIPPED")
 
 
 def test_widening_a_chain_by_a_spelling_alone_changes_the_in_enum_rule() -> None:
@@ -206,12 +225,10 @@ def test_widening_a_chain_by_a_spelling_alone_changes_the_in_enum_rule() -> None
         "[{enum_map: [PAID, paid, PAYED, paid, SHIPPED, shipped]}]",
     )
 
-    def _rule(documents: dict[str, str]) -> QualityRuleIR:
-        parsed = load_project(documents)
-        entity = parsed.entity_model.entities["order"]
-        return next(r for r in lower_quality(entity, parsed.mappings[0], ()) if r.kind == "in_enum")
-
-    assert _rule(ENUM_PROJECT).params != _rule(widened).params
+    before = _enum_column(ENUM_PROJECT)
+    after = _enum_column(widened)
+    assert before.enum_values == after.enum_values  # no target changed…
+    assert before.enum_spellings != after.enum_spellings  # …and the rule still moved
 
 
 def test_referential_resolves_the_relationship_at_lowering() -> None:
@@ -356,3 +373,46 @@ def test_registering_a_dialect_cannot_change_an_existing_projects_verdict() -> N
 
 def test_a_dialect_without_a_regex_surface_is_named_when_the_caller_asks() -> None:
     assert unsupported_dialects("^[A-Z]{3}$", dialects=(NoRegexDialect(),)) == ("noregex",)
+
+
+def test_a_parameterless_rule_kind_gets_no_params_from_the_unique_branch() -> None:
+    """`coercible` and `in_enum` carry no params of their own — RFC 0024 D32
+    moved their inputs onto the per-source column — and a bare `else` written
+    for `UniqueRule` collected them.
+
+    An authored `in_enum` on a partitioned entity lowered with the entity's
+    partition columns as its `slice_NNNN` params: wrong for the kind, and
+    `plan()` would have restated the rule on a partition change that cannot
+    affect what it admits.
+    """
+    documents = {
+        "entity_model": """spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    partition_by: ["region"]
+    quarantine: {retention: 90d}
+    fields:
+      order_id: {type: string, required: true}
+      region: {type: string}
+      status: {type: string}
+""",
+        "mapping": """mapping_version: 1
+source: shop__orders
+target: order
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  region: {from: "$.region", transform: [to_string]}
+  status:
+    from: "$.status"
+    transform: [to_string, {enum_map: [P, paid]}]
+    quality:
+      - {rule: in_enum, on_fail: flag}
+unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
+""",
+    }
+    (entity,) = build_project_ir(load_project(documents), None).entities
+    by_kind = {rule.kind: rule for rule in entity.quality}
+    assert by_kind["in_enum"].params == ()

@@ -471,7 +471,16 @@ def to_bool(col: Expression, *, input_type: LogicalType) -> Expression:
 ISO_TEXT_MARKER = "BLM_ISO_TEXT"
 
 
-def _iso_text(col: Expression) -> Expression:
+def iso_text(col: Expression) -> Expression:
+    """Mark ``col`` as text a *timestamp* cast is about to read as ISO 8601.
+
+    Public because the transform chain is not the only place that casts bronze
+    text to a timestamp: RFC 0016 D21's metadata audit does it too, to ask
+    whether ``_ingested_at`` is castable at all. Built through one constructor
+    so a second caller cannot spell the marker slightly differently and be
+    silently ignored by :func:`~bloomery.dialects.base.strip_iso_text`.
+    """
+
     return exp.Anonymous(this=ISO_TEXT_MARKER, expressions=[col])
 
 
@@ -483,7 +492,7 @@ def _iso_text(col: Expression) -> Expression:
 )
 def parse_ts(col: Expression, fmt: str) -> Expression:
     if fmt == _ISO8601:
-        return exp.cast(_iso_text(col), exp.DataType.build("TIMESTAMP"))
+        return exp.cast(iso_text(col), exp.DataType.build("TIMESTAMP"))
 
     return exp.StrToTime(this=col, format=exp.Literal.string(fmt))
 

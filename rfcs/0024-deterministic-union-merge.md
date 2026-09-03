@@ -1,6 +1,12 @@
 # RFC 0024 — Deterministic union merge
 
-- **Status:** 🚧 In progress — **P1 landed; P2 designed and demand-gated (D31).** The union,
+- **Status:** 🚧 In progress — **P1 landed; P2 in execution.** D31's gate opened on
+  2026-09-03: the named consumer is the project's own lakehouse example, whose pitch is
+  dirty bronze cleaned on the way to silver, and a union merge that cannot be cleaned
+  composes with none of it. D16's second gate on P2c is discharged by
+  [RFC 0035](0035-the-reject-table-on-a-merged-entity.md), which argues against RFC 0016 D10
+  directly and keeps it. Departures are recorded in [`logs/T-0012.md`](../logs/T-0012.md).
+  The union,
   its compile-time checks, the collision audit, `_source`, the plan-classifier rows, the
   `multi_source` fixture and the docs pair are shipped — five departures and one prose
   note recorded in [`logs/T-0004.md`](../logs/T-0004.md), drift count zero. This document
@@ -597,6 +603,7 @@ relation is an expensive way to be silent.
 | 33 | `LOCKED` | **Every mapping of an entity opts into the quality system, or none does; disagreement is refused (P2a).** `opts_in(entity, mapping)` is a disjunction over one mapping's field-level `quality:` blocks, so two mappings can disagree about whether the entity joined the system at all — and the same predicate selects `_try_cast_shape`, so the disagreement reaches column lowering and not only rule generation. This is not the "where is it computed" question D32 answers; it is two contradictory statements by an author, and the honest response to those is a refusal naming both source paths. It also settles a **fourth** per-mapping coupling D29 did not enumerate: `_repair_bodies` (`resolve/build.py`) reads `mapping.fields[<column>].quality[].repair`, so two mappings may name different repair recipes for one column. Under agreement that is the same refusal rather than a fifth case — and the spliced body itself is invariant, since it reads the *produced* column, not a source path. Consequence: `lower_quality` may go on taking one `Mapping`. Agreement is what makes any of them the same answer, and the refusal — not a merge rule — is what makes that safe. |
 | 34 | `LOCKED` | **Artifact shape varies with mapping count; `_source` stays merged-only (P2b).** The question D7 and D15 both defer, answered once for the provenance column, the metadata audit body and the collision audit together. The metadata audit becomes `PARTITION BY _source, _source_row_id` on a merged entity and stays `PARTITION BY _source_row_id` elsewhere. **The cost is a new precedent, stated here rather than discovered later:** until now the *set* of emitted artifacts varied with a spec, never a generated **body**. The alternative — `_source` on every entity, one uniform audit body, mapping count invisible in the artifacts — buys a reader the property that a merged entity looks like any other, and costs a corpus-wide golden re-stamp plus a constant column on every single-source silver model, which is precisely what D9 declined to pay on measured grounds. Continuing that decision is cheaper than reversing it, and reversing it buys nothing but uniformity. **A third option is named only to close it:** making `_source_row_id` globally unique in bronze would dissolve the question, and it does so by relocating the problem into RFC 0016 D21's ingestion contract and breaking every table already landed under it. |
 | 35 | `LOCKED` | **`_source` joins the dedupe sort key, immediately ahead of `_source_row_id` (P2b).** `dedupe_sort_columns` ends in the row identity, and its totality argument is "no two rows can compare equal *given the D21 metadata contract*" — an identity unique per **source relation**. On a merged entity two rows from different sources sharing an entity key therefore compare equal and the survivor is undefined. That shape is what D5's collision audit refuses, but an audit runs *after* the model materialises, so the window is real and the totality argument would be leaning on a blocking check in a different artifact. Adding `_source` restores it structurally and locally, for one extra sort term on merged entities only (D34). It is the same defense-in-depth already pinned into that exact column by `NULLS LAST`, against an illegally-null identity the audit also catches. Consequence: where two rows would have compared equal, the survivor is the lexicographically-later source — arbitrary as business logic, deterministic as an artifact, and reachable only in the run the collision audit then stops. |
+| 36 | `ASSUMED` | **Answers D28 — `direct:` is allowed on a merged entity when *every* mapping records one for the column, and refused when they disagree.** D28 refused the combination outright and handed P2 a choice between "one shadow projection per source with a null-safe audit" and "a coverage rule in D4's shape". Measured with the refusal disabled against two mappings that *agree*, the null-safe audit is answering the wrong question: the shadow column is duplicated on the entity **and on every branch**, the reconcile audit is emitted twice, and each branch carries the other's extraction — `shop__items` projecting `$.unit_price` off a relation that does not have it. That is not a NULL-shadow problem, it is `Derivation` being built per mapping while `_shadow` returns one projection: the same per-mapping-fact-on-a-shared-node shape D26 split for `expr` and D32 for the rule inputs. So the coverage rule is the answer and the null-safe audit is unnecessary under it — under agreement no branch's shadow is NULL for want of a path, and the reconcile check keeps the meaning it has on one source: the recipe-derived value against the direct value *that row's own mapping* extracted, which is D32's principle applied to a second reader. Consequence: `Derivation` carries its source relation, `path_conflict_amendments` fans out per source like every other lowering, and disagreement is refused by D33's pattern rather than tolerated. D28's row stands unamended — its refusal is correct until this one is executed, and what it predicted is the thing this has to be read against. *Added by execution 2026-09-03 — see logs/T-0012.md (F-8), which carries the probe output.* |
 
 ## 12. Phasing
 
@@ -645,13 +652,31 @@ reading the model to reading the union stage. That is also what makes §6's defe
 writable at last — a collision `dedupe:` *would have collapsed* — and it is the only test
 that proves the audit moved rather than this document merely saying so.
 
-**P2c — `quarantine:`.** Blocked on an RFC that is not written. The reject table's
+**P2c — `quarantine:`.**
+
+> **Settled (execution).** Both of P2c's gates are open. The RFC this paragraph calls
+> unwritten is [RFC 0035](0035-the-reject-table-on-a-merged-entity.md), which argues against
+> RFC 0016 D10 directly as D16 requires and *keeps* it; D31's consumer is named in the
+> status line above. The paragraph is left standing rather than rewritten, because what it
+> demanded is the thing RFC 0035 has to be read against.
+
+Blocked on an RFC that is not written. The reject table's
 `source_relation`, `mapping` and `mapping_version` are compile-time literals off one mapping
 (`quality/reject.py`), and RFC 0016 D10 chose one table per entity *because* per-mapping
 tables make replay N-way. D16 is `LOCKED` that reopening it gets its own document, argued
 against D10 directly. So P2c is gated twice — on D31's consumer and on that RFC — and
 starting it before both is exactly how D16's argument would end up as a paragraph inside a
 feature branch, which is the thing D16 refuses.
+
+**P2d — `direct:` on a merged entity (D36).** Unblocked rather than scheduled here: D28
+handed P2 a choice and D36 makes it, so what is left is execution — `Derivation` carrying
+its source, a per-source shadow, one refusal, and a merged variant of the `path_conflict`
+fixture. Deliberately **not** folded into the change that lands P2a–P2c: that change is
+the quality system on a merged entity, `direct:` is RFC 0006's path-conflict feature
+merely intersecting it, and the two are separately reviewable. `direct:` appears **once**
+in the fixture corpus — D28's own count, `tests/fixtures/path_conflict/mapping.yaml` — so
+nothing waits on it. (Inline specs inside test modules use it too; they are not projects,
+and neither row counts them.)
 
 **Not P2 — the dbt target.** D30 makes merged entities SQLMesh-only, and lifting that needs
 a singular-test surface in an emitter whose whole test vocabulary is `schema.yml` entries.

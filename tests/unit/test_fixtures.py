@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from support.compiling import assert_no_orphans
+
 from bloomery import load_catalog, load_project
 from bloomery.spec import Project, RecipeFieldMapping
 
@@ -219,3 +221,21 @@ def test_coverage_check_loads_clean() -> None:
     assert set(project.entity_model.entities) == {"customer", "order"}
     (check,) = project.entity_model.coverage
     assert (check.relationship, check.min, check.on_fail) == ("order_of_customer", 1, "flag")
+
+
+def test_the_orphan_guard_catches_a_golden_nothing_emits(tmp_path: Path) -> None:
+    """The guard the golden corpus leans on, tested rather than trusted.
+
+    `pytest-snapshot` writes what it is given and never sweeps, and each golden
+    module asserts the *compile's* path list rather than the directory's
+    contents — so an artifact that stops being emitted leaves its golden behind,
+    checked in and byte-identical to the day it was right. Seven of them did,
+    which is why this exists; a guard nobody exercises is the next seven.
+    """
+    (tmp_path / "models").mkdir()
+    (tmp_path / "models" / "kept.sql").write_text("SELECT 1\n")
+    assert_no_orphans(tmp_path, ["models/kept.sql"]) is None
+
+    (tmp_path / "models" / "ghost.sql").write_text("SELECT 2\n")
+    with pytest.raises(AssertionError, match="models/ghost.sql"):
+        assert_no_orphans(tmp_path, ["models/kept.sql"])

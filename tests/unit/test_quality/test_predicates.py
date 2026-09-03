@@ -41,11 +41,20 @@ import duckdb
 import pydantic
 import pytest
 from sqlglot import exp, parse_one
-from support.quality_rules import ON_MISSING_RULES, referential_rule, rule_of_kind
+from support.quality_rules import (
+    BRANCH_SOURCES,
+    ON_MISSING_RULES,
+    predicate_of,
+    referential_rule,
+    rule_of_kind,
+)
 
 from bloomery.dialects import get_dialect
 from bloomery.ir import OnFail, QualityRuleIR
 from bloomery.quality import (
+    branch_alias,
+    branch_violation,
+    branched,
     ALL_DISPOSITIONS,
     ALL_ON_MISSING,
     ALL_RULES,
@@ -58,7 +67,6 @@ from bloomery.quality import (
     ref_alias,
     routing_predicate,
     sole_via_column,
-    source_alias,
     unknown_member_case,
     verdict,
     violation,
@@ -99,7 +107,7 @@ _SPECIMENS: dict[str, _Specimen] = {
     # The marker is "NULL although every source it reads was not" (§5.2), so
     # the clean row is a *genuine* null source, not merely a castable value.
     "coercible": _Specimen(
-        "amount VARCHAR, _src_amount_coercible_0000 VARCHAR",
+        f"amount VARCHAR, {BRANCH_SOURCES[0]} VARCHAR",
         (("bad", None, "twelve"), ("ok", None, None)),
         ("bad",),
     ),
@@ -160,17 +168,26 @@ def _seed(connection: duckdb.DuckDBPyConnection, specimen: _Specimen) -> None:
 
 
 def stage(rule: QualityRuleIR) -> str:
-    """The staged extract the emitter's ``_stage`` builds (D33).
+    """The staged extract the emitter builds (D33, RFC 0024 D32).
 
-    A windowed verdict is computed **once**, as a projection above the dedupe
-    ``QUALIFY``, and read back by name from every other position; an ordinary
-    rule needs no such level. Mirroring that here is the whole point — the
-    positions below then receive exactly what the emitter's positions receive.
+    Two kinds of rule are computed **once**, as a projection, and read back by
+    name from every other position: a windowed one, because SQL forbids a
+    window outside a projection, and a branched one, because the fact it reads
+    exists only below the union. An ordinary rule needs no such level.
+    Mirroring both here is the whole point — the positions below then receive
+    exactly what the emitter's positions receive.
     """
-    if not windowed(rule):
+    projections = [
+        (window_alias(rule), violation(rule)) if windowed(rule) else None,
+        (branch_alias(rule), predicate_of(rule)) if branched(rule) else None,
+    ]
+    computed = [pair for pair in projections if pair is not None]
+
+    if not computed:
         return "SELECT * FROM _rows"
-    projected = _PORT.render(violation(rule))
-    return f"SELECT *, ({projected}) AS {window_alias(rule)} FROM _rows"
+
+    rendered = ", ".join(f"({_PORT.render(node)}) AS {alias}" for alias, node in computed)
+    return f"SELECT *, {rendered} FROM _rows"
 
 
 def _identities(connection: duckdb.DuckDBPyConnection, sql: str) -> tuple[str, ...]:
@@ -380,7 +397,7 @@ def test_a_predicate_carrying_a_window_declares_itself_windowed() -> None:
     """
     for kind in ALL_RULES:
         rule = rule_of_kind(kind)
-        carries = violation(rule).find(exp.Window) is not None
+        carries = predicate_of(rule).find(exp.Window) is not None
         assert carries is windowed(rule), kind
 
 
@@ -419,7 +436,7 @@ def test_ref_alias_is_derived_from_the_relationship_not_the_entity() -> None:
 def _evaluate(rule: QualityRuleIR, row: dict[str, object]) -> bool | None:
     """Evaluate a violation predicate against one row in DuckDB."""
     columns = ", ".join(f"? AS {name}" for name in row)
-    sql = f"SELECT ({_PORT.render(violation(rule))}) FROM (SELECT {columns})"
+    sql = f"SELECT ({_PORT.render(predicate_of(rule))}) FROM (SELECT {columns})"
     with duckdb.connect(":memory:") as connection:
         result = connection.execute(sql, list(row.values())).fetchone()
     assert result is not None
@@ -516,12 +533,32 @@ def test_not_null_owns_nulls() -> None:
 def test_coercible_fires_only_when_the_source_was_present() -> None:
     """The marker is "the projection is NULL although every source it reads
     was not" — a genuinely null source is a legitimate null, not a coercion
-    failure (RFC 0016 §5.2)."""
+    failure (RFC 0016 §5.2).
+
+    The source is read by name here because that is what a branch does with it
+    (RFC 0024 D32): the predicate inlines the branch's own extraction rather
+    than referring to a projected alias.
+    """
     rule = rule_of_kind("coercible")
-    alias = source_alias(rule, 0)
-    assert _evaluate(rule, {"amount": None, alias: "twelve"}) is True
-    assert _evaluate(rule, {"amount": None, alias: None}) is False
-    assert _evaluate(rule, {"amount": 12, alias: "12"}) is False
+    (source,) = BRANCH_SOURCES
+    assert _evaluate(rule, {"amount": None, source: "twelve"}) is True
+    assert _evaluate(rule, {"amount": None, source: None}) is False
+    assert _evaluate(rule, {"amount": 12, source: "12"}) is False
+
+
+def test_a_branch_that_maps_nothing_reports_no_coercion_failure() -> None:
+    """Empty facts mean ``FALSE``, not the empty conjunction's ``TRUE``.
+
+    A branch of a merged entity that does not map a column projects a typed
+    NULL for it (RFC 0024 §5.2 rule 3). Were the marker vacuously true over
+    zero sources, every row of that source would be reported as a failed cast
+    — a blocking false positive on correct data, which is the failure the
+    "although every source was not null" clause exists to prevent.
+    """
+    rule = rule_of_kind("coercible")
+    predicate = branch_violation(rule, sources=())
+    assert _PORT.render(predicate) == "FALSE"
+    assert _PORT.render(branch_violation(rule_of_kind("in_enum"), enum_values=())) == "FALSE"
 
 
 def test_a_null_fk_is_not_an_orphan() -> None:
@@ -589,7 +626,7 @@ def test_in_set_without_the_type_params_is_all_strings() -> None:
 def test_in_enum_members_are_always_strings() -> None:
     """An ``enum_map`` chain maps text to text, so its admissible set is
     textual by construction — the ``in_set`` typing above is not shared."""
-    rendered = violation(rule_of_kind("in_enum")).sql()
+    rendered = predicate_of(rule_of_kind("in_enum")).sql()
     assert rendered == "NOT amount IN ('a', 'b')"
 
 
@@ -598,8 +635,8 @@ def test_composite_predicates_are_parenthesised() -> None:
     quality predicate is a silently wrong disposition."""
     rendered = violation(rule_of_kind("range")).sql()
     assert rendered == "amount < 0 OR amount > 1000000"
-    nested = violation(rule_of_kind("coercible")).sql()
-    assert nested == "amount IS NULL AND (NOT _src_amount_coercible_0000 IS NULL)"
+    nested = predicate_of(rule_of_kind("coercible")).sql()
+    assert nested == "amount IS NULL AND (NOT raw_amount IS NULL)"
 
 
 def test_expression_bodies_are_qualified_and_negated_as_a_whole() -> None:
@@ -668,6 +705,6 @@ def test_an_unknown_rule_kind_is_a_loud_key_error() -> None:
 def test_predicates_render_on_every_shipped_dialect() -> None:
     """One neutral AST, per-dialect legal rendering (RFC 0008 doctrine)."""
     for kind in ALL_RULES:
-        node = violation(rule_of_kind(kind))
+        node = predicate_of(rule_of_kind(kind))
         for dialect in ("duckdb", "postgres", "trino"):
             assert isinstance(parse_one(node.sql(dialect=dialect), dialect=dialect), exp.Expression)

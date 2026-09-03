@@ -9,6 +9,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A merged entity can be cleaned.** `quality:` rules, `dedupe:` and
+  `quarantine:` — with its reject table and replay — now work on an entity built
+  from more than one mapping. Union merge shipped without them, which covered
+  only pre-cleaned sources; dirty bronze landing as text and being cleaned on the
+  way to silver is the shape the project's own lakehouse example is built to
+  demonstrate, and the two did not compose.
+
+  The rules are **one set, evaluated once over the merged relation, whose inputs
+  are per source**. A coercion rule compares the produced column against the raw
+  paths *that branch* reads; an `in_enum` rule admits what *that branch's*
+  `enum_map` chain maps. Each branch computes its verdict below the union and the
+  rule reads the result, so one rule judges rows from sources sharing no column
+  name. Carrying one mapping's paths into a rule the union evaluates — the
+  shipped shape's reason for refusing this outright — would have read a JSONPath
+  off a relation that need not have it.
+
+  Every mapping must declare the **same** rules for a column they both produce;
+  two that disagree are refused with both documents named, because a rule set
+  taken from one would silently drop what the others wrote. A column only one
+  mapping produces is not refused: its rules join the entity's set, and on a
+  branch that maps nothing the coercion marker reads "no sources, no evidence"
+  rather than reporting every one of that source's rows as a failed cast.
+
+  `dedupe:` sorts by `_source` immediately ahead of `_source_row_id`, which is
+  unique only within one source relation — without it two rows from different
+  sources on one key compare equal and the survivor is undefined. The reject
+  table stays **one per entity**, and each row records which mapping produced it,
+  so replay re-runs that row's own mapping instead of applying one of them to
+  all. The collision audit moves off the model onto the union stage: with dedupe
+  in between, a key held by two sources is collapsed before the model exists, and
+  an audit reading the model would pass on exactly the data it exists to refuse.
+
+  `_source` is now a column of the merged silver relation on every path to it.
+  It reached the relation before only because a merged entity carried no rules
+  and the model was `SELECT *` over the union.
+
 - **Metrics over time: period-over-period, cumulative windows and metric filters.**
   "Revenue vs. the same month last year" is expressible. A metric may now be
   `derived:` — an expression over other metrics, each read through an alias and
@@ -94,10 +130,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   converting, where the catalog declares rates; declaring rates or deriving upstream,
   where it does not. The rule itself is unchanged and still has no escape token.
 
-- `ProjectIR.bloomery_ir_version` is **10** (was 6), across four shape changes in this
+- `ProjectIR.bloomery_ir_version` is **11** (was 6), across five shape changes in this
   release: `MartJoinIR` gained `as_of` (7), `ProjectIR` gained `fx_rates` (8),
-  `MetricIR` gained `cumulative`/`derived`/`filter` (9), and `CumulativeIR` gained
-  `period_agg` (10).
+  `MetricIR` gained `cumulative`/`derived`/`filter` (9), `CumulativeIR` gained
+  `period_agg` (10), and `SourceColumnIR` gained the branch facts a merged entity's
+  rules read — `sources`, `enum_values`, `enum_spellings` (11).
   `plan()` refuses to diff across versions; recompile both sides with one compiler.
   Every project's fingerprint moves, because the version is itself part of the
   canonical stream — `as_of` on its own would have moved only the fingerprints of

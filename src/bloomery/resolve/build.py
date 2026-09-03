@@ -63,6 +63,7 @@ from bloomery.ir import (
     MetricInputIR,
     MetricIR,
     ProjectIR,
+    QualityRuleIR,
     Ratio,
     RelationshipIR,
     SCDKind,
@@ -78,10 +79,13 @@ from bloomery.ir import (
     canon,
     extraction,
     partition_specs,
+    quality_sort_key,
 )
 from bloomery.marts import lower_marts
 from bloomery.quality import (
     attach_quality_mart,
+    enum_chain,
+    field_sources,
     lower_coverage,
     lower_dedupe,
     lower_quality,
@@ -131,7 +135,7 @@ from bloomery.typing import (
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from bloomery.spec.entity import Entity, Field
+    from bloomery.spec.entity import Entity, Field, Relationship
     from bloomery.spec.mapping import FieldMapping, Mapping, TransformStep
     from bloomery.spec.metrics import DerivedSpec, MetricFilter
     from bloomery.steps import StepManifest
@@ -498,12 +502,56 @@ def _catalog_metadata(
 # ....................... #
 
 
+@dataclass(frozen=True, slots=True)
+class _BranchFacts:
+    """One mapping's inputs to the rules evaluated over the merged relation
+    (RFC 0024 D32).
+
+    Empty for an entity outside the quality system, and empty for a column the
+    mapping does not produce — the second case is load-bearing rather than
+    incidental: a branch that does not map a column projects a typed NULL for
+    it (§5.2 rule 3), and an empty ``sources`` is what makes the ``coercible``
+    marker read that NULL as "no evidence" instead of as a failed cast.
+    """
+
+    sources: tuple[str, ...] = ()
+    enum_values: tuple[str, ...] = ()
+    enum_spellings: tuple[str, ...] = ()
+
+
+# ....................... #
+
+
+def _branch_facts(entity: Entity, mapping: Mapping, column: str) -> _BranchFacts:
+    """The facts one branch contributes for one column.
+
+    Read from the mapping because that is where they are true. A key column
+    carries no ``quality:`` surface and so no ``enum_map`` set to admit —
+    :func:`~bloomery.quality.enum_chain` is only defined over ``fields``.
+    """
+
+    if not opts_in(entity, mapping):
+        return _BranchFacts()
+
+    sources = field_sources(mapping, column)
+
+    if column in mapping.key:
+        return _BranchFacts(sources=sources)
+
+    spellings, targets = enum_chain(mapping, column)
+    return _BranchFacts(sources=sources, enum_values=targets, enum_spellings=spellings)
+
+
+# ....................... #
+
+
 def _column_pair(
     name: str,
     field: Field,
     declared: LogicalType,
     expr: Expression,
     catalog: Catalog | None,
+    facts: _BranchFacts,
     *,
     recipe_id: str | None = None,
 ) -> tuple[ColumnIR, SourceColumnIR]:
@@ -516,8 +564,8 @@ def _column_pair(
 
     The split is the parameter list's own: ``field`` and ``catalog`` decide
     the schema — identical for every mapping targeting this entity, since both
-    come from the entity model — while ``expr`` and ``recipe_id`` come from
-    the mapping and are the only things a second source would spell
+    come from the entity model — while ``expr``, ``recipe_id`` and ``facts``
+    come from the mapping and are the only things a second source would spell
     differently.
     """
     unit, tax_basis, description = _catalog_metadata(field, catalog)
@@ -532,7 +580,14 @@ def _column_pair(
             required=field.required,
             description=description,
         ),
-        SourceColumnIR(name=name, expr=canon(expr), recipe_id=recipe_id),
+        SourceColumnIR(
+            name=name,
+            expr=canon(expr),
+            recipe_id=recipe_id,
+            sources=facts.sources,
+            enum_values=facts.enum_values,
+            enum_spellings=facts.enum_spellings,
+        ),
     )
 
 
@@ -916,7 +971,15 @@ def _build_source(
         recipe_id: str | None = None,
     ) -> None:
         """Append both halves of one column, so neither can be added alone."""
-        column, projection = _column_pair(name, field, declared, expr, catalog, recipe_id=recipe_id)
+        column, projection = _column_pair(
+            name,
+            field,
+            declared,
+            expr,
+            catalog,
+            _branch_facts(entity, mapping, name),
+            recipe_id=recipe_id,
+        )
         columns.append(column)
         projections.append(projection)
 
@@ -1119,9 +1182,6 @@ def _build_entity(
     # one system carries.
     schema = {column.name: column for columns, _source in built for column in columns}
     columns = tuple(sorted(schema.values(), key=lambda column: column.name))
-    #: The one mapping to lower rules from, or ``None`` when the entity is
-    #: merged and there is no such thing (D29).
-    sole = mappings[0] if len(mappings) == 1 else None
     return EntityIR(
         name=entity_name,
         grain=entity.grain,
@@ -1137,25 +1197,19 @@ def _build_entity(
         # node type, is what separates a field rule from a row rule, and
         # emission renders the stages in that order.
         #
-        # A merged entity reads no mapping here at all (RFC 0024 D29). Rule
-        # lowering is per mapping — ``opts_in`` reads the mapping's field-level
-        # blocks, a generated ``coercible`` rule carries that mapping's source
-        # paths — so ``mappings[0]`` would silently pick a winner among N.
-        # :func:`_merge_refusals` has already refused every merged entity that
-        # could produce a rule, which is what makes the empty tuple a fact
-        # rather than a hope.
-        quality=(
-            ()
-            if sole is None
-            else lower_quality(
-                entity,
-                sole,
-                project.entity_model.relationships,
-                _repair_bodies(entity_name, entity, sole, steps),
-            )
+        # Lowered over **every** mapping and unioned, on a merged entity as on
+        # any other (RFC 0024 D32/D33). Two things make that honest rather than
+        # a silent choice among N: :func:`_rule_agreement_refusals` has already
+        # refused every entity whose mappings disagree about a shared column,
+        # and the per-mapping facts a rule used to carry — the ``coercible``
+        # source paths, the ``in_enum`` admissible set — now live on each
+        # :class:`SourceColumnIR` instead. What is left is one rule set the
+        # merged relation is judged by.
+        quality=_merged_rules(
+            entity_name, entity, mappings, project.entity_model.relationships, steps
         ),
-        dedupe=None if sole is None else lower_dedupe(entity),
-        quarantine=None if sole is None else lower_quarantine(entity),
+        dedupe=lower_dedupe(entity),
+        quarantine=lower_quarantine(entity),
     )
 
 
@@ -1163,7 +1217,11 @@ def _build_entity(
 
 
 def _merge_refusals(
-    entity_name: str, entity: Entity, mappings: tuple[Mapping, ...]
+    entity_name: str,
+    entity: Entity,
+    mappings: tuple[Mapping, ...],
+    relationships: tuple[Relationship, ...],
+    steps: StepRegistry,
 ) -> list[ResolutionError]:
     """Everything a union merge refuses at compile time (RFC 0024 §5.2, §5.6).
 
@@ -1224,7 +1282,7 @@ def _merge_refusals(
             )
             errors.append(ResolutionError(msg, source_path=f"{doc}: fields"))
 
-    errors.extend(_quality_refusals(entity_name, entity, mappings))
+    errors.extend(_rule_agreement_refusals(entity_name, entity, mappings, relationships, steps))
 
     if entity.scd == "type2":
         msg = (
@@ -1306,76 +1364,174 @@ def _validity_collisions(entity_name: str, entity: Entity) -> list[ResolutionErr
 # ....................... #
 
 
-def _quality_refusals(
-    entity_name: str, entity: Entity, mappings: tuple[Mapping, ...]
-) -> list[ResolutionError]:
-    """The data-quality boundary on a merged entity (RFC 0024 D14, widened by
-    D29).
+def _lowered_rules(
+    entity_name: str,
+    entity: Entity,
+    mapping: Mapping,
+    relationships: tuple[Relationship, ...],
+    steps: StepRegistry,
+) -> tuple[QualityRuleIR, ...]:
+    """One mapping's rules, lowered the way :func:`_build_entity` lowers them."""
 
-    D14 drew the boundary at ``dedupe:`` and ``quarantine:`` by tracing the
-    per-source row identity, and that trace holds. D29 found the consequence
-    reached further than the argument: **rule lowering is itself per mapping**
-    and sits behind neither block — ``lower_quality`` takes one ``Mapping``,
-    ``opts_in`` reads that mapping's field-level ``quality:`` blocks and also
-    selects the ``TRY_CAST`` column shape, and a generated ``coercible`` rule
-    carries that mapping's raw source paths into a rule evaluated once over the
-    merged relation, where the other branch's bronze relation need not have the
-    column it names.
+    return lower_quality(
+        entity, mapping, relationships, _repair_bodies(entity_name, entity, mapping, steps)
+    )
 
-    So the boundary is ``opts_in``, one predicate that already exists and
-    already decides this. ``assert:``, ``references:`` and ``coverage:``
-    survive untouched: they lower from the entity model and the draft IR and
-    never read a mapping.
 
-    Two messages rather than one, because the two blocks are refused for
-    different reasons and an author fixing the wrong one learns nothing:
-    ``dedupe:``/``quarantine:`` name the row identity (D14), the rest names the
-    rule lowering (D29).
+# ....................... #
+
+
+def _produced(mapping: Mapping) -> frozenset[str]:
+    """The entity columns this mapping lowers — its key and its fields."""
+
+    return frozenset(mapping.key) | frozenset(mapping.fields)
+
+
+# ....................... #
+
+
+def _rules_over(
+    rules: tuple[QualityRuleIR, ...], columns: frozenset[str]
+) -> tuple[QualityRuleIR, ...]:
+    """``rules`` restricted to ``columns``, keeping the column-less ones.
+
+    A row rule — ``expression``, ``referential`` — is lowered from the entity
+    model and the relationships, never from a mapping, so it is the same for
+    every branch by construction and belongs in every comparison.
     """
-    count = len(mappings)
-    errors: list[ResolutionError] = []
 
-    # One reason, two destinations: D14 refuses both blocks for the same row
-    # identity, but §12 restores them in different phases — `dedupe:` in P2b,
-    # `quarantine:` in P2c behind the N-way replay RFC D16 defers. A shared
-    # message would route half its readers to the phase that restores the
-    # *other* block.
-    for block, phase in (("dedupe", "P2b"), ("quarantine", "P2c")):
-        if getattr(entity, block) is None:
-            continue
-        msg = (
-            f"entity {entity_name!r} is built from {count} mappings and declares "
-            f"'{block}:'. Both the reject projection and the dedupe sort key are built from "
-            "'_source_row_id', which is unique within *one* source relation (RFC 0016 D21) "
-            "— on a merged entity two sources with ordinary per-table row sequences collide, "
-            "and the audit that guards it is blocking, so correct data would stop the run "
-            "(RFC 0024 D14). Fix: drop the block, or keep one mapping per entity — the "
-            f"merged form is designed and unscheduled (RFC 0024 §12 {phase})"
-        )
-        errors.append(
-            ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.{block}")
-        )
+    return tuple(rule for rule in rules if rule.column is None or rule.column in columns)
 
-    if entity.quality:
-        errors.append(
-            ResolutionError(
-                _QUALITY_MERGE_MESSAGE.format(entity=entity_name, count=count, where="quality:"),
-                source_path=f"entity_model: entities.{entity_name}.quality",
-            )
-        )
+
+# ....................... #
+
+
+def _merged_rules(
+    entity_name: str,
+    entity: Entity,
+    mappings: tuple[Mapping, ...],
+    relationships: tuple[Relationship, ...],
+    steps: StepRegistry,
+) -> tuple[QualityRuleIR, ...]:
+    """Every rule of an entity, over every mapping that builds it.
+
+    A **union** rather than the first mapping's set, and the difference is one
+    case: a column only some mappings produce (§5.2 rule 3). Its rules are real
+    and belong to the entity, so taking ``mappings[0]``'s set alone would drop
+    the rules of every column the first mapping happens not to map — silently,
+    and depending on nothing but which source relation sorts first.
+
+    Rules on a column every mapping produces are identical across them
+    (:func:`_rule_agreement_refusals` has refused the entity otherwise), so
+    the union deduplicates them by name to the same one tuple that mapping
+    would have produced alone.
+    """
+    by_name: dict[str, QualityRuleIR] = {}
 
     for mapping in mappings:
-        doc = mapping_doc(mapping)
-        for field_name, field_mapping in mapped_fields(mapping):
-            if field_mapping is None or not field_mapping.quality:
+        for rule in _lowered_rules(entity_name, entity, mapping, relationships, steps):
+            existing = by_name.setdefault(rule.name, rule)
+            if existing == rule:
                 continue
+            # Two *different* rules under one generated name. For a column
+            # every mapping produces this cannot happen — the agreement
+            # refusal ran first — so what is left is two distinct columns
+            # whose names fold to one rule name (`_rule_name` lowercases and
+            # replaces non-identifier characters, so `Order-Id` and `Order_Id`
+            # both give `order_id_coercible`). Keeping the first would leave
+            # the other column with no check at all, silently.
+            msg = (
+                f"entity {entity_name!r} is built from {len(mappings)} mappings that "
+                f"generate two different rules named {rule.name!r} — one on column "
+                f"{existing.column!r}, one on {rule.column!r}. Generated names are folded "
+                "to the [a-z0-9_]+ shape a flag list can carry unescaped (RFC 0016 D23), so "
+                "two columns can fold to one name; merging them would drop one column's "
+                "check without saying so. Fix: rename one of the two fields"
+            )
+            raise ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.fields")
+
+    return tuple(sorted(by_name.values(), key=quality_sort_key))
+
+
+# ....................... #
+
+
+def _rule_agreement_refusals(
+    entity_name: str,
+    entity: Entity,
+    mappings: tuple[Mapping, ...],
+    relationships: tuple[Relationship, ...],
+    steps: StepRegistry,
+) -> list[ResolutionError]:
+    """Every mapping of a merged entity lowers the **same rules**, or the
+    entity is refused (RFC 0024 D33).
+
+    D33 states the requirement as agreement over ``opts_in`` and names a second
+    coupling — two mappings naming different ``repair`` recipes for one column —
+    as "the same refusal rather than a fifth case". The check is written
+    against the *lowered rule set* rather than against either of those, because
+    the rule set is the thing D33's consequence is about: ``lower_quality`` may
+    go on taking one ``Mapping`` exactly when every mapping would have produced
+    the same tuple from it. Comparing the output rather than enumerating the
+    inputs is also what makes this total — ``opts_in`` is a **disjunction** over
+    one mapping's fields, so two mappings can agree that the entity joined the
+    quality system and still declare disjoint rules (A a ``coercible`` on
+    ``amount``, B an ``in_set`` on ``status``), and a set lowered from either
+    would be missing half of what the author wrote.
+
+    What is deliberately *not* compared is the per-branch facts D32 moved onto
+    :class:`~bloomery.ir.SourceColumnIR`. Source paths and ``enum_map``
+    spellings are what a second source is *for*; requiring them to agree would
+    refuse every real merge. The rules are invariant because the compiler makes
+    them so, and the facts they read are per branch — those are the two halves
+    of D32 and D33, and this function is only the second one.
+
+    **Nor is a column only one mapping produces.** §5.2 rule 3 lets a source
+    omit an optional field and fills it with a typed NULL, so requiring the
+    other mapping to declare the same rules there would refuse the shape the
+    RFC exists to allow — and it would be unfixable, because a rule is declared
+    on a mapping's *field* and the mapping that omits the field has nothing to
+    hang one on. Those rules join the entity's set instead
+    (:func:`_merged_rules`), where a branched one is inert on the branch that
+    maps nothing (:func:`~bloomery.quality.branch_violation` reads no sources
+    as FALSE) and an authored one judges the NULLs that branch supplies, which
+    is the true statement about the merged relation.
+    """
+    if len(mappings) < 2:
+        return []
+
+    lowered = {
+        mapping.source: _lowered_rules(entity_name, entity, mapping, relationships, steps)
+        for mapping in mappings
+    }
+    errors: list[ResolutionError] = []
+
+    # **Every pair**, not every mapping against the first. A column only some
+    # mappings produce is excluded from any comparison the others are in, so
+    # against `mappings[0]` alone two *other* mappings could disagree about it
+    # and never meet: with A, B and C and an optional column that B and C both
+    # map, `A ∩ B` and `A ∩ C` exclude it and B is never compared with C. Both
+    # rules then land in the union and one silently wins by name.
+    for index, reference in enumerate(mappings):
+        for mapping in mappings[index + 1 :]:
+            shared = _produced(reference) & _produced(mapping)
+            left = _rules_over(lowered[reference.source], shared)
+            right = _rules_over(lowered[mapping.source], shared)
+
+            if left == right:
+                continue
+
+            msg = (
+                f"entity {entity_name!r} is built from {len(mappings)} mappings whose "
+                f"'quality:' declarations disagree: {_rule_disagreement(left, right)}. The "
+                "rules are evaluated once over the merged relation, so a set lowered from one "
+                "mapping would silently drop what the others declared (RFC 0024 D33). Fix: "
+                "declare the same rules — and the same transform chains where they generate "
+                f"one — in {mapping_doc(reference)} and {mapping_doc(mapping)}, or keep one "
+                "mapping per entity"
+            )
             errors.append(
-                ResolutionError(
-                    _QUALITY_MERGE_MESSAGE.format(
-                        entity=entity_name, count=count, where=f"quality: on {field_name!r}"
-                    ),
-                    source_path=f"{doc}: fields.{field_name}.quality",
-                )
+                ResolutionError(msg, source_path=f"{mapping_doc(mapping)}: fields"),
             )
 
     return errors
@@ -1384,18 +1540,51 @@ def _quality_refusals(
 # ....................... #
 
 
-#: One sentence per reason, shared by the two sites D29's refusal fires from —
-#: the entity-level block and a mapping's field-level one. Written once because
-#: they are the same refusal reached through the two legs of ``opts_in``.
-_QUALITY_MERGE_MESSAGE = (
-    "entity {entity!r} is built from {count} mappings and declares {where}. Quality rules "
-    "are lowered *per mapping* — a generated coercible rule carries one mapping's source "
-    "paths into a rule the merged relation evaluates once, and the other source's bronze "
-    "relation need not have the column it names — so P1 refuses a merged entity that joins "
-    "the data-quality system at all (RFC 0024 D29). 'assert:', 'references:' and 'coverage:' "
-    "are unaffected. Fix: drop the rules, or keep one mapping per entity — the merged form "
-    "is designed and unscheduled (RFC 0024 §12 P2a)"
-)
+def _disposition(rule: QualityRuleIR) -> str:
+    """A rule's authored disposition, or ``on_missing`` for the one kind that
+    carries no ``on_fail`` at all (``referential``, RFC 0016 D6)."""
+
+    if rule.on_fail is not None:
+        return rule.on_fail.value
+
+    return dict(rule.params).get("on_missing", "-")
+
+
+# ....................... #
+
+
+def _rule_disagreement(
+    baseline: tuple[QualityRuleIR, ...], candidate: tuple[QualityRuleIR, ...]
+) -> str:
+    """The first difference between two lowered rule sets, in name order.
+
+    One difference rather than all of them: the message routes to a pair of
+    documents the author then reads side by side, and a rule set that differs
+    at all usually differs everywhere — listing the tail buries the head.
+    """
+    left = {rule.name: rule for rule in baseline}
+    right = {rule.name: rule for rule in candidate}
+
+    for name in sorted(set(left) | set(right)):
+        if name not in right:
+            return f"{name!r} is declared by the first mapping and not by the second"
+        if name not in left:
+            return f"{name!r} is declared by the second mapping and not by the first"
+        if left[name] != right[name]:
+            return (
+                f"{name!r} is declared by both and differs — "
+                f"{_disposition(left[name])} vs {_disposition(right[name])}, "
+                f"params {left[name].params} vs {right[name].params}"
+            )
+
+    # Unreachable while the tuples are canonically sorted by name and compared
+    # for equality by the caller: two sets with the same names and equal rules
+    # *are* equal.
+    msg = "rule sets differ but no differing rule was found"
+    raise InvariantViolated(msg)
+
+
+# ....................... #
 
 
 def _build_entities(
@@ -1425,7 +1614,11 @@ def _build_entities(
         for entity_name in sorted(grouped)
         for error in (
             *_merge_refusals(
-                entity_name, project.entity_model.entities[entity_name], grouped[entity_name]
+                entity_name,
+                project.entity_model.entities[entity_name],
+                grouped[entity_name],
+                project.entity_model.relationships,
+                steps,
             ),
             *_validity_collisions(entity_name, project.entity_model.entities[entity_name]),
         )

@@ -62,7 +62,7 @@ ingester shredded in advance. `just seed-sql` prints the SQL without running it.
 | File | Kind | What it declares |
 |---|---|---|
 | `specs/catalog.yaml` | Catalog | The canonical `amount` field, the `revenue` template built on it, the `dim_date` calendar |
-| `specs/entity_model.yaml` | EntityModel | `order_line` (merged from two shops), `customer` (inside the quality system), `product` (outside it), the relationships, one coverage check and one reconcile check |
+| `specs/entity_model.yaml` | EntityModel | `order_line` (merged from two shops **and cleaned**), `customer` (one shop, cleaned), `product` (outside the quality system), the relationships, one coverage check and one reconcile check |
 | `specs/mapping_platform.yaml` | Mapping | `shopify__order_lines` → `order_line`, out of nested JSON |
 | `specs/mapping_legacy.yaml` | Mapping | `woo__order_lines` → **the same** `order_line`, out of flat CSV |
 | `specs/mapping_crm.yaml` | Mapping | `crm__customers` → `customer`, with the field-level quality rules |
@@ -107,6 +107,30 @@ nothing else:
    shopify__order_lines      7  438.91 2026-01-04 10:15:00
        woo__order_lines      5  417.97 2026-01-06 11:00:00
 ```
+
+Those totals are what *landed*. The legacy shop shipped six lines, not five —
+the sixth wrote the word `two` where a quantity goes, and it was quarantined
+rather than allowed to land a NULL quantity in a merged entity nobody would
+think to re-check:
+
+```
+        source_relation           failed_rules                             key_values
+       woo__order_lines  [quantity_coercible]  {"line_no":1,"order_id":"WOO-5005"}
+```
+
+**That is the merge and the cleaning composing**, which is the whole reason this
+example exists in the shape it does. The rule is *one* `quantity_coercible` over
+the merged relation, and its inputs are per shop: the platform shop's branch
+compares against `$.payload.item.quantity` and the legacy shop's against
+`$.qty`. One rule, two systems that share no column name, and the row that
+failed names the shop it came from — the reject table stays one per entity, and
+each row points back at its own mapping so a replay re-runs *that* one.
+
+The same split shows in the rule that did **not** fire. `gift_note` is mapped by
+the platform shop alone, so the legacy branch projects a typed NULL for it — and
+`gift_note_coercible` reports zero failures rather than flagging all five legacy
+rows. A marker with no source paths to read has no evidence of a failed cast,
+which is the difference between a check and a false accusation.
 
 The legacy shop's earliest line reads `12:00` in `seed/woo_order_lines.csv` and
 `11:00` here, because that shop stamps head-office wall-clock time with no zone
@@ -174,8 +198,12 @@ block, and gets no reject table, no `_quality_flags` column and no retention
 obligation. Opting in is per entity, and this is what opting out looks like.
 
 **The quality mart** lists every rule the project carries, whether or not it
-caught anything, plus an `(entity)` row holding the totals — `6` rows seen, `1`
-held back, `1` deduplicated.
+caught anything, plus an `(entity)` row holding the totals — for `customer`,
+`6` rows seen, `1` held back, `1` deduplicated. `order_line` has its own rows
+there now, and its `(entity)` line reads `13` seen and `1` held: thirteen bronze
+lines across two shops, twelve in the entity, one in the reject table. Rows in
+equal rows kept plus rows diverted — the conservation audit carries that onto
+every run rather than only into a test suite.
 
 **The wide mart**, both dimensions joined through declared relationships and
 `ordered_at` expanded into day/week/month/quarter/year buckets — the dimensions
@@ -203,6 +231,13 @@ Error: Plan application failed.
 ```
 
 Undo it with `just fix-it`.
+
+**And notice what the audit reads.** Its emitted body groups over the *union of
+both bronze relations*, not over `silver.order_line`. That is not a detail: this
+entity deduplicates, and dedupe collapses exactly the rows that share an entity
+key — so an audit reading the finished table would find one source per key and
+pass, on precisely the data it exists to refuse. The check has to sit above the
+`UNION ALL` and below the `QUALIFY`, and it does.
 
 **Why a restate rather than re-running `run.py`.** SQLMesh plans on *model*
 changes. Editing bronze data changes no model, so a plain plan correctly decides
@@ -236,9 +271,10 @@ this stack into anything that matters.
 
 ## Not covered here
 
-- **dbt and Cube.** The same shape compiles to both, but a merged entity, a
-  quarantine policy, a reconcile check, a coverage check and a mart assertion
-  are all refused on dbt — each for a stated reason. `examples/targets/` runs a
+- **dbt and Cube.** The same shape compiles to both, but a quarantine policy, a
+  reconcile check, a coverage check and a mart assertion are all refused on
+  dbt — each for a stated reason. (A merged entity is not: dbt grew the
+  singular-test surface its collision audit needs.) `examples/targets/` runs a
   project that stays inside what all three targets support, and
   `examples/refusals/` shows one of these refusals in full.
 - **Metric requests.** `examples/quickstart/` plans one and prints the SQL and

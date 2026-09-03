@@ -11,7 +11,7 @@ import pytest
 from pytest_snapshot.plugin import Snapshot
 
 from bloomery import Target
-from support.compiling import compile_fixture
+from support.compiling import assert_no_orphans, compile_fixture
 
 pytestmark = pytest.mark.golden
 
@@ -57,3 +57,4 @@ def test_cube_golden(snapshot: Snapshot, fixture_name: str) -> None:
     snapshot.snapshot_dir = GOLDEN / fixture_name / "cube"
     for artifact in artifacts:
         snapshot.assert_match(artifact.content, artifact.path)
+    assert_no_orphans(snapshot.snapshot_dir, EXPECTED_PATHS[fixture_name])

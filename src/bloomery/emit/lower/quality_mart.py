@@ -41,8 +41,8 @@ from .silver import (
     _EXTRACT_ALIAS,  # pyright: ignore[reportPrivateUsage]
     _arrays,  # pyright: ignore[reportPrivateUsage]
     _extract_select,  # pyright: ignore[reportPrivateUsage]
-    _sole_source,  # pyright: ignore[reportPrivateUsage]
     reject_relation,
+    union_stage,
 )
 
 if TYPE_CHECKING:
@@ -57,6 +57,7 @@ _QUALITY_CTE_PREFIX = "_quality_rows_"
 _FLAGS_ALIAS = "_flags"
 _QUARANTINED_ALIAS = "_quarantined"
 _EVALUATIONS_ALIAS = "_evaluations"
+_BRONZE_ALIAS = "_bronze"
 _STAMPED_ALIAS = "_stamped"
 #: The per-evaluation columns a branch projects, in §5.8's schema order.
 _BRANCH_COLUMNS = (
@@ -72,17 +73,21 @@ def _mapping_identity(entity: EntityIR) -> str:
     """The ``mapping`` dimension's value — the same string the reject table
     records, so the two surfaces name one mapping the same way.
 
-    **Unexercised on a merged entity, and RFC 0024 D19 is why it need not be.**
-    D19 reasoned that the mart accounts per entity because this identity has no
-    single value across N sources. D29 removes the question rather than
-    answering it: a merged entity is refused from the quality system entirely
-    in P1, so it has no rules, contributes no evaluations, and never reaches
-    this mart. The sole-source read is therefore a fact, not a choice among
-    branches — and it is spelled as one so that the day P2 restores the rules,
-    this raises instead of naming one source for all of them.
-    """
+    **On a merged entity it names every branch**, joined by ``+`` in
+    ``EntityIR.sources`` order: ``woo+shopify->order_line``. RFC 0024 D19 fixes
+    the mart's *grain* — one row per rule evaluation on the entity, because the
+    rules run on the merged relation — and leaves the string unnamed, which was
+    fine while D29 refused rules on a merged entity and is a choice now that P2
+    does not. Every branch, rather than the entity name alone, because the
+    value's job is to say what the evaluation ran over: an entity name would
+    make a merged mart row indistinguishable from a single-source one whose
+    mapping happens to share it.
 
-    return f"{_sole_source(entity, 'the quality mart').relation}->{entity.name}"
+    Provenance below this grain is still reachable — ``_source`` is a real
+    column, so a per-source view is a filter rather than a schema (D19).
+    """
+    relations = "+".join(source.relation for source in entity.sources)
+    return f"{relations}->{entity.name}"
 
 
 # ....................... #
@@ -182,12 +187,12 @@ def _rows_deduped(entity: EntityIR, ctx: EmitContext) -> Expression:
     if entity.dedupe is None or entity.scd is SCDKind.TYPE2:
         return exp.Literal.number(0)
 
-    origin = _sole_source(entity, "the quality mart's deduped count")
-    namespace, relation = ctx.naming.relation(origin.relation, Layer.BRONZE)
+    # Every branch: the count is "rows that arrived", and on a merged entity
+    # they arrived from more than one relation (RFC 0024 D19).
     bronze = (
         exp.Select()
         .select(exp.Count(this=exp.Star()))
-        .from_(exp.table_(relation, db=namespace))
+        .from_(union_stage(entity, ctx).subquery(alias=_BRONZE_ALIAS))
         .subquery()
     )
     survivors = (

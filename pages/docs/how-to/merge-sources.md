@@ -114,7 +114,7 @@ All of it at once, so you fix a spec in one round trip rather than one error per
 | A mapping missing a `required: true` field | The merge would NULL-fill a required column for that one source's rows, and the entity would look internally inconsistent rather than externally broken |
 | Two mappings reading the **same** relation | Branch order needs a total order, and two branches on one relation tie. Express two disjoint row sets of one table as one mapping with a filter |
 | `scd: type2` | The collision check below would fire on every key holding versions from two sources. Telling a version from a collision means reading the validity interval, and the union's lowering does not — the interval is modelled now (see [as-of joins](../concepts/wide-marts.md#historical-dimensions-need-an-anchor)), but the merge audit does not consult it |
-| Any quality rule, `dedupe:` or `quarantine:` | See [the limits](#what-a-merged-entity-cannot-do-yet) |
+| Two mappings declaring **different** rules for a column they both produce | The rules run once over the merged relation, so a set taken from one mapping would silently drop what the others wrote. See [cleaning a merged entity](#cleaning-a-merged-entity) |
 
 Types need no separate check: each mapping's transform chain is already checked against the
 entity's *declaration*, so two mappings cannot disagree about a column's type without both
@@ -153,21 +153,48 @@ merge — go to [Resolve identities across systems](resolve-identities.md).
     correct split — it is the same one `dedupe` and `referential` live with — but do not
     read a successful compile as proof the sources are disjoint.
 
-## What a merged entity cannot do yet
+## Cleaning a merged entity
 
-A merged entity is outside the data-quality system for now: no `quality:` rules on the
-entity or on its mappings' fields, no `dedupe:`, no `quarantine:`. Each is refused at
-compile time with a message saying why.
+A merged entity takes the whole [data-quality system](add-quality-rules.md): `quality:`
+rules on the entity and on its mappings' fields, `dedupe:`, and `quarantine:` with its
+reject table and replay. Nothing about declaring them differs from a single-source entity.
 
-The reason is not squeamishness. Quality rules are lowered **per mapping** — a generated
-coercion rule carries one mapping's source paths into a rule the merged relation evaluates
-once, and the other source's bronze relation need not have the column it names. Shipping
-that would emit a check that is wrong rather than absent.
+What differs is underneath, and it is worth knowing because it decides what the compiler
+asks of you. **The rules are one set, evaluated once over the merged relation. Their inputs
+are per source.** A coercion rule compares the produced column against the raw paths it
+reads, and the two shops read different paths; an `in_enum` rule admits what the chain's
+`enum_map` maps, and the two shops map different spellings. Each branch computes its own
+verdict below the union and the rule reads the result, so one rule can judge rows from
+sources that share no column name at all.
 
-`assert:`, `references:` and `coverage:` are unaffected: they are declared on the entity
-model and never read a mapping. For a required field on a merged entity, `assert: {not_null:
-true}` is the runtime check you want — `required:` proves every mapping *declares* the
-field, and says nothing about what its source path returns per row.
+That is why **every mapping of a merged entity must declare the same rules for a column
+they both produce**. A rule is written on a mapping's field, and two mappings writing
+different ones is not a merge rule to invent — it is two contradictory statements, refused
+with both documents named. A column only *one* mapping produces is a different case and is
+not refused: its rules join the entity's set, and on the branch that maps nothing the
+coercion marker reads "no sources, no evidence" rather than reporting every one of that
+source's rows as a failed cast.
+
+Two more things happen on their own:
+
+- **`dedupe:` sorts by `_source`** immediately before the row identity. That identity is
+  unique within *one* source relation, so without the extra term two rows from different
+  shops on one key compare equal and the survivor is undefined.
+- **The collision audit reads the union**, not the finished model. With `dedupe:` in
+  between, a key held by both shops is collapsed to one row before the model exists — an
+  audit reading the model would find one source per key and pass, on exactly the data it
+  is there to refuse.
+
+`assert:`, `references:` and `coverage:` were never affected: they are declared on the
+entity model and never read a mapping. For a required field on a merged entity,
+`assert: {not_null: true}` is the runtime check you want — `required:` proves every mapping
+*declares* the field, and says nothing about what its source path returns per row.
+
+!!! note "One target"
+
+    `quarantine:` needs a reject model, which the dbt emitter does not lower — merged or
+    not. A merged entity that quarantines compiles for SQLMesh; one that only flags
+    compiles for both.
 
 ## How it shows up in `plan()`
 
@@ -213,6 +240,6 @@ bloomery emits to dbt, not only this one.
   collision audit stopping the plan
 - [Resolve identities across systems](resolve-identities.md) — different key spaces, which
   needs matching rather than merging
-- [Add quality rules](add-quality-rules.md) — the system a merged entity is currently
-  outside of
+- [Add quality rules](add-quality-rules.md) — the system a merged entity joins the same
+  way any other entity does
 - [Evolve a spec](evolve-a-spec.md) — how `plan()` classifies the changes above

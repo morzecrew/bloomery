@@ -59,6 +59,7 @@ from bloomery.quality.flags import (
     quality_ok,
 )
 from bloomery.quality.lower import (
+    enum_chain,
     field_sources,
     generated_rule_names,
     lower_coverage,
@@ -85,7 +86,11 @@ from bloomery.quality.mart import (
 )
 from bloomery.quality.pattern import PATTERN_TARGET_DIALECTS, unsupported_dialects
 from bloomery.quality.predicates import (
+    BRANCH_KINDS,
     WINDOWED_KINDS,
+    branch_alias,
+    branch_violation,
+    branched,
     conjunction,
     disjunction,
     disposition,
@@ -102,7 +107,6 @@ from bloomery.quality.predicates import (
     repairs,
     routing_predicate,
     sole_via_column,
-    source_alias,
     unknown_member_case,
     verdict,
     violation,
@@ -156,6 +160,7 @@ __all__ = [
     "flags_expression",
     "quality_ok",
     # lowering
+    "enum_chain",
     "field_sources",
     "generated_rule_names",
     "lower_coverage",
@@ -188,7 +193,11 @@ __all__ = [
     "ReconcileSide",
     "parse_side",
     # predicates
+    "BRANCH_KINDS",
     "WINDOWED_KINDS",
+    "branch_alias",
+    "branch_violation",
+    "branched",
     "conjunction",
     "disjunction",
     "disposition",
@@ -205,7 +214,6 @@ __all__ = [
     "repairs",
     "routing_predicate",
     "sole_via_column",
-    "source_alias",
     "unknown_member_case",
     "verdict",
     "violation",

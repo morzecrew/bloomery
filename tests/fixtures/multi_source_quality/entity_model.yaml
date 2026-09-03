@@ -1,0 +1,48 @@
+# Cleaning a merged entity (RFC 0024 P2 — D32-D35 — and RFC 0035).
+#
+# `multi_source` is the union on its own and stays that way: it is the fixture
+# both SQL targets compile, and dbt lowers no reject model at all (RFC 0016
+# §5.4). This one is its SQLMesh-only sibling, and every block here exists for
+# a property no single-source fixture can hold:
+#
+#   - `quality:` — one rule set is evaluated over the merged relation while its
+#     inputs are per branch, so two shops with different source paths reach one
+#     `coercible` marker and two different `enum_map` chains reach one
+#     `in_enum` (D32). Declaring the same rules on both mappings is what D33
+#     requires; declaring the same *chains* is what it does not.
+#   - `dedupe:` — the sort key carries `_source` immediately ahead of
+#     `_source_row_id` (D35). Without it two rows from different shops sharing
+#     an entity key compare equal and the survivor is undefined, and the
+#     collision audit that would catch it runs after the model materialises.
+#   - `quarantine:` — the reject table stays one per entity (RFC 0016 D10,
+#     upheld by RFC 0035 D1) and each row carries the `source_relation` that
+#     produced it, so replay re-runs that row's own mapping (D2/D3).
+#
+# The key is composite for the reason `multi_source` gives: a generated GROUP
+# BY that dropped a component would merge distinct keys on a blocking audit.
+spec_version: 1
+entities:
+  order_line:
+    grain: one row per line on an order, across both shops
+    key: [order_id, line_no]
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      sku: {type: string, required: true}
+      quantity: {type: int}
+      # Mapped by one shop and not the other (§5.2 rule 3). Its job here is the
+      # one `multi_source` gives it — a typed NULL from the branch that does
+      # not map it — plus one P2 only has: the implicit `coercible` marker on
+      # that branch reads *no* source paths, and empty means FALSE rather than
+      # the empty conjunction's TRUE, or every legacy row would be reported as
+      # a failed cast.
+      gift_note: {type: string}
+      # The dedupe recency field. RFC 0016 D80 forces its `coercible` rule to
+      # FAIL rather than quarantine: an uncastable value here leaves the sort
+      # order undefined, and a silently nondeterministic entity is worse than a
+      # stopped run.
+      placed_at: {type: timestamp}
+      # Two shops, two vocabularies, one entity column.
+      status: {type: string}
+    dedupe: {keep: latest_by, field: placed_at, tie_break: [line_no]}
+    quarantine: {retention: 90d}

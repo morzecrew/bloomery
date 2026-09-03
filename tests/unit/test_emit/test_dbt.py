@@ -407,6 +407,12 @@ def test_a_merged_entity_emits_the_collision_audit_it_used_to_be_refused_for() -
     reasoning — so the assertion is that the audit is now **emitted**, not that
     the refusal was wrong.
 
+    The audit reads bronze rather than the model, so in dbt it is ordered
+    after the *sources* instead of after ``item``. That is what D13's placement
+    costs on this target and it is not a weakening of D5: a failing test on a
+    node's parents stops that node's descendants, and the check is about bronze
+    data either way.
+
     ``severity='error'`` is written out because D5 makes this audit blocking
     and not configurable to a weaker disposition: a key in two sources is
     either genuine duplication or a shared key space by accident, and both are
@@ -421,10 +427,14 @@ def test_a_merged_entity_emits_the_collision_audit_it_used_to_be_refused_for() -
     assert test.kind is ArtifactKind.AUDIT
     assert "{{ config(severity='error') }}" in test.content
     assert "COUNT(DISTINCT _source) > 1" in test.content
-    # The reference, not a literal relation: it is what orders the test after
-    # the model and makes "blocking" mean anything at all (D5).
-    assert "{{ ref('item') }}" in test.content
-    assert "silver.item" not in test.content
+    # It reads the **union stage**, not the model (D13, restored by P2b):
+    # dedupe collapses rows sharing an entity key, so an audit below it would
+    # be reading the one relation guaranteed not to contain what it looks for.
+    # Sources, therefore, and never a literal relation — the reference is what
+    # makes the test resolve at all.
+    assert "{{ source('bronze', 'src') }}" in test.content
+    assert "{{ source('bronze', 'src_b') }}" in test.content
+    assert "bronze.src" not in test.content
 
 
 def test_a_merged_entity_declares_every_source(  # D20, whole

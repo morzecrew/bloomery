@@ -9,12 +9,25 @@ ships lowered-but-untested.
 
 from __future__ import annotations
 
-from bloomery.ir import OnFail, QualityRuleIR
+from sqlglot.expressions.core import Expression
+
+from bloomery.ir import OnFail, QualityRuleIR, SqlExpr
+from bloomery.quality import branch_violation, branched, violation
 
 __all__ = [
+    "BRANCH_ENUM_VALUES",
+    "BRANCH_SOURCES",
     "ON_MISSING_RULES",
+    "predicate_of",
     "rule_of_kind",
 ]
+
+#: The branch facts the two :data:`~bloomery.quality.BRANCH_KINDS` rules read
+#: (RFC 0024 D32). They live beside the rules rather than inside them because
+#: that is where the lowering puts them: on the per-source node, not on the
+#: rule, so that one rule evaluated over a union reads each branch's own.
+BRANCH_SOURCES = ("raw_amount",)
+BRANCH_ENUM_VALUES = ("a", "b")
 
 
 def rule_of_kind(kind: str, on_fail: OnFail = OnFail.FLAG) -> QualityRuleIR:
@@ -26,15 +39,13 @@ def rule_of_kind(kind: str, on_fail: OnFail = OnFail.FLAG) -> QualityRuleIR:
     """
     params: dict[str, str] = {}
     column: str | None = "amount"
-    if kind == "coercible":
-        params = {"source_0000": "raw_amount"}
-    elif kind == "range":
+    if kind == "range":
         params = {"min": "0", "max": "1000000"}
     elif kind == "length":
         params = {"min": "1", "max": "8"}
     elif kind == "pattern":
         params = {"regex": "^[A-Z]{3}$"}
-    elif kind in {"in_enum", "in_set"}:
+    elif kind == "in_set":
         params = {"value_0000": "a", "value_0001": "b"}
     elif kind == "normalize":
         params = {"form": "nfc"}
@@ -78,3 +89,23 @@ def referential_rule(on_missing: str) -> QualityRuleIR:
 ON_MISSING_RULES = {
     name: referential_rule(name) for name in ("flag", "quarantine", "unknown_member")
 }
+
+
+def predicate_of(rule: QualityRuleIR, *, table: str | None = None) -> Expression:
+    """``rule``'s violation predicate, whichever side of the union it is built
+    from.
+
+    A branched rule has no predicate without a branch's facts, so a test that
+    called :func:`~bloomery.quality.violation` on every kind would raise on two
+    of them. Routing here keeps the RFC 0016 §6 matrix iterating *every* kind
+    rather than skipping the two, which is the property that matrix exists for.
+    """
+    if branched(rule):
+        return branch_violation(
+            rule,
+            sources=[SqlExpr(path).ast() for path in BRANCH_SOURCES],
+            enum_values=BRANCH_ENUM_VALUES,
+            table=table,
+        )
+
+    return violation(rule, table=table)

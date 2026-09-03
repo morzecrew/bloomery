@@ -49,12 +49,16 @@ SOURCES: tuple[tuple[str, str], ...] = (
 #: makes `_ingested_at` the time a reject row is measured against, and a
 #: retention window over a string is not a window.
 #:
-#: It is also the one timestamp in `seed/` still written with a space rather
-#: than the ISO `T`, and for a reason worth keeping: this cast is Trino's own,
-#: not one bloomery emits, so nothing normalizes the separator for it. Every
-#: *mapped* timestamp uses the `T` form, which is what the storefront and the
-#: CRM actually export — and what a bloomery of an earlier version would have
-#: quarantined every row over.
+#: It is also the one timestamp in `seed/` written with a space rather than the
+#: ISO `T`, which used to be load-bearing and is now only convention: the D21
+#: audit's cast is marked as ISO text (RFC 0027), so every port normalizes the
+#: separator and the `T` form would land fine here too. Every *mapped* timestamp
+#: uses the `T`, which is what the storefront and the CRM actually export — and
+#: what a bloomery of an earlier version would have quarantined every row over.
+#:
+#: The **typing** is what still matters, and only for the reason above: this is
+#: the column a retention window is measured from. A project that never queries
+#: it by hand can land it as text like everything else.
 TYPED: dict[str, str] = {"_ingested_at": "TIMESTAMP"}
 
 

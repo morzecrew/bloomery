@@ -77,6 +77,7 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0030 | The unresolved-work report | `bcae31d` |
 | 0031 | Lineage | `bcae31d` |
 | 0032 | Mapping identity | `3f7b574` |
+| 0034 | Metrics over time | `6b71926` |
 
 ## Not in the table
 

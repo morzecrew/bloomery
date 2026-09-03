@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from pytest_snapshot.plugin import Snapshot
 
-from support.compiling import compile_fixture
+from support.compiling import assert_no_orphans, compile_fixture
 
 pytestmark = pytest.mark.golden
 
@@ -46,11 +46,26 @@ EXPECTED_PATHS = {
     # RFC 0024 §5.4/D5: the union merge's one generated artifact beyond the
     # model — the blocking audit that establishes what compilation cannot, that
     # the sources' key sets are disjoint. It is here rather than under a
-    # `_quality_*` name because it guards the *merge*, not the quality system,
-    # which a merged entity is outside of in P1 (D29).
+    # `_quality_*` name because it guards the *merge*, not the quality system.
     "multi_source": [
         "audits/order_line_source_collision.sql",
         "models/silver/order_line.sql",
+    ],
+    # The same merge, cleaned (RFC 0024 P2 — D32-D35 — and RFC 0035). A second
+    # fixture rather than blocks added to the one above, because dbt lowers no
+    # reject model (RFC 0016 §5.4) and `multi_source` is the fixture both
+    # targets compile: merging the two would have bought this coverage by
+    # deleting that.
+    "multi_source_quality": [
+        "audits/order_line_conservation.sql",
+        "audits/order_line_ingestion_metadata.sql",
+        "audits/order_line_line_no_coercible.sql",
+        "audits/order_line_placed_at_coercible.sql",
+        "audits/order_line_source_collision.sql",
+        "models/gold/mart_data_quality.sql",
+        "models/silver/order_line.sql",
+        "models/silver/order_line__reject.sql",
+        "replay/order_line.sql",
     ],
     "ecom_basic": [
         "models/gold/dim_date.sql",
@@ -98,3 +113,4 @@ def test_sqlmesh_duckdb_golden(snapshot: Snapshot, fixture_name: str) -> None:
     snapshot.snapshot_dir = GOLDEN / fixture_name / "sqlmesh" / "duckdb"
     for artifact in artifacts:
         snapshot.assert_match(artifact.content, artifact.path)
+    assert_no_orphans(snapshot.snapshot_dir, EXPECTED_PATHS[fixture_name])

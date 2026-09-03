@@ -1,6 +1,7 @@
-order_number,item_index,buyer_ref,product_sku,qty,line_amount,discount_amount,placed_at
-WOO-5001,1,C-002,sku-blu-l,1,24.99,0.00,2026-01-06T12:00:00
-WOO-5002,1,C-004,SKU-YEL-XL,2,258.00,10.00,2026-02-02T08:30:00
-WOO-5002,2,C-004,sku-red-m,1,39.99,0.00,2026-02-02T08:30:00
-WOO-5003,1,C-005,SKU-BLK-OS,6,75.00,5.00,2026-02-24T19:45:00
-WOO-5004,1,C-002,sku-grn-s,1,19.99,0.00,2026-03-11T21:10:00
+order_number,item_index,buyer_ref,product_sku,qty,line_amount,discount_amount,placed_at,_ingested_at,_load_id,_source_row_id
+WOO-5001,1,C-002,sku-blu-l,1,24.99,0.00,2026-01-06T12:00:00,2026-01-07 00:00:00,load-2026-01-07,woo-1
+WOO-5002,1,C-004,SKU-YEL-XL,2,258.00,10.00,2026-02-02T08:30:00,2026-02-03 00:00:00,load-2026-02-03,woo-2
+WOO-5002,2,C-004,sku-red-m,1,39.99,0.00,2026-02-02T08:30:00,2026-02-03 00:00:00,load-2026-02-03,woo-3
+WOO-5003,1,C-005,SKU-BLK-OS,6,75.00,5.00,2026-02-24T19:45:00,2026-02-25 00:00:00,load-2026-02-25,woo-4
+WOO-5004,1,C-002,sku-grn-s,1,19.99,0.00,2026-03-11T21:10:00,2026-03-12 00:00:00,load-2026-03-12,woo-5
+WOO-5005,1,C-004,SKU-BLU-L,two,44.98,0.00,2026-03-14T10:00:00,2026-03-15 00:00:00,load-2026-03-15,woo-6

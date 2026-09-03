@@ -27,6 +27,7 @@ from sqlglot import exp
 from sqlglot.expressions.core import Expression
 
 from bloomery.errors import guaranteed
+from bloomery.ir import SOURCE_COLUMN
 from bloomery.quality.catalogue import INGESTION_METADATA
 
 if TYPE_CHECKING:
@@ -51,22 +52,38 @@ ROW_ID_COLUMN = guaranteed(
 )
 
 
-def dedupe_sort_columns(dedupe: DedupeIR) -> tuple[str, ...]:
+def dedupe_sort_columns(dedupe: DedupeIR, *, merged: bool = False) -> tuple[str, ...]:
     """The total order's columns, in order: recency field, tie-breaks
-    (authored order — a sort order is semantic, RFC 0003 D4), row identity."""
+    (authored order — a sort order is semantic, RFC 0003 D4), provenance on a
+    merged entity, row identity.
 
-    return (dedupe.field, *dedupe.tie_break, ROW_ID_COLUMN)
+    ``merged`` adds ``_source`` immediately ahead of the row identity
+    (RFC 0024 D35), and the position is the argument. The order's totality
+    rests on "no two rows can compare equal *given the D21 metadata contract*"
+    — an identity unique within **one** source relation. On a merged entity two
+    rows from different sources sharing an entity key therefore compare equal
+    and the survivor is undefined. That shape is what D5's collision audit
+    refuses, but an audit runs after the model materialises, so the window is
+    real and the totality argument would be leaning on a blocking check in a
+    different artifact. One extra sort term restores it structurally and
+    locally — the same defense-in-depth already pinned into this exact column
+    by ``NULLS LAST``.
+    """
+
+    return (dedupe.field, *dedupe.tie_break, *((SOURCE_COLUMN,) if merged else ()), ROW_ID_COLUMN)
 
 
 # ....................... #
 
 
-def dedupe_order(dedupe: DedupeIR, *, table: str | None = None) -> tuple[exp.Ordered, ...]:
+def dedupe_order(
+    dedupe: DedupeIR, *, table: str | None = None, merged: bool = False
+) -> tuple[exp.Ordered, ...]:
     """One ``DESC NULLS LAST`` term per sort column (D20)."""
 
     return tuple(
         exp.Ordered(this=exp.column(name, table=table), desc=True, nulls_first=False)
-        for name in dedupe_sort_columns(dedupe)
+        for name in dedupe_sort_columns(dedupe, merged=merged)
     )
 
 
@@ -74,7 +91,7 @@ def dedupe_order(dedupe: DedupeIR, *, table: str | None = None) -> tuple[exp.Ord
 
 
 def dedupe_row_number(
-    dedupe: DedupeIR, key: tuple[str, ...], *, table: str | None = None
+    dedupe: DedupeIR, key: tuple[str, ...], *, table: str | None = None, merged: bool = False
 ) -> Expression:
     """``ROW_NUMBER() OVER (PARTITION BY <key> ORDER BY <total order>)``.
 
@@ -85,17 +102,21 @@ def dedupe_row_number(
     return exp.Window(
         this=exp.RowNumber(),
         partition_by=[exp.column(name, table=table) for name in key],
-        order=exp.Order(expressions=list(dedupe_order(dedupe, table=table))),
+        order=exp.Order(expressions=list(dedupe_order(dedupe, table=table, merged=merged))),
     )
 
 
 # ....................... #
 
 
-def with_dedupe_qualify(select: exp.Select, dedupe: DedupeIR, key: tuple[str, ...]) -> exp.Select:
+def with_dedupe_qualify(
+    select: exp.Select, dedupe: DedupeIR, key: tuple[str, ...], *, merged: bool = False
+) -> exp.Select:
     """Attach the winner-takes-all ``QUALIFY`` to a SELECT (stage 3 of the
     fixed pipeline order). Returns a new SELECT; the input is not mutated."""
-    winner = exp.EQ(this=dedupe_row_number(dedupe, key), expression=exp.Literal.number(1))
+    winner = exp.EQ(
+        this=dedupe_row_number(dedupe, key, merged=merged), expression=exp.Literal.number(1)
+    )
     qualified = select.copy()
     qualified.set("qualify", exp.Qualify(this=winner))
 

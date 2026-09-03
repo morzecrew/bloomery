@@ -55,13 +55,13 @@ from bloomery.spec.quality import (
     CharsetRule,
     CoercibleRule,
     ExpressionRule,
-    InEnumRule,
     InSetRule,
     LengthRule,
     NormalizeRule,
     PatternRule,
     RangeRule,
     ReferentialRule,
+    UniqueRule,
 )
 from bloomery.transforms.registry import registry
 
@@ -73,6 +73,7 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 __all__ = [
+    "enum_chain",
     "field_sources",
     "generated_rule_names",
     "lower_coverage",
@@ -145,7 +146,7 @@ def field_sources(mapping: Mapping, field_name: str) -> tuple[str, ...]:
 # ....................... #
 
 
-def _enum_chain(mapping: Mapping, field_name: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+def enum_chain(mapping: Mapping, field_name: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """The ``enum_map`` steps of a field's chain as (spellings, targets), each
     deduplicated and sorted — what defines ``in_enum``'s admissible set
     (RFC 0016 §5.2, D49).
@@ -287,9 +288,7 @@ def _field_rule_ir(
         params.append(("via", rule.repair.via))
         params.append(("body", repair_body or ""))
 
-    if isinstance(rule, CoercibleRule):
-        params.extend(_indexed("source", field_sources(mapping, column)))
-    elif isinstance(rule, (RangeRule, LengthRule)):
+    if isinstance(rule, (RangeRule, LengthRule)):
         if rule.min is not None:
             params.append(("min", str(rule.min)))
         if rule.max is not None:
@@ -312,10 +311,6 @@ def _field_rule_ir(
         # unreadable and the whole rule exists for invisible characters.
         expand_codepoints(items, where=f"rule {stem!r}")
         params.extend(_indexed(side, items))
-    elif isinstance(rule, InEnumRule):
-        spellings, targets = _enum_chain(mapping, column)
-        params.extend(_indexed("value", targets))
-        params.extend(_indexed("spelling", spellings))
     elif isinstance(rule, InSetRule):
         params.extend(_indexed("value", tuple(str(value) for value in rule.values)))
         # The member's declared *type*, carried beside its text: the spec
@@ -331,7 +326,14 @@ def _field_rule_ir(
                     tuple("true" if isinstance(value, int) else "false" for value in rule.values),
                 )
             )
-    else:  # UniqueRule — the slice is the entity's partition, or the table
+    elif isinstance(rule, UniqueRule):
+        # The slice is the entity's partition, or the table. Matched by kind
+        # rather than left as a bare `else`: `coercible` and `in_enum` carry no
+        # params of their own since RFC 0024 D32 moved their inputs onto the
+        # per-source column, and an `else` written for one kind silently
+        # collected every kind that stopped matching above it — an authored
+        # `in_enum` on a partitioned entity lowered with the partition columns
+        # as its `slice_NNNN` params.
         params.extend(_indexed("slice", slice_columns))
 
     return QualityRuleIR(
@@ -501,7 +503,7 @@ def _draft_rules(
                     kind="coercible",
                     column=column,
                     on_fail=on_fail,
-                    params=tuple(sorted(_indexed("source", field_sources(mapping, column)))),
+                    params=(),
                 )
             )
 

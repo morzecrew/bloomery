@@ -5,6 +5,7 @@ artifact SELECT extraction the execution tier uses."""
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from pathlib import Path
 
 from bloomery import Target, compile_project, load_catalog, load_project
@@ -164,3 +165,23 @@ def resolve_dbt_references(sql: str) -> str:
     """
     sql = _DBT_SOURCE.sub(lambda m: f"{m['namespace']}.{m['relation']}", sql)
     return _DBT_REF.sub(lambda m: m["relation"], sql)
+
+
+def assert_no_orphans(snapshot_dir: Path, paths: Sequence[str]) -> None:
+    """Nothing in the golden directory that the compile did not produce.
+
+    ``pytest-snapshot`` writes what it is given and never sweeps, and the
+    per-fixture path list asserts the *compile's* output rather than the
+    directory's contents — so an artifact that stops being emitted leaves its
+    golden behind, checked in, byte-identical to the day it was right and read
+    by the next person as the shipped output. Found exactly that way: a fixture
+    briefly carried `quarantine:`, and its reject model, replay and quality mart
+    stayed in the corpus after it stopped.
+    """
+    on_disk = {
+        str(path.relative_to(snapshot_dir))
+        for path in snapshot_dir.rglob("*")
+        if path.is_file()
+    }
+    orphans = sorted(on_disk - set(paths))
+    assert not orphans, f"{snapshot_dir}: golden files nothing emits — {', '.join(orphans)}"

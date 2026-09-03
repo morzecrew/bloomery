@@ -6,7 +6,12 @@ from __future__ import annotations
 import pytest
 
 from bloomery import build_project_ir, load_catalog, load_project, project_fingerprint
-from bloomery.errors import MissingReference, ResolutionError, TypeCheckError
+from bloomery.errors import (
+    GuardrailError,
+    MissingReference,
+    ResolutionError,
+    TypeCheckError,
+)
 from bloomery.ir import (
     DateDimensionIR,
     DimensionRef,
@@ -15,6 +20,7 @@ from bloomery.ir import (
     PartitionSpec,
     UnreachableMetric,
 )
+from bloomery.quality import dedupe_sort_columns
 from bloomery.typing import DecimalType, StringType, TimestampType
 from support.compiling import load_fixture
 
@@ -473,84 +479,119 @@ key:
     assert [column.name for column in entity.columns] == ["event_id"]
 
 
-@pytest.mark.parametrize(
-    ("block", "citation", "phase"),
-    [
-        (
-            """\
-    dedupe: {keep: latest_by, field: occurred_at}
-""",
-            "RFC 0024 D14",
-            "RFC 0024 §12 P2b",
-        ),
-        (
-            """\
-    quarantine: {retention: 90d}
-""",
-            "RFC 0024 D14",
-            "RFC 0024 §12 P2c",
-        ),
-        (
-            """\
-    quality:
-      - {rule: expression, name: has_kind, expr: "kind IS NOT NULL", on_fail: flag}
-""",
-            "RFC 0024 D29",
-            "RFC 0024 §12 P2a",
-        ),
-    ],
-    ids=["dedupe", "quarantine", "entity_quality"],
-)
-def test_the_quality_system_is_refused_on_a_merged_entity(
-    block: str, citation: str, phase: str
-) -> None:
-    """RFC 0024 D14, widened by D29. Each leg of ``opts_in`` is its own
-    assertion: the predicate is a disjunction, and a test of one leg proves
-    nothing about the others.
+def test_a_merged_entity_carries_dedupe_and_quarantine() -> None:
+    """RFC 0024 P2b and P2c: the two blocks D14 refused now reach the IR.
 
-    ``phase`` is asserted separately from ``citation`` because the two answer
-    different questions and only one of them was ever wrong: the citation says
-    *why* the construct is refused, the phase says *where the merged form is
-    designed* — and §12 puts `dedupe:` in P2b and `quarantine:` in P2c. One
-    message served both blocks, so a `quarantine:` refusal routed its reader to
-    the phase that restores the other block.
+    D14's reason was the per-source row identity, which is unique within *one*
+    source relation (RFC 0016 D21) — so the dedupe order was not total and the
+    metadata audit would have refused correct data. Both are answered
+    structurally: ``_source`` joins the sort key ahead of the identity (D35)
+    and the audit partitions by the pair (D34).
     """
     model = _MERGE_ENTITY_MODEL.replace(
-        "      note: {type: string}\n", "      note: {type: string}\n" + block
+        "      note: {type: string}\n",
+        "      note: {type: string}\n"
+        "      occurred_at: {type: timestamp}\n"
+        "      seq: {type: int}\n"
+        "    dedupe: {keep: latest_by, field: occurred_at, tie_break: [seq]}\n"
+        "    quarantine: {retention: 90d}\n",
     )
-    with pytest.raises(ResolutionError) as excinfo:
-        build_project_ir(load_project(_merge_sources(entity_model=model)))
-    message = str(excinfo.value)
-    assert citation in message
-    assert phase in message
-
-
-def test_a_field_level_quality_block_is_refused_on_a_merged_entity() -> None:
-    """The third leg of ``opts_in`` (D29), and the one the row is really about:
-    a field rule is declared on a *mapping*, so two mappings can disagree about
-    whether the entity joined the quality system at all."""
+    tail = (
+        '  occurred_at: {from: "$.occurred_at", transform: [{parse_ts: ISO8601}]}\n'
+        '  seq: {from: "$.seq", transform: [to_int]}\n'
+        'unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]\n'
+    )
     sources = _merge_sources(
-        mapping_z="""\
-mapping_version: 1
-source: src_a
-target: event
-key:
-  event_id: {from: "$.identifier", transform: [to_string]}
-fields:
-  kind:
-    from: "$.type"
-    transform: [to_string]
+        entity_model=model,
+        mapping_a=_SRC_Z_MAPPING + tail,
+        mapping_z=_SRC_A_MAPPING + tail,
+    )
+    ir = build_project_ir(load_project(sources))
+    (entity,) = ir.entities
+    assert entity.dedupe is not None
+    assert entity.dedupe.field == "occurred_at"
+    assert entity.quarantine is not None
+    assert entity.quarantine.retention == "90d"
+    # The order the survivor is picked by is total on a merged entity: without
+    # `_source` two rows from different sources on one key compare equal.
+    assert dedupe_sort_columns(entity.dedupe, merged=True) == (
+        "occurred_at",
+        "seq",
+        "_source",
+        "_source_row_id",
+    )
+
+
+def test_a_merged_entity_carries_quality_rules() -> None:
+    """RFC 0024 P2a: what D29 refused outright now compiles.
+
+    Both mappings declare the same rule, which is what D33 requires — and the
+    rule reaches the IR once, evaluated over the merged relation, while each
+    branch carries its own source paths for it (D32).
+    """
+    quality = """\
     quality:
       - {rule: not_null, on_fail: flag}
-""",
+"""
+    metadata = 'unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]\n'
+    sources = _merge_sources(
+        # The implicit `coercible` rule defaults to `quarantine` (RFC 0016
+        # §5.2), so an entity with any quality surface needs a reject table.
+        entity_model=_MERGE_ENTITY_MODEL.replace(
+            "      note: {type: string}\n",
+            "      note: {type: string}\n    quarantine: {retention: 90d}\n",
+        ),
+        mapping_a=_SRC_Z_MAPPING.replace(
+            '  kind: {from: "$.kind", transform: [to_string]}\n',
+            '  kind:\n    from: "$.kind"\n    transform: [to_string]\n' + quality,
+        )
+        + metadata,
+        mapping_z=_SRC_A_MAPPING.replace(
+            '  kind: {from: "$.type", transform: [to_string]}\n',
+            '  kind:\n    from: "$.type"\n    transform: [to_string]\n' + quality,
+        )
+        + metadata,
+    )
+    ir = build_project_ir(load_project(sources))
+    (entity,) = ir.entities
+    assert [rule.name for rule in entity.quality if rule.kind == "not_null"] == ["kind_not_null"]
+
+    # One rule, two branches, and each branch reads its own path — the split
+    # that made the rule mapping-invariant in the first place.
+    paths = {
+        source.relation: next(c.sources for c in source.columns if c.name == "kind")
+        for source in entity.sources
+    }
+    assert paths == {"src_a": ("type",), "src_z": ("kind",)}
+
+
+def test_two_mappings_declaring_different_rules_are_refused() -> None:
+    """RFC 0024 D33: the rules are evaluated once over the merged relation, so
+    a set lowered from one mapping would silently drop what the others wrote.
+
+    This is the shape ``opts_in`` alone cannot catch — both mappings *do* opt
+    in, and they still declare disjoint rules.
+    """
+    sources = _merge_sources(
+        mapping_a=_SRC_Z_MAPPING.replace(
+            '  kind: {from: "$.kind", transform: [to_string]}\n',
+            '  kind:\n    from: "$.kind"\n    transform: [to_string]\n'
+            "    quality:\n      - {rule: not_null, on_fail: flag}\n",
+        ),
+        mapping_z=_SRC_A_MAPPING.replace(
+            '  kind: {from: "$.type", transform: [to_string]}\n',
+            '  kind:\n    from: "$.type"\n    transform: [to_string]\n'
+            "    quality:\n      - {rule: length, max: 8, on_fail: flag}\n",
+        ),
     )
     with pytest.raises(ResolutionError) as excinfo:
         build_project_ir(load_project(sources))
     message = str(excinfo.value)
-    assert "RFC 0024 D29" in message
-    # It names the mapping's own document, not the entity model.
-    assert excinfo.value.source_path is not None
-    assert "fields.kind.quality" in excinfo.value.source_path
+    assert "RFC 0024 D33" in message
+    # It names a rule that differs, and routes to both documents.
+    assert "kind_length_max" in message
+    assert "src_a" in message
+    assert "src_z" in message
 
 
 def test_a_mart_over_a_merged_entity_flattens() -> None:
@@ -710,13 +751,19 @@ def test_the_refusals_are_batched() -> None:
     than fixing one and recompiling to find the next."""
     model = _MERGE_ENTITY_MODEL.replace(
         "    key: [event_id]\n", "    key: [event_id]\n    scd: type2\n"
-    ).replace(
-        "      note: {type: string}\n",
-        "      note: {type: string}\n"
-        "    dedupe: {keep: latest_by, field: occurred_at}\n",
+    )
+    sources = _merge_sources(
+        entity_model=model,
+        mapping_a=_SRC_Z_MAPPING.replace(
+            '  kind: {from: "$.kind", transform: [to_string]}\n',
+            '  kind:\n    from: "$.kind"\n    transform: [to_string]\n'
+            "    quality:\n      - {rule: not_null, on_fail: flag}\n",
+        ),
     )
     with pytest.raises(ResolutionError) as excinfo:
-        build_project_ir(load_project(_merge_sources(entity_model=model)))
+        build_project_ir(load_project(sources))
+    # `scd: type2` with two mappings (D23), and two mappings whose rules
+    # disagree about a column they both produce (D33).
     assert len(excinfo.value.collected) >= 2
 
 
@@ -825,3 +872,81 @@ def test_a_validity_column_in_the_key_is_refused_before_this_check_sees_it() -> 
             )
         )
     assert "key lowers unknown field 'valid_from' of entity 'event'" in str(unknown.value)
+
+
+def test_a_rule_may_not_read_the_provenance_column() -> None:
+    """`_source` is a column of the merged relation and is **not** readable by a
+    rule (RFC 0024 D6, D9).
+
+    D6 argues rules judge the merged relation, so a rule branching on which
+    source a row came from would be judging per source over a relation the
+    union built to be judged once. The refusal is not new code — an
+    `expression` rule is checked against the entity's lowered columns plus the
+    ingestion metadata, and `_source` is in neither set — which is why it is
+    pinned here rather than assumed: it is the reason RFC 0024 D9's contract
+    half still has nothing to protect now that P2 allows rules at all.
+    """
+    metadata = 'unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]\n'
+    model = _MERGE_ENTITY_MODEL.replace(
+        "      note: {type: string}\n",
+        "      note: {type: string}\n"
+        "    quarantine: {retention: 90d}\n"
+        "    quality:\n"
+        '      - {rule: expression, name: not_legacy, expr: "_source <> \'src_a\'", '
+        "on_fail: flag}\n",
+    )
+    sources = _merge_sources(
+        entity_model=model,
+        mapping_a=_SRC_Z_MAPPING + metadata,
+        mapping_z=_SRC_A_MAPPING + metadata,
+    )
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(load_project(sources))
+    # Not a bare `"_source" in message`: `_source_row_id` is in the message's
+    # own list of known columns, so that assertion would pass on any refusal
+    # mentioning either.
+    assert "reads _source, which the entity does not declare" in str(excinfo.value)
+
+
+def test_a_rule_on_a_column_only_one_mapping_produces_reaches_the_entity() -> None:
+    """The rule set is the **union** over every mapping, not the first one's.
+
+    §5.2 rule 3 lets a source omit an optional field and fills it with a typed
+    NULL, so a column can be produced by one branch and not another — and its
+    rules are still the entity's. Taking `mappings[0]`'s set would drop them
+    silently, and which rules survived would depend on nothing but which source
+    relation sorts first.
+
+    `note` is exactly that column here: `src_z` maps it, `src_a` does not, and
+    `src_a` is the first branch. The generated `coercible` rule for it can only
+    come from the second mapping.
+    """
+    metadata = 'unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]\n'
+    sources = _merge_sources(
+        entity_model=_MERGE_ENTITY_MODEL.replace(
+            "      note: {type: string}\n",
+            "      note: {type: string}\n    quarantine: {retention: 90d}\n",
+        ),
+        mapping_a=_SRC_Z_MAPPING.replace(
+            '  kind: {from: "$.kind", transform: [to_string]}\n',
+            '  kind:\n    from: "$.kind"\n    transform: [to_string]\n'
+            "    quality:\n      - {rule: not_null, on_fail: flag}\n",
+        )
+        + metadata,
+        mapping_z=_SRC_A_MAPPING.replace(
+            '  kind: {from: "$.type", transform: [to_string]}\n',
+            '  kind:\n    from: "$.type"\n    transform: [to_string]\n'
+            "    quality:\n      - {rule: not_null, on_fail: flag}\n",
+        )
+        + metadata,
+    )
+    ir = build_project_ir(load_project(sources))
+    (entity,) = ir.entities
+    assert [source.relation for source in entity.sources] == ["src_a", "src_z"]
+    assert "note" not in _SRC_A_MAPPING  # the first branch does not produce it
+    assert "note_coercible" in {rule.name for rule in entity.quality}
+
+    # …and the branch that does not map it carries no source paths for it, so
+    # the marker is inert there rather than reporting every one of its rows.
+    src_a = next(source for source in entity.sources if source.relation == "src_a")
+    assert next(c.sources for c in src_a.columns if c.name == "note") == ()
