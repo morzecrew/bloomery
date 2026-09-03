@@ -21,11 +21,11 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from bloomery.errors import GuardrailError
+from bloomery.errors import GuardrailError, guaranteed
 from bloomery.guardrails.additivity import check_additivity
 from bloomery.guardrails.arithmetic import check_arithmetic
 from bloomery.guardrails.asserts import lower_asserts
-from bloomery.guardrails.conflict import path_conflict_amendments
+from bloomery.guardrails.conflict import Shadow, path_conflict_amendments
 from bloomery.guardrails.grain import check_grain
 from bloomery.guardrails.metrics import check_metrics
 from bloomery.guardrails.operands import collect_derivations
@@ -33,7 +33,7 @@ from bloomery.guardrails.quality import check_quality
 from bloomery.marts import lower_marts
 
 if TYPE_CHECKING:
-    from bloomery.ir import AuditIR, ColumnIR, EntityIR, ProjectIR, SourceColumnIR
+    from bloomery.ir import AuditIR, EntityIR, ProjectIR
     from bloomery.spec.catalog import Catalog
     from bloomery.spec.project import Project
 
@@ -47,7 +47,7 @@ __all__ = [
 def _amended_entity(
     entity: EntityIR,
     lowered: dict[str, list[AuditIR]],
-    shadows: dict[str, list[tuple[ColumnIR, SourceColumnIR]]],
+    shadows: dict[str, list[Shadow]],
     reconcile: dict[str, list[AuditIR]],
 ) -> EntityIR:
     audits = tuple(
@@ -57,28 +57,53 @@ def _amended_entity(
         )
     )
     present = {column.name for column in entity.columns}
-    extra = [pair for pair in shadows.get(entity.name, []) if pair[0].name not in present]
+    extra = [shadow for shadow in shadows.get(entity.name, []) if shadow.column.name not in present]
 
     if audits == entity.audits and not extra:
         return entity
 
     columns = tuple(
-        sorted([*entity.columns, *(column for column, _ in extra)], key=lambda column: column.name)
+        sorted(
+            [*entity.columns, *(shadow.column for shadow in extra)], key=lambda column: column.name
+        )
     )
     # Both halves move together (RFC 0024 D26): a schema column with no
     # projection is a column the SELECT cannot produce, which would compile
-    # clean and fail on the first run. ``direct:`` is refused on a merged
-    # entity (D28), so ``extra`` is empty for every entity with more than one
-    # source and the comprehension amends the only one there is — written over
-    # ``sources`` rather than over ``sources[0]`` so that the day D28 lifts,
-    # this reads as an unfinished fan-out instead of a silent single-branch
-    # amendment.
+    # clean and fail on the first run. On a merged entity each branch takes
+    # the projection of *its own* mapping's ``direct:`` path (D36) — the other
+    # branch's path need not exist on this relation, which is what made D28
+    # refuse the combination while one shadow stood for every source.
+    #
+    # ``guaranteed`` rather than a ``.get``: every mapping producing the column
+    # records a path or the entity was refused in ``resolve.build``, so a
+    # missing entry here is that refusal having stopped working, and the
+    # NULL-filled column it would produce is exactly the silence D28 named.
     sources = tuple(
         replace(
             source,
             columns=tuple(
                 sorted(
-                    [*source.columns, *(projection for _, projection in extra)],
+                    [
+                        *source.columns,
+                        *(
+                            guaranteed(
+                                (
+                                    projection
+                                    for relation, projection in shadow.projections.items()
+                                    if relation == source.relation
+                                ),
+                                expected=(
+                                    f"a {shadow.column.name!r} projection for source "
+                                    f"{source.relation!r} of entity {entity.name!r}"
+                                ),
+                                by=(
+                                    "the D36 agreement refusal, which requires every mapping "
+                                    "producing the column to record a 'direct:' path"
+                                ),
+                            )
+                            for shadow in extra
+                        ),
+                    ],
                     key=lambda column: column.name,
                 )
             ),

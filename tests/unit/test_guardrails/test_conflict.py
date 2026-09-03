@@ -51,8 +51,57 @@ def test_amendments_are_computed_per_entity() -> None:
     derivations = collect_derivations(project, catalog)
     shadows, audits = path_conflict_amendments(derivations, draft)
     assert sorted(shadows) == ["item"]
-    assert [column.name for column, _ in shadows["item"]] == ["net_price__direct"]
+    assert [shadow.column.name for shadow in shadows["item"]] == ["net_price__direct"]
+    assert sorted(shadows["item"][0].projections) == ["shop__items"]
     assert [audit.column for audit in audits["item"]] == ["net_price"]
+
+
+def test_a_merged_entity_gets_one_shadow_and_one_projection_per_source() -> None:
+    """RFC 0024 D36. The arity is the whole finding: the schema half is
+    per *entity* and the lowering half is per *source*.
+
+    Grouping is what decides it — a merged entity has one derivation per
+    mapping for the same field, so appending per derivation would hand the
+    entity two columns of one name and emit the reconcile audit twice.
+    """
+    project, catalog = load_fixture("path_conflict_merged")
+    draft = build_project_ir(project, catalog)
+    derivations = collect_derivations(project, catalog)
+    shadows, audits = path_conflict_amendments(derivations, draft)
+    (shadow,) = shadows["item"]
+    assert shadow.column.name == "net_price__direct"
+    assert sorted(shadow.projections) == ["shopify__items", "woo__items"]
+    # Each branch reads *its own* mapping's path. `$.price` does not exist on
+    # `woo__items`, which is what D28 refused while one shadow stood for all.
+    assert shadow.projections["shopify__items"].expr.sql == "CAST(price AS DECIMAL(12, 4))"
+    assert shadow.projections["woo__items"].expr.sql == "CAST(unit_amount AS DECIMAL(12, 4))"
+    assert [audit.column for audit in audits["item"]] == ["net_price"]
+
+
+def test_a_merged_entity_carries_the_shadow_on_every_branch_of_the_ir() -> None:
+    """The amendment reaching the IR, which is what the SELECT is built from.
+
+    Asserted apart from the function above because the two can disagree: the
+    amendments are computed per source and *applied* in `guardrails.stage`,
+    and a stage that dropped the fan-out would attach one branch's projection
+    to both — a `$.price` extraction off a relation that has no `$.price`.
+    """
+    project, catalog = load_fixture("path_conflict_merged")
+    ir = build_project_ir(project, catalog)
+    (entity,) = ir.entities
+    assert "net_price__direct" in {column.name for column in entity.columns}
+    lowered = {
+        source.relation: next(
+            column for column in source.columns if column.name == "net_price__direct"
+        )
+        for source in entity.sources
+    }
+    assert sorted(lowered) == ["shopify__items", "woo__items"]
+    assert lowered["shopify__items"].expr.sql == "CAST(price AS DECIMAL(12, 4))"
+    assert lowered["woo__items"].expr.sql == "CAST(unit_amount AS DECIMAL(12, 4))"
+    assert entity.audits == (
+        AuditIR(kind="reconcile", column="net_price", params=(("shadow", "net_price__direct"),)),
+    )
 
 
 def test_derivations_without_a_direct_path_amend_nothing() -> None:

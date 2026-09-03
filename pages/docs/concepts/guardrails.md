@@ -159,6 +159,12 @@ the *silence*, not the spec. Both paths are individually valid, so there is noth
 the author to fix at compile time; raising would force them to delete information to
 make the error go away, which is strictly worse than measuring the disagreement.
 
+On an entity [merged from several sources](../how-to/merge-sources.md#a-direct-path-on-a-merged-entity)
+the shadow is projected per branch, from that mapping's own path, so the audit compares
+each row against the direct value its own source carried. What is refused there is
+*disagreement about whether the conflict exists*: every mapping producing the column
+records a path, or none does.
+
 ## Range sanity
 
 Optional per-field `assert:` clauses — `min`, `max`, `not_null`, `enum` membership,

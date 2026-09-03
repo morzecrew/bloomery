@@ -39,6 +39,7 @@ canonical_fields:
 def _derivation(expr: str, *operands: str) -> Derivation:
     return Derivation(
         source_path="mapping[s->item]: fields.f",
+        source="s",
         entity="item",
         field="f",
         expr=expr,
@@ -210,6 +211,7 @@ def test_identity_derivations_and_plain_references_are_skipped() -> None:
     assert _check("net_price", "net_price") == []
     identity = Derivation(
         source_path="mapping[s->item]: fields.f",
+        source="s",
         entity="item",
         field="f",
         expr=None,

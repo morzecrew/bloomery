@@ -57,9 +57,19 @@ class Derivation:
     """One recorded recipe derivation, addressed for violation reporting:
     the target entity and field, the catalog recipe's expression and operand
     names (``requires``), and the optional ``direct:`` path whose presence is
-    the path-conflict state (RFC 0006 §5.5)."""
+    the path-conflict state (RFC 0006 §5.5).
+
+    ``source`` is the bronze relation the mapping that recorded this reads.
+    A derivation is a **per-mapping** fact about a shared entity node, so an
+    entity built from several mappings has one of these per branch — the shape
+    RFC 0024 D26 split for a column's expression and D32 for a rule's inputs.
+    It reaches here so that ``direct:`` can fan out the same way (D36): the
+    shadow a branch projects is the path *that branch's* own mapping named,
+    and no other relation need have it.
+    """
 
     source_path: str
+    source: str
     entity: str
     field: str
     expr: str | None
@@ -121,6 +131,7 @@ def collect_derivations(project: Project, catalog: Catalog | None) -> tuple[Deri
             derivations.append(
                 Derivation(
                     source_path=f"{doc}: fields.{field_name}",
+                    source=mapping.source,
                     entity=mapping.target,
                     field=field_name,
                     expr=recipe.expr,

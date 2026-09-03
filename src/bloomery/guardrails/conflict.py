@@ -14,6 +14,7 @@ silence, not the spec.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from sqlglot import exp
@@ -29,40 +30,71 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 __all__ = [
+    "Shadow",
     "path_conflict_amendments",
 ]
 
 
-def _shadow(derived: ColumnIR, direct: str) -> tuple[ColumnIR, SourceColumnIR]:
-    """The direct-path shadow: same declared type and catalog metadata as the
-    derived column (it is the same canonical field), lowered as a declared-
-    type cast of the direct extraction (RFC 0005 lowering rules).
+@dataclass(frozen=True, slots=True)
+class Shadow:
+    """One field's ``__direct`` shadow: the entity column, and the projection
+    each source relation contributes to it.
 
-    Returns both halves (RFC 0024 D26). This is the **second** place a lowering
-    is built — the first is ``resolve.build._column_pair`` — because the shadow
-    is an amendment the guardrail stage adds after the builder has run.
-
-    It stays single-source, and that is a decision rather than an oversight:
-    ``direct:`` is per mapping, so a merged entity could declare one on one
-    source and not another, leaving this shadow NULL for the other's rows and
-    a reconcile audit that silently stops checking. RFC 0024 D28 refuses the
-    combination, which is what keeps this function one-to-one.
+    The pair travels together for the reason :func:`resolve.build._column_pair`
+    gives — a schema column with no projection is a column the SELECT cannot
+    produce — and the projections are keyed by relation because a merged
+    entity's branches read different paths for it (RFC 0024 D36).
     """
 
-    return (
-        ColumnIR(
-            name=f"{derived.name}__direct",
-            type=derived.type,
-            canonical=derived.canonical,
-            unit=derived.unit,
-            tax_basis=derived.tax_basis,
-            renamed_from=None,
-            required=False,
-        ),
-        SourceColumnIR(
-            name=f"{derived.name}__direct",
-            expr=canon(exp.cast(extraction(direct), neutral_type(derived.type))),
-        ),
+    column: ColumnIR
+    #: Source relation → that branch's projection. Read by relation, never
+    #: iterated where the order could reach output (RFC 0003).
+    projections: dict[str, SourceColumnIR]
+
+
+def _shadow_column(derived: ColumnIR) -> ColumnIR:
+    """The direct-path shadow's schema half: same declared type and catalog
+    metadata as the derived column, since it is the same canonical field.
+
+    One per entity column, never one per source — the schema of a merged
+    entity is what every mapping agrees on (RFC 0024 D26), and this half is
+    derived from the entity's own column alone.
+    """
+
+    return ColumnIR(
+        name=f"{derived.name}__direct",
+        type=derived.type,
+        canonical=derived.canonical,
+        unit=derived.unit,
+        tax_basis=derived.tax_basis,
+        renamed_from=None,
+        required=False,
+    )
+
+
+# ....................... #
+
+
+def _shadow_projection(derived: ColumnIR, direct: str) -> SourceColumnIR:
+    """One branch's projection of the shadow: a declared-type cast of *that
+    mapping's* direct extraction (RFC 0005 lowering rules).
+
+    Per source, because ``direct:`` is per mapping (RFC 0024 D36). Under D28
+    this was one projection for one entity and the combination was refused
+    outright; the refusal named the right failure — a shadow NULL for one
+    branch's rows is indistinguishable from a genuinely NULL direct value —
+    but reached it from `Derivation` carrying no source rather than from
+    anything about NULLs. With the source carried, disagreement is refused in
+    `resolve.build` and agreement fans out here like every other lowering.
+
+    This is the **second** place a lowering is built — the first is
+    ``resolve.build._column_pair`` — because the shadow is an amendment the
+    guardrail stage adds after the builder has run.
+    """
+
+    return SourceColumnIR(
+        name=f"{derived.name}__direct",
+        expr=canon(exp.cast(extraction(direct), neutral_type(derived.type))),
     )
 
 
@@ -71,12 +103,27 @@ def _shadow(derived: ColumnIR, direct: str) -> tuple[ColumnIR, SourceColumnIR]:
 
 def path_conflict_amendments(
     derivations: tuple[Derivation, ...], draft: ProjectIR
-) -> tuple[dict[str, list[tuple[ColumnIR, SourceColumnIR]]], dict[str, list[AuditIR]]]:
+) -> tuple[dict[str, list[Shadow]], dict[str, list[AuditIR]]]:
     """Per-entity shadow columns and reconcile audits for every derivation
-    that also records a ``direct:`` path."""
+    that also records a ``direct:`` path.
+
+    Grouped by ``(entity, field)`` rather than taken one derivation at a time,
+    because a merged entity has one derivation **per mapping** for the same
+    field (RFC 0024 D36). What that grouping decides is the arity of each half:
+    one schema column and one reconcile audit for the field, and one projection
+    for each source that recorded a path. Appending per derivation instead
+    would emit the audit once per branch and hand the entity N columns of one
+    name — two writers at one path, which is what D8 refuses for relations and
+    what an entity's own schema has no way to express.
+
+    Every mapping that produces the column records a ``direct:`` or none does;
+    ``resolve.build`` has refused the entity otherwise (D36), so a shadow is
+    never NULL on some branch for want of a path.
+    """
     entities: dict[str, EntityIR] = {entity.name: entity for entity in draft.entities}
-    shadows: dict[str, list[tuple[ColumnIR, SourceColumnIR]]] = {}
+    shadows: dict[str, list[Shadow]] = {}
     audits: dict[str, list[AuditIR]] = {}
+    built: dict[tuple[str, str], Shadow] = {}
 
     for derivation in derivations:
         if derivation.direct is None:
@@ -87,13 +134,21 @@ def path_conflict_amendments(
             expected=f"the derived column {derivation.field!r} on entity {entity.name!r}",
             by="resolution, which builds the column it derives",
         )
-        shadows.setdefault(derivation.entity, []).append(_shadow(derived, derivation.direct))
-        audits.setdefault(derivation.entity, []).append(
-            AuditIR(
-                kind="reconcile",
-                column=derivation.field,
-                params=(("shadow", f"{derivation.field}__direct"),),
+        key = (derivation.entity, derivation.field)
+        shadow = built.get(key)
+
+        if shadow is None:
+            shadow = Shadow(column=_shadow_column(derived), projections={})
+            built[key] = shadow
+            shadows.setdefault(derivation.entity, []).append(shadow)
+            audits.setdefault(derivation.entity, []).append(
+                AuditIR(
+                    kind="reconcile",
+                    column=derivation.field,
+                    params=(("shadow", f"{derivation.field}__direct"),),
+                )
             )
-        )
+
+        shadow.projections[derivation.source] = _shadow_projection(derived, derivation.direct)
 
     return shadows, audits

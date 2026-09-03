@@ -1,0 +1,19 @@
+# The shop being migrated away from. Its branch is unioned **second**
+# (`shopify__items` < `woo__items`) while this document is parsed **first**,
+# the same opposition `multi_source` sets up: without it a golden would pass
+# whether or not the compiler ordered the branches at all.
+mapping_version: 1
+source: woo__items
+target: item
+key:
+  order_id: {from: "$.order_number", transform: [to_string]}
+  line_no: {from: "$.item_index", transform: [to_int]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.line_gross", quantity: "$.qty"}
+    # A different path from the other shop's, on a relation that has no
+    # `$.price` at all. Under one shadow for the whole entity this branch
+    # would have projected the other's extraction (RFC 0024 D36).
+    direct: "$.unit_amount"
+  quantity: {from: "$.qty", transform: [to_int]}

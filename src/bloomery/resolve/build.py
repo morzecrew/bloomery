@@ -1296,22 +1296,84 @@ def _merge_refusals(
         )
         errors.append(ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.scd"))
 
-    for mapping in mappings:
-        doc = mapping_doc(mapping)
-        for field_name in sorted(mapping.fields):
-            field_mapping = mapping.fields[field_name]
-            if not isinstance(field_mapping, RecipeFieldMapping) or field_mapping.direct is None:
-                continue
-            msg = (
-                f"entity {entity_name!r} is built from {count} mappings and this one records "
-                f"a direct: path for {field_name!r}. 'direct:' is per mapping, so a merged "
-                f"entity can have one on this source and none on another — which leaves the "
-                f"'{field_name}__direct' shadow NULL for the other's rows, indistinguishable "
-                "from a genuinely NULL direct value, and the reconcile audit either reports a "
-                "false disagreement or silently stops checking (RFC 0024 D28). Fix: drop "
-                "'direct:' while the entity is merged"
-            )
-            errors.append(ResolutionError(msg, source_path=f"{doc}: fields.{field_name}.direct"))
+    errors.extend(_direct_agreement_refusals(entity_name, mappings))
+
+    return errors
+
+
+# ....................... #
+
+
+def _direct_path(mapping: Mapping, field_name: str) -> str | None:
+    """The ``direct:`` path this mapping records for ``field_name``, if any.
+
+    ``None`` covers both "recorded no path" and "lowered this column without a
+    recipe at all": a plain ``from:`` mapping has nowhere to hang one, and for
+    D36's purposes that is the same answer — this branch contributes no shadow.
+    """
+    field_mapping = mapping.fields.get(field_name)
+
+    if not isinstance(field_mapping, RecipeFieldMapping):
+        return None
+
+    return field_mapping.direct
+
+
+# ....................... #
+
+
+def _direct_agreement_refusals(
+    entity_name: str, mappings: tuple[Mapping, ...]
+) -> list[ResolutionError]:
+    """Every mapping that produces the column records a ``direct:`` path, or
+    none does (RFC 0024 D36).
+
+    D28 refused the combination outright. What it argued from was real and is
+    what this preserves: a shadow NULL for one branch's rows is
+    indistinguishable from a genuinely NULL direct value, so the reconcile
+    audit either reports a false disagreement or quietly stops checking — the
+    failure mode this project ranks worst, a check that stops checking. Under
+    agreement no branch's shadow is NULL for want of a path, so the audit keeps
+    the meaning it has on one source: the recipe-derived value against the
+    direct value *that row's own mapping* extracted (D32's principle, applied
+    to a second reader).
+
+    **Scoped to the mappings that produce the column**, like
+    :func:`_rule_agreement_refusals` and for the same reason: §5.2 rule 3 lets
+    a source omit an optional field and fills it with a typed NULL. A branch
+    that maps nothing for the field derives nothing, so there is nothing for a
+    shadow to disagree with, and requiring a path there would be unfixable —
+    ``direct:`` is a key of a *field mapping*, and that mapping does not exist.
+    """
+    if len(mappings) < 2:
+        return []
+
+    errors: list[ResolutionError] = []
+    fields = sorted({name for mapping in mappings for name in mapping.fields})
+
+    for field_name in fields:
+        producing = [mapping for mapping in mappings if field_name in mapping.fields]
+        recording = [m for m in producing if _direct_path(m, field_name) is not None]
+
+        if not recording or len(recording) == len(producing):
+            continue
+
+        silent = [m for m in producing if _direct_path(m, field_name) is None]
+        named = ", ".join(sorted(mapping_doc(mapping) for mapping in silent))
+        witness = min(recording, key=lambda mapping: mapping.source)
+        msg = (
+            f"entity {entity_name!r} is built from {len(mappings)} mappings and only "
+            f"{len(recording)} of the {len(producing)} that produce {field_name!r} record a "
+            f"direct: path for it. 'direct:' is per mapping, so this leaves the "
+            f"'{field_name}__direct' shadow NULL for the rows of {named}, indistinguishable "
+            "from a genuinely NULL direct value, and the reconcile audit either reports a "
+            "false disagreement or silently stops checking (RFC 0024 D36, answering D28). "
+            f"Fix: record a direct: path for {field_name!r} in {named} too, or drop it from "
+            f"{mapping_doc(witness)}"
+        )
+        errors.append(
+            ResolutionError(msg, source_path=f"{mapping_doc(witness)}: fields.{field_name}.direct")
+        )
 
     return errors
 

@@ -18,6 +18,10 @@
   surface, so a merged entity now emits on both SQL targets. D30's row below stands
   unamended: it was correct when written, what changed is the emitter, and the record of
   why merged entities were SQLMesh-only for one release is the point of keeping it.
+  **P2a–P2c landed 2026-09-03** (`8287f75`), and **P2d with them out of one change** on
+  the branch recorded in [`logs/T-0013.md`](../logs/T-0013.md): D36's `direct:` fan-out is
+  built and D28's refusal is replaced by the narrower one D36 names. What is left of this
+  document is the dbt tail §12 calls "Not P2".
   Everything below describes the design as argued; the deviation log is what says where the
   code went another way. Original scoping follows.
 - **P1 scope (as designed, D14):** the union, its checks, the collision audit and the `multi_source` fixture, with `dedupe:` and `quarantine:` refused on a merged entity (§5.6). D8, D10 and D11 are answered by D22–D24; D14–D21 record what reading the code turned up that §3 had not. **D26 answers D25** and **D28 answers D27**: the lowered expression moves to a per-source `SourceColumnIR` while `ColumnIR` keeps the schema (§5.7), and a `direct:` path is refused on a merged entity. The surface D26 moves is enumerated and closed — **three `ColumnIR` constructors and four lowering reads** — so P1 is specified and executable in the order §5.7 → §5.1–§5.6. **D29 widens D14's boundary to `opts_in`**: §5.6 traced the row identity soundly and then generalised past it, and rule lowering turns out to be per mapping behind neither block — so P1 refuses the quality system on a merged entity rather than only its two entity-level declarations. **D30 departs from D20**: the union needs no dbt capability, but its collision audit had no dbt surface, so a merged entity **was** refused on that target rather than shipped without the check that makes it correct — lifted 2026-08-20 by RFC 0026, as the status line above records; the tense is marked here because this bullet is P1's scope as designed and a live RFC stating a lifted refusal in the present tense reads as a contract.
@@ -668,7 +672,17 @@ against D10 directly. So P2c is gated twice — on D31's consumer and on that RF
 starting it before both is exactly how D16's argument would end up as a paragraph inside a
 feature branch, which is the thing D16 refuses.
 
-**P2d — `direct:` on a merged entity (D36).** Unblocked rather than scheduled here: D28
+**P2d — `direct:` on a merged entity (D36).**
+
+> **Settled (execution).** Built on `feat/instants-and-merged-direct-paths`
+> ([`logs/T-0013.md`](../logs/T-0013.md)), separately from P2a–P2c as this paragraph
+> asks. The execution shape below is what shipped, with one addition the paragraph does
+> not name: the refusal is scoped to the mappings that *produce* the column, for the
+> reason D33's is — §5.2 rule 3's optional field has no field mapping to hang a
+> `direct:` on, so requiring one there would refuse a shape this RFC exists to allow.
+> The `path_conflict` fixture is unchanged and `path_conflict_merged` is a second one.
+
+Unblocked rather than scheduled here: D28
 handed P2 a choice and D36 makes it, so what is left is execution — `Derivation` carrying
 its source, a per-source shadow, one refusal, and a merged variant of the `path_conflict`
 fixture. Deliberately **not** folded into the change that lands P2a–P2c: that change is

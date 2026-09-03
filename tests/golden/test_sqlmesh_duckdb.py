@@ -74,6 +74,16 @@ EXPECTED_PATHS = {
         "models/silver/order_item.sql",
     ],
     "path_conflict": ["audits/item_net_price_reconcile.sql", "models/silver/item.sql"],
+    # The same conflict on a merged entity (RFC 0024 D36, answering D28). What
+    # the golden shows and the IR assertions cannot: one shadow column and one
+    # reconcile audit for the entity, and a `__direct` projection per UNION ALL
+    # arm reading *that* arm's own path — the fan-out D28 refused while a
+    # single shadow stood for every source.
+    "path_conflict_merged": [
+        "audits/item_net_price_reconcile.sql",
+        "audits/item_source_collision.sql",
+        "models/silver/item.sql",
+    ],
     "role_playing_dates": [
         "models/gold/dim_date.sql",
         "models/gold/mart_orders.sql",

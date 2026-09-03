@@ -676,11 +676,14 @@ def test_a_mapping_lowering_a_partial_key_is_refused() -> None:
 
 
 def test_a_direct_path_is_refused_on_a_merged_entity() -> None:
-    """RFC 0024 D28. `direct:` is per mapping, so a merged entity can have one
-    on one source and none on another — which leaves the shadow NULL for the
-    other's rows, indistinguishable from a genuinely NULL direct value, and the
-    reconcile audit either reports a false disagreement or quietly stops
-    checking."""
+    """RFC 0024 D36, answering D28. `direct:` is per mapping, so a merged
+    entity can have one on one source and none on another — which leaves the
+    shadow NULL for the other's rows, indistinguishable from a genuinely NULL
+    direct value, and the reconcile audit either reports a false disagreement
+    or quietly stops checking.
+
+    D36 lifted the blanket refusal and kept this one: what is refused is
+    *disagreement*, and the fixture below is the disagreeing shape."""
     sources = _merge_sources(
         entity_model="""\
 spec_version: 1
@@ -727,8 +730,77 @@ canonical_fields:
     with pytest.raises(ResolutionError) as excinfo:
         build_project_ir(load_project(sources), catalog)
     message = str(excinfo.value)
-    assert "RFC 0024 D28" in message
+    assert "RFC 0024 D36" in message
     assert "kind__direct" in message
+    # Both documents named: the one that must gain a path and the one that
+    # could drop it, because either is a fix and the author picks.
+    assert "mapping[src_z->event]" in message
+    assert "mapping[src_a->event]" in message
+
+
+def test_a_direct_path_agreed_by_every_mapping_is_accepted() -> None:
+    """RFC 0024 D36's other half, and the one a refusal test cannot reach: an
+    agreeing merge compiles, and each branch projects **its own** path.
+
+    Without this the D36 change would pass its suite by refusing everything,
+    which is what the pre-D36 code already did.
+    """
+    sources = _merge_sources(
+        entity_model="""\
+spec_version: 1
+entities:
+  event:
+    grain: one row per event
+    key: [event_id]
+    fields:
+      event_id: {type: string, required: true}
+      kind: {type: string, canonical: kind}
+""",
+        mapping_z="""\
+mapping_version: 1
+source: src_a
+target: event
+key:
+  event_id: {from: "$.identifier", transform: [to_string]}
+fields:
+  kind:
+    recipe: passthrough
+    from: {value: "$.type"}
+    direct: "$.kind_a"
+""",
+        mapping_a="""\
+mapping_version: 1
+source: src_z
+target: event
+key:
+  event_id: {from: "$.id", transform: [to_string]}
+fields:
+  kind:
+    recipe: passthrough
+    from: {value: "$.kind"}
+    direct: "$.kind_z"
+""",
+    )
+    catalog = load_catalog("""\
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  kind:
+    entity: event
+    type: string
+    recipes:
+      - {id: passthrough, requires: [value], expr: "value"}
+""")
+    ir = build_project_ir(load_project(sources), catalog)
+    (entity,) = ir.entities
+    assert "kind__direct" in {column.name for column in entity.columns}
+    lowered = {
+        source.relation: next(
+            column for column in source.columns if column.name == "kind__direct"
+        ).expr.sql
+        for source in entity.sources
+    }
+    assert lowered == {"src_a": "CAST(kind_a AS TEXT)", "src_z": "CAST(kind_z AS TEXT)"}
 
 
 def test_scd_type2_is_refused_on_a_merged_entity() -> None:

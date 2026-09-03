@@ -1,0 +1,13 @@
+# The shop being migrated onto. Same recipe, same conflict, its own paths.
+mapping_version: 1
+source: shopify__items
+target: item
+key:
+  order_id: {from: "$.order_ref", transform: [to_string]}
+  line_no: {from: "$.position", transform: [to_int]}
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.total", quantity: "$.quantity"}
+    direct: "$.price"
+  quantity: {from: "$.quantity", transform: [to_int]}

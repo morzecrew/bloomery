@@ -117,6 +117,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   alias inside its own anchor (a recursive value) are `SpecParseError`, never a
   `RecursionError` or memory exhaustion. Ordinary anchors and aliases are unaffected.
 
+- **`direct:` now works on a merged entity.** It was refused outright: `direct:` is
+  declared per mapping, so an entity built from several could carry a path on one source
+  and none on another, leaving the `<field>__direct` shadow NULL for the other's rows —
+  indistinguishable from a genuinely NULL direct value, with the reconciliation audit
+  either reporting a disagreement that is not there or quietly no longer checking.
+
+  What actually blocked it was arity, not NULLs: one shadow projection stood for every
+  source, so each branch would have carried the other's extraction — a `$.price` read off
+  a relation that has no `$.price`. The shadow now fans out per source like every other
+  lowering, and each branch reconciles against the path *its own* mapping named. The
+  entity still gets one shadow column and one reconciliation audit.
+
+  What is refused is narrower and is disagreement about whether the conflict exists:
+  among the mappings that produce a column, all record a `direct:` path or none does,
+  with both documents named. A column only one mapping produces is unaffected.
+
 ### Changed
 
 - `convert` takes **three** arguments where it took one: `{convert: [EUR, USD,

@@ -115,10 +115,42 @@ All of it at once, so you fix a spec in one round trip rather than one error per
 | Two mappings reading the **same** relation | Branch order needs a total order, and two branches on one relation tie. Express two disjoint row sets of one table as one mapping with a filter |
 | `scd: type2` | The collision check below would fire on every key holding versions from two sources. Telling a version from a collision means reading the validity interval, and the union's lowering does not — the interval is modelled now (see [as-of joins](../concepts/wide-marts.md#historical-dimensions-need-an-anchor)), but the merge audit does not consult it |
 | Two mappings declaring **different** rules for a column they both produce | The rules run once over the merged relation, so a set taken from one mapping would silently drop what the others wrote. See [cleaning a merged entity](#cleaning-a-merged-entity) |
+| Some but not all of the mappings producing a column recording a `direct:` path | The `__direct` shadow would be NULL for the other source's rows, which is indistinguishable from a genuinely NULL direct value — so the reconciliation audit either reports a disagreement that is not there or quietly stops checking. See [a direct path on a merged entity](#a-direct-path-on-a-merged-entity) |
 
 Types need no separate check: each mapping's transform chain is already checked against the
 entity's *declaration*, so two mappings cannot disagree about a column's type without both
 failing first.
+
+## A direct path on a merged entity
+
+[`direct:`](../concepts/guardrails.md#path-conflict-the-guardrail-that-does-not-raise) records that a source carries a field
+directly *as well as* through a recipe, and the compiler emits both plus a reconciliation
+audit rather than picking one. On a merged entity each source names its own path:
+
+```yaml
+# mapping_shopify.yaml
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.total", quantity: "$.quantity"}
+    direct: "$.price"
+
+# mapping_woo.yaml — same recipe, same conflict, a different path
+fields:
+  net_price:
+    recipe: from_total
+    from: {line_total: "$.line_gross", quantity: "$.qty"}
+    direct: "$.unit_amount"
+```
+
+You get **one** `net_price__direct` column and **one** reconciliation audit, and each
+branch of the union projects its own extraction — `$.price` is read off the Shopify
+relation only, which is the only relation that has it.
+
+What both mappings have to agree on is *whether* the conflict exists. Every mapping that
+produces the column records a path, or none does; a column only one mapping produces at
+all is untouched by this, since a source that does not map a field has nothing to
+reconcile.
 
 ## The one thing only the warehouse can check
 
