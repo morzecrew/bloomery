@@ -1,6 +1,12 @@
 # RFC 0024 — Deterministic union merge
 
-- **Status:** 🚧 In progress — **P1 landed; P2 designed and demand-gated (D31).** The union,
+- **Status:** 🚧 In progress — **P1 landed; P2 in execution.** D31's gate opened on
+  2026-09-03: the named consumer is the project's own lakehouse example, whose pitch is
+  dirty bronze cleaned on the way to silver, and a union merge that cannot be cleaned
+  composes with none of it. D16's second gate on P2c is discharged by
+  [RFC 0035](0035-the-reject-table-on-a-merged-entity.md), which argues against RFC 0016 D10
+  directly and keeps it. Departures are recorded in [`logs/T-0012.md`](../logs/T-0012.md).
+  The union,
   its compile-time checks, the collision audit, `_source`, the plan-classifier rows, the
   `multi_source` fixture and the docs pair are shipped — five departures and one prose
   note recorded in [`logs/T-0004.md`](../logs/T-0004.md), drift count zero. This document
