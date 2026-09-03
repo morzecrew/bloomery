@@ -61,6 +61,7 @@ from bloomery.spec.quality import (
     PatternRule,
     RangeRule,
     ReferentialRule,
+    UniqueRule,
 )
 from bloomery.transforms.registry import registry
 
@@ -325,7 +326,14 @@ def _field_rule_ir(
                     tuple("true" if isinstance(value, int) else "false" for value in rule.values),
                 )
             )
-    else:  # UniqueRule — the slice is the entity's partition, or the table
+    elif isinstance(rule, UniqueRule):
+        # The slice is the entity's partition, or the table. Matched by kind
+        # rather than left as a bare `else`: `coercible` and `in_enum` carry no
+        # params of their own since RFC 0024 D32 moved their inputs onto the
+        # per-source column, and an `else` written for one kind silently
+        # collected every kind that stopped matching above it — an authored
+        # `in_enum` on a partitioned entity lowered with the partition columns
+        # as its `slice_NNNN` params.
         params.extend(_indexed("slice", slice_columns))
 
     return QualityRuleIR(

@@ -373,3 +373,46 @@ def test_registering_a_dialect_cannot_change_an_existing_projects_verdict() -> N
 
 def test_a_dialect_without_a_regex_surface_is_named_when_the_caller_asks() -> None:
     assert unsupported_dialects("^[A-Z]{3}$", dialects=(NoRegexDialect(),)) == ("noregex",)
+
+
+def test_a_parameterless_rule_kind_gets_no_params_from_the_unique_branch() -> None:
+    """`coercible` and `in_enum` carry no params of their own — RFC 0024 D32
+    moved their inputs onto the per-source column — and a bare `else` written
+    for `UniqueRule` collected them.
+
+    An authored `in_enum` on a partitioned entity lowered with the entity's
+    partition columns as its `slice_NNNN` params: wrong for the kind, and
+    `plan()` would have restated the rule on a partition change that cannot
+    affect what it admits.
+    """
+    documents = {
+        "entity_model": """spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    partition_by: ["region"]
+    quarantine: {retention: 90d}
+    fields:
+      order_id: {type: string, required: true}
+      region: {type: string}
+      status: {type: string}
+""",
+        "mapping": """mapping_version: 1
+source: shop__orders
+target: order
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  region: {from: "$.region", transform: [to_string]}
+  status:
+    from: "$.status"
+    transform: [to_string, {enum_map: [P, paid]}]
+    quality:
+      - {rule: in_enum, on_fail: flag}
+unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
+""",
+    }
+    (entity,) = build_project_ir(load_project(documents), None).entities
+    by_kind = {rule.kind: rule for rule in entity.quality}
+    assert by_kind["in_enum"].params == ()
