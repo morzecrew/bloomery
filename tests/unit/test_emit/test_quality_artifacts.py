@@ -423,38 +423,115 @@ def test_replay_candidates_pass_the_same_rules_the_pipeline_applies() -> None:
 # The two honest refusals
 
 
-def test_dbt_refuses_the_reject_and_replay_artifacts() -> None:
-    project, catalog = load_fixture(FIXTURE)
-    # The fixture also declares a reconcile check, which dbt refuses *first*
-    # (it is a project-level check, made before any entity is walked), so this
-    # test drops it to reach the entity-level refusal it is about.
-    without_reconcile = replace(
-        project,
-        entity_model=project.entity_model.model_copy(update={"reconcile": ()}),
-    )
-    with pytest.raises(UnsupportedByTarget) as excinfo:
-        compile_project(without_reconcile, target=Target.DBT, dialect="duckdb", catalog=catalog)
-    message = str(excinfo.value)
-    assert "inventory_level__reject" in message
-    assert "compatibility target, minimal but honest" in message
-    assert excinfo.value.source_path == "entity_model: entities.inventory_level.quarantine"
+def test_dbt_emits_the_reject_model_and_the_replay_macro() -> None:
+    """The refusal this pinned was RFC 0016 §5.4's target-coverage sentence,
+    written when this emitter produced no audits at all. It produces the whole
+    RFC 0026 surface now, and RFC 0052 §5.1/§5.2 builds the two artifacts the
+    sentence was standing in for.
 
-
-def test_dbt_no_longer_refuses_a_project_for_its_reconcile_block() -> None:
-    """The refusal this pinned is gone (RFC 0052 §5.3): both halves of
-    RFC 0016 D58's argument expired — the audit half with RFC 0026's singular
-    tests, the model half with the comparison model this target now writes.
-
-    What still stops this fixture is its ``quarantine:`` policy, which is a
-    different claim about a different artifact. Asserted by *source path*
-    rather than by the fact that something was raised, because "refused for
-    some reason" is what would let the reconcile refusal quietly return.
+    The macro rather than a loose `replay/<entity>.sql`: the statements name
+    relations through `ref()`, which resolves inside dbt's Jinja and nowhere
+    else — a bare file would be runnable by no dbt command and by no SQL
+    client (D3).
     """
     project, catalog = load_fixture(FIXTURE)
-    with pytest.raises(UnsupportedByTarget) as excinfo:
-        compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
-    assert excinfo.value.source_path != "entity_model: reconcile"
-    assert "stock_level_matches_snapshot" not in str(excinfo.value)
+    artifacts = {
+        a.path: a
+        for a in compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
+    }
+
+    model = artifacts["models/silver/inventory_level__reject.sql"]
+    assert model.kind is ArtifactKind.MODEL
+    assert "incremental_strategy='delete+insert'" in model.content
+    assert "unique_key='reject_id'" in model.content
+
+    replay = artifacts["macros/replay_inventory_level.sql"]
+    # The kind, not the path, is what a caller routes on: `macros/` is where
+    # dbt makes a run-operation findable, and this is still "run this when you
+    # replay" rather than "build this" (D5).
+    assert replay.kind is ArtifactKind.REPLAY
+    assert "{% macro replay_inventory_level() %}" in replay.content
+
+
+def test_the_replay_macro_wraps_its_statements_in_one_transaction() -> None:
+    """RFC 0052 D14. ``run_query`` opens no transaction of its own, so a failure
+    between the entity merge and the reject stamps would leave a row both
+    admitted to the entity and unresolved in the reject table — double-counted
+    by the quality mart and re-admitted by the next replay. SQLMesh's replay
+    file states the requirement in prose to a human; the macro has to state it
+    to the engine.
+
+    Asserted on the emitted bytes rather than by inducing a mid-macro failure:
+    the *effect* is dbt's and was measured directly at both ends of the
+    supported range (`logs/T-0016.md` D-079 — an explicit ROLLBACK restored the
+    prior value, and a failing statement between BEGIN and COMMIT left an
+    earlier UPDATE in the same macro unapplied). What can go wrong on this side
+    is emitting a macro that never asks for it.
+    """
+    project, catalog = load_fixture(FIXTURE)
+    artifacts = compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
+    content = next(
+        a.content for a in artifacts if a.path == "macros/replay_inventory_level.sql"
+    )
+    inside = content.partition('run_query("BEGIN")')[2].partition('run_query("COMMIT")')[0]
+    assert inside.count("{% set statement_") == 3, (
+        "a replay statement outside the transaction is one that can half-apply"
+    )
+    # A block-set, never a quoted string: Jinja renders a block-set's body and
+    # leaves `{{ ... }}` alone inside a string literal, so a quoted statement
+    # would reach the engine with `{{ ref(...) }}` in it verbatim.
+    assert "{{ ref('inventory_level') }}" in inside
+    assert "run_query(statement_0)" in inside
+
+
+def test_the_reject_model_preserves_first_seen_in_its_own_projection() -> None:
+    """D1. SQLMesh preserves `first_seen` and `last_evaluated_at` in a
+    `when_matched` clause; dbt has none that can express a `COALESCE`, so the
+    same decision moves into the projection and the write replaces a whole row
+    whose values are already correct.
+
+    Asserted on the incremental branch specifically. The first-run branch has
+    no incumbent to preserve from, and a test that only looked for the word
+    `COALESCE` in the file would pass on a model whose `{% if is_incremental() %}`
+    arm was the wrong SELECT — which is the branch a single `dbt build` never
+    executes.
+    """
+    project, catalog = load_fixture(FIXTURE)
+    artifacts = compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
+    content = next(
+        a.content for a in artifacts if a.path.endswith("inventory_level__reject.sql")
+    )
+    incremental = content.split("{% if is_incremental() %}")[1].split("{% else %}")[0]
+    first_run = content.split("{% else %}")[1]
+
+    assert "COALESCE(incumbent.first_seen, arriving.first_seen) AS first_seen" in incremental
+    assert "LEFT JOIN {{ this }} AS incumbent" in incremental
+    assert "incumbent" not in first_run
+    assert "{{ this }}" not in first_run
+
+
+def test_the_dirty_fixture_compiles_for_dbt_with_nothing_refused() -> None:
+    """Three refusals stood between this fixture and the dbt target: its
+    ``reconcile:`` block, its ``quarantine:`` policy, and the quality mart the
+    first two put in the project. RFC 0052 builds all three artifact families,
+    so what used to be the shortest description of dbt's coverage — "it refuses
+    this fixture" — no longer says anything.
+
+    Asserted as *no exception plus the four paths*, rather than as no
+    exception: a project that compiled to models and silently dropped the
+    quality surface would satisfy the first half and be exactly the degradation
+    RFC 0008 D3 refuses.
+    """
+    project, catalog = load_fixture(FIXTURE)
+    paths = {
+        a.path
+        for a in compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
+    }
+    assert "models/silver/inventory_level__reject.sql" in paths
+    assert "macros/replay_inventory_level.sql" in paths
+    assert "models/silver/stock_level_matches_snapshot__reconcile.sql" in paths
+    assert "tests/stock_level_matches_snapshot_reconcile.sql" in paths
+    assert "models/gold/mart_data_quality.sql" in paths
 
 
 def test_dbt_still_emits_a_flag_only_quality_entity() -> None:

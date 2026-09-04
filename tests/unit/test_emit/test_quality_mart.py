@@ -165,23 +165,29 @@ def test_no_clock_reaches_the_emitted_sql() -> None:
         assert banned not in body
 
 
-def test_dbt_refuses_the_quality_mart() -> None:
-    """RFC 0016 §5.4 puts the quality mart in SQLMesh's set: it counts rows in
-    the reject tables and reconcile models, which dbt does not build, so
-    emitting it there would produce a mart of zeroes.
+def test_dbt_emits_the_quality_mart_with_its_own_run_context() -> None:
+    """The refusal was true while dbt built neither the reject tables nor the
+    reconcile models this mart counts over — a mart of zeroes is the silent
+    degradation RFC 0008 D3 exists to prevent. It builds both now, so RFC 0052
+    D7 deletes the refusal rather than narrowing it.
 
-    Driven against the emitter directly because ``compile_project`` cannot
-    reach this branch — a project carrying the mart necessarily carries either
-    quality rules (hence a quarantine block) or a reconcile list, and both are
-    refused earlier. That is exactly why the branch exists: it keeps the
-    refusal correct if either of those ever narrows.
+    `run_id` and `run_date` are engine-side expressions, never values bloomery
+    read: `invocation_id` is dbt's own per-run identifier, and dbt's context is
+    the *fuller* of the two — the pinned sqlmesh has no run-identifier macro and
+    emits `run_id` declared-but-NULL.
     """
-    ir = build_project_ir(*load_fixture(FIXTURE))
-    context = EmitContext(
-        dialect=get_dialect("duckdb"), naming=DefaultNaming(), fingerprint="blm1:test"
-    )
-    with pytest.raises(UnsupportedByTarget, match="counts rule evaluations"):
-        DbtEmitter().emit(replace(ir, entities=(), reconcile=()), context)
+    project, catalog = load_fixture(FIXTURE)
+    artifacts = compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
+    content = next(a.content for a in artifacts if a.path.endswith("mart_data_quality.sql"))
+    assert "{{ invocation_id }}" in content
+    assert '{{ run_started_at.strftime("%Y-%m-%d") }}' in content
+    # The relations it counts over are `ref()`s, not literal `silver.<name>`
+    # (RFC 0008 D20). A literal has no dependency edge for dbt to order by and
+    # names a schema the model was not materialized into — the build tier found
+    # exactly that here, and it is invisible to a golden that only reads bytes
+    # nobody resolves.
+    assert "{{ ref('inventory_level__reject') }}" in content
+    assert "silver.inventory_level__reject" not in content
 
 
 # ....................... #

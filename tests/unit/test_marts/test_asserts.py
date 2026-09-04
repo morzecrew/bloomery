@@ -214,20 +214,26 @@ def test_dbt_emits_each_assertion_as_a_singular_test() -> None:
     assert "GROUP BY" in tests["tests/lines_q_positive.sql"].content
 
 
-def test_the_fixture_that_still_refuses_does_so_for_its_own_reason() -> None:
-    """``quality_precedence`` carries a ``quarantine:`` policy as well as its
-    assertions, and that refusal is untouched by RFC 0026. Pinned so a later
-    reader does not read the refusal as the mart assertion's.
+def test_the_fixture_that_used_to_refuse_now_carries_both_kinds_of_check() -> None:
+    """``quality_precedence`` refused on dbt for its ``reconcile:`` block, then
+    for its ``quarantine:`` policy, and this test pinned *which* refusal it met
+    so a later reader would not read it as the mart assertion's.
 
-    It named the ``reconcile:`` block until RFC 0052 §5.3 built the comparison
-    model; the surviving refusal is the reject table's, and this assertion
-    moved with it rather than being deleted — which refusal a fixture meets is
-    the thing worth pinning, not any particular one."""
+    Neither refusal exists after RFC 0052, so the thing worth pinning is what
+    replaced them: the mart assertion's own singular test and the reconcile
+    check's, side by side. They are separate artifacts for separate reasons,
+    and one silently absorbing the other is the confusion the old assertion
+    guarded against.
+    """
     project, catalog = load_fixture(FIXTURE)
-    with pytest.raises(UnsupportedByTarget) as excinfo:
-        compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
-    assert "quarantine" in str(excinfo.value)
-    assert BLOCKING not in str(excinfo.value)
+    paths = {
+        a.path
+        for a in compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
+    }
+    assert f"tests/{BLOCKING}.sql" in paths
+    assert f"tests/{NON_BLOCKING}.sql" in paths
+    assert "models/silver/line_amount_matches_row__reconcile.sql" in paths
+    assert "tests/line_amount_matches_row_reconcile.sql" in paths
 
 
 def test_cube_is_not_asked_about_a_check_it_never_emits() -> None:

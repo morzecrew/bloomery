@@ -81,18 +81,61 @@ def exp_keywords(content: str) -> set[str]:
     return {word for word in ("SELECT", "FROM", "WHERE", "JOIN") if word in content.upper()}
 
 
-def _sql_body(target: Target, content: str) -> str:
+def _sql_bodies(target: Target, content: str) -> list[str]:
+    """Every SELECT in one emitted artifact — usually one, sometimes two.
+
+    The reject model is the exception and the reason this returns a list: dbt
+    has no ``when_matched``, so the incremental and first-run bodies are two
+    **pre-rendered** SELECTs chosen by ``{% if is_incremental() %}``
+    (RFC 0052 D2). Parsing only the first arm would leave the incremental one
+    unchecked by this property, and it is already the branch a single
+    ``dbt build`` never executes.
+    """
     if target is Target.SQLMESH:
-        return extract_select(content)
+        return [extract_select(content)]
     # A dbt model is header + config, a blank line, then the SELECT; a
     # snapshot additionally wraps it in {% snapshot %} block markers.
     body = content.partition("\n\n")[2]
     if body.rstrip("\n").endswith("{% endsnapshot %}"):
         body = body.rpartition("\n\n")[0]
+
+    if "{% if is_incremental() %}" in body:
+        incremental, _, remainder = body.partition("{% if is_incremental() %}")[2].partition(
+            "{% else %}"
+        )
+        arms = [incremental, remainder.partition("{% endif %}")[0]]
+    else:
+        arms = [body]
+
     # Since D20 a dbt body states its inputs as `ref()`/`source()`, so it is a
     # template rather than SQL. The property is about the SQL underneath, and
     # dropping dbt from it would be a coverage loss rather than a substitution.
-    return resolve_dbt_references(body.strip())
+    return [resolve_dbt_references(arm.strip()) for arm in arms]
+
+
+def _replay_statements(content: str) -> list[str]:
+    """The SQL out of a replay artifact, whichever target wrapped it.
+
+    dbt's is a `run-operation` macro: each statement sits in its own
+    `{% set statement_N %}…{% endset %}` block, because Jinja renders a
+    block-set's body and leaves `{{ ref(...) }}` alone inside a quoted string
+    (RFC 0052 §5.2). SQLMesh's is a commented file whose statements follow the
+    header. Both reduce to the same list, so the property below reads one
+    shape.
+    """
+    if "{% macro" in content:
+        blocks = [
+            # Since D20 a dbt body states its inputs as `ref()`, here as much
+            # as in a model, so the references resolve before parsing for the
+            # same reason `_sql_body` resolves them: the property is about the
+            # SQL underneath the template.
+            resolve_dbt_references(block.partition("%}")[2].partition("{% endset %}")[0])
+            for block in content.split("{% set statement_")[1:]
+        ]
+        assert blocks, "a dbt replay macro with no statement blocks is an empty macro"
+        return blocks
+
+    return [content.partition("-- artifact and never")[2].partition("\n\n")[2]]
 
 
 @settings(max_examples=30, deadline=None)
@@ -114,8 +157,18 @@ def test_emitted_sql_parses_under_the_target_dialect(
             # The replay artifact is a statement script, not a SELECT
             # (RFC 0016 §5.6): the caller runs it, so what must hold is that
             # every statement parses under the dialect it was rendered for.
-            body = artifact.content.partition("-- artifact and never")[2].partition("\n\n")[2]
-            statements = [node for node in parse(body, dialect=dialect) if node is not None]
+            #
+            # The two targets wrap those statements differently — SQLMesh in a
+            # commented file the operator runs, dbt in a `run-operation` macro
+            # whose `{% set %}` blocks hold one statement each (RFC 0052 §5.2)
+            # — so the wrapper is stripped per target and the *statements* are
+            # what the property is asserted over, identically for both.
+            statements = [
+                node
+                for body in _replay_statements(artifact.content)
+                for node in parse(body, dialect=dialect)
+                if node is not None
+            ]
             assert statements
             assert all(isinstance(node, (exp.Merge, exp.Update)) for node in statements)
             continue
@@ -145,9 +198,10 @@ def test_emitted_sql_parses_under_the_target_dialect(
         # A ``fail``-rule audit is a **UNION** of its two populations — the
         # pre-route extract and the entity (RFC 0016 D67) — which is a query
         # like any other, and the property is that it parses as one.
-        select = _sql_body(target, artifact.content).replace("@this_model", "silver.model")
-        parsed = parse_one(select, dialect=dialect)
-        assert isinstance(parsed, (exp.Select, exp.Union))
+        for body in _sql_bodies(target, artifact.content):
+            select = body.replace("@this_model", "silver.model")
+            parsed = parse_one(select, dialect=dialect)
+            assert isinstance(parsed, (exp.Select, exp.Union))
 
 
 @settings(max_examples=10, deadline=None)

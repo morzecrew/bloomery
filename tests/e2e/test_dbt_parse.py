@@ -58,8 +58,15 @@ FIXTURES = (
     "evolution_v4",
     "minimal",
     "multi_source",
+    # RFC 0052: the two that were refused for their quality surface. One
+    # carries a reject table with its replay macro and the quality mart;
+    # the other adds two reconcile comparisons and their tests. They are here
+    # for the reason every other fixture is — a golden proves the bytes, and
+    # only dbt can say whether dbt loads, orders and runs them.
+    "multi_source_quality",
     "non_additive_aov",
     "path_conflict",
+    "quality_precedence",
     "role_playing_dates",
     "scd2_customers",
 )
@@ -164,6 +171,12 @@ def _seed_sources(database: pathlib.Path, fixture: str) -> None:
         body = artifact.content.partition("\n\n")[2]
         if body.rstrip("\n").endswith("{% endsnapshot %}"):
             body = body.rpartition("\n\n")[0]
+        if "{% if is_incremental() %}" in body:
+            # The reject model is two pre-rendered SELECTs (RFC 0052 D2). Both
+            # read the same bronze relations — the incremental one additionally
+            # joins `{{ this }}`, which is not a source — so the first-run arm
+            # is the whole of what this needs to seed.
+            body = body.partition("{% else %}")[2].partition("{% endif %}")[0]
         tree = parse_one(resolve_dbt_references(body.strip()), dialect="duckdb")
         # Only a `source()` survives resolution with a namespace — a `ref()`
         # resolves to a bare model name — so this selects exactly the bronze

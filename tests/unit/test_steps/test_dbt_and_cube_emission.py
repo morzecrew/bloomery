@@ -258,14 +258,22 @@ def test_the_sqlmesh_quality_mart_counts_the_flagged_step_output() -> None:
     assert "'scored' AS entity" in mart.content
 
 
-def test_a_flag_rule_makes_a_step_project_refuse_on_dbt() -> None:
-    """Not a new rule, and not about steps: the *quality mart* is what dbt
-    refuses in this wave (RFC 0008 §5.5), and a flagged step output puts one in
-    the project exactly as a flagged mapped entity does.
+def test_a_flag_rule_on_a_step_output_now_reaches_the_dbt_wrap() -> None:
+    """This refused until RFC 0052 §5.4, and not for a reason about steps: a
+    flagged step output puts a *quality mart* in the project exactly as a
+    flagged mapped entity does, and the mart was what dbt refused.
 
-    So dbt reaches the wrap only once that refusal lifts — which is why the
-    wrap lives in ``step_output_body``, above the envelope split, rather than
-    in the SQLMesh path that can exercise it today.
+    That is why the wrap lives in ``step_output_body``, above the envelope
+    split, rather than in the SQLMesh path that could exercise it. The
+    arrangement was right and untestable on this target; it is testable now,
+    which is the whole reason `logs/T-0014.md` D-073 pointed at this RFC.
     """
-    with pytest.raises(UnsupportedByTarget, match="data-quality mart"):
-        compile_steps(Target.DBT, steps=FLAG_STEPS)
+    artifacts = compile_steps(Target.DBT, steps=FLAG_STEPS)
+    model = next(a for a in artifacts if a.path == "models/silver/scored.sql")
+    assert "_quality_flags" in model.content
+    assert "_quality_ok" in model.content
+    # The mart the refusal was actually about is emitted too, and it reads the
+    # column the wrap just added — the pair SQLMesh has been asserting since
+    # RFC 0051 and dbt could not.
+    mart = next(a for a in artifacts if "mart_data_quality" in a.path)
+    assert "scored" in mart.content
