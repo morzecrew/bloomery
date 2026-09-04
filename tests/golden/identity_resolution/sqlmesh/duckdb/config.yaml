@@ -2,8 +2,9 @@
 # fingerprint: blm1:44b5d1c15c132a37eb6ade951c738f0517f5b3a1f79c62165187ffaae9fd44d5
 #
 # The gateway is yours. A connection carries hosts and credentials, which this
-# compiler never reads: add a `gateways:` block below, or set SQLMESH__GATEWAYS__…
-# in the environment.
+# compiler never reads — supply one through SQLMESH__GATEWAYS__… in the
+# environment, or from a config this file does not own. Editing a `gateways:`
+# block into *this* file works until the next compile overwrites it.
 model_defaults:
   dialect: duckdb
   start: '2020-01-01'

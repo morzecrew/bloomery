@@ -425,12 +425,21 @@ FIXTURES: dict[str, tuple[Seeder, Verifier, frozenset[str]]] = {
 
 
 def _write_project(root: Path, fixture: str, warehouse: Path) -> None:
-    """Materialize a compiled fixture as an on-disk SQLMesh project."""
-    (root / "config.yaml").write_text(CONFIG_TEMPLATE.format(database=warehouse))
+    """Materialize a compiled fixture as an on-disk SQLMesh project.
+
+    The gateway config is written **after** the artifacts, and the order is
+    load-bearing since RFC 0054: bloomery now emits its own ``config.yaml``,
+    and SQLMesh keeps the connection in the same file as the project settings.
+    Writing the gateway first meant the emitted file overwrote it and every
+    plan here failed with "No connection configured" — which is what a caller
+    keeping their gateway in ``--out`` will meet, and why the emitted header
+    points at the environment instead (D-076).
+    """
     for artifact in compile_fixture(fixture):
         dest = root / artifact.path
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(artifact.content)
+    (root / "config.yaml").write_text(CONFIG_TEMPLATE.format(database=warehouse))
     _write_platform_steps(root, fixture)
 
 

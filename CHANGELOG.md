@@ -133,6 +133,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   among the mappings that produce a column, all record a `direct:` path or none does,
   with both documents named. A column only one mapping produces is unaffected.
 
+- **The SQLMesh target emits `config.yaml`.** Its output was not a project:
+  `sqlmesh` answered "SQLMesh project config could not be found" and read none of
+  the models, while the dbt target had emitted `dbt_project.yml` all along. The
+  file carries the dialect you compiled for and a `model_defaults.start` derived
+  from the catalog's `date_dimension.start_year`.
+
+  The start is the substance. Without one SQLMesh backfills every
+  `INCREMENTAL_BY_TIME_RANGE` model over a **single day** and reports success, so
+  a config carrying only the dialect would have handed you a project that plans
+  green with one partition of history.
+
+  No `gateways:` block, for the reason no `profiles.yml` is emitted for dbt: a
+  connection carries hosts and credentials and the compiler reads no environment.
+  Supply one through `SQLMESH__GATEWAYS__…` rather than by editing the emitted
+  file — SQLMesh keeps the connection beside the project settings, so the next
+  compile overwrites it. A project that backfills by time and declares no catalog
+  date dimension gets no `config.yaml` at all, because there is no honest start to
+  put in it.
+
 - **MetricFlow is a compile target.** `--target metricflow` (or
   `Target.METRICFLOW`) writes one `semantic_manifest.json` — the same manifest
   `emit_manifest` has always returned and the planner has always hydrated, which

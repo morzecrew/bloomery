@@ -176,7 +176,7 @@ def test_compile_is_invariant_under_source_insertion_order(order: list[str]) -> 
 
 def test_minimal_select_columns_match_declared_fields_both_directions() -> None:
     project, _ = load_fixture("minimal")
-    (artifact,) = compile_fixture("minimal")
+    artifact = next(a for a in compile_fixture("minimal") if a.path.endswith(".sql"))
     parsed = parse_one(extract_select(artifact.content), dialect="duckdb")
     assert isinstance(parsed, exp.Select)
     emitted = {projection.alias_or_name for projection in parsed.expressions}
