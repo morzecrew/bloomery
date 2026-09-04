@@ -46,8 +46,9 @@ The shipped emit targets: `Target.SQLMESH`, `Target.CUBE`, `Target.DBT`,
 `Target.METRICFLOW`. A string enum, so `target="sqlmesh"` also works.
 
 `METRICFLOW` emits the semantic manifest rather than models — one
-`semantic_manifest.json`, the same bytes `emit_manifest` returns, and nothing
-else. A project with no marts emits no artifact.
+`semantic_manifest.json`, holding what `manifest_json` serializes from the
+manifest object `emit_manifest` returns, and nothing else. A project with no
+marts emits no artifact.
 
 ## Analysis
 

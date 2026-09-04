@@ -167,7 +167,9 @@ because dbt would emit a wrapper no adapter runs — MetricFlow emits no wrapper
 ### 5.2 The node-id collision, refused at its cause
 
 Every node id but one is prefixed. Rather than prefixing the last one, the compiler
-refuses the four entity names that could collide:
+refuses the four entity names that are node-id prefixes — three of which an entity field
+can collide with outright, and `source`, whose ids carry a third segment (§3) and which is
+reserved on the rule rather than on a reachable collision:
 
 ```
 entity 'metric' collides with the lineage node-id namespace: an entity field is spelled
