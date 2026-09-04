@@ -894,6 +894,17 @@ class MetricFlowEmitter:
         ``indent=2`` rather than compact: the manifest is a file a human reads
         when a metric resolves oddly, and :func:`manifest_json` sorts keys
         either way, so the bytes stay deterministic (RFC 0003 §5.5).
+
+        **The one emitted artifact carrying no fingerprint header**, and the
+        exemption is stated here rather than left to be noticed. Every other
+        target prefixes its files with ``-- fingerprint: blm1:…`` so a reader
+        can tell applied from spec (RFC 0008 D9); this artifact is JSON that
+        MetricFlow's own loader parses, and a comment line would make it
+        invalid rather than annotated. The manifest has no free-form field to
+        carry the value instead. What a caller loses is drift detection *on
+        this file*: :class:`~bloomery.emit.EmittedArtifact` still carries
+        ``checksum``, and the fingerprint of the compile that produced it is
+        on every sibling artifact of the same run.
         """
 
         if not ir.marts:
