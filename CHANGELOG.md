@@ -220,6 +220,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`DialectPort` requires `begin_transaction`**, and `register_dialect` now
+  refuses a port missing any protocol member instead of letting it fail with an
+  `AttributeError` mid-emission. A `Protocol` is structural, so an extension
+  port can satisfy a type checker and omit a member; the registry is global, so
+  such a port is a latent failure for whichever code path reaches it next. Ports
+  subclassing `SQLGlotDialect` — every shipped one — are unaffected and inherit
+  the `BEGIN` default.
+
+
 - **`canonical`, `metric`, `source` and `step` are reserved entity names.** Those
   four are the lineage node-id prefixes, and an entity field is `<entity>.<field>`
   with no prefix — so an entity named `metric` with a field `revenue` produced the

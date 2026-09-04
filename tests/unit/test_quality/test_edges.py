@@ -194,7 +194,18 @@ def test_a_rule_pair_that_would_share_a_name_is_disambiguated() -> None:
 
 def test_a_non_sqlglot_dialect_is_probed_under_its_own_name() -> None:
     class Bespoke:
+        """A port written by hand rather than by subclassing `SQLGlotDialect`,
+        which is the shape this test exists to exercise.
+
+        It implements every `DialectPort` member — including the three this
+        test never calls — because `register_dialect` refuses a partial port:
+        the registry is global, so a port that satisfies one code path and
+        omits what another needs is an `AttributeError` waiting for whoever
+        reaches it next.
+        """
+
         name = "bespoke"
+        begin_transaction = "BEGIN"
 
         def render(self, node: Expression) -> str:  # pragma: no cover — never called
             return node.sql()
@@ -204,6 +215,12 @@ def test_a_non_sqlglot_dialect_is_probed_under_its_own_name() -> None:
 
         def supports(self, feature: DialectFeature) -> bool:
             return True
+
+        def text_sha256(self, value: Expression) -> Expression:  # pragma: no cover
+            return value
+
+        def json_object(self, pairs: object) -> Expression:  # pragma: no cover
+            return exp.Null()
 
     dialects_module.register_dialect(Bespoke())
     # SQLGlot has no ``bespoke`` generator, so the round-trip refuses rather

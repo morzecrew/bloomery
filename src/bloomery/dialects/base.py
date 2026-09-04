@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from enum import StrEnum
-from typing import ClassVar, Protocol, cast
+from typing import ClassVar, Final, Protocol, cast
 
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
@@ -339,6 +339,26 @@ class DialectFeature(StrEnum):
 
 
 # ....................... #
+
+
+#: Every member :class:`DialectPort` requires, as data rather than as a shape
+#: only a type checker sees. :func:`~bloomery.dialects.register_dialect` checks a
+#: port against it, because a ``Protocol`` is structural: an extension port that
+#: satisfies mypy and omits a member fails with ``AttributeError`` in the middle
+#: of emission, naming an attribute rather than a contract.
+#:
+#: Kept in step with the protocol by
+#: ``test_the_declared_port_members_are_the_protocols`` rather than by whoever
+#: edits the class — the list existing and being wrong is worse than no list.
+DIALECT_PORT_MEMBERS: Final = (
+    "begin_transaction",
+    "json_object",
+    "name",
+    "physical_type",
+    "render",
+    "supports",
+    "text_sha256",
+)
 
 
 class DialectPort(Protocol):

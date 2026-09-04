@@ -6,6 +6,8 @@ from __future__ import annotations
 import importlib
 from collections.abc import Iterator
 
+import typing
+
 import pytest
 from sqlglot import exp
 
@@ -19,7 +21,7 @@ from bloomery.dialects import (
     get_dialect,
     register_dialect,
 )
-from bloomery.dialects.base import strip_iso_text
+from bloomery.dialects.base import DIALECT_PORT_MEMBERS, strip_iso_text
 from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.ir.lower import canon
 from bloomery.quality.pattern import unsupported_dialects
@@ -60,6 +62,47 @@ def test_register_dialect_overlay() -> None:
 def test_register_dialect_collision_is_an_error() -> None:
     with pytest.raises(EmitError, match="'duckdb' is already registered"):
         register_dialect(DuckDBDialect())
+
+
+def test_an_incomplete_port_is_refused_at_registration() -> None:
+    """`DialectPort` is a Protocol, so it is satisfied *structurally* and never
+    inherited: a port can pass a type checker and still omit a member, and the
+    first anyone hears of it is an `AttributeError` from inside emission —
+    naming an attribute rather than a contract, at a point the caller cannot
+    act on.
+
+    The member that prompted this is `begin_transaction`, added so the replay
+    macro opens a transaction its engine spells; but the check is over every
+    member, because the next one added would otherwise reintroduce the same
+    gap.
+    """
+
+    class _Incomplete:
+        name = "incomplete"
+
+        def render(self, node: object) -> str:  # pragma: no cover — never reached
+            return ""
+
+    with pytest.raises(EmitError, match="does not implement begin_transaction"):
+        register_dialect(_Incomplete())  # type: ignore[arg-type]
+
+    with pytest.raises(EmitError, match="unknown dialect 'incomplete'"):
+        get_dialect("incomplete")
+
+
+@pytest.mark.skipif(
+    not hasattr(typing, "get_protocol_members"),
+    reason="typing.get_protocol_members is 3.13+; the tuple is checked on the other two",
+)
+def test_the_declared_port_members_are_the_protocols() -> None:
+    """The list existing and being wrong is worse than no list.
+
+    `DIALECT_PORT_MEMBERS` is data because `register_dialect` has to iterate it
+    at run time, and a hand-kept copy of a class's shape drifts the first time
+    someone adds a member. This is what stops that — and it is the reason the
+    tuple is safe to trust rather than a second place to remember.
+    """
+    assert set(DIALECT_PORT_MEMBERS) == typing.get_protocol_members(DialectPort)
 
 
 def test_pattern_check_does_not_consult_the_mutable_registry() -> None:

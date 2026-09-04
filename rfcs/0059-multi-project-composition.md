@@ -127,11 +127,13 @@ built, not what was written.
 ### 5.3 Fingerprints, which is the real decision
 
 "Same specs in ⇒ byte-identical artifacts out" needs "specs" to include the upstream. So
-the downstream fingerprint is over its own IR **and** the upstream fingerprint — both
-being IR fingerprints, which is what makes composing them meaningful: an upstream whose
-documents were reformatted but whose IR did not move disturbs nothing downstream —
-which is already a value, already in every upstream artifact header, and already exactly
+the downstream fingerprint is over its own IR **and** the upstream fingerprint. That
+value is already computed, already in every upstream artifact header, and already exactly
 "what the upstream compiled to".
+
+Both being *IR* fingerprints is what makes composing them meaningful rather than merely
+possible: an upstream whose documents were reformatted, but whose IR did not move,
+disturbs nothing downstream.
 
 The consequence, stated because it will surprise someone: an upstream change that alters
 nothing the downstream reads still moves the downstream fingerprint. That is the honest
