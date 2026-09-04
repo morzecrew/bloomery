@@ -272,6 +272,10 @@ def _blocked_by(state: AsOfState) -> RefusalReason:
 
 
 def _blocked_sort_key(edge: BlockedEdge) -> tuple[str, ...]:
+    """Every field of the node, because the collection it orders was
+    deduplicated through a ``set``: a key that leaves one out lets two edges
+    tie, and a tie under ``set`` iteration is hash-seed order (RFC 0003)."""
+
     return (edge.relationship, edge.reason, edge.state or "")
 
 
@@ -279,6 +283,9 @@ def _blocked_sort_key(edge: BlockedEdge) -> tuple[str, ...]:
 
 
 def _dependency_sort_key(dep: FunctionalDependency) -> tuple[str, ...]:
+    """Total over the dependency, for the reason above — and the closure walks
+    this order, so a tie here would reach a derivation and then an artifact."""
+
     return (
         dep.determinant.label,
         dep.dependent.entity,
@@ -530,6 +537,11 @@ def _diagnose(
             for edge in admitted.blocked
             if edge.relationship in route and edge.reason in _AS_OF_REASONS
         )
+        # Reaching here with nothing on the route would mean the relaxed
+        # closure completed a path that used no relaxed edge — which the
+        # strict closure would then have completed too, so it cannot. The
+        # guard is what stops that contradiction becoming a refusal naming no
+        # edge at all; the connectivity question below is the fallthrough.
         if on_route:
             return RollupRefusal(
                 source,
