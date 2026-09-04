@@ -65,6 +65,7 @@ __all__ = [
     "MetricFilterInvalid",
     "NonAdditiveWithoutComponents",
     "MartMissingTimeDimension",
+    "ReservedEntityName",
     "QuarantineRetentionMissing",
     "DedupeTieBreakMissing",
     "DedupeDispositionConflict",
@@ -468,6 +469,16 @@ class MetricFilterInvalid(GuardrailError):
 class MartMissingTimeDimension(GuardrailError):
     """Guardrail stage (RFC 0010 §5.5 rule 6, RFC 0013 R1): a measure-carrying
     mart that declares no date role."""
+
+
+# ....................... #
+
+
+class ReservedEntityName(GuardrailError):
+    """Guardrail stage (RFC 0051 §5.2, D6/D7): an entity named after one of the
+    four lineage node-id prefixes. Every node id but an entity field's carries
+    a kind prefix, so an entity named ``metric`` makes ``<entity>.<field>``
+    indistinguishable from ``metric.<name>`` — and the ids are published."""
 
 
 # ....................... #

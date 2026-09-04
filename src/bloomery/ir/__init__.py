@@ -5,6 +5,7 @@ from bloomery.ir.fingerprint import project_fingerprint
 from bloomery.ir.lower import canon, extraction, partition_specs
 from bloomery.ir.nodes import (
     FLAGS_COLUMN,
+    NODE_ID_PREFIXES,
     OK_COLUMN,
     REJECT_SUFFIX,
     REPAIRS_COLUMN,
@@ -77,6 +78,7 @@ __all__ = [
     "Lineage",
     "Determinism",
     "FLAGS_COLUMN",
+    "NODE_ID_PREFIXES",
     "OK_COLUMN",
     "REPAIRS_COLUMN",
     "REJECT_SUFFIX",

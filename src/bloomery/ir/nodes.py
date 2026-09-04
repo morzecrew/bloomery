@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
 from functools import lru_cache
-from typing import cast
+from typing import Final, cast
 
 from sqlglot import parse_one
 from sqlglot.expressions.core import Expression
@@ -114,6 +114,18 @@ OK_COLUMN = "_quality_ok"
 REPAIRS_COLUMN = "_quality_repairs"
 #: One ``<entity>__reject`` per entity, never per mapping (D10).
 REJECT_SUFFIX = "__reject"
+#: The four lineage node-id prefixes (RFC 0031 §5.3, RFC 0051 §5.2). Every
+#: node id but an entity field's is ``<prefix>.<rest>``; an entity field is
+#: ``<entity>.<field>`` bare, so an entity named after one of these mints ids
+#: in another kind's namespace. Reserved as entity names for that reason.
+#:
+#: Here rather than beside the node builders in ``resolve.graph`` because the
+#: guardrail that refuses them sits *below* ``resolve`` in the layer contract
+#: and cannot import it. ``tests/unit/test_resolve/test_graph.py`` pins the
+#: two together: every builder's id must start with a member of this tuple,
+#: so a node kind added with a fifth prefix fails there rather than silently
+#: escaping the reservation.
+NODE_ID_PREFIXES: Final = ("canonical", "metric", "source", "step")
 #: The provenance column a **merged** entity carries: which source relation a
 #: row came from (RFC 0024 D7). Load-bearing rather than diagnostic — the
 #: collision audit reports *which* sources shared a key, and without it the
