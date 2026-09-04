@@ -212,7 +212,7 @@ _DIM_DATE_BODY = (
 def dim_date_select(dim: DateDimensionIR) -> Expression:
     """The deterministic ``dim_date`` calendar SELECT — a generate-series
     calendar over the catalog's year bounds, no clock involved."""
-    body = _DIM_DATE_BODY.format(start_year=dim.start_year, end_year=dim.end_year)
+    body = _DIM_DATE_BODY.format(start_year=f"{dim.start_year:04d}", end_year=f"{dim.end_year:04d}")
     # ``parse_one`` is annotated with the ``Expr`` base, but every node it
     # returns is an ``Expression`` (cf. ir.nodes).
     return cast("Expression", parse_one(body))

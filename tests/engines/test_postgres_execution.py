@@ -14,7 +14,7 @@ import pytest
 from psycopg.types.json import Jsonb
 from testcontainers.community.postgres import PostgresContainer
 
-from bloomery.emit import EmittedArtifact
+from bloomery.emit import ArtifactKind, EmittedArtifact
 from support.compiling import compile_fixture, extract_select
 
 pytestmark = pytest.mark.engine("postgres")
@@ -40,9 +40,14 @@ def conn() -> Iterator[psycopg.Connection]:
 def materialize(conn: psycopg.Connection, artifacts: tuple[EmittedArtifact, ...]) -> None:
     """CREATE TABLE <namespace>.<relation> AS <the artifact's SELECT> —
     silver before gold, because mart SELECTs read the silver relations.
-    Relations are quoted: ``order`` is reserved in postgres."""
+    Relations are quoted: ``order`` is reserved in postgres.
+
+    Only ``MODEL`` artifacts define a relation. The stream also carries the
+    project's ``config.yaml``, which has no SELECT and no namespace to put one
+    in."""
     for artifact in sorted(
-        artifacts, key=lambda a: (PurePosixPath(a.path).parent.name != "silver",)
+        (a for a in artifacts if a.kind is ArtifactKind.MODEL),
+        key=lambda a: (PurePosixPath(a.path).parent.name != "silver",),
     ):
         path = PurePosixPath(artifact.path)
         namespace, relation = path.parent.name, path.stem

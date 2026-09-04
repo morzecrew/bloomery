@@ -64,7 +64,7 @@ def test_a_quality_free_entity_gets_the_constants_and_no_extra_nesting() -> None
     """The empty collection is what a clean row carries, so the specialization
     is the general form evaluated at compile — and a quality-free golden gains
     two projections, not a subquery."""
-    (artifact,) = compile_fixture("minimal")
+    artifact = next(a for a in compile_fixture("minimal") if a.path.endswith(".sql"))
     body = extract_select(artifact.content)
     assert f"CAST([] AS TEXT[]) AS {FLAGS_COLUMN}" in body
     assert f"TRUE AS {OK_COLUMN}" in body

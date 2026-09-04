@@ -23,6 +23,7 @@ EXPECTED_PATHS = {
     # Python model reuse ArtifactKind.MODEL with a different suffix.
     "step_resolution": [
         "audits/step_customer_xref_canonical_id_references_customer.sql",
+        "config.yaml",
         "models/silver/customer.py",
         "models/silver/customer_raw.sql",
         "models/silver/customer_xref.py",
@@ -35,6 +36,7 @@ EXPECTED_PATHS = {
     "identity_resolution": [
         "audits/step_customer_confidence_is_high.sql",
         "audits/step_customer_xref_canonical_id_references_customer.sql",
+        "config.yaml",
         "models/gold/dim_date.sql",
         "models/gold/mart_customers.sql",
         "models/silver/customer.py",
@@ -42,13 +44,14 @@ EXPECTED_PATHS = {
         "models/silver/customer_crm.sql",
         "models/silver/customer_xref.py",
     ],
-    "minimal": ["models/silver/event.sql"],
+    "minimal": ["config.yaml", "models/silver/event.sql"],
     # RFC 0024 §5.4/D5: the union merge's one generated artifact beyond the
     # model — the blocking audit that establishes what compilation cannot, that
     # the sources' key sets are disjoint. It is here rather than under a
     # `_quality_*` name because it guards the *merge*, not the quality system.
     "multi_source": [
         "audits/order_line_source_collision.sql",
+        "config.yaml",
         "models/silver/order_line.sql",
     ],
     # The same merge, cleaned (RFC 0024 P2 — D32-D35 — and RFC 0035). A second
@@ -62,18 +65,24 @@ EXPECTED_PATHS = {
         "audits/order_line_line_no_coercible.sql",
         "audits/order_line_placed_at_coercible.sql",
         "audits/order_line_source_collision.sql",
+        "config.yaml",
         "models/gold/mart_data_quality.sql",
         "models/silver/order_line.sql",
         "models/silver/order_line__reject.sql",
         "replay/order_line.sql",
     ],
     "ecom_basic": [
+        "config.yaml",
         "models/gold/dim_date.sql",
         "models/gold/mart_order_items.sql",
         "models/silver/order.sql",
         "models/silver/order_item.sql",
     ],
-    "path_conflict": ["audits/item_net_price_reconcile.sql", "models/silver/item.sql"],
+    "path_conflict": [
+        "audits/item_net_price_reconcile.sql",
+        "config.yaml",
+        "models/silver/item.sql",
+    ],
     # The same conflict on a merged entity (RFC 0024 D36, answering D28). What
     # the golden shows and the IR assertions cannot: one shadow column and one
     # reconcile audit for the entity, and a `__direct` projection per UNION ALL
@@ -82,14 +91,16 @@ EXPECTED_PATHS = {
     "path_conflict_merged": [
         "audits/item_net_price_reconcile.sql",
         "audits/item_source_collision.sql",
+        "config.yaml",
         "models/silver/item.sql",
     ],
     "role_playing_dates": [
+        "config.yaml",
         "models/gold/dim_date.sql",
         "models/gold/mart_orders.sql",
         "models/silver/order.sql",
     ],
-    "scd2_customers": ["models/silver/customer.sql"],
+    "scd2_customers": ["config.yaml", "models/silver/customer.sql"],
     # The quality-carrying fixture (RFC 0016): the entity model gains the
     # generated blocking audit on the ingestion metadata (D21) and one audit
     # per ``on_fail: fail`` rule, plus the reject model the quarantine
@@ -105,6 +116,7 @@ EXPECTED_PATHS = {
         "audits/inventory_level_ingestion_metadata.sql",
         "audits/inventory_level_stock_level_not_null.sql",
         "audits/stock_level_matches_snapshot_reconcile.sql",
+        "config.yaml",
         "models/gold/dim_date.sql",
         "models/gold/mart_data_quality.sql",
         "models/gold/mart_inventory.sql",

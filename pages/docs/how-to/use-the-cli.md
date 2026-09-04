@@ -104,11 +104,27 @@ bloomery compile specs/ --target sqlmesh --dialect duckdb --out out/
 ```
 
 ```text
+out/config.yaml
 out/models/gold/dim_date.sql
 out/models/gold/mart_order_items.sql
 out/models/silver/order.sql
 out/models/silver/order_item.sql
 ```
+
+`config.yaml` is what makes that directory a SQLMesh *project* — without it `sqlmesh`
+declines to read the models at all. It carries the dialect you compiled for and a
+`model_defaults.start` taken from the catalog's `date_dimension.start_year`, which is not
+a nicety: with no start, SQLMesh backfills every time-partitioned model over a single day
+and reports success.
+
+**It carries no gateway, and it never will.** A connection holds hosts and credentials and
+this compiler reads no environment — the same reason no `profiles.yml` is emitted for dbt.
+Supply one through `SQLMESH__GATEWAYS__…`, and do not edit a `gateways:` block into the
+emitted file: SQLMesh keeps the connection in the same file as the project settings, so
+the next compile overwrites it.
+
+A project that backfills by time and declares no catalog date dimension gets **no**
+`config.yaml`, because there is no honest start to put in it — write your own, as before.
 
 Without `--out`, the artifacts go to stdout as JSON — path, content, kind and checksum
 for each — so you can place them yourself. `--target` takes `sqlmesh`, `cube`, `dbt`,
