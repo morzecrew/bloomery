@@ -455,20 +455,40 @@ def test_dbt_emits_the_reject_model_and_the_replay_macro() -> None:
     assert "{% macro replay_inventory_level() %}" in replay.content
 
 
-def test_the_two_targets_emit_the_same_audits() -> None:
+#: Every fixture carrying a quality surface, which is where the audit families
+#: this compares actually live: the collision audit, the ingestion-metadata
+#: audit, the conservation audit and one per `on_fail: fail` rule. Listed
+#: rather than swept, because a sweep over the corpus has to skip the fixtures
+#: one target refuses, and a skip list grows quietly into a coverage hole.
+#:
+#: Not every fixture: a path-conflict `reconcile` audit is a **row predicate**,
+#: so dbt writes it as a `schema.yml` entry naming the shared generic test —
+#: the native surface RFC 0026 D4 prefers — while SQLMesh writes a per-check
+#: `AUDIT`. Same assertion, different artifact, and comparing names there would
+#: assert something untrue.
+_QUALITY_FIXTURES = (
+    "dirty_corpus",
+    "multi_source_quality",
+    "quality_precedence",
+    "semi_additive_inventory",
+)
+
+
+@pytest.mark.parametrize("fixture", _QUALITY_FIXTURES)
+def test_the_two_targets_emit_the_same_audits(fixture: str) -> None:
     """The assertion that would have caught the conservation audit's absence.
 
-    dbt skipped it for one reason — `_refuse_quarantine` fired before the code
-    that would have emitted it — and when that refusal went, nothing noticed:
-    every model still materialized, every other test still passed, and the one
-    check that says a bronze row landed *somewhere* was simply not there. A
-    silently dropped row is exactly what nothing else looks for.
+    dbt skipped it for one reason — the quarantine refusal fired before the
+    code that would have emitted it — and when that refusal went, nothing
+    noticed: every model still materialized, every other test still passed, and
+    the one check that says a bronze row landed *somewhere* was simply not
+    there. A silently dropped row is exactly what nothing else looks for.
 
-    Compared as **sets of audit names** rather than per family, because a
-    per-family assertion is a list someone has to remember to extend, and the
-    audit that went missing was the one nobody thought to list.
+    Compared as **sets of audit names**, not per family. A per-family list is
+    one someone has to remember to extend, and the audit that went missing was
+    the one nobody thought to list.
     """
-    ir = build_project_ir(*load_fixture(FIXTURE))
+    ir = build_project_ir(*load_fixture(fixture))
     context = EmitContext(
         dialect=get_dialect("duckdb"), naming=DefaultNaming(), fingerprint="blm1:test"
     )
@@ -480,7 +500,9 @@ def test_the_two_targets_emit_the_same_audits() -> None:
             if a.kind is ArtifactKind.AUDIT
         }
 
-    assert audits(DbtEmitter()) == audits(SQLMeshEmitter())
+    from_dbt = audits(DbtEmitter())
+    assert from_dbt, "a fixture with no audits agrees with anything"
+    assert from_dbt == audits(SQLMeshEmitter())
 
 
 def test_the_replay_macro_wraps_its_statements_in_one_transaction() -> None:
