@@ -90,10 +90,32 @@ def test_an_incomplete_port_is_refused_at_registration() -> None:
         get_dialect("incomplete")
 
 
-@pytest.mark.skipif(
-    not hasattr(typing, "get_protocol_members"),
-    reason="typing.get_protocol_members is 3.13+; the tuple is checked on the other two",
-)
+def _protocol_members(protocol: type) -> frozenset[str]:
+    """The members a `Protocol` declares, on every supported Python.
+
+    `typing.get_protocol_members` is the public spelling and is 3.13+; this
+    project's floor is 3.12, where the same set is on `__protocol_attrs__`.
+    Falling back to the dunder keeps the drift check below running on **all
+    three** supported versions, which a `skipif` would not: a check that does
+    not run on the floor is one the floor can drift past.
+
+    Neither present is a hard failure rather than a skip. A skip that becomes
+    permanent is a hole nobody sees, and this is the only thing standing between
+    `DIALECT_PORT_MEMBERS` and the class it claims to mirror.
+    """
+    public = getattr(typing, "get_protocol_members", None)
+
+    if public is not None:
+        return frozenset(public(protocol))  # type: ignore[arg-type]
+
+    members = getattr(protocol, "__protocol_attrs__", None)
+    assert members is not None, (
+        "no way to read a Protocol's members on this interpreter — the drift check "
+        "below cannot run, and silently skipping it is what it exists to prevent"
+    )
+    return frozenset(members)
+
+
 def test_the_declared_port_members_are_the_protocols() -> None:
     """The list existing and being wrong is worse than no list.
 
@@ -102,7 +124,7 @@ def test_the_declared_port_members_are_the_protocols() -> None:
     someone adds a member. This is what stops that — and it is the reason the
     tuple is safe to trust rather than a second place to remember.
     """
-    assert set(DIALECT_PORT_MEMBERS) == typing.get_protocol_members(DialectPort)
+    assert frozenset(DIALECT_PORT_MEMBERS) == _protocol_members(DialectPort)
 
 
 def test_pattern_check_does_not_consult_the_mutable_registry() -> None:

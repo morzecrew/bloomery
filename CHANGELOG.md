@@ -224,9 +224,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   refuses a port missing any protocol member instead of letting it fail with an
   `AttributeError` mid-emission. A `Protocol` is structural, so an extension
   port can satisfy a type checker and omit a member; the registry is global, so
-  such a port is a latent failure for whichever code path reaches it next. Ports
-  subclassing `SQLGlotDialect` — every shipped one — are unaffected and inherit
-  the `BEGIN` default.
+  such a port is a latent failure for whichever code path reaches it next. Every
+  shipped port subclasses `SQLGlotDialect` and is unaffected: it supplies the
+  `BEGIN` default, which the Trino port overrides to `START TRANSACTION` —
+  Trino rejects `BEGIN` outright, which is why the member exists.
 
 
 - **`canonical`, `metric`, `source` and `step` are reserved entity names.** Those

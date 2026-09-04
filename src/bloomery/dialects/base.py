@@ -350,6 +350,10 @@ class DialectFeature(StrEnum):
 #: Kept in step with the protocol by
 #: ``test_the_declared_port_members_are_the_protocols`` rather than by whoever
 #: edits the class — the list existing and being wrong is worse than no list.
+#: That test reads the protocol's members through ``get_protocol_members`` where
+#: it exists (3.13+) and ``__protocol_attrs__`` below it, so it runs on **every**
+#: supported interpreter including the 3.12 floor. A drift check that skipped on
+#: the floor would be one the floor could drift past.
 DIALECT_PORT_MEMBERS: Final = (
     "begin_transaction",
     "json_object",

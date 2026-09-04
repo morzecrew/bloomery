@@ -136,8 +136,19 @@ reading one bronze relation produce **one** dbt table entry. Two of them declari
 different thresholds cannot both be emitted, and picking one silently is the
 plausible-but-wrong shape this project refuses.
 
-So: **conflicting thresholds on one relation are refused**, naming both mappings. Equal
-thresholds are not a conflict and collapse to the one entry. This is the same rule
+Three cases, and the third is the one a first pass misses:
+
+- **Equal thresholds** are not a conflict. They collapse to the one entry.
+- **Different thresholds** are **refused**, naming both mappings.
+- **One mapping declares and another omits** is also **refused**, and this is the case
+  worth stating rather than defaulting. The tempting rule — "an explicit threshold wins
+  over silence" — reads as generosity and is a claim the silent mapping never made: its
+  author did not say *this source is fine at six hours*, and the emitted entry would say
+  it for them, over a relation they also read. Silence about a shared physical thing is
+  not agreement with whatever someone else declared about it.
+
+  The way to opt in is to declare the same threshold, which is then case one. That costs
+  a line and buys a spec where every threshold on a relation was written by someone. This is the same rule
 RFC 0024 D33 applies to quality rules on a merged entity — declarations about one physical
 thing must agree — and it is stated here rather than discovered by whoever writes the
 emitter.
@@ -221,6 +232,7 @@ it looks identical to one that passes.
 | 1 | `LOCKED` | bloomery **declares** freshness and never measures it. The threshold is emitted; the framework runs the query. This is the same line drawn everywhere else — no execution, no clock, no environment. |
 | 2 | `LOCKED` | A `freshness:` block on an entity that requires no `_ingested_at` is refused, and the requirement is over **every** consumer of the relation rather than the declaring one. dbt's freshness query names that column on the shared table entry, so a relation read by one quarantining entity and one plain one still needs it. |
 | 2a | `LOCKED` | Two mappings declaring **different** thresholds on one physical relation are refused, naming both. `_sources_artifact` emits one table entry per relation, so one of the two would be silently dropped — the same rule RFC 0024 D33 applies to quality rules over a merged entity. Equal thresholds collapse and are not a conflict. |
+| 2b | `LOCKED` | One mapping declaring a threshold while another on the same relation omits it is **refused too**, not resolved in favour of the explicit one. "Explicit wins over silence" would emit, on a shared relation, a staleness claim the silent mapping's author never made. Declaring the same threshold is how you opt in, and that is D2a's first case. |
 | 3 | `ASSUMED` | Durations reuse `quarantine.retention`'s grammar and validator. One spelling of a duration across the spec surface. |
 | 4 | `LOCKED` | `error_after` below `warn_after` is refused. An unreachable warning is a spec that means something other than what it says. |
 | 5 | `ASSUMED` | No default threshold. A source with no block gets none; a guessed six hours would emit an assertion nobody made. |
@@ -231,7 +243,7 @@ it looks identical to one that passes.
 
 Two commits:
 
-1. **Spec key, IR field, and all three refusals** — inverted thresholds, missing
-   `_ingested_at` across every consumer, and conflicting thresholds on one relation — with
-   the census entries. No emitter change: the refusals are the risky half and land alone.
+1. **Spec key, IR field, and all four refusals** — inverted thresholds, missing
+   `_ingested_at` across every consumer, conflicting thresholds on one relation, and a
+   threshold on a relation another mapping reads silently — with the census entries. No emitter change: the refusals are the risky half and land alone.
 2. **The dbt `sources.yml` branch**, its golden, and the `dbt source freshness` e2e leg.
