@@ -38,7 +38,7 @@ Two consequences worth knowing:
 
 ## Allocating a number
 
-The next free number is **0051**. Before creating an RFC, read the number above — do not
+The next free number is **0052**. Before creating an RFC, read the number above — do not
 compute it from `ls`, which no longer sees retired documents. **Numbers are never reused**:
 0001–0022 are retired and permanently spent. Update this section in the same change that
 mints a number.
@@ -69,7 +69,6 @@ know it has a companion recording where it turned out to be wrong.
 |---|---|---|---|
 | [0024](0024-deterministic-union-merge.md) | Deterministic union merge | 🚧 In progress | Letting several mappings build one entity when they share a key space but no overlapping keys, so the entity model integrates sources instead of renaming one. Overlap stays a step. |
 | [0033](0033-observability-logging-and-a-warnings-channel.md) | Observability: logging and a warnings channel | 📝 Draft | Stage-level stdlib logging that stays silent by default and cannot touch artifact bytes, a typed compile-time advisory channel riding `SpecEvidence`, and `warnings` reserved for deprecation alone. |
-| [0036](0036-the-offset-bearing-timestamp.md) | The offset-bearing timestamp | 🚧 In progress | An ISO 8601 timestamp carrying a UTC offset is out of `parse_ts`'s local-clock contract and every engine truncates it silently, so one shared guard makes it NULL instead. Shipped; live until a mainline commit exists to retire it at. |
 | [0037](0037-semantic-grain-model.md) | Semantic grain model and functional dependencies | 📝 Draft | Grain as structural identity rather than a name, with functional dependencies carrying their basis, so rollup safety is proven instead of inferred from string equality. Root of the semantic sequence. |
 | [0038](0038-measure-semantic-types-and-additivity.md) | Measure semantic types and additivity algebra | 📝 Draft | A measure typed over value, origin grain, aggregation class, and unit — consolidating additivity, units and currency, which today live on three different nodes. |
 | [0039](0039-semantic-proof-ir.md) | Semantic proof IR and closed-world checking | 📝 Draft | Acceptance as a positive derivation rather than the absence of a violation, with provenance on every leaf: unknown is not safe, and capability grows by adding proof rules. |
@@ -84,6 +83,7 @@ know it has a companion recording where it turned out to be wrong.
 | [0048](0048-bigquery-dialect.md) | BigQuery dialect port | 📝 Draft | A dry run is a full parse, bind and type check that scans nothing — the cheapest authoritative layer of the four. `DATETIME` versus `TIMESTAMP` carries most of the risk. |
 | [0049](0049-redshift-dialect.md) | Redshift dialect port | 📝 Draft | The port whose local options are all PostgreSQL underneath, which bloomery already ships. It shares helpers with that port and inherits nothing; fixtures split by what a surrogate can speak to. |
 | [0050](0050-databricks-dialect.md) | Databricks SQL dialect port | 📝 Draft | No local Databricks exists, so Spark is a labelled surrogate and `DESCRIBE QUERY` checks result types against the real analyzer. PySpark stays test-only; bloomery never executes Spark. |
+| [0051](0051-loose-ends-inside-shipped-subsystems.md) | Loose ends inside shipped subsystems | 📝 Draft | MetricFlow becomes a compile target, a lineage node-id collision becomes a refusal, and `on_fail: flag` lowers on a Tier 2 step output. |
 
 ## Status legend
 

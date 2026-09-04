@@ -79,6 +79,7 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0032 | Mapping identity | `3f7b574` |
 | 0034 | Metrics over time | `6b71926` |
 | 0035 | The reject table on a merged entity | `8287f75` |
+| 0036 | The offset-bearing timestamp | `816b48d` |
 
 ## Not in the table
 

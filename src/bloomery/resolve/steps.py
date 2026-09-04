@@ -434,11 +434,14 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
 
     Two gaps, both of which used to compile clean and produce nothing:
 
-    **Tier 1.** ``macro_expression`` exists and is tested, but there is no
-    spec surface by which a mapping *references* a macro step, so a wired
-    ``sql_macro`` bound an output relation and then emitted nothing at all.
-    Documenting a splice that does not happen is worse than not shipping the
-    tier, so it is refused until the reference surface exists.
+    **Tier 1.** A ``sql_macro`` writes no relation — its body is spliced into
+    the consuming SELECT — so a wiring that binds it an output relation is
+    describing something that cannot happen, and used to compile clean and
+    emit nothing at all. The refusal is permanent, not a placeholder: a macro
+    is referenced from the *mapping* that uses it, as a field's ``step:``/
+    ``from:`` pair or as a chain link (RFC 0017 D50/D51), and both of those
+    surfaces ship (``spec.mapping.MacroFieldMapping``,
+    ``spec.mapping.TransformStep.step``).
 
     **Quality rules on outputs.** §5.2 permits them and §1 makes them the
     reason RFC 0016 and 0017 ship as a pair. They parse, and nothing consumes
