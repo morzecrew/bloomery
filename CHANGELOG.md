@@ -229,6 +229,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A catalog year below 1000 is written as four digits.** `start_year` accepts
+  anything from 1, and the date spine interpolated it unpadded:
+  `GENERATE_SERIES(CAST('1-01-01' AS DATE), …)`, which means whatever the engine's
+  date style guesses. The same value now reaches the SQLMesh `config.yaml`, where
+  `'1-01-01'` is not rejected but *reinterpreted* as `2001-01-01` — two millennia
+  of backfill lost to a file the compiler wrote. Both sites pad.
+
 - **A timestamp carrying a UTC offset is no longer silently truncated.**
   `{parse_ts: ISO8601}` over `2026-01-06T12:00:00+01:00` produced `12:00` on
   DuckDB, PostgreSQL and Trino alike — the offset discarded, the instant an hour

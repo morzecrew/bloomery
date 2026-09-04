@@ -671,6 +671,29 @@ def test_a_project_with_nothing_to_backfill_by_time_needs_no_start() -> None:
     assert "start" not in content
 
 
+def test_a_year_below_1000_is_written_as_four_digits() -> None:
+    """`start_year` is `ge=1` (spec/catalog.py), so a single-digit year is a
+    legal catalog. Unpadded it renders `start: '1-01-01'`, which SQLMesh does
+    not reject — it reads it as **2001-01-01**, two millennia of backfill
+    silently disappearing into a value the compiler wrote itself. The date
+    spine is padded for the same reason: `CAST('1-01-01' AS DATE)` means
+    whatever the engine's date style guesses, and the two artifacts of one
+    compile must not disagree about the same year.
+    """
+    project, catalog = load_fixture("ecom_basic")
+    ir = build_project_ir(project, catalog)
+    assert ir.date_dimension is not None
+    ctx = EmitContext(dialect=get_dialect("duckdb"), naming=DefaultNaming(), fingerprint="x")
+    early = replace(ir, date_dimension=replace(ir.date_dimension, start_year=1, end_year=2))
+    artifacts = SQLMeshEmitter().emit(early, ctx)
+
+    config = next(a.content for a in artifacts if a.path == "config.yaml")
+    assert "start: '0001-01-01'" in config
+    spine = next(a.content for a in artifacts if a.path.endswith("dim_date.sql"))
+    assert "CAST('0001-01-01' AS DATE)" in spine
+    assert "CAST('0002-12-31' AS DATE)" in spine
+
+
 def test_no_project_file_where_the_start_cannot_be_stated() -> None:
     """D5, answered: a project that backfills by time and declares no date
     dimension gets **no** config rather than one missing its start.

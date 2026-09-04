@@ -886,7 +886,7 @@ def _config_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
     directory with no config, because the first runs and the second does not.
     Execution's answer to D5 — see ``logs/T-0015.md`` (D-075).
     """
-    start = f"{ir.date_dimension.start_year}-01-01" if ir.date_dimension is not None else ""
+    start = f"{ir.date_dimension.start_year:04d}-01-01" if ir.date_dimension is not None else ""
 
     if not start and _backfills_by_time(ir):
         return None
