@@ -22,7 +22,7 @@ GOLDEN = Path(__file__).resolve().parent
 #: reserved-word quoting); the remaining fixtures stay duckdb-only — their
 #: rendering surface is covered by these cells (RFC 0009 §5.4).
 EXPECTED_PATHS = {
-    "minimal": ["models/silver/event.sql"],
+    "minimal": ["config.yaml", "models/silver/event.sql"],
     # RFC 0024: the union merge brings two constructs nothing else here emits —
     # `UNION ALL` between branches, and the typed `NULL` that fills a column one
     # mapping does not map. Both are rendered by the dialect port, and a
@@ -30,6 +30,7 @@ EXPECTED_PATHS = {
     # SQL this feature added.
     "multi_source": [
         "audits/order_line_source_collision.sql",
+        "config.yaml",
         "models/silver/order_line.sql",
     ],
     # The cleaned merge, on both engines. What it adds over the row above is
@@ -44,18 +45,21 @@ EXPECTED_PATHS = {
         "audits/order_line_line_no_coercible.sql",
         "audits/order_line_placed_at_coercible.sql",
         "audits/order_line_source_collision.sql",
+        "config.yaml",
         "models/gold/mart_data_quality.sql",
         "models/silver/order_line.sql",
         "models/silver/order_line__reject.sql",
         "replay/order_line.sql",
     ],
     "ecom_basic": [
+        "config.yaml",
         "models/gold/dim_date.sql",
         "models/gold/mart_order_items.sql",
         "models/silver/order.sql",
         "models/silver/order_item.sql",
     ],
     "role_playing_dates": [
+        "config.yaml",
         "models/gold/dim_date.sql",
         "models/gold/mart_orders.sql",
         "models/silver/order.sql",
