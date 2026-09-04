@@ -85,7 +85,7 @@ know it has a companion recording where it turned out to be wrong.
 | [0051](0051-loose-ends-inside-shipped-subsystems.md) | Loose ends inside shipped subsystems | 🚧 In progress | MetricFlow becomes a compile target, a lineage node-id collision becomes a refusal, and `on_fail: flag` lowers on a Tier 2 step output. |
 | [0052](0052-dbt-as-a-complete-quality-target.md) | dbt as a complete quality target | 📝 Draft | The reject table, its replay and the reconcile model are the three artifacts dbt refuses instead of emitting; building them leaves the quality mart nothing to refuse. |
 | [0053](0053-retrieval-semantics.md) | Retrieval semantics | 📝 Draft | Semantic spaces, vector-field annotations and retrieval profiles as their own spec kind, so an embedding corpus is refused when its dimensions, space or grain disagree. |
-| [0054](0054-the-sqlmesh-project-file.md) | The SQLMesh project file | 📝 Draft | bloomery emits no `config.yaml`, so SQLMesh does not recognise its own target's output as a project; one artifact carrying the dialect and a catalog-derived backfill start. |
+| [0054](0054-the-sqlmesh-project-file.md) | The SQLMesh project file | 🚧 In progress | bloomery emits no `config.yaml`, so SQLMesh does not recognise its own target's output as a project; one artifact carrying the dialect and a catalog-derived backfill start. |
 
 ## Status legend
 

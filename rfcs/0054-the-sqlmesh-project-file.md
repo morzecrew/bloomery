@@ -1,7 +1,16 @@
 # RFC 0054 — The SQLMesh project file
 
-- **Status:** 📝 Draft (execution-ready — one PR) — **§3's measurements are done**, and
-  M4 is why this document exists in the shape it does rather than as a one-line chore.
+- **Status:** 🚧 In progress — **shipped; retired one change from now.** §12's three
+  commits landed and every decision below is under test. It stays live only because a
+  retirement row has to name a commit that already holds this document and is reachable
+  from `main` ([`RETIRED.md`](RETIRED.md) argues why that cannot be the deleting commit).
+  §3's measurements are done, and M4 is why this document exists in the shape it does
+  rather than as a one-line chore. **Execution reversed two things written below** and
+  neither is edited out of the prose: §5.1's header comment tells the caller to add a
+  `gateways:` block to the emitted file, which the shipped artifact refuses to advise
+  because the next compile overwrites it, and §5.3's `OPEN` case (D5) is answered. Both,
+  with the evidence that forced them, are in
+  [`logs/T-0015.md`](../logs/T-0015.md) — D-075 through D-078.
 - **Scope:** One emitted artifact, `config.yaml`, so that `bloomery compile --target
   sqlmesh --out out/` produces a directory SQLMesh recognises as a project. It carries
   `model_defaults` and nothing else: no gateway, no credentials, no environment — the same
