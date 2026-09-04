@@ -625,3 +625,47 @@ steps:
     registry = StepRegistry({("s", 1): body}, sql_bodies={("s", 1): "SELECT 'abc"})
     with pytest.raises(StepError, match="does not parse as SQL"):
         build_project_ir(project, steps=registry)
+
+
+def _with_produced(column: str) -> dict[str, object]:
+    return {
+        "customer": {
+            "grain": "customer",
+            "key": ["canonical_id"],
+            "produces": {
+                "canonical_id": {"type": "string", "required": True},
+                column: {"type": "string"},
+            },
+        }
+    }
+
+
+def test_a_step_output_producing_a_reserved_column_is_refused() -> None:
+    """A step manifest's ``produces`` is author-controlled and was not checked
+    against the reserved names the spec layer refuses everywhere else.
+
+    The concrete break is the flag lowering: ``_quality_pipeline`` projects
+    every declared column and then aliases its own ``_quality_flags`` beside
+    them, so a step output declaring that name emitted a model with the column
+    twice and an ambiguous reference in the level above — a model that
+    compiles, matches its golden, and fails on the engine.
+    """
+    with pytest.raises(StepError, match="reserved name"):
+        build(outputs=_with_produced("_quality_flags"))
+
+
+@pytest.mark.parametrize("column", ["_quality_ok", "_source", "_load_id", "metric_time"])
+def test_the_reserved_set_is_the_spec_layer_s_own(column: str) -> None:
+    """One list, not a second copy of it (RFC 0016 D9, RFC 0024 D7). The trap
+    is not tier-specific and not flag-specific: a step column named
+    ``_quality_ok`` is legal right up until someone adds a rule, which is the
+    shape ``_source`` is reserved unconditionally to avoid.
+    """
+    with pytest.raises(StepError, match="reserved name"):
+        build(outputs=_with_produced(column))
+
+
+def test_an_unreserved_produced_column_still_lowers() -> None:
+    ir = build(outputs=_with_produced("confidence"))
+    (entity,) = [e for e in ir.entities if e.name == "customer"]
+    assert {column.name for column in entity.columns} == {"canonical_id", "confidence"}

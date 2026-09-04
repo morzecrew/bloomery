@@ -50,6 +50,7 @@ from bloomery.ir import (
     canon,
     step_sort_key,
 )
+from bloomery.spec.common import RESERVED_MEMBER_NAMES
 from bloomery.steps import EMPTY_REGISTRY
 from bloomery.typing import parse_type
 
@@ -507,6 +508,50 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
 # ....................... #
 
 
+def _check_reserved_columns(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryError]:
+    """No output may produce a column whose name the spec layer reserves.
+
+    A step manifest lives in the platform repo and is validated by
+    :class:`~bloomery.steps.StepManifest`, which never saw
+    :data:`~bloomery.spec.RESERVED_MEMBER_NAMES` — so a mapped entity could not
+    declare a field called ``_quality_flags`` and a step output could.
+
+    The break it caused is concrete rather than hypothetical. The flag lowering
+    projects every declared column of the output and then aliases its own
+    ``_quality_flags`` beside them (RFC 0051 §5.3), so such an output emitted a
+    model carrying the column twice, with an ambiguous reference at the level
+    above: a model that compiles, matches its golden, and fails on the engine.
+
+    **Every reserved name, on every tier, whether or not a rule is declared.**
+    The trap is the one ``_source`` is reserved unconditionally to avoid
+    (RFC 0024 D18): a step column called ``_quality_ok`` is legal right up
+    until someone adds the rule that generates it, and the author who adds the
+    rule is not the author who has to move the column. Reusing the spec layer's
+    own tuple rather than listing the three the lowering happens to project
+    today is the same choice for the same reason — a second list is a list that
+    stops agreeing.
+    """
+    errors: list[BloomeryError] = []
+    reserved = frozenset(RESERVED_MEMBER_NAMES)
+
+    for name, output in sorted(manifest.outputs.items()):
+        clashing = sorted(reserved.intersection(output.produces))
+        if not clashing:
+            continue
+        msg = (
+            f"step {wiring.use!r} output {name!r} produces {', '.join(clashing)}, which is a "
+            "reserved name (RFC 0016 D9, RFC 0024 D7): bloomery generates columns of those "
+            "names on a silver relation, so an output declaring one would have the column "
+            "twice. Fix: rename the column in the step's manifest and body"
+        )
+        errors.append(StepError(msg, source_path=_path(wiring)))
+
+    return errors
+
+
+# ....................... #
+
+
 def _check_canonical(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryError]:
     """Each ``canonical:`` link names a column the bound output actually
     produces (D49).
@@ -884,6 +929,7 @@ def lower_steps(project: Project, registry: StepRegistry = EMPTY_REGISTRY) -> tu
             *_check_parameters(wiring, manifest),
             *_check_body(wiring, manifest, body),
             *_check_canonical(wiring, manifest),
+            *_check_reserved_columns(wiring, manifest),
         ]
         resolved = _resolved_values(wiring, manifest)
         step_errors.extend(_check_parameter_types(wiring, manifest, resolved))
