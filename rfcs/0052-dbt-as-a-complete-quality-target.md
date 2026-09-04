@@ -82,6 +82,7 @@ Verified against the tree, per artifact family.
 | `gold.dim_date` | model | model |
 | Tier 2 `sql_model` step | model | model |
 | Tier 3 `python_model` step | generated wrapper | **refused** (RFC 0017 D52) |
+| `on_fail: quarantine` on a step output | **refused** (RFC 0051 D10) | **refused** (same) |
 | `<entity>__reject` | `INCREMENTAL_BY_UNIQUE_KEY` + `when_matched` | **refused** |
 | `replay/<entity>.sql` | `ArtifactKind.REPLAY` | **refused with the above** |
 | `<check>__reconcile` + audit | model + audit | **refused** |
@@ -160,6 +161,15 @@ through it. That is RFC 0008 D4's doctrine applied unchanged: envelopes interpol
 rendered strings, and a conditional inside a rendered SQL string is a template the dialect
 port never saw.
 
+`incremental_strategy` is **named**, not left to the adapter (D11). The design needs a
+write that reconciles by `reject_id`, and dbt's default is per-adapter and overridable
+project-wide: dbt-duckdb's default happens to be `delete+insert`
+(`duckdb__get_incremental_default_sql`, measured), but a project setting
+`+incremental_strategy: append` would make `unique_key` inert and turn every re-delivery
+into a new row — silently, since the `LEFT JOIN` still computes the right values and
+nothing reads them back. Stating it is this repo's habit for every other emitted config
+line, and here it is load-bearing rather than habitual.
+
 The first-run SELECT is `reject_select(entity, ctx)`, exactly as SQLMesh emits it. The
 incremental SELECT is that same select, `LEFT JOIN`ed to `{{ this }}` on `reject_id`, with
 each column of `_PRESERVED_ON_MERGE` projected as `COALESCE(<this>.<col>, <arriving>.<col>)`
@@ -182,6 +192,15 @@ adapter, including the two with no merge at all. It is the cheaper design *and* 
 portable one, which is unusual enough to be worth stating: the merge config looked like
 the native answer and is the narrower one.
 
+**Full refresh destroys reject history, and the contract says so.** `dbt build
+--full-refresh` drops the relation and takes the `{% else %}` branch, whose SELECT sees
+only currently-quarantined rows — so resolved reject rows, retained as audit history by
+§5.6, do not come back. This RFC **accepts** that rather than preventing it (D13): the
+history is derived from bronze that a full refresh is also rebuilding, SQLMesh has the
+same exposure under a restatement, and a model that refused to full-refresh would be a
+model an operator cannot recover. What ships with it is the sentence in the docs and a
+regression test that asserts the loss rather than discovering it.
+
 ### 5.2 Replay as a run-operation macro
 
 `macros/replay_<entity>.sql`, holding a macro that issues `replay_statements(entity, ctx)`
@@ -193,6 +212,14 @@ relation is named by `{{ ref(...) }}` — which is Jinja, resolved by dbt's own 
 against the manifest. A bare `replay/<entity>.sql` carrying `{{ ref('order_item') }}` is
 runnable by nothing: not by dbt, which does not execute loose files, and not by a SQL
 client, which sees braces. The macro is the only form in which the references resolve.
+
+**The three statements are one unit of work, and the macro has to say so.** SQLMesh's
+replay file tells the operator to "run the statements below, in order, as one unit of
+work"; `run_query` opens no transaction of its own, so on dbt the macro issues an explicit
+`BEGIN`/`COMMIT` around them (D14). Without it a failure between the entity `MERGE` and
+the reject-table stamps leaves a row admitted to the entity and still unresolved in the
+reject table — which double-counts it in the quality mart and re-admits it on the next
+replay.
 
 bloomery still executes nothing. The artifact is text, the caller runs it, and the run
 happens inside dbt's connection rather than the operator's — which is the same relationship
@@ -236,9 +263,19 @@ the fuller column, which is a fact about the two frameworks and not about anyone
 
 ### 5.5 What stays refused
 
-`python_model` steps, by `refuse_python_models`, unchanged and permanent while bloomery's
-dialects are DuckDB, Postgres and Trino. This RFC deliberately leaves it alone so that
-"dbt refuses this" keeps meaning something specific after the quality refusals go.
+Two families, and they are unrelated to each other:
+
+- **`python_model` steps**, by `refuse_python_models`, unchanged and permanent while
+  bloomery's dialects are DuckDB, Postgres and Trino.
+- **`on_fail: quarantine` on a step output**, by `resolve.steps` (RFC 0051 D10) — refused
+  on *every* target, including SQLMesh, because a step output has no ingestion-metadata
+  key for a reject table and a `steps:` wiring has no `quarantine:` block. What this RFC
+  lifts is the **entity-level** `quarantine:` that dbt alone refused; the two share a word
+  and nothing else, and conflating them would read as this RFC granting something it does
+  not.
+
+Both are deliberately left alone, so that "dbt refuses this" keeps meaning something
+specific after the target-coverage refusals go.
 
 ## 6. Tests
 
@@ -259,8 +296,11 @@ dialects are DuckDB, Postgres and Trino. This RFC deliberately leaves it alone s
   on purpose.
 - **Goldens** for each new artifact, as data files, and an assertion that the SQLMesh
   corpus is byte-identical to `main` — the non-goal stated as a test.
-- **Refusal census:** three refusal messages leave the corpus and one (`python_model`)
-  stays; the census is what stops a fourth quietly leaving with them.
+- **Refusal census:** three refusal messages leave the corpus and **two families stay** —
+  `python_model` steps (RFC 0017 D52) and `on_fail: quarantine` on a *step output*
+  (RFC 0051 D10), which is a different refusal from the entity-level `quarantine:` this
+  RFC lifts and must not be read as lifted with it. The census is what stops a fourth
+  quietly leaving with them.
 
 ## 7. Docs
 
@@ -285,11 +325,12 @@ dialects are DuckDB, Postgres and Trino. This RFC deliberately leaves it alone s
 
 ## 9. Risks
 
-- **`ref()` inside a `run-operation` macro.** The whole of §5.2 rests on it resolving
-  there, and I have read that it does rather than run it. If it does not, the fallback is
-  a macro that resolves relations through the naming policy instead — correct, and one
-  degree less native. §6 measures this before the design is committed to, and it is the
-  first thing the phasing builds.
+- **`ref()` inside a `run-operation` macro.** §5.2's *body* rests on it resolving there,
+  and I have read that it does rather than run it — dbt's own documentation of the support
+  is recent, while this repo's floor is `dbt-core>=1.10.8`, so "it works" and "it works at
+  our floor" are two claims and I have neither. If it is unavailable, the fallback is a
+  macro that resolves relations through the naming policy instead — correct, and one
+  degree less native. P1 measures both ends of the range before anything is built on it.
 - **The incremental branch is only exercised on a second run.** The classic dbt defect: a
   green build proves the `{% else %}` branch. Mitigated by building twice with a
   re-delivery, which is stated in §6 as a requirement rather than left to whoever writes
@@ -306,11 +347,10 @@ dialects are DuckDB, Postgres and Trino. This RFC deliberately leaves it alone s
 
 ## 10. Unresolved questions
 
-- Whether the reject model declares `incremental_strategy` explicitly or leaves the
-  adapter's default. Explicit is this repo's habit for every other emitted config line —
-  an artifact that states its own disposition cannot be misread — but naming
-  `delete+insert` pins a strategy where the design no longer depends on one, and naming
-  none lets a caller choose `merge` for free. Delegated to execution (D11).
+- Which strategy the reject model names, now that D11 settles *that* it names one.
+  `delete+insert` works on every adapter bloomery ships a dialect for and is dbt-duckdb's
+  own default; `merge` is narrower and no better here, since D1 already moved the
+  preservation out of the merge clause. Execution picks and logs it.
 - Whether the replay macro should refuse to run against a project whose fingerprint has
   moved since it was emitted. Every artifact carries the fingerprint in its header
   already; a macro could compare. Out of scope here, and named because a run-operation is
@@ -322,7 +362,7 @@ dialects are DuckDB, Postgres and Trino. This RFC deliberately leaves it alone s
 | --- | --- | --- |
 | 1 | `LOCKED` | The reject table preserves `first_seen` / `last_evaluated_at` **in its own SELECT**, by `LEFT JOIN` to `{{ this }}` and `COALESCE`, not by dbt's `merge_exclude_columns`. Column exclusion cannot express a `COALESCE`, so it would leave a null unhealed where SQLMesh heals it — a divergence in the column retention reads — and it requires a `merge` strategy dbt-postgres does not have and dbt-duckdb has only above a DuckDB floor. Locks the reject model to one scan of itself per run, in exchange for working on every adapter. |
 | 2 | `LOCKED` | The incremental and first-run bodies are **two pre-rendered SELECTs** chosen by `{% if is_incremental() %}` in the envelope. Never one SELECT with Jinja spliced into it: RFC 0008 D4's rule is that envelopes interpolate rendered strings, and a conditional inside a rendered string is a template no dialect port ever saw. |
-| 3 | `LOCKED` | Replay is `macros/replay_<entity>.sql`, run by `dbt run-operation`. Not ergonomics: the statements name relations through `ref()`, which resolves only inside dbt's Jinja, so a bare `.sql` file would be runnable by neither dbt nor a SQL client. |
+| 3 | `LOCKED` | Replay is `macros/replay_<entity>.sql`, run by `dbt run-operation`. Not ergonomics: the statements name relations through `ref()`, which resolves only inside dbt's Jinja, so a bare `.sql` file would be runnable by neither dbt nor a SQL client. **The macro form is what is locked; how it names relations is not** — P1 measures `ref()` on the supported range's floor and ceiling, and §9's naming-policy fallback is the body if it is unavailable below the ceiling. |
 | 4 | `ASSUMED` | The macro issues the statements in order through `run_query`. bloomery executes nothing — emitting a macro is emitting text, and the run happens in dbt's connection rather than the operator's, which is what SQLMesh's replay file already assumes about `sqlmesh`. |
 | 5 | `LOCKED` | The dbt replay artifact keeps `ArtifactKind.REPLAY` despite living under `macros/`. The kind means "a statement the caller runs, not a relation the framework maintains", and a caller routing the artifact stream must be able to tell those apart without parsing a path. |
 | 6 | `ASSUMED` | The reconcile model is `materialized='table'` (SQLMesh's `FULL`) and its audit a singular test whose severity comes from `reconcile_audit_blocking(check)` — the same function SQLMesh reads, so a check's `on_fail` means one thing across targets. |
@@ -330,15 +370,22 @@ dialects are DuckDB, Postgres and Trino. This RFC deliberately leaves it alone s
 | 8 | `ASSUMED` | dbt's `RunContext` is `invocation_id` and `run_started_at`, carried through `exp.var` exactly as `@execution_ds` already is. This gives dbt a `run_id` SQLMesh does not have; the asymmetry is reported, not hidden. |
 | 9 | `LOCKED` | `python_model` steps stay refused (RFC 0017 D52), untouched by this RFC. Leaving one refusal standing is what keeps "dbt refuses this" a specific statement rather than a historical one. |
 | 10 | `ASSUMED` | The coverage claim is restated in the docs, not in an amendment: RFC 0008 is retired at `7ba117b` and its "minimal but honest" sentence cannot be edited. This RFC supersedes it for the RFC 0016 surface only. |
-| 11 | `OPEN` | Whether the reject model names `incremental_strategy` explicitly or takes the adapter's default. §10 states both sides; execution decides and logs it. |
+| 11 | `LOCKED` | The reject model **names** `incremental_strategy`. Left to the adapter it is per-adapter and project-overridable, and `append` makes `unique_key` inert — every re-delivery becomes a new row, silently, because the `LEFT JOIN` still computes the right values and nothing reads them back. dbt-duckdb's default is `delete+insert` (measured), which is why this looked like a free choice and is not. |
 | 12 | `ASSUMED` | Parity is proven by an equivalence leg — one spec set built on both targets over one DuckDB, reject tables compared row for row — not by per-artifact goldens alone. The two targets emit different bytes on purpose, so only the rows can carry the claim. |
+| 13 | `ASSUMED` | A `--full-refresh` **loses resolved reject history**, and the contract says so rather than preventing it. The `{% else %}` branch sees only currently-quarantined rows; refusing to full-refresh would leave an operator unable to recover a broken relation, and SQLMesh has the same exposure under a restatement. Ships with a regression test that asserts the loss. |
+| 14 | `LOCKED` | The replay macro wraps its three statements in an explicit `BEGIN`/`COMMIT`. `run_query` opens no transaction, and a failure between the entity `MERGE` and the reject stamps leaves a row both admitted and unresolved — double-counted in the quality mart and re-admitted on the next replay. SQLMesh's replay file states the same requirement in prose to a human; the macro has to state it to the engine. |
+| 15 | `ASSUMED` | `on_fail: quarantine` on a *step output* is refused on every target (RFC 0051 D10) and is **not** what this RFC lifts. It shares a word with the entity-level `quarantine:` and nothing else; the coverage matrix, §5.5 and the refusal census name both so neither reads as granted with the other. |
 
 ## 12. Phasing
 
 Four phases. P1 is first because it is the one that can invalidate a `LOCKED` row.
 
-1. **P1 — measure `ref()` in a run-operation.** A spike, not a feature: emit one macro by
-   hand over an existing fixture and run it. D3 stands or its fallback does (§9).
+1. **P1 — measure `ref()` in a run-operation, at both ends of the supported range.** A
+   spike, not a feature: emit one macro by hand over an existing fixture and run it on the
+   floor (`dbt-core==1.10.8`) *and* on the newest 1.x. One probe is not enough — dbt's own
+   documentation of `ref()` in `run-operation` is recent, and a form that works only above
+   the floor is a compatibility range, not a design. D3's *form* stands either way; what
+   P1 decides is whether the naming-policy fallback (§9) is the body on some versions.
 2. **P2 — the reconcile model.** The smallest, and independent of everything else: a model
    artifact and a singular test over two shared functions. It removes one refusal on its
    own.
