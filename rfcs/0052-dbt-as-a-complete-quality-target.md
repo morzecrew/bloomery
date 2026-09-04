@@ -148,7 +148,8 @@ control for the half a green build does not prove. The dependency is pinned
 ### 5.1 The reject table
 
 ```jinja
-{{ config(materialized='incremental', unique_key='reject_id') }}
+{{ config(materialized='incremental', unique_key='reject_id',
+          incremental_strategy='delete+insert') }}
 {% if is_incremental() %}
 <the incremental SELECT>
 {% else %}
@@ -161,14 +162,21 @@ through it. That is RFC 0008 D4's doctrine applied unchanged: envelopes interpol
 rendered strings, and a conditional inside a rendered SQL string is a template the dialect
 port never saw.
 
-`incremental_strategy` is **named**, not left to the adapter (D11). The design needs a
-write that reconciles by `reject_id`, and dbt's default is per-adapter and overridable
-project-wide: dbt-duckdb's default happens to be `delete+insert`
-(`duckdb__get_incremental_default_sql`, measured), but a project setting
+`incremental_strategy` is `delete+insert`, **named** rather than left to the adapter
+(D11). The design needs a write that reconciles by `reject_id`, and dbt's default is
+per-adapter and overridable project-wide: dbt-duckdb's default happens to be
+`delete+insert` (`duckdb__get_incremental_default_sql`, measured), but a project setting
 `+incremental_strategy: append` would make `unique_key` inert and turn every re-delivery
 into a new row — silently, since the `LEFT JOIN` still computes the right values and
 nothing reads them back. Stating it is this repo's habit for every other emitted config
 line, and here it is load-bearing rather than habitual.
+
+`delete+insert` rather than `merge`, and the ordering is why it is safe: dbt materializes
+the model's SELECT into a temporary relation **first**, then deletes the matching keys and
+inserts — so the `LEFT JOIN` against `{{ this }}` reads the incumbent row before anything
+removes it. `merge` is the narrower choice with nothing left to buy, since D1 already
+moved the preservation out of the merge clause; `delete+insert` is available on every
+adapter bloomery ships a dialect for, including the two with no merge at all.
 
 The first-run SELECT is `reject_select(entity, ctx)`, exactly as SQLMesh emits it. The
 incremental SELECT is that same select, `LEFT JOIN`ed to `{{ this }}` on `reject_id`, with
@@ -347,10 +355,6 @@ specific after the target-coverage refusals go.
 
 ## 10. Unresolved questions
 
-- Which strategy the reject model names, now that D11 settles *that* it names one.
-  `delete+insert` works on every adapter bloomery ships a dialect for and is dbt-duckdb's
-  own default; `merge` is narrower and no better here, since D1 already moved the
-  preservation out of the merge clause. Execution picks and logs it.
 - Whether the replay macro should refuse to run against a project whose fingerprint has
   moved since it was emitted. Every artifact carries the fingerprint in its header
   already; a macro could compare. Out of scope here, and named because a run-operation is
@@ -370,7 +374,7 @@ specific after the target-coverage refusals go.
 | 8 | `ASSUMED` | dbt's `RunContext` is `invocation_id` and `run_started_at`, carried through `exp.var` exactly as `@execution_ds` already is. This gives dbt a `run_id` SQLMesh does not have; the asymmetry is reported, not hidden. |
 | 9 | `LOCKED` | `python_model` steps stay refused (RFC 0017 D52), untouched by this RFC. Leaving one refusal standing is what keeps "dbt refuses this" a specific statement rather than a historical one. |
 | 10 | `ASSUMED` | The coverage claim is restated in the docs, not in an amendment: RFC 0008 is retired at `7ba117b` and its "minimal but honest" sentence cannot be edited. This RFC supersedes it for the RFC 0016 surface only. |
-| 11 | `LOCKED` | The reject model **names** `incremental_strategy`. Left to the adapter it is per-adapter and project-overridable, and `append` makes `unique_key` inert — every re-delivery becomes a new row, silently, because the `LEFT JOIN` still computes the right values and nothing reads them back. dbt-duckdb's default is `delete+insert` (measured), which is why this looked like a free choice and is not. |
+| 11 | `LOCKED` | The reject model names `incremental_strategy='delete+insert'`. Left to the adapter it is per-adapter and project-overridable, and `append` makes `unique_key` inert — every re-delivery becomes a new row, silently, because the `LEFT JOIN` still computes the right values and nothing reads them back. dbt-duckdb's default *is* `delete+insert` (measured), which is why this looked like a free choice and is not. The value is named here rather than delegated: `delete+insert` materializes the SELECT before deleting, so the join against `{{ this }}` reads the incumbent row, and it exists on every adapter — `merge` would be narrower with nothing left to buy once D1 moved the preservation out of the merge clause. |
 | 12 | `ASSUMED` | Parity is proven by an equivalence leg — one spec set built on both targets over one DuckDB, reject tables compared row for row — not by per-artifact goldens alone. The two targets emit different bytes on purpose, so only the rows can carry the claim. |
 | 13 | `ASSUMED` | A `--full-refresh` **loses resolved reject history**, and the contract says so rather than preventing it. The `{% else %}` branch sees only currently-quarantined rows; refusing to full-refresh would leave an operator unable to recover a broken relation, and SQLMesh has the same exposure under a restatement. Ships with a regression test that asserts the loss. |
 | 14 | `LOCKED` | The replay macro wraps its three statements in an explicit `BEGIN`/`COMMIT`. `run_query` opens no transaction, and a failure between the entity `MERGE` and the reject stamps leaves a row both admitted and unresolved — double-counted in the quality mart and re-admitted on the next replay. SQLMesh's replay file states the same requirement in prose to a human; the macro has to state it to the engine. |
