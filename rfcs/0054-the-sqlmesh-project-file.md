@@ -151,12 +151,22 @@ SQLMesh member of exactly that set.
 # fingerprint: blm1:…
 #
 # The gateway is yours. A connection carries hosts and credentials, which this
-# compiler never reads — add a `gateways:` block here, or set SQLMESH__GATEWAYS__…
-# in the environment.
+# compiler never reads — supply one through SQLMESH__GATEWAYS__… in the
+# environment, or from a config this file does not own. Editing a `gateways:`
+# block into *this* file works until the next compile overwrites it.
 model_defaults:
   dialect: duckdb
   start: '2020-01-01'
 ```
+
+> **Corrected after execution.** The header above was drafted offering a
+> `gateways:` block *here* as one of two ways to supply a connection. It is
+> advice that works exactly once: SQLMesh keeps the connection in the same file
+> as the project settings — the reason `dbt_project.yml` could never collide
+> this way — so the next compile takes it back. The first caller to lose a
+> gateway to it was this repository's own SQLMesh tier. The comment is corrected
+> rather than left standing because a reader copies a code block; what it said
+> first, and what running it cost, are in `logs/T-0015.md` (D-076).
 
 Two keys, both known:
 
