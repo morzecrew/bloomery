@@ -94,8 +94,6 @@ def _admitted_directions(
         case Cardinality.ONE_TO_MANY:
             return ((True, DependencyBasis.MANY_TO_ONE),)
 
-    return ()
-
 
 # ....................... #
 
@@ -178,8 +176,20 @@ def dependencies(
 
     return DependencySet(
         dependencies=tuple(sorted(found, key=_dependency_sort_key)),
-        blocked=tuple(sorted(set(blocked), key=lambda b: (b.relationship, b.reason))),
+        # Sorted on the node's *whole* value, `state` included. Without it two
+        # edges of one relationship that block for different reasons — a
+        # one_to_one is read both ways, and the anchor that qualifies one
+        # direction names no column on the other — tie on the key and come out
+        # in `set` iteration order, which is hash-seed order (RFC 0003).
+        blocked=tuple(sorted(set(blocked), key=_blocked_sort_key)),
     )
+
+
+# ....................... #
+
+
+def _blocked_sort_key(edge: BlockedEdge) -> tuple[str, ...]:
+    return (edge.relationship, edge.reason, edge.state or "")
 
 
 # ....................... #
@@ -286,10 +296,11 @@ def closure(grain: GrainRef, deps: DependencySet) -> tuple[Determined, ...]:
 
 def _unknown(grain: GrainRef, entities: dict[str, EntityIR]) -> tuple[ColumnRef, ...]:
     """Determinants that name no entity of this project, or a column that is
-    not part of that entity's key. A grain of no determinants is unknown in
-    the same sense: nothing identifies its rows."""
-    if not grain.determinants:
-        return ()
+    not part of that entity's key.
+
+    A grain of *no* determinants is not this function's case — nothing
+    identifies its rows, which :func:`can_roll_up` refuses before asking.
+    """
 
     return tuple(
         ref
@@ -373,7 +384,9 @@ def _connected(source: GrainRef, target: GrainRef, project: ProjectIR) -> bool:
                     seen.add(far)
                     frontier.append(far)
 
-    return bool(wanted & seen)
+    # Everything added to `seen` is also pushed onto `frontier` and so is
+    # checked above before this line can be reached.
+    return False
 
 
 # ....................... #
@@ -389,14 +402,19 @@ def _diagnose(
 ) -> RollupRefusal:
     """Why the closure fell short (§9).
 
-    Order matters. A refinement *is* a path through a fan-out edge, and
+    Asked in this order, and the order is the answer as much as the questions
+    are. **Refinement first:** it is also a path through a fan-out edge, and
     reporting the fan-out would send the author to correct a ``cardinality:``
     that is already right — the same distinction
     :class:`~bloomery.errors.HistoricalFanout` keeps from
-    :class:`~bloomery.errors.FanoutRisk`. And an unanchored historical hop is
-    asked before either, because it is the one refusal whose repair is neither
-    a relationship nor a remodelling.
+    :class:`~bloomery.errors.FanoutRisk`. **Then the unanchored hop,** whose
+    repair is neither a relationship nor a remodelling. **Then connectivity,**
+    which is the weakest claim of the three and so the last resort.
     """
+
+    def edges(reason: RefusalReason) -> tuple[BlockedEdge, ...]:
+        return tuple(edge for edge in admitted.blocked if edge.reason is reason)
+
     reverse = {member.ref for member in closure(target, admitted)}
     if all(ref in reverse for ref in source.determinants):
         return RollupRefusal(source, target, RefusalReason.REFINEMENT, unreached=unreached)
@@ -408,11 +426,7 @@ def _diagnose(
             target,
             RefusalReason.UNQUALIFIED_HISTORICAL,
             unreached=unreached,
-            blocked=tuple(
-                edge
-                for edge in admitted.blocked
-                if edge.reason is RefusalReason.UNQUALIFIED_HISTORICAL
-            ),
+            blocked=edges(RefusalReason.UNQUALIFIED_HISTORICAL),
         )
 
     if _connected(source, target, project):
@@ -421,11 +435,7 @@ def _diagnose(
             target,
             RefusalReason.CARDINALITY_EXPANDING,
             unreached=unreached,
-            blocked=tuple(
-                edge
-                for edge in admitted.blocked
-                if edge.reason is RefusalReason.CARDINALITY_EXPANDING
-            ),
+            blocked=edges(RefusalReason.CARDINALITY_EXPANDING),
         )
 
     return RollupRefusal(source, target, RefusalReason.NO_FUNCTIONAL_PATH, unreached=unreached)

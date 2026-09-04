@@ -14,7 +14,8 @@ from __future__ import annotations
 
 import pytest
 
-from bloomery.ir import SCDKind
+from bloomery import semantic
+from bloomery.ir import Cardinality, ProjectIR, SCDKind
 from bloomery.semantic import (
     AsOfState,
     ColumnRef,
@@ -47,6 +48,7 @@ from support.grain_model import (
     entity,
     grain,
     project,
+    relationship,
 )
 
 pytestmark = pytest.mark.unit
@@ -394,6 +396,58 @@ def test_a_grain_rolls_up_to_itself() -> None:
     )
 
 
+def test_an_entity_with_no_declared_key_contributes_nothing() -> None:
+    """It determines nothing and is determined by nothing. A grain of no
+    determinants would read as "determined by the empty set", i.e. by a
+    constant — which is the one answer that is worse than no answer."""
+    keyless = entity("keyless", (), ("a", "b"))
+    built = dependencies(project((keyless, ORDER)))
+
+    assert all(dep.dependent.entity != "keyless" for dep in built.dependencies)
+    assert all(dep.determinant.determinants[0].entity != "keyless" for dep in built.dependencies)
+
+
+def test_a_relationship_read_from_a_keyless_entity_contributes_nothing() -> None:
+    """The other half of the keyless case, and the one a closure could get
+    wrong quietly: the entity has no grain to be the determinant, so the hop
+    has nothing to hang off — including in the *inverse* reading, where the
+    keyless side is the one doing the determining."""
+    keyless = entity("keyless", (), ("order_id",))
+    forward = relationship(
+        "keyless_order", "keyless", "order", Cardinality.MANY_TO_ONE, (("order_id", "order_id"),)
+    )
+    backward = relationship(
+        "order_keyless", "order", "keyless", Cardinality.ONE_TO_MANY, (("order_id", "order_id"),)
+    )
+
+    for rel in (forward, backward):
+        built = dependencies(project((keyless, ORDER), (rel,)))
+        assert all(dep.via is None for dep in built.dependencies)
+
+
+def test_an_unsorted_context_is_canonicalized_like_a_grain() -> None:
+    """Same reason, same treatment (§5.7): a value whose equality depends on
+    the order it was written in is one that compares wrongly somewhere."""
+    context = RollupContext((("zed", "a"), ("alpha", "b")))
+
+    assert context.anchors == (("alpha", "b"), ("zed", "a"))
+    assert context == RollupContext((("alpha", "b"), ("zed", "a")))
+
+
+def test_a_relationship_onto_an_entity_no_mapping_lowers_is_blocked_not_ignored() -> None:
+    scope = ProjectIR(
+        entities=(ORDER,),
+        relationships=(relationship(
+            "order_ghost", "order", "ghost", Cardinality.MANY_TO_ONE, (("customer_id", "id"),)
+        ),),
+    )
+    built = dependencies(scope)
+
+    assert [(e.relationship, e.reason) for e in built.blocked] == [
+        ("order_ghost", RefusalReason.UNKNOWN_GRAIN)
+    ]
+
+
 # ....................... #
 # The as-of fact, read directly (D4)
 
@@ -434,14 +488,58 @@ def test_every_pairing_of_historical_ness_and_anchor_lands_somewhere() -> None:
 # 8 — the mart's own grain refusals are untouched
 
 
-def test_the_mart_grain_refusal_still_reads_a_grain_string() -> None:
+def test_the_mart_guard_words_every_state_of_the_shared_fact_separately() -> None:
+    """The seam's real hazard, and it is not in either module's own tests.
+
+    ``_historical_leaf`` dispatches with a ``match`` ending in a catch-all, so
+    a state added to :class:`AsOfState` later — for a validity shape nobody has
+    built yet — would fall through and be reported to a mart author with a
+    *neighbouring* state's message. That is a wrong answer rather than a crash,
+    which is the class this compiler exists to refuse. Asserting one distinct
+    wording per refusing state is what makes the new member visible: it lands
+    on an existing message and collides.
+    """
+    from bloomery.marts.flatten import _historical_leaf
+    from bloomery.spec.marts import ViaStep
+
+    versioned = entity("versioned", ("customer_id",), ("customer_id", "tier"), scd=SCDKind.TYPE2)
+    plain = entity("plain", ("customer_id",), ("customer_id", "tier"))
+    anchors = {
+        AsOfState.CURRENT: (plain, None),
+        AsOfState.QUALIFIED: (versioned, "ordered_at"),
+        AsOfState.UNANCHORED: (versioned, None),
+        AsOfState.ANCHOR_ON_CURRENT: (plain, "ordered_at"),
+        AsOfState.ANCHOR_UNKNOWN: (versioned, "absent"),
+        AsOfState.ANCHOR_NOT_TEMPORAL: (versioned, "shipping"),
+    }
+    assert set(anchors) == set(AsOfState)
+
+    messages: dict[AsOfState, str] = {}
+    for state, (target, anchor) in anchors.items():
+        step = ViaStep(via="rel", prefix="p_", as_of=anchor)
+        rel = relationship("rel", "order", target.name, Cardinality.MANY_TO_ONE, (("customer_id", "customer_id"),))
+        leaves = _historical_leaf(step, rel, {target.name: target}, ORDER, "marts: m.flatten[0].via")
+        # `qualify_as_of` produced the state this row is keyed by — otherwise
+        # the table below would be asserting distinctness over the wrong rows.
+        assert qualify_as_of(reading=ORDER, target=target, as_of=anchor) is state
+        messages[state] = str(leaves[0]) if leaves else ""
+
+    assert messages[AsOfState.CURRENT] == ""
+    assert messages[AsOfState.QUALIFIED] == ""
+    refusals = [text for state, text in messages.items() if text]
+    assert len(set(refusals)) == len(refusals) == 4
+
+
+def test_the_mart_took_the_as_of_fact_and_nothing_else() -> None:
     """RFC 0037 §7 and D8 (`OPEN`, decided: not on this branch). The substrate
-    exists; the mart check has not moved onto it, and the way to notice if it
-    quietly did is that ``GrainViolation`` stops being raised from a string
-    comparison. The mart suite and the goldens pin the messages; this pins the
-    decision.
+    exists and the mart check has not moved onto it — the only thing the mart
+    path reads from here is the as-of fact (D4). Asserted on the *names* the
+    module holds, because a later silent migration would show up here before it
+    showed up in a golden, and a golden that changed would already be the
+    damage §7 forbids.
     """
     from bloomery.marts import flatten
 
-    assert "grain" in flatten.lower_marts.__doc__ or True  # the module still owns the check
-    assert not hasattr(flatten, "can_roll_up")
+    borrowed = {name for name in dir(flatten) if name in set(semantic.__all__)}
+
+    assert borrowed == {"AsOfState", "qualify_as_of"}

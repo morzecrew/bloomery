@@ -249,7 +249,7 @@ def _historical_leaf(
                 "or timestamp column of the base"
             )
 
-        case _:
+        case AsOfState.ANCHOR_NOT_TEMPORAL:
             # Refusing a non-temporal anchor here rather than letting it reach
             # SQL is the same call the SQLMesh time-column check makes —
             # comparing a string to an interval bound is a comparison an engine

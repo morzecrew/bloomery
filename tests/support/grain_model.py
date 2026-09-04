@@ -18,7 +18,7 @@ from bloomery.ir import (
     RelationshipIR,
     SCDKind,
 )
-from bloomery.semantic import ColumnRef, GrainRef
+from bloomery.semantic import ColumnRef, GrainRef, RollupContext
 from bloomery.typing import IntType, StringType, TimestampType
 
 # ----------------------- #
@@ -132,6 +132,17 @@ ORDER_PROMO = relationship(
     "order_promo", "order", "promo", Cardinality.ONE_TO_MANY, (("region", "region"),)
 )
 
+#: A ``one_to_one``, which is read in **both** directions — the only shape
+#: where one relationship can block twice, for different reasons, in one call.
+#: With an anchor named for `order`, neither direction qualifies and the two
+#: refusals differ: `visit` has no such column, and `visit` is not historical
+#: so an anchor onto it names a version that does not exist.
+SESSION = entity("session", ("session_id",), ("session_id", "channel"), scd=SCDKind.TYPE2)
+VISIT = entity("visit", ("visit_id",), ("visit_id", "session_id"))
+VISIT_SESSION = relationship(
+    "visit_session", "visit", "session", Cardinality.ONE_TO_ONE, (("session_id", "session_id"),)
+)
+
 ITEM_ORDER = relationship(
     "item_order", "order_item", "order", Cardinality.MANY_TO_ONE, (("order_id", "order_id"),)
 )
@@ -158,7 +169,7 @@ ORDER_SHIPPING = relationship(
 # historical target and the two routes onto `address`.
 
 CORPUS = project(
-    (ORDER_ITEM, ORDER, CUSTOMER, ADDRESS, CUSTOMER_TIER, PROMO),
+    (ORDER_ITEM, ORDER, CUSTOMER, ADDRESS, CUSTOMER_TIER, PROMO, SESSION, VISIT),
     (
         ITEM_ORDER,
         ORDER_CUSTOMER,
@@ -167,8 +178,14 @@ CORPUS = project(
         ORDER_BILLING,
         ORDER_SHIPPING,
         ORDER_PROMO,
+        VISIT_SESSION,
     ),
 )
+
+#: Anchors that qualify one historical hop and fail to qualify the other in two
+#: different ways — the case where one relationship contributes two blocked
+#: edges, whose ordering is the thing most easily left to a hash seed.
+ANCHORED = RollupContext((("order_tier", "ordered_at"), ("visit_session", "ordered_at")))
 
 #: ``(source, target)`` pairs covering a proof, a refinement, an ambiguity and
 #: an unanchored historical hop — one of each answer :func:`can_roll_up`
