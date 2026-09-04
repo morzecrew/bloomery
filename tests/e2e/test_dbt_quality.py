@@ -254,3 +254,91 @@ def test_a_full_refresh_loses_resolved_reject_history(
     assert _rows(
         database, "SELECT COUNT(*) FROM silver.order_line__reject WHERE resolved_at IS NOT NULL"
     ) == [(0,)], "the resolved row survived a full refresh — D13 describes a loss that did not happen"
+
+
+def test_the_two_targets_reject_tables_agree_row_for_row(tmp_path: pathlib.Path) -> None:
+    """RFC 0052 D12 — the leg that turns per-artifact parity into a claim about
+    the rows.
+
+    Per-artifact goldens cannot make it: the two targets emit different bytes on
+    purpose, so nothing that compares files can say the tables end up the same.
+    And the mechanisms genuinely differ — SQLMesh preserves `first_seen` in a
+    `when_matched` clause the engine applies during a merge, dbt resolves it in
+    the model's own projection and lets the write replace a whole row. Two
+    designs for one sentence in RFC 0016 §5.6; this is what checks they say it.
+
+    **One bronze, copied rather than seeded twice.** The seed runs once and the
+    file is duplicated, so the inputs are byte-identical by construction — two
+    seeding routines kept in step is what would have made a divergence
+    ambiguous.
+
+    **Two runs on each side**, because the first is where the two agree by
+    default: dbt's `{% else %}` arm and SQLMesh's initial `CREATE TABLE AS` are
+    the same SELECT. The re-delivery is what puts the incremental branch and
+    the `when_matched` clause against each other.
+    """
+    import shutil
+
+    import duckdb
+
+    from support.execution import materialize
+
+    seeded = tmp_path / "seeded.duckdb"
+    _seed(seeded)
+    dbt_database = tmp_path / "dbt.duckdb"
+    sqlmesh_database = tmp_path / "sqlmesh.duckdb"
+    shutil.copy(seeded, dbt_database)
+    shutil.copy(seeded, sqlmesh_database)
+
+    redelivery = (
+        "A-2", "1", "SKU-2", "still_not_a_number", "2024-03-05T00:00:00", "paid",
+        "2024-03-20T00:00:00", "s2",
+    )
+
+    _write_project(tmp_path, dbt_database)
+    assert _dbt(tmp_path, "run").success
+    connection = duckdb.connect(str(dbt_database))
+    try:
+        connection.execute(_INSERT, redelivery)
+    finally:
+        connection.close()
+    assert _dbt(tmp_path, "run").success
+
+    artifacts = compile_fixture(FIXTURE, dialect="duckdb")
+    connection = duckdb.connect(str(sqlmesh_database))
+    try:
+        connection.execute("SET TimeZone = 'UTC'")
+        for schema in ("silver", "gold"):
+            connection.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+        materialize(connection, artifacts)
+        connection.execute(_INSERT, redelivery)
+        materialize(connection, artifacts)
+    finally:
+        connection.close()
+
+    columns = (
+        "reject_id, source_relation, mapping, mapping_version, failed_rules, key_values, "
+        "_load_id, _ingested_at, _source_row_id, first_seen, last_seen, resolved_at, "
+        "last_evaluated_at"
+    )
+    query = f"SELECT {columns} FROM silver.order_line__reject ORDER BY reject_id"
+    connection = duckdb.connect(str(dbt_database))
+    try:
+        from_dbt = connection.execute(query).fetchall()
+    finally:
+        connection.close()
+    connection = duckdb.connect(str(sqlmesh_database))
+    try:
+        from_sqlmesh = connection.execute(query).fetchall()
+    finally:
+        connection.close()
+
+    assert from_dbt, "an empty comparison agrees with anything"
+    assert from_dbt == from_sqlmesh
+    # `raw` is excluded above because it is a JSON payload whose two engines
+    # may key it differently; the columns compared are the ones RFC 0016 §5.6
+    # gives meanings to, and `first_seen` versus `last_seen` is the pair the
+    # two mechanisms could disagree about.
+    assert from_dbt[0][columns.split(", ").index("first_seen")] != from_dbt[0][
+        columns.split(", ").index("last_seen")
+    ], "the re-delivery did not separate first_seen from last_seen — the comparison is vacuous"
