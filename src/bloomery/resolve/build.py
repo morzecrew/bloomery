@@ -1471,8 +1471,15 @@ def _snapshot_quarantine(entity_name: str, entity: Entity) -> list[ResolutionErr
     Filling those columns is not the fix available here. ``dbt_scd_id`` is a
     hash dbt computes and owns; writing bloomery's guess of it would be this
     compiler inventing another framework's bookkeeping, which is the coupling
-    ``emit/lower`` exists to avoid. The honest answer is that replay and native
+    ``emit/lower`` exists to avoid, and a guess that is wrong produces duplicate
+    versions rather than an error. The honest answer is that replay and native
     SCD2 have never composed, and no fixture reached the combination to say so.
+
+    **Unbuilt rather than wrong**, and the difference matters to whoever meets
+    this message: a recovered row has to reach the entity through whatever
+    produces its versions, so that the framework versions it. That route does
+    not exist. The design for one is a live RFC, so this refusal is a stop-gap
+    with a shape behind it rather than a position.
 
     Not the same refusal as the merged-``type2`` one above: that is about a
     collision audit over two sources, this about the replay merge, and an

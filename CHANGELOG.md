@@ -9,21 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`quarantine:` and `scd: type2` on one entity are refused**, on every
-  target. Replay's merge admits a row by the entity's own columns, and a type 2
-  relation carries more than those — the validity interval its framework
-  maintains, plus dbt's `dbt_scd_id`. The merge names none of them, so it
-  inserted a version with `valid_from`, `valid_to` and `dbt_scd_id` all NULL:
-  a row that is present, queryable, and skipped by every as-of join, with the
-  merge reporting success. Measured on both targets before the refusal was
-  written.
-
-  Filling those columns is not something a compiler can do — `dbt_scd_id` is a
-  hash dbt computes and owns — so the pair is refused rather than approximated.
-  No fixture combined them, which is why replay and native SCD2 had never been
-  observed failing to compose. Declare the entity `scd: type1`, or reduce its
-  rules to `flag` dispositions.
-
 - **dbt is a complete quality target.** `quarantine:` and `reconcile:` on an
   entity, and the quality mart that counts over both, compiled for SQLMesh and
   raised `UnsupportedByTarget` for dbt. All three now emit: a
@@ -347,6 +332,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with no check at all; the shipped three dialects are unaffected.
 
 ### Removed
+
+- **`quarantine:` on an `scd: type2` entity.** The pair compiled and produced a
+  replay merge that could not work: replay admits a row by the entity's own
+  columns, and a type 2 relation carries the validity interval its framework
+  maintains as well — plus dbt's `dbt_scd_id`. The merge named none of them, so
+  it inserted a version with `valid_from`, `valid_to` and `dbt_scd_id` all NULL
+  and **reported success**. The row is present, queryable, and skipped by every
+  as-of join, which is what a type 2 relation is for. Measured on both targets.
+
+  **What to write instead**, depending on which half you need. If the history
+  matters more than the recovery, declare the entity `scd: type1` and keep
+  `quarantine:` — you lose versioning and keep the reject table and replay. If
+  the recovery matters more, keep `scd: type2` and reduce the entity's rules to
+  `flag` dispositions: no row is diverted, `_quality_flags` still records every
+  failure, and the quality mart still counts them. A rule that must divert *and*
+  a relation that must keep history is the combination with no correct lowering
+  today.
+
+  This is a removal of something that never worked rather than of a capability.
+  No fixture combined the two, which is why replay and native SCD2 had never
+  been observed failing to compose. Bringing it back is RFC 0060.
 
 - `UnsupportedCumulative`. The class named reserved surface no stage lowered, and
   the surface is no longer reserved. A metric that cannot mean what it says is now

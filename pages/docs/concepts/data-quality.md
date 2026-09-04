@@ -290,8 +290,17 @@ because replay would have nothing left to re-run against.
 
     Filling those columns is not available to a compiler: `dbt_scd_id` is a hash dbt
     computes and owns. So the combination is refused rather than approximated — a
-    `ResolutionError` naming both halves. Declare the entity `scd: type1`, or reduce its
-    rules to `flag` dispositions.
+    `ResolutionError` naming both halves.
+
+    **Which half to give up depends on which you need.** If the history matters more,
+    declare the entity `scd: type1` and keep `quarantine:` — you lose versioning and keep
+    the reject table and replay. If the recovery matters more, keep `scd: type2` and
+    reduce the entity's rules to `flag`: no row is diverted, `_quality_flags` still
+    records every failure, and the quality mart still counts them.
+
+    This is unbuilt rather than wrong. A recovered row has to reach the entity through
+    whatever produces its versions, so the framework does the versioning it owns, and
+    that route does not exist yet.
 
 `plan()` knows about all of this. Adding, removing, or changing a rule, changing a
 disposition in either direction, and changing `dedupe` all classify as `RESTATING`, and
