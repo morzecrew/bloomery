@@ -90,6 +90,34 @@ def test_the_clean_row_is_the_only_one_kept(quality_db: psycopg.Connection) -> N
     assert [row[0] for row in kept] == ["r1"]
 
 
+def test_the_clean_rows_quality_ok_is_true_and_not_null(
+    quality_db: psycopg.Connection,
+) -> None:
+    """`_quality_ok` is a two-valued claim about a row, and on Postgres it was
+    three-valued.
+
+    `array_length(ARRAY[]::text[], 1)` is **NULL** in Postgres — not 0 — so the
+    generated `ARRAY_LENGTH(_quality_flags, 1) = 0` came back NULL for every row
+    that failed nothing. A clean row is the common row; the column that says so
+    was unknown for all of them, `NOT _quality_ok` was unknown with it, and a
+    mart's `has_quality_flags` inherited that.
+
+    The tier kept the clean row and never asked what the row *said* about
+    itself, which is why rendering-and-routing tests did not see this. Asserted
+    with `IS TRUE` against the value rather than through a `WHERE`, because a
+    NULL is filtered out by a predicate and would look like an absent row
+    rather than a wrong one.
+    """
+    row = quality_db.execute(
+        'SELECT _quality_ok, _quality_flags FROM silver."inventory_level" '
+        "WHERE _source_row_id = 'r1'"
+    ).fetchone()
+    assert row is not None
+    quality_ok, flags = row
+    assert flags == [], "the clean row carries flags — the assertion below would prove nothing"
+    assert quality_ok is True, f"_quality_ok is {quality_ok!r} for a row that failed nothing"
+
+
 def test_an_uncastable_value_is_quarantined_rather_than_aborting_the_run(
     quality_db: psycopg.Connection,
 ) -> None:

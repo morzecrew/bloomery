@@ -187,4 +187,17 @@ def quality_ok(column: str = FLAGS_COLUMN, *, table: str | None = None, arrays: 
     # on DuckDB, ``ARRAY_LENGTH(x, 1)`` on Postgres and ``CARDINALITY`` on
     # Trino. Spelling ``CARDINALITY`` directly would look more like the RFC's
     # prose and be wrong — DuckDB's ``CARDINALITY`` operates on MAPs only.
-    return exp.EQ(this=exp.ArraySize(this=reference), expression=exp.Literal.number(0))
+    #
+    # **The COALESCE is Postgres's, and it is load-bearing.**
+    # ``array_length(ARRAY[]::text[], 1)`` is NULL there rather than 0 — the
+    # dimension of an empty array is undefined, which is defensible and is not
+    # what the other two do. Without the wrap, ``_quality_ok`` came back NULL
+    # for every row that failed *nothing*: the common row, carrying a
+    # three-valued answer to a two-valued question, with ``NOT _quality_ok``
+    # unknown alongside it and a mart's ``has_quality_flags`` inheriting both.
+    # Measured against PostgreSQL 16; DuckDB and Trino return 0 for the empty
+    # array, so the wrap is inert there and the expression stays one shape.
+    return exp.EQ(
+        this=exp.Coalesce(this=exp.ArraySize(this=reference), expressions=[exp.Literal.number(0)]),
+        expression=exp.Literal.number(0),
+    )

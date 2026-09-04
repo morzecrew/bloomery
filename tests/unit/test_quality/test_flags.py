@@ -86,20 +86,40 @@ def test_the_two_lowerings_agree_on_the_flag_set() -> None:
 def test_quality_ok_is_generated_per_shape(arrays: bool) -> None:
     node = quality_ok(arrays=arrays)
     rendered = node.sql(dialect="duckdb")
-    assert rendered == ("ARRAY_LENGTH(_quality_flags) = 0" if arrays else "_quality_flags = ''")
+    assert rendered == (
+        "COALESCE(ARRAY_LENGTH(_quality_flags), 0) = 0" if arrays else "_quality_flags = ''"
+    )
 
 
 def test_quality_ok_never_spells_cardinality_on_duckdb() -> None:
     """DuckDB's ``CARDINALITY`` operates on MAPs only — the neutral
     ``ArraySize`` node is what keeps one AST legal on all three."""
     node = quality_ok(arrays=True)
-    assert node.sql(dialect="trino") == "CARDINALITY(_quality_flags) = 0"
-    assert node.sql(dialect="postgres") == "ARRAY_LENGTH(_quality_flags, 1) = 0"
+    assert node.sql(dialect="trino") == "COALESCE(CARDINALITY(_quality_flags), 0) = 0"
+    assert node.sql(dialect="postgres") == "COALESCE(ARRAY_LENGTH(_quality_flags, 1), 0) = 0"
+
+
+def test_quality_ok_is_two_valued_on_every_dialect() -> None:
+    """The `COALESCE` is Postgres's and it is not cosmetic.
+
+    `array_length(ARRAY[]::text[], 1)` is NULL there rather than 0 — the
+    dimension of an empty array is undefined — so the unwrapped comparison
+    answered *unknown* for every row that failed nothing, which is the common
+    row. DuckDB and Trino return 0 and the wrap is inert, which is why one
+    expression still serves all three.
+
+    Asserted on the rendered string per dialect because the defect is in what
+    the *engine* does with the AST, and the AST was identical and correct in
+    all three cases. `tests/engines/test_postgres_quality.py` holds the half
+    only an engine can answer.
+    """
+    for dialect in ("duckdb", "postgres", "trino"):
+        assert quality_ok(arrays=True).sql(dialect=dialect).startswith("COALESCE("), dialect
 
 
 def test_quality_ok_can_be_qualified() -> None:
     assert quality_ok(table="_evaluated", arrays=True).sql() == (
-        "ARRAY_LENGTH(_evaluated._quality_flags) = 0"
+        "COALESCE(ARRAY_LENGTH(_evaluated._quality_flags), 0) = 0"
     )
 
 

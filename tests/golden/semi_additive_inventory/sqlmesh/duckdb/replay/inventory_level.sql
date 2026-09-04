@@ -18,7 +18,7 @@ USING (
     _evaluated._load_id,
     _evaluated._source_row_id,
     _evaluated._quality_flags,
-    ARRAY_LENGTH(_evaluated._quality_flags) = 0 AS _quality_ok
+    COALESCE(ARRAY_LENGTH(_evaluated._quality_flags), 0) = 0 AS _quality_ok
   FROM (
     SELECT
       _extract.stock_date,

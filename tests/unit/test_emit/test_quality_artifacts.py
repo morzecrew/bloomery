@@ -88,7 +88,7 @@ def test_the_silver_model_renders_the_fixed_pipeline_order() -> None:
     assert "ORDER BY _ingested_at DESC, _load_id DESC, _source_row_id DESC" in body
     # Stage 6: the two-way split keeps the rows no quarantine rule fired on.
     assert "WHERE\n    NOT COALESCE(" in body
-    assert "ARRAY_LENGTH(_evaluated._quality_flags) = 0 AS _quality_ok" in body
+    assert "COALESCE(ARRAY_LENGTH(_evaluated._quality_flags), 0) = 0 AS _quality_ok" in body
 
 
 def test_the_flag_pass_is_single_and_records_what_a_kept_row_can_fire() -> None:

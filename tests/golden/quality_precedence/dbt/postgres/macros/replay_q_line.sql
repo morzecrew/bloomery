@@ -34,7 +34,7 @@ USING (
       _evaluated._load_id,
       _evaluated._source_row_id,
       _evaluated._quality_flags,
-      ARRAY_LENGTH(_evaluated._quality_flags, 1) = 0 AS _quality_ok,
+      COALESCE(ARRAY_LENGTH(_evaluated._quality_flags, 1), 0) = 0 AS _quality_ok,
       ROW_NUMBER() OVER (
         PARTITION BY order_id, line_no
         ORDER BY _ingested_at DESC NULLS LAST, _load_id DESC NULLS LAST, _source_row_id DESC NULLS LAST

@@ -38,7 +38,7 @@ USING (
       _evaluated._load_id,
       _evaluated._source_row_id,
       _evaluated._quality_flags,
-      CARDINALITY(_evaluated._quality_flags) = 0 AS _quality_ok,
+      COALESCE(CARDINALITY(_evaluated._quality_flags), 0) = 0 AS _quality_ok,
       ROW_NUMBER() OVER (
         PARTITION BY order_id, line_no
         ORDER BY placed_at DESC, line_no DESC, _source DESC, _source_row_id DESC
