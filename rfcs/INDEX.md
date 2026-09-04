@@ -110,4 +110,8 @@ know it has a companion recording where it turned out to be wrong.
 - ❌ **Rejected / withdrawn**
 
 ✅ and ❌ are transient: a row reaching either status is retired in the same change, so a
-steady-state table holds only 📝 and 🚧 rows.
+steady-state table holds only 📝 and 🚧 rows — **except a ✅ root of a live sequence**, which
+stays until its last dependant is retired, for the reason the retirement section above
+gives. Such a row says so in its own status line. 0037 is the only one today. Do not
+relabel it 🚧: nothing about it is in progress, and the exception is about what other
+documents still need, not about what this one has left to do.
