@@ -47,8 +47,13 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from bloomery import Target, compile_project
-from bloomery.errors import BloomeryError, GuardrailError, UnsupportedByTarget
+from bloomery import Target, build_project_ir, compile_project, load_project
+from bloomery.errors import (
+    BloomeryError,
+    GuardrailError,
+    ResolutionError,
+    UnsupportedByTarget,
+)
 from conftest import CENSUS_FLAG, census_is_enforceable
 from support.compiling import load_fixture
 from support.docs_claims import (
@@ -157,7 +162,49 @@ def _quality_corpus_on_every_dialect() -> object:
 #: :func:`test_every_claim_block_is_represented_in_the_table` — a row nobody
 #: added is the failure a curated table exists to prevent, so the table is
 #: curated *with omissions visible* rather than trusted.
+_SNAPSHOT_QUARANTINE = {
+    "entity_model": """
+spec_version: 1
+entities:
+  customer:
+    grain: one row per customer
+    key: [customer_id]
+    scd: type2
+    fields:
+      customer_id: {type: string, required: true}
+      email: {type: string}
+    quarantine: {retention: 90d}
+""",
+    "mapping": """
+mapping_version: 1
+source: crm__customers
+target: customer
+key:
+  customer_id: {from: "$.id", transform: [to_string]}
+fields:
+  email: {from: "$.email"}
+unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
+""",
+}
+
+
+def _snapshot_that_quarantines() -> object:
+    """The pair the data-quality page says does not compose.
+
+    Built here rather than taken from a fixture because the corpus has none —
+    which is why the combination went unnoticed until replay's merge was read
+    against a type 2 relation's actual column set.
+    """
+    return build_project_ir(load_project(_SNAPSHOT_QUARANTINE))
+
+
 CLAIMS: tuple[Claim, ...] = (
+    Claim(
+        page="concepts/data-quality.md",
+        names="ResolutionError",
+        expect=ResolutionError,
+        provoke=_snapshot_that_quarantines,
+    ),
     Claim(
         page="concepts/guardrails.md",
         names="GuardrailError",

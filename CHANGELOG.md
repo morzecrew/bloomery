@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`quarantine:` and `scd: type2` on one entity are refused**, on every
+  target. Replay's merge admits a row by the entity's own columns, and a type 2
+  relation carries more than those — the validity interval its framework
+  maintains, plus dbt's `dbt_scd_id`. The merge names none of them, so it
+  inserted a version with `valid_from`, `valid_to` and `dbt_scd_id` all NULL:
+  a row that is present, queryable, and skipped by every as-of join, with the
+  merge reporting success. Measured on both targets before the refusal was
+  written.
+
+  Filling those columns is not something a compiler can do — `dbt_scd_id` is a
+  hash dbt computes and owns — so the pair is refused rather than approximated.
+  No fixture combined them, which is why replay and native SCD2 had never been
+  observed failing to compose. Declare the entity `scd: type1`, or reduce its
+  rules to `flag` dispositions.
+
 - **dbt is a complete quality target.** `quarantine:` and `reconcile:` on an
   entity, and the quality mart that counts over both, compiled for SQLMesh and
   raised `UnsupportedByTarget` for dbt. All three now emit: a

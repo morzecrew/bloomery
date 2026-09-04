@@ -17,6 +17,7 @@ from bloomery.ir import (
     DimensionRef,
     MartJoinIR,
     Materialization,
+    SCDKind,
     PartitionSpec,
     UnreachableMetric,
 )
@@ -1231,6 +1232,89 @@ def test_two_validity_collisions_report_together() -> None:
         "entity_model: entities.a.fields",
         "entity_model: entities.b.fields",
     ]
+
+
+_SNAPSHOT_QUARANTINE_MODEL = """
+spec_version: 1
+entities:
+  customer:
+    grain: one row per customer
+    key: [customer_id]
+    scd: type2
+    fields:
+      customer_id: {type: string, required: true}
+      email: {type: string}
+      lifetime_value: {type: "decimal(12,2)"}
+    quarantine: {retention: 90d}
+"""
+
+_SNAPSHOT_QUARANTINE_MAPPING = """
+mapping_version: 1
+source: crm__customers
+target: customer
+key:
+  customer_id: {from: "$.id", transform: [to_string]}
+fields:
+  email: {from: "$.email"}
+  lifetime_value: {from: "$.ltv"}
+unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
+"""
+
+
+def test_a_type_two_entity_may_not_quarantine() -> None:
+    """Replay and native SCD2 have never composed, and nothing said so.
+
+    Replay's merge admits a re-evaluated row by the entity's own columns
+    (RFC 0016 §5.6). A type 2 relation carries more than those: the validity
+    interval its framework maintains, plus dbt's `dbt_scd_id`. The merge names
+    none of them.
+
+    Measured before this refusal was written, on both targets: the merge
+    **succeeds** and inserts a version with `valid_from`, `valid_to` and
+    `dbt_scd_id` all NULL. The row is present and queryable and invisible to
+    every as-of join, which is what gives a type 2 relation its meaning — a
+    plausible-but-wrong answer produced by an artifact bloomery emitted and
+    told the operator to run.
+
+    Refused at resolve rather than per emitter, because it is true of both.
+    """
+    with pytest.raises(ResolutionError) as caught:
+        build_project_ir(
+            load_project(
+                {
+                    "entity_model": _SNAPSHOT_QUARANTINE_MODEL,
+                    "mapping": _SNAPSHOT_QUARANTINE_MAPPING,
+                }
+            )
+        )
+    message = str(caught.value)
+    assert "scd: type2" in message
+    assert "quarantine" in message
+    # It names *why*, not merely that the pair is refused: the fix a reader
+    # picks depends on which half they can give up.
+    assert "valid_from" in message
+    assert "dbt_scd_id" in message
+
+
+def test_a_type_two_entity_that_only_flags_still_compiles() -> None:
+    """The refusal is about the reject table's replay, not about quality rules.
+
+    An entity with `on_fail: flag` rules and no `quarantine:` block diverts no
+    row, emits no reject table and gets no replay macro, so the merge that
+    cannot name a validity interval never exists. Refusing it too would be the
+    refusal reading its own message rather than its own condition.
+    """
+    flagging = _SNAPSHOT_QUARANTINE_MODEL.replace(
+        "    quarantine: {retention: 90d}\n", ""
+    )
+    ir = build_project_ir(
+        load_project(
+            {"entity_model": flagging, "mapping": _SNAPSHOT_QUARANTINE_MAPPING}
+        )
+    )
+    entity = next(e for e in ir.entities if e.name == "customer")
+    assert entity.scd is SCDKind.TYPE2
+    assert entity.quarantine is None
 
 
 def test_a_validity_column_in_the_key_is_refused_before_this_check_sees_it() -> None:
