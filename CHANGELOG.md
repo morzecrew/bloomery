@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **dbt is a complete quality target.** `quarantine:` and `reconcile:` on an
+  entity, and the quality mart that counts over both, compiled for SQLMesh and
+  raised `UnsupportedByTarget` for dbt. All three now emit: a
+  `models/silver/<entity>__reject.sql` incremental model, a
+  `macros/replay_<entity>.sql` run-operation, a
+  `models/silver/<check>__reconcile.sql` comparison with its singular test, and
+  `models/gold/mart_data_quality.sql`.
+
+  The three refusals were one claim — a target-coverage sentence written when
+  this emitter produced no audits at all — and it outlived the emitter it
+  described by two releases. A `flag` rule on a Tier 2 step output was the last
+  thing to hit it: the rule has nothing to do with steps, it just puts a quality
+  mart in the project.
+
+  **Replay is `dbt run-operation replay_<entity>`.** Rebuild the reject table
+  first: replay re-runs the current mapping against the rows the table holds, so
+  one built before your correction landed still says the row fails. The macro
+  form is forced rather than chosen — the statements name relations through
+  `{{ ref(...) }}`, which resolves inside dbt's Jinja and nowhere else, so a
+  loose `.sql` file would be runnable by neither dbt nor a SQL client. The three
+  statements run in one explicit transaction. bloomery still executes nothing.
+
+  **Two operational facts.** A re-delivery keeps `first_seen` and advances
+  `last_seen`, which is what the retention window measures from. And
+  `dbt build --full-refresh` **loses resolved reject rows** — the rebuild sees
+  only what is currently quarantined. That is accepted rather than prevented:
+  the history derives from bronze the refresh is rebuilding anyway, and a model
+  that refused to full-refresh would be one you could not recover.
+
+  `run_id` is filled on dbt, from `invocation_id`, and stays declared-but-NULL
+  on the pinned SQLMesh, which exposes no run-identifier macro.
+
+  Still refused, and unrelated to each other: Tier 3 `python_model` steps, and
+  `on_fail: quarantine` on a *step output* — the latter on **every** target,
+  since a step output has no ingestion-metadata key for a reject table and a
+  `steps:` wiring has no `quarantine:` block. It shares a word with the
+  entity-level policy and nothing else.
+
+
 - **A merged entity can be cleaned.** `quality:` rules, `dedupe:` and
   `quarantine:` — with its reject table and replay — now work on an entity built
   from more than one mapping. Union merge shipped without them, which covered

@@ -296,11 +296,14 @@ fails it. Widening an `enum_map` — a new target *or* a new spelling for an exi
 
 ## Notes
 
-- **Targets.** SQLMesh emits the full set. The dbt emitter raises `UnsupportedByTarget`
-  for the reject/replay artifacts and for `reconcile` — flag-only surfaces still emit,
-  since `_quality_flags` is the same shared `SELECT` for both. The checks that are not
-  row predicates — a `coverage:` check, a mart `assert:`, and the ingestion-metadata
-  audit an entity with `dedupe:` carries — emit there as
+- **Targets.** Both SQL targets emit the full set — the reject table, its replay, the
+  reconcile comparison and the quality mart. What differs is the shape, never the rows:
+  SQLMesh preserves `first_seen` in a merge clause, dbt in the reject model's own
+  projection, and an equivalence test builds one spec set on both over one DuckDB and
+  compares the two reject tables row for row. On dbt, replay is
+  [`dbt run-operation`](emit-dbt.md#replaying-on-dbt). The checks that are not row
+  predicates — a `coverage:` check, a mart `assert:`, and the ingestion-metadata audit an
+  entity with `dedupe:` carries — emit there as
   [singular tests](emit-dbt.md#singular-tests-and-when-they-run), which run under
   `dbt build` and not under `dbt run`. Cube consumes the quality mart like any other
   mart.
@@ -311,7 +314,9 @@ fails it. Widening an `enum_map` — a new target *or* a new spelling for an exi
   account: it gets the ingestion-metadata audit, and that audit's "does `_ingested_at`
   cast to timestamp" assertion is a `TRY_CAST` as much as any rule is.
 - **`run_id` is declared but NULL** in the quality mart on the pinned SQLMesh, which
-  exposes no run-identifier macro. `run_date` comes from `@execution_ds`.
+  exposes no run-identifier macro; `run_date` comes from `@execution_ds`. dbt fills both,
+  from `invocation_id` and `run_started_at` — the compatibility target has the fuller
+  column here, which is a fact about the two frameworks rather than about the emitters.
 - **`pattern` speaks a portable regex subset** — an allowlist of literals, character
   classes, anchors, quantifiers, alternation and `(?:…)`; whatever it does not name,
   lookaround and backreferences included, is refused by name at *parse*. That allowlist,

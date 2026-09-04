@@ -3,11 +3,11 @@
 You want the same compiled project as a dbt project — models, sources, snapshots,
 schema tests and singular tests. Be clear-eyed about what this target is: its job in the
 architecture is proving that emission is a real port, not a SQLMesh-shaped hole. It
-ships minimal but honest — every SELECT is byte-identical to what the SQLMesh emitter
-renders, and anything dbt cannot express faithfully is a loud error, never an
-approximation. Do not read it as production-grade dbt scaffolding, and do not read it as
-reaching parity with SQLMesh: reject tables, replay and reconcile models are still
-SQLMesh's alone.
+ships honestly — every SELECT is byte-identical to what the SQLMesh emitter renders, and
+anything dbt cannot express faithfully is a loud error, never an approximation. It now
+carries the whole data-quality surface too: reject tables, replay, reconcile models and
+the quality mart. Do not read that as parity — Tier 3 Python steps stay refused, and the
+list below says exactly which cells are still unequal.
 
 ## Compile
 
@@ -61,6 +61,10 @@ for artifact in artifacts:
 | `macros/bloomery_expression_is_true.sql` | audit | The generic test the `min`/`max`/`regex` asserts name, emitted only when one does |
 | `macros/generate_schema_name.sql` | config | Keeps `+schema:` meaning the naming policy's namespace, not dbt's `<target>_<custom>` |
 | `tests/<check>.sql` | audit | One singular test per check with no schema-test shape — see below |
+| `models/silver/<entity>__reject.sql` | model | The quarantined rows, incremental on `reject_id` |
+| `macros/replay_<entity>.sql` | replay | The replay statements, as a `run-operation` — see below |
+| `models/silver/<check>__reconcile.sql` | model | One comparison table per `reconcile:` check |
+| `models/gold/mart_data_quality.sql` | model | One row per rule evaluation, stamped with dbt's `invocation_id` |
 
 For the SCD2 project above, the snapshot is dbt's native history mechanism:
 
@@ -155,15 +159,19 @@ compilation raises `UnsupportedByTarget` naming the entity and feature. **This t
 still partial, and singular tests did not change that** — what they closed is a gap in
 bloomery's dbt emitter, not a gap in dbt.
 
-Three constructs are still refused, each for a reason of its own rather than for a
-missing test surface:
+Two constructs are refused, and they are unrelated to each other:
 
-- **`quarantine:`** — the reject table and its replay merge are *models* and a statement
-  to run, not tests.
-- **`reconcile:`** — a comparison model plus an audit over it. The audit has a home now;
-  the model does not.
 - **Tier 3 Python steps** — dbt's Python models run only on Snowflake, BigQuery and
-  Databricks, and none of those is a bloomery dialect.
+  Databricks, and none of those is a bloomery dialect. Not a quality question, and not
+  one that closes while those are the dialects.
+- **`on_fail: quarantine` on a *step output*** — refused on **every** target, SQLMesh
+  included: a step output has no ingestion-metadata key to build a reject table from, and
+  a `steps:` wiring has no `quarantine:` block to state retention in. It shares a word
+  with the entity-level `quarantine:` below and nothing else.
+
+`quarantine:` and `reconcile:` on an entity were refused here until the reject model,
+the replay macro and the comparison model landed. They are not refused now — see
+[Replaying on dbt](#replaying-on-dbt).
 
 And the notable adaptation case is **composite-key SCD2**: dbt snapshot `unique_key`
 takes a single expression, and concatenating key parts would be a silent approximation,
@@ -180,6 +188,42 @@ supports composite keys. Materialization adapts honestly where an equivalent exi
 `full` → `table`; both incremental kinds → `incremental` with the entity key as
 `unique_key`, since dbt has no time-range kind and merge-on-key can never silently
 duplicate rows.
+
+## Replaying on dbt
+
+A quarantined row that a corrected delivery fixes is admitted by **replay**, and on dbt
+replay is a macro you run:
+
+```bash
+dbt run --select silver.order_line__reject   # rebuild the reject table first
+dbt run-operation replay_order_line
+```
+
+Rebuild first, always. Replay re-runs the *current* mapping against the rows the reject
+table holds, so a reject table built before the correction landed still says the row
+fails.
+
+It is a macro rather than a `.sql` file you could paste into a client, and that is
+forced rather than chosen: the statements name their relations through `{{ ref(...) }}`,
+which resolves inside dbt's Jinja and nowhere else. A loose file would be runnable by
+neither dbt, which does not execute files it was not given as models, nor by a SQL
+client, which sees braces. The three statements run inside one explicit transaction,
+because a failure between admitting the row and stamping its reject row resolved would
+leave it counted in both places.
+
+**bloomery still executes nothing.** The macro is text until you run it, exactly as the
+SQLMesh replay file is.
+
+Two things the reject table does that are worth knowing before you operate it:
+
+- **A re-delivery keeps `first_seen`.** The incremental model reads its own current rows
+  and preserves the first sighting while `last_seen` advances — which is what the
+  retention window measures from.
+- **`--full-refresh` loses resolved reject rows.** The rebuild sees only what is
+  *currently* quarantined, so rows replay already resolved do not come back. This is
+  accepted rather than prevented: the history derives from bronze that a full refresh is
+  rebuilding anyway, and a model that refused to full-refresh would be one you could not
+  recover.
 
 ## Byte-identical SELECTs
 
