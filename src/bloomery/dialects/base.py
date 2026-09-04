@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from enum import StrEnum
-from typing import ClassVar, Protocol, cast
+from typing import ClassVar, Final, Protocol, cast
 
 from sqlglot import exp
 from sqlglot.expressions.core import Expression
@@ -341,10 +341,38 @@ class DialectFeature(StrEnum):
 # ....................... #
 
 
+#: Every member :class:`DialectPort` requires, as data rather than as a shape
+#: only a type checker sees. :func:`~bloomery.dialects.register_dialect` checks a
+#: port against it, because a ``Protocol`` is structural: an extension port that
+#: satisfies mypy and omits a member fails with ``AttributeError`` in the middle
+#: of emission, naming an attribute rather than a contract.
+#:
+#: Kept in step with the protocol by
+#: ``test_the_declared_port_members_are_the_protocols`` rather than by whoever
+#: edits the class — the list existing and being wrong is worse than no list.
+#: That test reads the protocol's members through ``get_protocol_members`` where
+#: it exists (3.13+) and ``__protocol_attrs__`` below it, so it runs on **every**
+#: supported interpreter including the 3.12 floor. A drift check that skipped on
+#: the floor would be one the floor could drift past.
+DIALECT_PORT_MEMBERS: Final = (
+    "begin_transaction",
+    "json_object",
+    "name",
+    "physical_type",
+    "render",
+    "supports",
+    "text_sha256",
+)
+
+
 class DialectPort(Protocol):
     """SQL rendering + physical type mapping (RFC 0008 D1)."""
 
     name: str
+
+    # ....................... #
+
+    begin_transaction: str
 
     # ....................... #
 
@@ -371,6 +399,14 @@ class SQLGlotDialect:
     # ``name`` as an instance attribute, and ClassVar members cannot satisfy it.
     name: str = ""
     sqlglot_dialect: str = ""
+    #: How this engine opens a transaction. ``BEGIN`` is the common spelling and
+    #: is **not** universal: Trino accepts only the SQL-standard
+    #: ``START TRANSACTION`` and answers ``BEGIN`` with a syntax error
+    #: (measured, `trinodb/trino:483`). It is a port attribute rather than a
+    #: rendered node because no AST node means "open a transaction" — it is
+    #: envelope text, and the emitter interpolates it like every other
+    #: pre-rendered string (RFC 0008 D4).
+    begin_transaction: str = "BEGIN"
     features: ClassVar[frozenset[DialectFeature]] = frozenset(DialectFeature)
     scalar_types: ClassVar[dict[type[LogicalType], str]] = {
         StringType: "TEXT",

@@ -41,6 +41,44 @@ EXPECTED_PATHS = {
         "models/sources.yml",
         "tests/order_line_source_collision.sql",
     ],
+    # RFC 0052 §6: the one fixture that carries all four artifact families this
+    # target used to refuse — three reject models with their replay macros, two
+    # reconcile comparisons with their tests, and the quality mart that counts
+    # over both. It is here rather than a smaller one precisely because the
+    # families were refused *together*, under one target-coverage sentence, and
+    # a golden per family would not show that they now compose.
+    "quality_precedence": [
+        "dbt_project.yml",
+        "macros/generate_schema_name.sql",
+        "macros/replay_q_code.sql",
+        "macros/replay_q_dup.sql",
+        "macros/replay_q_line.sql",
+        "models/gold/dim_date.sql",
+        "models/gold/mart_data_quality.sql",
+        "models/gold/mart_lines.sql",
+        "models/silver/line_amount_matches_row__reconcile.sql",
+        "models/silver/line_amount_matches_row_blocking__reconcile.sql",
+        "models/silver/q_code.sql",
+        "models/silver/q_code__reject.sql",
+        "models/silver/q_dup.sql",
+        "models/silver/q_dup__reject.sql",
+        "models/silver/q_line.sql",
+        "models/silver/q_line__reject.sql",
+        "models/sources.yml",
+        "tests/line_amount_matches_row_blocking_reconcile.sql",
+        "tests/line_amount_matches_row_reconcile.sql",
+        "tests/lines_amount_positive_every_month.sql",
+        "tests/lines_rows_present.sql",
+        "tests/q_code_code_fail_unique.sql",
+        "tests/q_code_conservation.sql",
+        "tests/q_code_ingestion_metadata.sql",
+        "tests/q_dup_conservation.sql",
+        "tests/q_dup_ingestion_metadata.sql",
+        "tests/q_dup_note_coercible.sql",
+        "tests/q_line_amount_range_min.sql",
+        "tests/q_line_conservation.sql",
+        "tests/q_line_ingestion_metadata.sql",
+    ],
     "scd2_customers": [
         "dbt_project.yml",
         "macros/generate_schema_name.sql",

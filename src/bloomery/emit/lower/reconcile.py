@@ -478,6 +478,26 @@ def reconcile_audit_predicate() -> Expression:
 # ....................... #
 
 
+def reconcile_audit_select(*, relation: str = THIS_MODEL) -> exp.Select:
+    """The check's audit as a standalone query: the rows outside tolerance.
+
+    SQLMesh needs only :func:`reconcile_audit_predicate` — an ``AUDIT`` block
+    is attached to a model and supplies the ``FROM`` itself. A dbt singular
+    test is a *query* that returns the failing rows and is attached to nothing,
+    so it needs the whole statement. This is that statement, and it is here
+    rather than in the dbt envelope for the reason every sibling is: SQL is
+    built in the lowering, and the predicate stays single-sourced so the two
+    targets cannot come to disagree about which rows fail.
+    """
+
+    # Unaliased: the predicate names ``within_tolerance`` unqualified, which is
+    # the shape ``_this_model`` reserves the empty alias for.
+    return exp.select("*").from_(_this_model(relation=relation)).where(reconcile_audit_predicate())
+
+
+# ....................... #
+
+
 def reconcile_audit_blocking(check: ReconcileIR) -> bool:
     """Whether a reconcile check's audit **stops the run** (RFC 0016 §5.3).
 

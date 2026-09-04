@@ -274,8 +274,33 @@ because replay would have nothing left to re-run against.
 !!! note "bloomery emits the replay merge; it never runs it"
 
     Compilation produces a `replay/<entity>.sql` artifact holding the `MERGE` statements
-    as one unit of work. Executing them — and executing retention deletes — is the
-    caller's job. The package never touches a warehouse.
+    as one unit of work — on dbt, a `macros/replay_<entity>.sql` you invoke with
+    [`dbt run-operation`](../how-to/emit-dbt.md#replaying-on-dbt), because the statements
+    name their relations through `ref()`. Executing them — and executing retention
+    deletes — is the caller's job. The package never touches a warehouse.
+
+!!! warning "`quarantine:` and `scd: type2` do not compose"
+
+    An entity that keeps history natively is refused if it also quarantines, on **every**
+    target. Replay's merge admits a row by the entity's own columns, and a type 2 relation
+    carries more than those: the validity interval the framework maintains, plus dbt's
+    `dbt_scd_id`. The merge names none of them, so it would insert a version with a NULL
+    interval — a row that is present, queryable, and skipped by every as-of join, with the
+    merge reporting success.
+
+    Filling those columns is not available to a compiler: `dbt_scd_id` is a hash dbt
+    computes and owns. So the combination is refused rather than approximated — a
+    `ResolutionError` naming both halves.
+
+    **Which half to give up depends on which you need.** If the history matters more,
+    declare the entity `scd: type1` and keep `quarantine:` — you lose versioning and keep
+    the reject table and replay. If the recovery matters more, keep `scd: type2` and
+    reduce the entity's rules to `flag`: no row is diverted, `_quality_flags` still
+    records every failure, and the quality mart still counts them.
+
+    This is unbuilt rather than wrong. A recovered row has to reach the entity through
+    whatever produces its versions, so the framework does the versioning it owns, and
+    that route does not exist yet.
 
 `plan()` knows about all of this. Adding, removing, or changing a rule, changing a
 disposition in either direction, and changing `dedupe` all classify as `RESTATING`, and

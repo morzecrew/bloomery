@@ -1449,6 +1449,60 @@ def _direct_agreement_refusals(
 # ....................... #
 
 
+def _snapshot_quarantine(entity_name: str, entity: Entity) -> list[ResolutionError]:
+    """``scd: type2`` with ``quarantine:`` is refused, on **every** target.
+
+    Replay's first statement is a ``MERGE`` that admits a re-evaluated row into
+    the entity, projecting the entity's own columns (RFC 0016 §5.6). A type 2
+    relation is not made of those columns alone: it also carries the validity
+    interval the *framework* maintains — ``valid_from``/``valid_to``, plus
+    dbt's ``dbt_scd_id`` and ``dbt_updated_at``. The merge names none of them,
+    so its ``WHEN NOT MATCHED THEN INSERT`` writes a version with a NULL
+    interval and, on dbt, a NULL snapshot identity.
+
+    **Measured, on both targets, and it does not fail.** The merge reports
+    success and the row lands: no validity interval, so an as-of join steps
+    over it, and a snapshot identity the next run does not recognise. A row
+    that is present, queryable and invisible to the join that gives a type 2
+    relation its meaning is the plausible-but-wrong answer this package refuses
+    rather than approximates — and it arrives through an artifact bloomery
+    wrote and told the operator to run.
+
+    Filling those columns is not the fix available here. ``dbt_scd_id`` is a
+    hash dbt computes and owns; writing bloomery's guess of it would be this
+    compiler inventing another framework's bookkeeping, which is the coupling
+    ``emit/lower`` exists to avoid, and a guess that is wrong produces duplicate
+    versions rather than an error. The honest answer is that replay and native
+    SCD2 have never composed, and no fixture reached the combination to say so.
+
+    **Unbuilt rather than wrong**, and the difference matters to whoever meets
+    this message: a recovered row has to reach the entity through whatever
+    produces its versions, so that the framework versions it. That route does
+    not exist. The design for one is a live RFC, so this refusal is a stop-gap
+    with a shape behind it rather than a position.
+
+    Not the same refusal as the merged-``type2`` one above: that is about a
+    collision audit over two sources, this about the replay merge, and an
+    entity can meet either alone.
+    """
+    if entity.scd != "type2" or entity.quarantine is None:
+        return []
+
+    msg = (
+        f"entity {entity_name!r} declares 'scd: type2' and a quarantine policy. Replay "
+        "merges a re-evaluated row into the entity by its columns (RFC 0016 §5.6), and a "
+        "type 2 relation also carries the validity interval its framework maintains — so "
+        "the merge would insert a version with no valid_from/valid_to (and, on dbt, no "
+        "dbt_scd_id), which reports success and is skipped by every as-of join. Fix: "
+        "declare the entity 'scd: type1', or reduce its rules to flag dispositions and "
+        "drop the quarantine block"
+    )
+    return [ResolutionError(msg, source_path=f"entity_model: entities.{entity_name}.quarantine")]
+
+
+# ....................... #
+
+
 def _validity_collisions(entity_name: str, entity: Entity) -> list[ResolutionError]:
     """A ``type2`` entity may not declare a field named like its own validity
     interval (RFC 0023 §5.3).
@@ -1810,6 +1864,7 @@ def _build_entities(
                 steps,
             ),
             *_validity_collisions(entity_name, project.entity_model.entities[entity_name]),
+            *_snapshot_quarantine(entity_name, project.entity_model.entities[entity_name]),
             *_shadow_collisions(
                 entity_name,
                 project.entity_model.entities[entity_name],

@@ -9,6 +9,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **dbt is a complete quality target.** `quarantine:` and `reconcile:` on an
+  entity, and the quality mart that counts over both, compiled for SQLMesh and
+  raised `UnsupportedByTarget` for dbt. All three now emit: a
+  `models/silver/<entity>__reject.sql` incremental model, a
+  `macros/replay_<entity>.sql` run-operation, a
+  `models/silver/<check>__reconcile.sql` comparison with its singular test, and
+  `models/gold/mart_data_quality.sql`.
+
+  The three refusals were one claim — a target-coverage sentence written when
+  this emitter produced no audits at all — and it outlived the emitter it
+  described by two releases. A `flag` rule on a Tier 2 step output was the last
+  thing to hit it: the rule has nothing to do with steps, it just puts a quality
+  mart in the project.
+
+  **Replay is `dbt run-operation replay_<entity>`.** Rebuild the reject table
+  first: replay re-runs the current mapping against the rows the table holds, so
+  one built before your correction landed still says the row fails. The macro
+  form is forced rather than chosen — the statements name relations through
+  `{{ ref(...) }}`, which resolves inside dbt's Jinja and nowhere else, so a
+  loose `.sql` file would be runnable by neither dbt nor a SQL client. The three
+  statements run in one explicit transaction. bloomery still executes nothing.
+
+  **Two operational facts.** A re-delivery keeps `first_seen` and advances
+  `last_seen`, which is what the retention window measures from. And
+  `dbt build --full-refresh` **loses resolved reject rows** — the rebuild sees
+  only what is currently quarantined. That is accepted rather than prevented:
+  the history derives from bronze the refresh is rebuilding anyway, and a model
+  that refused to full-refresh would be one you could not recover.
+
+  `run_id` is filled on dbt, from `invocation_id`, and stays declared-but-NULL
+  on the pinned SQLMesh, which exposes no run-identifier macro.
+
+  Still refused, and unrelated to each other: Tier 3 `python_model` steps, and
+  `on_fail: quarantine` on a *step output* — the latter on **every** target,
+  since a step output has no ingestion-metadata key for a reject table and a
+  `steps:` wiring has no `quarantine:` block. It shares a word with the
+  entity-level policy and nothing else.
+
+
 - **A merged entity can be cleaned.** `quality:` rules, `dedupe:` and
   `quarantine:` — with its reject table and replay — now work on an entity built
   from more than one mapping. Union merge shipped without them, which covered
@@ -181,6 +220,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`DialectPort` requires `begin_transaction`**, and `register_dialect` now
+  refuses a port missing any protocol member instead of letting it fail with an
+  `AttributeError` mid-emission. A `Protocol` is structural, so an extension
+  port can satisfy a type checker and omit a member; the registry is global, so
+  such a port is a latent failure for whichever code path reaches it next. Every
+  shipped port subclasses `SQLGlotDialect` and is unaffected: it supplies the
+  `BEGIN` default, which the Trino port overrides to `START TRANSACTION` —
+  Trino rejects `BEGIN` outright, which is why the member exists.
+
+
 - **`canonical`, `metric`, `source` and `step` are reserved entity names.** Those
   four are the lineage node-id prefixes, and an entity field is `<entity>.<field>`
   with no prefix — so an entity named `metric` with a field `revenue` produced the
@@ -293,6 +342,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with no check at all; the shipped three dialects are unaffected.
 
 ### Removed
+
+- **`quarantine:` on an `scd: type2` entity.** The pair compiled and produced a
+  replay merge that could not work: replay admits a row by the entity's own
+  columns, and a type 2 relation carries the validity interval its framework
+  maintains as well — plus dbt's `dbt_scd_id`. The merge named none of them, so
+  it inserted a version with `valid_from`, `valid_to` and `dbt_scd_id` all NULL
+  and **reported success**. The row is present, queryable, and skipped by every
+  as-of join, which is what a type 2 relation is for. Measured on both targets.
+
+  **What to write instead**, depending on which half you need. If the history
+  matters more than the recovery, declare the entity `scd: type1` and keep
+  `quarantine:` — you lose versioning and keep the reject table and replay. If
+  the recovery matters more, keep `scd: type2` and reduce the entity's rules to
+  `flag` dispositions: no row is diverted, `_quality_flags` still records every
+  failure, and the quality mart still counts them. A rule that must divert *and*
+  a relation that must keep history is the combination with no correct lowering
+  today.
+
+  This is a removal of something that never worked rather than of a capability.
+  No fixture combined the two, which is why replay and native SCD2 had never
+  been observed failing to compose. Bringing it back is RFC 0060.
 
 - `UnsupportedCumulative`. The class named reserved surface no stage lowered, and
   the surface is no longer reserved. A metric that cannot mean what it says is now

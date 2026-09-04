@@ -153,9 +153,11 @@ gets a guard around its own input parser (D84), and all three normalize. They ar
 fourth dialect would meet if it arrived without the capability, and they are provoked in
 the test suite against exactly such a dialect.
 
-One is about the *target*: a `quarantine:` block or a `reconcile:` check compiled for
-dbt, which lowers neither in this wave. All of them name the target or dialect that does
-support the construct.
+None is about a *target's* artifact families any more. A `quarantine:` block and a
+`reconcile:` check were refused for dbt until it grew the reject table, the replay macro
+and the comparison model; what dbt still refuses is a Tier 3 `python_model` step, which
+is about the adapters dbt's Python models run on rather than about anything bloomery
+lowers. All of them name the target or dialect that does support the construct.
 
 ## The closed refusal list
 

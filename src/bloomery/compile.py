@@ -33,8 +33,9 @@ __all__ = [
 
 class Target(StrEnum):
     """The emit targets shipped in core (RFC 0008 D5): SQLMesh (primary),
-    Cube (semantic), dbt — the port-abstraction proof (RFC 0008 §5.5),
-    minimal but honest, documented as such — and MetricFlow, which emits the
+    Cube (semantic), dbt — the port-abstraction proof (RFC 0008 §5.5), which
+    since RFC 0052 refuses two constructs and no artifact family — and
+    MetricFlow, which emits the
     semantic manifest rather than models (RFC 0051 D1). Extension targets
     registered via :func:`bloomery.emit.register_emitter` are addressed by
     their string name."""

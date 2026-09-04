@@ -19,7 +19,7 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from bloomery.dialects.base import DialectFeature, DialectPort, SQLGlotDialect
+from bloomery.dialects.base import DIALECT_PORT_MEMBERS, DialectFeature, DialectPort, SQLGlotDialect
 from bloomery.dialects.duckdb import DuckDBDialect
 from bloomery.dialects.postgres import PostgresDialect
 from bloomery.dialects.trino import TrinoDialect
@@ -53,6 +53,22 @@ _overlay: dict[str, DialectPort] = {}
 def register_dialect(dialect: DialectPort) -> None:
     """Register an extension dialect (RFC 0008 D8). A name collision with any
     existing dialect, default or overlay, raises :class:`EmitError`."""
+
+    missing = [name for name in DIALECT_PORT_MEMBERS if not hasattr(dialect, name)]
+
+    if missing:
+        # `DialectPort` is a Protocol, so it is satisfied structurally and never
+        # inherited — a port can type-check and still omit a member, and the
+        # first anyone hears of it is an `AttributeError` from inside emission,
+        # naming an attribute rather than a contract. Checked here because this
+        # is the boundary the caller can act at.
+        msg = (
+            f"dialect {getattr(dialect, 'name', dialect)!r} does not implement "
+            f"{', '.join(missing)}, which DialectPort requires (RFC 0008 D1). "
+            "Fix: implement the missing member, or subclass SQLGlotDialect, which "
+            "supplies a default for every one that has a sensible default"
+        )
+        raise EmitError(msg)
 
     if dialect.name in _DEFAULT_DIALECTS or dialect.name in _overlay:
         msg = f"dialect {dialect.name!r} is already registered; shadowing is not allowed"

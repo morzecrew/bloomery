@@ -225,11 +225,11 @@ entity model and never read a mapping. For a required field on a merged entity,
 `assert: {not_null: true}` is the runtime check you want — `required:` proves every mapping
 *declares* the field, and says nothing about what its source path returns per row.
 
-!!! note "One target"
+!!! note "Both targets"
 
-    `quarantine:` needs a reject model, which the dbt emitter does not lower — merged or
-    not. A merged entity that quarantines compiles for SQLMesh; one that only flags
-    compiles for both.
+    `quarantine:` on a merged entity compiles for SQLMesh and for dbt. The reject table
+    is one per entity either way, and each row records the mapping that produced it, so
+    replay re-runs *that* row's mapping rather than applying one of them to all.
 
 ## How it shows up in `plan()`
 

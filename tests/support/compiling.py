@@ -162,8 +162,16 @@ def resolve_dbt_references(sql: str) -> str:
     namespace; the namespace it will materialize into is the ``+schema``
     config's business and is asserted where that config is. ``source()``
     carries its namespace and keeps it.
+
+    ``{{ this }}`` is the third: dbt's name for the relation a model is being
+    written into, which the reject model's incremental branch joins against
+    (RFC 0052 §5.1). It stands in for the model's own name, so it resolves to a
+    placeholder rather than to anything derivable from the text — what the
+    tiers reading this need is SQL that parses and compares, not a second
+    implementation of dbt's relation resolution.
     """
     sql = _DBT_SOURCE.sub(lambda m: f"{m['namespace']}.{m['relation']}", sql)
+    sql = sql.replace("{{ this }}", "_this_relation")
     return _DBT_REF.sub(lambda m: m["relation"], sql)
 
 

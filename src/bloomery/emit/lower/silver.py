@@ -1379,6 +1379,75 @@ _PRESERVED_ON_MERGE = frozenset({"first_seen", "last_evaluated_at"})
 REJECT_KEY = _schema_column("reject_id", REJECT_COLUMNS, "the reject table's unique key")
 
 
+#: The aliases of the incremental reject SELECT: the rows this run computed,
+#: and the reject table as it stands before the write.
+_ARRIVING = "arriving"
+_INCUMBENT = "incumbent"
+
+
+def reject_incremental_select(entity: EntityIR, ctx: EmitContext, *, incumbent: str) -> exp.Select:
+    """:func:`reject_select` with the preserved columns already resolved
+    against the rows in the table (RFC 0052 §5.1, D1).
+
+    SQLMesh keeps this in a ``when_matched`` clause — the engine holds both
+    sides and :func:`reject_when_matched` says which one wins per column. dbt
+    has no such clause it can express a ``COALESCE`` through:
+    ``merge_exclude_columns`` can only leave a column *untouched*, which pins a
+    null ``first_seen`` forever where the merge heals it, and it needs a
+    ``merge`` strategy dbt-postgres does not have at all.
+
+    So the same decision moves out of the write and into the projection: the
+    arriving rows are joined to the incumbent table on ``reject_id``, and each
+    preserved column is ``COALESCE(<incumbent>, <arriving>)`` — exactly
+    :func:`reject_when_matched`'s assignment, one layer up. Whatever the
+    adapter then does to write these rows, it writes values that are already
+    correct.
+
+    ``incumbent`` is the relation the caller names its own table by — on dbt
+    that is ``{{ this }}``, which resolves nowhere else. A ``LEFT`` join
+    because a first delivery has no incumbent row, and its ``COALESCE`` then
+    falls through to the arriving value.
+
+    **Column order is** :data:`~bloomery.quality.REJECT_COLUMNS`, projected
+    explicitly rather than by ``arriving.*`` plus overrides: a re-ordered or
+    duplicated column list is a schema drift the engine reports only when the
+    write fails, and half the point of this function is that both branches of
+    the envelope project the same shape.
+    """
+    arriving = reject_select(entity, ctx).subquery(alias=_ARRIVING)
+    projections: list[Expression] = [
+        cast(
+            "Expression",
+            exp.alias_(
+                exp.Coalesce(
+                    this=exp.column(column, table=_INCUMBENT),
+                    expressions=[exp.column(column, table=_ARRIVING)],
+                ),
+                column,
+            ),
+        )
+        if column in _PRESERVED_ON_MERGE
+        else exp.column(column, table=_ARRIVING)
+        for column in REJECT_COLUMNS
+    ]
+    return (
+        exp.Select()
+        .select(*projections)
+        .from_(arriving)
+        .join(
+            _this_model(_INCUMBENT, incumbent),
+            join_type="LEFT",
+            on=exp.EQ(
+                this=exp.column(REJECT_KEY, table=_ARRIVING),
+                expression=exp.column(REJECT_KEY, table=_INCUMBENT),
+            ),
+        )
+    )
+
+
+# ....................... #
+
+
 def reject_when_matched() -> tuple[Expression, ...]:
     """The assignments of the reject table's ``WHEN MATCHED`` clause
     (RFC 0016 §5.6, D21).
@@ -1723,7 +1792,9 @@ def conservation_audit(entity: EntityIR) -> bool:
 # ....................... #
 
 
-def conservation_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
+def conservation_audit_select(
+    entity: EntityIR, ctx: EmitContext, *, relation: str = THIS_MODEL
+) -> exp.Select:
     """The conservation law as a **runtime** audit (RFC 0016 §6).
 
     §6 does not merely ask for a property test — it asks for the law to be
@@ -1743,6 +1814,11 @@ def conservation_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     survivors, which is what keeps the audit exact under an incremental entity
     and stable across a replay: a replayed row's bronze identity has aged out
     of the window, so it is outside the scope on both sides at once.
+
+    ``relation`` is how the caller names the audited model — SQLMesh's
+    ``@this_model`` by default, dbt's ``{{ ref(...) }}`` where the audit is a
+    singular test attached to nothing. Same parameter, same reason, as
+    :func:`metadata_audit_select` beside it.
 
     **One leg, not two** (RFC 0016 D61). The audit also carried
     ``surviving_rows <= bronze_rows`` — "dedupe removes rows, it never invents
@@ -1797,7 +1873,7 @@ def conservation_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     entity_rows = exp.Subquery(
         this=exp.Select()
         .select(exp.Count(this=exp.Star()))
-        .from_(_this_model(_ENTITY_ALIAS))
+        .from_(_this_model(_ENTITY_ALIAS, relation))
         .where(in_scope)
     )
     counted = (

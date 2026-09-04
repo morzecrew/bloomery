@@ -42,6 +42,9 @@ class TrinoDialect(SQLGlotDialect):
 
     name: str = "trino"
     sqlglot_dialect: str = "trino"
+    #: Trino implements the SQL standard here and nothing else: ``BEGIN`` is a
+    #: syntax error, not a synonym. Measured against `trinodb/trino:483`.
+    begin_transaction: str = "START TRANSACTION"
     #: Everything, since RFC 0016 D83 split the two constructions the reject
     #: table is built from. Both gaps were real and verified against
     #: ``trinodb/trino:483``: ``SHA256`` over the concatenated canon bytes did

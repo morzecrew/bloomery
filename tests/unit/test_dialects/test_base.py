@@ -6,6 +6,8 @@ from __future__ import annotations
 import importlib
 from collections.abc import Iterator
 
+import typing
+
 import pytest
 from sqlglot import exp
 
@@ -19,7 +21,7 @@ from bloomery.dialects import (
     get_dialect,
     register_dialect,
 )
-from bloomery.dialects.base import strip_iso_text
+from bloomery.dialects.base import DIALECT_PORT_MEMBERS, strip_iso_text
 from bloomery.errors import EmitError, UnsupportedByTarget
 from bloomery.ir.lower import canon
 from bloomery.quality.pattern import unsupported_dialects
@@ -60,6 +62,69 @@ def test_register_dialect_overlay() -> None:
 def test_register_dialect_collision_is_an_error() -> None:
     with pytest.raises(EmitError, match="'duckdb' is already registered"):
         register_dialect(DuckDBDialect())
+
+
+def test_an_incomplete_port_is_refused_at_registration() -> None:
+    """`DialectPort` is a Protocol, so it is satisfied *structurally* and never
+    inherited: a port can pass a type checker and still omit a member, and the
+    first anyone hears of it is an `AttributeError` from inside emission —
+    naming an attribute rather than a contract, at a point the caller cannot
+    act on.
+
+    The member that prompted this is `begin_transaction`, added so the replay
+    macro opens a transaction its engine spells; but the check is over every
+    member, because the next one added would otherwise reintroduce the same
+    gap.
+    """
+
+    class _Incomplete:
+        name = "incomplete"
+
+        def render(self, node: object) -> str:  # pragma: no cover — never reached
+            return ""
+
+    with pytest.raises(EmitError, match="does not implement begin_transaction"):
+        register_dialect(_Incomplete())  # type: ignore[arg-type]
+
+    with pytest.raises(EmitError, match="unknown dialect 'incomplete'"):
+        get_dialect("incomplete")
+
+
+def _protocol_members(protocol: type) -> frozenset[str]:
+    """The members a `Protocol` declares, on every supported Python.
+
+    `typing.get_protocol_members` is the public spelling and is 3.13+; this
+    project's floor is 3.12, where the same set is on `__protocol_attrs__`.
+    Falling back to the dunder keeps the drift check below running on **all
+    three** supported versions, which a `skipif` would not: a check that does
+    not run on the floor is one the floor can drift past.
+
+    Neither present is a hard failure rather than a skip. A skip that becomes
+    permanent is a hole nobody sees, and this is the only thing standing between
+    `DIALECT_PORT_MEMBERS` and the class it claims to mirror.
+    """
+    public = getattr(typing, "get_protocol_members", None)
+
+    if public is not None:
+        return frozenset(public(protocol))  # type: ignore[arg-type]
+
+    members = getattr(protocol, "__protocol_attrs__", None)
+    assert members is not None, (
+        "no way to read a Protocol's members on this interpreter — the drift check "
+        "below cannot run, and silently skipping it is what it exists to prevent"
+    )
+    return frozenset(members)
+
+
+def test_the_declared_port_members_are_the_protocols() -> None:
+    """The list existing and being wrong is worse than no list.
+
+    `DIALECT_PORT_MEMBERS` is data because `register_dialect` has to iterate it
+    at run time, and a hand-kept copy of a class's shape drifts the first time
+    someone adds a member. This is what stops that — and it is the reason the
+    tuple is safe to trust rather than a second place to remember.
+    """
+    assert frozenset(DIALECT_PORT_MEMBERS) == _protocol_members(DialectPort)
 
 
 def test_pattern_check_does_not_consult_the_mutable_registry() -> None:
