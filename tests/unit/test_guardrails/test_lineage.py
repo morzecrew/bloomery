@@ -122,3 +122,19 @@ def test_a_step_output_bound_to_a_reserved_relation_is_refused() -> None:
 
 def test_a_step_output_bound_elsewhere_compiles() -> None:
     _compile_step("silver.thing")
+
+
+def test_the_source_refusal_does_not_claim_a_collision_it_cannot_show() -> None:
+    """A bronze extraction's id carries a third segment
+    (``source.<relation>.<path>``) and a field name is one identifier, so no
+    entity field ever equals one. `source` is still reserved — the rule an
+    author remembers is "never a node-id prefix", and one that held for three
+    of four names would be learned as four exceptions — but a message
+    describing a collision the author can check and find absent is worse than
+    no message.
+    """
+    with pytest.raises(GuardrailError) as caught:
+        _compile("source")
+    message = str(caught.value)
+    assert "mints an id in the source namespace" in message
+    assert "are one id" not in message

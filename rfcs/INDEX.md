@@ -83,7 +83,7 @@ know it has a companion recording where it turned out to be wrong.
 | [0048](0048-bigquery-dialect.md) | BigQuery dialect port | 📝 Draft | A dry run is a full parse, bind and type check that scans nothing — the cheapest authoritative layer of the four. `DATETIME` versus `TIMESTAMP` carries most of the risk. |
 | [0049](0049-redshift-dialect.md) | Redshift dialect port | 📝 Draft | The port whose local options are all PostgreSQL underneath, which bloomery already ships. It shares helpers with that port and inherits nothing; fixtures split by what a surrogate can speak to. |
 | [0050](0050-databricks-dialect.md) | Databricks SQL dialect port | 📝 Draft | No local Databricks exists, so Spark is a labelled surrogate and `DESCRIBE QUERY` checks result types against the real analyzer. PySpark stays test-only; bloomery never executes Spark. |
-| [0051](0051-loose-ends-inside-shipped-subsystems.md) | Loose ends inside shipped subsystems | 📝 Draft | MetricFlow becomes a compile target, a lineage node-id collision becomes a refusal, and `on_fail: flag` lowers on a Tier 2 step output. |
+| [0051](0051-loose-ends-inside-shipped-subsystems.md) | Loose ends inside shipped subsystems | 🚧 In progress | MetricFlow becomes a compile target, a lineage node-id collision becomes a refusal, and `on_fail: flag` lowers on a Tier 2 step output. |
 
 ## Status legend
 

@@ -32,12 +32,20 @@ __all__ = [
     "check_lineage_names",
 ]
 
-#: What each prefix would be mistaken for, in the message.
+#: The id each prefix mints, and whether an entity field can *equal* one.
+#:
+#: Three can. ``source`` cannot, and saying otherwise in the message would be a
+#: refusal that describes a collision the author can check and find is not
+#: there: a bronze extraction's id carries a third segment
+#: (``source.<relation>.<path>``) and a field name is a single identifier, so no
+#: entity field ever reaches it. It is reserved anyway, because the rule an
+#: author has to remember is "an entity is never named after a node-id prefix"
+#: — a rule that held for three of four would be learned as four exceptions.
 _MINTS = {
-    "canonical": "a catalog canonical field is spelled 'canonical.<name>'",
-    "metric": "a metric is spelled 'metric.<name>'",
-    "source": "a bronze extraction is spelled 'source.<relation>.<path>'",
-    "step": "a referenced implementation is spelled 'step.<ref>'",
+    "canonical": ("a catalog canonical field is spelled 'canonical.<name>'", True),
+    "metric": ("a metric is spelled 'metric.<name>'", True),
+    "source": ("a bronze extraction is spelled 'source.<relation>.<path>'", False),
+    "step": ("a referenced implementation is spelled 'step.<ref>'", True),
 }
 
 
@@ -60,11 +68,16 @@ def check_lineage_names(draft: ProjectIR) -> list[GuardrailError]:
     for entity in draft.entities:
         if entity.name not in NODE_ID_PREFIXES:
             continue
+        spelling, collides = _MINTS[entity.name]
         field = entity.columns[0].name if entity.columns else "<field>"
+        detail = (
+            f"so this entity's field {field!r} and a {entity.name} of that name are one id"
+            if collides
+            else f"so every field of this entity mints an id in the {entity.name} namespace"
+        )
         msg = (
             f"entity {entity.name!r} collides with the lineage node-id namespace: an entity "
-            f"field is spelled '<entity>.<field>', and {_MINTS[entity.name]} — so this "
-            f"entity's field {field!r} and a {entity.name} of that name are one id "
+            f"field is spelled '<entity>.<field>', and {spelling} — {detail} "
             f"(RFC 0031 §5.3). Fix: rename the entity — "
             f"{', '.join(repr(name) for name in NODE_ID_PREFIXES)} are reserved as the four "
             f"node-id prefixes"

@@ -1,6 +1,11 @@
 # RFC 0051 — Loose ends inside shipped subsystems
 
-- **Status:** 📝 Draft (execution-ready — one PR)
+- **Status:** 🚧 In progress — **shipped; retired one change from now.** Every decision
+  below is built and under test, and §12's five phases landed whole. It stays live only
+  because a retirement row has to name a commit that already holds this document and is
+  reachable from `main`, and no such commit exists until the change that ships it lands
+  ([`RETIRED.md`](RETIRED.md) argues why that cannot be the deleting commit). Rows added
+  by execution cite [`logs/T-0014.md`](../logs/T-0014.md).
 - **Scope:** Five ends left dangling by RFCs that have otherwise landed, plus the
   documentation residue two of them left behind. Three are real gaps and get built:
   MetricFlow becomes a compile target so its manifest can be written to disk; the

@@ -525,17 +525,28 @@ def test_the_audit_returns_the_violating_rows() -> None:
     assert "confidence" in body
 
 
-@pytest.mark.parametrize("disposition", ["flag", "quarantine"])
-def test_a_flag_or_quarantine_rule_on_a_step_output_is_still_refused(
-    disposition: str,
+@pytest.mark.parametrize(
+    ("disposition", "expected"),
+    [
+        ("flag", "a python_model cannot carry"),
+        ("quarantine", "which no step tier can lower"),
+    ],
+)
+def test_a_routed_rule_on_a_python_model_output_is_refused(
+    disposition: str, expected: str
 ) -> None:
-    """The half that cannot lower: both dispositions compile into the silver
-    SELECT's projection and routing WHERE, and a step-produced relation has
-    neither. Shipping a rule kind that works for one disposition and silently
-    does nothing for the other two is worse than the refusal (D39)."""
+    """`quality_step` wires a Tier 3 step, which is the tier neither
+    disposition can reach — and the two are refused for *different* reasons
+    (RFC 0051 §5.3), so each is matched on its own message rather than on the
+    `on_fail: fail` both happen to name in their fix.
+
+    `flag` fails on this tier only: a Tier 2 body is a SELECT and carries it.
+    `quarantine` fails on every tier, because a step output has no ingestion
+    key for a reject table and a wiring has no `quarantine:` block.
+    """
     from bloomery.errors import StepError
 
-    with pytest.raises(StepError, match="on_fail: fail"):
+    with pytest.raises(StepError, match=expected):
         quality_step(disposition)
 
 
