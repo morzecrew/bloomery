@@ -38,7 +38,7 @@ Two consequences worth knowing:
 
 ## Allocating a number
 
-The next free number is **0046**. Before creating an RFC, read the number above — do not
+The next free number is **0051**. Before creating an RFC, read the number above — do not
 compute it from `ls`, which no longer sees retired documents. **Numbers are never reused**:
 0001–0022 are retired and permanently spent. Update this section in the same change that
 mints a number.
@@ -79,6 +79,11 @@ know it has a companion recording where it turned out to be wrong.
 | [0043](0043-semantic-capability-matrix.md) | Evidence-based semantic capability matrix | 📝 Draft | Comparing represented semantic properties across engines, one tested configuration at a time, with bloomery scored by the same standard including where it loses. |
 | [0044](0044-check-command-and-imported-provenance.md) | `bloomery check` and imported semantic provenance | 📝 Draft | A CI command that resolves, type-checks and proves without emitting or executing, and the provenance rules deciding which imported facts may close a proof obligation. |
 | [0045](0045-soundness-positioning.md) | Soundness positioning and the claims the docs may make | 📝 Draft | What bloomery may claim to prove — preservation of declared semantics, never truth — and the rule that the planner claim is not published before the capability exists. |
+| [0046](0046-validating-a-dialect-port.md) | Validating a dialect port against an engine we cannot run | 📝 Draft | The tier ladder for a hosted engine with no container: what an emulator proves, why the engine's own compile-only check is the oracle, and the naming and credential rules that keep the two apart. |
+| [0047](0047-snowflake-dialect.md) | Snowflake dialect port | 📝 Draft | Two credible local emulators and `EXPLAIN USING JSON` for authority; the risk is semantic, chiefly three timestamp types where bloomery has one zoneless UTC. |
+| [0048](0048-bigquery-dialect.md) | BigQuery dialect port | 📝 Draft | A dry run is a full parse, bind and type check that scans nothing — the cheapest authoritative layer of the four. `DATETIME` versus `TIMESTAMP` carries most of the risk. |
+| [0049](0049-redshift-dialect.md) | Redshift dialect port | 📝 Draft | The port whose local options are all PostgreSQL underneath, which bloomery already ships. It shares helpers with that port and inherits nothing; fixtures split by what a surrogate can speak to. |
+| [0050](0050-databricks-dialect.md) | Databricks SQL dialect port | 📝 Draft | No local Databricks exists, so Spark is a labelled surrogate and `DESCRIBE QUERY` checks result types against the real analyzer. PySpark stays test-only; bloomery never executes Spark. |
 
 ## Status legend
 
