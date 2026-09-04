@@ -120,14 +120,13 @@ def step_output_body(
     SQLMesh wraps it in ``MODEL (...)`` and dbt in a ``config()`` call, and
     everything underneath must be the one thing both share (RFC 0008 D4).
 
-    Only SQLMesh reaches the wrap today: a ``flag`` rule puts a quality mart in
-    the project, and dbt refuses that mart in this wave (RFC 0008 §5.5). The
-    decision still lives above the envelope split rather than in the SQLMesh
-    path, because the day the refusal lifts is the day a per-target copy of it
-    would be discovered to disagree — SQLMesh's quality mart already selects
-    ``_quality_flags`` off this relation, and a target that wrapped differently
-    would emit a gold model selecting a column its own silver model has not
-    got.
+    Both targets reach the wrap. Only SQLMesh did until RFC 0052 — a ``flag``
+    rule puts a quality mart in the project and dbt refused that mart — and the
+    decision was kept above the envelope split anyway, on the reasoning that
+    the day the refusal lifted would be the day a per-target copy of it was
+    discovered to disagree. That day came, and the copy was never written:
+    SQLMesh's quality mart selects ``_quality_flags`` off this relation and so
+    does dbt's, because there is one wrap rather than two.
     """
     name = _relation_name(output)
     entity = next(
