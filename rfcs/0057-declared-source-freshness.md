@@ -136,28 +136,32 @@ reading one bronze relation produce **one** dbt table entry. Two of them declari
 different thresholds cannot both be emitted, and picking one silently is the
 plausible-but-wrong shape this project refuses.
 
-Three cases, and the third is the one a first pass misses:
+**A threshold is a statement about the relation, not about the mapping that carries it.**
+That sentence decides every case below, and an earlier draft of this section did not have
+it — which produced a rule with no valid configuration (§9's last risk, and the reason
+this paragraph exists).
 
 - **Equal thresholds** are not a conflict. They collapse to the one entry.
-- **Different thresholds** are **refused**, naming both mappings.
-- **One mapping declares and another omits** is also **refused**, and this is the case
-  worth stating rather than defaulting. The tempting rule — "an explicit threshold wins
-  over silence" — reads as generosity and is a claim the silent mapping never made: its
-  author did not say *this source is fine at six hours*, and the emitted entry would say
-  it for them, over a relation they also read. Silence about a shared physical thing is
-  not agreement with whatever someone else declared about it.
+- **Different thresholds** are **refused**, naming both mappings. This is RFC 0024 D33's
+  rule — declarations about one physical thing must agree — and it is the only genuine
+  disagreement of the three.
+- **One mapping declares and another omits** is **fine**, and neither is refused. A
+  mapping that reads a relation and says nothing about its staleness is not disagreeing
+  with a threshold; it is not making a statement about the relation at all. The tempting
+  refusal here — "silence is not agreement" — mistakes *who* a threshold is about.
 
-  The way to opt in is to declare the same threshold, which is then case one. That costs
-  a line and buys a spec where every threshold on a relation was written by someone. This is the same rule
-RFC 0024 D33 applies to quality rules on a merged entity — declarations about one physical
-thing must agree — and it is stated here rather than discovered by whoever writes the
-emitter.
+The `_ingested_at` requirement follows from the same sentence, and follows it back from
+where an earlier draft put it. dbt's freshness query names `_ingested_at` on the shared
+table entry, so what must hold is that the **relation** exposes the column — which is
+exactly what the *declaring* mapping's ingestion-metadata contract asserts (RFC 0016 D21).
+A sibling mapping of the same physical table neither adds nor removes a column, so it has
+nothing to satisfy.
 
-§5.2's `_ingested_at` requirement gets the same treatment for the same reason: the column
-is mandatory only for entities that quarantine or dedupe, so a relation read by two
-entities where only one does is a `loaded_at_field` that may or may not exist. The
-requirement is over **every** consumer of the relation, not the one that declared the
-threshold.
+Requiring the contract from every consumer instead reads as thorough and has no valid
+configuration: a plain entity reading a relation whose other consumer quarantines could
+not declare the threshold (§5.2 refuses it, since it needs no `_ingested_at`) and could
+not omit it either. The only escape would be declaring `quarantine:` on an entity that
+does not want it, to satisfy a freshness rule on someone else's mapping.
 
 ### 5.3 Targets
 
@@ -212,6 +216,13 @@ it looks identical to one that passes.
   makes the coupling explicit, but it means "I want freshness" implies "I want quarantine
   or dedupe", which is a surprising dependency to meet in an error message. The message
   has to explain the *why* and not only the fix.
+- **A rule about a shared relation is easy to make unsatisfiable.** This RFC did it once:
+  requiring the ingestion contract from every consumer *and* refusing a mapping that omits
+  a threshold left a relation shared by a quarantining and a plain entity with no legal
+  configuration at all. Both rules read as thorough in isolation. The check that catches
+  it is to write down what the declaration is *about* — the relation — and derive each
+  rule from that rather than from what feels rigorous per mapping.
+
 - **Duration grammar reuse could drift.** `retention` and `freshness` sharing a validator
   is right today; if either grows a unit the other must not, the sharing becomes a
   coupling. Cheap to split later, noted so it is a decision and not an accident.
@@ -230,9 +241,10 @@ it looks identical to one that passes.
 | # | Grade | Decision |
 | --- | --- | --- |
 | 1 | `LOCKED` | bloomery **declares** freshness and never measures it. The threshold is emitted; the framework runs the query. This is the same line drawn everywhere else — no execution, no clock, no environment. |
-| 2 | `LOCKED` | A `freshness:` block on an entity that requires no `_ingested_at` is refused, and the requirement is over **every** consumer of the relation rather than the declaring one. dbt's freshness query names that column on the shared table entry, so a relation read by one quarantining entity and one plain one still needs it. |
+| 2 | `LOCKED` | **Superseded by D2c.** A `freshness:` block on an entity that requires no `_ingested_at` is refused, and the requirement is over **every** consumer of the relation rather than the declaring one. |
 | 2a | `LOCKED` | Two mappings declaring **different** thresholds on one physical relation are refused, naming both. `_sources_artifact` emits one table entry per relation, so one of the two would be silently dropped — the same rule RFC 0024 D33 applies to quality rules over a merged entity. Equal thresholds collapse and are not a conflict. |
-| 2b | `LOCKED` | One mapping declaring a threshold while another on the same relation omits it is **refused too**, not resolved in favour of the explicit one. "Explicit wins over silence" would emit, on a shared relation, a staleness claim the silent mapping's author never made. Declaring the same threshold is how you opt in, and that is D2a's first case. |
+| 2b | `LOCKED` | **Superseded by D2c.** One mapping declaring a threshold while another on the same relation omits it is refused too, not resolved in favour of the explicit one. |
+| 2c | `LOCKED` | **A threshold is a statement about the relation, not about the mapping that carries it.** So: the ingestion-metadata contract is required of the **declaring** mapping, because that is what asserts the relation exposes `_ingested_at`, and a sibling mapping of the same physical table has nothing to satisfy — it neither adds nor removes a column. And a mapping that omits a threshold is not disagreeing with one; it is making no statement about the relation, so the mixed case is legal. D2's "every consumer" and D2b's refusal each read as thorough and together admit **no valid configuration**: a plain entity sharing a relation with a quarantining one could neither declare (D2 refuses it) nor omit (D2b refuses it), and its only escape was to declare `quarantine:` it does not want. D2a survives untouched, because two different thresholds are a real disagreement about one thing. |
 | 3 | `ASSUMED` | Durations reuse `quarantine.retention`'s grammar and validator. One spelling of a duration across the spec surface. |
 | 4 | `LOCKED` | `error_after` below `warn_after` is refused. An unreachable warning is a spec that means something other than what it says. |
 | 5 | `ASSUMED` | No default threshold. A source with no block gets none; a guessed six hours would emit an assertion nobody made. |
@@ -243,7 +255,8 @@ it looks identical to one that passes.
 
 Two commits:
 
-1. **Spec key, IR field, and all four refusals** — inverted thresholds, missing
-   `_ingested_at` across every consumer, conflicting thresholds on one relation, and a
-   threshold on a relation another mapping reads silently — with the census entries. No emitter change: the refusals are the risky half and land alone.
+1. **Spec key, IR field, and all three refusals** — inverted thresholds, a threshold on a
+   mapping whose entity requires no `_ingested_at`, and conflicting thresholds on one
+   relation — with the census entries. The mixed case is legal and gets a test saying so,
+   because "this is allowed" is the half a refusal-shaped phase forgets to pin. No emitter change: the refusals are the risky half and land alone.
 2. **The dbt `sources.yml` branch**, its golden, and the `dbt source freshness` e2e leg.
