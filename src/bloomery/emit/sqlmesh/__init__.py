@@ -850,14 +850,20 @@ def _backfills_by_time(ir: ProjectIR) -> bool:
     ``model_defaults.start``: SQLMesh defaults the window to a single day and
     reports success, so a project carrying one and no start loads one partition
     of history without an error anywhere (RFC 0054 §3 M4). Every other kind is
-    a full refresh or keyed, and neither reads the start at all.
+    a full refresh, keyed, or a snapshot, and none of them reads the start.
+
+    Asked of the kind clause each entity is actually *emitted* with, never of
+    the materialization it resolved to, because ``scd: type2`` supersedes the
+    materialization (``_kind_clause``): a partitioned SCD2 entity emits
+    ``SCD_TYPE_2_BY_COLUMN`` and reads no start. Measured — that model planned
+    with no start takes a one-day window and still lands every row, with
+    ``valid_from`` at the epoch rather than at the window. Marts carry no
+    ``scd``, so their materialization *is* their kind.
     """
 
-    partitioned = Materialization.INCREMENTAL_BY_PARTITION
-
-    return any(entity.materialization is partitioned for entity in ir.entities) or any(
-        mart.materialization is partitioned for mart in ir.marts
-    )
+    return any(
+        _kind_clause(entity).startswith("INCREMENTAL_BY_TIME_RANGE") for entity in ir.entities
+    ) or any(mart.materialization is Materialization.INCREMENTAL_BY_PARTITION for mart in ir.marts)
 
 
 # ....................... #

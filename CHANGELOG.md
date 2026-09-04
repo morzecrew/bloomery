@@ -150,7 +150,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   file — SQLMesh keeps the connection beside the project settings, so the next
   compile overwrites it. A project that backfills by time and declares no catalog
   date dimension gets no `config.yaml` at all, because there is no honest start to
-  put in it.
+  put in it — where "backfills by time" means the kind a model is *emitted* with, so
+  an entity declaring `scd: type2` does not withhold the file: it is snapshotted, not
+  time-ranged, and reads no start.
 
 - **MetricFlow is a compile target.** `--target metricflow` (or
   `Target.METRICFLOW`) writes one `semantic_manifest.json` — the same manifest

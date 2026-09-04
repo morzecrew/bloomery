@@ -694,6 +694,40 @@ def test_a_year_below_1000_is_written_as_four_digits() -> None:
     assert "CAST('0002-12-31' AS DATE)" in spine
 
 
+def test_a_partitioned_scd2_entity_reads_no_start() -> None:
+    """`scd: type2` supersedes the materialization (`_kind_clause`), so a
+    partitioned SCD2 entity is emitted `SCD_TYPE_2_BY_COLUMN` — a kind that
+    reads no `model_defaults.start`. Planned without one it takes a one-day
+    window and still lands every row, `valid_from` at the epoch.
+
+    So the project below is *not* the D5 case, even though its IR carries
+    `INCREMENTAL_BY_PARTITION`: withholding its config would refuse a file over
+    a start nothing reads. The predicate is asked of the emitted kind for
+    exactly this reason, and this is the entity that tells the two apart.
+    """
+    project, catalog = load_fixture("ecom_basic")
+    ir = build_project_ir(project, catalog)
+    ctx = EmitContext(dialect=get_dialect("duckdb"), naming=DefaultNaming(), fingerprint="x")
+    snapshotted = replace(
+        ir,
+        date_dimension=None,
+        marts=(),
+        entities=tuple(
+            replace(entity, scd=SCDKind.TYPE2)
+            if entity.materialization is Materialization.INCREMENTAL_BY_PARTITION
+            else entity
+            for entity in ir.entities
+        ),
+    )
+    artifacts = SQLMeshEmitter().emit(snapshotted, ctx)
+    assert any("SCD_TYPE_2_BY_COLUMN" in a.content for a in artifacts), (
+        "the fixture must still emit a snapshot kind for this to prove anything"
+    )
+    config = next(a.content for a in artifacts if a.path == "config.yaml")
+    assert "dialect: duckdb" in config
+    assert "start" not in config
+
+
 def test_no_project_file_where_the_start_cannot_be_stated() -> None:
     """D5, answered: a project that backfills by time and declares no date
     dimension gets **no** config rather than one missing its start.
