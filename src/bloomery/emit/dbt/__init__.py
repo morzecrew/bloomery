@@ -116,6 +116,11 @@ from bloomery.emit.lower import (
     mart_assert_select,
     mart_select,
     metadata_audit_select,
+    reconcile_audit_blocking,
+    reconcile_audit_select,
+    reconcile_keys,
+    reconcile_relation,
+    reconcile_select,
 )
 from bloomery.emit.steps import (
     consistency_audits,
@@ -135,6 +140,7 @@ from bloomery.ir import (
     MartIR,
     Materialization,
     ProjectIR,
+    ReconcileIR,
     SCDKind,
     StepKind,
     StepOutputIR,
@@ -345,38 +351,50 @@ def _refuse_quarantine(entity: EntityIR) -> None:
 # ....................... #
 
 
-def _refuse_reconcile(ir: ProjectIR) -> None:
-    """dbt lowers no reconcile *model* (RFC 0016 D58, corrected by RFC 0026 D8).
+def _reconcile_artifacts(
+    check: ReconcileIR,
+    ir: ProjectIR,
+    ctx: EmitContext,
+    references: dict[tuple[str, str], str],
+) -> tuple[EmittedArtifact, EmittedArtifact]:
+    """One reconcile check → a comparison model and a singular test over it
+    (RFC 0016 §5.3, RFC 0052 §5.3).
 
-    A second, *separate* claim from ``_refuse_quarantine`` above, and it needed
-    its own decision row: §5.4's target-coverage sentence authorized dbt's
-    refusal only for the reject/replay artifacts, so refusing ``reconcile:``
-    under the same sentence was scope the RFC never granted. D58 grants it.
+    The two halves of RFC 0016 D58's refusal expired separately. The audit half
+    went with RFC 0026: a singular test carrying ``severity='warn'`` *is* a
+    non-blocking check, and this target emits five families of them. The model
+    half is what this builds, from :func:`reconcile_select` — the same function
+    SQLMesh renders, because a second lowering for a comparison both targets
+    already agree on is the drift ``emit/lower/`` exists to prevent.
 
-    **Half of D58's argument has expired and the message no longer makes it.**
-    D58 reasoned from two things — a reconcile check is a comparison *model*
-    **and** a non-blocking audit, and dbt had no non-blocking test that would
-    not silently turn "report the disagreement" into "fail the build". The
-    second half is now false: a singular test carrying ``severity='warn'`` is
-    exactly a non-blocking check, and RFC 0026 emits several. The first half
-    stands untouched, because this RFC emits no models at all. Leaving the old
-    sentence in the refusal would have it cite a limitation that no longer
-    exists, which is the same defect as a doc page describing behaviour the
-    code dropped.
+    Blocking-ness is :func:`reconcile_audit_blocking`, also shared, so a check's
+    ``on_fail`` means one thing on both targets: ``fail`` stops the run,
+    ``flag`` reports and leaves the comparison table readable — which is the
+    point of it, since a disagreement is exactly when someone needs to read the
+    rows.
+
+    The model is ``materialized='table'``, SQLMesh's ``FULL`` said in dbt's
+    vocabulary. A comparison is recomputed whole or it is stale.
     """
-
-    if not ir.reconcile:
-        return
-
-    names = ", ".join(check.name for check in ir.reconcile)
-    msg = (
-        f"project declares reconcile check(s) {names}, which lower to a comparison model "
-        "plus an audit over it (RFC 0016 §5.3); the dbt emitter writes no comparison "
-        "model, and the audit has nothing to read without one (RFC 0016 D58, narrowed by "
-        "RFC 0026 D8 — the missing piece is the model, not the test). Fix: compile this "
-        "project for the sqlmesh target, or drop the reconcile block"
+    namespace, relation = ctx.naming.relation(reconcile_relation(check), Layer.SILVER)
+    return (
+        _model_artifact(
+            path=f"models/{namespace}/{relation}.sql",
+            config_line=_config_line(Materialization.FULL, reconcile_keys(check, ir)),
+            select=_render(reconcile_select(check, ir, ctx), references, ctx),
+            ctx=ctx,
+        ),
+        _singular_test(
+            name=f"{check.name}_reconcile",
+            select=_render(
+                reconcile_audit_select(relation=references[(namespace, relation)]),
+                references,
+                ctx,
+            ),
+            blocking=reconcile_audit_blocking(check),
+            ctx=ctx,
+        ),
     )
-    raise UnsupportedByTarget(msg, source_path="entity_model: reconcile")
 
 
 # ....................... #
@@ -931,6 +949,10 @@ def _reference_map(ir: ProjectIR, ctx: EmitContext) -> dict[tuple[str, str], str
             namespace, relation = step_output_relation(output, ctx)
             add(namespace, relation, f"{{{{ ref('{relation}') }}}}")
 
+    for check in ir.reconcile:
+        namespace, relation = ctx.naming.relation(reconcile_relation(check), Layer.SILVER)
+        add(namespace, relation, f"{{{{ ref('{relation}') }}}}")
+
     for mart in ir.marts:
         namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
         add(namespace, relation, f"{{{{ ref('{relation}') }}}}")
@@ -1115,7 +1137,6 @@ class DbtEmitter:
         the project scaffold and bronze sources; artifacts sorted by path,
         content ending in exactly one newline (RFC 0003 §5.5 rule 5)."""
         refuse_python_models(ir, "dbt")
-        _refuse_reconcile(ir)
         references = _reference_map(ir, ctx)
         artifacts: list[EmittedArtifact] = list(_step_artifacts(ir, ctx, references))
         artifacts.extend(_step_test_artifacts(ir, ctx, references))
@@ -1144,6 +1165,9 @@ class DbtEmitter:
                     ctx=ctx,
                 )
             )
+
+        for check in ir.reconcile:
+            artifacts.extend(_reconcile_artifacts(check, ir, ctx, references))
 
         artifacts.extend(_mart_artifact(mart, ir, ctx, references) for mart in ir.marts)
 

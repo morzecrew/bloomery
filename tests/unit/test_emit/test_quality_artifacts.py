@@ -440,16 +440,21 @@ def test_dbt_refuses_the_reject_and_replay_artifacts() -> None:
     assert excinfo.value.source_path == "entity_model: entities.inventory_level.quarantine"
 
 
-def test_dbt_refuses_reconcile_naming_the_checks() -> None:
-    """The second honest refusal (RFC 0016 §5.4): a reconcile check lowers to
-    a model *and* a non-blocking audit, and dbt has no non-blocking test —
-    approximating it would turn "report the disagreement" into "fail the
-    build"."""
+def test_dbt_no_longer_refuses_a_project_for_its_reconcile_block() -> None:
+    """The refusal this pinned is gone (RFC 0052 §5.3): both halves of
+    RFC 0016 D58's argument expired — the audit half with RFC 0026's singular
+    tests, the model half with the comparison model this target now writes.
+
+    What still stops this fixture is its ``quarantine:`` policy, which is a
+    different claim about a different artifact. Asserted by *source path*
+    rather than by the fact that something was raised, because "refused for
+    some reason" is what would let the reconcile refusal quietly return.
+    """
     project, catalog = load_fixture(FIXTURE)
     with pytest.raises(UnsupportedByTarget) as excinfo:
         compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
-    assert "stock_level_matches_snapshot" in str(excinfo.value)
-    assert excinfo.value.source_path == "entity_model: reconcile"
+    assert excinfo.value.source_path != "entity_model: reconcile"
+    assert "stock_level_matches_snapshot" not in str(excinfo.value)
 
 
 def test_dbt_still_emits_a_flag_only_quality_entity() -> None:

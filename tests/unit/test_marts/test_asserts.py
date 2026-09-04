@@ -215,14 +215,18 @@ def test_dbt_emits_each_assertion_as_a_singular_test() -> None:
 
 
 def test_the_fixture_that_still_refuses_does_so_for_its_own_reason() -> None:
-    """``quality_precedence`` carries a ``reconcile:`` block as well as its
-    assertions, and that refusal is untouched by RFC 0026 — it needs a
-    comparison *model*, which this emitter still writes none of. Pinned so a
-    later reader does not read the refusal as the mart assertion's."""
+    """``quality_precedence`` carries a ``quarantine:`` policy as well as its
+    assertions, and that refusal is untouched by RFC 0026. Pinned so a later
+    reader does not read the refusal as the mart assertion's.
+
+    It named the ``reconcile:`` block until RFC 0052 §5.3 built the comparison
+    model; the surviving refusal is the reject table's, and this assertion
+    moved with it rather than being deleted — which refusal a fixture meets is
+    the thing worth pinning, not any particular one."""
     project, catalog = load_fixture(FIXTURE)
     with pytest.raises(UnsupportedByTarget) as excinfo:
         compile_project(project, target=Target.DBT, dialect="duckdb", catalog=catalog)
-    assert "reconcile" in str(excinfo.value)
+    assert "quarantine" in str(excinfo.value)
     assert BLOCKING not in str(excinfo.value)
 
 

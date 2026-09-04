@@ -99,6 +99,7 @@ def _entity(
     scd: SCDKind = SCDKind.TYPE1,
     materialization: Materialization = Materialization.FULL,
     audits: tuple[AuditIR, ...] = (),
+    columns: tuple[ColumnIR, ...] = (),
 ) -> EntityIR:
     return EntityIR(
         name=name,
@@ -107,7 +108,8 @@ def _entity(
         scd=scd,
         materialization=materialization,
         partition_by=(),
-        columns=(
+        columns=columns
+        or (
             _column("amount", DecimalType(12, 4)),
             _column("item_id", StringType()),
             _column("qty", IntType()),
@@ -367,34 +369,74 @@ def test_an_audit_kind_outside_the_closed_vocabulary_is_refused() -> None:
     assert "no target" in message
 
 
-def test_reconcile_refusal_names_the_check_and_the_decision_authorizing_it() -> None:
-    """RFC 0016 §5.4's target-coverage sentence scopes dbt's refusal to the
-    reject/replay artifacts; the reconcile refusal is a *separate* claim, and
-    an unauthorized refusal is exactly the "code contradicts the RFC" defect.
-    D58 authorizes it, so the message that stops the compile cites the row a
-    reader can check it against."""
+def _reconcile_project(on_fail: OnFail = OnFail.FLAG) -> ProjectIR:
+    """A project whose only interesting feature is a reconcile check.
+
+    Built here rather than taken from a fixture because the corpus has none:
+    every fixture declaring ``reconcile:`` also declares ``quarantine:``, so
+    until the reject model lands each of them is refused before this surface is
+    reached. See ``logs/T-0016.md`` (D-080).
+    """
+    line = _entity(
+        name="item",
+        key=("item_id",),
+        columns=(
+            _column("amount", DecimalType(12, 4)),
+            _column("item_id", StringType()),
+            _column("order_id", StringType()),
+        ),
+    )
+    order = _entity(
+        name="order",
+        key=("order_id",),
+        columns=(_column("order_id", StringType()), _column("total", DecimalType(12, 4))),
+    )
     check = ReconcileIR(
         name="totals_match",
         left="sum(item.amount) by order_id",
         right="order.total",
         tolerance=Decimal("0.01"),
-        on_fail=OnFail.FLAG,
+        on_fail=on_fail,
     )
-    with pytest.raises(UnsupportedByTarget) as excinfo:
-        DbtEmitter().emit(ProjectIR(entities=(_entity(),), reconcile=(check,)), _ctx())
-    message = str(excinfo.value)
-    assert "totals_match" in message
-    assert "RFC 0016 D58" in message
-    # It refuses the *reconcile* surface, not the reject/replay one — naming the
-    # wrong thing is how the scope crept in the first place.
-    assert "__reject" not in message
-    assert excinfo.value.source_path == "entity_model: reconcile"
-    # RFC 0026 D8: the surviving half of D58's argument is the comparison
-    # *model*. The other half — "no non-blocking test to approximate the audit
-    # with" — is now false, since a singular test carrying severity='warn' is
-    # exactly one, so the message must not still claim it.
-    assert "comparison model" in message
-    assert "non-blocking" not in message
+    return ProjectIR(entities=(line, order), reconcile=(check,))
+
+
+def test_a_reconcile_check_emits_its_comparison_model_and_a_test_over_it() -> None:
+    """RFC 0016 D58's refusal is gone in both halves (RFC 0052 §5.3).
+
+    The audit half expired with RFC 0026 — a singular test carrying
+    ``severity='warn'`` is a non-blocking check and this target writes five
+    families of them. The model half is what lands here, from the same
+    ``reconcile_select`` SQLMesh renders: a comparison both targets already
+    agree on lowered twice is the drift ``emit/lower/`` exists to prevent.
+    """
+    artifacts = {a.path: a for a in DbtEmitter().emit(_reconcile_project(), _ctx())}
+
+    model = artifacts["models/silver/totals_match__reconcile.sql"]
+    assert model.kind is ArtifactKind.MODEL
+    assert "{{ config(materialized='table') }}" in model.content
+    assert "within_tolerance" in model.content
+
+    test = artifacts["tests/totals_match_reconcile.sql"]
+    assert test.kind is ArtifactKind.AUDIT
+    # The test reads the model through `ref()`, not by literal relation — a
+    # singular test with a bare `silver.totals_match__reconcile` is a test dbt
+    # orders against nothing and runs before the model exists (RFC 0008 D20).
+    assert "{{ ref('totals_match__reconcile') }}" in test.content
+    assert "NOT within_tolerance" in test.content
+
+
+def test_a_reconcile_checks_severity_is_its_own_on_fail() -> None:
+    """The same `reconcile_audit_blocking` SQLMesh reads, so a check's
+    `on_fail` means one thing across targets: `fail` stops the run, `flag`
+    reports and leaves the comparison table readable — which is the point of
+    it, since a disagreement is exactly when someone has to read the rows."""
+    for on_fail, severity in ((OnFail.FLAG, "warn"), (OnFail.FAIL, "error")):
+        artifacts = {
+            a.path: a for a in DbtEmitter().emit(_reconcile_project(on_fail), _ctx())
+        }
+        content = artifacts["tests/totals_match_reconcile.sql"].content
+        assert f"config(severity='{severity}')" in content
 
 
 def test_a_merged_entity_emits_the_collision_audit_it_used_to_be_refused_for() -> None:
