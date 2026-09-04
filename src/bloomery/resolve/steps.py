@@ -50,7 +50,7 @@ from bloomery.ir import (
     canon,
     step_sort_key,
 )
-from bloomery.spec.common import RESERVED_MEMBER_NAMES
+from bloomery.spec.common import RESERVED_MEMBER_REASONS
 from bloomery.steps import EMPTY_REGISTRY
 from bloomery.typing import parse_type
 
@@ -547,17 +547,24 @@ def _check_reserved_columns(wiring: StepWiring, manifest: StepManifest) -> list[
     stops agreeing.
     """
     errors: list[BloomeryError] = []
-    reserved = frozenset(RESERVED_MEMBER_NAMES)
 
     for name, output in sorted(manifest.outputs.items()):
-        clashing = sorted(reserved.intersection(output.produces))
+        clashing = sorted(set(RESERVED_MEMBER_REASONS).intersection(output.produces))
         if not clashing:
             continue
+        # Each name's own reason, read from the spec layer rather than
+        # summarised: they differ, and one sentence covering all nine would be
+        # false of most of them. `_quality_flags` is generated on a silver
+        # relation; `metric_time` is generated nowhere and is reserved because
+        # the planner owns the word.
+        reasons = "; ".join(
+            f"{spelling} ({RESERVED_MEMBER_REASONS[spelling]})" for spelling in clashing
+        )
         msg = (
-            f"step {wiring.use!r} output {name!r} produces {', '.join(clashing)}, which is a "
-            "reserved name (RFC 0016 D9, RFC 0024 D7): bloomery generates columns of those "
-            "names on a silver relation, so an output declaring one would have the column "
-            "twice. Fix: rename the column in the step's manifest and body"
+            f"step {wiring.use!r} output {name!r} produces {reasons} — reserved names, on "
+            "every surface that names a column. A step output is one such surface: it "
+            "becomes an entity, and an entity may not declare these either. Fix: rename "
+            "the column in the step's manifest and body"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
 

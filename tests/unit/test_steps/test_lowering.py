@@ -685,6 +685,25 @@ def test_the_reserved_set_is_the_spec_layer_s_own(column: str) -> None:
         build(outputs=_with_produced(column))
 
 
+def test_each_reserved_name_is_refused_with_its_own_reason() -> None:
+    """The reasons differ, so one sentence cannot carry them.
+
+    ``_quality_flags`` is generated on a silver relation; ``metric_time`` is
+    MetricFlow's query-time dimension and is generated nowhere. A message
+    asserting the first about the second gives an author a reason they can
+    check and find absent — and the spec layer already keeps the per-name
+    reason as contract, so restating it here would be a second copy of it.
+    """
+    with pytest.raises(StepError) as flags:
+        build(outputs=_with_produced("_quality_flags"))
+    assert "the generated silver quality-flag column" in str(flags.value)
+
+    with pytest.raises(StepError) as metric_time:
+        build(outputs=_with_produced("metric_time"))
+    assert "the canonical query-time dimension" in str(metric_time.value)
+    assert "generates columns of those names on a silver relation" not in str(metric_time.value)
+
+
 def test_an_unreserved_produced_column_still_lowers() -> None:
     ir = build(outputs=_with_produced("confidence"))
     (entity,) = [e for e in ir.entities if e.name == "customer"]
