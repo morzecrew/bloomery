@@ -1865,8 +1865,10 @@ out/models/silver/order.sql
 out/models/silver/order_item.sql
 </code></pre></div>
 <p>Without <code>--out</code>, the artifacts go to stdout as JSON — path, content, kind and checksum
-for each — so you can place them yourself. <code>--target</code> takes <code>sqlmesh</code>, <code>cube</code>, <code>dbt</code>, or
-the name of an emitter you registered.</p>
+for each — so you can place them yourself. <code>--target</code> takes <code>sqlmesh</code>, <code>cube</code>, <code>dbt</code>,
+<code>metricflow</code>, or the name of an emitter you registered. <code>metricflow</code> writes one
+<code>semantic_manifest.json</code> instead of models — the semantic layer over marts the other
+targets build.</p>
 <p><strong>Steps are the one thing the CLI cannot wire.</strong> A <code>StepRegistry</code> is assembled by the
 caller and handed to <code>compile_project</code>; bloomery reads no step manifests from disk, by
 design — that absence is what stops an authored spec from becoming a code-loading

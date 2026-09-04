@@ -2960,8 +2960,12 @@ document because bloomery reads no step files: a project that wires a step and c
 without its registry is refused, not silently compiled without it. A project wiring no
 steps needs nothing here.</p>
 <h3 id="target"><code>Target</code><a class="headerlink" href="#target" title="Permanent link">&para;</a></h3>
-<p>The shipped emit targets: <code>Target.SQLMESH</code>, <code>Target.CUBE</code>, <code>Target.DBT</code>. A string
-enum, so <code>target="sqlmesh"</code> also works.</p>
+<p>The shipped emit targets: <code>Target.SQLMESH</code>, <code>Target.CUBE</code>, <code>Target.DBT</code>,
+<code>Target.METRICFLOW</code>. A string enum, so <code>target="sqlmesh"</code> also works.</p>
+<p><code>METRICFLOW</code> emits the semantic manifest rather than models — one
+<code>semantic_manifest.json</code>, holding what <code>manifest_json</code> serializes from the
+manifest object <code>emit_manifest</code> returns, and nothing else. A project with no
+marts emits no artifact.</p>
 <h2 id="analysis">Analysis<a class="headerlink" href="#analysis" title="Permanent link">&para;</a></h2>
 <h3 id="resolveproject-project-catalog-catalog-none-none-resolution"><code>resolve(project: Project, catalog: Catalog | None = None) -&gt; Resolution</code><a class="headerlink" href="#resolveproject-project-catalog-catalog-none-none-resolution" title="Permanent link">&para;</a></h3>
 <p>Run reference validation, recipe validation, and reachability without emitting

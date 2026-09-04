@@ -2036,13 +2036,48 @@ has several:</p>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">rule</span><span class="p">:</span><span class="w"> </span><span class="nv">expression</span><span class="p p-Indicator">,</span><span class="nt"> name</span><span class="p">:</span><span class="w"> </span><span class="nv">confident</span><span class="p p-Indicator">,</span><span class="nt"> expr</span><span class="p">:</span><span class="w"> </span><span class="s">"confidence</span><span class="nv"> </span><span class="s">&gt;=</span><span class="nv"> </span><span class="s">0.8"</span><span class="p p-Indicator">,</span><span class="nt"> on_fail</span><span class="p">:</span><span class="w"> </span><span class="nv">fail</span><span class="p p-Indicator">}</span>
 <span class="w">    </span><span class="nt">applies_to</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">confident</span><span class="p">:</span><span class="w"> </span><span class="nv">customer</span><span class="p p-Indicator">}</span>
 </code></pre></div>
-<p><strong><code>on_fail: fail</code> only.</strong> It lowers to a blocking audit over the relation, so
-a run whose step produced a violating row stops. <code>flag</code> and <code>quarantine</code> are
-compile errors: both work by rewriting the silver <code>SELECT</code> — adding to
-<code>_quality_flags</code>, routing rows into the reject table — and a step-produced
-relation has no <code>SELECT</code> to rewrite, because its wrapper writes the rows in
-Python. A rule kind that worked for one disposition and silently did nothing
-for the other two would be worse than the refusal.</p>
+<p>Which dispositions lower depends on the tier, because they need different
+things from the model:</p>
+<table>
+<thead>
+<tr>
+<th><code>on_fail:</code></th>
+<th><code>sql_model</code></th>
+<th><code>python_model</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fail</code></td>
+<td>blocking audit over the relation</td>
+<td>blocking audit over the relation</td>
+</tr>
+<tr>
+<td><code>flag</code></td>
+<td><code>_quality_flags</code> / <code>_quality_ok</code> on the relation</td>
+<td>compile error</td>
+</tr>
+<tr>
+<td><code>quarantine</code></td>
+<td>compile error</td>
+<td>compile error</td>
+</tr>
+</tbody>
+</table>
+<p><code>fail</code> needs no <code>SELECT</code> — it reads the finished relation and returns the rows
+that violate the rule, which is what a blocking audit is.</p>
+<p><code>flag</code> adds the two generated columns every silver entity carries, so it needs
+a <code>SELECT</code> to project into. A Tier 2 body <em>is</em> one, and gets them. A Tier 3
+wrapper writes its rows in Python, so there is nothing to project into and the
+refusal names the tier.</p>
+<p><code>quarantine</code> is refused on both, and not as a "not yet". Routing a row means
+writing it to <code>&lt;output&gt;__reject</code>, which is keyed on the ingestion metadata a
+bronze extract carries and a step wrote none of; and <code>quarantine.retention</code> is
+required wherever the disposition appears, with no <code>quarantine:</code> block in a
+<code>steps:</code> wiring to declare it. Route the rows in a downstream mapped entity
+instead.</p>
+<p>An output with no <code>flag</code> rule keeps exactly the columns its manifest declares
+— the two generated ones appear when a rule needs them, never by default.</p>
 <h3 id="how-a-parameter-reaches-a-sql-body">How a parameter reaches a SQL body<a class="headerlink" href="#how-a-parameter-reaches-a-sql-body" title="Permanent link">&para;</a></h3>
 <p>A Tier 2 body refers to its parameters as sqlglot placeholders, the same
 <code>:name</code> spelling Tier 1 uses:</p>

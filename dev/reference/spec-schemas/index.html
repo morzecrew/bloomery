@@ -2545,6 +2545,15 @@ and ingestion-metadata columns are reserved on the same terms: <code>_quality_fl
 <code>has_quality_flags</code>. So is <code>_source</code>, the union merge's provenance column — reserved
 unconditionally rather than only on merged entities, because a name that is legal until a
 second mapping arrives is a trap laid for the change that adds one.</p>
+<p><strong>Reserved entity names.</strong> An entity may not be called <code>canonical</code>, <code>metric</code>, <code>source</code> or
+<code>step</code>. Those are the four lineage node-id prefixes: a metric is <code>metric.&lt;name&gt;</code>, a
+canonical field <code>canonical.&lt;name&gt;</code>, and an entity field is <code>&lt;entity&gt;.&lt;field&gt;</code> with no
+prefix at all — so an entity named <code>metric</code> with a field <code>revenue</code> produces the same id
+as a metric named <code>revenue</code>, and <code>bloomery lineage --node metric.revenue</code> can no longer
+say which one you meant. Reserved unconditionally, for the same reason <code>_source</code> is: a
+name that is legal until someone adds a metric in another file is a trap laid for them.
+This binds a step output too, which is named after the last segment of the relation its
+wiring binds.</p>
 <p><strong>Retention units.</strong> Months and years are deliberately absent — they are not fixed
 durations, and a retention window that means something different in February is a legal
 problem rather than a convenience. Minutes are absent because <code>m</code> would read as either.</p>
