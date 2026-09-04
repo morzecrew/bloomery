@@ -2140,9 +2140,11 @@ the three can fire on a shipped dialect</strong>: DuckDB and Trino have <code>TR
 gets a guard around its own input parser (D84), and all three normalize. They are what a
 fourth dialect would meet if it arrived without the capability, and they are provoked in
 the test suite against exactly such a dialect.</p>
-<p>One is about the <em>target</em>: a <code>quarantine:</code> block or a <code>reconcile:</code> check compiled for
-dbt, which lowers neither in this wave. All of them name the target or dialect that does
-support the construct.</p>
+<p>None is about a <em>target's</em> artifact families any more. A <code>quarantine:</code> block and a
+<code>reconcile:</code> check were refused for dbt until it grew the reject table, the replay macro
+and the comparison model; what dbt still refuses is a Tier 3 <code>python_model</code> step, which
+is about the adapters dbt's Python models run on rather than about anything bloomery
+lowers. All of them name the target or dialect that does support the construct.</p>
 <h2 id="the-closed-refusal-list">The closed refusal list<a class="headerlink" href="#the-closed-refusal-list" title="Permanent link">&para;</a></h2>
 <p>The <code>UnsupportedFilter</code> family is a <strong>closed, reviewed list</strong> (RFC 0015), not drift:
 every construct the query vocabulary cannot express was refused deliberately, with a

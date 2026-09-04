@@ -2007,10 +2007,10 @@ entity model and never read a mapping. For a required field on a merged entity,
 <code>assert: {not_null: true}</code> is the runtime check you want — <code>required:</code> proves every mapping
 <em>declares</em> the field, and says nothing about what its source path returns per row.</p>
 <div class="admonition note">
-<p class="admonition-title">One target</p>
-<p><code>quarantine:</code> needs a reject model, which the dbt emitter does not lower — merged or
-not. A merged entity that quarantines compiles for SQLMesh; one that only flags
-compiles for both.</p>
+<p class="admonition-title">Both targets</p>
+<p><code>quarantine:</code> on a merged entity compiles for SQLMesh and for dbt. The reject table
+is one per entity either way, and each row records the mapping that produced it, so
+replay re-runs <em>that</em> row's mapping rather than applying one of them to all.</p>
 </div>
 <h2 id="how-it-shows-up-in-plan">How it shows up in <code>plan()</code><a class="headerlink" href="#how-it-shows-up-in-plan" title="Permanent link">&para;</a></h2>
 <p>No new change class:</p>

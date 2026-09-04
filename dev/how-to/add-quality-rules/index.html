@@ -2050,11 +2050,14 @@ fails it. Widening an <code>enum_map</code> — a new target <em>or</em> a new s
 — relaxes <code>in_enum</code> and does name the entity.</p>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong>Targets.</strong> SQLMesh emits the full set. The dbt emitter raises <code>UnsupportedByTarget</code>
-  for the reject/replay artifacts and for <code>reconcile</code> — flag-only surfaces still emit,
-  since <code>_quality_flags</code> is the same shared <code>SELECT</code> for both. The checks that are not
-  row predicates — a <code>coverage:</code> check, a mart <code>assert:</code>, and the ingestion-metadata
-  audit an entity with <code>dedupe:</code> carries — emit there as
+<li><strong>Targets.</strong> Both SQL targets emit the full set — the reject table, its replay, the
+  reconcile comparison and the quality mart. What differs is the shape, never the rows:
+  SQLMesh preserves <code>first_seen</code> in a merge clause, dbt in the reject model's own
+  projection, and an equivalence test builds one spec set on both over one DuckDB and
+  compares the two reject tables row for row. On dbt, replay is
+  <a href="../emit-dbt/#replaying-on-dbt"><code>dbt run-operation</code></a>. The checks that are not row
+  predicates — a <code>coverage:</code> check, a mart <code>assert:</code>, and the ingestion-metadata audit an
+  entity with <code>dedupe:</code> carries — emit there as
   <a href="../emit-dbt/#singular-tests-and-when-they-run">singular tests</a>, which run under
   <code>dbt build</code> and not under <code>dbt run</code>. Cube consumes the quality mart like any other
   mart.</li>
@@ -2065,7 +2068,9 @@ fails it. Widening an <code>enum_map</code> — a new target <em>or</em> a new s
   account: it gets the ingestion-metadata audit, and that audit's "does <code>_ingested_at</code>
   cast to timestamp" assertion is a <code>TRY_CAST</code> as much as any rule is.</li>
 <li><strong><code>run_id</code> is declared but NULL</strong> in the quality mart on the pinned SQLMesh, which
-  exposes no run-identifier macro. <code>run_date</code> comes from <code>@execution_ds</code>.</li>
+  exposes no run-identifier macro; <code>run_date</code> comes from <code>@execution_ds</code>. dbt fills both,
+  from <code>invocation_id</code> and <code>run_started_at</code> — the compatibility target has the fuller
+  column here, which is a fact about the two frameworks rather than about the emitters.</li>
 <li><strong><code>pattern</code> speaks a portable regex subset</strong> — an allowlist of literals, character
   classes, anchors, quantifiers, alternation and <code>(?:…)</code>; whatever it does not name,
   lookaround and backreferences included, is refused by name at <em>parse</em>. That allowlist,

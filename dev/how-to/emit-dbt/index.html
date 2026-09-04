@@ -1036,6 +1036,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#replaying-on-dbt" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Replaying on dbt
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#byte-identical-selects" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1675,6 +1686,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#replaying-on-dbt" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Replaying on dbt
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#byte-identical-selects" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1771,11 +1793,11 @@
 <p>You want the same compiled project as a dbt project — models, sources, snapshots,
 schema tests and singular tests. Be clear-eyed about what this target is: its job in the
 architecture is proving that emission is a real port, not a SQLMesh-shaped hole. It
-ships minimal but honest — every SELECT is byte-identical to what the SQLMesh emitter
-renders, and anything dbt cannot express faithfully is a loud error, never an
-approximation. Do not read it as production-grade dbt scaffolding, and do not read it as
-reaching parity with SQLMesh: reject tables, replay and reconcile models are still
-SQLMesh's alone.</p>
+ships honestly — every SELECT is byte-identical to what the SQLMesh emitter renders, and
+anything dbt cannot express faithfully is a loud error, never an approximation. It now
+carries the whole data-quality surface too: reject tables, replay, reconcile models and
+the quality mart. Do not read that as parity — Tier 3 Python steps stay refused, and the
+list below says exactly which cells are still unequal.</p>
 <h2 id="compile">Compile<a class="headerlink" href="#compile" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 
@@ -1866,6 +1888,26 @@ SQLMesh's alone.</p>
 <td><code>tests/&lt;check&gt;.sql</code></td>
 <td>audit</td>
 <td>One singular test per check with no schema-test shape — see below</td>
+</tr>
+<tr>
+<td><code>models/silver/&lt;entity&gt;__reject.sql</code></td>
+<td>model</td>
+<td>The quarantined rows, incremental on <code>reject_id</code></td>
+</tr>
+<tr>
+<td><code>macros/replay_&lt;entity&gt;.sql</code></td>
+<td>replay</td>
+<td>The replay statements, as a <code>run-operation</code> — see below</td>
+</tr>
+<tr>
+<td><code>models/silver/&lt;check&gt;__reconcile.sql</code></td>
+<td>model</td>
+<td>One comparison table per <code>reconcile:</code> check</td>
+</tr>
+<tr>
+<td><code>models/gold/mart_data_quality.sql</code></td>
+<td>model</td>
+<td>One row per rule evaluation, stamped with dbt's <code>invocation_id</code></td>
 </tr>
 </tbody>
 </table>
@@ -1971,16 +2013,19 @@ carries <code>blocking false</code> and no flag overrides it.</p>
 compilation raises <code>UnsupportedByTarget</code> naming the entity and feature. <strong>This target is
 still partial, and singular tests did not change that</strong> — what they closed is a gap in
 bloomery's dbt emitter, not a gap in dbt.</p>
-<p>Three constructs are still refused, each for a reason of its own rather than for a
-missing test surface:</p>
+<p>Two constructs are refused, and they are unrelated to each other:</p>
 <ul>
-<li><strong><code>quarantine:</code></strong> — the reject table and its replay merge are <em>models</em> and a statement
-  to run, not tests.</li>
-<li><strong><code>reconcile:</code></strong> — a comparison model plus an audit over it. The audit has a home now;
-  the model does not.</li>
 <li><strong>Tier 3 Python steps</strong> — dbt's Python models run only on Snowflake, BigQuery and
-  Databricks, and none of those is a bloomery dialect.</li>
+  Databricks, and none of those is a bloomery dialect. Not a quality question, and not
+  one that closes while those are the dialects.</li>
+<li><strong><code>on_fail: quarantine</code> on a <em>step output</em></strong> — refused on <strong>every</strong> target, SQLMesh
+  included: a step output has no ingestion-metadata key to build a reject table from, and
+  a <code>steps:</code> wiring has no <code>quarantine:</code> block to state retention in. It shares a word
+  with the entity-level <code>quarantine:</code> below and nothing else.</li>
 </ul>
+<p><code>quarantine:</code> and <code>reconcile:</code> on an entity were refused here until the reject model,
+the replay macro and the comparison model landed. They are not refused now — see
+<a href="#replaying-on-dbt">Replaying on dbt</a>.</p>
 <p>And the notable adaptation case is <strong>composite-key SCD2</strong>: dbt snapshot <code>unique_key</code>
 takes a single expression, and concatenating key parts would be a silent approximation,
 so:</p>
@@ -1993,6 +2038,35 @@ supports composite keys. Materialization adapts honestly where an equivalent exi
 <code>full</code> → <code>table</code>; both incremental kinds → <code>incremental</code> with the entity key as
 <code>unique_key</code>, since dbt has no time-range kind and merge-on-key can never silently
 duplicate rows.</p>
+<h2 id="replaying-on-dbt">Replaying on dbt<a class="headerlink" href="#replaying-on-dbt" title="Permanent link">&para;</a></h2>
+<p>A quarantined row that a corrected delivery fixes is admitted by <strong>replay</strong>, and on dbt
+replay is a macro you run:</p>
+<div class="highlight"><pre><span></span><code>dbt<span class="w"> </span>run<span class="w"> </span>--select<span class="w"> </span>silver.order_line__reject<span class="w">   </span><span class="c1"># rebuild the reject table first</span>
+dbt<span class="w"> </span>run-operation<span class="w"> </span>replay_order_line
+</code></pre></div>
+<p>Rebuild first, always. Replay re-runs the <em>current</em> mapping against the rows the reject
+table holds, so a reject table built before the correction landed still says the row
+fails.</p>
+<p>It is a macro rather than a <code>.sql</code> file you could paste into a client, and that is
+forced rather than chosen: the statements name their relations through <code>{{ ref(...) }}</code>,
+which resolves inside dbt's Jinja and nowhere else. A loose file would be runnable by
+neither dbt, which does not execute files it was not given as models, nor by a SQL
+client, which sees braces. The three statements run inside one explicit transaction,
+because a failure between admitting the row and stamping its reject row resolved would
+leave it counted in both places.</p>
+<p><strong>bloomery still executes nothing.</strong> The macro is text until you run it, exactly as the
+SQLMesh replay file is.</p>
+<p>Two things the reject table does that are worth knowing before you operate it:</p>
+<ul>
+<li><strong>A re-delivery keeps <code>first_seen</code>.</strong> The incremental model reads its own current rows
+  and preserves the first sighting while <code>last_seen</code> advances — which is what the
+  retention window measures from.</li>
+<li><strong><code>--full-refresh</code> loses resolved reject rows.</strong> The rebuild sees only what is
+  <em>currently</em> quarantined, so rows replay already resolved do not come back. This is
+  accepted rather than prevented: the history derives from bronze that a full refresh is
+  rebuilding anyway, and a model that refused to full-refresh would be one you could not
+  recover.</li>
+</ul>
 <h2 id="byte-identical-selects">Byte-identical SELECTs<a class="headerlink" href="#byte-identical-selects" title="Permanent link">&para;</a></h2>
 <p>The SELECT inside every dbt model is rendered from the same lowered AST through the
 same dialect port as the SQLMesh target — only the envelope (Jinja config header vs

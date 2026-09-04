@@ -2117,8 +2117,30 @@ because replay would have nothing left to re-run against.</p>
 <div class="admonition note">
 <p class="admonition-title">bloomery emits the replay merge; it never runs it</p>
 <p>Compilation produces a <code>replay/&lt;entity&gt;.sql</code> artifact holding the <code>MERGE</code> statements
-as one unit of work. Executing them — and executing retention deletes — is the
-caller's job. The package never touches a warehouse.</p>
+as one unit of work — on dbt, a <code>macros/replay_&lt;entity&gt;.sql</code> you invoke with
+<a href="../../how-to/emit-dbt/#replaying-on-dbt"><code>dbt run-operation</code></a>, because the statements
+name their relations through <code>ref()</code>. Executing them — and executing retention
+deletes — is the caller's job. The package never touches a warehouse.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title"><code>quarantine:</code> and <code>scd: type2</code> do not compose</p>
+<p>An entity that keeps history natively is refused if it also quarantines, on <strong>every</strong>
+target. Replay's merge admits a row by the entity's own columns, and a type 2 relation
+carries more than those: the validity interval the framework maintains, plus dbt's
+<code>dbt_scd_id</code>. The merge names none of them, so it would insert a version with a NULL
+interval — a row that is present, queryable, and skipped by every as-of join, with the
+merge reporting success.</p>
+<p>Filling those columns is not available to a compiler: <code>dbt_scd_id</code> is a hash dbt
+computes and owns. So the combination is refused rather than approximated — a
+<code>ResolutionError</code> naming both halves.</p>
+<p><strong>Which half to give up depends on which you need.</strong> If the history matters more,
+declare the entity <code>scd: type1</code> and keep <code>quarantine:</code> — you lose versioning and keep
+the reject table and replay. If the recovery matters more, keep <code>scd: type2</code> and
+reduce the entity's rules to <code>flag</code>: no row is diverted, <code>_quality_flags</code> still
+records every failure, and the quality mart still counts them.</p>
+<p>This is unbuilt rather than wrong. A recovered row has to reach the entity through
+whatever produces its versions, so the framework does the versioning it owns, and
+that route does not exist yet.</p>
 </div>
 <p><code>plan()</code> knows about all of this. Adding, removing, or changing a rule, changing a
 disposition in either direction, and changing <code>dedupe</code> all classify as <code>RESTATING</code>, and
