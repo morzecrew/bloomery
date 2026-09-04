@@ -36,6 +36,16 @@ and ingestion-metadata columns are reserved on the same terms: `_quality_flags`,
 unconditionally rather than only on merged entities, because a name that is legal until a
 second mapping arrives is a trap laid for the change that adds one.
 
+**Reserved entity names.** An entity may not be called `canonical`, `metric`, `source` or
+`step`. Those are the four lineage node-id prefixes: a metric is `metric.<name>`, a
+canonical field `canonical.<name>`, and an entity field is `<entity>.<field>` with no
+prefix at all — so an entity named `metric` with a field `revenue` produces the same id
+as a metric named `revenue`, and `bloomery lineage --node metric.revenue` can no longer
+say which one you meant. Reserved unconditionally, for the same reason `_source` is: a
+name that is legal until someone adds a metric in another file is a trap laid for them.
+This binds a step output too, which is named after the last segment of the relation its
+wiring binds.
+
 **Retention units.** Months and years are deliberately absent — they are not fixed
 durations, and a retention window that means something different in February is a legal
 problem rather than a convenience. Minutes are absent because `m` would read as either.

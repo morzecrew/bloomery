@@ -87,13 +87,32 @@ steps:
     applies_to: {confident: customer}
 ```
 
-**`on_fail: fail` only.** It lowers to a blocking audit over the relation, so
-a run whose step produced a violating row stops. `flag` and `quarantine` are
-compile errors: both work by rewriting the silver `SELECT` — adding to
-`_quality_flags`, routing rows into the reject table — and a step-produced
-relation has no `SELECT` to rewrite, because its wrapper writes the rows in
-Python. A rule kind that worked for one disposition and silently did nothing
-for the other two would be worse than the refusal.
+Which dispositions lower depends on the tier, because they need different
+things from the model:
+
+| `on_fail:` | `sql_model` | `python_model` |
+|---|---|---|
+| `fail` | blocking audit over the relation | blocking audit over the relation |
+| `flag` | `_quality_flags` / `_quality_ok` on the relation | compile error |
+| `quarantine` | compile error | compile error |
+
+`fail` needs no `SELECT` — it reads the finished relation and returns the rows
+that violate the rule, which is what a blocking audit is.
+
+`flag` adds the two generated columns every silver entity carries, so it needs
+a `SELECT` to project into. A Tier 2 body *is* one, and gets them. A Tier 3
+wrapper writes its rows in Python, so there is nothing to project into and the
+refusal names the tier.
+
+`quarantine` is refused on both, and not as a "not yet". Routing a row means
+writing it to `<output>__reject`, which is keyed on the ingestion metadata a
+bronze extract carries and a step wrote none of; and `quarantine.retention` is
+required wherever the disposition appears, with no `quarantine:` block in a
+`steps:` wiring to declare it. Route the rows in a downstream mapped entity
+instead.
+
+An output with no `flag` rule keeps exactly the columns its manifest declares
+— the two generated ones appear when a rule needs them, never by default.
 
 ### How a parameter reaches a SQL body
 

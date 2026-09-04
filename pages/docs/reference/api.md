@@ -42,8 +42,12 @@ steps needs nothing here.
 
 ### `Target`
 
-The shipped emit targets: `Target.SQLMESH`, `Target.CUBE`, `Target.DBT`. A string
-enum, so `target="sqlmesh"` also works.
+The shipped emit targets: `Target.SQLMESH`, `Target.CUBE`, `Target.DBT`,
+`Target.METRICFLOW`. A string enum, so `target="sqlmesh"` also works.
+
+`METRICFLOW` emits the semantic manifest rather than models — one
+`semantic_manifest.json`, the same bytes `emit_manifest` returns, and nothing
+else. A project with no marts emits no artifact.
 
 ## Analysis
 

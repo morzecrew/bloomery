@@ -133,7 +133,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   among the mappings that produce a column, all record a `direct:` path or none does,
   with both documents named. A column only one mapping produces is unaffected.
 
+- **MetricFlow is a compile target.** `--target metricflow` (or
+  `Target.METRICFLOW`) writes one `semantic_manifest.json` — the same manifest
+  `emit_manifest` has always returned and the planner has always hydrated, which
+  until now no CLI invocation could put on disk. A project with no marts emits no
+  artifact, the rule the Cube target already applies: MetricFlow has no silver
+  surface, and an empty manifest is a file claiming a semantic layer that is not
+  there.
+
+- **`on_fail: flag` on a Tier 2 step output.** A `sql_model` output carrying a
+  `flag` rule now emits `_quality_flags` and `_quality_ok` on its relation, built
+  by the same lowering every silver entity goes through. RFC 0017 made quality
+  rules on step outputs the reason data quality and the step registry ship as a
+  pair, and one of three dispositions had landed.
+
+  The refusal it replaces was true about Tier 3 and wrong about Tier 2: `flag`
+  needs a `SELECT` to project into, a `python_model` writes its rows in Python and
+  has none, and a `sql_model` *is* one. An output with no `flag` rule is
+  unchanged — the two columns follow the rule, not the tier.
+
+  `on_fail: quarantine` stays refused on both tiers, now permanently and with the
+  reason: routing a row means writing `<output>__reject`, which is keyed on the
+  ingestion metadata a step wrote none of, and `quarantine.retention` is required
+  wherever the disposition appears with no `quarantine:` block in a `steps:`
+  wiring to declare it. Route in a downstream mapped entity instead.
+
 ### Changed
+
+- **`canonical`, `metric`, `source` and `step` are reserved entity names.** Those
+  four are the lineage node-id prefixes, and an entity field is `<entity>.<field>`
+  with no prefix — so an entity named `metric` with a field `revenue` produced the
+  same id as a metric named `revenue`, in `lineage`, in `explain`, and in anything
+  keying on `Node.name`. The ids are published, so the collision is refused rather
+  than the ids re-spelled.
+
+  Breaking for a project using one of the four: rename the entity. The refusal is
+  unconditional rather than fired only on a real collision — a spec whose validity
+  depends on a metric someone adds later, in another file, teaches an author about
+  the reservation at the worst possible moment. A step output is bound by it too:
+  it is named after the last segment of the relation its wiring binds.
 
 - `convert` takes **three** arguments where it took one: `{convert: [EUR, USD,
   paid_at]}` instead of `{convert: USD}`. A rate is a dated fact, so the old

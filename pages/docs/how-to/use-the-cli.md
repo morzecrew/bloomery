@@ -111,8 +111,10 @@ out/models/silver/order_item.sql
 ```
 
 Without `--out`, the artifacts go to stdout as JSON — path, content, kind and checksum
-for each — so you can place them yourself. `--target` takes `sqlmesh`, `cube`, `dbt`, or
-the name of an emitter you registered.
+for each — so you can place them yourself. `--target` takes `sqlmesh`, `cube`, `dbt`,
+`metricflow`, or the name of an emitter you registered. `metricflow` writes one
+`semantic_manifest.json` instead of models — the semantic layer over marts the other
+targets build.
 
 **Steps are the one thing the CLI cannot wire.** A `StepRegistry` is assembled by the
 caller and handed to `compile_project`; bloomery reads no step manifests from disk, by
