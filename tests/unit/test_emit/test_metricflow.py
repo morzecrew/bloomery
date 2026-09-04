@@ -8,6 +8,7 @@ reserved-name defense)."""
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -19,8 +20,11 @@ from metricflow_semantic_interfaces.type_enums.metric_type import MetricType
 from metricflow_semantic_interfaces.type_enums.time_granularity import TimeGranularity
 from metricflow_semantics.model.semantic_manifest_lookup import SemanticManifestLookup
 
-from bloomery import build_project_ir, load_catalog, load_project
+from bloomery import Target, build_project_ir, compile_project, load_catalog, load_project
+from bloomery.dialects import get_dialect
+from bloomery.emit import ArtifactKind, EmitContext, get_emitter
 from bloomery.emit.metricflow import (
+    MetricFlowEmitter,
     emit_manifest,
     manifest_json,
 )
@@ -459,3 +463,57 @@ def test_transformed_input_measures_are_resorted() -> None:
         assert names == sorted(names)
     ratio = next(m for m in manifest.metrics if m.name == "average_order_value")
     assert [m.name for m in ratio.type_params.input_measures] == ["order_count", "revenue"]
+
+
+# ....................... #
+# The target (RFC 0051 §5.1)
+
+
+def test_the_target_emits_one_manifest_artifact() -> None:
+    artifacts = compile_project(
+        load_fixture("ecom_basic")[0],
+        target=Target.METRICFLOW,
+        dialect="duckdb",
+        catalog=load_fixture("ecom_basic")[1],
+    )
+    assert [artifact.path for artifact in artifacts] == ["semantic_manifest.json"]
+    assert artifacts[0].kind is ArtifactKind.MODEL
+    assert artifacts[0].content.endswith("}\n")
+    assert not artifacts[0].content.endswith("}\n\n")
+
+
+def test_the_emitted_manifest_is_the_checked_in_golden() -> None:
+    """The artifact carries the same bytes the manifest golden pins.
+
+    Compared against the *file* rather than against a fresh
+    ``manifest_json(emit_manifest(...))`` — recomputing the claim from the
+    same functions the emitter calls would assert only that the call happened.
+    """
+    project, catalog = load_fixture("ecom_basic")
+    (artifact,) = compile_project(
+        project, target=Target.METRICFLOW, dialect="duckdb", catalog=catalog
+    )
+    golden = Path(__file__).resolve().parents[2] / "golden" / "ecom_basic" / "metricflow"
+    assert artifact.content == (golden / "manifest.json").read_text(encoding="utf-8")
+
+
+def test_a_martless_project_emits_nothing() -> None:
+    """Cube's rule, for Cube's reason: no marts, no semantic surface to
+    describe, and an empty manifest is a file claiming one exists."""
+    project, catalog = load_fixture("minimal")
+    assert (
+        compile_project(project, target=Target.METRICFLOW, dialect="duckdb", catalog=catalog) == ()
+    )
+
+
+def test_marts_without_a_date_dimension_refuse_through_the_target() -> None:
+    ir = _fixture_ir("ecom_basic")
+    with pytest.raises(EmitError, match="no date_dimension"):
+        MetricFlowEmitter().emit(
+            replace(ir, date_dimension=None),
+            EmitContext(dialect=get_dialect("duckdb"), naming=DefaultNaming(), fingerprint="x"),
+        )
+
+
+def test_the_target_is_registered_under_its_name() -> None:
+    assert get_emitter("metricflow").name == "metricflow"

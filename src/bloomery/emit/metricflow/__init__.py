@@ -122,11 +122,13 @@ from metricflow_semantic_interfaces.type_enums.metric_type import MetricType
 from metricflow_semantic_interfaces.type_enums.period_agg import PeriodAggregation
 from metricflow_semantic_interfaces.type_enums.time_granularity import TimeGranularity
 
+from bloomery.emit.base import ArtifactKind, EmittedArtifact
 from bloomery.emit.lower import mart_column_type, measure_owners, metric_filter_sql
 from bloomery.errors import EmitError, UnsupportedByTarget, guaranteed
 from bloomery.ir import Additivity, Layer, SemiAdditiveRule
 
 if TYPE_CHECKING:
+    from bloomery.emit.base import EmitContext
     from bloomery.ir import (
         DateDimensionIR,
         EntityIR,
@@ -141,6 +143,8 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 __all__ = [
+    "MANIFEST_PATH",
+    "MetricFlowEmitter",
     "emit_manifest",
     "entity_key",
     "manifest_json",
@@ -847,3 +851,60 @@ def manifest_json(manifest: PydanticSemanticManifest, *, indent: int | None = No
     ``cast`` would be flagged as unnecessary by pyright, which sees ``str``)."""
     payload: str = manifest.json(sort_keys=True, indent=indent)
     return payload
+
+
+# ....................... #
+
+
+#: The one artifact this target emits. At the root rather than under a
+#: namespace: a MetricFlow project holds a single top-level manifest, and
+#: nothing else in the emitted tree competes for the name (RFC 0051 D5).
+MANIFEST_PATH = "semantic_manifest.json"
+
+
+class MetricFlowEmitter:
+    """RFC 0051 §5.1: the manifest :func:`emit_manifest` already builds, as a
+    file-shaped artifact a caller can write.
+
+    The fourth core target, and the only one that emits no models: MetricFlow
+    consumes relations the SQLMesh or dbt artifacts build, and describes what
+    they *mean*. Everything below the artifact envelope is
+    :func:`emit_manifest`, unchanged and shared with the planner's hydrator —
+    a second lowering here would be two accounts of one manifest.
+    """
+
+    name = "metricflow"
+
+    # ....................... #
+
+    def emit(self, ir: ProjectIR, ctx: EmitContext) -> tuple[EmittedArtifact, ...]:
+        """The semantic manifest as one JSON artifact, or nothing.
+
+        A project with no marts emits **no artifact**, the rule
+        :class:`~bloomery.emit.cube.CubeEmitter` applies for the same reason:
+        MetricFlow has no silver surface, so a martless project has nothing to
+        describe, and an empty manifest is a file claiming a semantic layer
+        that is not there.
+
+        :func:`emit_manifest`'s missing-``date_dimension``
+        :class:`~bloomery.errors.EmitError` propagates unchanged (RFC 0051 D4)
+        — it is the refusal the planner already gives, and a second spelling of
+        it here is how the two come to disagree.
+
+        ``indent=2`` rather than compact: the manifest is a file a human reads
+        when a metric resolves oddly, and :func:`manifest_json` sorts keys
+        either way, so the bytes stay deterministic (RFC 0003 §5.5).
+        """
+
+        if not ir.marts:
+            return ()
+
+        content = manifest_json(emit_manifest(ir, naming=ctx.naming), indent=2)
+
+        return (
+            EmittedArtifact.create(
+                path=MANIFEST_PATH,
+                content=content.rstrip("\n") + "\n",
+                kind=ArtifactKind.MODEL,
+            ),
+        )

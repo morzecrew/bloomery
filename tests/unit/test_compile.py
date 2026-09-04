@@ -18,10 +18,11 @@ pytestmark = pytest.mark.unit
 
 
 def test_target_enum_carries_the_shipped_targets() -> None:
-    assert list(Target) == [Target.SQLMESH, Target.CUBE, Target.DBT]
+    assert list(Target) == [Target.SQLMESH, Target.CUBE, Target.DBT, Target.METRICFLOW]
     assert Target.SQLMESH == "sqlmesh"
     assert Target.CUBE == "cube"
     assert Target.DBT == "dbt"
+    assert Target.METRICFLOW == "metricflow"
 
 
 def test_string_target_is_accepted() -> None:
