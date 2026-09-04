@@ -24,7 +24,7 @@ from bloomery.ir import NODE_ID_PREFIXES
 
 if TYPE_CHECKING:
     from bloomery.errors import GuardrailError
-    from bloomery.ir import ProjectIR
+    from bloomery.ir import EntityIR, ProjectIR
 
 # ----------------------- #
 
@@ -47,6 +47,26 @@ _MINTS = {
     "source": ("a bronze extraction is spelled 'source.<relation>.<path>'", False),
     "step": ("a referenced implementation is spelled 'step.<ref>'", True),
 }
+
+
+def _source_path(entity: EntityIR) -> str:
+    """The document that actually named this entity.
+
+    An authored entity is `entity_model: entities.<name>`. A **step-synthesized**
+    one has no such entry — its name is the last segment of the relation its
+    wiring binds (RFC 0017 §5.8) — so pointing there sends the author to a
+    document with nothing of that name in it, for a refusal whose entire value
+    is naming the fix. ``produced_by`` is ``ref@version``, which is exactly how
+    ``resolve.steps`` spells a wiring's own path.
+    """
+
+    if entity.produced_by is None:
+        return f"entity_model: entities.{entity.name}"
+
+    return f"steps: steps.{entity.produced_by}.outputs"
+
+
+# ....................... #
 
 
 def check_lineage_names(draft: ProjectIR) -> list[GuardrailError]:
@@ -82,6 +102,6 @@ def check_lineage_names(draft: ProjectIR) -> list[GuardrailError]:
             f"{', '.join(repr(name) for name in NODE_ID_PREFIXES)} are reserved as the four "
             f"node-id prefixes"
         )
-        errors.append(ReservedEntityName(msg, source_path=f"entity_model: entities.{entity.name}"))
+        errors.append(ReservedEntityName(msg, source_path=_source_path(entity)))
 
     return errors

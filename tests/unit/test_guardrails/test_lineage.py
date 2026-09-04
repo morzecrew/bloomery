@@ -120,6 +120,19 @@ def test_a_step_output_bound_to_a_reserved_relation_is_refused() -> None:
     assert isinstance(caught.value.collected[0], ReservedEntityName)
 
 
+def test_a_step_output_s_refusal_points_at_the_wiring_that_named_it() -> None:
+    """The source path has to name a document the author can open.
+
+    A step-synthesized entity has no `entity_model: entities.<name>` entry —
+    the name came from `outputs: {out: silver.metric}` in the `steps:`
+    document — so pointing there sends the author to a document with nothing
+    of that name in it, for a refusal whose whole value is naming the fix.
+    """
+    with pytest.raises(GuardrailError) as caught:
+        _compile_step("silver.metric")
+    assert caught.value.collected[0].source_path == "steps: steps.resolve_things@1.outputs"
+
+
 def test_a_step_output_bound_elsewhere_compiles() -> None:
     _compile_step("silver.thing")
 
