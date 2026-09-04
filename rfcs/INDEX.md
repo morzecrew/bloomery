@@ -38,7 +38,7 @@ Two consequences worth knowing:
 
 ## Allocating a number
 
-The next free number is **0037**. Before creating an RFC, read the number above — do not
+The next free number is **0046**. Before creating an RFC, read the number above — do not
 compute it from `ls`, which no longer sees retired documents. **Numbers are never reused**:
 0001–0022 are retired and permanently spent. Update this section in the same change that
 mints a number.
@@ -70,6 +70,15 @@ know it has a companion recording where it turned out to be wrong.
 | [0024](0024-deterministic-union-merge.md) | Deterministic union merge | 🚧 In progress | Letting several mappings build one entity when they share a key space but no overlapping keys, so the entity model integrates sources instead of renaming one. Overlap stays a step. |
 | [0033](0033-observability-logging-and-a-warnings-channel.md) | Observability: logging and a warnings channel | 📝 Draft | Stage-level stdlib logging that stays silent by default and cannot touch artifact bytes, a typed compile-time advisory channel riding `SpecEvidence`, and `warnings` reserved for deprecation alone. |
 | [0036](0036-the-offset-bearing-timestamp.md) | The offset-bearing timestamp | 🚧 In progress | An ISO 8601 timestamp carrying a UTC offset is out of `parse_ts`'s local-clock contract and every engine truncates it silently, so one shared guard makes it NULL instead. Shipped; live until a mainline commit exists to retire it at. |
+| [0037](0037-semantic-grain-model.md) | Semantic grain model and functional dependencies | 📝 Draft | Grain as structural identity rather than a name, with functional dependencies carrying their basis, so rollup safety is proven instead of inferred from string equality. Root of the semantic sequence. |
+| [0038](0038-measure-semantic-types-and-additivity.md) | Measure semantic types and additivity algebra | 📝 Draft | A measure typed over value, origin grain, aggregation class, and unit — consolidating additivity, units and currency, which today live on three different nodes. |
+| [0039](0039-semantic-proof-ir.md) | Semantic proof IR and closed-world checking | 📝 Draft | Acceptance as a positive derivation rather than the absence of a violation, with provenance on every leaf: unknown is not safe, and capability grows by adding proof rules. |
+| [0040](0040-safe-rollup-planner.md) | Safe rollup planner and SemanticPlan IR | 📝 Draft | A proof-producing planner for single-measure requests, separating what a mart may represent from what a query may answer. The mart's grain rule does not move. |
+| [0041](0041-multi-grain-query-planning.md) | Multi-grain aggregate-then-join planning | 📝 Draft | Measures from different origin grains answered by aggregating each branch to the common grain first and joining only after — never join-then-hope. Not scheduled. |
+| [0042](0042-semantic-bug-corpus.md) | Production-style semantic bug corpus | 📝 Draft | Cases where the SQL is valid, every cast succeeds and the number is wrong anyway — the opposite question to the dirty corpus. Startable immediately; the acceptance evidence for the rest. |
+| [0043](0043-semantic-capability-matrix.md) | Evidence-based semantic capability matrix | 📝 Draft | Comparing represented semantic properties across engines, one tested configuration at a time, with bloomery scored by the same standard including where it loses. |
+| [0044](0044-check-command-and-imported-provenance.md) | `bloomery check` and imported semantic provenance | 📝 Draft | A CI command that resolves, type-checks and proves without emitting or executing, and the provenance rules deciding which imported facts may close a proof obligation. |
+| [0045](0045-soundness-positioning.md) | Soundness positioning and the claims the docs may make | 📝 Draft | What bloomery may claim to prove — preservation of declared semantics, never truth — and the rule that the planner claim is not published before the capability exists. |
 
 ## Status legend
 
