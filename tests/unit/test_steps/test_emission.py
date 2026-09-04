@@ -525,17 +525,28 @@ def test_the_audit_returns_the_violating_rows() -> None:
     assert "confidence" in body
 
 
-@pytest.mark.parametrize("disposition", ["flag", "quarantine"])
-def test_a_flag_or_quarantine_rule_on_a_step_output_is_still_refused(
-    disposition: str,
+@pytest.mark.parametrize(
+    ("disposition", "expected"),
+    [
+        ("flag", "a python_model cannot carry"),
+        ("quarantine", "which no step tier can lower"),
+    ],
+)
+def test_a_routed_rule_on_a_python_model_output_is_refused(
+    disposition: str, expected: str
 ) -> None:
-    """The half that cannot lower: both dispositions compile into the silver
-    SELECT's projection and routing WHERE, and a step-produced relation has
-    neither. Shipping a rule kind that works for one disposition and silently
-    does nothing for the other two is worse than the refusal (D39)."""
+    """`quality_step` wires a Tier 3 step, which is the tier neither
+    disposition can reach — and the two are refused for *different* reasons
+    (RFC 0051 §5.3), so each is matched on its own message rather than on the
+    `on_fail: fail` both happen to name in their fix.
+
+    `flag` fails on this tier only: a Tier 2 body is a SELECT and carries it.
+    `quarantine` fails on every tier, because a step output has no ingestion
+    key for a reject table and a wiring has no `quarantine:` block.
+    """
     from bloomery.errors import StepError
 
-    with pytest.raises(StepError, match="on_fail: fail"):
+    with pytest.raises(StepError, match=expected):
         quality_step(disposition)
 
 
@@ -564,3 +575,56 @@ def test_the_step_output_entity_carries_the_rule() -> None:
     (entity,) = [e for e in ir.entities if e.name == "customer"]
     assert [rule.name for rule in entity.quality] == ["confident"]
     assert entity.quality[0].kind == "expression"
+
+
+# ....................... #
+# A flagged Tier 2 output (RFC 0051 §5.3)
+
+
+FLAG_WIRING = (
+    "steps_version: 1\nsteps:\n  - use: scored@1\n"
+    "    outputs: {out: silver.scored}\n"
+    "    quality:\n"
+    '      - {rule: expression, name: keyed, expr: "k IS NOT NULL", on_fail: flag}\n'
+    "    applies_to: {keyed: out}\n"
+)
+
+PLAIN_WIRING = (
+    "steps_version: 1\nsteps:\n  - use: scored@1\n    outputs: {out: silver.scored}\n"
+)
+
+
+def _tier_two_model(wiring: str) -> str:
+    from bloomery import compile_project, load_project
+    from bloomery.steps import StepManifest, StepRegistry
+
+    project = load_project(
+        {"entity_model": "spec_version: 1\nentities: {}\n", "steps": wiring}
+    )
+    registry = StepRegistry(
+        {("scored", 1): StepManifest.model_validate(SQL_MANIFEST)},
+        sql_bodies={("scored", 1): "SELECT k FROM silver.src"},
+    )
+    artifacts = compile_project(project, target="sqlmesh", dialect="duckdb", steps=registry)
+    return next(a.content for a in artifacts if a.path == "models/silver/scored.sql")
+
+
+def test_a_flag_rule_puts_the_generated_columns_on_the_tier_two_relation() -> None:
+    """The whole point of lifting the refusal: an author writes a rule and the
+    relation carries the verdict. Read off the emitted model, not off the IR —
+    the IR carried the rule before this shipped and emitted nothing."""
+    model = _tier_two_model(FLAG_WIRING)
+    assert "_quality_flags" in model
+    assert "_quality_ok" in model
+    # The rule's own predicate, negated by `verdict`, reaches the projection.
+    assert "keyed" in model
+    # The body is still in there, wrapped rather than replaced.
+    assert "silver.src" in model
+
+
+def test_an_unflagged_tier_two_output_is_unchanged() -> None:
+    """D11's asymmetry: the two columns are conditional on the rule, not on
+    the tier — so every existing step artifact stays byte-identical."""
+    model = _tier_two_model(PLAIN_WIRING)
+    assert "_quality_flags" not in model
+    assert "_quality_ok" not in model

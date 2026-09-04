@@ -29,6 +29,7 @@ __all__ = [
     "JSONPATH_PATTERN",
     "PARTITION_SPEC_PATTERN",
     "RESERVED_MEMBER_NAMES",
+    "RESERVED_MEMBER_REASONS",
     "TYPE_STRING_PATTERN",
     "AdditivityName",
     "CardinalityName",
@@ -88,7 +89,7 @@ JSONPATH_PATTERN = r"^\$(?:\.[A-Za-z_][A-Za-z0-9_]*)+$"
 #: document, which is what a version bump exists to prevent. Two obligations
 #: come with that: the reason string below is part of the contract rather than
 #: a comment, and every addition is a ``CHANGELOG.md`` entry under *Changed*.
-_RESERVED_MEMBER_REASONS: dict[str, str] = {
+RESERVED_MEMBER_REASONS: dict[str, str] = {
     "metric_time": "RFC 0013 R4: the canonical query-time dimension",
     "_quality_flags": "RFC 0016 D9: the generated silver quality-flag column",
     "_quality_ok": "RFC 0016 D9: generated from _quality_flags",
@@ -104,8 +105,11 @@ _RESERVED_MEMBER_REASONS: dict[str, str] = {
 }
 
 #: The reserved names, sorted — the message vocabulary lives in
-#: :data:`_RESERVED_MEMBER_REASONS`.
-RESERVED_MEMBER_NAMES = tuple(sorted(_RESERVED_MEMBER_REASONS))
+#: :data:`RESERVED_MEMBER_REASONS`, which is public for the same reason the
+#: reason strings are contract: a second surface refusing these names has to
+#: give the *same* account of why, and the only way to guarantee that is to
+#: read this one.
+RESERVED_MEMBER_NAMES = tuple(sorted(RESERVED_MEMBER_REASONS))
 
 
 def _reject_reserved(name: str, *, rename: str) -> str:
@@ -122,7 +126,7 @@ def _reject_reserved(name: str, *, rename: str) -> str:
     reserved names begin with ``_`` and :data:`RELATION_NAME_PATTERN` refuses
     them before this runs.
     """
-    reason = _RESERVED_MEMBER_REASONS.get(name)
+    reason = RESERVED_MEMBER_REASONS.get(name)
 
     if reason is not None:
         msg = f"{name!r} is a reserved name ({reason}); pick a different {rename} name"

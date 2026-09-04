@@ -371,13 +371,19 @@ def build_graph(
 
     # Both keys carry the node *kind* as a tiebreak, and both are collected
     # from a `set`. An entity-field id has no kind prefix (`<entity>.<field>`),
-    # so it can collide with every other kind's: an entity named `metric` with
-    # a field `revenue` produces `metric.revenue`, and so does a metric named
-    # `revenue`. Sorted by name alone those two keep whatever relative order set
-    # iteration gave, which varies with `PYTHONHASHSEED` — the same specs then
-    # produce different `Graph.nodes` in different processes, and `topo_order`
-    # derives from this order, so it reaches emitted output. RFC 0003 forbids
-    # exactly that; see `logs/T-0005.md` D-025.
+    # so without the tiebreak two ids that render the same keep whatever
+    # relative order set iteration gave, which varies with `PYTHONHASHSEED` —
+    # the same specs then produce different `Graph.nodes` in different
+    # processes, and `topo_order` derives from this order, so it reaches
+    # emitted output. RFC 0003 forbids exactly that; see `logs/T-0005.md`
+    # D-025.
+    #
+    # The collision that motivated it — an entity named `metric` with a field
+    # `revenue`, against a metric named `revenue` — is now refused outright
+    # (`guardrails.lineage`, RFC 0051 D6): the four prefixes below are reserved
+    # entity names, so no two nodes here can share a name. The tiebreak stays,
+    # because a sort key that depends on a guardrail holding is a sort key that
+    # breaks when someone reorders the stages.
     return Graph(
         nodes=tuple(sorted(nodes, key=lambda n: (n.name, n.kind.value))),
         edges=tuple(

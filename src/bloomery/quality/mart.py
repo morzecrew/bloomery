@@ -68,6 +68,7 @@ from bloomery.ir import (
     ProjectIR,
     Ratio,
     SqlExpr,
+    carries_quality_flags,
 )
 from bloomery.typing import DateType, IntType, LogicalType, StringType
 
@@ -306,24 +307,30 @@ def quality_metrics() -> tuple[MetricIR, ...]:
 def counted_entities(ir: ProjectIR) -> tuple[EntityIR, ...]:
     """The entities the quality mart can count rows for.
 
-    Rule-carrying, and **not step-produced**. A step's rows are written by its
-    generated wrapper, which projects exactly the manifest's declared columns —
-    so the relation has no ``_quality_flags`` array to reduce and no
-    ``<entity>__reject`` table to count. Its one permitted rule kind is an
-    ``expression`` with ``on_fail: fail``, which lowers to a blocking audit
-    that stops the run rather than marking a row (RFC 0017 §5.8): there is
-    nothing evaluated-but-surviving for the mart to report.
+    Rule-carrying, and holding the two generated columns the branches read —
+    :func:`~bloomery.ir.carries_quality_flags`, the same definition the mart
+    flattener and the Tier 2 step emission use.
 
-    Counting it anyway emitted ``_quality_flags AS _flags`` against a relation
-    with no such column — a gold model that compiled clean, passed every
-    golden, and failed on its first run.
+    A ``python_model`` output's rows are written by its generated wrapper,
+    which projects exactly the manifest's declared columns, so the relation has
+    no ``_quality_flags`` array to reduce; and a ``fail`` rule lowers to a
+    blocking audit that stops the run rather than marking a row (RFC 0017
+    §5.8), so there is nothing evaluated-but-surviving to report. Counting one
+    anyway emitted ``_quality_flags AS _flags`` against a relation with no such
+    column — a gold model that compiled clean, passed every golden, and failed
+    on its first run. A ``sql_model`` output with an ``on_fail: flag`` rule
+    does have the column (RFC 0051 §5.3) and is counted; it declares no
+    ``quarantine:``, so :func:`_quality_rows_cte` reads its silver relation
+    alone and never looks for a reject table it has not got.
 
     One definition, because :func:`carries_quality` and the emitter's branch
     loop have to agree exactly: if the first says yes and the second finds
     nothing to count, the mart is emitted with no branches at all.
     """
 
-    return tuple(entity for entity in ir.entities if entity.quality and entity.produced_by is None)
+    return tuple(
+        entity for entity in ir.entities if entity.quality and carries_quality_flags(entity)
+    )
 
 
 # ....................... #

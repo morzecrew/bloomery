@@ -6,6 +6,7 @@ from __future__ import annotations
 import pytest
 
 from bloomery import load_project
+from bloomery.ir import NODE_ID_PREFIXES
 from bloomery.spec import Project
 from bloomery.resolve.graph import (
     NodeKind,
@@ -234,3 +235,26 @@ def test_node_order_is_identical_across_hash_seeds() -> None:
         for seed in ("0", "1", "42", "7", "12345", "999", "31337")
     }
     assert len(outputs) == 1, f"node order varied with the hash seed: {outputs}"
+
+
+# ....................... #
+# The reservation's drift gate (RFC 0051 §5.2, D8)
+
+
+def test_every_prefixed_builder_uses_a_reserved_name() -> None:
+    """The guardrail that reserves the four names sits below ``resolve`` and
+    cannot import this module, so the two lists are pinned together here
+    rather than by an import. A fifth node kind with a new prefix fails this
+    test instead of quietly escaping the reservation.
+
+    ``entity_field_node`` is deliberately absent: it is the one builder that
+    emits no prefix, which is the whole reason the others' are reserved.
+    """
+    ids = (
+        source_column_node("shopify__orders", "$.total").name,
+        canonical_field_node("unit_price").name,
+        metric_node("gross_revenue").name,
+        step_node("resolve_customers").name,
+    )
+    assert {node_id.split(".", 1)[0] for node_id in ids} == set(NODE_ID_PREFIXES)
+    assert entity_field_node("order_item", "unit_price").name == "order_item.unit_price"

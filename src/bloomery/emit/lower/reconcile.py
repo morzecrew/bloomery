@@ -493,12 +493,12 @@ def reconcile_audit_blocking(check: ReconcileIR) -> bool:
     means the numbers are wrong, which is exactly when a human needs to read
     the comparison table, and stopping the run would withhold the evidence.
 
-    ``quarantine`` also lowers non-blocking — a reconcile check compares two
+    ``quarantine`` never reaches here: a reconcile check compares two
     aggregates and routes **no row** (§5.4's table: "separate model +
-    non-blocking audit"), so there is nothing for a quarantine disposition to
-    divert. Refusing the value belongs to the spec surface, where ``on_fail``
-    is typed; treating it as "report, do not stop" is the conservative reading
-    until that refusal lands.
+    non-blocking audit"), so there is nothing for the disposition to divert,
+    and ``spec.quality.Reconcile.on_fail`` is typed ``Literal["flag", "fail"]``
+    (RFC 0016 D92) — the value stopped parsing where it is authored rather
+    than being quietly downgraded here.
     """
 
     return check.on_fail is OnFail.FAIL

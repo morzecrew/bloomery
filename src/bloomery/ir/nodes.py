@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
 from functools import lru_cache
-from typing import cast
+from typing import Final, cast
 
 from sqlglot import parse_one
 from sqlglot.expressions.core import Expression
@@ -35,6 +35,8 @@ __all__ = [
     "Lineage",
     "Determinism",
     "FLAGS_COLUMN",
+    "NODE_ID_PREFIXES",
+    "carries_quality_flags",
     "OK_COLUMN",
     "REJECT_SUFFIX",
     "REPAIRS_COLUMN",
@@ -114,6 +116,18 @@ OK_COLUMN = "_quality_ok"
 REPAIRS_COLUMN = "_quality_repairs"
 #: One ``<entity>__reject`` per entity, never per mapping (D10).
 REJECT_SUFFIX = "__reject"
+#: The four lineage node-id prefixes (RFC 0031 §5.3, RFC 0051 §5.2). Every
+#: node id but an entity field's is ``<prefix>.<rest>``; an entity field is
+#: ``<entity>.<field>`` bare, so an entity named after one of these mints ids
+#: in another kind's namespace. Reserved as entity names for that reason.
+#:
+#: Here rather than beside the node builders in ``resolve.graph`` because the
+#: guardrail that refuses them sits *below* ``resolve`` in the layer contract
+#: and cannot import it. ``tests/unit/test_resolve/test_graph.py`` pins the
+#: two together: every builder's id must start with a member of this tuple,
+#: so a node kind added with a fifth prefix fails there rather than silently
+#: escaping the reservation.
+NODE_ID_PREFIXES: Final = ("canonical", "metric", "source", "step")
 #: The provenance column a **merged** entity carries: which source relation a
 #: row came from (RFC 0024 D7). Load-bearing rather than diagnostic — the
 #: collision audit reports *which* sources shared a key, and without it the
@@ -1246,3 +1260,32 @@ class ProjectIR:
     reconcile: tuple[ReconcileIR, ...] = ()
     coverage: tuple[CoverageIR, ...] = ()
     steps: tuple[StepIR, ...] = ()
+
+
+# ....................... #
+
+
+def carries_quality_flags(entity: EntityIR) -> bool:
+    """Whether this entity's relation has ``_quality_flags``/``_quality_ok``.
+
+    A mapped entity always does — the two columns are the general form
+    evaluated at compile, constants where no rule fires (RFC 0016 §5.5). A
+    **step-produced** entity does only when it carries an ``on_fail: flag``
+    rule, which is the one case whose body is a SELECT the projection can wrap
+    (RFC 0051 §5.3, D11/D12).
+
+    Derived rather than stored. A new :class:`EntityIR` field would move every
+    fingerprint in the corpus — the encoder is type-driven over field names and
+    count — including for projects that wire no steps at all. It is also total
+    without knowing the step's tier: a ``python_model`` output can never
+    satisfy the second clause, because ``resolve.steps`` refuses the only
+    disposition that would put a ``flag`` rule on one.
+
+    Read by everything that projects or counts those columns: the mart
+    flattener's ``has_quality_flags`` dimension, the quality mart's branch set,
+    and the Tier 2 model emission that puts them there. Those three disagreeing
+    is a mart selecting a column no relation has — a model that compiles clean,
+    passes every golden, and fails on its first run with a binder error.
+    """
+
+    return entity.produced_by is None or any(rule.on_fail is OnFail.FLAG for rule in entity.quality)

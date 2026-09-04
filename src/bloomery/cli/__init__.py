@@ -597,7 +597,7 @@ def build_parser() -> argparse.ArgumentParser:
     compile_parser.add_argument(
         "--target",
         default=Target.SQLMESH.value,
-        help="emit target (sqlmesh, cube, dbt, or a registered name)",
+        help="emit target (sqlmesh, cube, dbt, metricflow, or a registered name)",
     )
     compile_parser.add_argument("--dialect", default="duckdb", help="SQL dialect")
     compile_parser.add_argument("--out", help="write artifacts here (default: JSON on stdout)")

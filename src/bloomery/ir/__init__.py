@@ -5,6 +5,7 @@ from bloomery.ir.fingerprint import project_fingerprint
 from bloomery.ir.lower import canon, extraction, partition_specs
 from bloomery.ir.nodes import (
     FLAGS_COLUMN,
+    NODE_ID_PREFIXES,
     OK_COLUMN,
     REJECT_SUFFIX,
     REPAIRS_COLUMN,
@@ -61,6 +62,7 @@ from bloomery.ir.nodes import (
     TransformStepIR,
     Unit,
     UnreachableMetric,
+    carries_quality_flags,
     quality_sort_key,
     step_sort_key,
 )
@@ -77,6 +79,8 @@ __all__ = [
     "Lineage",
     "Determinism",
     "FLAGS_COLUMN",
+    "NODE_ID_PREFIXES",
+    "carries_quality_flags",
     "OK_COLUMN",
     "REPAIRS_COLUMN",
     "REJECT_SUFFIX",

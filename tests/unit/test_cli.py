@@ -506,6 +506,19 @@ def test_a_known_target_is_not_caught_by_the_name_check(
     assert code == EXIT_OK, err
 
 
+def test_the_metricflow_target_writes_its_manifest(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """The gap RFC 0051 §5.1 closes, at the surface it was missing from: the
+    manifest was public, cached and golden-tested, and no CLI invocation could
+    put it on disk."""
+    code, _out, err = run(
+        capsys, "compile", ECOM, "--target", "metricflow", "--out", str(tmp_path)
+    )
+    assert code == EXIT_OK, err
+    assert (tmp_path / "semantic_manifest.json").is_file()
+
+
 def test_the_two_failure_codes_are_distinct() -> None:
     """Stated as a property, because the whole point of the split is that a
     script can branch on it."""

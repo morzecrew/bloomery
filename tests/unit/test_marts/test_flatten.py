@@ -5,6 +5,7 @@ plus its nearest non-trigger — violations as guardrail leaves, never raises.""
 from __future__ import annotations
 
 import pytest
+from dataclasses import replace
 
 from bloomery import build_project_ir, load_project
 from bloomery.errors import (
@@ -23,7 +24,7 @@ from bloomery.ir import (
     PartitionSpec,
     ProjectIR,
 )
-from bloomery.ir import OK_COLUMN
+from bloomery.ir import OK_COLUMN, OnFail, carries_quality_flags
 from bloomery.marts import DATE_BUCKETS, HAS_QUALITY_FLAGS, MartLowering, lower_marts
 from bloomery.spec import MartSet
 from bloomery.typing import BoolType, DateType
@@ -927,6 +928,39 @@ def test_a_step_produced_base_gets_no_quality_dimension() -> None:
 
     customers = next(mart for mart in ir.marts if mart.name == "customers")
     assert HAS_QUALITY_FLAGS not in {column.name for column in customers.columns}
+
+
+def test_a_flagged_step_produced_base_does_get_the_quality_dimension() -> None:
+    """The other side of the rule the test above states (RFC 0051 §5.3).
+
+    A `sql_model` output with an `on_fail: flag` rule *does* carry
+    `_quality_ok` — its body is a SELECT and the projection wraps it — so
+    excluding it by `produced_by` would have withheld the dimension from a
+    relation that has the column. The predicate both sites read is
+    `carries_quality_flags`, and this is the case that tells the two rules
+    apart.
+
+    The disposition is flipped on the lowered IR rather than in the fixture:
+    the fixture's step is a `python_model`, for which `flag` is refused, and a
+    second fixture would prove the same thing for the cost of a spec tree.
+    """
+    project, catalog = load_fixture("identity_resolution")
+    ir = build_project_ir(project, catalog, steps=registry_for("identity_resolution"))
+    customer = next(entity for entity in ir.entities if entity.name == "customer")
+    flagged = replace(
+        customer,
+        quality=tuple(replace(rule, on_fail=OnFail.FLAG) for rule in customer.quality),
+    )
+    assert carries_quality_flags(flagged)
+
+    draft = replace(
+        ir,
+        entities=tuple(flagged if e.name == "customer" else e for e in ir.entities),
+    )
+    lowering = lower_marts(project.marts, draft)
+    customers = next(mart for mart in lowering.marts if mart.name == "customers")
+    column = next(c for c in customers.columns if c.name == HAS_QUALITY_FLAGS)
+    assert (column.source_entity, column.source_column) == ("customer", OK_COLUMN)
 
 
 def test_a_base_column_colliding_with_the_quality_dimension_is_refused() -> None:

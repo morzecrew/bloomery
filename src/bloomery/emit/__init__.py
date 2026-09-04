@@ -15,6 +15,7 @@ from bloomery.emit.base import (
 )
 from bloomery.emit.cube import CubeEmitter
 from bloomery.emit.dbt import DbtEmitter
+from bloomery.emit.metricflow import MetricFlowEmitter
 from bloomery.emit.sqlmesh import SQLMeshEmitter
 from bloomery.errors import EmitError
 
@@ -29,6 +30,7 @@ __all__ = [
     "DbtEmitter",
     "EmitContext",
     "EmittedArtifact",
+    "MetricFlowEmitter",
     "SQLMeshEmitter",
     "TargetEmitter",
     "get_emitter",
@@ -39,6 +41,7 @@ _DEFAULT_EMITTERS: Mapping[str, TargetEmitter] = MappingProxyType(
     {
         "cube": CubeEmitter(),
         "dbt": DbtEmitter(),
+        "metricflow": MetricFlowEmitter(),
         "sqlmesh": SQLMeshEmitter(),
     }
 )

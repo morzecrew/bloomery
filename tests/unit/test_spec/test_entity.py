@@ -9,7 +9,7 @@ import pytest
 from bloomery.errors import SpecParseError
 from bloomery.spec import EntityModel
 from bloomery.spec.common import (  # noqa: PLC2701 — the reason is part of the contract
-    _RESERVED_MEMBER_REASONS,
+    RESERVED_MEMBER_REASONS,
     RESERVED_MEMBER_NAMES,
     validate_document,
 )
@@ -158,7 +158,7 @@ def test_every_generated_column_name_is_reserved(name: str) -> None:
     # refusal says which layer owns the name and what to do. A message reading
     # only "reserved" would leave an author who has just been broken by an
     # upgrade with nothing to act on, which is the version bump's job undone.
-    assert _RESERVED_MEMBER_REASONS[name] in str(excinfo.value)
+    assert RESERVED_MEMBER_REASONS[name] in str(excinfo.value)
 
 
 #: The only reserved names an *entity* or *mart* can be called: the other seven
@@ -179,7 +179,7 @@ def test_a_reserved_relation_name_says_to_rename_the_relation(name: str) -> None
     with pytest.raises(SpecParseError) as excinfo:
         parse(f"spec_version: 1\nentities:\n  {name}:\n    grain: g\n    key: [k]\n    fields:\n      k: {{type: string}}\n")
     message = str(excinfo.value)
-    assert _RESERVED_MEMBER_REASONS[name] in message
+    assert RESERVED_MEMBER_REASONS[name] in message
     assert "entity/mart" in message
     assert "field" not in message.split("pick a different")[1]
 

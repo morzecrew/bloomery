@@ -13,7 +13,13 @@ import pytest
 
 from bloomery import build_project_ir, load_project
 from bloomery.errors import CircularDerivation, StepDeterminismError, StepError, UnknownStep
-from bloomery.ir import Determinism, StepKind, project_fingerprint
+from bloomery.ir import (
+    Determinism,
+    OnFail,
+    StepKind,
+    carries_quality_flags,
+    project_fingerprint,
+)
 from bloomery.steps import StepManifest, StepRegistry
 from bloomery.typing import DecimalType, StringType
 
@@ -56,9 +62,22 @@ steps:
 """
 
 
-def build(wiring: str = WIRING, **manifest_overrides: object):  # noqa: ANN201 — ProjectIR
+#: A Tier 2 body producing what the default manifest declares and using the
+#: parameter it declares, so a `sql_model` case differs from the Tier 3 default
+#: in the tier and nothing else. Passed explicitly — `build` never supplies a
+#: body on its own, because "a sql_model with no body" is itself a refusal
+#: under test.
+SQL_BODY = "SELECT canonical_id, confidence FROM silver.customer_raw WHERE confidence > :threshold"
+
+
+def build(  # noqa: ANN201 — ProjectIR
+    wiring: str = WIRING, sql_body: str | None = None, **manifest_overrides: object
+):
     project = load_project({"entity_model": ENTITY_MODEL, "steps": wiring})
-    registry = StepRegistry({("resolve_customers", 3): manifest(**manifest_overrides)})
+    registry = StepRegistry(
+        {("resolve_customers", 3): manifest(**manifest_overrides)},
+        sql_bodies={("resolve_customers", 3): sql_body} if sql_body is not None else None,
+    )
     return build_project_ir(project, steps=registry)
 
 
@@ -381,15 +400,67 @@ def _with_rule(on_fail: str) -> str:
     )
 
 
-@pytest.mark.parametrize("disposition", ["flag", "quarantine"])
-def test_a_routed_quality_rule_on_an_output_is_refused(disposition: str) -> None:
-    """The half that cannot lower (D39). Both dispositions compile into the
-    silver SELECT — the `_quality_flags` projection and the routing WHERE —
-    and a step-produced relation has neither, because its wrapper writes the
-    rows. Accepting them would be a rule that never evaluates, which is the
-    worst possible failure for a feature whose job is catching bad data."""
-    with pytest.raises(StepError, match="on_fail: fail"):
-        build(_with_rule(disposition))
+@pytest.mark.parametrize("kind", ["python_model", "sql_model"])
+def test_a_quarantine_rule_on_an_output_is_refused_on_every_tier(kind: str) -> None:
+    """Refused permanently, not pending (RFC 0051 D10) — and the message says
+    so by naming both blockers rather than one. Neither depends on the tier:
+    the reject table is keyed on ingestion metadata a step wrote none of, and
+    `quarantine.retention` is mandatory with no `quarantine:` block in a
+    wiring to declare it."""
+    sql = kind == "sql_model"
+    with pytest.raises(StepError, match="no quarantine: block in a steps: wiring") as caught:
+        build(
+            _with_rule("quarantine"),
+            SQL_BODY if sql else None,
+            kind=kind,
+            **({"entrypoint": None} if sql else {}),
+        )
+    assert "_source_row_id" in str(caught.value)
+
+
+def test_the_quarantine_fix_offers_flag_only_on_the_tier_that_has_it() -> None:
+    """A remedy an author follows has to compile.
+
+    ``flag`` is a real way out of ``quarantine`` on a ``sql_model`` and is
+    refused on a ``python_model`` by the very next branch — so offering it
+    unconditionally sent a Tier 3 author from one error straight to the next
+    one.
+    """
+    with pytest.raises(StepError) as tier_three:
+        build(_with_rule("quarantine"))
+    # Offered, but tied to the tier move that makes it available — never as
+    # something this wiring could switch to on its own.
+    assert "express the step at Tier 2 and use on_fail: flag" in str(tier_three.value)
+    assert "on_fail: fail or on_fail: flag" not in str(tier_three.value)
+
+    with pytest.raises(StepError) as tier_two:
+        build(_with_rule("quarantine"), SQL_BODY, kind="sql_model", entrypoint=None)
+    assert "on_fail: fail or on_fail: flag" in str(tier_two.value)
+
+
+def test_a_flag_rule_on_a_python_model_output_is_refused_naming_the_tier() -> None:
+    """A Tier 3 wrapper writes its rows in Python, so there is no SELECT for
+    the `_quality_flags` projection to wrap. The refusal names the tier, not
+    the disposition — the same rule on a `sql_model` lowers."""
+    with pytest.raises(StepError, match="a python_model cannot carry") as caught:
+        build(_with_rule("flag"))
+    assert "express the step at Tier 2" in str(caught.value)
+
+
+def test_a_flag_rule_on_a_sql_model_output_lowers_onto_the_entity() -> None:
+    ir = build(_with_rule("flag"), SQL_BODY, kind="sql_model", entrypoint=None)
+    (entity,) = [e for e in ir.entities if e.name == "customer"]
+    assert [(rule.name, rule.on_fail) for rule in entity.quality] == [("confident", OnFail.FLAG)]
+    assert carries_quality_flags(entity)
+
+
+def test_a_fail_rule_alone_leaves_a_step_relation_without_the_flag_columns() -> None:
+    """The asymmetry with a mapped entity, stated as a test (RFC 0051 D11):
+    `fail` stops the run rather than marking a row, so nothing survives to be
+    flagged and the relation keeps exactly the manifest's declared columns."""
+    ir = build(_with_rule("fail"), SQL_BODY, kind="sql_model", entrypoint=None)
+    (entity,) = [e for e in ir.entities if e.name == "customer"]
+    assert not carries_quality_flags(entity)
 
 
 def test_a_fail_rule_on_an_output_lowers_onto_the_synthesized_entity() -> None:
@@ -574,3 +645,66 @@ steps:
     registry = StepRegistry({("s", 1): body}, sql_bodies={("s", 1): "SELECT 'abc"})
     with pytest.raises(StepError, match="does not parse as SQL"):
         build_project_ir(project, steps=registry)
+
+
+def _with_produced(column: str) -> dict[str, object]:
+    return {
+        "customer": {
+            "grain": "customer",
+            "key": ["canonical_id"],
+            "produces": {
+                "canonical_id": {"type": "string", "required": True},
+                column: {"type": "string"},
+            },
+        }
+    }
+
+
+def test_a_step_output_producing_a_reserved_column_is_refused() -> None:
+    """A step manifest's ``produces`` is author-controlled and was not checked
+    against the reserved names the spec layer refuses everywhere else.
+
+    The concrete break is the flag lowering: ``_quality_pipeline`` projects
+    every declared column and then aliases its own ``_quality_flags`` beside
+    them, so a step output declaring that name emitted a model with the column
+    twice and an ambiguous reference in the level above — a model that
+    compiles, matches its golden, and fails on the engine.
+    """
+    with pytest.raises(StepError, match="reserved name"):
+        build(outputs=_with_produced("_quality_flags"))
+
+
+@pytest.mark.parametrize("column", ["_quality_ok", "_source", "_load_id", "metric_time"])
+def test_the_reserved_set_is_the_spec_layer_s_own(column: str) -> None:
+    """One list, not a second copy of it (RFC 0016 D9, RFC 0024 D7). The trap
+    is not tier-specific and not flag-specific: a step column named
+    ``_quality_ok`` is legal right up until someone adds a rule, which is the
+    shape ``_source`` is reserved unconditionally to avoid.
+    """
+    with pytest.raises(StepError, match="reserved name"):
+        build(outputs=_with_produced(column))
+
+
+def test_each_reserved_name_is_refused_with_its_own_reason() -> None:
+    """The reasons differ, so one sentence cannot carry them.
+
+    ``_quality_flags`` is generated on a silver relation; ``metric_time`` is
+    MetricFlow's query-time dimension and is generated nowhere. A message
+    asserting the first about the second gives an author a reason they can
+    check and find absent — and the spec layer already keeps the per-name
+    reason as contract, so restating it here would be a second copy of it.
+    """
+    with pytest.raises(StepError) as flags:
+        build(outputs=_with_produced("_quality_flags"))
+    assert "the generated silver quality-flag column" in str(flags.value)
+
+    with pytest.raises(StepError) as metric_time:
+        build(outputs=_with_produced("metric_time"))
+    assert "the canonical query-time dimension" in str(metric_time.value)
+    assert "generates columns of those names on a silver relation" not in str(metric_time.value)
+
+
+def test_an_unreserved_produced_column_still_lowers() -> None:
+    ir = build(outputs=_with_produced("confidence"))
+    (entity,) = [e for e in ir.entities if e.name == "customer"]
+    assert {column.name for column in entity.columns} == {"canonical_id", "confidence"}
