@@ -10,6 +10,7 @@ asserted here is that the artifacts say what the RFC says they say.
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import PurePosixPath
 
 import pytest
 from sqlglot import exp, parse_one
@@ -17,6 +18,7 @@ from sqlglot import exp, parse_one
 from bloomery import Target, build_project_ir, compile_project
 from bloomery.dialects import get_dialect
 from bloomery.emit import ArtifactKind, EmitContext
+from bloomery.emit.dbt import DbtEmitter
 from bloomery.emit.sqlmesh import SQLMeshEmitter
 from bloomery.emit.lower import REJECT_KEY, entity_select, ingestion_audit_predicate, mart_select
 from bloomery.emit.lower.silver import _schema_column
@@ -451,6 +453,34 @@ def test_dbt_emits_the_reject_model_and_the_replay_macro() -> None:
     # replay" rather than "build this" (D5).
     assert replay.kind is ArtifactKind.REPLAY
     assert "{% macro replay_inventory_level() %}" in replay.content
+
+
+def test_the_two_targets_emit_the_same_audits() -> None:
+    """The assertion that would have caught the conservation audit's absence.
+
+    dbt skipped it for one reason — `_refuse_quarantine` fired before the code
+    that would have emitted it — and when that refusal went, nothing noticed:
+    every model still materialized, every other test still passed, and the one
+    check that says a bronze row landed *somewhere* was simply not there. A
+    silently dropped row is exactly what nothing else looks for.
+
+    Compared as **sets of audit names** rather than per family, because a
+    per-family assertion is a list someone has to remember to extend, and the
+    audit that went missing was the one nobody thought to list.
+    """
+    ir = build_project_ir(*load_fixture(FIXTURE))
+    context = EmitContext(
+        dialect=get_dialect("duckdb"), naming=DefaultNaming(), fingerprint="blm1:test"
+    )
+
+    def audits(emitter: DbtEmitter | SQLMeshEmitter) -> set[str]:
+        return {
+            PurePosixPath(a.path).stem
+            for a in emitter.emit(ir, context)
+            if a.kind is ArtifactKind.AUDIT
+        }
+
+    assert audits(DbtEmitter()) == audits(SQLMeshEmitter())
 
 
 def test_the_replay_macro_wraps_its_statements_in_one_transaction() -> None:

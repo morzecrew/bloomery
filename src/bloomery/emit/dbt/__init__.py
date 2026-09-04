@@ -19,11 +19,17 @@ An earlier version of this line said ``>=1.10``, which admits the seven
 patch releases that reject what this emitter writes.
 
 
-Its real job is proving the port abstraction (RFC 0008 D5, spec §9): it ships
-minimal but honest, and every SELECT is the **same** dialect-port-rendered
-AST the SQLMesh emitter renders (:mod:`bloomery.emit.lower`) — only the
-envelope and the way inputs are *named* differ. Do not read it as
-production-grade dbt scaffolding.
+Its real job is proving the port abstraction (RFC 0008 D5, spec §9): every
+SELECT is the **same** dialect-port-rendered AST the SQLMesh emitter renders
+(:mod:`bloomery.emit.lower`) — only the envelope and the way inputs are *named*
+differ. Do not read it as production-grade dbt scaffolding.
+
+It used to say "minimal but honest", which was RFC 0008 §5.5's sentence about an
+emitter that produced no audits whatsoever. RFC 0026 gave it the whole audit
+surface and RFC 0052 the whole data-quality one, so the coverage claim is now
+the artifact list below plus two refusals: ``python_model`` steps, and
+``on_fail: quarantine`` on a *step output* — the second on every target, and
+unrelated to the entity-level ``quarantine:`` that this emitter now lowers.
 
 That last qualifier is D20's. A dbt model states its inputs as ``ref()`` and
 ``source()`` rather than as literal relations, because a project without those
@@ -86,6 +92,26 @@ Artifacts:
   project *incomplete*, declaring a test no ``dbt compile`` can build until
   someone runs ``dbt deps`` against the network — which is the opposite of a
   compiler whose output is a pure function of its input.
+- ``models/<silver_ns>/<entity>__reject.sql`` per quarantining entity
+  (RFC 0052 §5.1) — ``materialized='incremental'`` on ``reject_id``, with
+  ``incremental_strategy='delete+insert'`` named rather than left to the
+  adapter. Two **pre-rendered** SELECTs chosen by ``{% if is_incremental() %}``:
+  the first-run one is :func:`~bloomery.emit.lower.reject_select`, exactly as
+  SQLMesh emits it, and the incremental one resolves ``first_seen`` and
+  ``last_evaluated_at`` against ``{{ this }}`` because dbt has no
+  ``when_matched`` clause that can express a ``COALESCE``.
+- ``macros/replay_<entity>.sql`` per quarantining entity — the replay
+  statements as a ``run-operation``, kind :data:`ArtifactKind.REPLAY` despite
+  the path. A bare ``.sql`` file would be runnable by nothing: the statements
+  name relations through ``ref()``, which resolves only inside dbt's Jinja.
+- ``models/<silver_ns>/<check>__reconcile.sql`` and
+  ``tests/<check>_reconcile.sql`` per reconcile check (RFC 0052 §5.3) — the
+  comparison SQLMesh renders, and a singular test over it whose ``severity``
+  is the check's own ``on_fail``.
+- ``models/<gold_ns>/mart_data_quality.sql`` — the quality mart, an ordinary
+  gold model, with dbt's run context: ``invocation_id`` and
+  ``run_started_at``. The pinned sqlmesh exposes no run-identifier macro and
+  emits ``run_id`` declared-but-NULL, so this target has the fuller column.
 """
 
 from __future__ import annotations
@@ -107,6 +133,8 @@ from bloomery.emit.lower import (
     collision_audit,
     collision_audit_select,
     column_type,
+    conservation_audit,
+    conservation_audit_select,
     coverage_audit_name,
     coverage_audit_select,
     coverage_owner,
@@ -120,7 +148,6 @@ from bloomery.emit.lower import (
     quality_mart_select,
     reconcile_audit_blocking,
     reconcile_audit_select,
-    reconcile_keys,
     reconcile_relation,
     reconcile_select,
     reject_incremental_select,
@@ -507,7 +534,12 @@ def _reconcile_artifacts(
     return (
         _model_artifact(
             path=f"models/{namespace}/{relation}.sql",
-            config_line=_config_line(Materialization.FULL, reconcile_keys(check, ir)),
+            # `FULL` takes no unique key, and the comparison's grain reaches
+            # the artifact through the SELECT rather than through the config —
+            # SQLMesh states it in the model's `grain` and dbt has nowhere to
+            # put it. Passing `reconcile_keys` here would be a value the
+            # envelope discards, which reads as a grain that travelled.
+            config_line=_config_line(Materialization.FULL, ()),
             select=_render(reconcile_select(check, ir, ctx), references, ctx),
             ctx=ctx,
         ),
@@ -773,8 +805,10 @@ def _entity_test_artifacts(
 ) -> list[EmittedArtifact]:
     """The checks over one silver model that no ``schema.yml`` entry can carry.
 
-    Three, and they are the three RFC 0016 and RFC 0024 already generate for
-    SQLMesh:
+    Four, and they are the four RFC 0016 and RFC 0024 already generate for
+    SQLMesh — this list and the SQLMesh one are asserted equal, per fixture,
+    rather than kept in step by whoever edits them
+    (``test_the_two_targets_emit_the_same_audits``):
 
     - the **collision** audit on a merged entity, which groups by the key and
       counts distinct sources (RFC 0024 D5) — the condition the merge is not
@@ -791,21 +825,25 @@ def _entity_test_artifacts(
     entity's does not, which is one disposition with two answers decided by
     which spec block the rule sits in.
 
-    The conservation audit is not here because it needs a reject table, and
-    ``_refuse_quarantine`` has already run.
+    The **conservation** audit is the fourth, and it arrived with the reject
+    table (RFC 0052 §5.1). It was absent for one reason — the refusal above it
+    fired first — and that reason is gone, so leaving it out would mean this
+    target builds both sides of the routing split and never checks they add
+    up. That is the one audit whose absence is invisible: every model
+    materializes, every other test passes, and a silently dropped row is
+    exactly what nothing else looks for.
 
-    **The ``fail_audits`` leg is correct and, today, never non-empty**, and
-    saying so is cheaper than letting a reader infer coverage that is not
-    there. An ``on_fail: fail`` rule needs a ``quality:`` surface; declaring
-    one opts the entity into coercion routing, whose implicit ``coercible``
-    rules default to ``quarantine`` and cannot be overridden on a **key**
-    column (a key mapping takes no ``quality:`` block at all). So every entity
-    that could reach this line carries a quarantine disposition, and
-    ``_refuse_quarantine`` raises first. The lowering stays because it is the
-    right one and it goes live the day dbt grows a reject model — the
-    out-of-scope item RFC 0016 §5.4 names — and it is covered by a test that
-    builds the IR directly rather than left to be discovered then. See
-    logs/T-0003.md D-014.
+    **The ``fail_audits`` leg went live**, and this paragraph used to say it
+    never fired. The reasoning was right: an ``on_fail: fail`` rule needs a
+    ``quality:`` surface, declaring one opts the entity into coercion routing
+    whose implicit ``coercible`` rules default to ``quarantine``, so every
+    entity that reaches this line carries a quarantine disposition — and
+    ``_refuse_quarantine`` raised first. It said the leg "goes live the day dbt
+    grows a reject model", named that as RFC 0016 §5.4's out-of-scope item, and
+    kept the lowering with a test that built the IR directly rather than
+    waiting to discover it (`logs/T-0003.md` D-014). RFC 0052 was that day.
+    ``quality_precedence`` alone now emits three of these, and
+    ``dirty_corpus`` a fourth.
     """
     relation = references[ctx.naming.relation(entity.name, Layer.SILVER)]
     artifacts: list[EmittedArtifact] = []
@@ -831,6 +869,21 @@ def _entity_test_artifacts(
                 select=_render(
                     metadata_audit_select(entity, ctx, relation=relation), references, ctx
                 ),
+                blocking=True,
+                ctx=ctx,
+            )
+        )
+
+    if conservation_audit(entity):
+        artifacts.append(
+            _singular_test(
+                name=f"{entity.name}_conservation",
+                select=_render(
+                    conservation_audit_select(entity, ctx, relation=relation), references, ctx
+                ),
+                # Blocking, as it is on SQLMesh: a bronze row in neither side of
+                # the split has been silently dropped, which is the failure this
+                # package exists to make impossible.
                 blocking=True,
                 ctx=ctx,
             )

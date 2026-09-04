@@ -70,10 +70,13 @@ EXPECTED_PATHS = {
         "tests/lines_amount_positive_every_month.sql",
         "tests/lines_rows_present.sql",
         "tests/q_code_code_fail_unique.sql",
+        "tests/q_code_conservation.sql",
         "tests/q_code_ingestion_metadata.sql",
+        "tests/q_dup_conservation.sql",
         "tests/q_dup_ingestion_metadata.sql",
         "tests/q_dup_note_coercible.sql",
         "tests/q_line_amount_range_min.sql",
+        "tests/q_line_conservation.sql",
         "tests/q_line_ingestion_metadata.sql",
     ],
     "scd2_customers": [

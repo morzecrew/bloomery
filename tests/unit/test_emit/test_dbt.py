@@ -655,20 +655,21 @@ def test_a_dedupe_entity_gets_its_ingestion_metadata_check() -> None:
 
 
 def test_an_entity_fail_audit_lowers_even_though_no_spec_reaches_it() -> None:
-    """The other half of the same extension, and the honest note about it.
+    """The other half of the same extension.
 
     An ``on_fail: fail`` rule on an entity is a whole-query check over two
-    populations (RFC 0016 D32/D67), and it lowers here correctly. **No spec can
-    reach it on this target today**: declaring any ``quality:`` surface opts
-    the entity into coercion routing, the implicit ``coercible`` rules default
-    to ``quarantine``, and a *key* column's cannot be overridden because a key
-    mapping takes no ``quality:`` block — so ``_refuse_quarantine`` raises
-    first, every time.
+    populations (RFC 0016 D32/D67). No spec could reach it on this target until
+    RFC 0052: declaring any ``quality:`` surface opts the entity into coercion
+    routing, the implicit ``coercible`` rules default to ``quarantine``, and a
+    *key* column's cannot be overridden because a key mapping takes no
+    ``quality:`` block — so the quarantine refusal raised first, every time.
 
-    The lowering stays, because it is the right one and it goes live the day
-    dbt grows a reject model. What it must not do is stay *untested*, which is
-    how an unreachable branch rots — so the IR is built directly here, past the
-    guardrail that would refuse the spec.
+    It is reachable now, and the corpus reaches it: ``quality_precedence``
+    emits three of these and ``dirty_corpus`` a fourth. This test still builds
+    the IR directly, because that is what kept the lowering honest through the
+    releases where nothing could reach it — and because a test that stops
+    proving the lowering the moment a fixture happens to cover it is a test
+    that will be deleted the next time the fixture changes.
     """
     entity = replace(
         _entity(),

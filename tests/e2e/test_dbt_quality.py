@@ -116,14 +116,20 @@ def _rows(database: pathlib.Path, sql: str) -> list[tuple[object, ...]]:
 
 @pytest.fixture
 def built(tmp_path: pathlib.Path) -> Iterator[tuple[pathlib.Path, pathlib.Path]]:
-    """The project, built once. ``run`` rather than ``build``: the fixture's
-    blocking metadata audit is a *test*, and this module's subject is the
-    models — a test failing on seeded data would stop the run before the reject
-    table this asserts about exists."""
+    """The project, built once — ``build`` rather than ``run``, so every check
+    the project declares executes against **rows**.
+
+    That matters for one of them in particular. The conservation audit says
+    every bronze row landed in the entity, an unresolved reject, or the deduped
+    count; on an empty warehouse it is `0 = 0`, which passes for a project that
+    drops every row. This seed quarantines one of two, so the law is checked
+    where it can fail. The later steps use ``run``, because a re-delivery moves
+    the counts mid-test and the subject there is the model, not the check.
+    """
     database = tmp_path / "warehouse.duckdb"
     _seed(database)
     _write_project(tmp_path, database)
-    result = _dbt(tmp_path, "run")
+    result = _dbt(tmp_path, "build")
     assert result.success, getattr(result, "exception", None)
     yield tmp_path, database
 

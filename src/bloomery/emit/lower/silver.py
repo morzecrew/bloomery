@@ -1792,7 +1792,9 @@ def conservation_audit(entity: EntityIR) -> bool:
 # ....................... #
 
 
-def conservation_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
+def conservation_audit_select(
+    entity: EntityIR, ctx: EmitContext, *, relation: str = THIS_MODEL
+) -> exp.Select:
     """The conservation law as a **runtime** audit (RFC 0016 §6).
 
     §6 does not merely ask for a property test — it asks for the law to be
@@ -1812,6 +1814,11 @@ def conservation_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     survivors, which is what keeps the audit exact under an incremental entity
     and stable across a replay: a replayed row's bronze identity has aged out
     of the window, so it is outside the scope on both sides at once.
+
+    ``relation`` is how the caller names the audited model — SQLMesh's
+    ``@this_model`` by default, dbt's ``{{ ref(...) }}`` where the audit is a
+    singular test attached to nothing. Same parameter, same reason, as
+    :func:`metadata_audit_select` beside it.
 
     **One leg, not two** (RFC 0016 D61). The audit also carried
     ``surviving_rows <= bronze_rows`` — "dedupe removes rows, it never invents
@@ -1866,7 +1873,7 @@ def conservation_audit_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     entity_rows = exp.Subquery(
         this=exp.Select()
         .select(exp.Count(this=exp.Star()))
-        .from_(_this_model(_ENTITY_ALIAS))
+        .from_(_this_model(_ENTITY_ALIAS, relation))
         .where(in_scope)
     )
     counted = (
