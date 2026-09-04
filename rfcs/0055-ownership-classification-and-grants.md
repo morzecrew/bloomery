@@ -48,16 +48,25 @@ being wrong changes who can read data, and §5.3 treats it accordingly.
 `tags` and `grants`. bloomery emits into all three files today and writes none of these
 keys, so a team adopting it loses metadata it had.
 
-**`redact:` is the shape of the gap.** RFC 0016 gave `quarantine:` a `redact:` list —
-JSONPaths whose values are removed from `raw` and `key_values` before a reject row is
-written, because a reject table is "a PII lake with a 90-day memory". That is a real
-classification concept, and it is scoped to *one artifact*. Nothing says the same column
-is sensitive in the silver relation, the mart, or the Cube view, so a spec can redact a
-path in the reject table and publish it in gold, with nothing to notice.
+**`redact:` is the shape of the gap, and the gap is not the one it first looks like.**
+RFC 0016 gave `quarantine:` a `redact:` list — JSONPaths removed from `raw` and
+`key_values` before a reject row is written, because a reject table is "a PII lake with a
+90-day memory". A first reading says a spec could redact a path and publish the same
+column in gold; it could not. `_check_redaction` (`guardrails/quality.py`) already refuses
+a `redact:` path whose bronze column any mapping reads, as `RedactionConflict`.
 
-**Ownership is what a refusal message cannot name.** Every refusal bloomery raises
-carries a `source_path` — `entity_model: entities.order.fields.total.type` — which says
-where the problem is and not who to tell. In a repository with one author that is the
+The real gap is what that refusal *forces*. Redaction and mapping are mutually exclusive,
+so today the only way to say "this column is sensitive" is to make it absent from the
+entity entirely. There is no vocabulary for a column that is mapped, published, and
+sensitive — which is most sensitive columns. A classification therefore has to compose
+with `RedactionConflict` rather than duplicate it: `redact:` decides what a *reject row*
+keeps, and `classification:` decides how a column that is present is treated everywhere
+else.
+
+**Ownership is what a refusal message cannot name.** A refusal carries a `source_path`
+where the problem has one — `entity_model: entities.order.fields.total.type` — which says
+where to look and not who to tell. (`source_path` is optional: `BloomeryError` defaults it
+to `None`, and `evidence.py` sorts a missing one under the empty string.) In a repository with one author that is the
 same thing; at the size where a spec compiler earns its keep it is not.
 
 **There is a guard here the ceiling list did not know it was arguing with.**
@@ -169,6 +178,14 @@ key:
   select", which is a statement; no `grants:` block means bloomery says nothing and the
   warehouse's existing grants stand. Emitting the first as the second would revoke
   nothing while looking like it did.
+
+  **What the empty list can promise is bounded by the adapter, and the RFC must say by
+  how much.** dbt reconciles its `grants` config against the relation on every run;
+  SQLMesh applies grants at creation; Snowflake's `copy_grants` can carry pre-existing
+  privileges across a replace regardless of either. So `{select: []}` is a statement about
+  the *framework-managed* grant set, never about every privilege the object holds. The
+  supported matrix — adapter × pre-existing grants × replace semantics — is named in §12's
+  phase and tested, or the claim is written down as the narrower one.
 
 ### 5.4 What the tenancy guard requires
 

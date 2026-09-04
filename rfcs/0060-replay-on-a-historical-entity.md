@@ -71,11 +71,12 @@ Verified against the tree, and by running the merge.
 the replay merge with one admissible row:
 
 ```
-before: [('c1', '5486545f…', 2026-09-04 18:27:51, None)]
+before: [('c1', Decimal('10.00'), '5486545f…', 2026-09-04 18:27:51, None)]
 after:  [('c1', Decimal('10.00'), '5486545f…', 2026-09-04 18:27:51, None),
          ('c2', Decimal('99.99'), None,        None,                 None)]
 ```
 
+Both lines select `customer_id, lifetime_value, dbt_scd_id, valid_from, valid_to`.
 `dbt_scd_id`, `valid_from` and `valid_to` are NULL on the admitted row, and the statement
 reported success. `valid_from IS NULL` fails every `BETWEEN`/`>=` an as-of join writes, so
 the row is skipped; `dbt_scd_id IS NULL` is a snapshot identity dbt's next run does not

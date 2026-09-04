@@ -11,7 +11,9 @@
   RFC 0038 (measure semantic types and additivity algebra), RFC 0040 (safe rollup
   planner), [`src/bloomery/emit/cube/__init__.py`](../src/bloomery/emit/cube/__init__.py),
   [`src/bloomery/marts/`](../src/bloomery/marts/),
-  RFC 0010 (the mart grain rule), RFC 0013 (Cube emission; retired at `33bc4f9`).
+  RFC 0010 (the mart grain rule), RFC 0008 (ports and emitters — where Cube emission
+  lives; retired at `7ba117b`), RFC 0013 (the MetricFlow backend, whose D3 is quoted
+  below; retired at `33bc4f9`).
 - **Origin:** The ceiling review's second and third items, which name it twice. Splitting
   the platform-metadata line found the duplicate, and finding it is most of this
   document's value: it is the most bloomery-shaped item on either list and the one that
@@ -165,9 +167,13 @@ that refusal is the feature's whole product for anyone who declares a wrong one.
 - Everything, until RFC 0037 and RFC 0040 land.
 - Cube `accessPolicy`, `joins` between cubes — the other two members of the ceiling
   review's Cube item. Cube-to-cube joins are a *stated refusal* rather than a gap:
-  RFC 0013 D3 refuses a semantic model per entity precisely because it would reintroduce
-  the query-time joins the wide-mart design exists to prevent, and emitting `joins` would
-  hand back the thing the design removed.
+  the wide-mart design exists precisely so query-time joins do not happen, and emitting
+  `joins` would hand back the thing it removed. The nearest decision written down is
+  RFC 0013 D3 — one mart, one semantic model, and never one for a non-mart entity,
+  "that would reintroduce the query-time joins the mart design exists to prevent"
+  (`emit/metricflow/__init__.py`). That row is MetricFlow's, so it is the same position
+  reached for a different target rather than a citation that covers Cube; the Cube
+  emitter's own refusal has never been written, which is the gap this bullet names.
 
 ## 9. Risks
 
@@ -201,7 +207,7 @@ that refusal is the feature's whole product for anyone who declares a wrong one.
 | 4 | `ASSUMED` | A rollup states the dimensions it **keeps**; what it drops is derived. Stating both is two statements of one fact. |
 | 5 | `LOCKED` | An unprovable rollup is **refused**, never warned about. A rollup is read instead of the detail table, so a wrong one answers quickly and plausibly — the class this project refuses rather than approximates. |
 | 6 | `ASSUMED` | The acceptance evidence is RFC 0042's semantic bug corpus plus an execution-tier comparison against the same request computed from silver. A golden proves nothing here. |
-| 7 | `LOCKED` | Cube-to-cube `joins` stay refused and are not part of this. RFC 0013 D3 refuses them because they reintroduce the query-time joins the wide-mart design removes; that is a design position, not a gap. |
+| 7 | `LOCKED` | Cube-to-cube `joins` stay out of this RFC. They reintroduce the query-time joins the wide-mart design removes — the position RFC 0013 D3 states for MetricFlow semantic models, reached independently for Cube rather than inherited from it. Cube's own refusal is unwritten, and writing it belongs with whatever RFC takes Cube's surface. |
 
 ## 12. Phasing
 

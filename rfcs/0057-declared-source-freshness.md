@@ -129,6 +129,25 @@ check that errors at run time on a project that compiled clean.
 So: **refused at compile**, naming the two ways out — declare `quarantine:` or `dedupe:`
 on the entity, which makes the column mandatory, or drop the block.
 
+### 5.2a One relation, several mappings
+
+`_sources_artifact` groups by physical `(namespace, relation)`, so several mappings
+reading one bronze relation produce **one** dbt table entry. Two of them declaring
+different thresholds cannot both be emitted, and picking one silently is the
+plausible-but-wrong shape this project refuses.
+
+So: **conflicting thresholds on one relation are refused**, naming both mappings. Equal
+thresholds are not a conflict and collapse to the one entry. This is the same rule
+RFC 0024 D33 applies to quality rules on a merged entity — declarations about one physical
+thing must agree — and it is stated here rather than discovered by whoever writes the
+emitter.
+
+§5.2's `_ingested_at` requirement gets the same treatment for the same reason: the column
+is mandatory only for entities that quarantine or dedupe, so a relation read by two
+entities where only one does is a `loaded_at_field` that may or may not exist. The
+requirement is over **every** consumer of the relation, not the one that declared the
+threshold.
+
 ### 5.3 Targets
 
 - **dbt**: `freshness: {warn_after: {count: 6, period: hour}, error_after: …}` and
@@ -200,7 +219,8 @@ it looks identical to one that passes.
 | # | Grade | Decision |
 | --- | --- | --- |
 | 1 | `LOCKED` | bloomery **declares** freshness and never measures it. The threshold is emitted; the framework runs the query. This is the same line drawn everywhere else — no execution, no clock, no environment. |
-| 2 | `LOCKED` | A `freshness:` block on an entity that requires no `_ingested_at` is refused. dbt's freshness query names that column, so the alternative is a check that errors at run time on a project that compiled clean. |
+| 2 | `LOCKED` | A `freshness:` block on an entity that requires no `_ingested_at` is refused, and the requirement is over **every** consumer of the relation rather than the declaring one. dbt's freshness query names that column on the shared table entry, so a relation read by one quarantining entity and one plain one still needs it. |
+| 2a | `LOCKED` | Two mappings declaring **different** thresholds on one physical relation are refused, naming both. `_sources_artifact` emits one table entry per relation, so one of the two would be silently dropped — the same rule RFC 0024 D33 applies to quality rules over a merged entity. Equal thresholds collapse and are not a conflict. |
 | 3 | `ASSUMED` | Durations reuse `quarantine.retention`'s grammar and validator. One spelling of a duration across the spec surface. |
 | 4 | `LOCKED` | `error_after` below `warn_after` is refused. An unreachable warning is a spec that means something other than what it says. |
 | 5 | `ASSUMED` | No default threshold. A source with no block gets none; a guessed six hours would emit an assertion nobody made. |
@@ -211,6 +231,7 @@ it looks identical to one that passes.
 
 Two commits:
 
-1. **Spec key, IR field, and both refusals**, with the census entries. No emitter change —
-   the refusals are the risky half and land alone.
+1. **Spec key, IR field, and all three refusals** — inverted thresholds, missing
+   `_ingested_at` across every consumer, and conflicting thresholds on one relation — with
+   the census entries. No emitter change: the refusals are the risky half and land alone.
 2. **The dbt `sources.yml` branch**, its golden, and the `dbt source freshness` e2e leg.

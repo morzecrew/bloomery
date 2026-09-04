@@ -37,7 +37,7 @@ and that is the whole design.
 
 **The single-project assumption is load-bearing in three places and stated in none.**
 `load_project` reads one directory; `build_project_ir` resolves every reference within one
-`ProjectIR`; `project_fingerprint` hashes one document set. Each is correct and none says
+`ProjectIR`; `project_fingerprint` hashes one project's IR. Each is correct and none says
 "one project" as a decision.
 
 **dbt has the feature and its shape is instructive.** Cross-project `ref()` resolves
@@ -65,9 +65,13 @@ Verified against the tree.
 - **`build_project_ir`** resolves entity, mart and metric references against the IR it is
   building. An unknown name is a refusal, and the refusal assumes the name should have
   been local.
-- **`project_fingerprint`** hashes the spec documents. It is the value every artifact
-  header carries and the thing "same specs in ⇒ byte-identical artifacts out" is about.
-- **Lineage node ids** are `<kind>:<name>` with no project component, so two projects'
+- **`project_fingerprint`** hashes the canonical serialized `ProjectIR`, including
+  `bloomery_ir_version` — not the spec documents. It is the value every artifact header
+  carries and the thing "same specs in ⇒ byte-identical artifacts out" is about, one step
+  removed: two document sets that resolve to one IR share a fingerprint, and a bloomery
+  version bump moves every fingerprint by design (RFC 0003 D3).
+- **Lineage node ids** are `<kind>.<name>` — `metric.gross_revenue`, a dot — with no
+  project component, so two projects'
   graphs cannot be composed without collision — `check_lineage_names` reserves the kind
   prefixes and knows nothing about a project prefix.
 - **Emitter reference maps** are keyed `(namespace, relation)` and produce `ref()` /
@@ -123,7 +127,9 @@ built, not what was written.
 ### 5.3 Fingerprints, which is the real decision
 
 "Same specs in ⇒ byte-identical artifacts out" needs "specs" to include the upstream. So
-the downstream fingerprint is over its own documents **and** the upstream fingerprint —
+the downstream fingerprint is over its own IR **and** the upstream fingerprint — both
+being IR fingerprints, which is what makes composing them meaningful: an upstream whose
+documents were reformatted but whose IR did not move disturbs nothing downstream —
 which is already a value, already in every upstream artifact header, and already exactly
 "what the upstream compiled to".
 

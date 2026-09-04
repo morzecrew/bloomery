@@ -96,7 +96,7 @@ Verified against the tree.
 exposures_version: 1
 exposures:
   weekly_revenue_review:
-    kind: dashboard          # dashboard | report | ml | application | notebook
+    kind: dashboard          # dashboard | notebook | analysis | ml | application
     owner: analytics@example.com
     url: https://bi.example.com/dash/17
     depends_on:
@@ -105,13 +105,48 @@ exposures:
 ```
 
 `kind` is dbt's vocabulary, adopted rather than invented: it is the only one with a
-consumer, and a bloomery-specific set would have to be mapped to it anyway.
+consumer, and a bloomery-specific set would have to be mapped to it anyway. The five
+values are dbt's exact enum, measured by handing it each one — `report` is **not** among
+them and `analysis` is, which an earlier draft of this section had backwards:
+
+```
+report     -> is not one of ['dashboard', 'notebook', 'analysis', 'ml', 'application']
+analysis   -> parses
+```
+
+**The lowering is not a transcription**, and §11 D3's "verbatim" governs the vocabulary
+rather than the document shape. dbt spells the key `type`, takes `owner` as an object
+rather than a scalar, and takes a **flat** `depends_on` list of `ref()`/`metric()` calls
+rather than the grouped form above:
+
+```yaml
+version: 2
+exposures:
+  - name: weekly_revenue_review
+    type: dashboard
+    owner: {email: analytics@example.com}
+    url: https://bi.example.com/dash/17
+    depends_on:
+      - metric('gross_revenue')
+      - metric('order_count')
+      - ref('mart_order_items')
+```
+
+The bloomery document groups by kind because a spec reader needs to know which is which;
+the emitted one flattens because dbt's schema does. Both are stated here so the phase that
+writes the emitter is not deciding it.
 
 ### 5.2 The graph
 
-A fifth node-id prefix, `exposure`. `check_lineage_names` already refuses a name that
-would collide with a kind prefix, so the reservation is one entry in `_MINTS` and the
-existing refusal message covers it.
+A fifth node-id prefix, `exposure`. `check_lineage_names` reserves the prefixes, so the
+reservation is one entry in `_MINTS` — **and the message is not covered as-is**: it
+hardcodes "reserved as the four node-id prefixes" (`lineage.py`), which would read *four*
+while listing five. The count comes off the tuple in the same change.
+
+Its scope is narrower than it looks, which this section had wrong: the check iterates
+`draft.entities` and tests `entity.name`. It refuses an *entity* named after a prefix, and
+neither a metric nor an entity field. Whether the reservation should widen with the fifth
+prefix is a decision the phase makes rather than an omission it inherits.
 
 Downstream from a metric now reaches exposures; upstream from an exposure reaches
 metrics, marts, entities and sources, which is the query that makes the feature worth
@@ -129,8 +164,14 @@ the opposite of what it is for. §11 D4.
 
 ### 5.4 `plan()`
 
-`PlanReport` gains `affected_exposures`. It is derived from the existing downstream-metric
-walk, so it costs one graph hop and no new analysis.
+`PlanReport` gains `affected_exposures`, computed from the full downstream graph —
+**metrics and marts both**.
+
+Deriving it from the existing downstream-metric walk alone is the obvious shortcut and is
+wrong: `_downstream_impact()` returns metrics from `new.metrics` and follows
+`MetricIR.depends_on`, and `_diff_marts()` adds no mart node to that walk. An exposure
+that depends only on a mart — which §5.1's grammar permits — would be silently absent from
+a report whose whole purpose is to be complete. A mart-only exposure is the test case.
 
 ## 6. Tests
 
@@ -186,7 +227,8 @@ walk, so it costs one graph hop and no new analysis.
 | --- | --- | --- |
 | 1 | `LOCKED` | Exposures are **declared**, never discovered. Discovery needs a network and credentials; RFC 0003 forbids both, and a compiler that reads a BI tool is a different program. |
 | 2 | `LOCKED` | An exposure naming an undeclared metric or mart is refused. An exposure pointing at nothing reports clean, which is the failure mode the feature exists to remove. |
-| 3 | `ASSUMED` | `kind` uses dbt's vocabulary verbatim. It is the only one with a consumer, and a bloomery-specific set would need mapping to it anyway. |
+| 2a | `LOCKED` | `affected_exposures` walks marts as well as metrics. The metric-only walk is the shortcut that omits exactly the mart-only exposure, and an impact report that is confidently incomplete is worse than none. |
+| 3 | `ASSUMED` | `kind` uses dbt's **vocabulary** verbatim — `dashboard`, `notebook`, `analysis`, `ml`, `application`, measured against dbt's own schema. It does not follow that the *document* is dbt's: the emitted form spells `type`, takes an owner object and a flat `depends_on`, and §5.1 states both shapes so the emitter phase is not deciding it. |
 | 4 | `LOCKED` | Cube and SQLMesh emit nothing for an exposure, and this is **not** a refusal. Neither framework has the concept, so there is nothing to degrade; refusing a Cube compile because the project declares a dashboard would turn an annotation into a target restriction. |
 | 5 | `ASSUMED` | A metric with no exposure is not reported. Most metrics are legitimately ad-hoc, and a warning nobody can act on is one everybody learns to skip. |
 | 6 | `ASSUMED` | `url:` is text. It is never fetched, never validated beyond being a string, and its correctness is the author's. |

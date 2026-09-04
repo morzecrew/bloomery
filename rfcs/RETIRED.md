@@ -82,8 +82,8 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0035 | The reject table on a merged entity | `8287f75` |
 | 0036 | The offset-bearing timestamp | `816b48d` |
 | 0051 | Loose ends inside shipped subsystems | `588e1e6` |
-| 0054 | The SQLMesh project file | `588e1e6` |
 | 0052 | dbt as a complete quality target | `588e1e6` |
+| 0054 | The SQLMesh project file | `588e1e6` |
 
 ## Not in the table
 

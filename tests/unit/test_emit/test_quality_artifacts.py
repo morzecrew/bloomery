@@ -500,6 +500,20 @@ def test_the_two_targets_emit_the_same_audits(fixture: str) -> None:
             if a.kind is ArtifactKind.AUDIT
         }
 
+    # The comparison covers `ArtifactKind.AUDIT` and dbt puts *native* tests —
+    # `not_null`, `accepted_values` — in `models/schema.yml`, which is CONFIG.
+    # For a fixture carrying those the two targets legitimately differ in
+    # artifact *shape*, so comparing names there would assert something untrue
+    # (the `path_conflict` case). None of these fixtures emits a schema.yml,
+    # which is what makes the equality total for them — asserted rather than
+    # assumed, so a fixture that starts emitting one fails here instead of
+    # quietly shrinking what this test covers.
+    artifacts = DbtEmitter().emit(ir, context)
+    assert not any(a.path == "models/schema.yml" for a in artifacts), (
+        "this fixture now emits native tests, which live outside ArtifactKind.AUDIT — "
+        "the audit-set equality below no longer covers everything it checks"
+    )
+
     from_dbt = audits(DbtEmitter())
     assert from_dbt, "a fixture with no audits agrees with anything"
     assert from_dbt == audits(SQLMeshEmitter())
