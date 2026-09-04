@@ -17,7 +17,9 @@ from collections.abc import Iterator
 
 import pytest
 
-from support.compiling import compile_fixture
+from bloomery import Target, compile_project, load_project
+from bloomery.quality import REJECT_COLUMNS
+from support.compiling import compile_fixture, fixture_sources
 
 pytestmark = pytest.mark.e2e
 
@@ -33,14 +35,20 @@ bloomery:
       schema: main
 """
 
-#: Shopify's bronze rows. ``s2`` carries an unmappable status and is the row
-#: this module quarantines, replays and re-delivers; the other two pass every
-#: rule and are here so the entity is not empty, which would let a broken
-#: reject model look like a clean one.
+#: Shopify's bronze rows. ``s2``'s status is one this shop's ``enum_map`` chain
+#: does not produce, so it fails ``in_enum`` and is quarantined — an
+#: **in_enum** failure rather than a coercion one because the widening test
+#: below needs a rule a spec change can relax, and relaxing a coercion rule
+#: means changing the column's type. ``s1`` passes every rule and is here so
+#: the entity is not empty, which would let a broken reject model look clean.
 _SHOPIFY = (
     ("s1", "A-1", 1, "SKU-1", "2", "2024-03-01T00:00:00", "paid"),
-    ("s2", "A-2", 1, "SKU-2", "not_a_number", "2024-03-02T00:00:00", "paid"),
+    ("s2", "A-2", 1, "SKU-2", "3", "2024-03-02T00:00:00", "unheard_of"),
 )
+
+#: The status ``s2`` carries, and the value the widened mapping adds to the
+#: chain so its stored ``raw`` starts passing.
+_UNMAPPED_STATUS = "unheard_of"
 
 _INSERT = (
     "INSERT INTO bronze.shopify__order_lines VALUES "
@@ -88,8 +96,36 @@ def _seed(database: pathlib.Path) -> None:
         connection.close()
 
 
-def _write_project(root: pathlib.Path, database: pathlib.Path) -> None:
-    for artifact in compile_fixture(FIXTURE, target="dbt", dialect="duckdb"):
+def _widened_sources() -> dict[str, str]:
+    """The fixture's documents with the platform shop's ``enum_map`` chain
+    extended to map the status ``s2`` carries.
+
+    A spec change, which is what replay exists for: the stored ``raw`` has not
+    moved and now maps, so the row that was diverted is admissible without
+    re-reading a bronze delivery that may have aged out.
+    """
+    sources = dict(fixture_sources(FIXTURE))
+    chain = "enum_map: [pending, open, paid, closed, refunded, reversed]"
+    assert chain in sources["mapping_platform"], "the chain moved — widen the one that exists"
+    # `enum_map` takes *pairs* — raw value, mapped value — so widening it means
+    # adding both halves: the status this shop now knows, and the entity value
+    # it means. `closed` is already in the admitted set, so the widening
+    # changes which raw values map and not what the column may hold.
+    sources["mapping_platform"] = sources["mapping_platform"].replace(
+        chain, chain.replace("]", f", {_UNMAPPED_STATUS}, closed]")
+    )
+    return sources
+
+
+def _write_project(
+    root: pathlib.Path, database: pathlib.Path, sources: dict[str, str] | None = None
+) -> None:
+    artifacts = (
+        compile_fixture(FIXTURE, target="dbt", dialect="duckdb")
+        if sources is None
+        else compile_project(load_project(sources), target=Target.DBT, dialect="duckdb")
+    )
+    for artifact in artifacts:
         path = root / artifact.path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(artifact.content, encoding="utf-8")
@@ -175,7 +211,7 @@ def test_a_re_delivery_keeps_first_seen_and_advances_last_seen(
             # indistinguishable, and the survivor is then arbitrary — which
             # would leave this test asserting that a re-delivery nothing kept
             # did not move `last_seen`.
-            ("A-2", "1", "SKU-2", "still_not_a_number", "2024-03-05T00:00:00", "paid",
+            ("A-2", "1", "SKU-2", "3", "2024-03-05T00:00:00", _UNMAPPED_STATUS,
              "2024-03-20T00:00:00", "s2"),
         )
     finally:
@@ -191,46 +227,58 @@ def test_a_re_delivery_keeps_first_seen_and_advances_last_seen(
     assert after[0][1] > before[0][1], "last_seen did not advance"
 
 
-def test_replay_admits_the_row_a_corrected_delivery_fixes(
+def test_replay_admits_a_row_the_widened_spec_now_accepts(
     built: tuple[pathlib.Path, pathlib.Path],
 ) -> None:
-    """RFC 0052 D3/D14, executed. The macro's relations are named through
-    ``ref()``, which resolves only inside dbt's Jinja, and its three statements
-    run as one unit of work.
+    """RFC 0052 D3/D14, executed — and executed against replay's **actual** job.
 
-    The correction is delivered to bronze, the reject table is rebuilt so it
-    reflects the current mapping, and the macro then merges the passer into the
-    entity and stamps its reject row resolved.
+    Replay re-runs the current mapping over the ``raw`` payload each reject row
+    stores (RFC 0016 §5.6). It is not what admits a row a corrected *delivery*
+    fixes: a corrected delivery is re-read by the entity model on the next run,
+    so asserting on the entity afterwards credits replay for the rebuild's
+    work. It is what admits a row the **spec** now accepts, without re-reading
+    a bronze delivery that may be long gone.
+
+    So the row's bronze delivery is deleted before the spec widens. The entity
+    model can then re-derive it from nothing; the reject row still holds its
+    ``raw``; and the assertion before the macro runs is that the entity does
+    *not* have it. Only replay can close that gap, and this fails if it does
+    not — verified by widening nothing, which leaves the row out.
+
+    The reject row survives the rebuild because the incremental model deletes
+    only the keys that arrive, and this one no longer does — retention removes
+    a reject row, never a model run.
     """
     import duckdb
 
     root, database = built
+    admitted = "SELECT _source_row_id FROM silver.order_line ORDER BY 1"
+    assert _rows(database, admitted) == [("s1",)]
+
     connection = duckdb.connect(str(database))
     try:
-        connection.execute(
-            _INSERT,
-            # Later on the dedupe field, so the correction is the row the
-            # union keeps (see the re-delivery test).
-            ("A-2", "1", "SKU-2", "7", "2024-03-05T00:00:00", "paid",
-             "2024-03-20T00:00:00", "s2"),
-        )
+        connection.execute("DELETE FROM bronze.shopify__order_lines WHERE _source_row_id = 's2'")
     finally:
         connection.close()
 
+    _write_project(root, database, sources=_widened_sources())
     assert _dbt(root, "run").success
+    assert _rows(database, admitted) == [("s1",)], (
+        "the entity re-derived the row without replay — the test would prove nothing"
+    )
+    assert _rows(database, "SELECT _source_row_id FROM silver.order_line__reject") == [
+        ("s2",)
+    ], "the reject row did not survive the rebuild"
+
     result = _dbt(root, "run-operation", "replay_order_line")
     assert result.success, getattr(result, "exception", None)
 
-    admitted = _rows(
-        database, "SELECT _source_row_id, quantity FROM silver.order_line ORDER BY 1"
-    )
-    assert ("s2", 7) in admitted, "replay did not admit the corrected row"
-    resolved = _rows(
+    assert _rows(database, admitted) == [("s1",), ("s2",)], "replay admitted nothing"
+    assert _rows(
         database,
         "SELECT resolved_at IS NOT NULL FROM silver.order_line__reject "
         "WHERE _source_row_id = 's2'",
-    )
-    assert resolved == [(True,)], "the reject row was not stamped resolved"
+    ) == [(True,)], "the reject row was not stamped resolved"
 
 
 def test_a_full_refresh_loses_resolved_reject_history(
@@ -322,11 +370,10 @@ def test_the_two_targets_reject_tables_agree_row_for_row(tmp_path: pathlib.Path)
     finally:
         connection.close()
 
-    columns = (
-        "reject_id, source_relation, mapping, mapping_version, failed_rules, key_values, "
-        "_load_id, _ingested_at, _source_row_id, first_seen, last_seen, resolved_at, "
-        "last_evaluated_at"
-    )
+    # Every column of the reject schema, read off `REJECT_COLUMNS` rather than
+    # retyped: a column added to the schema and not to this list is one the
+    # comparison stops covering, silently and in the direction that looks fine.
+    columns = ", ".join(REJECT_COLUMNS)
     query = f"SELECT {columns} FROM silver.order_line__reject ORDER BY reject_id"
     connection = duckdb.connect(str(dbt_database))
     try:
@@ -341,10 +388,12 @@ def test_the_two_targets_reject_tables_agree_row_for_row(tmp_path: pathlib.Path)
 
     assert from_dbt, "an empty comparison agrees with anything"
     assert from_dbt == from_sqlmesh
-    # `raw` is excluded above because it is a JSON payload whose two engines
-    # may key it differently; the columns compared are the ones RFC 0016 §5.6
-    # gives meanings to, and `first_seen` versus `last_seen` is the pair the
-    # two mechanisms could disagree about.
-    assert from_dbt[0][columns.split(", ").index("first_seen")] != from_dbt[0][
-        columns.split(", ").index("last_seen")
-    ], "the re-delivery did not separate first_seen from last_seen — the comparison is vacuous"
+    # And not vacuous in the column the two mechanisms could actually disagree
+    # about: after a re-delivery `first_seen` and `last_seen` must differ, or
+    # both targets are being asked whether they agree about a value neither had
+    # to preserve.
+    first_seen = REJECT_COLUMNS.index("first_seen")
+    last_seen = REJECT_COLUMNS.index("last_seen")
+    assert from_dbt[0][first_seen] != from_dbt[0][last_seen], (
+        "the re-delivery did not separate first_seen from last_seen — nothing was preserved"
+    )

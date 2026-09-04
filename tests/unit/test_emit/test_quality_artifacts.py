@@ -529,11 +529,18 @@ def test_the_replay_macro_wraps_its_statements_in_one_transaction() -> None:
     assert inside.count("{% set statement_") == 3, (
         "a replay statement outside the transaction is one that can half-apply"
     )
+    assert "run_query(statement_0)" in inside
     # A block-set, never a quoted string: Jinja renders a block-set's body and
     # leaves `{{ ... }}` alone inside a string literal, so a quoted statement
     # would reach the engine with `{{ ref(...) }}` in it verbatim.
+    #
+    # Asserted on the **opening tag**, not on the reference surviving into the
+    # file. `{% set x = '…{{ ref(...) }}…' %}` contains that reference too —
+    # measured, by writing the quoted form and watching this test pass — so
+    # looking for the reference tests nothing about which form was emitted.
+    assert "{% set statement_0 %}" in inside
+    assert "{% set statement_0 =" not in inside
     assert "{{ ref('inventory_level') }}" in inside
-    assert "run_query(statement_0)" in inside
 
 
 def test_the_reject_model_preserves_first_seen_in_its_own_projection() -> None:
