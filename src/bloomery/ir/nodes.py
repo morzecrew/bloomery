@@ -35,6 +35,8 @@ __all__ = [
     "Lineage",
     "Determinism",
     "FLAGS_COLUMN",
+    "NODE_ID_PREFIXES",
+    "carries_quality_flags",
     "OK_COLUMN",
     "REJECT_SUFFIX",
     "REPAIRS_COLUMN",
