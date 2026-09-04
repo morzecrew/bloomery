@@ -430,6 +430,20 @@ def _check_duplicate_relations(
 # ....................... #
 
 
+#: The way out of ``quarantine``, by whether the tier has a SELECT to project
+#: into. ``flag`` is a real remedy on a ``sql_model`` and is refused by the very
+#: next branch on every other kind, so offering it unconditionally sent a Tier 3
+#: author from one error straight to the next one — a remedy an author follows
+#: has to compile.
+_ROUTED_REMEDY = {
+    True: "use on_fail: fail or on_fail: flag",
+    False: "use on_fail: fail, express the step at Tier 2 and use on_fail: flag",
+}
+
+
+# ....................... #
+
+
 def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryError]:
     """Refuse what M13 does not implement, rather than accepting it silently.
 
@@ -475,6 +489,7 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
         errors.append(StepError(msg, source_path=_path(wiring)))
 
     quarantined = sorted(rule.name for rule in wiring.quality if rule.on_fail == "quarantine")
+    sql = manifest.kind == "sql_model"
 
     if quarantined:
         msg = (
@@ -484,8 +499,8 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
             "ingestion metadata a bronze extract carries (_load_id, _ingested_at, "
             "_source_row_id) and a step wrote these rows itself, so there is none; and "
             "quarantine.retention is mandatory wherever the disposition appears, with no "
-            "quarantine: block in a steps: wiring to declare it. Fix: use on_fail: fail or "
-            "on_fail: flag, or route the rows in a downstream mapped entity"
+            f"quarantine: block in a steps: wiring to declare it. Fix: {_ROUTED_REMEDY[sql]}, "
+            "or route the rows in a downstream mapped entity"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
 

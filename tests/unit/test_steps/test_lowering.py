@@ -418,6 +418,26 @@ def test_a_quarantine_rule_on_an_output_is_refused_on_every_tier(kind: str) -> N
     assert "_source_row_id" in str(caught.value)
 
 
+def test_the_quarantine_fix_offers_flag_only_on_the_tier_that_has_it() -> None:
+    """A remedy an author follows has to compile.
+
+    ``flag`` is a real way out of ``quarantine`` on a ``sql_model`` and is
+    refused on a ``python_model`` by the very next branch — so offering it
+    unconditionally sent a Tier 3 author from one error straight to the next
+    one.
+    """
+    with pytest.raises(StepError) as tier_three:
+        build(_with_rule("quarantine"))
+    # Offered, but tied to the tier move that makes it available — never as
+    # something this wiring could switch to on its own.
+    assert "express the step at Tier 2 and use on_fail: flag" in str(tier_three.value)
+    assert "on_fail: fail or on_fail: flag" not in str(tier_three.value)
+
+    with pytest.raises(StepError) as tier_two:
+        build(_with_rule("quarantine"), SQL_BODY, kind="sql_model", entrypoint=None)
+    assert "on_fail: fail or on_fail: flag" in str(tier_two.value)
+
+
 def test_a_flag_rule_on_a_python_model_output_is_refused_naming_the_tier() -> None:
     """A Tier 3 wrapper writes its rows in Python, so there is no SELECT for
     the `_quality_flags` projection to wrap. The refusal names the tier, not
