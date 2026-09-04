@@ -410,13 +410,17 @@ allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
 # RFC 0037 §8. `dialects` and `spec` both sit *below* `semantic` in the layers
-# contract above, so that contract alone would permit the grain model to reach
-# either — and §8's requirement is precisely that it reaches neither: the
-# engine sits below request planning and above raw target lowering, and a
-# functional dependency is not a fact about SQL syntax or about authored YAML.
-# Direct imports only, for the same reason the contract above allows indirect
-# ones: `semantic -> ir -> typing -> spec.common` is the shared grammar
-# constant every layer transitively reaches.
+# contract above, so that contract alone would permit the grain model to import
+# either directly. This forbids it: the engine sits below request planning and
+# above raw target lowering, and a functional dependency is not a fact about
+# SQL syntax or about authored YAML.
+#
+# **Direct imports only**, exactly as the contract above allows for emitters,
+# and the transitive reach it permits is real rather than theoretical:
+# `semantic -> ir -> spec.common` exists today, because `ir/lower.py` reads the
+# shared grammar constant `PARTITION_SPEC_PATTERN` from there. What is being
+# enforced is that no grain-model module reads a spec *model* or a dialect
+# port, which is the property §8 is about.
 name = "The grain model reads IR, never dialects or specs"
 type = "forbidden"
 source_modules = ["bloomery.semantic"]

@@ -23,14 +23,18 @@ from bloomery.typing import IntType, StringType, TimestampType
 
 # ----------------------- #
 
-#: The columns that are dates, so an ``as_of`` anchor on them qualifies.
-_TEMPORAL = frozenset({"ordered_at"})
+#: Anything named ``*_at`` is a timestamp, so an ``as_of`` anchor on it
+#: qualifies. A suffix rule rather than a list, so a test needing a *second*
+#: temporal column — two anchors reading one relation at different instants —
+#: gets one by naming it, instead of silently getting an int.
+def _temporal(name: str) -> bool:
+    return name.endswith("_at")
 
 
 def column(name: str) -> ColumnIR:
     return ColumnIR(
         name=name,
-        type=TimestampType() if name in _TEMPORAL else StringType() if name.endswith("_id") else IntType(),
+        type=TimestampType() if _temporal(name) else StringType() if name.endswith("_id") else IntType(),
         canonical=None,
         unit=None,
         tax_basis=None,
@@ -112,6 +116,7 @@ ORDER = entity(
         "billing_address_id",
         "shipping_address_id",
         "ordered_at",
+        "shipped_at",
         "region",
         "shipping",
     ),
@@ -154,6 +159,16 @@ ORDER_LINES = relationship(
 )
 ORDER_TIER = relationship(
     "order_tier", "order", "customer_tier", Cardinality.MANY_TO_ONE, (("customer_id", "customer_id"),)
+)
+#: The same join as ORDER_TIER onto the same entity. Two hops that are
+#: identical but for the instant they are read at — the pair that collapses
+#: into one route unless a derivation's signature carries its anchor.
+ORDER_TIER_SHIPPED = relationship(
+    "order_tier_shipped",
+    "order",
+    "customer_tier",
+    Cardinality.MANY_TO_ONE,
+    (("customer_id", "customer_id"),),
 )
 ORDER_BILLING = relationship(
     "order_billing", "order", "address", Cardinality.MANY_TO_ONE, (("billing_address_id", "address_id"),)

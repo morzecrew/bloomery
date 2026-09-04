@@ -21,7 +21,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from bloomery.ir import Cardinality, ProjectIR
-from bloomery.semantic import DependencyBasis, closure, dependencies, grain_of
+from bloomery.semantic import ColumnRef, DependencyBasis, closure, dependencies, grain_of
 from support.grain_model import entity, relationship
 
 pytestmark = pytest.mark.property
@@ -78,9 +78,25 @@ def test_no_dependency_crosses_an_edge_in_a_direction_the_rules_do_not_admit(
             continue
 
         rel = by_name[dependency.via]
-        assert dependency.through is not None
+        assert dependency.join
         # Which way this dependency reads the declared relationship.
-        declared = dependency.through.entity == rel.from_entity
+        declared = dependency.join[0][0].entity == rel.from_entity
+        reading, target = (
+            (rel.from_entity, rel.to_entity) if declared else (rel.to_entity, rel.from_entity)
+        )
+
+        # The hop is the relationship's own columns, stated determinant-side
+        # first — not merely *a* pair of columns on the right two entities.
+        # Everything downstream compares routes on this, so a join that does
+        # not match its relationship is an ambiguity check reading fiction.
+        assert dependency.join == tuple(
+            sorted(
+                (ColumnRef(reading, b if not declared else a), ColumnRef(target, a if not declared else b))
+                for a, b in rel.via
+            )
+        )
+        assert dependency.dependent.entity == target
+        assert dependency.determinant.determinants[0].entity == reading
 
         if rel.cardinality is Cardinality.ONE_TO_MANY:
             # Admitted inversely only — where it *is* a many_to_one.

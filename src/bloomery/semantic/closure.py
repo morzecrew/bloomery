@@ -21,9 +21,9 @@ Three functions, each a pure operation over :class:`~bloomery.ir.ProjectIR`:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
-from bloomery.ir import Cardinality
+from bloomery.ir import Cardinality, SCDKind
 from bloomery.semantic.historical import AsOfState, qualify_as_of
 from bloomery.semantic.nodes import (
     NO_CONTEXT,
@@ -63,12 +63,26 @@ _MAX_DERIVATIONS = 2
 
 
 def _entity_grain(entity: EntityIR) -> GrainRef | None:
-    """An entity with no declared key determines nothing and is determined by
-    nothing — it contributes no dependencies rather than a grain of no
-    determinants, which would read as "determined by the empty set", i.e. by a
-    constant."""
+    """The grain of an entity, or ``None`` where its declared key does not
+    identify one of its rows.
 
-    return grain_of(entity.name, entity.key) if entity.key else None
+    Two cases, and they fail for the same reason — nothing here identifies a
+    row, so a dependency hung off it would be a claim about a row that does
+    not exist:
+
+    * **No declared key.** A grain of no determinants reads as "determined by
+      the empty set", i.e. by a constant.
+    * **`scd: type2`.** The relation holds one row per version per key, so the
+      business key selects a *set* of versions. This is the same fact
+      :class:`~bloomery.errors.HistoricalFanout` refuses on a mart's base
+      entity, read here about the entity rather than about a join onto it
+      (RFC 0037 §5.3, D4). A historical row is reached by an anchored hop, in
+      :func:`dependencies`, and by nothing else.
+    """
+    if not entity.key or entity.scd is SCDKind.TYPE2:
+        return None
+
+    return grain_of(entity.name, entity.key)
 
 
 # ....................... #
@@ -146,32 +160,44 @@ def dependencies(
             if grain is None:
                 continue
 
+            # `via` is always (from-side column, to-side column); the hop is
+            # stated determinant-side first, whichever way it is read.
+            join = tuple(
+                sorted(
+                    (
+                        ColumnRef(reading.name, b if inverse else a),
+                        ColumnRef(target.name, a if inverse else b),
+                    )
+                    for a, b in rel.via
+                )
+            )
+
             anchor = context.anchor(rel.name)
             state = qualify_as_of(reading=reading, target=target, as_of=anchor)
             if state is AsOfState.CURRENT:
                 as_of = None
             elif state is AsOfState.QUALIFIED:
-                as_of = anchor
+                as_of, basis = anchor, DependencyBasis.AS_OF
             else:
-                blocked.append(
-                    BlockedEdge(rel.name, RefusalReason.UNQUALIFIED_HISTORICAL, state=state)
-                )
+                blocked.append(BlockedEdge(rel.name, _blocked_by(state), state=state))
                 if not admit_unqualified:
                     continue
                 as_of = anchor
 
+            # A qualified as-of hop determines the *whole* of the target row,
+            # not only the joined key: the anchor picks one version, which is
+            # what an as-of join is for. The target's own key cannot do that
+            # for it — a `type2` relation holds one row per version per key —
+            # so this is the only way its columns enter a closure at all.
+            dependents = (
+                tuple(ColumnRef(target.name, column.name) for column in target.columns)
+                if state is AsOfState.QUALIFIED
+                else tuple(ColumnRef(target.name, a if inverse else b) for a, b in rel.via)
+            )
+
             found.extend(
-                FunctionalDependency(
-                    grain,
-                    # `via` is always (from-side column, to-side column); the
-                    # dependent is the column on whichever side is the target.
-                    ColumnRef(target.name, from_column if inverse else to_column),
-                    basis,
-                    via=rel.name,
-                    as_of=as_of,
-                    through=ColumnRef(reading.name, to_column if inverse else from_column),
-                )
-                for from_column, to_column in rel.via
+                FunctionalDependency(grain, dependent, basis, via=rel.name, as_of=as_of, join=join)
+                for dependent in dependents
             )
 
     return DependencySet(
@@ -182,6 +208,63 @@ def dependencies(
         # direction names no column on the other — tie on the key and come out
         # in `set` iteration order, which is hash-seed order (RFC 0003).
         blocked=tuple(sorted(set(blocked), key=_blocked_sort_key)),
+    )
+
+
+# ....................... #
+
+
+#: The refusals a failed as-of pairing produces — the set `_diagnose` narrows
+#: to when asking whether the anchor is what stopped this route.
+_AS_OF_REASONS: Final = frozenset(
+    {RefusalReason.UNQUALIFIED_HISTORICAL, RefusalReason.ANCHOR_WITHOUT_HISTORY}
+)
+
+
+def _blockers(
+    source: GrainRef, target: GrainRef, project: ProjectIR, candidates: tuple[BlockedEdge, ...]
+) -> tuple[BlockedEdge, ...]:
+    """The blocked edges that are actually holding this question together.
+
+    An edge qualifies when removing it disconnects the source's entities from
+    the target's — i.e. it is the only way across. Being *in* the component is
+    not enough: undirected walks make every edge in a connected component
+    reachable on some walk to the target, so a component filter reports a
+    fan-out edge in an unrelated corner as the blocker and sends the author to
+    correct a ``cardinality:`` that has nothing to do with the question.
+
+    Falls back to the whole candidate set when no single edge is critical —
+    two parallel fan-out edges are each dispensable and jointly the reason, and
+    reporting neither would be worse than reporting both.
+    """
+    wanted = {ref.entity for ref in target.determinants}
+    critical = tuple(
+        edge
+        for edge in candidates
+        if not wanted & _component(source, project, without=edge.relationship)
+    )
+
+    return critical or candidates
+
+
+# ....................... #
+
+
+def _blocked_by(state: AsOfState) -> RefusalReason:
+    """Which refusal a failed as-of pairing is.
+
+    ``ANCHOR_ON_CURRENT`` is kept apart from the other three: there the target
+    keeps no versions at all, so reporting an *unqualified historical* path
+    would name history that is not in the model and send the author looking
+    for a `scd:` declaration that is correct as it stands. The other three are
+    a historical hop that did not come back qualified, whichever way the
+    anchor failed — which is what "unqualified" says.
+    """
+
+    return (
+        RefusalReason.ANCHOR_WITHOUT_HISTORY
+        if state is AsOfState.ANCHOR_ON_CURRENT
+        else RefusalReason.UNQUALIFIED_HISTORICAL
     )
 
 
@@ -203,7 +286,7 @@ def _dependency_sort_key(dep: FunctionalDependency) -> tuple[str, ...]:
         dep.basis,
         dep.via or "",
         dep.as_of or "",
-        str(dep.through or ""),
+        repr(dep.join),
     )
 
 
@@ -342,6 +425,16 @@ def can_roll_up(
             source, target, RefusalReason.UNKNOWN_GRAIN, unreached=tuple(sorted(set(unknown)))
         )
 
+    # Source only. A rollup *to* a historical grain is a real question that an
+    # anchored hop answers; a rollup *from* one is not, because the declared
+    # key names a set of versions and there is no single row for a value to
+    # have originated at.
+    historical = tuple(
+        ref for ref in source.determinants if entities[ref.entity].scd is SCDKind.TYPE2
+    )
+    if historical:
+        return RollupRefusal(source, target, RefusalReason.HISTORICAL_GRAIN, unreached=historical)
+
     admitted = dependencies(project, context)
     determined = {member.ref: member for member in closure(source, admitted)}
 
@@ -359,9 +452,9 @@ def can_roll_up(
 # ....................... #
 
 
-def _connected(source: GrainRef, target: GrainRef, project: ProjectIR) -> bool:
-    """Whether the two grains' entities are joined at all, **ignoring
-    direction and cardinality**.
+def _component(source: GrainRef, project: ProjectIR, *, without: str = "") -> set[str]:
+    """Every entity joined to the source's, **ignoring direction and
+    cardinality**.
 
     Undirected reachability, used for one thing only: telling "there is a
     relationship, and it does not preserve the grain" apart from "there is no
@@ -369,24 +462,26 @@ def _connected(source: GrainRef, target: GrainRef, project: ProjectIR) -> bool:
     because an edge existing says nothing about which way values may travel —
     it does not forbid asking whether an edge exists once the answer is
     already no.
+
+    The component rather than a yes/no, because a refusal has to name the edge
+    that stopped *this* question: the blocked set is project-wide, and a
+    fan-out edge in an unrelated part of the graph reported as the blocker is
+    a diagnostic that sends the author to the wrong relationship.
     """
     frontier = sorted({ref.entity for ref in source.determinants})
     seen = set(frontier)
-    wanted = {ref.entity for ref in target.determinants}
 
     while frontier:
         current = frontier.pop()
-        if current in wanted:
-            return True
         for rel in project.relationships:
+            if rel.name == without:
+                continue
             for near, far in ((rel.from_entity, rel.to_entity), (rel.to_entity, rel.from_entity)):
                 if near == current and far not in seen:
                     seen.add(far)
                     frontier.append(far)
 
-    # Everything added to `seen` is also pushed onto `frontier` and so is
-    # checked above before this line can be reached.
-    return False
+    return seen
 
 
 # ....................... #
@@ -412,30 +507,56 @@ def _diagnose(
     which is the weakest claim of the three and so the last resort.
     """
 
-    def edges(reason: RefusalReason) -> tuple[BlockedEdge, ...]:
-        return tuple(edge for edge in admitted.blocked if edge.reason is reason)
-
     reverse = {member.ref for member in closure(target, admitted)}
     if all(ref in reverse for ref in source.determinants):
         return RollupRefusal(source, target, RefusalReason.REFINEMENT, unreached=unreached)
 
-    relaxed = closure(source, dependencies(project, context, admit_unqualified=True))
-    if all(ref in {member.ref for member in relaxed} for ref in target.determinants):
-        return RollupRefusal(
-            source,
-            target,
-            RefusalReason.UNQUALIFIED_HISTORICAL,
-            unreached=unreached,
-            blocked=edges(RefusalReason.UNQUALIFIED_HISTORICAL),
+    relaxed = {
+        member.ref: member
+        for member in closure(source, dependencies(project, context, admit_unqualified=True))
+    }
+    if all(ref in relaxed for ref in target.determinants):
+        # The relationships the relaxed closure actually walked — so the
+        # refusal names the hops on *this* route rather than every as-of edge
+        # in the project.
+        route = {
+            name
+            for ref in target.determinants
+            for derivation in relaxed[ref].derivations
+            for name in derivation.relationships
+        }
+        on_route = tuple(
+            edge
+            for edge in admitted.blocked
+            if edge.relationship in route and edge.reason in _AS_OF_REASONS
         )
+        if on_route:
+            return RollupRefusal(
+                source,
+                target,
+                RefusalReason.UNQUALIFIED_HISTORICAL
+                if any(e.reason is RefusalReason.UNQUALIFIED_HISTORICAL for e in on_route)
+                else RefusalReason.ANCHOR_WITHOUT_HISTORY,
+                unreached=unreached,
+                blocked=on_route,
+            )
 
-    if _connected(source, target, project):
+    if {ref.entity for ref in target.determinants} & _component(source, project):
         return RollupRefusal(
             source,
             target,
             RefusalReason.CARDINALITY_EXPANDING,
             unreached=unreached,
-            blocked=edges(RefusalReason.CARDINALITY_EXPANDING),
+            blocked=_blockers(
+                source,
+                target,
+                project,
+                tuple(
+                    edge
+                    for edge in admitted.blocked
+                    if edge.reason is RefusalReason.CARDINALITY_EXPANDING
+                ),
+            ),
         )
 
     return RollupRefusal(source, target, RefusalReason.NO_FUNCTIONAL_PATH, unreached=unreached)

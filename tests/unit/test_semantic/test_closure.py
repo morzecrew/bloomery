@@ -15,6 +15,7 @@ from __future__ import annotations
 import pytest
 
 from bloomery import semantic
+from bloomery.errors import InvariantViolated
 from bloomery.ir import Cardinality, ProjectIR, SCDKind
 from bloomery.semantic import (
     AsOfState,
@@ -44,6 +45,7 @@ from support.grain_model import (
     ORDER_PROMO,
     ORDER_SHIPPING,
     ORDER_TIER,
+    ORDER_TIER_SHIPPED,
     PROMO,
     entity,
     grain,
@@ -206,6 +208,35 @@ def test_an_anchor_on_a_relation_that_keeps_no_versions_is_refused() -> None:
     ]
 
 
+def test_an_anchor_without_history_is_not_reported_as_unqualified_history() -> None:
+    """The two are different repairs and only one of them mentions `scd:`.
+    Calling this "unqualified historical" names history the model does not
+    have and sends the author to a declaration that is correct as it stands.
+    """
+    scope = project((ORDER, CUSTOMER), (ORDER_CUSTOMER,))
+    answer = can_roll_up(
+        grain("order", "order_id"),
+        grain("customer", "customer_id"),
+        scope,
+        RollupContext((("order_customer", "ordered_at"),)),
+    )
+
+    assert isinstance(answer, RollupRefusal)
+    assert answer.reason is RefusalReason.ANCHOR_WITHOUT_HISTORY
+    assert [e.state for e in answer.blocked] == [AsOfState.ANCHOR_ON_CURRENT]
+
+
+def test_two_anchors_for_one_relationship_are_refused_not_resolved() -> None:
+    """Sorting them and taking the first is a silent choice between two
+    readings of one join. Repeating the same anchor is not a conflict."""
+    assert RollupContext((("r", "ordered_at"), ("r", "ordered_at"))).anchors == (
+        ("r", "ordered_at"),
+    )
+
+    with pytest.raises(InvariantViolated, match="anchored more than once"):
+        RollupContext((("r", "shipped_at"), ("r", "ordered_at")))
+
+
 def test_the_unanchored_hop_is_named_as_the_reason_the_rollup_failed() -> None:
     scope = project((ORDER, CUSTOMER_TIER), (ORDER_TIER,))
     answer = can_roll_up(grain("order", "order_id"), grain("customer_tier", "customer_id"), scope)
@@ -215,6 +246,29 @@ def test_the_unanchored_hop_is_named_as_the_reason_the_rollup_failed() -> None:
     # A missing anchor and a missing relationship are opposite repairs, so the
     # refusal names the edge rather than reporting the absence of a path.
     assert [e.relationship for e in answer.blocked] == ["order_tier"]
+
+
+def test_a_refusal_names_only_the_edges_that_are_holding_this_question() -> None:
+    """`DependencySet.blocked` is project-wide, and a refusal that passes it
+    through reports a relationship from an unrelated corner of the graph as
+    the blocker. Both halves are asserted on the whole corpus, because that is
+    where the wrong edge is available to be reported.
+    """
+    from support.grain_model import CORPUS
+
+    historical = can_roll_up(
+        grain("order", "order_id"), grain("customer_tier", "customer_id"), CORPUS
+    )
+    assert isinstance(historical, RollupRefusal)
+    # `visit_session` is blocked for the same reason and sits in a component
+    # this question never touches.
+    assert [e.relationship for e in historical.blocked] == ["order_tier"]
+
+    expanding = can_roll_up(grain("order", "order_id"), grain("promo", "promo_id"), CORPUS)
+    assert isinstance(expanding, RollupRefusal)
+    # `order_lines` is a fan-out edge on the same *component* — reachable on a
+    # walk to `promo` and on no route to it. Only `order_promo` is the reason.
+    assert [e.relationship for e in expanding.blocked] == ["order_promo"]
 
 
 # ....................... #
@@ -249,6 +303,73 @@ def test_an_entity_key_determines_through_the_whole_composite_and_not_half_of_it
     assert ColumnRef("order_item", "quantity") in determined(
         grain("order_item", "order_id", "line_id"), built
     )
+
+
+# ....................... #
+# A historical entity's own grain (§5.3, D4)
+
+
+def test_a_versioned_entity_s_key_determines_nothing_of_its_own() -> None:
+    """The business key of an `scd: type2` relation selects a *set* of
+    versions, not a row — the same fact `HistoricalFanout` refuses on a mart's
+    base, read about the entity rather than about a join onto it.
+
+    Admitting it is a false *proof*: `customer_tier.tier` would be reported as
+    determined, with an empty derivation, and every rollup built on that is a
+    number computed from however many versions the key happens to have.
+    """
+    built = dependencies(project((CUSTOMER_TIER,)))
+    reached = determined(grain("customer_tier", "customer_id"), built)
+
+    assert ColumnRef("customer_tier", "tier") not in reached
+    assert list(reached) == [ColumnRef("customer_tier", "customer_id")]
+
+
+def test_a_rollup_out_of_a_versioned_grain_is_refused() -> None:
+    scope = project((ORDER, CUSTOMER_TIER), (ORDER_TIER,))
+    answer = can_roll_up(
+        grain("customer_tier", "customer_id"), grain("order", "order_id"), scope
+    )
+
+    assert isinstance(answer, RollupRefusal)
+    assert answer.reason is RefusalReason.HISTORICAL_GRAIN
+    assert answer.unreached == (ColumnRef("customer_tier", "customer_id"),)
+
+
+def test_an_anchored_hop_determines_the_whole_version_row() -> None:
+    """The other side of it, and why the rule above is not simply "historical
+    entities are unreachable": an as-of anchor picks one version, so the hop
+    determines the target's columns outright. That is the only way they enter
+    a closure — the entity's own key cannot do it for them.
+    """
+    scope = project((ORDER, CUSTOMER_TIER), (ORDER_TIER,))
+    built = dependencies(scope, RollupContext((("order_tier", "ordered_at"),)))
+    reached = determined(grain("order", "order_id"), built)
+
+    assert reached[ColumnRef("customer_tier", "tier")] == ("order_tier",)
+    assert all(
+        dep.basis is DependencyBasis.AS_OF
+        for dep in built.dependencies
+        if dep.dependent.entity == "customer_tier"
+    )
+
+
+def test_two_hops_over_one_join_read_at_different_instants_are_two_routes() -> None:
+    """A tier as of the order date and a tier as of the ship date are two
+    numbers. The two hops join identical columns, so a route compared on its
+    columns alone collapses them — and the collapse produces a `RollupProof`,
+    which is the worst answer this compiler can give.
+    """
+    scope = project((ORDER, CUSTOMER_TIER), (ORDER_TIER, ORDER_TIER_SHIPPED))
+    context = RollupContext(
+        (("order_tier", "ordered_at"), ("order_tier_shipped", "shipped_at"))
+    )
+    answer = can_roll_up(
+        grain("order", "order_id"), grain("customer_tier", "customer_id"), scope, context
+    )
+
+    assert isinstance(answer, RollupRefusal)
+    assert answer.reason is RefusalReason.AMBIGUOUS_PATH
 
 
 # ....................... #

@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Final
 
+from bloomery.errors import InvariantViolated
 from bloomery.semantic.historical import AsOfState
 
 if TYPE_CHECKING:
@@ -125,6 +126,11 @@ class DependencyBasis(StrEnum):
     MANY_TO_ONE = "many_to_one"
     #: A declared ``one_to_one``, which is symmetric.
     ONE_TO_ONE = "one_to_one"
+    #: A historical relationship whose ``as_of`` anchor qualified it (§5.3).
+    #: Its own member rather than a ``many_to_one`` carrying an anchor,
+    #: because it determines strictly more: the anchor picks one version, so
+    #: the whole of the target row is determined, not only the joined key.
+    AS_OF = "as_of"
     #: Composition of the above. Never a step of its own — the derivation
     #: carries the steps it composed.
     TRANSITIVE = "transitive"
@@ -143,14 +149,20 @@ class FunctionalDependency:
     including a hop onto a non-historical entity, where there is nothing to
     qualify.
 
-    ``through`` is the column on the determinant's side that carries the
-    reference, and it is what makes two hops onto one entity distinguishable:
-    a billing address and a shipping address are both
-    ``address.address_id`` as a *dependent*, and differ only in the column
-    that reached it. Without it the two routes look identical and the
-    ambiguity §9 exists to catch is invisible — while two declarations of one
-    relationship in opposite directions, which mean the same thing, look like
-    two meanings.
+    ``join`` is the hop this dependency crossed, as ``(determinant-side,
+    dependent-side)`` column pairs, sorted; empty for
+    :attr:`DependencyBasis.ENTITY_KEY`, which crosses nothing. It is what makes
+    two hops onto one entity distinguishable: a billing address and a shipping
+    address are both ``address.address_id`` as a *dependent* and differ only in
+    the column that reached it. Without it the two routes look identical and
+    the ambiguity §9 exists to catch is invisible — while two declarations of
+    one relationship in opposite directions, which mean the same thing, look
+    like two meanings.
+
+    The whole hop rather than one column of it, because a composite join is
+    one reading: two relationships joining ``(a, b)`` and ``(a, c)`` differ,
+    and a single column would report them as the same wherever ``a`` is the
+    one it happened to carry.
     """
 
     determinant: GrainRef
@@ -158,7 +170,7 @@ class FunctionalDependency:
     basis: DependencyBasis
     via: str | None = None
     as_of: str | None = None
-    through: ColumnRef | None = None
+    join: tuple[tuple[ColumnRef, ColumnRef], ...] = ()
 
 
 # ....................... #
@@ -191,23 +203,23 @@ class Derivation:
     # ....................... #
 
     @property
-    def signature(self) -> tuple[tuple[ColumnRef, ColumnRef], ...]:
-        """What this derivation *means*: the joined column pairs, in order.
+    def signature(self) -> tuple[tuple[tuple[tuple[ColumnRef, ColumnRef], ...], str | None], ...]:
+        """What this derivation *means*: each hop it crossed, and the instant
+        it read that hop as of.
 
         Two derivations are the same route when their signatures match, even
         when they traverse differently-named relationships — one relationship
         declared in both directions is one meaning, not two. And two routes
-        over identically-named columns of different origin are different
-        meanings, which is the case that matters: ``order.billing_address_id``
-        and ``order.shipping_address_id`` both reach ``address.address_id``.
+        that join identical columns are different meanings when they read them
+        at different instants: a tier as of the order date and a tier as of the
+        ship date are two numbers, and collapsing them would report one of them
+        as proven.
 
-        Entity-key steps carry no ``through`` and contribute nothing: they add
-        no reading, they only unfold an identity already established.
+        Entity-key steps cross no hop and contribute nothing: they add no
+        reading, they only unfold an identity already established.
         """
 
-        return tuple(
-            (step.through, step.dependent) for step in self.steps if step.through is not None
-        )
+        return tuple((step.join, step.as_of) for step in self.steps if step.join)
 
 
 # ....................... #
@@ -250,9 +262,21 @@ class RefusalReason(StrEnum):
     #: A path exists but every route crosses a relationship in the direction
     #: that multiplies rows.
     CARDINALITY_EXPANDING = "cardinality_expanding"
-    #: A path exists but crosses an ``scd: type2`` entity with no anchor, so
-    #: the hop matches every version (§5.3).
+    #: A path exists but crosses an ``scd: type2`` entity that the anchor did
+    #: not qualify — none was given, or the one given names no column of the
+    #: reading entity, or names one that does not order against an interval
+    #: (§5.3). The :class:`BlockedEdge` carries which.
     UNQUALIFIED_HISTORICAL = "unqualified_historical"
+    #: An anchor was supplied for a relation that keeps no versions. Kept apart
+    #: from the above because there is no history here to be unqualified
+    #: about: the repair is to drop the anchor, not to fix it.
+    ANCHOR_WITHOUT_HISTORY = "anchor_without_history"
+    #: The **source** grain names an ``scd: type2`` entity. Its declared key
+    #: selects a set of versions rather than a row, so values do not originate
+    #: at that grain in the sense a rollup needs — there is no one row to
+    #: aggregate from. Reaching *into* history is a different question, and an
+    #: anchored hop is its answer.
+    HISTORICAL_GRAIN = "historical_grain"
     #: More than one route reaches a determinant, and the routes mean
     #: different things.
     AMBIGUOUS_PATH = "ambiguous_path"
@@ -307,6 +331,12 @@ class RollupContext:
     entity the join reads from — the same anchor a mart's ``via:`` step
     declares, supplied here per relationship because a grain question is asked
     without a mart. Sorted, like every other collection in this module.
+
+    **One anchor per relationship**, refused rather than resolved. Two anchors
+    for one hop are two readings of it — a tier as of the order date and a tier
+    as of the ship date are different numbers — and picking either would answer
+    a question the caller did not ask. Repeating the *same* anchor is not a
+    conflict and deduplicates.
     """
 
     anchors: tuple[tuple[str, str], ...] = ()
@@ -315,6 +345,21 @@ class RollupContext:
 
     def __post_init__(self) -> None:
         canonical = tuple(sorted(set(self.anchors)))
+        conflicting = sorted(
+            {name for name, _ in canonical if sum(n == name for n, _ in canonical) > 1}
+        )
+        if conflicting:
+            listed = ", ".join(
+                f"{name!r}: {sorted(a for n, a in canonical if n == name)}" for name in conflicting
+            )
+            msg = (
+                f"relationship anchored more than once — {listed}. An as-of anchor is the "
+                "instant a hop is read at, so two of them are two different readings of one "
+                "join, and there is no rule for choosing between them. Fix: build one context "
+                "per reading"
+            )
+            raise InvariantViolated(msg)
+
         if canonical != self.anchors:
             object.__setattr__(self, "anchors", canonical)
 
