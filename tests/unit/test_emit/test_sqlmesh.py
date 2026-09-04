@@ -7,6 +7,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 import pytest
+import yaml
 
 from bloomery import Target, build_project_ir, compile_project, project_fingerprint
 from bloomery.dialects import get_dialect
@@ -31,7 +32,7 @@ pytestmark = pytest.mark.unit
 
 
 def test_minimal_artifact_shape() -> None:
-    (artifact,) = compile_fixture("minimal")
+    artifact = next(a for a in compile_fixture("minimal") if a.path.endswith("event.sql"))
     assert artifact.path == "models/silver/event.sql"
     assert artifact.kind is ArtifactKind.MODEL
     assert artifact.content.endswith("\n")
@@ -49,6 +50,7 @@ def test_artifacts_are_sorted_by_path() -> None:
     paths = [a.path for a in artifacts]
     assert paths == sorted(paths)
     assert paths == [
+        "config.yaml",
         "models/gold/dim_date.sql",
         "models/gold/mart_order_items.sql",
         "models/silver/order.sql",
@@ -57,10 +59,13 @@ def test_artifacts_are_sorted_by_path() -> None:
 
 
 def test_fingerprint_header_matches_the_built_ir() -> None:
+    """Every artifact carries it, in its own comment syntax: `--` for SQL,
+    `#` for the YAML project file (RFC 0054)."""
     project, catalog = load_fixture("ecom_basic")
     fingerprint = project_fingerprint(build_project_ir(project, catalog))
     for artifact in compile_fixture("ecom_basic"):
-        assert f"-- fingerprint: {fingerprint}" in artifact.content
+        comment = "#" if artifact.path.endswith(".yaml") else "--"
+        assert f"{comment} fingerprint: {fingerprint}" in artifact.content
 
 
 def test_incremental_by_partition_lowers_to_time_range_kind() -> None:
@@ -89,7 +94,7 @@ def test_naming_policy_routes_paths_and_relations() -> None:
         naming=PrefixNaming(prefix="acme"),
         catalog=catalog,
     )
-    (artifact,) = artifacts
+    artifact = next(a for a in artifacts if a.path.endswith("event.sql"))
     assert artifact.path == "models/acme_silver/event.sql"
     assert "name acme_silver.event," in artifact.content
     assert "FROM acme_bronze.raw__events" in artifact.content
@@ -124,10 +129,14 @@ key:
   event_id: {from: "$.id", transform: [to_string]}
   kind: {from: "$.kind", transform: [to_string]}
 """
-    (artifact,) = compile_project(
-        load_project({"entity_model": model, "mapping": mapping}),
-        target=Target.SQLMESH,
-        dialect="duckdb",
+    artifact = next(
+        a
+        for a in compile_project(
+            load_project({"entity_model": model, "mapping": mapping}),
+            target=Target.SQLMESH,
+            dialect="duckdb",
+        )
+        if a.path.endswith(".sql")
     )
     assert "kind INCREMENTAL_BY_UNIQUE_KEY (unique_key (event_id, kind))," in artifact.content
 
@@ -451,7 +460,11 @@ def test_audit_artifacts_sort_before_models_and_end_in_one_newline() -> None:
         AuditIR(kind="not_null", column="item_id"),
     )
     artifacts = SQLMeshEmitter().emit(ProjectIR(entities=(entity,)), ctx)
-    assert [a.path for a in artifacts] == ["audits/item_amount_min.sql", "models/silver/item.sql"]
+    assert [a.path for a in artifacts] == [
+        "audits/item_amount_min.sql",
+        "config.yaml",
+        "models/silver/item.sql",
+    ]
     for artifact in artifacts:
         assert artifact.content.endswith("\n")
         assert not artifact.content.endswith("\n\n")
@@ -579,3 +592,100 @@ def test_projects_without_a_date_dimension_emit_no_dim_date() -> None:
     # `minimal` has no catalog at all — the only fixture left without a date
     # dimension now that every mart fixture declares one (RFC 0013 R1 rule 4).
     assert not any("dim_date" in a.path for a in compile_fixture("minimal"))
+
+
+# ....................... #
+# The project file (RFC 0054)
+
+
+def _config(fixture: str) -> str | None:
+    return next(
+        (a.content for a in compile_fixture(fixture, dialect="duckdb") if a.path == "config.yaml"),
+        None,
+    )
+
+
+def test_the_emitted_tree_carries_a_project_file() -> None:
+    """Without it SQLMesh does not read the models at all — "SQLMesh project
+    config could not be found" (RFC 0054 §3 M1). The dbt target has emitted
+    `dbt_project.yml` all along; this is the same artifact for the primary
+    target."""
+    (config,) = [a for a in compile_fixture("ecom_basic", dialect="duckdb") if a.path == "config.yaml"]
+    assert config.kind is ArtifactKind.CONFIG
+    assert config.content.endswith("\n")
+    assert not config.content.endswith("\n\n")
+
+
+def test_the_project_file_carries_only_model_defaults() -> None:
+    """The line already drawn for dbt, where `dbt_project.yml` is emitted and
+    `profiles.yml` deliberately is not: a connection carries hosts and
+    credentials, and the compiler reads no environment (D1).
+
+    Asserted by parsing rather than by substring — the header comment names
+    `gateways:` in the sentence telling the caller to add one, so a substring
+    check would either fail on the comment or pass on a real gateway block
+    depending on how it was written.
+    """
+    content = _config("ecom_basic")
+    assert content is not None
+    document = yaml.safe_load(content)
+    assert set(document) == {"model_defaults"}
+    assert set(document["model_defaults"]) == {"dialect", "start"}
+
+
+def test_the_dialect_is_the_one_the_compile_was_asked_for() -> None:
+    for dialect in ("duckdb", "postgres"):
+        content = next(
+            a.content
+            for a in compile_fixture("ecom_basic", dialect=dialect)
+            if a.path == "config.yaml"
+        )
+        assert f"dialect: {dialect}" in content
+
+
+def test_the_start_comes_from_the_catalog_date_dimension() -> None:
+    """The finding this artifact exists for (D2). Without a start SQLMesh
+    backfills every INCREMENTAL_BY_TIME_RANGE model over a single day and
+    reports success, so the value is not optional — and it is derived rather
+    than declared, because the date dimension already states the project's
+    temporal extent (D3).
+
+    The expectation is read off the fixture's catalog rather than retyped: a
+    hard-coded 2020 would keep passing if the derivation stopped reading the
+    catalog at all.
+    """
+    _project, catalog = load_fixture("ecom_basic")
+    assert catalog is not None
+    content = _config("ecom_basic")
+    assert content is not None
+    assert f"start: '{catalog.date_dimension.start_year}-01-01'" in content
+
+
+def test_a_project_with_nothing_to_backfill_by_time_needs_no_start() -> None:
+    """`minimal` declares no catalog and partitions nothing, so every model is
+    a full refresh and the start is read by none of them. The key is absent
+    rather than guessed."""
+    content = _config("minimal")
+    assert content is not None
+    assert "dialect: duckdb" in content
+    assert "start" not in content
+
+
+def test_no_project_file_where_the_start_cannot_be_stated() -> None:
+    """D5, answered: a project that backfills by time and declares no date
+    dimension gets **no** config rather than one missing its start.
+
+    That is today's behaviour exactly, and it is the conservative reading of
+    the measurement rather than a lesser one — a config.yaml whose missing
+    start makes `sqlmesh plan` succeed over one day is worse than a directory
+    with no config, because the first runs and the second does not.
+    """
+    project, catalog = load_fixture("ecom_basic")
+    ir = build_project_ir(project, catalog)
+    ctx = EmitContext(dialect=get_dialect("duckdb"), naming=DefaultNaming(), fingerprint="x")
+    stripped = replace(ir, date_dimension=None, marts=())
+    assert any(
+        entity.materialization is Materialization.INCREMENTAL_BY_PARTITION
+        for entity in stripped.entities
+    ), "the fixture must still backfill by time for this to prove anything"
+    assert not any(a.path == "config.yaml" for a in SQLMeshEmitter().emit(stripped, ctx))

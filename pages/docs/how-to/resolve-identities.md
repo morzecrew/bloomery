@@ -105,6 +105,7 @@ Four things are doing work:
 ```
 audits/step_customer_confidence_is_high.sql
 audits/step_customer_xref_canonical_id_references_customer.sql
+config.yaml                          ← the project file SQLMesh reads first
 models/silver/customer_crm.sql       ← the two mapped sources, ordinary silver models
 models/silver/customer_billing.sql
 models/silver/customer.py            ← generated wrapper, one per declared output
