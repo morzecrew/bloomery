@@ -69,6 +69,7 @@ from bloomery.emit.lower.silver import (
     reject_select,
     reject_when_matched,
     replay_statements,
+    step_output_select,
 )
 
 # ----------------------- #
@@ -108,6 +109,7 @@ __all__ = [
     "reconcile_select",
     "reject_relation",
     "reject_select",
+    "step_output_select",
     "reject_when_matched",
     "replay_statements",
 ]

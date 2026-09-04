@@ -1258,3 +1258,32 @@ class ProjectIR:
     reconcile: tuple[ReconcileIR, ...] = ()
     coverage: tuple[CoverageIR, ...] = ()
     steps: tuple[StepIR, ...] = ()
+
+
+# ....................... #
+
+
+def carries_quality_flags(entity: EntityIR) -> bool:
+    """Whether this entity's relation has ``_quality_flags``/``_quality_ok``.
+
+    A mapped entity always does — the two columns are the general form
+    evaluated at compile, constants where no rule fires (RFC 0016 §5.5). A
+    **step-produced** entity does only when it carries an ``on_fail: flag``
+    rule, which is the one case whose body is a SELECT the projection can wrap
+    (RFC 0051 §5.3, D11/D12).
+
+    Derived rather than stored. A new :class:`EntityIR` field would move every
+    fingerprint in the corpus — the encoder is type-driven over field names and
+    count — including for projects that wire no steps at all. It is also total
+    without knowing the step's tier: a ``python_model`` output can never
+    satisfy the second clause, because ``resolve.steps`` refuses the only
+    disposition that would put a ``flag`` rule on one.
+
+    Read by everything that projects or counts those columns: the mart
+    flattener's ``has_quality_flags`` dimension, the quality mart's branch set,
+    and the Tier 2 model emission that puts them there. Those three disagreeing
+    is a mart selecting a column no relation has — a model that compiles clean,
+    passes every golden, and fails on its first run with a binder error.
+    """
+
+    return entity.produced_by is None or any(rule.on_fail is OnFail.FLAG for rule in entity.quality)

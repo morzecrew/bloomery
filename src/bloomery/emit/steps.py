@@ -28,7 +28,7 @@ a step that lies about one output should be caught wherever the run starts.
 
 **Targets** (RFC 0017 D52). Tier 1 is target-neutral by construction — it was
 spliced at lowering, so it is already inside whichever model reads it. Tier 2
-is a SELECT and emits for SQLMesh *and* dbt, through :func:`step_body`, with
+is a SELECT and emits for SQLMesh *and* dbt, through :func:`step_output_body`, with
 each target wrapping it in its own envelope. Tier 3 is SQLMesh-only: dbt's
 Python models run on Snowflake, BigQuery and Databricks, none of which is a
 bloomery dialect. Cube is asked nothing here at all — it builds no relation for
@@ -44,9 +44,9 @@ import jinja2
 from sqlglot import exp
 
 from bloomery.emit.base import ArtifactKind, AuditBody, EmittedArtifact
-from bloomery.emit.lower import THIS_MODEL
+from bloomery.emit.lower import THIS_MODEL, step_output_select
 from bloomery.errors import UnsupportedByTarget
-from bloomery.ir import Layer, OnFail, StepKind
+from bloomery.ir import Layer, OnFail, StepKind, carries_quality_flags
 from bloomery.quality import is_not_null, verdict
 from bloomery.steps.splice import parameter_literal
 from bloomery.typing import render_type
@@ -57,7 +57,13 @@ if TYPE_CHECKING:
     from sqlglot.expressions.core import Expression
 
     from bloomery.emit.base import EmitContext
-    from bloomery.ir import ProjectIR, QualityRuleIR, StepIR, StepOutputIR, StepParameterIR
+    from bloomery.ir import (
+        ProjectIR,
+        QualityRuleIR,
+        StepIR,
+        StepOutputIR,
+        StepParameterIR,
+    )
 
 # ----------------------- #
 
@@ -65,7 +71,7 @@ __all__ = [
     "consistency_audits",
     "refuse_python_models",
     "step_artifacts",
-    "step_body",
+    "step_output_body",
     "step_output_relation",
 ]
 
@@ -102,16 +108,42 @@ def refuse_python_models(ir: ProjectIR, target: str) -> None:
 # ....................... #
 
 
-def step_body(step: StepIR) -> Expression:
-    """A Tier 2 body with its parameters substituted, for any target.
+def step_output_body(
+    step: StepIR, output: StepOutputIR, ir: ProjectIR, ctx: EmitContext
+) -> Expression:
+    """One Tier 2 output's SELECT: the body with its parameters substituted,
+    wrapped in the data-quality pipeline where the output carries an
+    ``on_fail: flag`` rule (RFC 0051 §5.3).
 
-    Public because the SELECT is target-neutral while the envelope around it is
-    not: SQLMesh wraps it in ``MODEL (...)`` and dbt in a ``config()`` call, and
-    the parameter substitution underneath must be the one thing both share
-    (RFC 0008 D4).
+    Public, and taking the whole decision rather than a pre-computed flag,
+    because the SELECT is target-neutral while the envelope around it is not:
+    SQLMesh wraps it in ``MODEL (...)`` and dbt in a ``config()`` call, and
+    everything underneath must be the one thing both share (RFC 0008 D4).
+
+    Only SQLMesh reaches the wrap today: a ``flag`` rule puts a quality mart in
+    the project, and dbt refuses that mart in this wave (RFC 0008 §5.5). The
+    decision still lives above the envelope split rather than in the SQLMesh
+    path, because the day the refusal lifts is the day a per-target copy of it
+    would be discovered to disagree — SQLMesh's quality mart already selects
+    ``_quality_flags`` off this relation, and a target that wrapped differently
+    would emit a gold model selecting a column its own silver model has not
+    got.
     """
+    name = _relation_name(output)
+    entity = next(
+        (
+            candidate
+            for candidate in ir.entities
+            if candidate.name == name and candidate.produced_by is not None
+        ),
+        None,
+    )
+    body = _with_parameters(step)
 
-    return _with_parameters(step)
+    if entity is None or not carries_quality_flags(entity):
+        return body
+
+    return step_output_select(entity, cast("exp.Select", body), ctx)
 
 
 # ....................... #
@@ -450,12 +482,23 @@ def _relation_name(output: StepOutputIR) -> str:
 def _sql_model_artifact(
     step: StepIR,
     output: StepOutputIR,
+    ir: ProjectIR,
     ctx: EmitContext,
     envelope: jinja2.Template,
     audits: tuple[str, ...] = (),
     reads: tuple[str, ...] = (),
 ) -> EmittedArtifact:
+    """One Tier 2 output as a model.
+
+    The SELECT comes from :func:`step_output_body`, which decides on its own
+    whether the body needs the data-quality wrap. An output with no ``flag``
+    rule emits the bare body, byte for byte as before — the two generated
+    columns are conditional on the rule rather than universal here, because a
+    Tier 3 output can never carry them and making them universal would change
+    every step artifact for a property half the tiers cannot share (D11).
+    """
     namespace, relation = ctx.naming.relation(_relation_name(output), Layer.SILVER)
+    body = step_output_body(step, output, ir, ctx) if step.body is not None else None
     content = envelope.render(
         fingerprint=ctx.fingerprint,
         name=f"{namespace}.{relation}",  # constrained by RELATION_PATTERN
@@ -464,7 +507,7 @@ def _sql_model_artifact(
         partitioned_by="",
         audits=", ".join(audits),
         depends_on=", ".join(sorted(reads)) if audits else "",
-        select=ctx.dialect.render(_with_parameters(step)) if step.body is not None else "",
+        select=ctx.dialect.render(body) if body is not None else "",
     )
     return EmittedArtifact.create(
         path=f"models/{namespace}/{relation}.sql",
@@ -604,10 +647,12 @@ def quality_audits(
     """Blocking audits for ``on_fail: fail`` rules on step outputs (D39),
     each naming the output it is attached to.
 
-    Only ``fail`` reaches here — lowering refuses ``flag`` and ``quarantine``,
-    which compile into a silver SELECT that a step-produced relation does not
-    have. ``fail`` needs no SELECT: it reads the finished relation and returns
-    the rows that violate the rule, which is what a blocking audit is.
+    Only ``fail`` reaches here. ``fail`` needs no SELECT: it reads the finished
+    relation and returns the rows that violate the rule, which is what a
+    blocking audit is. A ``flag`` rule on a ``sql_model`` output is not an
+    audit at all — it lowers into that model's own SELECT as the
+    ``_quality_flags`` projection (RFC 0051 §5.3) — and every other
+    combination is refused at lowering.
 
     Deliberately *not* RFC 0016's two-leg :func:`fail_audits` shape. Both of
     that function's legs are unavailable here rather than merely unnecessary:
@@ -632,7 +677,9 @@ def quality_audits(
 
     for output in step.outputs:
         for rule in rules.get(_relation_name(output), ()):
-            if rule.on_fail is not OnFail.FAIL:  # pragma: no cover — lowering refuses these
+            if rule.on_fail is not OnFail.FAIL:
+                # A `flag` rule lowers into the model's SELECT, not into an
+                # audit (RFC 0051 §5.3); lowering refuses every other value.
                 continue
             name = _quality_audit_name(output, rule)
             select = (
@@ -773,6 +820,8 @@ def step_artifacts(
             if step.kind is StepKind.PYTHON_MODEL:
                 artifacts.append(_wrapper_artifact(step, output, ir, ctx, attached, reads))
             else:
-                artifacts.append(_sql_model_artifact(step, output, ctx, envelope, attached, reads))
+                artifacts.append(
+                    _sql_model_artifact(step, output, ir, ctx, envelope, attached, reads)
+                )
 
     return tuple(sorted(artifacts, key=lambda a: a.path))

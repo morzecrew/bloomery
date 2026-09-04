@@ -121,7 +121,7 @@ from bloomery.emit.steps import (
     consistency_audits,
     quality_audits,
     refuse_python_models,
-    step_body,
+    step_output_body,
     step_output_relation,
 )
 from bloomery.errors import UnsupportedByTarget, guaranteed
@@ -408,7 +408,7 @@ def _step_artifacts(
                 _model_artifact(
                     path=f"models/{namespace}/{relation}.sql",
                     config_line=_config_line(Materialization.FULL, output.key),
-                    select=_render(step_body(step), references, ctx),
+                    select=_render(step_output_body(step, output, ir, ctx), references, ctx),
                     ctx=ctx,
                 )
             )

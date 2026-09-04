@@ -226,3 +226,46 @@ def test_cube_emits_no_audit_for_a_project_that_is_full_of_them() -> None:
         a for a in artifacts if a.kind in {ArtifactKind.AUDIT, ArtifactKind.REPLAY}
     ]
     assert {a.path.split("/")[1] for a in artifacts} == {"cubes", "views"}
+
+
+# ....................... #
+# A flagged Tier 2 output, on both targets that build (RFC 0051 §5.3)
+
+
+FLAG_STEPS = (
+    "steps_version: 1\nsteps:\n  - use: scored@1\n    outputs: {out: silver.scored}\n"
+    "    quality:\n"
+    '      - {rule: expression, name: keyed, expr: "k IS NOT NULL", on_fail: flag}\n'
+    "    applies_to: {keyed: out}\n"
+)
+
+
+def test_a_flagged_tier_two_output_carries_the_columns() -> None:
+    artifacts = compile_steps(Target.SQLMESH, steps=FLAG_STEPS)
+    model = next(a for a in artifacts if a.path == "models/silver/scored.sql")
+    assert "_quality_flags" in model.content
+    assert "_quality_ok" in model.content
+
+
+def test_the_sqlmesh_quality_mart_counts_the_flagged_step_output() -> None:
+    """The column the wrap adds is the column the mart reads. These two
+    disagreeing is a gold model selecting something no relation has.
+    """
+    mart = next(
+        a for a in compile_steps(Target.SQLMESH, steps=FLAG_STEPS) if "mart_data_quality" in a.path
+    )
+    assert "_quality_flags" in mart.content
+    assert "'scored' AS entity" in mart.content
+
+
+def test_a_flag_rule_makes_a_step_project_refuse_on_dbt() -> None:
+    """Not a new rule, and not about steps: the *quality mart* is what dbt
+    refuses in this wave (RFC 0008 §5.5), and a flagged step output puts one in
+    the project exactly as a flagged mapped entity does.
+
+    So dbt reaches the wrap only once that refusal lifts — which is why the
+    wrap lives in ``step_output_body``, above the envelope split, rather than
+    in the SQLMesh path that can exercise it today.
+    """
+    with pytest.raises(UnsupportedByTarget, match="data-quality mart"):
+        compile_steps(Target.DBT, steps=FLAG_STEPS)

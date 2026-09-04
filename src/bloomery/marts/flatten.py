@@ -53,6 +53,7 @@ from bloomery.ir import (
     MartJoinIR,
     Materialization,
     SCDKind,
+    carries_quality_flags,
     partition_specs,
 )
 from bloomery.spec.marts import ViaStep
@@ -460,20 +461,23 @@ def _flatten_quality(base: EntityIR, path: str, state: _Flatten) -> list[Guardra
     base never evaluates anything, and a request filtering on it would read as
     "no flagged rows" instead of "nothing to flag".
 
-    **A step-produced base gets none either, and for the same reason.** Its
-    rows are written by the step's generated wrapper, which projects exactly
-    the manifest's declared columns — so there is no ``_quality_flags`` to
-    reduce and no ``_quality_ok`` to negate. It can still carry rules: an
-    ``expression`` rule with ``on_fail: fail`` lowers to a blocking audit over
-    the relation, which stops the run rather than marking a row (RFC 0017
-    §5.8), so nothing survives to be flagged in the first place. Flattening the
-    dimension anyway emitted ``NOT customer._quality_ok`` against a relation
-    with no such column: a mart that compiled clean, passed every golden, and
-    failed on its first run with a binder error naming a generated column the
-    author never wrote.
+    **A step-produced base gets none unless its relation actually has the two
+    columns** — :func:`~bloomery.ir.carries_quality_flags` is the one
+    definition of that, shared with the quality mart and with the Tier 2
+    emission that puts them there. A ``python_model`` output's rows are
+    written by the generated wrapper, which projects exactly the manifest's
+    declared columns, so there is no ``_quality_flags`` to reduce and no
+    ``_quality_ok`` to negate; and a ``fail`` rule stops the run rather than
+    marking a row (RFC 0017 §5.8), so nothing survives to be flagged in the
+    first place. Flattening the dimension anyway emitted
+    ``NOT customer._quality_ok`` against a relation with no such column: a mart
+    that compiled clean, passed every golden, and failed on its first run with
+    a binder error naming a generated column the author never wrote. A
+    ``sql_model`` output carrying an ``on_fail: flag`` rule *does* have them
+    (RFC 0051 §5.3), and gets the dimension like any other base.
     """
 
-    if not base.quality or base.produced_by is not None:
+    if not base.quality or not carries_quality_flags(base):
         return []
 
     existing = state.columns.get(HAS_QUALITY_FLAGS)

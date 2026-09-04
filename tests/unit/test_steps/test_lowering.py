@@ -13,7 +13,13 @@ import pytest
 
 from bloomery import build_project_ir, load_project
 from bloomery.errors import CircularDerivation, StepDeterminismError, StepError, UnknownStep
-from bloomery.ir import Determinism, StepKind, project_fingerprint
+from bloomery.ir import (
+    Determinism,
+    OnFail,
+    StepKind,
+    carries_quality_flags,
+    project_fingerprint,
+)
 from bloomery.steps import StepManifest, StepRegistry
 from bloomery.typing import DecimalType, StringType
 
@@ -56,9 +62,22 @@ steps:
 """
 
 
-def build(wiring: str = WIRING, **manifest_overrides: object):  # noqa: ANN201 — ProjectIR
+#: A Tier 2 body producing what the default manifest declares and using the
+#: parameter it declares, so a `sql_model` case differs from the Tier 3 default
+#: in the tier and nothing else. Passed explicitly — `build` never supplies a
+#: body on its own, because "a sql_model with no body" is itself a refusal
+#: under test.
+SQL_BODY = "SELECT canonical_id, confidence FROM silver.customer_raw WHERE confidence > :threshold"
+
+
+def build(  # noqa: ANN201 — ProjectIR
+    wiring: str = WIRING, sql_body: str | None = None, **manifest_overrides: object
+):
     project = load_project({"entity_model": ENTITY_MODEL, "steps": wiring})
-    registry = StepRegistry({("resolve_customers", 3): manifest(**manifest_overrides)})
+    registry = StepRegistry(
+        {("resolve_customers", 3): manifest(**manifest_overrides)},
+        sql_bodies={("resolve_customers", 3): sql_body} if sql_body is not None else None,
+    )
     return build_project_ir(project, steps=registry)
 
 
@@ -381,15 +400,47 @@ def _with_rule(on_fail: str) -> str:
     )
 
 
-@pytest.mark.parametrize("disposition", ["flag", "quarantine"])
-def test_a_routed_quality_rule_on_an_output_is_refused(disposition: str) -> None:
-    """The half that cannot lower (D39). Both dispositions compile into the
-    silver SELECT — the `_quality_flags` projection and the routing WHERE —
-    and a step-produced relation has neither, because its wrapper writes the
-    rows. Accepting them would be a rule that never evaluates, which is the
-    worst possible failure for a feature whose job is catching bad data."""
-    with pytest.raises(StepError, match="on_fail: fail"):
-        build(_with_rule(disposition))
+@pytest.mark.parametrize("kind", ["python_model", "sql_model"])
+def test_a_quarantine_rule_on_an_output_is_refused_on_every_tier(kind: str) -> None:
+    """Refused permanently, not pending (RFC 0051 D10) — and the message says
+    so by naming both blockers rather than one. Neither depends on the tier:
+    the reject table is keyed on ingestion metadata a step wrote none of, and
+    `quarantine.retention` is mandatory with no `quarantine:` block in a
+    wiring to declare it."""
+    sql = kind == "sql_model"
+    with pytest.raises(StepError, match="no quarantine: block in a steps: wiring") as caught:
+        build(
+            _with_rule("quarantine"),
+            SQL_BODY if sql else None,
+            kind=kind,
+            **({"entrypoint": None} if sql else {}),
+        )
+    assert "_source_row_id" in str(caught.value)
+
+
+def test_a_flag_rule_on_a_python_model_output_is_refused_naming_the_tier() -> None:
+    """A Tier 3 wrapper writes its rows in Python, so there is no SELECT for
+    the `_quality_flags` projection to wrap. The refusal names the tier, not
+    the disposition — the same rule on a `sql_model` lowers."""
+    with pytest.raises(StepError, match="a python_model cannot carry") as caught:
+        build(_with_rule("flag"))
+    assert "express the step at Tier 2" in str(caught.value)
+
+
+def test_a_flag_rule_on_a_sql_model_output_lowers_onto_the_entity() -> None:
+    ir = build(_with_rule("flag"), SQL_BODY, kind="sql_model", entrypoint=None)
+    (entity,) = [e for e in ir.entities if e.name == "customer"]
+    assert [(rule.name, rule.on_fail) for rule in entity.quality] == [("confident", OnFail.FLAG)]
+    assert carries_quality_flags(entity)
+
+
+def test_a_fail_rule_alone_leaves_a_step_relation_without_the_flag_columns() -> None:
+    """The asymmetry with a mapped entity, stated as a test (RFC 0051 D11):
+    `fail` stops the run rather than marking a row, so nothing survives to be
+    flagged and the relation keeps exactly the manifest's declared columns."""
+    ir = build(_with_rule("fail"), SQL_BODY, kind="sql_model", entrypoint=None)
+    (entity,) = [e for e in ir.entities if e.name == "customer"]
+    assert not carries_quality_flags(entity)
 
 
 def test_a_fail_rule_on_an_output_lowers_onto_the_synthesized_entity() -> None:

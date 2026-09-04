@@ -1248,6 +1248,30 @@ def entity_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
 # ....................... #
 
 
+def step_output_select(entity: EntityIR, body: exp.Select, ctx: EmitContext) -> exp.Select:
+    """A Tier 2 step body wrapped in the data-quality pipeline (RFC 0051 §5.3).
+
+    The **same** :func:`_quality_pipeline` the silver model and replay's
+    candidate set go through, with the step's own SELECT standing in for the
+    bronze extract. A second projection built here would be a second account of
+    what ``_quality_flags`` means, and the two would drift on the first rule
+    added to either.
+
+    Only reached for a ``sql_model`` output carrying at least one ``flag`` rule
+    — ``resolve.steps`` refuses every other combination that would land here.
+    Three things follow from the entity being step-synthesized rather than
+    mapped, and none of them needs a branch: its column expressions are
+    identities, so the projections are ``<alias>.<column> AS <column>``;
+    ``_carries_metadata`` is false, so no ingestion columns are carried; and no
+    rule routes, so :func:`_route_predicate` contributes no ``WHERE``.
+    """
+
+    return _quality_pipeline(entity, ctx, body)
+
+
+# ....................... #
+
+
 def reject_select(entity: EntityIR, ctx: EmitContext) -> exp.Select:
     """The ``<entity>__reject`` SELECT (RFC 0016 §5.6): the diverted side of
     the stage-6 split, projected into the reject schema.

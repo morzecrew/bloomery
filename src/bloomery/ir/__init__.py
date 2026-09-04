@@ -62,6 +62,7 @@ from bloomery.ir.nodes import (
     TransformStepIR,
     Unit,
     UnreachableMetric,
+    carries_quality_flags,
     quality_sort_key,
     step_sort_key,
 )
@@ -79,6 +80,7 @@ __all__ = [
     "Determinism",
     "FLAGS_COLUMN",
     "NODE_ID_PREFIXES",
+    "carries_quality_flags",
     "OK_COLUMN",
     "REPAIRS_COLUMN",
     "REJECT_SUFFIX",

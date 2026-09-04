@@ -444,10 +444,22 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
     ``spec.mapping.TransformStep.step``).
 
     **Quality rules on outputs.** §5.2 permits them and §1 makes them the
-    reason RFC 0016 and 0017 ship as a pair. They parse, and nothing consumes
-    them: an author would write a rule, get no rule, and get no error either.
-    A silently ignored quality rule is the worst possible failure for a
-    feature whose entire job is to catch bad data.
+    reason RFC 0016 and 0017 ship as a pair. What is refusable is narrower
+    than "any disposition but ``fail``" (RFC 0051 §5.3):
+
+    - ``fail`` lowers on both SQL-writing tiers, as a blocking audit over the
+      finished relation. It needs no SELECT.
+    - ``flag`` lowers on a ``sql_model`` only, where the model's SELECT is the
+      step body and the ``_quality_flags`` projection wraps it. A
+      ``python_model`` writes its rows in Python and has no SELECT to project
+      into, so it stays refused — naming the tier, not the disposition.
+    - ``quarantine`` is refused on **both** tiers, permanently rather than
+      pending. The reject table is keyed on the three ingestion-metadata
+      columns a bronze extract carries and a step output has none; and
+      ``QuarantineIR.retention`` is mandatory wherever a quarantine
+      disposition exists, with nowhere in a ``steps:`` wiring to declare it.
+    - ``repair`` never reaches here — ``ExpressionRule`` is the only rule shape
+      a wiring can carry and a row rule is not ``repairable``.
     """
     errors: list[BloomeryError] = []
 
@@ -461,16 +473,31 @@ def _check_scope(wiring: StepWiring, manifest: StepManifest) -> list[BloomeryErr
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
 
-    routed = sorted(rule.name for rule in wiring.quality if rule.on_fail != "fail")
+    quarantined = sorted(rule.name for rule in wiring.quality if rule.on_fail == "quarantine")
 
-    if routed:
+    if quarantined:
         msg = (
-            f"step {wiring.use!r} declares quality rule(s) {', '.join(routed)} on its "
-            "outputs with a disposition other than on_fail: fail (RFC 0017 D39). flag and "
-            "quarantine compile into the silver SELECT — the _quality_flags projection and "
-            "the routing WHERE — and a step-produced relation has no SELECT: its wrapper "
-            "writes the rows. Only on_fail: fail lowers, as an audit over the relation. "
-            "Fix: use on_fail: fail, or move the rule to a downstream mapped entity"
+            f"step {wiring.use!r} declares quality rule(s) {', '.join(quarantined)} on its "
+            "outputs with on_fail: quarantine, which no step tier can lower (RFC 0051 D10). "
+            "Two things are missing, not one: the <output>__reject table is keyed on the "
+            "ingestion metadata a bronze extract carries (_load_id, _ingested_at, "
+            "_source_row_id) and a step wrote these rows itself, so there is none; and "
+            "quarantine.retention is mandatory wherever the disposition appears, with no "
+            "quarantine: block in a steps: wiring to declare it. Fix: use on_fail: fail or "
+            "on_fail: flag, or route the rows in a downstream mapped entity"
+        )
+        errors.append(StepError(msg, source_path=_path(wiring)))
+
+    flagged = sorted(rule.name for rule in wiring.quality if rule.on_fail == "flag")
+
+    if flagged and manifest.kind == "python_model":
+        msg = (
+            f"step {wiring.use!r} declares quality rule(s) {', '.join(flagged)} on its "
+            "outputs with on_fail: flag, which a python_model cannot carry (RFC 0051 D9). "
+            "flag compiles into the model's SELECT as the _quality_flags projection, and a "
+            "Tier 3 wrapper writes its rows in Python — there is no SELECT to project into. "
+            "A sql_model is a SELECT and does carry it. Fix: use on_fail: fail, express the "
+            "step at Tier 2, or move the rule to a downstream mapped entity"
         )
         errors.append(StepError(msg, source_path=_path(wiring)))
 
@@ -695,10 +722,13 @@ def step_entities(
     move every fingerprint in the corpus, the type-driven encoder covering
     field names and count rather than values (RFC 0003).
 
-    ``flag`` and ``quarantine`` stay refused in :func:`_check_scope`: both
-    compile into a silver *SELECT* — the ``_quality_flags`` projection and the
-    routing ``WHERE`` — and a step-produced relation has none, because its
-    wrapper writes the rows.
+    ``quarantine`` stays refused in :func:`_check_scope` on both tiers, and
+    ``flag`` on ``python_model`` alone: the routing ``WHERE`` needs a reject
+    table this entity has no key for, and the ``_quality_flags`` projection
+    needs a SELECT, which a Tier 3 wrapper writing rows in Python does not
+    have. A ``sql_model`` **is** a SELECT, so its ``flag`` rules lower
+    (RFC 0051 §5.3) — through this same ``quality`` tuple, which is why nothing
+    here changes to carry them.
     """
     rules = _output_rules(project)
     links = output_canonicals(project)
