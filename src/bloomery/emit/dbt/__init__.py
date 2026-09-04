@@ -461,7 +461,7 @@ def _reject_artifacts(
                 fingerprint=ctx.fingerprint,
                 macro=macro,
                 open_line=f"{{% macro {macro}() %}}",
-                begin_line='  {% do run_query("BEGIN") %}',
+                begin_line=f'  {{% do run_query("{ctx.dialect.begin_transaction}") %}}',
                 body=_replay_body(entity, ctx, references),
                 commit_line='  {% do run_query("COMMIT") %}',
                 close_line="{% endmacro %}",

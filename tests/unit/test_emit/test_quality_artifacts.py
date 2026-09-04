@@ -505,6 +505,32 @@ def test_the_two_targets_emit_the_same_audits(fixture: str) -> None:
     assert from_dbt == audits(SQLMeshEmitter())
 
 
+def test_the_replay_macro_opens_the_transaction_the_dialect_spells() -> None:
+    """`BEGIN` is the common spelling and is not universal.
+
+    Trino accepts only the SQL-standard `START TRANSACTION` and answers `BEGIN`
+    with a syntax error — measured against `trinodb/trino:483`, not read off a
+    reference. A macro that hardcodes `BEGIN` fails on its very first statement
+    there, before any replay work happens.
+
+    The keyword is a port attribute rather than a rendered node because no AST
+    node means "open a transaction": it is envelope text, interpolated like
+    every other pre-rendered string.
+    """
+    project, catalog = load_fixture(FIXTURE)
+    opens = {}
+    for dialect in ("duckdb", "postgres", "trino"):
+        artifacts = compile_project(
+            project, target=Target.DBT, dialect=dialect, catalog=catalog
+        )
+        content = next(
+            a.content for a in artifacts if a.path == "macros/replay_inventory_level.sql"
+        )
+        opens[dialect] = 'run_query("START TRANSACTION")' in content
+
+    assert opens == {"duckdb": False, "postgres": False, "trino": True}
+
+
 def test_the_replay_macro_wraps_its_statements_in_one_transaction() -> None:
     """RFC 0052 D14. ``run_query`` opens no transaction of its own, so a failure
     between the entity merge and the reject stamps would leave a row both

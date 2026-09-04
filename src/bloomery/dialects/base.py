@@ -348,6 +348,10 @@ class DialectPort(Protocol):
 
     # ....................... #
 
+    begin_transaction: str
+
+    # ....................... #
+
     def render(self, node: Expression) -> str: ...
 
     def physical_type(self, t: LogicalType) -> str: ...
@@ -371,6 +375,14 @@ class SQLGlotDialect:
     # ``name`` as an instance attribute, and ClassVar members cannot satisfy it.
     name: str = ""
     sqlglot_dialect: str = ""
+    #: How this engine opens a transaction. ``BEGIN`` is the common spelling and
+    #: is **not** universal: Trino accepts only the SQL-standard
+    #: ``START TRANSACTION`` and answers ``BEGIN`` with a syntax error
+    #: (measured, `trinodb/trino:483`). It is a port attribute rather than a
+    #: rendered node because no AST node means "open a transaction" — it is
+    #: envelope text, and the emitter interpolates it like every other
+    #: pre-rendered string (RFC 0008 D4).
+    begin_transaction: str = "BEGIN"
     features: ClassVar[frozenset[DialectFeature]] = frozenset(DialectFeature)
     scalar_types: ClassVar[dict[type[LogicalType], str]] = {
         StringType: "TEXT",
