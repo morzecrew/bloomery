@@ -30,11 +30,17 @@ That last bullet is the honest limit of this suite and the reason it is written
 down here: it is a strong guard against a phase that changes an *outcome*, and
 a weak one against a phase that changes only refusal *reasons*, which no
 current fixture varies enough to catch.
+
+`parity_baseline.tsv` beside this file is the reference, generated on the
+merge base rather than on this branch — a baseline recomputed from the tree it
+is asserting about compares a run with itself and passes whatever that tree
+does.
 """
 
 from __future__ import annotations
 
 import itertools
+import pathlib
 from collections import Counter
 
 import pytest
@@ -65,22 +71,23 @@ UNBUILDABLE = frozenset(
 _PAIRS = 3
 
 
-def _requests(ir: ProjectIR) -> list[tuple[str, tuple[str, ...]]]:
-    """Every request shape this corpus asks, in a deterministic order.
+def _requests(ir: ProjectIR) -> list[tuple[str, str, tuple[str, ...]]]:
+    """Every request shape this corpus asks, in a deterministic order, each
+    carrying the mart it was generated from.
 
     Sorted throughout rather than taken in IR order: the suite compares two
     runs, and a corpus whose membership depended on iteration order would
     report a difference that was its own.
     """
-    shapes: list[tuple[str, tuple[str, ...]]] = []
+    shapes: list[tuple[str, str, tuple[str, ...]]] = []
 
     for mart in sorted(ir.marts, key=lambda m: m.name):
         dimensions = sorted({dimension.ref.dimension for dimension in mart.dimensions})
         for measure in sorted(mart.measures):
-            shapes.append((measure, ()))
-            shapes.extend((measure, (dimension,)) for dimension in dimensions)
+            shapes.append((mart.name, measure, ()))
+            shapes.extend((mart.name, measure, (dimension,)) for dimension in dimensions)
             shapes.extend(
-                (measure, pair)
+                (mart.name, measure, pair)
                 for pair in itertools.islice(itertools.combinations(dimensions, 2), _PAIRS)
             )
 
@@ -94,6 +101,10 @@ def _outcomes() -> dict[str, str]:
     milliseconds, so the whole corpus runs end to end through `plan` rather
     than against the coverage precheck alone — a parity suite that stopped at
     the precheck would not see a phase that moved a refusal past it.
+
+    The key names the mart. A measure may be embedded in two marts, and a key
+    without it would let one request overwrite the other — quietly, since the
+    corpus is the thing being counted (logs/T-0021.md, D-126).
     """
     planner = make_planner()
     results: dict[str, str] = {}
@@ -106,7 +117,7 @@ def _outcomes() -> dict[str, str]:
         if not any(mart.measures for mart in ir.marts):
             continue
 
-        for measure, dimensions in _requests(ir):
+        for mart, measure, dimensions in _requests(ir):
             request = MetricRequest(metrics=(measure,), dimensions=dimensions)
             try:
                 planner.plan(ir, request, dialect="duckdb")
@@ -114,23 +125,38 @@ def _outcomes() -> dict[str, str]:
             except Exception as error:  # noqa: BLE001 — the class *is* the assertion
                 outcome = type(error).__name__
 
-            results[f"{name}|{measure}|{','.join(dimensions)}"] = outcome
+            results[f"{name}|{mart}|{measure}|{','.join(dimensions)}"] = outcome
 
     return results
 
 
-#: The outcome of every request in the corpus, captured before P1 and asserted
-#: after it. A dict rather than a checked-in golden file: the point is that two
-#: *runs* agree, and RFC 0040 D5 says P1 changes nothing, so the baseline is
-#: recomputed rather than trusted from disk. A later phase that converts a class
-#: deliberately edits the counts below and names the rule that did it.
-BASELINE: dict[str, int] = {
-    "accepted": 423,
-    "EmitError": 76,
-    "InvalidRequest": 22,
-    "AmbiguousDimension": 7,
-    "UnknownMember": 3,
-}
+#: The outcome of every request in the corpus, one `key<TAB>outcome` line per
+#: request, sorted. Checked in rather than recomputed: totals alone cannot see
+#: a phase that refuses one request and starts accepting another, and that
+#: trade is exactly the shape a rollup rule change makes (logs/T-0021.md,
+#: D-126). A later phase that converts a class regenerates this file, and the
+#: diff names every request it moved.
+#:
+#: Regenerate with:
+#:     uv run python -c "import sys; sys.path.insert(0, 'tests'); \
+#:         from unit.test_planner.test_parity import write_baseline; write_baseline()"
+BASELINE_PATH = pathlib.Path(__file__).with_name("parity_baseline.tsv")
+
+
+def _baseline() -> dict[str, str]:
+    return dict(
+        line.split("\t", 1)
+        for line in BASELINE_PATH.read_text(encoding="utf-8").splitlines()
+        if line
+    )
+
+
+def write_baseline() -> None:  # pragma: no cover — the regeneration entry point
+    outcomes = _outcomes()
+    BASELINE_PATH.write_text(
+        "".join(f"{key}\t{outcome}\n" for key, outcome in sorted(outcomes.items())),
+        encoding="utf-8",
+    )
 
 
 def test_the_corpus_is_the_size_it_claims_to_be() -> None:
@@ -140,14 +166,30 @@ def test_the_corpus_is_the_size_it_claims_to_be() -> None:
     silently, and the suite keeps passing on what is left."""
     outcomes = _outcomes()
 
-    assert len(outcomes) == sum(BASELINE.values())
+    assert len(outcomes) == len(_baseline())
     assert len(outcomes) == 531
 
 
 def test_no_request_changes_outcome() -> None:
     """RFC 0040 §8, and D5's whole reason for existing: P1 re-expresses today's
-    planning as a `SemanticPlan` and every request keeps the answer it had."""
-    assert Counter(_outcomes().values()) == Counter(BASELINE)
+    planning as a `SemanticPlan` and every request keeps the answer it had.
+
+    Per request, not per class. Comparing `Counter`s over the outcomes lets a
+    phase refuse one request and start accepting another with every total
+    preserved — a parity suite that reports green on a swapped pair is
+    measuring arithmetic, not parity.
+    """
+    outcomes = _outcomes()
+    baseline = _baseline()
+    changed = {
+        key: (baseline.get(key), outcome)
+        for key, outcome in outcomes.items()
+        if baseline.get(key) != outcome
+    }
+    dropped = sorted(set(baseline) - set(outcomes))
+
+    assert changed == {}, f"outcome changed for {len(changed)} request(s): {changed}"
+    assert dropped == [], f"request(s) no longer in the corpus: {dropped}"
 
 
 def test_both_sides_of_the_boundary_are_exercised() -> None:
