@@ -132,6 +132,25 @@ for evidence_fixture in ("ecom_basic", "fanout_trap"):
         for d in evidence.unresolved
     ])
     print([(p.entity, p.field, p.provenance, p.recipe_id) for p in evidence.provenance])
+
+# The grain model (M20, RFC 0037 D7). The closure is a graph walk over a
+# fixpoint, which is where nondeterminism enters this codebase most easily, and
+# its members carry derivations destined for RFC 0039's proof artifacts. Every
+# answer shape rides here — a proof, a refinement, an ambiguity and an
+# unanchored historical hop — so a seed-dependent walk cannot hide in a branch
+# nothing exercised.
+from bloomery.semantic import can_roll_up, closure, dependencies
+from support.grain_model import ANCHORED, CORPUS, QUESTIONS
+
+grain_deps = dependencies(CORPUS)
+print(grain_deps)
+# Under anchors, because a `one_to_one` is read both ways and so is the one
+# shape where a single relationship contributes two blocked edges — which tie
+# on every field but the one that says why.
+print(dependencies(CORPUS, ANCHORED))
+for source, target in QUESTIONS:
+    print(source.label, "->", target.label, can_roll_up(source, target, CORPUS))
+    print(closure(source, grain_deps))
 """
 
 

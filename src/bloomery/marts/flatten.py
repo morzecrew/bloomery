@@ -40,6 +40,7 @@ from bloomery.errors import (
     HistoricalFanout,
     MartMissingTimeDimension,
     MeasureRef,
+    guaranteed,
 )
 from bloomery.ir import (
     OK_COLUMN,
@@ -56,6 +57,7 @@ from bloomery.ir import (
     carries_quality_flags,
     partition_specs,
 )
+from bloomery.semantic import AsOfState, qualify_as_of
 from bloomery.spec.marts import ViaStep
 from bloomery.typing import (
     BoolType,
@@ -184,19 +186,13 @@ def _historical_leaf(
     """The leaves for the historical/anchor pairing on this step (RFC 0023
     D1, §5.3), or ``[]``.
 
-    Three states, and only the first two are refusals:
-
-    * ``type2`` with no ``as_of:`` — the join would be an equality on the
-      relationship's columns and nothing else, and a ``type2`` relation holds
-      one row per version per key, so it matches every version and multiplies
-      the base grain. Nothing downstream notices: the declared cardinality is
-      about the domain, and it is usually correct.
-    * ``as_of:`` on a relation that is not ``type2`` — there is no version to
-      choose between, so the anchor names a reading that does not exist. Left
-      accepted it would emit a predicate against columns the relation does
-      not have.
-    * ``type2`` with a valid ``as_of:`` — the as-of join, which is the whole
-      of RFC 0023 §5.3.
+    Which state the pairing is in is **not decided here** — it is
+    :func:`~bloomery.semantic.qualify_as_of`, shared with the grain model that
+    admits a dependency across a historical relationship only when the same
+    call comes back qualified (RFC 0037 D4). Two readings of SCD2 validity in
+    one compiler is the divergence that row exists to prevent. What stays here
+    is the wording: a mart author is told which spec line to change, which is
+    not what a rollup proof needs from the same fact.
 
     A list rather than an optional so the callers can splice it into whatever
     they were already returning: these leaves never *replace* a structural
@@ -210,75 +206,72 @@ def _historical_leaf(
     if to_entity is None:
         return []
 
-    historical = to_entity.scd is SCDKind.TYPE2
+    match qualify_as_of(reading=base, target=to_entity, as_of=step.as_of):
+        case AsOfState.CURRENT | AsOfState.QUALIFIED:
+            return []
 
-    if historical and step.as_of is None:
-        msg = (
-            f"flatten step joins entity {rel.to_entity!r} through relationship "
-            f"{rel.name!r} ({rel.cardinality}), and {rel.to_entity!r} is declared "
-            "scd: type2 — without an anchor the emitted join carries no validity "
-            f"predicate, so it matches every version of each {rel.to_entity!r} key "
-            "and each base row is multiplied by that key's version count. The "
-            "declared cardinality is a claim about the domain; the relation holds "
-            f"one row per version (RFC 0023 D1). {_HISTORICAL_FLATTEN_FIX}"
-        )
-        return [HistoricalFanout(msg, source_path=step_path)]
+        case AsOfState.UNANCHORED:
+            # The join would be an equality on the relationship's columns and
+            # nothing else, and a ``type2`` relation holds one row per version
+            # per key, so it matches every version and multiplies the base
+            # grain. Nothing downstream notices.
+            msg = (
+                f"flatten step joins entity {rel.to_entity!r} through relationship "
+                f"{rel.name!r} ({rel.cardinality}), and {rel.to_entity!r} is declared "
+                "scd: type2 — without an anchor the emitted join carries no validity "
+                f"predicate, so it matches every version of each {rel.to_entity!r} key "
+                "and each base row is multiplied by that key's version count. The "
+                "declared cardinality is a claim about the domain; the relation holds "
+                f"one row per version (RFC 0023 D1). {_HISTORICAL_FLATTEN_FIX}"
+            )
 
-    if not historical and step.as_of is not None:
-        msg = (
-            f"flatten step declares as_of: {step.as_of!r}, but {rel.to_entity!r} is not "
-            "scd: type2 — it holds one row per key, so there is no version to read the "
-            "join as of, and the validity columns the anchor joins against do not exist "
-            "on it (RFC 0023 §5.3). Fix: drop the as_of, or declare the entity scd: type2"
-        )
-        return [HistoricalFanout(msg, source_path=step_path)]
+        case AsOfState.ANCHOR_ON_CURRENT:
+            # There is no version to choose between, so the anchor names a
+            # reading that does not exist. Left accepted it would emit a
+            # predicate against columns the relation does not have.
+            msg = (
+                f"flatten step declares as_of: {step.as_of!r}, but {rel.to_entity!r} is not "
+                "scd: type2 — it holds one row per key, so there is no version to read the "
+                "join as of, and the validity columns the anchor joins against do not exist "
+                "on it (RFC 0023 §5.3). Fix: drop the as_of, or declare the entity scd: type2"
+            )
 
-    if step.as_of is None:
-        return []
+        case AsOfState.ANCHOR_UNKNOWN:
+            # The anchor is read from the base row rather than from anywhere in
+            # the mart, because that is where a fact's own date lives —
+            # including in the two-hop shape RFC 0023 §5.3 calls the common
+            # case, where only the foreign key arrives through another flatten.
+            known = sorted(c.name for c in base.columns)
+            msg = (
+                f"flatten step declares as_of: {step.as_of!r}, which names no column of the "
+                f"mart's base entity {base.name!r}; known: {known}. The anchor is the fact's "
+                "own date, so it is read from the base row (RFC 0023 §5.3). Fix: name a date "
+                "or timestamp column of the base"
+            )
 
-    return _anchor_leaves(step.as_of, base, rel, step_path)
+        case AsOfState.ANCHOR_NOT_TEMPORAL:
+            # Refusing a non-temporal anchor here rather than letting it reach
+            # SQL is the same call the SQLMesh time-column check makes —
+            # comparing a string to an interval bound is a comparison an engine
+            # will happily perform and answer wrongly.
+            #
+            # `_type_name`, not the dataclass repr: the author wrote
+            # `type: int`, and telling them `IntType()` names a class they have
+            # never seen.
+            column = guaranteed(
+                (c for c in base.columns if c.name == step.as_of),
+                expected=f"column {step.as_of!r} on {base.name!r}",
+                by="qualify_as_of, which returns ANCHOR_UNKNOWN when it is absent",
+            )
+            msg = (
+                f"flatten step declares as_of: {step.as_of!r}, which is "
+                f"{_type_name(column.type)} on {base.name!r} — an anchor is compared against "
+                f"{rel.to_entity!r}'s validity interval, and only a date or timestamp orders "
+                "against one (RFC 0023 §5.3). Fix: name a date or timestamp column of the "
+                "base"
+            )
 
-
-# ....................... #
-
-
-def _anchor_leaves(
-    as_of: str, base: EntityIR, rel: RelationshipIR, step_path: str
-) -> list[GuardrailError]:
-    """The anchor must be a temporal column *of the base entity*.
-
-    On the base rather than anywhere in the mart because that is where a fact's
-    own date lives, including in the two-hop shape RFC 0023 §5.3 calls the
-    common case: there the anchor is on the fact and only the foreign key comes
-    through another flatten. Refusing a non-temporal anchor here rather than
-    letting it reach SQL is the same call the SQLMesh time-column check makes —
-    comparing a string to an interval bound is a comparison an engine will
-    happily perform and answer wrongly.
-    """
-    column = next((c for c in base.columns if c.name == as_of), None)
-
-    if column is None:
-        known = sorted(c.name for c in base.columns)
-        msg = (
-            f"flatten step declares as_of: {as_of!r}, which names no column of the mart's "
-            f"base entity {base.name!r}; known: {known}. The anchor is the fact's own "
-            "date, so it is read from the base row (RFC 0023 §5.3). Fix: name a date or "
-            "timestamp column of the base"
-        )
-        return [HistoricalFanout(msg, source_path=step_path)]
-
-    if not isinstance(column.type, DateType | TimestampType):
-        # `_type_name`, not the dataclass repr: the author wrote `type: int`,
-        # and telling them `IntType()` names a class they have never seen.
-        msg = (
-            f"flatten step declares as_of: {as_of!r}, which is {_type_name(column.type)} on "
-            f"{base.name!r} — an anchor is compared against {rel.to_entity!r}'s validity "
-            "interval, and only a date or timestamp orders against one (RFC 0023 §5.3). "
-            "Fix: name a date or timestamp column of the base"
-        )
-        return [HistoricalFanout(msg, source_path=step_path)]
-
-    return []
+    return [HistoricalFanout(msg, source_path=step_path)]
 
 
 # ....................... #

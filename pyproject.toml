@@ -352,6 +352,16 @@ exclude_type_checking_imports = true
 # models it describes and the transform registry the whitelist enum comes from
 # (D2), and nothing else. A sibling rather than a top layer because `cli`
 # consumes it; the two siblings are mutually independent by construction.
+# M20 (RFC 0037 §8): `semantic` is the grain vocabulary — grain identity,
+# functional dependencies and the rollup question. It sits directly above `ir`
+# and below `marts`, which is the *lowest* placement that admits both of its
+# eventual consumers: RFC 0040's planner, and the mart's own `GrainViolation`
+# if RFC 0037 D8 is ever answered the other way. Reading only `ir`, `typing`
+# and `errors` is what §8 means by "must not depend on SQLMesh, dbt, Cube,
+# MetricFlow, or SQL syntax" — and the placement is the enforcement, so the
+# section is a gate rather than a promise in a docstring. The edge that
+# already exists is `marts -> semantic`: the flattener reads the as-of fact
+# from there instead of holding a second interpretation of it (D4).
 # M19 (RFC 0022): `evidence` sits directly above `resolve` and below `plan` —
 # as low as it can go, which is the placement that states what it is. It reads
 # the pipeline it runs (`resolve`), the IR it projects (`ir`), the spec types
@@ -373,6 +383,7 @@ layers = [
     "(bloomery.guardrails)",
     "(bloomery.quality)",
     "(bloomery.marts)",
+    "(bloomery.semantic)",
     "(bloomery.ir)",
     "(bloomery.dialects) | (bloomery.schema)",
     "(bloomery.transforms)",
@@ -395,6 +406,25 @@ name = "Emitters never import the spec layer"
 type = "forbidden"
 source_modules = ["bloomery.emit", "bloomery.dialects"]
 forbidden_modules = ["bloomery.spec"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+# RFC 0037 §8. `dialects` and `spec` both sit *below* `semantic` in the layers
+# contract above, so that contract alone would permit the grain model to import
+# either directly. This forbids it: the engine sits below request planning and
+# above raw target lowering, and a functional dependency is not a fact about
+# SQL syntax or about authored YAML.
+#
+# **Direct imports only**, exactly as the contract above allows for emitters,
+# and the transitive reach it permits is real rather than theoretical:
+# `semantic -> ir -> spec.common` exists today, because `ir/lower.py` reads the
+# shared grammar constant `PARTITION_SPEC_PATTERN` from there. What is being
+# enforced is that no grain-model module reads a spec *model* or a dialect
+# port, which is the property §8 is about.
+name = "The grain model reads IR, never dialects or specs"
+type = "forbidden"
+source_modules = ["bloomery.semantic"]
+forbidden_modules = ["bloomery.dialects", "bloomery.spec"]
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]

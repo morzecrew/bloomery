@@ -35,6 +35,15 @@ Two consequences worth knowing:
 - **Retire whole, never in part.** A 🚧 In progress RFC stays, however much of it has
   shipped. Deleting the shipped half would leave the remainder arguing from a premise no
   longer in the tree.
+- **A ✅ root of a live sequence stays too, for the same reason across documents rather
+  than within one.** Where several unstarted RFCs are written *in* a landed document's
+  vocabulary — not merely citing a decision it made, but arguing from terms it defines —
+  retiring it leaves them unreadable in exactly the way the point above refuses. Its
+  **status line** says so — the index one-liner records what an RFC *is*, never what has
+  happened to it — and it is retired with the last of its dependants. 0037 is
+  the first: 0038–0042, 0053 and 0058 all reason in its grain vocabulary. This is not a
+  licence to keep a document because something cites it — prose citations are precisely
+  what `RETIRED.md` exists to keep followable.
 
 ## Allocating a number
 
@@ -68,7 +77,7 @@ know it has a companion recording where it turned out to be wrong.
 | # | Title | Status | One-line routing description |
 |---|---|---|---|
 | [0033](0033-observability-logging-and-a-warnings-channel.md) | Observability: logging and a warnings channel | 📝 Draft | Stage-level stdlib logging that stays silent by default and cannot touch artifact bytes, a typed compile-time advisory channel riding `SpecEvidence`, and `warnings` reserved for deprecation alone. |
-| [0037](0037-semantic-grain-model.md) | Semantic grain model and functional dependencies | 📝 Draft | Grain as structural identity rather than a name, with functional dependencies carrying their basis, so rollup safety is proven instead of inferred from string equality. Root of the semantic sequence. |
+| [0037](0037-semantic-grain-model.md) | Semantic grain model and functional dependencies | ✅ Complete | Grain as structural identity rather than a name, with functional dependencies carrying their basis, so rollup safety is proven instead of inferred from string equality. Root of the semantic sequence. |
 | [0038](0038-measure-semantic-types-and-additivity.md) | Measure semantic types and additivity algebra | 📝 Draft | A measure typed over value, origin grain, aggregation class, and unit — consolidating additivity, units and currency, which today live on three different nodes. |
 | [0039](0039-semantic-proof-ir.md) | Semantic proof IR and closed-world checking | 📝 Draft | Acceptance as a positive derivation rather than the absence of a violation, with provenance on every leaf: unknown is not safe, and capability grows by adding proof rules. |
 | [0040](0040-safe-rollup-planner.md) | Safe rollup planner and SemanticPlan IR | 📝 Draft | A proof-producing planner for single-measure requests, separating what a mart may represent from what a query may answer. The mart's grain rule does not move. |
@@ -101,4 +110,8 @@ know it has a companion recording where it turned out to be wrong.
 - ❌ **Rejected / withdrawn**
 
 ✅ and ❌ are transient: a row reaching either status is retired in the same change, so a
-steady-state table holds only 📝 and 🚧 rows.
+steady-state table holds only 📝 and 🚧 rows — **except a ✅ root of a live sequence**, which
+stays until its last dependant is retired, for the reason the retirement section above
+gives. Such a row says so in its own status line. 0037 is the only one today. Do not
+relabel it 🚧: nothing about it is in progress, and the exception is about what other
+documents still need, not about what this one has left to do.
