@@ -50,7 +50,18 @@ REQUIRED = (
     "correct.sql",
     "expected/result.json",
     "expected/semantic_outcome.json",
+    # A directory rather than a file, and here rather than left to
+    # `_expectations` to discover: without it that helper's `iterdir()` raises
+    # FileNotFoundError, which reads as a harness bug rather than as the
+    # incomplete case it is.
+    "bloomery",
 )
+
+#: The two queries every case runs, and the two keys `result.json` is therefore
+#: written against. Named because the pair is a contract, not a convention: a
+#: file carrying only one of them loads clean and fails much later, in the
+#: execution tier, as a `KeyError` naming neither the case nor the omission.
+QUERIES = ("naive", "correct")
 
 
 class Outcome(StrEnum):
@@ -178,6 +189,11 @@ class Case:
         """
         raw = json.loads((self.directory / "expected" / "result.json").read_text("utf-8"))
 
+        if set(raw) != set(QUERIES):
+            raise AssertionError(
+                f"{self.name}: result.json must name exactly {list(QUERIES)}, got {sorted(raw)}"
+            )
+
         return {
             query: {column: Decimal(value) for column, value in columns.items()}
             for query, columns in raw.items()
@@ -205,6 +221,18 @@ def _expectations(directory: pathlib.Path) -> tuple[Expectation, ...]:
         )
         raise AssertionError(problem)
 
+    # A spec directory is a *project*, and an empty one is not. Left unchecked
+    # it passes every structural test here — the name matches, the outcome map
+    # agrees — and only fails when something tries to compile it, which for a
+    # `refused` expectation is indistinguishable from the refusal being asserted.
+    # After the agreement check, so a directory that is empty *and* undeclared
+    # is reported as the disagreement it also is.
+    empty = sorted(
+        name for name in specs if not any((directory / "bloomery" / name).glob("*.yaml"))
+    )
+    if empty:
+        raise AssertionError(f"{directory.name}: spec directory with no YAML in it: {empty}")
+
     return tuple(
         Expectation(
             name=name,
@@ -227,9 +255,15 @@ def cases() -> tuple[Case, ...]:
         absent = [part for part in REQUIRED if not (directory / part).exists()]
         if absent:
             raise AssertionError(f"{directory.name}: incomplete case, missing {absent}")
-        found.append(
-            Case(name=directory.name, directory=directory, expectations=_expectations(directory))
+        case = Case(
+            name=directory.name, directory=directory, expectations=_expectations(directory)
         )
+        # Reading it is the check: `metric` parses result.json, which refuses a
+        # file naming anything but both queries, and then refuses one whose two
+        # halves measure different columns. Done here so a malformed case fails
+        # at collection rather than in whichever parametrized cell reaches it.
+        _ = case.metric
+        found.append(case)
 
     if not found:
         raise AssertionError(f"no cases under {CORPUS} — the corpus cannot be empty")
