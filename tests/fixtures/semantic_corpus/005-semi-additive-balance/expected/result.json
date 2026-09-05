@@ -1,0 +1,4 @@
+{
+  "naive": {"total_balance": "320.0000"},
+  "correct": {"total_balance": "170.0000"}
+}

@@ -1,0 +1,10 @@
+# The declaration the corpus is about. `avg` is not additive over anything,
+# and nothing checks that `additivity: additive` is true — so this compiles,
+# and any rollup of it re-averages an average.
+metrics_version: 1
+metrics:
+  average_item_price:
+    grain: order_item
+    additivity: additive
+    agg: avg
+    expr: "unit_price"

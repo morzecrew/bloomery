@@ -1,0 +1,11 @@
+{
+  "mixed": {
+    "outcome": "refused",
+    "error": "CurrencyMismatch",
+    "rule": "RFC 0006 D4"
+  },
+  "converted": {
+    "outcome": "accepted",
+    "rule": "RFC 0023 §5.4"
+  }
+}

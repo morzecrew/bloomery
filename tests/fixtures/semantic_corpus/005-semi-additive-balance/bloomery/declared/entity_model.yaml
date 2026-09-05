@@ -1,0 +1,9 @@
+spec_version: 1
+entities:
+  balance:
+    grain: one row per account per day
+    key: [account_id, as_of_day]
+    fields:
+      account_id: {type: string, required: true}
+      as_of_day: {type: date, required: true}
+      balance: {type: "decimal(12,4)"}

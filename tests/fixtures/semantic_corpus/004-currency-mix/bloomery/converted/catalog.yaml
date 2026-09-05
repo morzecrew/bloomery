@@ -1,0 +1,13 @@
+catalog_version: 1
+vertical: payments
+fx_rates:
+  relation: fx_rate
+  from: from_ccy
+  to: to_ccy
+  rate: rate
+  valid_from: valid_from
+  valid_to: valid_to
+canonical_fields:
+  amount_eur: {entity: payment, type: "decimal(12,4)", unit: currency, tax_basis: net, currency: EUR}
+  amount_usd: {entity: payment, type: "decimal(12,4)", unit: currency, tax_basis: net, currency: USD}
+  fee_usd: {entity: payment, type: "decimal(12,4)", unit: currency, tax_basis: net, currency: USD}

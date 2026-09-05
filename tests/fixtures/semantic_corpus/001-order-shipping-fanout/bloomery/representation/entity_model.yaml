@@ -1,0 +1,23 @@
+# Shipping lives on `order` and is only ever aggregated there.
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      shipping: {type: "decimal(12,4)"}
+  order_item:
+    grain: one row per line on an order
+    key: [order_id, line_no]
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      unit_price: {type: "decimal(12,4)"}
+      ordered_at: {type: timestamp}
+relationships:
+  - name: item_of_order
+    from: order_item
+    to: order
+    via: {order_id: order_id}
+    cardinality: many_to_one

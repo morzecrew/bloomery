@@ -1,0 +1,13 @@
+# The unsafe wide representation: the mart's own grain is the line, and it
+# lists a measure that originates on the order. Every row of the mart carries
+# a copy of that order's shipping, so any SUM over the mart overstates it once
+# per line — which is the naive query, materialized.
+marts_version: 1
+marts:
+  order_items_wide:
+    grain: order_item
+    base: order_item
+    measures: [shipping_total]
+    flatten:
+      - {via: item_of_order, prefix: order_}
+      - {date: ordered_at, role: ordered}

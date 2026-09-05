@@ -1,0 +1,10 @@
+{
+  "naive": {
+    "outcome": "unguarded",
+    "rule": "RFC 0038 D2"
+  },
+  "decomposed": {
+    "outcome": "accepted",
+    "rule": "RFC 0006 §5.4"
+  }
+}

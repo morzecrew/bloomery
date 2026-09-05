@@ -1,0 +1,4 @@
+{
+  "naive": {"shipping_total": "27.0000"},
+  "correct": {"shipping_total": "9.0000"}
+}

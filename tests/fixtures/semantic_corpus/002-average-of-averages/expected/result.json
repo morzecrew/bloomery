@@ -1,0 +1,4 @@
+{
+  "naive": {"average_item_price": "55.00000000"},
+  "correct": {"average_item_price": "32.50000000"}
+}

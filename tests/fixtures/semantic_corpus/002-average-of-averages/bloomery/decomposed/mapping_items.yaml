@@ -1,0 +1,8 @@
+mapping_version: 1
+source: corpus__order_items
+target: order_item
+key:
+  order_id: {from: "$.order_id", transform: [to_string]}
+  line_no: {from: "$.line_no", transform: [to_int]}
+fields:
+  unit_price: {from: "$.unit_price", transform: [{to_decimal: [12, 4]}]}

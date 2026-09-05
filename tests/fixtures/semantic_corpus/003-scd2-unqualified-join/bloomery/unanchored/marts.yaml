@@ -1,0 +1,12 @@
+# The join every ERD suggests: equality on the business key, no anchor. The
+# relation holds one row per version, so each order meets every version of its
+# customer's tier and the mart holds more rows than it claims to.
+marts_version: 1
+marts:
+  orders_wide:
+    grain: order
+    base: order
+    measures: [revenue]
+    flatten:
+      - {via: tier_of_customer, prefix: tier_}
+      - {date: ordered_at, role: ordered}

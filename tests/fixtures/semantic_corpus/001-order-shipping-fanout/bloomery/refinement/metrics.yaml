@@ -1,0 +1,7 @@
+metrics_version: 1
+metrics:
+  landed_total:
+    grain: order_item
+    additivity: additive
+    agg: sum
+    expr: "landed_cost"

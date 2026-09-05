@@ -1,0 +1,29 @@
+catalog_version: 1
+vertical: ecom_retail
+
+canonical_fields:
+  unit_price:
+    entity: order_item
+    type: decimal(12,4)
+    unit: currency
+    tax_basis: net
+    recipes:
+      - {id: direct, requires: [unit_price]}
+  shipping:
+    entity: order
+    type: decimal(12,4)
+    unit: currency
+    tax_basis: net
+    recipes:
+      - {id: direct, requires: [shipping]}
+  landed_cost:
+    entity: order_item
+    type: decimal(12,4)
+    unit: currency
+    tax_basis: net
+    recipes:
+      # The refinement: an order-grain operand pulled down to line grain with
+      # no aggregation. Arithmetically right, three times wrong.
+      - id: naive_join
+        requires: [unit_price, shipping]
+        expr: "unit_price + shipping"

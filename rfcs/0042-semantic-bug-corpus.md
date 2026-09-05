@@ -1,8 +1,13 @@
 # RFC 0042 — Production-style semantic bug corpus
 
-- **Status:** 📝 Draft — proposed, **can start immediately** and in parallel with
-  [RFC 0037](0037-semantic-grain-model.md). It is the only document in this sequence with
-  no upstream dependency, and the one that gives the others their acceptance evidence.
+- **Status:** 🚧 In progress — §11's first phase has landed: cases 001–005 under
+  [`tests/fixtures/semantic_corpus/`](../tests/fixtures/semantic_corpus/), with the loader,
+  its guard, and the execution tier that runs them. The remaining five follow as the proof
+  rules that own them are designed, so the document stays whole (`INDEX.md` — retire whole,
+  never in part). Execution's findings and the rows it proposes are in
+  [`logs/T-0018.md`](../logs/T-0018.md); nothing below has been amended to agree with what
+  was built. It had no upstream dependency, and it is what gives the rest of the
+  semantic-correctness sequence its acceptance evidence.
 - **Scope:** A permanent corpus of cases where SQL and schema validation succeed while the
   analytical answer is semantically wrong. Regression suite, design input, benchmark,
   documentation source, and product evidence.

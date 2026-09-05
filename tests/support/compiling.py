@@ -27,7 +27,12 @@ _DBT_SOURCE = re.compile(r"\{\{ source\('(?P<namespace>[^']+)', '(?P<relation>[^
 #: corpus the quality tiers read; it has no `*.yaml` and `read_spec_directory`
 #: refuses it. Named rather than discovered, so a *spec* fixture that stops
 #: loading fails its caller by name instead of quietly leaving the sweep.
-NON_SPEC_FIXTURES = frozenset({"dirty"})
+#: ``semantic_corpus`` joins it for a different reason and the difference is
+#: worth stating: it *does* hold specs, several per case, but one directory
+#: down under ``<case>/bloomery/<expectation>/`` — and half of them are meant
+#: to be refused. A sweep asserting "every spec fixture resolves" would fail on
+#: exactly the cases the corpus exists to hold (RFC 0042).
+NON_SPEC_FIXTURES = frozenset({"dirty", "semantic_corpus"})
 
 
 #: A project whose entity-field id collides with a metric id. An entity-field id

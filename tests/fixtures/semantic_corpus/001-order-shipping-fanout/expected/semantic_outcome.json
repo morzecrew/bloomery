@@ -1,0 +1,16 @@
+{
+  "representation": {
+    "outcome": "refused",
+    "error": "GrainViolation",
+    "rule": "RFC 0010 D2"
+  },
+  "rollup": {
+    "outcome": "accepted",
+    "rule": "RFC 0010 D2"
+  },
+  "refinement": {
+    "outcome": "refused",
+    "error": "GrainMismatch",
+    "rule": "RFC 0006 D5"
+  }
+}
