@@ -1,7 +1,13 @@
 # RFC 0038 — Measure semantic types and additivity algebra
 
-- **Status:** 📝 Draft — proposed, not started. Second in the semantic-correctness
-  sequence; depends on [RFC 0037](0037-semantic-grain-model.md).
+- **Status:** 🚧 In progress — §12's first phase has landed: `Additivity` is closed at six
+  members, and `additivity: additive` is checked rather than trusted, which converts corpus
+  cases 002 and 005 from `unguarded` to `refused` (RFC 0042 §8). The remaining classes wait
+  on the lowering RFC 0041 gates, so the document stays whole (`INDEX.md` — retire whole,
+  never in part). Execution's findings and the rows it proposes are in
+  [`logs/T-0019.md`](../logs/T-0019.md); nothing below has been amended to agree with what
+  was built. Second in the semantic-correctness sequence; depends on
+  [RFC 0037](0037-semantic-grain-model.md).
 - **Scope:** Give measures explicit semantic types over value domain, origin grain,
   aggregation behaviour, units/currency, and derived-metric structure, and establish the
   minimum algebra needed for safe rollup decisions. Target-independent IR only.

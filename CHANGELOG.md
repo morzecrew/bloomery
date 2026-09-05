@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`additivity: additive` is checked rather than trusted.** The additivity
+  guard read only metrics declared `non_additive` or `semi_additive`, so the
+  one declaration nothing verified was the one most projects write. Two false
+  shapes are now refused as `FalseAdditivityClaim`:
+
+  - an `avg`, `median` or `count_distinct` declared additive — rolling one up
+    re-aggregates an aggregate, weighting each group equally instead of each
+    row, so the answer is wrong wherever groups differ in size;
+  - a measure whose entity key carries a date or timestamp — `one row per
+    account per day` means each row is a point-in-time snapshot, and summing
+    across the period adds the same money once per day.
+
+  Both compiled clean before, and both answer with a plausible wrong number,
+  which is the failure class this compiler exists to refuse.
+
+  **Migrating.** Neither refusal is silent and both name the fix. An average
+  becomes `additivity: non_additive` with `ratio: {numerator, denominator}`
+  over the two additive quantities it divides — the quotient is then computed
+  at query time, from sums, which is the only way it rolls up correctly. A
+  snapshot becomes `additivity: semi_additive` with
+  `semi_additive: {over: <the date in the key>, rule: last}`; the message names
+  both the axis to declare and the ones the measure stays additive across.
+
+  A temporal column *outside* the key is untouched: an `order` keyed on
+  `order_id` with an `ordered_at` timestamp is an event, not a snapshot, and
+  summing its amounts was never in question.
+
+  `Additivity` also gains `ratio`, `distinct_count` and `snapshot` as members.
+  The authored `additivity:` keyword still accepts its three words — the new
+  members are the resolved vocabulary, not new syntax, and nothing mints them
+  yet.
+
 - **dbt is a complete quality target.** `quarantine:` and `reconcile:` on an
   entity, and the quality mart that counts over both, compiled for SQLMesh and
   raised `UnsupportedByTarget` for dbt. All three now emit: a
