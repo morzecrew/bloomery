@@ -12,6 +12,8 @@ import dataclasses
 
 import pytest
 from bloomery.semantic import (
+    BASIS_PROVENANCE,
+    BASIS_RULES,
     RULES,
     SUPERSEDED,
     Obligation,
@@ -24,7 +26,6 @@ from bloomery.semantic import (
     prove_rollup,
 )
 from bloomery.semantic.nodes import DependencyBasis, RollupProof
-from bloomery.semantic.proof import BASIS_PROVENANCE, BASIS_RULES
 from support.grain_model import ANCHORED, CORPUS, QUESTIONS, grain
 
 pytestmark = pytest.mark.unit
@@ -172,6 +173,61 @@ def test_the_sort_key_is_total_over_the_node() -> None:
     ).premises == (first, second)
 
 
+def test_the_sort_key_descends_below_the_conclusion() -> None:
+    """The half the first version missed, and the reason it was missed: two
+    proofs sharing a rule *and* a conclusion still differ, in their facts or in
+    what hangs below them. `sorted` is stable, so equal keys keep traversal
+    order and the parent serializes differently for the same set of premises —
+    which is the determinism failure the whole key exists to prevent, surviving
+    a key that looked total because it named two fields instead of one.
+    """
+    conclusion = SemanticJudgement("Reaches", (("column", "x"),))
+    a = Proof(
+        rule="R001", conclusion=conclusion, facts=(SemanticFact("entity:a", Provenance.DECLARED, "a"),)
+    )
+    b = Proof(
+        rule="R001", conclusion=conclusion, facts=(SemanticFact("entity:b", Provenance.DECLARED, "b"),)
+    )
+
+    assert a != b
+    assert a.sort_key != b.sort_key
+
+    forward = Proof(rule="R006", conclusion=SemanticJudgement("S"), premises=(a, b))
+    reverse = Proof(rule="R006", conclusion=SemanticJudgement("S"), premises=(b, a))
+
+    assert forward.serialize() == reverse.serialize()
+
+
+def test_a_fact_is_identified_by_its_source_not_its_wording() -> None:
+    """`source` is the identity, which the docstring said and the dedupe did
+    not: two facts about one source with different wording both survived, so a
+    renderer changing a sentence changed what a proof serialized to."""
+    proof = Proof(
+        rule="R001",
+        conclusion=SemanticJudgement("Reaches"),
+        facts=(
+            SemanticFact("entity:a", Provenance.DECLARED, "one wording"),
+            SemanticFact("entity:a", Provenance.DECLARED, "another wording"),
+        ),
+    )
+
+    assert len(proof.facts) == 1
+
+
+def test_one_source_claimed_at_two_provenances_is_refused() -> None:
+    """Not a duplicate to drop: one of the two is wrong, and dropping silently
+    lets whichever arrived second decide whether the proof closes."""
+    with pytest.raises(ValueError, match="claimed both"):
+        Proof(
+            rule="R001",
+            conclusion=SemanticJudgement("Reaches"),
+            facts=(
+                SemanticFact("entity:a", Provenance.DECLARED, "s"),
+                SemanticFact("entity:a", Provenance.INFERRED_HEURISTIC, "s"),
+            ),
+        )
+
+
 def test_serialization_carries_nothing_that_varies_between_processes() -> None:
     """§9's list, asserted rather than promised: no addresses, no timestamps."""
     source, target = QUESTIONS[0]
@@ -288,6 +344,34 @@ def test_a_refutation_states_the_smallest_failed_obligation() -> None:
     assert answer.reason == "refinement"
     assert any("order_item" in obligation.required for obligation in answer.obligations)
     assert "finer" in answer.remediation
+
+
+def test_an_anchored_hop_records_which_anchor_qualified_it() -> None:
+    """`as_of` is what qualified a historical hop, so a proof omitting it
+    cannot say which reading closed the obligation — `ordered_at` and
+    `shipped_at` are both valid anchors that select different versions and
+    different numbers, and would otherwise serialize identically."""
+    answer = prove_rollup(
+        grain("order", "order_id"), grain("customer_tier", "customer_id"), CORPUS, ANCHORED
+    )
+    assert isinstance(answer, Proof)
+
+    encoded = answer.serialize()
+
+    assert "as_of=ordered_at" in encoded
+    assert "@ordered_at" in encoded  # and in the fact's identity, not only the judgement
+
+
+def test_a_blocked_declared_relationship_is_reported_as_declared() -> None:
+    """These edges come from `project.relationships`, so the author wrote every
+    one of them. `UNKNOWN` says no such fact exists, which would send an author
+    to declare a second copy of the relationship already there — what is
+    missing is a qualification of it."""
+    answer = prove_rollup(grain("order", "order_id"), grain("promo", "promo_id"), CORPUS)
+    assert isinstance(answer, Refutation)
+
+    assert answer.rejected
+    assert {fact.provenance for fact in answer.rejected} == {Provenance.DECLARED}
 
 
 def test_a_blocked_edge_becomes_the_found_half_of_an_obligation() -> None:

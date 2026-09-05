@@ -241,22 +241,48 @@ class Proof:
         if premises != self.premises:
             object.__setattr__(self, "premises", premises)
 
-        facts = tuple(sorted(set(self.facts)))
+        # By `source`, which the docstring calls the identity — deduplicating
+        # on the whole value instead would keep two facts about one source
+        # whenever their wording differed, so a renderer changing a sentence
+        # would change what a proof serializes to. Two facts that disagree
+        # about a source's provenance are not a duplicate to be dropped: one of
+        # them is wrong, and picking silently is how the weaker one closes an
+        # obligation.
+        by_source: dict[str, SemanticFact] = {}
+        for fact in self.facts:
+            held = by_source.setdefault(fact.source, fact)
+            if held.provenance is not fact.provenance:
+                msg = (
+                    f"fact {fact.source!r} is claimed both {held.provenance.value} and "
+                    f"{fact.provenance.value} in one proof — a source has one provenance, "
+                    "and the weaker of two would decide whether this closes (RFC 0039 D1)"
+                )
+                raise ValueError(msg)
+
+        facts = tuple(sorted(by_source.values()))
         if facts != self.facts:
             object.__setattr__(self, "facts", facts)
 
     # ....................... #
 
     @property
-    def sort_key(self) -> tuple[str, str]:
-        """Total over the node's own value, not over a prefix of it.
+    def sort_key(self) -> tuple[str, ...]:
+        """Total over the node's **whole** value, including what hangs below it.
 
-        A key that stopped at ``rule`` would leave two premises of one rule
-        tied, and a tie among equal keys is resolved by whatever order the walk
-        happened to produce.
+        A key stopping at ``rule`` leaves two premises of one rule tied, and a
+        tie among equal keys is resolved by whatever order the walk happened to
+        produce — `sorted` is stable, so the traversal wins. The first version
+        of this stopped at ``(rule, conclusion)``, which two proofs differing
+        only in their facts share: they sorted by construction order and the
+        parent serialized differently for the same set of premises.
+
+        So the key descends. ``serialize`` is the canonical form of everything
+        a proof is, which makes it the one value that cannot tie for two proofs
+        that differ — and premises are already canonical by the time a parent
+        sorts them, since each was built before it.
         """
 
-        return (self.rule, self.conclusion.render())
+        return (self.rule, self.conclusion.render(), self.serialize())
 
     # ....................... #
 
@@ -392,8 +418,12 @@ class Refutation:
     #: guessed: a wrong remediation costs more than a missing one, because an
     #: author acts on it.
     remediation: str = ""
-    #: Facts the compiler holds that did not close anything — a heuristic, an
-    #: unknown. Carried so a refutation can say what it found.
+    #: Facts the compiler holds that did not close this obligation, with the
+    #: provenance they actually have. A declared relationship that is blocked
+    #: belongs here as ``DECLARED``: it exists and the author wrote it, and
+    #: what is missing is a *qualification* of it, not the fact. Reporting one
+    #: as ``UNKNOWN`` would say no such relationship exists, sending an author
+    #: to declare a second copy of the one already there.
     rejected: tuple[SemanticFact, ...] = field(default=())
 
     # ....................... #
