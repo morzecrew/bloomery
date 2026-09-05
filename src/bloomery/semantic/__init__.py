@@ -34,6 +34,8 @@ from bloomery.semantic.nodes import (
     grain_of,
 )
 from bloomery.semantic.proof import (
+    BASIS_PROVENANCE,
+    BASIS_RULES,
     RULES,
     SUPERSEDED,
     Obligation,
@@ -48,6 +50,8 @@ from bloomery.semantic.proof import (
 # ----------------------- #
 
 __all__ = [
+    "BASIS_PROVENANCE",
+    "BASIS_RULES",
     "prove_rollup",
     "SemanticJudgement",
     "SemanticFact",

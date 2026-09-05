@@ -635,15 +635,29 @@ def _dependency_proof(step: FunctionalDependency) -> Proof:
         f"relationship:{step.via}" if step.via is not None else f"entity:{step.determinant.label}"
     )
 
+    # The anchor is what *qualified* the hop, so a proof that omits it cannot
+    # say which historical reading closed the obligation — two anchors that are
+    # both valid, `ordered_at` and `shipped_at`, would serialize identically
+    # while selecting different versions and different numbers. It joins the
+    # fact's identity as well as the judgement: the fact is "this relationship,
+    # read as of this column", and two readings of one relationship are two
+    # facts rather than one repeated.
+    anchored = ("as_of", step.as_of) if step.as_of is not None else None
+
     return Proof(
         rule=BASIS_RULES[basis],
         conclusion=SemanticJudgement(
             "Determines",
-            (("by", basis), ("from", step.determinant.label), ("to", str(step.dependent))),
+            (
+                ("by", basis),
+                ("from", step.determinant.label),
+                ("to", str(step.dependent)),
+                *((anchored,) if anchored is not None else ()),
+            ),
         ),
         facts=(
             SemanticFact(
-                source=source,
+                source=source if anchored is None else f"{source}@{step.as_of}",
                 provenance=BASIS_PROVENANCE[basis],
                 statement=RULES[BASIS_RULES[basis]].summary,
             ),
@@ -752,10 +766,15 @@ def prove_rollup(
             judgement=judgement,
             obligations=obligations,
             remediation=_REMEDIES.get(answer.reason, ""),
+            # `DECLARED`, because these edges come from `project.relationships`
+            # and the author wrote every one of them. What is missing is a
+            # qualification of the relationship, not the relationship — and
+            # `UNKNOWN` says no such fact exists, which would send an author to
+            # declare a second copy of the one already there.
             rejected=tuple(
                 SemanticFact(
                     source=f"relationship:{edge.relationship}",
-                    provenance=Provenance.UNKNOWN,
+                    provenance=Provenance.DECLARED,
                     statement=f"blocked: {edge.reason.value}",
                 )
                 for edge in answer.blocked
