@@ -250,7 +250,7 @@ class Proof:
         # obligation.
         by_source: dict[str, SemanticFact] = {}
         for fact in self.facts:
-            held = by_source.setdefault(fact.source, fact)
+            held = by_source.get(fact.source, fact)
             if held.provenance is not fact.provenance:
                 msg = (
                     f"fact {fact.source!r} is claimed both {held.provenance.value} and "
@@ -258,6 +258,14 @@ class Proof:
                     "and the weaker of two would decide whether this closes (RFC 0039 D1)"
                 )
                 raise ValueError(msg)
+
+            # Two wordings of one fact are not an error — `statement` is
+            # rendered text and the docstring says so — but keeping whichever
+            # arrived first makes the bytes depend on construction order, which
+            # is the thing this whole class exists to prevent. The lower
+            # statement wins: arbitrary, and stable, which is the entire
+            # requirement.
+            by_source[fact.source] = min((held, fact), key=lambda candidate: candidate.statement)
 
         facts = tuple(sorted(by_source.values()))
         if facts != self.facts:

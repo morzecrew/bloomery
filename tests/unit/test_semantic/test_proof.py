@@ -214,6 +214,22 @@ def test_a_fact_is_identified_by_its_source_not_its_wording() -> None:
     assert len(proof.facts) == 1
 
 
+def test_two_wordings_of_one_fact_pick_the_same_one_either_way() -> None:
+    """Deduplicating by source is not enough on its own: keeping whichever
+    arrived first makes the serialization depend on construction order, and
+    `document` writes `statement` out. Two wordings are not an error — the
+    docstring calls `statement` rendered text — so one is chosen, and the
+    choice is arbitrary and stable rather than positional."""
+    first = SemanticFact("entity:a", Provenance.DECLARED, "zebra wording")
+    second = SemanticFact("entity:a", Provenance.DECLARED, "alpha wording")
+
+    forward = Proof(rule="R001", conclusion=SemanticJudgement("R"), facts=(first, second))
+    reverse = Proof(rule="R001", conclusion=SemanticJudgement("R"), facts=(second, first))
+
+    assert forward.serialize() == reverse.serialize()
+    assert forward.facts == reverse.facts == (second,)
+
+
 def test_one_source_claimed_at_two_provenances_is_refused() -> None:
     """Not a duplicate to drop: one of the two is wrong, and dropping silently
     lets whichever arrived second decide whether the proof closes."""
