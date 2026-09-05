@@ -64,6 +64,7 @@ __all__ = [
     "InvalidMetricShape",
     "MetricFilterInvalid",
     "NonAdditiveWithoutComponents",
+    "FalseAdditivityClaim",
     "MartMissingTimeDimension",
     "ReservedEntityName",
     "QuarantineRetentionMissing",
@@ -366,6 +367,23 @@ class GrainMismatch(GuardrailError):
 class AdditivityViolation(GuardrailError):
     """Guardrail stage (RFC 0006 §5.4): an aggregation that contradicts the
     metric's declared additivity."""
+
+
+# ....................... #
+
+
+class FalseAdditivityClaim(GuardrailError):
+    """Guardrail stage (RFC 0038 D1/D2): a measure declared ``additive`` whose
+    aggregation or origin grain says it is not.
+
+    Distinct from :class:`AdditivityViolation`, which polices a metric against
+    the additivity it *declared*. This one polices the declaration itself:
+    ``additivity: additive`` is a claim, and until RFC 0038 nothing checked it,
+    so the two shapes it names — an average re-averaged, and a snapshot summed
+    across the axis its grain is taken along — compiled clean and answered
+    wrongly. A plausible wrong number is the failure this compiler exists to
+    refuse, so the claim is now checked rather than trusted.
+    """
 
 
 # ....................... #

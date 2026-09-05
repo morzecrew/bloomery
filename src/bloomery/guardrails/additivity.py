@@ -18,19 +18,34 @@ Checked over ``MetricIR.additivity`` on the draft IR:
   the ``over`` dimension away violates it directly — both
   :class:`~bloomery.errors.AdditivityViolation`. The query-time lowering of
   ``rule`` is RFC 0011's, not this stage's (D11).
+- An ``additive`` metric must be telling the truth (RFC 0038 D1/D2). Until
+  then the word was taken on trust — the two rules above inspect only metrics
+  declared ``non_additive`` or ``semi_additive``, so a false ``additive``
+  claim was the one declaration nothing read. Two shapes are decidable from
+  the spec alone and both are :class:`~bloomery.errors.FalseAdditivityClaim`:
+  an ``avg`` re-averaged, and a measure summed across the very axis its origin
+  grain is taken along.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from sqlglot import exp
 
-from bloomery.errors import AdditivityViolation, GuardrailError, NonAdditiveWithoutComponents
+from bloomery.errors import (
+    AdditivityViolation,
+    FalseAdditivityClaim,
+    GuardrailError,
+    InvariantViolated,
+    NonAdditiveWithoutComponents,
+)
 from bloomery.ir import Additivity
+from bloomery.semantic import grain_of
+from bloomery.typing import DateType, TimestampType
 
 if TYPE_CHECKING:
-    from bloomery.ir import MetricIR, ProjectIR, SqlExpr
+    from bloomery.ir import EntityIR, MetricIR, ProjectIR, SqlExpr
 
 # ----------------------- #
 
@@ -132,6 +147,119 @@ def _check_semi_additive(metric: MetricIR, path: str) -> list[GuardrailError]:
 # ....................... #
 
 
+#: Aggregations that consume their inputs rather than accumulating them, so
+#: applying one to their own output is not the same operation done twice.
+#: ``sum``, ``min`` and ``max`` are idempotent under re-aggregation and are
+#: absent for that reason; ``count`` is not here because counting counts is
+#: `sum`, which the planner already knows.
+_NOT_REAGGREGABLE: Final = ("avg", "median", "count_distinct")
+
+
+def _check_average(metric: MetricIR, path: str) -> list[GuardrailError]:
+    """An average is not additive, whatever the metric says (RFC 0038 D2).
+
+    ``AVG(AVG(x))`` weights each group equally instead of each row, so a
+    re-aggregated average is wrong wherever the groups differ in size — which
+    is every real dataset. D2 is the general statement: a ratio is stored as
+    its operands, never as the materialized quotient, because the quotient
+    cannot be rolled up and looks exactly like a number that can.
+    """
+
+    if metric.agg not in _NOT_REAGGREGABLE:
+        return []
+
+    msg = (
+        f"metric {metric.name!r} declares additivity: additive with agg: {metric.agg}, which "
+        "does not produce an additive measure — rolling it up re-aggregates an aggregate, "
+        "weighting each group equally instead of each row, and the result answers a "
+        "question nobody asked (RFC 0038 D2). Fix: declare the additive components and let "
+        "the quotient be calculated at query time — additivity: non_additive with ratio: "
+        "{numerator, denominator} naming them"
+    )
+
+    return [FalseAdditivityClaim(msg, source_path=path)]
+
+
+# ....................... #
+
+
+def _check_snapshot(
+    metric: MetricIR, entity: EntityIR, draft: ProjectIR, path: str
+) -> list[GuardrailError]:
+    """A measure is not additive along the axis its own grain is taken over
+    (RFC 0038 D1).
+
+    The origin grain is the entity's key, read through the grain model so that
+    "what the grain is" keeps one definition rather than growing a second,
+    weaker one here (RFC 0037). A temporal determinant in that key means each
+    row is a *snapshot* — one row per account per day — and summing across the
+    axis adds every day's copy of the same money. Additive across the other
+    determinants, and not across this one, is exactly what ``semi_additive``
+    says, which is why that is what the message asks for.
+
+    **A temporal key column is not enough on its own** (see logs/T-0019.md,
+    D-107). An entity keyed ``(payment_id, paid_at)`` is one row per payment:
+    ``paid_at`` is functionally dependent on ``payment_id`` and the key is
+    merely redundant, so there is no axis to be non-additive over — and telling
+    that author to declare ``semi_additive`` would assert a rollup axis that
+    does not exist. Nothing in the key distinguishes the two shapes, so the
+    check asks the question §6 actually poses: is the axis *exposed for
+    rollup*? A mart carrying this measure and flattening the column as a date
+    dimension is what exposes it, and is what makes the wrong number reachable
+    in the first place. Where no mart does, nothing can be summed across
+    anything yet and there is no false claim to catch.
+    """
+
+    determinants = {d.column for d in grain_of(entity.name, entity.key).determinants}
+    temporal = tuple(
+        column.name
+        for column in entity.columns  # sorted by name on EntityIR
+        if column.name in determinants and isinstance(column.type, DateType | TimestampType)
+    )
+
+    exposed = tuple(
+        column
+        for column in temporal
+        for mart in draft.marts
+        if metric.name in mart.measures
+        and any(dimension.column == column for dimension in mart.dimensions)
+    )
+
+    if not exposed:
+        return []
+
+    over = exposed[0]
+    msg = (
+        f"metric {metric.name!r} declares additivity: additive, but its grain "
+        f"{entity.name!r} is one row per {', '.join(entity.key)} — {over!r} is part of "
+        "that key, so each row is a point-in-time snapshot and summing across "
+        f"{over!r} adds the same value once per period (RFC 0038 D1). Fix: additivity: "
+        f"semi_additive with semi_additive: {{over: {over}, rule: last|first|avg|min|max}}, "
+        f"which stays additive across {', '.join(k for k in entity.key if k != over) or 'the other determinants'}"
+    )
+
+    return [FalseAdditivityClaim(msg, source_path=path)]
+
+
+# ....................... #
+
+
+def _check_additive(metric: MetricIR, draft: ProjectIR, path: str) -> list[GuardrailError]:
+    """``additivity: additive`` is a claim; these are the two shapes of it that
+    are false and decidable without a planner (RFC 0038 D1/D2)."""
+
+    violations = _check_average(metric, path)
+
+    entity = next((e for e in draft.entities if e.name == metric.grain), None)
+    if entity is not None:
+        violations.extend(_check_snapshot(metric, entity, draft, path))
+
+    return violations
+
+
+# ....................... #
+
+
 def check_additivity(draft: ProjectIR) -> list[GuardrailError]:
     """Every additivity violation across the draft's metrics."""
     violations: list[GuardrailError] = []
@@ -142,5 +270,21 @@ def check_additivity(draft: ProjectIR) -> list[GuardrailError]:
             violations.extend(_check_non_additive(metric, draft, path))
         elif metric.additivity is Additivity.SEMI_ADDITIVE:
             violations.extend(_check_semi_additive(metric, path))
+        elif metric.additivity is Additivity.ADDITIVE:
+            violations.extend(_check_additive(metric, draft, path))
+        else:  # pragma: no cover — `RESOLVABLE` is what keeps this unreachable
+            # RFC 0038 D1 closed the enum at six while resolution mints three,
+            # and the three it does not mint have no rule here yet. Raising
+            # rather than falling through is the whole point (logs/T-0019.md,
+            # D-105): a silent `else` would hand a SNAPSHOT metric the
+            # additive checks, which are written for a different meaning, and
+            # nothing would say so.
+            msg = (
+                f"metric {metric.name!r} resolved to additivity "
+                f"{metric.additivity.value!r}, which no project can currently declare — "
+                "bloomery.ir.RESOLVABLE names the three that can, and the guard that "
+                "asserts it should have failed before this did (RFC 0038 D1)"
+            )
+            raise InvariantViolated(msg)
 
     return violations

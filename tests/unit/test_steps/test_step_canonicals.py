@@ -48,11 +48,15 @@ canonical_fields:
 METRICS = """
 metrics_version: 1
 metrics:
-  mean_confidence:
+  peak_confidence:
     requires: [match_confidence]
     grain: customer
+    # `max` rather than `avg`: this fixture is about a metric reaching a step
+    # output column, and an average declared additive is refused on its own
+    # account since RFC 0038 D2 — which would make every assertion below fail
+    # for a reason that has nothing to do with what they test.
     additivity: additive
-    agg: avg
+    agg: max
     expr: "match_confidence"
 """
 
@@ -119,7 +123,7 @@ def test_a_metric_over_a_step_output_column_is_reachable() -> None:
     """The whole point of D41. Without the link this was
     ``unreachable metric … no mapped derivation path``."""
     ir = build()
-    assert [metric.name for metric in ir.metrics] == ["mean_confidence"]
+    assert [metric.name for metric in ir.metrics] == ["peak_confidence"]
     assert ir.unreachable == ()
 
 
@@ -129,7 +133,7 @@ def test_without_the_link_the_metric_stays_unreachable() -> None:
     guessing RFC 0006 exists to refuse — `confidence` and `match_confidence`
     are deliberately spelled differently here for exactly that reason."""
     ir = build(canonical="")
-    assert [u.name for u in ir.unreachable] == ["mean_confidence"]
+    assert [u.name for u in ir.unreachable] == ["peak_confidence"]
     assert ir.unreachable[0].missing == ("match_confidence",)
 
 
