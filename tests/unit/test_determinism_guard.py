@@ -139,7 +139,7 @@ for evidence_fixture in ("ecom_basic", "fanout_trap"):
 # answer shape rides here — a proof, a refinement, an ambiguity and an
 # unanchored historical hop — so a seed-dependent walk cannot hide in a branch
 # nothing exercised.
-from bloomery.semantic import can_roll_up, closure, dependencies
+from bloomery.semantic import can_roll_up, closure, dependencies, prove_rollup
 from support.grain_model import ANCHORED, CORPUS, QUESTIONS
 
 grain_deps = dependencies(CORPUS)
@@ -151,6 +151,13 @@ print(dependencies(CORPUS, ANCHORED))
 for source, target in QUESTIONS:
     print(source.label, "->", target.label, can_roll_up(source, target, CORPUS))
     print(closure(source, grain_deps))
+    # The proof over the same walk (RFC 0039 D6, `LOCKED`). Its premises are
+    # sorted from a graph traversal and its leaves deduplicated through a set,
+    # which are the two places a hash seed reaches output — and `serialize` is
+    # the artifact a CI assertion would pin, so it is the byte string that has
+    # to match rather than the repr.
+    print(prove_rollup(source, target, CORPUS).serialize())
+    print(prove_rollup(source, target, CORPUS, ANCHORED).serialize())
 """
 
 

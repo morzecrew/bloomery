@@ -202,11 +202,19 @@ CORPUS = project(
 #: edges, whose ordering is the thing most easily left to a hash seed.
 ANCHORED = RollupContext((("order_tier", "ordered_at"), ("visit_session", "ordered_at")))
 
-#: ``(source, target)`` pairs covering a proof, a refinement, an ambiguity and
-#: an unanchored historical hop — one of each answer :func:`can_roll_up`
-#: returns, so a seed-dependent walk cannot hide in an unexercised branch.
+#: ``(source, target)`` pairs covering a proof, a proof onto a composite grain,
+#: a refinement, an ambiguity and an unanchored historical hop — one of each
+#: answer :func:`can_roll_up` returns, so a seed-dependent walk cannot hide in
+#: an unexercised branch, and so that "every determinant" is asserted against a
+#: target that has more than one.
 QUESTIONS = (
     (grain("order_item", "order_id", "line_id"), grain("customer", "customer_id")),
+    # A **composite** target that is provable, which the four below are not:
+    # every other proven answer here has a single-determinant target, so an
+    # assertion counting premises against determinants compares one to one and
+    # holds however many were dropped. Found by sabotage — truncating a proof's
+    # premises to the first changed nothing (logs/T-0020.md, D-113).
+    (grain("order_item", "order_id", "line_id"), grain("order_item", "order_id", "line_id")),
     (grain("order", "order_id"), grain("order_item", "order_id", "line_id")),
     (grain("order", "order_id"), grain("address", "address_id")),
     (grain("order", "order_id"), grain("customer_tier", "customer_id")),
