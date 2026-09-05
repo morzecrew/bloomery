@@ -139,6 +139,13 @@ def _expectations(directory: pathlib.Path) -> tuple[Expectation, ...]:
     )
     specs = {path.name for path in (directory / "bloomery").iterdir() if path.is_dir()}
 
+    # Agreement is not enough: an empty outcome map and an empty `bloomery/`
+    # agree perfectly, and the case then contributes its SQL assertions and
+    # nothing about bloomery at all — a case that has stopped being one, which
+    # nothing else here would notice.
+    if not declared:
+        raise AssertionError(f"{directory.name}: no expectations — a case must pin something")
+
     if specs != set(declared):
         missing, extra = sorted(set(declared) - specs), sorted(specs - set(declared))
         problem = (

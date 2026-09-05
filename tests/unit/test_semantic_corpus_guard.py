@@ -23,7 +23,7 @@ import pathlib
 
 import pytest
 from support import semantic_corpus
-from support.semantic_corpus import REQUIRED, cases
+from support.semantic_corpus import REQUIRED, Outcome, cases
 
 pytestmark = pytest.mark.unit
 
@@ -96,6 +96,17 @@ def test_an_empty_corpus_is_a_failure(tmp_path: pathlib.Path, monkeypatch: pytes
         cases()
 
 
+def test_a_case_that_pins_nothing_is_refused(planted: pathlib.Path) -> None:
+    """The hole the other two agreement checks leave open: an empty outcome map
+    and an empty ``bloomery/`` agree, so the case loads and asserts nothing
+    about bloomery while still contributing its SQL assertions."""
+    (planted / "bloomery" / "one").rmdir()
+    (planted / "expected" / "semantic_outcome.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(AssertionError, match="no expectations"):
+        cases()
+
+
 def test_an_unknown_outcome_word_is_refused(planted: pathlib.Path) -> None:
     """The vocabulary is closed. A typo would otherwise read as a new outcome
     nothing asserts."""
@@ -105,3 +116,19 @@ def test_an_unknown_outcome_word_is_refused(planted: pathlib.Path) -> None:
 
     with pytest.raises(ValueError, match="probably-fine"):
         cases()
+
+
+def test_every_outcome_has_an_assertion_behind_it() -> None:
+    """A canary, not a tautology.
+
+    ``test_bloomery_does_what_the_case_says`` branches on ``REFUSED`` and lets
+    the other two fall through to "nothing refused", which is right for both —
+    what distinguishes them is asserted separately, against whether the cited
+    RFC has landed. A **fourth** member would fall through too, and silently
+    inherit an assertion written for a different meaning.
+
+    That is the same shape as a ``match`` ending in a catch-all: the new member
+    takes its neighbour's behaviour and every existing test still passes. This
+    fails instead, and points whoever added it at the two places to decide.
+    """
+    assert set(Outcome) == {Outcome.REFUSED, Outcome.ACCEPTED, Outcome.UNGUARDED}
