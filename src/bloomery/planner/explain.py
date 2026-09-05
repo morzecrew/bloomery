@@ -261,13 +261,17 @@ def applied_predicates(
         policy_predicate = (_human_clause(policy.as_clause(), (resolved,)),)
 
     restrictions = tuple(
-        _human_predicate(
-            Predicate(dimension=clause.dimension, op=Op(clause.op), values=tuple(clause.values)),
-            clause.dimension,
+        dict.fromkeys(
+            _human_predicate(
+                Predicate(
+                    dimension=clause.dimension, op=Op(clause.op), values=tuple(clause.values)
+                ),
+                clause.dimension,
+            )
+            for name in request.metrics
+            if (metric := metrics_by_name.get(name)) is not None
+            for clause in metric.filter
         )
-        for name in request.metrics
-        if (metric := metrics_by_name.get(name)) is not None
-        for clause in metric.filter
     )
 
     return (*policy_predicate, *explanation.filters, *restrictions)

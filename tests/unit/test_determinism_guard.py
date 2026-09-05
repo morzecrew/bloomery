@@ -171,10 +171,11 @@ from bloomery.naming import DefaultNaming
 from support.planning import fixture_ir
 
 plan_ir = fixture_ir("ecom_basic")
+plan_metrics = {metric.name: metric for metric in plan_ir.metrics}
 for dimensions in ((), ("order_date",), ("order_date", "order_customer_id")):
     plan_request = MetricRequest(metrics=("gross_revenue",), dimensions=dimensions)
     covered = resolve_request(plan_ir, plan_request, naming=DefaultNaming())
-    print(build_plan(covered, plan_request, filters=()).serialize())
+    print(build_plan(covered, plan_request, plan_metrics, filters=()).serialize())
 """
 
 

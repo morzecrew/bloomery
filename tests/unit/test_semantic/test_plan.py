@@ -190,15 +190,59 @@ def test_the_plan_names_the_row_policy_the_explanation_only_counts() -> None:
 def test_the_plan_names_a_metrics_own_restriction() -> None:
     """A filtered metric restricts rows exactly as a request filter does — the
     explanation carries it on that measure's note rather than in `filters`, and
-    a plan reading only `filters` would compute the unfiltered sibling."""
+    a plan reading only `filters` would compute the unfiltered sibling.
+
+    Also the control for the mixed-restriction rule below: what that rule
+    refuses is metrics restricted *differently*, not filtered metrics, and
+    returning `None` for every filtered request would satisfy it otherwise.
+    """
     planner = make_planner()
     query = planner.plan(
         fixture_ir("period_over_period"),
         MetricRequest(metrics=("paid_revenue",)),
         dialect="duckdb",
     )
+    assert query.semantic is not None
 
     assert _filters(query) == ("status = 'paid'",)
+
+
+def test_a_cumulative_metric_gets_no_plan() -> None:
+    """`revenue_trailing_7d` *is* a mart measure, so the guard written for the
+    derived case let it through — and the plan read as a plain sum per day
+    with the seven-day window and `period_agg` nowhere in it. The shapes P1
+    cannot express outnumber the one it can, which is why the rule is stated
+    positively rather than as a list of exclusions.
+    """
+    planner = make_planner()
+    ir = fixture_ir("period_over_period")
+    query = planner.plan(
+        ir,
+        MetricRequest(metrics=("revenue_trailing_7d",), dimensions=("day",)),
+        dialect="duckdb",
+    )
+
+    assert query.semantic is None
+    assert "revenue_trailing_7d" in {
+        measure for mart in ir.marts for measure in mart.measures
+    }
+
+
+def test_metrics_with_different_restrictions_get_no_plan() -> None:
+    """`Filter` is a node over the scan, so it says one thing about every
+    measure beneath it. A metric's own filter narrows that measure alone —
+    pairing `paid_revenue` with `revenue` produced a plan restricting both to
+    `status = 'paid'`, which is the previous defect's mirror image: a plan
+    claiming a narrower answer than the query computes.
+    """
+    planner = make_planner()
+    query = planner.plan(
+        fixture_ir("period_over_period"),
+        MetricRequest(metrics=("paid_revenue", "revenue")),
+        dialect="duckdb",
+    )
+
+    assert query.semantic is None
 
 
 def test_a_derived_metric_gets_no_plan() -> None:

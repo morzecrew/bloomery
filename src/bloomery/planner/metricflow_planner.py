@@ -244,6 +244,7 @@ class MetricFlowPlanner:
             semantic=semantic_plan.build(
                 resolved,
                 request,
+                metrics_by_name,
                 filters=explain.applied_predicates(
                     explanation, request, resolved, metrics_by_name, policy=policy
                 ),
