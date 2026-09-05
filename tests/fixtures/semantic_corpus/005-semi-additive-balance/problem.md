@@ -49,14 +49,17 @@ numeric column, and the axis it is being summed over is not visible in the query
 
 | Expectation | Spec | Outcome | Owner |
 | --- | --- | --- | --- |
-| **naive** | `additivity: additive` on a snapshot | **unguarded** | RFC 0038 D1 |
+| **naive** | `additivity: additive` on a snapshot | **refused** — `FalseAdditivityClaim` | RFC 0038 D1 |
 | **declared** | `semi_additive: {over: as_of_day, rule: last}` | accepted | RFC 0006 D6 |
 
-Bloomery already enforces the *shape* of a semi-additive declaration: declare
-`semi_additive` without a policy and `AdditivityViolation` refuses it. What nothing checks
-is the claim in the other direction — that a measure declared `additive` really is. So the
-naive spec compiles, and the guard that exists is the one an author has to opt into.
+Bloomery already enforced the *shape* of a semi-additive declaration: declare
+`semi_additive` without a policy and `AdditivityViolation` refuses it. What nothing checked
+was the claim in the other direction — that a measure declared `additive` really is. So the
+naive spec compiled, the planner returned `320.00000000`, and the only guard that existed
+was the one an author had to opt into.
 
-RFC 0038 D1 closes the aggregation vocabulary into a typed set with `Snapshot` as a member.
-When it lands, the **naive** row converts `unguarded → refused` and this case is what shows
-the rule earns its place (RFC 0042 §8).
+RFC 0038 D1 closes the aggregation vocabulary into a typed set with `Snapshot` as a member,
+and this row converted `unguarded → refused` when it landed (RFC 0042 §8). The refusal
+reads the origin grain rather than the word: `balance` is keyed on `account_id, as_of_day`,
+`as_of_day` is a date, so each row is a point-in-time snapshot and the fix it names is the
+**declared** row beside it.

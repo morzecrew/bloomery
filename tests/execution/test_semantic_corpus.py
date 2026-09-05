@@ -224,45 +224,61 @@ def _shallow() -> bool:
     return result.returncode != 0 or result.stdout.strip() != "false"
 
 
-def test_unguarded_cases_name_a_rule_that_does_not_exist_yet() -> None:
-    """A second, weaker reading of the same claim — and it is worth keeping
-    precisely because it can disagree with the first.
+def test_a_retired_rfc_owns_no_unguarded_case() -> None:
+    """RFC 0042 §8's design gate, in the one direction that holds.
 
-    What makes ``unguarded`` true is the assertion above: the planner returns
-    the wrong number. This asks something else — that the rule the case says
-    will fix it has not shipped. A live RFC is one still in ``rfcs/``; a landed
-    one is retired in the change that completes it.
+    Retirement is the human act that declares an RFC complete. So a retired
+    RFC still named by an ``unguarded`` case is a real defect: the document was
+    finished without converting a case it owns, the fixture still plans to the
+    wrong number, and nothing else notices — the assertion above stays green
+    and says only that the number is still wrong, which is what an unguarded
+    case is *supposed* to look like.
 
-    The two come apart in the case worth catching. When RFC 0038 lands and is
-    retired, a case it *did not* actually fix still plans to the naive number,
-    so the assertion above stays green and says nothing — while this one goes
-    red and says the rule you named shipped without converting this. That is
-    RFC 0042 §8's design gate, and it is not something the number can report.
+    **The converse does not hold, and asserting it was a defect of its own.**
+    This test was first written as a biconditional — unguarded if and only if
+    the cited RFC is live — which assumes an RFC ships all at once. RFC 0038
+    ships in phases (§12): D1 and D2 refuse cases 002 and 005 today while the
+    lowering of ``DistinctCount`` and ``Snapshot`` waits on RFC 0041, so the
+    document is correctly still live and its rules are correctly built. The
+    biconditional failed on a tree where nothing was wrong.
+
+    Dropping that half costs nothing, because what makes a case ``refused`` is
+    that bloomery refuses it with the named error class, which
+    :func:`test_bloomery_does_what_the_case_says` asserts directly. The half
+    kept here is the one no number can report.
+
+    **It skips rather than passing when the corpus holds no unguarded case**,
+    which is the state RFC 0038 left it in by converting the last two. A guard
+    with nothing to guard reports green either way, and green is what a reader
+    checks for — so the dormancy is said out loud instead. Cases 006-010 wake
+    it, and so does any case added for a rule that has not shipped.
     """
-    live = {path.name[:4] for path in (REPO / "rfcs").glob("[0-9][0-9][0-9][0-9]-*.md")}
+    unguarded = [
+        (case, expectation)
+        for case in CASES
+        for expectation in case.expectations
+        if expectation.outcome is Outcome.UNGUARDED
+    ]
+    if not unguarded:
+        pytest.skip(
+            "no unguarded expectations in the corpus — every case names a rule that has "
+            "shipped, so this gate has nothing to check until one is added that does not"
+        )
+
     retired = set(
         re.findall(r"^\| (\d{4}) \|", (REPO / "rfcs" / "RETIRED.md").read_text("utf-8"), re.M)
     )
 
-    for case in CASES:
-        for expectation in case.expectations:
-            cited = re.match(r"RFC (\d{4})", expectation.rule)
-            assert cited, (
-                f"{case.name}/{expectation.name}: rule {expectation.rule!r} names no RFC — "
-                "RFC 0042 D3 pins outcomes against stable rule IDs"
-            )
-            number = cited.group(1)
-            # Checked against *both* registers, because "not live" is also what
-            # a typo looks like: `RFC 9999 D1` would otherwise read as retired
-            # and satisfy every outcome but `unguarded`.
-            assert number in live or number in retired, (
-                f"{case.name}/{expectation.name}: rule {expectation.rule!r} names RFC "
-                f"{number}, which is neither live in rfcs/ nor listed in RETIRED.md"
-            )
-            unbuilt = number in live
-            assert unbuilt == (expectation.outcome is Outcome.UNGUARDED), (
-                f"{case.name}/{expectation.name} is {expectation.outcome} and cites "
-                f"{expectation.rule}, which is {'live' if unbuilt else 'retired'}. An "
-                "unguarded case names the rule that will convert it and that rule is "
-                "unbuilt; every other outcome names one that shipped"
-            )
+    # The citation's *shape* and the existence of the decision row it names are
+    # `test_every_cited_rule_names_a_decision_that_exists`, over every
+    # expectation rather than only these. This asks the one thing that test
+    # cannot: whether the document has been declared finished.
+    for case, expectation in unguarded:
+        number = expectation.rule.split()[1]
+
+        assert number not in retired, (
+            f"{case.name}/{expectation.name} is unguarded and cites {expectation.rule}, "
+            f"whose RFC {number} is retired — the document was declared complete without "
+            "converting a case it owns. Either the rule did not do what the case says, or "
+            "the case was not revisited when it landed (RFC 0042 §8)"
+        )
