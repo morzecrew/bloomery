@@ -91,7 +91,7 @@ BloomeryError
 | `FanoutRisk` | guardrails | A mart `via:` flatten step over a `one_to_many` relationship |
 | `HistoricalFanout` | guardrails | A mart that flattens an `scd: type2` entity without an `as_of:` anchor, declares one on a non-historical entity, or is based on a historical one |
 | `NonAdditiveWithoutComponents` | guardrails | A non-additive metric with no ratio/additive decomposition to recompute from |
-| `FalseAdditivityClaim` | guardrails | A metric declared `additive` that is not: an `avg`/`median`/`count_distinct`, which cannot be re-aggregated, or a measure whose entity key carries a date — one row per thing *per period*, so summing across the period adds the same value twice |
+| `FalseAdditivityClaim` | guardrails | A metric declared `additive` that is not: an `avg`/`median`/`count_distinct`, for which no rollup operator over the stored value exists, or a measure whose entity key carries a date *and* whose mart offers that column as a dimension — one row per thing per period, with the axis exposed to sum across |
 | `InvalidMetricShape` | guardrails | A metric whose declaration contradicts itself — `derived:` beside `cumulative:`, a derived metric declared additive, a cumulative one with no measure to accumulate, or a derived expression referencing an alias its `inputs:` do not declare |
 | `MetricFilterInvalid` | guardrails | A metric `filter:` naming a dimension the carrying mart does not flatten, a date-role dimension, or a value that does not fit the column's declared type |
 | `MartMissingTimeDimension` | guardrails | A measure-carrying mart that declares no date role |

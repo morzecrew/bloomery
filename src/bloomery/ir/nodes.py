@@ -275,11 +275,13 @@ class Additivity(StrEnum):
     The last three are therefore defined and **not yet minted by resolution** —
     the authored ``additivity:`` keyword still accepts three words, and
     :data:`RESOLVABLE` pins which members a project can currently produce. That
-    pin is not decoration: twenty sites across the emitters, the planner and
-    the guardrails branch on this enum, every one of them on ``NON_ADDITIVE``
-    or ``SEMI_ADDITIVE``, so a member that became reachable without those sites
-    being revisited would inherit a branch written for a different meaning and
-    mypy would stay silent about it.
+    pin is not decoration. Every site across the emitters, the planner and the
+    guardrails that branches on this enum tests ``NON_ADDITIVE`` or
+    ``SEMI_ADDITIVE`` and lets the rest fall through — the additivity guard is
+    the one exception, and it raises on the fall-through rather than inheriting
+    it. Everywhere else a member that became reachable without the site being
+    revisited would silently take a branch written for a different meaning, and
+    mypy would say nothing.
 
     What those sites actually ask is not additivity but whether a metric is a
     *stored* measure or is computed at query time from components — ``no`` for

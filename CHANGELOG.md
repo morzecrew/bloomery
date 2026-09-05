@@ -17,9 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - an `avg`, `median` or `count_distinct` declared additive — rolling one up
     re-aggregates an aggregate, weighting each group equally instead of each
     row, so the answer is wrong wherever groups differ in size;
-  - a measure whose entity key carries a date or timestamp — `one row per
-    account per day` means each row is a point-in-time snapshot, and summing
-    across the period adds the same money once per day.
+  - a measure whose entity key carries a date or timestamp **and whose mart
+    offers that column as a dimension** — `one row per account per day` means
+    each row is a point-in-time snapshot, and a mart flattening `as_of_day` is
+    what makes summing across the period possible in the first place.
+
+  The mart half of the second rule is not a technicality. A key alone cannot
+  tell a snapshot from a redundant composite: an entity keyed
+  `(payment_id, paid_at)` is one row per payment, and telling that author to
+  declare `semi_additive` over `paid_at` would assert a rollup axis that does
+  not exist. Where no mart exposes the column, there is nothing to sum across
+  and nothing to refuse.
 
   Both compiled clean before, and both answer with a plausible wrong number,
   which is the failure class this compiler exists to refuse.
@@ -34,7 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   A temporal column *outside* the key is untouched: an `order` keyed on
   `order_id` with an `ordered_at` timestamp is an event, not a snapshot, and
-  summing its amounts was never in question.
+  summing its amounts was never in question. So is a mart that flattens some
+  other date, or that carries a different measure.
 
   `Additivity` also gains `ratio`, `distinct_count` and `snapshot` as members.
   The authored `additivity:` keyword still accepts its three words — the new

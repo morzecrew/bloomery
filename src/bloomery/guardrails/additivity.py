@@ -147,11 +147,13 @@ def _check_semi_additive(metric: MetricIR, path: str) -> list[GuardrailError]:
 # ....................... #
 
 
-#: Aggregations that consume their inputs rather than accumulating them, so
-#: applying one to their own output is not the same operation done twice.
-#: ``sum``, ``min`` and ``max`` are idempotent under re-aggregation and are
-#: absent for that reason; ``count`` is not here because counting counts is
-#: `sum`, which the planner already knows.
+#: Aggregations for which **no rollup operator over the stored value exists**.
+#: That is the line, and it is not idempotence: ``sum``, ``min`` and ``max``
+#: roll up under themselves, and ``count`` rolls up under a *different*
+#: operator — the total is the sum of the counts — so all four leave an
+#: additive claim satisfiable. An average, a median and a distinct count leave
+#: nothing: the quotient, the middle value and the distinct set cannot be
+#: recovered from their per-group results by any function.
 _NOT_REAGGREGABLE: Final = ("avg", "median", "count_distinct")
 
 
