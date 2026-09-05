@@ -1,7 +1,14 @@
 # RFC 0040 — Safe rollup planner and SemanticPlan IR
 
-- **Status:** 📝 Draft — proposed, not started. Fourth in the semantic-correctness
-  sequence; depends on [RFC 0037](0037-semantic-grain-model.md),
+- **Status:** 🚧 In progress — §11's P1 has landed: `SemanticPlan` beside `QueryPlan`, built
+  from the same resolution the explanation reads, with §8's parity suite capturing 531
+  requests before anything moved. **Nothing lowers from the plan yet** — MetricFlow still
+  plans from the request, which is what makes P1 a re-expression with no capability change
+  (D5). P2-P4, §4's `PreservingJoin` and `ConvertUnit`, and §5's cross-entity rule are
+  unbuilt, so the document stays whole (`INDEX.md` — retire whole, never in part).
+  Execution's findings and the rows it proposes are in [`logs/T-0021.md`](../logs/T-0021.md);
+  nothing below has been amended to agree with what was built. Fourth in the
+  semantic-correctness sequence; depends on [RFC 0037](0037-semantic-grain-model.md),
   [RFC 0038](0038-measure-semantic-types-and-additivity.md) and
   [RFC 0039](0039-semantic-proof-ir.md).
 - **Scope:** The first proof-producing query planner, answering single-measure requests

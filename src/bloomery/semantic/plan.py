@@ -7,6 +7,14 @@ answer is right is that no precheck objected, and the reasoning is spread
 across a coverage function and an embedded engine. §6 asks for the other shape
 — bloomery decides, targets lower — and this is the value it decides *into*.
 
+**Nothing lowers from it yet, and that is P1.** The plan is built beside the
+SQL and consumed by no target: MetricFlow still plans from the request exactly
+as it did, so a reader should not take a plan's presence as evidence that it
+produced the query beside it. §11 makes P1 the IR alone, and D5 makes it a
+re-expression with no capability change — wiring a target to the plan would
+change what the SQL is generated from, which is the one thing this phase must
+not do if §8's parity suite is to mean anything.
+
 **A plan is not a rendering.** It names logical operators over grains, and a
 target may choose any syntax for them, but it may not introduce a
 multiplicity-changing join the plan does not carry (D4). Where a node can
@@ -132,8 +140,10 @@ class Aggregate:
     output_grain: str
     measures: tuple[str, ...]
     dimensions: tuple[str, ...] = ()
-    #: The proof that the rollup is sound. ``None`` only where the input and
-    #: output grain are the same relation and nothing was rolled up.
+    #: The proof authorizing this aggregate. Optional on the type because a
+    #: caller may build a node before it has one; every aggregate the P1
+    #: builder produces carries R008, the mart contract that lets a measure be
+    #: embedded at this grain at all.
     proof: Proof | None = None
 
     # ....................... #
@@ -236,12 +246,26 @@ class SemanticPlan:
     def check(self) -> None:
         """D2: every multiplicity-changing node references its proof.
 
-        **Vacuous at P1 and deliberately kept anyway.** No node type here can
-        multiply — a mart is pre-joined and an aggregate reduces — so the loop
-        runs and finds nothing. It exists because P2 adds `PreservingJoin`, and
-        a rule written at the moment the first such node lands is a rule
-        written under the pressure of making that node work.
+        **The multiplicity half is vacuous at P1 and deliberately kept
+        anyway.** No node type here can multiply — a mart is pre-joined and an
+        aggregate reduces — so that loop runs and finds nothing. It exists
+        because P2 adds `PreservingJoin`, and a rule written at the moment the
+        first such node lands is a rule written under the pressure of making
+        that node work.
+
+        The emptiness check above it is not vacuous and is not decoration: an
+        empty sequence satisfies "every multiplying node carries a proof"
+        perfectly, so without it a plan that computes nothing is a plan this
+        method calls valid.
         """
+        if not self.nodes:
+            msg = (
+                "a plan with no nodes computes nothing — `check` would pass over an empty "
+                "sequence and report it valid, which is the same shape as a proof resting "
+                "on no facts (RFC 0040 D2)"
+            )
+            raise ValueError(msg)
+
         unauthorized = [
             node.render()
             for node in self.nodes

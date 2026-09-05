@@ -8,8 +8,11 @@ authorization rule, and the determinism it inherits from the proofs it holds.
 
 from __future__ import annotations
 
+import pathlib
+import re
 from dataclasses import dataclass
 
+import bloomery
 import pytest
 from bloomery import MetricRequest
 from bloomery.semantic import (
@@ -141,6 +144,32 @@ def test_the_plans_filters_are_the_explanations_filters() -> None:
     assert filter_node.predicates == query.explanation.filters
 
 
+def test_the_plan_renders_as_a_pipeline() -> None:
+    """The form a human reads, and eventually what `explain` prints (§7).
+
+    Found by patch coverage: every node had a `render` and no test called one,
+    so the whole readable half of this IR was shipping unexercised while
+    `shape` and `serialize` were well covered.
+    """
+    plan = _plan("ecom_basic", "gross_revenue", ("order_date",))
+
+    assert plan.render().splitlines() == [
+        "Scan(order_items @ order_item)",
+        "  -> Filter(none)",
+        "    -> Aggregate(gross_revenue : order_item -> order_item by order_date)",
+        "      -> Project(order_date, gross_revenue)",
+    ]
+
+
+def test_an_empty_grouping_renders_as_a_total_not_as_nothing() -> None:
+    """`Aggregate` with no dimensions is a grand total, and a reader seeing an
+    empty parenthesis would not know whether the grouping was absent or lost."""
+    plan = _plan("ecom_basic", "gross_revenue")
+    (aggregate,) = [node for node in plan.nodes if isinstance(node, Aggregate)]
+
+    assert aggregate.render().endswith("by total)")
+
+
 # ----------------------- #
 # The authorization rule (D2)
 
@@ -174,6 +203,43 @@ def test_a_multiplying_node_without_a_proof_is_invalid_ir() -> None:
     than offering itself to a caller who has to remember to ask."""
     with pytest.raises(ValueError, match="no proof"):
         SemanticPlan((_Multiplying(),))  # type: ignore[arg-type]
+
+
+def test_a_plan_with_no_nodes_is_invalid() -> None:
+    """The empty case, decided rather than inherited from the reduction.
+
+    An empty sequence satisfies "every multiplying node carries a proof"
+    perfectly, so without this a plan that computes nothing is one `check`
+    calls valid — the same shape as a proof resting on no facts.
+    """
+    with pytest.raises(ValueError, match="computes nothing"):
+        SemanticPlan(())
+
+
+def test_nothing_in_the_tree_reads_the_plan_yet() -> None:
+    """P1 is the IR alone, pinned rather than left for a reader to infer from a
+    plan sitting beside the SQL.
+
+    Wiring a target to the plan would change what the query is generated from,
+    which is the one thing this phase must not do if §8's parity suite is to
+    mean anything (D5). Asserted structurally because there is no behaviour to
+    observe: the plan being unread is exactly why it changes nothing, so the
+    only evidence is that no module reads it. When P2 wires a target, this is
+    where someone has to say so deliberately.
+    """
+    source = pathlib.Path(bloomery.__file__).parent
+    readers = sorted(
+        f"{path.relative_to(source)}:{number}"
+        for path in source.rglob("*.py")
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if re.search(r"\.semantic\b", line)
+        and "bloomery.semantic" not in line
+        and "semantic_manifest" not in line
+        # The construction site itself, which is the one place that may name it.
+        and path.name != "metricflow_planner.py"
+    )
+
+    assert readers == [], f"something now reads the plan: {readers}"
 
 
 def test_a_multiplying_node_with_a_proof_is_accepted() -> None:
