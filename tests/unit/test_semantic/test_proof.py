@@ -100,6 +100,36 @@ def test_one_heuristic_leaf_makes_the_whole_proof_unclosed() -> None:
     assert Provenance.INFERRED_HEURISTIC in {fact.provenance for fact in root.leaves}
 
 
+def test_a_proof_resting_on_nothing_is_not_closed() -> None:
+    """The empty case, decided rather than inherited.
+
+    `all(())` is `True`, so a node with no facts and no premises would report
+    itself proven while asserting its conclusion out of thin air — the one
+    thing a closed-world checker may never do. `prove_rollup` cannot build one
+    (an empty grain is refused as `unknown_grain`), and `closed` is the public
+    expression of D1, so it answers for itself rather than for today's callers.
+    """
+    hollow = Proof(rule="R006", conclusion=SemanticJudgement("SafeRollup"))
+
+    assert hollow.leaves == ()
+    assert not hollow.closed
+
+
+def test_a_composition_is_closed_through_its_premises() -> None:
+    """The control that keeps the rule above from being "no facts, no proof".
+    An R005 composition carries no facts of its own and is closed by the hops
+    beneath it — so the test is emptiness of `leaves`, not of `facts`."""
+    hop = Proof(
+        rule="R002",
+        conclusion=SemanticJudgement("Determines", (("to", "order.customer_id"),)),
+        facts=(_fact(Provenance.DECLARED),),
+    )
+    composed = Proof(rule="R005", conclusion=SemanticJudgement("Reaches"), premises=(hop,))
+
+    assert composed.facts == ()
+    assert composed.closed
+
+
 # ----------------------- #
 # §10 — property: deterministic derivations (D6, `LOCKED`)
 
@@ -260,6 +290,40 @@ def test_a_refutation_states_the_smallest_failed_obligation() -> None:
     assert "finer" in answer.remediation
 
 
+def test_a_blocked_edge_becomes_the_found_half_of_an_obligation() -> None:
+    """§6 pairs each requirement with what was found instead, and a blocked
+    edge is exactly that — the route exists and something about it is wrong.
+
+    Found by patch coverage: the `found:` line in `Refutation.render` was the
+    one added line no test reached, because nothing populated the field. A
+    contract half that nothing fills is not a small gap; it is the half of §6's
+    worked example that tells an author which relationship to look at.
+    """
+    answer = prove_rollup(
+        grain("order", "order_id"), grain("customer_tier", "customer_id"), CORPUS
+    )
+    assert isinstance(answer, Refutation)
+
+    (obligation,) = answer.obligations
+
+    assert obligation.found.startswith("order_tier is unqualified_historical")
+    assert "found:" in answer.render()
+
+
+def test_a_refusal_about_the_whole_question_names_no_instead() -> None:
+    """The control. A refinement has no blocked edge — nothing about a route is
+    wrong, the target is simply finer — so an empty `found` is correct and the
+    renderer omits the line rather than printing a label with nothing after it.
+    """
+    answer = prove_rollup(
+        grain("order", "order_id"), grain("order_item", "order_id", "line_id"), CORPUS
+    )
+    assert isinstance(answer, Refutation)
+
+    assert not any(obligation.found for obligation in answer.obligations)
+    assert "found:" not in answer.render()
+
+
 def test_a_refutation_never_claims_impossibility() -> None:
     """§6 says a refutation is not a proof that no derivation could exist, and
     the wording must not claim more. The rule set grows; a request refused
@@ -373,9 +437,12 @@ def test_a_superseded_rule_keeps_its_entry() -> None:
     D-112). A citation written against a split rule still resolves, and the
     entry says what replaced it.
 
-    `SUPERSEDED` is empty today and the assertion is not vacuous: it pins that
-    every listed id is *still in* the registry, which is the half that breaks
-    when someone deletes a rule instead of superseding it.
+    `SUPERSEDED` is empty today, so the loop below runs zero times and is a
+    guard for the first split rather than a check on anything present — said
+    plainly because a reader counting assertions would otherwise credit it with
+    more than it does. The line after the loop is what runs now: every rule not
+    listed as superseded reports itself live, which fails if one acquires a
+    replacement without being listed.
     """
     for identifier in SUPERSEDED:
         assert identifier in RULES, f"{identifier} was removed rather than superseded"

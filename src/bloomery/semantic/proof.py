@@ -181,8 +181,9 @@ class Rule:
 #: that a test can assert an id never leaves it — the half of "append-only" a
 #: convention cannot enforce on its own.
 #:
-#: The four grain rules are the bases RFC 0037 already closed: nothing here
-#: invents a way to believe a dependency, it names the ones that existed.
+#: R001-R005 are the five bases RFC 0037 already closed — nothing here invents
+#: a way to believe a dependency, it names the ones that existed. R006 is the
+#: rollup those compose into, and R007 the axiom they start from.
 RULES: Final[dict[str, Rule]] = {
     rule.id: rule
     for rule in (
@@ -279,9 +280,18 @@ class Proof:
         proof: the conclusion is exactly as good as the worst fact underneath
         it. Read rather than checked on construction so a caller may build a
         candidate derivation and ask.
+
+        **A proof resting on nothing is not closed.** ``all(())`` is ``True``,
+        so the empty case has to be decided rather than inherited from the
+        reduction: a node with no facts and no premises asserts its conclusion
+        out of thin air, which is the one thing a closed-world checker may
+        never report as proven. Nothing in :func:`prove_rollup` can build one —
+        an empty grain is refused as ``unknown_grain`` — and the predicate is
+        the public expression of D1, so it answers for itself rather than for
+        its current callers.
         """
 
-        return all(fact.closes for fact in self.leaves)
+        return bool(self.leaves) and all(fact.closes for fact in self.leaves)
 
     # ....................... #
 

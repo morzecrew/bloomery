@@ -725,10 +725,27 @@ def prove_rollup(
     judgement = SemanticJudgement("SafeRollup", (("from", source.label), ("to", target.label)))
 
     if isinstance(answer, RollupRefusal):
-        obligations = tuple(
-            Obligation(required=f"reach {column} from {source.label}")
-            for column in answer.unreached
-        ) or (Obligation(required=f"roll up {source.label} to {target.label}"),)
+        # §6 pairs each requirement with what was found instead, and a blocked
+        # edge is exactly that: the route exists and something about it is
+        # wrong. Where none is recorded the refusal is about the whole question
+        # — a refinement, an unknown grain — and there is no "instead" to name,
+        # so the obligation carries the requirement alone rather than an empty
+        # line pretending to be an answer.
+        obligations = (
+            tuple(
+                Obligation(
+                    required=f"reach {target.label} from {source.label}",
+                    found=f"{edge.relationship} is {edge.reason.value}"
+                    + (f" ({edge.state})" if edge.state else ""),
+                )
+                for edge in answer.blocked
+            )
+            or tuple(
+                Obligation(required=f"reach {column} from {source.label}")
+                for column in answer.unreached
+            )
+            or (Obligation(required=f"roll up {source.label} to {target.label}"),)
+        )
 
         return Refutation(
             reason=answer.reason.value,
