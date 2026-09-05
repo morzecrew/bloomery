@@ -17,16 +17,18 @@ not do if §8's parity suite is to mean anything.
 
 **A plan is not a rendering.** It names logical operators over grains, and a
 target may choose any syntax for them, but it may not introduce a
-multiplicity-changing join the plan does not carry (D4). Where a node can
-duplicate a row it references the proof that authorizes it, and a plan whose
+multiplicity-changing join the plan does not carry (D4). Where a node makes a
+semantic claim it references the proof that authorizes it, and a plan whose
 such nodes do not is **invalid IR rather than merely unexplained** (D2) —
 :meth:`SemanticPlan.check` is where that distinction stops being a sentence.
 
-At P1 there is nothing to authorize: the mart is already flattened, so the plan
-is a scan, a filter and an aggregate that only ever reduces. D2 therefore holds
-over an empty set here, and that is worth saying rather than presenting an
-empty check as a passed one (logs/T-0021.md, D-116). The first
-:class:`PreservingJoin` arrives with P2 and is what makes it bite.
+D2's own sentence names the multiplicity-changing node, and at P1 there is no
+such node: the mart is already flattened, so the plan is a scan, a filter and
+an aggregate that only ever reduces. Read literally, the rule would hold over
+an empty set for this whole phase. It does not, because the aggregate is
+itself a claim — that these measures may be rolled to this grain — and the
+check reaches it too (logs/T-0021.md, D-124). The first
+:class:`PreservingJoin` arrives with P2 and adds the other half.
 
 Here rather than under ``planner`` because §6 hands this to target adapters,
 and the emitters sit below the planner in the layer contract — a plan they
@@ -87,18 +89,24 @@ class Scan:
 @dataclass(frozen=True, slots=True)
 class Filter:
     """Row restriction. Never multiplicity-changing: it removes rows and
-    invents none, so it needs no authorization."""
+    invents none, so it needs no authorization.
 
-    #: Rendered predicates, sorted — this is a plan, not a SQL string, and the
-    #: target chooses how to spell them.
+    It must, however, name **every** predicate the query applies — a row
+    policy and a metric's own restriction narrow the answer exactly as a
+    request filter does, and a plan that omits one is a plan a target lowers
+    into a broader result than the one bloomery decided.
+    """
+
+    #: Every predicate that restricts the scanned rows, in the order the query
+    #: applies them — policy first, then the request's filters in request
+    #: order, then each metric's own restriction. Rendered as prose: this is a
+    #: plan, not a SQL string, and the target chooses how to spell them.
+    #:
+    #: Not sorted. Sorting them canonicalized a tuple whose source is already
+    #: deterministic and, in doing so, made the plan disagree with the
+    #: explanation beside it about the order of the same predicates — an
+    #: invariant the no-filter case could never catch.
     predicates: tuple[str, ...] = ()
-
-    # ....................... #
-
-    def __post_init__(self) -> None:
-        canonical = tuple(sorted(self.predicates))
-        if canonical != self.predicates:
-            object.__setattr__(self, "predicates", canonical)
 
     # ....................... #
 
@@ -141,9 +149,10 @@ class Aggregate:
     measures: tuple[str, ...]
     dimensions: tuple[str, ...] = ()
     #: The proof authorizing this aggregate. Optional on the type because a
-    #: caller may build a node before it has one; every aggregate the P1
-    #: builder produces carries R008, the mart contract that lets a measure be
-    #: embedded at this grain at all.
+    #: caller may build a node before it has one — but a
+    #: :class:`SemanticPlan` containing an unproven aggregate does not
+    #: construct. Every aggregate the P1 builder produces carries R008, the
+    #: mart contract that lets a measure be embedded at this grain at all.
     proof: Proof | None = None
 
     # ....................... #
@@ -244,19 +253,27 @@ class SemanticPlan:
     # ....................... #
 
     def check(self) -> None:
-        """D2: every multiplicity-changing node references its proof.
+        """D2: every node that makes a semantic claim carries a **closed**
+        proof of it.
 
-        **The multiplicity half is vacuous at P1 and deliberately kept
-        anyway.** No node type here can multiply — a mart is pre-joined and an
-        aggregate reduces — so that loop runs and finds nothing. It exists
-        because P2 adds `PreservingJoin`, and a rule written at the moment the
-        first such node lands is a rule written under the pressure of making
-        that node work.
+        Two kinds of node do. A multiplicity-changing one, because it can
+        invent rows — that is D2 as written, and it is vacuous at P1, since no
+        node type here can multiply. And an :class:`Aggregate`, because
+        rolling measures up to a grain *is* the claim this compiler exists to
+        get right: an aggregate with no proof is the fan-out bug with a plan
+        wrapped around it. D2's sentence names the first; the second is the
+        same rule reaching the node P1 actually builds, rather than a rule
+        that waits for P2 to become true (logs/T-0021.md, D-124).
 
-        The emptiness check above it is not vacuous and is not decoration: an
-        empty sequence satisfies "every multiplying node carries a proof"
-        perfectly, so without it a plan that computes nothing is a plan this
-        method calls valid.
+        **Closed, not merely present.** A proof resting on a heuristic or
+        unknown leaf is a derivation nobody stands behind, and accepting one
+        because it is not ``None`` reads the field for its existence instead
+        of its content — the same shape as trusting a refusal because an
+        exception object was constructed.
+
+        The emptiness check is not vacuous and is not decoration: an empty
+        sequence satisfies every "for all nodes" rule perfectly, so without it
+        a plan that computes nothing is a plan this method calls valid.
         """
         if not self.nodes:
             msg = (
@@ -269,14 +286,15 @@ class SemanticPlan:
         unauthorized = [
             node.render()
             for node in self.nodes
-            if node.multiplies and getattr(node, "proof", None) is None
+            if node.multiplies or isinstance(node, Aggregate)
+            if not ((proof := getattr(node, "proof", None)) is not None and proof.closed)
         ]
 
         if unauthorized:
             msg = (
-                f"plan has multiplicity-changing node(s) with no proof: {unauthorized} — "
-                "a plan whose duplicating joins carry no authorization is invalid IR, not "
-                "merely unexplained (RFC 0040 D2)"
+                f"plan node(s) claim without a closed proof: {unauthorized} — an aggregate "
+                "or a duplicating join whose authorization is missing, or rests on a leaf "
+                "nothing closes, is invalid IR rather than merely unexplained (RFC 0040 D2)"
             )
             raise ValueError(msg)
 

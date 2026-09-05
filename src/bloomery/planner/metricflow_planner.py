@@ -237,8 +237,15 @@ class MetricFlowPlanner:
             warnings=warnings,
             explanation=explanation,
             fingerprint=hashlib.sha256(sql.encode("utf-8")).hexdigest(),
-            # Built from the same `Coverage` and the same rendered filters the
+            # Built from the same `Coverage` and the same renderers the
             # explanation reads, so the two are one account of the request
-            # rather than two (RFC 0039 §7).
-            semantic=semantic_plan.build(resolved, request, filters=explanation.filters),
+            # rather than two (RFC 0039 §7) — over every predicate the query
+            # applies, not only the ones the explanation lists as `filters`.
+            semantic=semantic_plan.build(
+                resolved,
+                request,
+                filters=explain.applied_predicates(
+                    explanation, request, resolved, metrics_by_name, policy=policy
+                ),
+            ),
         )

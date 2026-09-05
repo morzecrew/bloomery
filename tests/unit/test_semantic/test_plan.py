@@ -8,19 +8,23 @@ authorization rule, and the determinism it inherits from the proofs it holds.
 
 from __future__ import annotations
 
+import ast
 import pathlib
-import re
 from dataclasses import dataclass
 
 import bloomery
 import pytest
 from bloomery import MetricRequest
+from bloomery.planner.policy import RowPolicy
+from bloomery.planner.request import Op, Predicate
 from bloomery.semantic import (
     Aggregate,
     Filter,
     Project,
     Proof,
+    Provenance,
     Scan,
+    SemanticFact,
     SemanticJudgement,
     SemanticPlan,
 )
@@ -128,20 +132,90 @@ def test_the_projection_keeps_request_order_not_sorted_order() -> None:
     assert project.columns == ("order_date", "customer_segment", "revenue")
 
 
-def test_the_plans_filters_are_the_explanations_filters() -> None:
+def _filters(query: object) -> tuple[str, ...]:
+    (node,) = [n for n in query.semantic.nodes if isinstance(n, Filter)]  # type: ignore[attr-defined]
+
+    return node.predicates
+
+
+def test_the_plans_filters_are_the_explanations_filters_in_request_order() -> None:
     """One account of a request, not two. RFC 0039 §7 refuses a second
     explanation surface reconstructed separately, and a plan that rendered its
-    own predicates would be exactly that."""
+    own predicates — or ordered them differently — would be exactly that.
+
+    Two filters, deliberately not in sorted order. The single-filter and
+    no-filter cases agree with the explanation no matter what either side
+    does, which is how a `Filter` that sorted its predicates while the
+    explanation kept request order shipped with a test asserting the two were
+    equal.
+    """
+    planner = make_planner()
+    query = planner.plan(
+        fixture_ir("ecom_basic"),
+        MetricRequest(
+            metrics=("gross_revenue",),
+            filters=(
+                Predicate(dimension="quantity", op=Op.GTE, values=(2,)),
+                Predicate(dimension="line_no", op=Op.EQ, values=(1,)),
+            ),
+        ),
+        dialect="duckdb",
+    )
+
+    assert query.explanation.filters == ("quantity >= 2", "line_no = 1")
+    assert _filters(query) == query.explanation.filters
+
+
+def test_the_plan_names_the_row_policy_the_explanation_only_counts() -> None:
+    """The `Explanation` reports a policy as a boolean, because rendering the
+    scoping value into a provenance block shown to the requester would
+    disclose it (RFC 0013 D9). A plan is lowered rather than shown, and one
+    that inherited that omission would be lowered into a broader answer than
+    the SQL beside it.
+    """
     planner = make_planner()
     query = planner.plan(
         fixture_ir("ecom_basic"),
         MetricRequest(metrics=("gross_revenue",)),
         dialect="duckdb",
+        policy=RowPolicy(dimension="order_customer_id", op=Op.EQ, value="c1"),
     )
-    assert query.semantic is not None
-    (filter_node,) = [node for node in query.semantic.nodes if isinstance(node, Filter)]
 
-    assert filter_node.predicates == query.explanation.filters
+    assert query.explanation.filters == ()
+    assert query.explanation.policy_applied
+    assert _filters(query) == ("order_customer_id = 'c1'",)
+    assert "c1" in query.sql
+
+
+def test_the_plan_names_a_metrics_own_restriction() -> None:
+    """A filtered metric restricts rows exactly as a request filter does — the
+    explanation carries it on that measure's note rather than in `filters`, and
+    a plan reading only `filters` would compute the unfiltered sibling."""
+    planner = make_planner()
+    query = planner.plan(
+        fixture_ir("period_over_period"),
+        MetricRequest(metrics=("paid_revenue",)),
+        dialect="duckdb",
+    )
+
+    assert _filters(query) == ("status = 'paid'",)
+
+
+def test_a_derived_metric_gets_no_plan() -> None:
+    """`average_order_value` is a ratio over `order_count` and `revenue`, so
+    the requested name is not a mart measure at all. P1's vocabulary has no
+    node for the division, and a plan projecting a column no node produces —
+    resting on a fact claiming the ratio is stored — would be a plan that lies
+    twice. `QueryPlan.semantic` being optional is for exactly this.
+    """
+    planner = make_planner()
+    ir = fixture_ir("non_additive_aov")
+    query = planner.plan(ir, MetricRequest(metrics=("average_order_value",)), dialect="duckdb")
+
+    assert query.semantic is None
+    assert "average_order_value" not in {
+        measure for mart in ir.marts for measure in mart.measures
+    }
 
 
 def test_the_plan_renders_as_a_pipeline() -> None:
@@ -197,12 +271,57 @@ class _Multiplying:
         return "Multiplying()"
 
 
+_CLOSED = Proof(
+    rule="R002",
+    conclusion=SemanticJudgement("Determines"),
+    facts=(SemanticFact(source="spec:x", provenance=Provenance.DECLARED, statement="x"),),
+)
+
+_OPEN = Proof(
+    rule="R002",
+    conclusion=SemanticJudgement("Determines"),
+    facts=(
+        SemanticFact(
+            source="guess:x", provenance=Provenance.INFERRED_HEURISTIC, statement="probably x"
+        ),
+    ),
+)
+
+
 def test_a_multiplying_node_without_a_proof_is_invalid_ir() -> None:
     """D2: not merely unexplained. The distinction decides whether the check
     can be skipped under time pressure, so it raises on construction rather
     than offering itself to a caller who has to remember to ask."""
-    with pytest.raises(ValueError, match="no proof"):
+    with pytest.raises(ValueError, match="without a closed proof"):
         SemanticPlan((_Multiplying(),))  # type: ignore[arg-type]
+
+
+def test_a_proof_that_rests_on_a_heuristic_does_not_authorize() -> None:
+    """Closed, not merely present. A leaf nothing closes is a derivation
+    nobody stands behind, and a check reading the field for its existence
+    rather than its content accepts one — the same shape as trusting a refusal
+    because an exception object was constructed.
+    """
+    assert not _OPEN.closed
+
+    with pytest.raises(ValueError, match="without a closed proof"):
+        SemanticPlan((_Multiplying(proof=_OPEN),))  # type: ignore[arg-type]
+
+
+def test_an_aggregate_without_a_proof_is_invalid_ir() -> None:
+    """D2's sentence names the multiplicity-changing node, and no P1 node type
+    multiplies — read literally it would hold over an empty set for this whole
+    phase. The aggregate is itself a claim: that these measures may be rolled
+    to this grain. An unproven one is the fan-out bug with a plan wrapped
+    around it.
+    """
+    with pytest.raises(ValueError, match="without a closed proof"):
+        SemanticPlan(
+            (
+                Scan(relation="m", grain="g"),
+                Aggregate(input_grain="g", output_grain="g", measures=("m",)),
+            )
+        )
 
 
 def test_a_plan_with_no_nodes_is_invalid() -> None:
@@ -216,6 +335,16 @@ def test_a_plan_with_no_nodes_is_invalid() -> None:
         SemanticPlan(())
 
 
+def _reads_semantic(source: str) -> list[int]:
+    """Every line of ``source`` that reads a ``.semantic`` attribute."""
+
+    return [
+        node.lineno
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Attribute) and node.attr == "semantic"
+    ]
+
+
 def test_nothing_in_the_tree_reads_the_plan_yet() -> None:
     """P1 is the IR alone, pinned rather than left for a reader to infer from a
     plan sitting beside the SQL.
@@ -226,30 +355,35 @@ def test_nothing_in_the_tree_reads_the_plan_yet() -> None:
     observe: the plan being unread is exactly why it changes nothing, so the
     only evidence is that no module reads it. When P2 wires a target, this is
     where someone has to say so deliberately.
+
+    Over the parsed tree, not a regex. A grep for ``.semantic`` matches every
+    ``from bloomery.semantic import`` line in the package and does not match
+    the construction site at all, so making it quiet took exclusions that
+    would also have hidden a real reader landing in an excluded file — and the
+    claim it was quoted for was wrong as written (logs/T-0021.md, D-127). An
+    ``ast.Attribute`` named ``semantic`` is the thing being asserted about.
     """
+    # The locator, checked against a reader before being trusted about their
+    # absence. A structural canary asserts an empty result, so one that stopped
+    # locating anything is indistinguishable from one finding nothing — the
+    # sweep's own mutation to this line survived until this line existed.
+    assert _reads_semantic("value = query.semantic\n") == [1]
+
     source = pathlib.Path(bloomery.__file__).parent
     readers = sorted(
-        f"{path.relative_to(source)}:{number}"
+        f"{path.relative_to(source)}:{line}"
         for path in source.rglob("*.py")
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
-        if re.search(r"\.semantic\b", line)
-        and "bloomery.semantic" not in line
-        and "semantic_manifest" not in line
-        # The construction site itself, which is the one place that may name it.
-        and path.name != "metricflow_planner.py"
+        for line in _reads_semantic(path.read_text(encoding="utf-8"))
     )
 
     assert readers == [], f"something now reads the plan: {readers}"
 
 
-def test_a_multiplying_node_with_a_proof_is_accepted() -> None:
-    """The control. Without it the rule above would pass for a check that
+def test_a_multiplying_node_with_a_closed_proof_is_accepted() -> None:
+    """The control. Without it the rules above would pass for a check that
     refused every plan containing the stand-in, proof or not."""
-    authorized = _Multiplying(
-        proof=Proof(rule="R002", conclusion=SemanticJudgement("Determines"))
-    )
 
-    assert SemanticPlan((authorized,)).nodes  # type: ignore[arg-type]
+    assert SemanticPlan((_Multiplying(proof=_CLOSED),)).nodes  # type: ignore[arg-type]
 
 
 def test_no_node_type_this_phase_ships_can_multiply() -> None:

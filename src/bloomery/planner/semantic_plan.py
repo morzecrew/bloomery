@@ -15,6 +15,15 @@ aggregate's input and output grain are the same, its proof cites R008, and no
 cross-entity claim is made. Rolling a measure from its origin to a coarser
 requested grain is P2, and citing a grain proof here would assert something
 this phase did not check.
+
+**A derived metric gets no plan.** `average_order_value` is a ratio computed
+from `order_count` and `revenue`; coverage checks that the *components* are on
+the mart, so the requested name is not a mart measure at all. RFC 0040 §5
+scopes the planning rule to a measure, and §4's vocabulary has no node for the
+division — a plan projecting a column no node produces, over facts claiming
+the ratio is a stored measure, would be a plan that lies twice. `build`
+returns ``None`` there, which is what `QueryPlan.semantic` being optional is
+for (logs/T-0021.md, D-123).
 """
 
 from __future__ import annotations
@@ -61,16 +70,25 @@ def _served_at_grain(mart_name: str, grain: str, measures: tuple[str, ...]) -> P
 # ....................... #
 
 
-def build(coverage: Coverage, request: MetricRequest, *, filters: tuple[str, ...]) -> SemanticPlan:
-    """The plan for one resolved request.
+def build(
+    coverage: Coverage, request: MetricRequest, *, filters: tuple[str, ...]
+) -> SemanticPlan | None:
+    """The plan for one resolved request, or ``None`` where P1's vocabulary
+    cannot state what the query computes.
 
-    ``filters`` arrives already rendered, from the same helper the
-    :class:`~bloomery.planner.Explanation` uses — a plan naming its predicates
-    differently from the explanation beside it would be two accounts of one
-    request, which is the thing RFC 0039 §7 refuses.
+    ``filters`` arrives already rendered, from
+    :func:`~bloomery.planner.explain.applied_predicates` — the same renderers
+    the :class:`~bloomery.planner.Explanation` uses, so the plan and the
+    explanation are one account of one request rather than two, which is the
+    thing RFC 0039 §7 refuses. It carries every predicate the query applies,
+    including the ones the explanation reports elsewhere.
     """
 
     mart = coverage.mart
+
+    if any(metric not in mart.measures for metric in request.metrics):
+        return None
+
     dimensions = tuple(dimension.name for dimension in coverage.dimensions)
 
     return SemanticPlan(
