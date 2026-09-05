@@ -11,4 +11,4 @@ fields:
   landed_cost:
     recipe: naive_join
     from: {unit_price: "$.unit_price", shipping: "$.shipping"}
-  ordered_at: {from: "$.ordered_at", transform: [{parse_ts: ISO8601}]}
+  ordered_at: {from: "$.created_at", transform: [{parse_ts: ISO8601}]}

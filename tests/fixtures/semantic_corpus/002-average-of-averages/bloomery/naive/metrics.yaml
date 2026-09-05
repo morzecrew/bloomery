@@ -1,10 +1,10 @@
-# The declaration the corpus is about. `avg` is not additive over anything,
-# and nothing checks that `additivity: additive` is true — so this compiles,
-# and any rollup of it re-averages an average.
+# The declaration the corpus is about. The column already holds an average,
+# and `additivity: additive` is a claim nothing checks — so the planner
+# re-averages it and the number weights each order equally.
 metrics_version: 1
 metrics:
   average_item_price:
-    grain: order_item
+    grain: order_summary
     additivity: additive
     agg: avg
-    expr: "unit_price"
+    expr: "average_item_price"

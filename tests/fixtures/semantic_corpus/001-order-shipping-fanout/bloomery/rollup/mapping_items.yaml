@@ -6,4 +6,4 @@ key:
   line_no: {from: "$.line_no", transform: [to_int]}
 fields:
   unit_price: {from: "$.unit_price", transform: [{to_decimal: [12, 4]}]}
-  ordered_at: {from: "$.ordered_at", transform: [{parse_ts: ISO8601}]}
+  ordered_at: {from: "$.created_at", transform: [{parse_ts: ISO8601}]}

@@ -1,0 +1,8 @@
+marts_version: 1
+marts:
+  order_items:
+    grain: order_item
+    base: order_item
+    measures: [item_value, item_count]
+    flatten:
+      - {date: ordered_at, role: ordered}

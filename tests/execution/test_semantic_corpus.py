@@ -27,8 +27,15 @@ from decimal import Decimal
 import duckdb
 import pytest
 
-from bloomery import evaluate
-from support.execution import warehouse
+from bloomery import (
+    MetricRequest,
+    Target,
+    build_project_ir,
+    compile_project,
+    evaluate,
+)
+from support.execution import materialize, warehouse
+from support.planning import make_planner
 from support.semantic_corpus import Case, Expectation, Outcome, cases
 
 pytestmark = pytest.mark.execution
@@ -36,11 +43,12 @@ pytestmark = pytest.mark.execution
 CASES = cases()
 IDS = [case.name for case in CASES]
 REPO = pathlib.Path(__file__).resolve().parents[2]
+PLANNER = make_planner()
 
 
 def _seeded(case: Case) -> duckdb.DuckDBPyConnection:
     """A warehouse holding one case's schema and rows, and nothing else."""
-    connection = warehouse()
+    connection = warehouse("bronze", "silver", "gold")
     connection.execute(case.sql("schema/schema.sql"))
     connection.execute(case.sql("data/rows.sql"))
 
@@ -79,6 +87,14 @@ def test_the_naive_query_runs_and_is_wrong(case: Case) -> None:
     ids=[f"{case.name}-{e.name}" for case in CASES for e in case.expectations],
 )
 def test_bloomery_does_what_the_case_says(case: Case, expectation: Expectation) -> None:
+    """Refuse with the named error, or plan and return one of the two numbers.
+
+    The second half is what makes ``unguarded`` a claim rather than a label:
+    the spec is compiled, materialized against the case's own warehouse, and
+    the metric planned — and the number that comes back is asserted to be the
+    **naive** one. Nothing here reads prose, and nothing infers the outcome
+    from the state of the repository.
+    """
     project, catalog = expectation.project()
     evidence = evaluate(project, catalog=catalog)
     raised = sorted({type(refusal).__name__ for refusal in evidence.refusals})
@@ -98,20 +114,40 @@ def test_bloomery_does_what_the_case_says(case: Case, expectation: Expectation) 
     assert not raised, f"{case.name}/{expectation.name} expects no refusal; got {raised}"
     assert evidence.stage_reached == "complete"
 
+    ir = build_project_ir(project, catalog)
+    conn = _seeded(case)
+    try:
+        artifacts = compile_project(
+            project, target=Target.SQLMESH, dialect="duckdb", catalog=catalog
+        )
+        materialize(conn, artifacts, supplied=case.supplied)
+        plan = PLANNER.plan(ir, MetricRequest(metrics=(case.metric,)), dialect="duckdb")
+        (planned,) = conn.execute(plan.sql).fetchall()
+    finally:
+        conn.close()
+
+    answer = expectation.outcome.answer
+    assert answer is not None
+    assert dict(zip([case.metric], planned, strict=True)) == case.results()[answer], (
+        f"{case.name}/{expectation.name} is {expectation.outcome} and so must plan to the "
+        f"{answer!r} result"
+    )
+
 
 def test_unguarded_cases_name_a_rule_that_does_not_exist_yet() -> None:
-    """What separates ``unguarded`` from ``accepted``, mechanically.
+    """A second, weaker reading of the same claim — and it is worth keeping
+    precisely because it can disagree with the first.
 
-    Both compile and neither refuses, so the two assert identically above —
-    which would make the distinction prose, and prose nobody checks drifts.
-    The difference is *why* nothing refused: an accepted case cites a decision
-    that shipped, an unguarded one cites a decision that has not been built.
+    What makes ``unguarded`` true is the assertion above: the planner returns
+    the wrong number. This asks something else — that the rule the case says
+    will fix it has not shipped. A live RFC is one still in ``rfcs/``; a landed
+    one is retired in the change that completes it.
 
-    A live RFC is one still in ``rfcs/``; a landed one is retired in the change
-    that completes it. So the invariant is total and self-maintaining, and it
-    has the property RFC 0042 §8 wants: when the owning RFC lands and is
-    retired, this test goes red until somebody revisits the case and records
-    what the new rule converted it to.
+    The two come apart in the case worth catching. When RFC 0038 lands and is
+    retired, a case it *did not* actually fix still plans to the naive number,
+    so the assertion above stays green and says nothing — while this one goes
+    red and says the rule you named shipped without converting this. That is
+    RFC 0042 §8's design gate, and it is not something the number can report.
     """
     live = {path.name[:4] for path in (REPO / "rfcs").glob("[0-9][0-9][0-9][0-9]-*.md")}
     retired = set(

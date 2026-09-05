@@ -1,9 +1,9 @@
 spec_version: 1
 entities:
-  order_item:
-    grain: one row per line on an order
-    key: [order_id, line_no]
+  order_summary:
+    grain: one row per order
+    key: [order_id]
     fields:
       order_id: {type: string, required: true}
-      line_no: {type: int, required: true}
-      unit_price: {type: "decimal(12,4)"}
+      average_item_price: {type: "decimal(12,4)"}
+      ordered_at: {type: timestamp}

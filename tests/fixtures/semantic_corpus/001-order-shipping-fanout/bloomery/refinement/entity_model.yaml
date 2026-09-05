@@ -7,6 +7,7 @@ entities:
     fields:
       order_id: {type: string, required: true}
       shipping: {type: "decimal(12,4)", canonical: shipping}
+      ordered_at: {type: timestamp}
   order_item:
     grain: one row per line on an order
     key: [order_id, line_no]

@@ -1,0 +1,8 @@
+marts_version: 1
+marts:
+  order_summaries:
+    grain: order_summary
+    base: order_summary
+    measures: [average_item_price]
+    flatten:
+      - {date: ordered_at, role: ordered}

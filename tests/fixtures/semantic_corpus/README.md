@@ -16,7 +16,10 @@ corpus proves, so a new one carries a short justification against the rule above
 NNN-short-name/
   problem.md      the business question, the naive query, why it is valid, both results,
                   the failure mode, and which guardrail or rule owns the case
-  schema/         CREATE TABLE — the warehouse as it really arrives
+  schema/         CREATE TABLE — the bronze relations bloomery reads, so the queries
+                  below run against the same rows it does. A table created in `silver`
+                  is one the operator supplies (type-2 versions, a rate relation) and
+                  bloomery's model for it is not run
   data/           INSERT — 3 to 20 rows, hand-checkable by design
   naive.sql       the tempting query. It runs, and it is wrong
   correct.sql     the same question, answered
@@ -37,16 +40,28 @@ An expectation is one of three, keyed by name in `semantic_outcome.json`:
 | Outcome | Means | Pins |
 | --- | --- | --- |
 | `refused` | bloomery refuses the spec | the error class, and the rule that owns it |
-| `accepted` | bloomery compiles it and the answer is right | the rule that permits it |
-| `unguarded` | nothing refuses it and the answer is wrong | the rule that **will** convert it |
+| `accepted` | it compiles, and **the planner returns the `correct` number** | the rule that permits it |
+| `unguarded` | it compiles, and **the planner returns the `naive` number** | the rule that **will** convert it |
 
-`unguarded` is the state a corpus written before its guard needs, and it is not
-documentation. Every cited RFC must be either live in `rfcs/` or listed in `RETIRED.md` —
-so a mistyped number is caught rather than read as retired — and then: an `unguarded`
-expectation must cite a **live** one, and every other outcome must cite a **retired** one,
-which in this repository means shipped. So when the owning RFC lands, the suite goes red
-until somebody revisits the case and records what the new rule converted it to. That is the
-corpus working as a design gate rather than as a transcript.
+Every outcome that is not `refused` is asserted by compiling the spec, materializing it
+against the case's own warehouse, planning the case's metric, and running the SQL bloomery
+rendered. So `accepted` and `unguarded` differ by which of the two hand-checked numbers
+comes back — not by a label, and not by anything about the state of the repository.
+
+The metric asked for is the single column both results name. A case whose expected numbers
+are keyed by anything else would be asserting a number against a name nothing connects to
+it, so the loader refuses that too.
+
+There is a second, weaker check beside it: every cited RFC must be either live in `rfcs/`
+or listed in `RETIRED.md` — so a mistyped number is caught rather than read as retired —
+and an `unguarded` expectation must cite a **live** one while every other outcome cites a
+**retired** one, which here means shipped.
+
+That is kept because it can disagree with the number. When the owning RFC lands and is
+retired, a case it did not actually fix still plans to the naive number, so the primary
+assertion stays green and says nothing — while this one goes red and reports that the rule
+you named shipped without converting this case. That is the corpus working as a design gate
+rather than as a transcript, and it is not something the number can tell you.
 
 ## Several expectations, one fixture
 

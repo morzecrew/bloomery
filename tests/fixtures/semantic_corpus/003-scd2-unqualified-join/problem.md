@@ -5,6 +5,10 @@
 - **Tier:** execution (DuckDB). RFC 0042 §9 guessed this might need the Docker-gated engine
   tier; an as-of join over a validity interval is ordinary SQL and DuckDB runs it, so the
   case stays in the default suite.
+- **`silver.customer_tier` is supplied, not derived.** Type-2 versions come from the
+  operator's snapshotting, not from anything bloomery builds out of bronze — so the case
+  creates that relation itself and the harness leaves bloomery's model for it unrun. A
+  harness that insisted on rebuilding it would be asserting a pipeline nobody runs.
 
 ## The business question
 

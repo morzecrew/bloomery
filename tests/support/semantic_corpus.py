@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
@@ -55,23 +56,34 @@ REQUIRED = (
 class Outcome(StrEnum):
     """What bloomery does with one expectation of a case.
 
-    ``UNGUARDED`` is the third state and the one the corpus needed a name for:
-    valid SQL, wrong answer, and **no refusal today**. Without it a case whose
-    guard has not been built yet can only be written as a fiction or left out,
-    and leaving it out drops exactly the cases a future RFC exists to convert.
+    Each is a claim about **the number bloomery's own planner returns** when
+    asked this case's metric — not about the hand-written queries beside it,
+    and not about prose. ``ACCEPTED`` and ``UNGUARDED`` both compile; what
+    separates them is which of the case's two results comes back.
 
-    That conversion is what makes the corpus a design gate (RFC 0042 §8): a
-    new rule names the cases it moves, and ``unguarded -> refused`` is the
-    direction the semantic sequence actually travels.
+    ``UNGUARDED`` is the one the corpus needed a name for. Without it a case
+    whose guard has not been built yet can only be written as a fiction or
+    left out, and leaving it out drops exactly the cases a future RFC exists
+    to convert — which is the direction the semantic sequence travels, and
+    what makes the corpus a design gate (RFC 0042 §8).
     """
 
-    #: bloomery refuses the spec. ``error`` names the class.
+    #: bloomery refuses the spec. ``error`` names the class, and there is no
+    #: number: nothing was planned.
     REFUSED = "refused"
-    #: bloomery compiles it and the answer is right. Becomes ``proven`` with a
-    #: proof value when RFC 0039 lands; the fixture does not change.
+    #: It compiles, and the planned SQL returns the case's **correct** result.
     ACCEPTED = "accepted"
-    #: Nothing refuses it and the answer is wrong.
+    #: It compiles, and the planned SQL returns the case's **naive** result —
+    #: the wrong one. Nothing refused it.
     UNGUARDED = "unguarded"
+
+    # ....................... #
+
+    @property
+    def answer(self) -> str | None:
+        """Which entry of ``expected/result.json`` the planner must return."""
+
+        return {Outcome.ACCEPTED: "correct", Outcome.UNGUARDED: "naive"}.get(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +128,45 @@ class Case:
 
     def sql(self, name: str) -> str:
         return (self.directory / name).read_text(encoding="utf-8")
+
+    # ....................... #
+
+    @property
+    def supplied(self) -> frozenset[str]:
+        """Relations the case creates in ``silver`` itself.
+
+        Declared by being created rather than by a field, because creating one
+        is already the statement: a relation the case builds is one bloomery
+        reads and does not derive. The case it exists for is an ``scd: type2``
+        entity — its versions come from the operator's snapshotting, and a
+        harness that rebuilt it from bronze would be asserting a pipeline
+        nobody runs — and a rate relation is the same shape.
+        """
+
+        return frozenset(
+            f"silver.{name}"
+            for name in re.findall(
+                r"CREATE TABLE silver\.(\w+)", self.sql("schema/schema.sql")
+            )
+        )
+
+    # ....................... #
+
+    @property
+    def metric(self) -> str:
+        """The metric to ask for, which is the single column both results name.
+
+        A convention rather than a field: a case whose expected numbers are
+        keyed by anything but the metric they measure would be asserting a
+        number against a name nothing connects to it.
+        """
+        columns = {column for row in self.results().values() for column in row}
+        if len(columns) != 1:
+            raise AssertionError(
+                f"{self.name}: expected exactly one measured column, got {sorted(columns)}"
+            )
+
+        return columns.pop()
 
     # ....................... #
 

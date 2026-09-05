@@ -7,6 +7,11 @@ fx_rates:
   rate: rate
   valid_from: valid_from
   valid_to: valid_to
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2025
+  end_year: 2025
 canonical_fields:
   amount_eur: {entity: payment, type: "decimal(12,4)", unit: currency, tax_basis: net, currency: EUR}
   amount_usd: {entity: payment, type: "decimal(12,4)", unit: currency, tax_basis: net, currency: USD}
