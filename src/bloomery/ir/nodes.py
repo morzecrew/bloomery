@@ -36,6 +36,7 @@ __all__ = [
     "Determinism",
     "FLAGS_COLUMN",
     "NODE_ID_PREFIXES",
+    "RESOLVABLE",
     "carries_quality_flags",
     "OK_COLUMN",
     "REJECT_SUFFIX",
