@@ -184,6 +184,13 @@ class Rule:
 #: R001-R005 are the five bases RFC 0037 already closed — nothing here invents
 #: a way to believe a dependency, it names the ones that existed. R006 is the
 #: rollup those compose into, and R007 the axiom they start from.
+#:
+#: R008 is not a grain rule at all: it is the *mart contract* — a measure may
+#: be embedded in a mart only at that mart's grain (RFC 0010 D2), checked by
+#: `check_grain` when the project compiles. RFC 0040's P1 plans within one
+#: pre-joined mart, so that contract is the whole of what authorizes its
+#: aggregate, and citing it is what keeps P1 a re-expression rather than a new
+#: claim (RFC 0040 D5).
 RULES: Final[dict[str, Rule]] = {
     rule.id: rule
     for rule in (
@@ -194,6 +201,7 @@ RULES: Final[dict[str, Rule]] = {
         Rule("R005", "a functional dependency composed from two or more others"),
         Rule("R006", "every determinant of the target grain is determined by the source"),
         Rule("R007", "a determinant of the origin grain, which is determined by nothing"),
+        Rule("R008", "a measure embedded in a mart originates at that mart's grain"),
     )
 }
 
