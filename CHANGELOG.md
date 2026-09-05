@@ -14,9 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one declaration nothing verified was the one most projects write. Two false
   shapes are now refused as `FalseAdditivityClaim`:
 
-  - an `avg`, `median` or `count_distinct` declared additive — rolling one up
-    re-aggregates an aggregate, weighting each group equally instead of each
-    row, so the answer is wrong wherever groups differ in size;
+  - an `avg` or `median` declared additive — rolling one up re-aggregates an
+    aggregate, weighting each group equally instead of each row, so the answer
+    is wrong wherever groups differ in size. A `count_distinct` fails for a
+    different reason: summing per-group distinct counts double-counts any
+    entity present in more than one group;
   - a measure whose entity key carries a date or timestamp **and whose mart
     offers that column as a dimension** — `one row per account per day` means
     each row is a point-in-time snapshot, and a mart flattening `as_of_day` is
@@ -31,6 +33,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Both compiled clean before, and both answer with a plausible wrong number,
   which is the failure class this compiler exists to refuse.
+
+  **The accepted aggregations are an allowlist**, not a list of bad ones:
+  `sum`, `min`, `max` and `count` roll up soundly, and an `additive` claim over
+  anything else is refused — including a spelling bloomery does not recognise,
+  since `agg:` is a free string that nothing validates. Each refusal names the
+  repair for its own aggregation; an unrecognised one says plainly that the
+  claim could not be checked rather than that it is false.
+
+  **Only `sum` triggers the snapshot rule.** A `min`, `max` or `count` over a
+  snapshot asks an honest question — the lowest balance in the period, the
+  number of account-days — that repeated state does not corrupt.
 
   **Migrating.** Neither refusal is silent and both name the fix. An average
   becomes `additivity: non_additive` with `ratio: {numerator, denominator}`
