@@ -36,6 +36,7 @@ __all__ = [
     "Determinism",
     "FLAGS_COLUMN",
     "NODE_ID_PREFIXES",
+    "RESOLVABLE",
     "carries_quality_flags",
     "OK_COLUMN",
     "REJECT_SUFFIX",
@@ -263,11 +264,60 @@ class TaxBasis(StrEnum):
 
 
 class Additivity(StrEnum):
-    """Metric additivity (RFC 0002 §5.5)."""
+    """How a measure may be aggregated across a rollup dimension
+    (RFC 0002 §5.5; closed as a typed set by RFC 0038 D1).
+
+    Closed from the first commit that names it, which is what D1 locks: the
+    planner, the proof rules and every emitter branch on this, and an open
+    string set would make each target the authority for what a measure means.
+    Staging the *lowering* of a member is allowed (§12) and staging the member
+    itself is not.
+
+    The last three are therefore defined and **not yet minted by resolution** —
+    the authored ``additivity:`` keyword still accepts three words, and
+    :data:`RESOLVABLE` pins which members a project can currently produce. That
+    pin is not decoration. Every site across the emitters, the planner and the
+    guardrails that branches on this enum tests ``NON_ADDITIVE`` or
+    ``SEMI_ADDITIVE`` and lets the rest fall through — the additivity guard is
+    the one exception, and it raises on the fall-through rather than inheriting
+    it. Everywhere else a member that became reachable without the site being
+    revisited would silently take a branch written for a different meaning, and
+    mypy would say nothing.
+
+    What those sites actually ask is not additivity but whether a metric is a
+    *stored* measure or is computed at query time from components — ``no`` for
+    ``RATIO``, ``yes`` for ``SNAPSHOT`` and ``DISTINCT_COUNT``, which is the
+    decision whichever commit mints them owes.
+    """
 
     ADDITIVE = "additive"
     SEMI_ADDITIVE = "semi_additive"
     NON_ADDITIVE = "non_additive"
+    #: Numerator and denominator semantics, never the materialized quotient:
+    #: ``SUM(num)/SUM(den)`` and ``AVG(ratio)`` differ, and the second is what
+    #: a numeric-looking column invites (RFC 0038 D2).
+    RATIO = "ratio"
+    #: Carries the counted identity. Never additive across partitions unless a
+    #: later proof rule establishes disjointness.
+    DISTINCT_COUNT = "distinct_count"
+    #: Point-in-time state, requiring explicit time-selection semantics
+    #: (first/last/as-of) before any cross-time aggregation.
+    SNAPSHOT = "snapshot"
+
+
+#: The members a project can currently resolve to, and the canary that keeps
+#: the three D1 added from becoming reachable by accident (RFC 0038 §12).
+#:
+#: Minting a new one is a real change, not a widening: it turns twenty
+#: `is not Additivity.NON_ADDITIVE` branches into decisions nobody made. The
+#: commit that mints one updates this tuple, and the test asserting it fails
+#: until then — which is the point, since no other check in the tree can see
+#: the difference.
+RESOLVABLE: Final = (
+    Additivity.ADDITIVE,
+    Additivity.SEMI_ADDITIVE,
+    Additivity.NON_ADDITIVE,
+)
 
 
 # ....................... #

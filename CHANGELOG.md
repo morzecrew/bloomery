@@ -9,6 +9,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`additivity: additive` is checked rather than trusted.** The additivity
+  guard read only metrics declared `non_additive` or `semi_additive`, so the
+  one declaration nothing verified was the one most projects write. Two false
+  shapes are now refused as `FalseAdditivityClaim`:
+
+  - an `avg` or `median` declared additive — rolling one up re-aggregates an
+    aggregate, weighting each group equally instead of each row, so the answer
+    is wrong wherever groups differ in size. A `count_distinct` fails for a
+    different reason: summing per-group distinct counts double-counts any
+    entity present in more than one group;
+  - a measure whose entity key carries a date or timestamp **and whose mart
+    offers that column as a dimension** — `one row per account per day` means
+    each row is a point-in-time snapshot, and a mart flattening `as_of_day` is
+    what makes summing across the period possible in the first place.
+
+  The mart half of the second rule is not a technicality. A key alone cannot
+  tell a snapshot from a redundant composite: an entity keyed
+  `(payment_id, paid_at)` is one row per payment, and telling that author to
+  declare `semi_additive` over `paid_at` would assert a rollup axis that does
+  not exist. Where no mart exposes the column, there is nothing to sum across
+  and nothing to refuse.
+
+  Both compiled clean before, and both answer with a plausible wrong number,
+  which is the failure class this compiler exists to refuse.
+
+  **The accepted aggregations are an allowlist**, not a list of bad ones:
+  `sum`, `min`, `max` and `count` roll up soundly, and an `additive` claim over
+  anything else is refused — including a spelling bloomery does not recognise,
+  since `agg:` is a free string that nothing validates. Each refusal names the
+  repair for its own aggregation; an unrecognised one says plainly that the
+  claim could not be checked rather than that it is false.
+
+  **Only `sum` triggers the snapshot rule.** A `min`, `max` or `count` over a
+  snapshot asks an honest question — the lowest balance in the period, the
+  number of account-days — that repeated state does not corrupt.
+
+  **Migrating.** Neither refusal is silent and both name the fix. An average
+  becomes `additivity: non_additive` with `ratio: {numerator, denominator}`
+  over the two additive quantities it divides — the quotient is then computed
+  at query time, from sums, which is the only way it rolls up correctly. A
+  snapshot becomes `additivity: semi_additive` with
+  `semi_additive: {over: <the date in the key>, rule: last}`; the message names
+  both the axis to declare and the ones the measure stays additive across.
+
+  A temporal column *outside* the key is untouched: an `order` keyed on
+  `order_id` with an `ordered_at` timestamp is an event, not a snapshot, and
+  summing its amounts was never in question. So is a mart that flattens some
+  other date, or that carries a different measure.
+
+  `Additivity` also gains `ratio`, `distinct_count` and `snapshot` as members.
+  The authored `additivity:` keyword still accepts its three words — the new
+  members are the resolved vocabulary, not new syntax, and nothing mints them
+  yet.
+
 - **dbt is a complete quality target.** `quarantine:` and `reconcile:` on an
   entity, and the quality mart that counts over both, compiled for SQLMesh and
   raised `UnsupportedByTarget` for dbt. All three now emit: a

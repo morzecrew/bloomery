@@ -1,6 +1,7 @@
 {
   "naive": {
-    "outcome": "unguarded",
+    "outcome": "refused",
+    "error": "FalseAdditivityClaim",
     "rule": "RFC 0038 D1"
   },
   "declared": {
