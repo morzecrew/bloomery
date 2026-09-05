@@ -41,6 +41,17 @@ from bloomery.semantic.nodes import (
     RollupRefusal,
     grain_of,
 )
+from bloomery.semantic.proof import (
+    BASIS_PROVENANCE,
+    BASIS_RULES,
+    RULES,
+    Obligation,
+    Proof,
+    Provenance,
+    Refutation,
+    SemanticFact,
+    SemanticJudgement,
+)
 
 if TYPE_CHECKING:
     from bloomery.ir import EntityIR, ProjectIR, RelationshipIR
@@ -51,6 +62,7 @@ __all__ = [
     "can_roll_up",
     "closure",
     "dependencies",
+    "prove_rollup",
 ]
 
 #: How many derivations a closure member keeps. Two is enough to *establish*
@@ -572,3 +584,169 @@ def _diagnose(
         )
 
     return RollupRefusal(source, target, RefusalReason.NO_FUNCTIONAL_PATH, unreached=unreached)
+
+
+# ----------------------- #
+# The same answer, as a proof (RFC 0039 §8)
+
+
+#: What to do about each refusal, where the compiler knows. A reason with no
+#: entry gets an empty remediation rather than a guessed one: an author acts on
+#: what this says, so a wrong repair costs more than a missing one.
+_REMEDIES: Final[dict[RefusalReason, str]] = {
+    RefusalReason.UNKNOWN_GRAIN: (
+        "name an entity this project maps, and columns that are part of its key"
+    ),
+    RefusalReason.NO_FUNCTIONAL_PATH: (
+        "declare a relationship connecting the two entities, in the direction values travel"
+    ),
+    RefusalReason.CARDINALITY_EXPANDING: (
+        "the route crosses a one_to_many in the direction that multiplies rows — aggregate "
+        "to the coarser grain first, or ask for the measure at the grain it originates on"
+    ),
+    RefusalReason.UNQUALIFIED_HISTORICAL: (
+        "supply an as_of: anchor naming a column of the reading entity that orders against "
+        "the version interval"
+    ),
+    RefusalReason.ANCHOR_WITHOUT_HISTORY: (
+        "drop the as_of: anchor — the relation keeps no versions, so there is nothing to "
+        "read it as of"
+    ),
+    RefusalReason.HISTORICAL_GRAIN: (
+        "values do not originate at a set of versions — take the source grain from the "
+        "entity that owns the measure, not from the scd: type2 relation"
+    ),
+    RefusalReason.AMBIGUOUS_PATH: (
+        "two routes reach the target by different joins, so the same column name has two "
+        "meanings — name the relationship the request means"
+    ),
+    RefusalReason.REFINEMENT: (
+        "the target grain is finer than the source, so the value would be duplicated rather "
+        "than aggregated — request it at the source grain or coarser"
+    ),
+}
+
+
+def _dependency_proof(step: FunctionalDependency) -> Proof:
+    """One hop, as the rule that admitted it and the fact it rests on."""
+
+    basis = step.basis.value
+    source = (
+        f"relationship:{step.via}" if step.via is not None else f"entity:{step.determinant.label}"
+    )
+
+    return Proof(
+        rule=BASIS_RULES[basis],
+        conclusion=SemanticJudgement(
+            "Determines",
+            (("by", basis), ("from", step.determinant.label), ("to", str(step.dependent))),
+        ),
+        facts=(
+            SemanticFact(
+                source=source,
+                provenance=BASIS_PROVENANCE[basis],
+                statement=RULES[BASIS_RULES[basis]].summary,
+            ),
+        ),
+    )
+
+
+# ....................... #
+
+
+def _determined_proof(determined: Determined) -> Proof:
+    """One determinant of the target, and the chain that reached it.
+
+    The *first* derivation, not all of them: a member reached by two different
+    joins is :attr:`Determined.ambiguous` and ``can_roll_up`` has already
+    refused it, so anything arriving here has one reading. Derivations are
+    canonically ordered upstream, so "first" is deterministic (RFC 0003).
+
+    Three shapes, and the middle one is why this is not a loop over steps:
+
+    * **No steps** — the member is a determinant of the origin grain, an axiom.
+      It is emitted rather than dropped, because a proof that silently omits
+      its own starting points reads as though it proved more than it did.
+    * **One step** — the hop *is* the reaching. Wrapping it would repeat the
+      hop's own rule one line higher and claim a composition that composed
+      nothing.
+    * **Several** — R005, whose premises are the hops.
+    """
+
+    derivation = determined.derivations[0]
+
+    if not derivation.steps:
+        return Proof(
+            rule="R007",
+            conclusion=SemanticJudgement("Reaches", (("column", str(determined.ref)),)),
+            facts=(
+                SemanticFact(
+                    source=f"grain:{determined.ref.entity}",
+                    provenance=Provenance.DECLARED,
+                    statement=RULES["R007"].summary,
+                ),
+            ),
+        )
+
+    if len(derivation.steps) == 1:
+        return _dependency_proof(derivation.steps[0])
+
+    return Proof(
+        rule="R005",
+        conclusion=SemanticJudgement("Reaches", (("column", str(determined.ref)),)),
+        premises=tuple(_dependency_proof(step) for step in derivation.steps),
+    )
+
+
+# ....................... #
+
+
+def prove_rollup(
+    source: GrainRef,
+    target: GrainRef,
+    project: ProjectIR,
+    context: RollupContext = NO_CONTEXT,
+) -> Proof | Refutation:
+    """:func:`can_roll_up`'s answer, expressed in RFC 0039's vocabulary.
+
+    Expressed rather than replaced (D3, `LOCKED`): ``can_roll_up`` stays the
+    decision and this is a second reading of it, so the two cannot disagree
+    about whether a rollup is safe — there is only one place that decides.
+    Deleting the narrower answer in favour of this one is a later change, and
+    only once something has compared them.
+
+    A determinant of the source grain is an axiom — determined by nothing, and
+    needing no argument — and is emitted as one rather than dropped, because a
+    proof that silently omits its own starting points reads as though it proved
+    more than it did.
+    """
+
+    answer = can_roll_up(source, target, project, context)
+    judgement = SemanticJudgement("SafeRollup", (("from", source.label), ("to", target.label)))
+
+    if isinstance(answer, RollupRefusal):
+        obligations = tuple(
+            Obligation(required=f"reach {column} from {source.label}")
+            for column in answer.unreached
+        ) or (Obligation(required=f"roll up {source.label} to {target.label}"),)
+
+        return Refutation(
+            reason=answer.reason.value,
+            judgement=judgement,
+            obligations=obligations,
+            remediation=_REMEDIES.get(answer.reason, ""),
+            rejected=tuple(
+                SemanticFact(
+                    source=f"relationship:{edge.relationship}",
+                    provenance=Provenance.UNKNOWN,
+                    statement=f"blocked: {edge.reason.value}",
+                )
+                for edge in answer.blocked
+            ),
+        )
+
+    return Proof(
+        rule="R006",
+        conclusion=judgement,
+        premises=tuple(_determined_proof(member) for member in answer.determinants),
+    )
