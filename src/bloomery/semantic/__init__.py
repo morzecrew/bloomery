@@ -15,7 +15,7 @@ MetricFlow or SQL syntax (§8), which the import contract enforces rather than
 this docstring promising.
 """
 
-from bloomery.semantic.closure import can_roll_up, closure, dependencies
+from bloomery.semantic.closure import can_roll_up, closure, dependencies, prove_rollup
 from bloomery.semantic.historical import AsOfState, qualify_as_of
 from bloomery.semantic.nodes import (
     NO_CONTEXT,
@@ -33,10 +33,31 @@ from bloomery.semantic.nodes import (
     RollupRefusal,
     grain_of,
 )
+from bloomery.semantic.proof import (
+    RULES,
+    SUPERSEDED,
+    Obligation,
+    Proof,
+    Provenance,
+    Refutation,
+    Rule,
+    SemanticFact,
+    SemanticJudgement,
+)
 
 # ----------------------- #
 
 __all__ = [
+    "prove_rollup",
+    "SemanticJudgement",
+    "SemanticFact",
+    "SUPERSEDED",
+    "Rule",
+    "Refutation",
+    "RULES",
+    "Provenance",
+    "Proof",
+    "Obligation",
     "NO_CONTEXT",
     "AsOfState",
     "BlockedEdge",
