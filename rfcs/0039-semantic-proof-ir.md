@@ -1,7 +1,14 @@
 # RFC 0039 — Semantic proof IR and closed-world checking
 
-- **Status:** 📝 Draft — proposed, not started. Third in the semantic-correctness sequence;
-  depends on [RFC 0037](0037-semantic-grain-model.md) and
+- **Status:** 🚧 In progress — §13's first phase has landed: the proof vocabulary, provenance,
+  and the rollup answer RFC 0037 already returns expressed in it. No guardrail is deleted and
+  no request changes outcome. Three of §3's seven rules — additive rollup, explicit unit
+  conversion, derived ratio reconstruction — wait on the RFC 0038 phase that gives them
+  premises, and `explain` renders proofs in RFC 0040 where the planner first holds one, so the
+  document stays whole (`INDEX.md` — retire whole, never in part). Execution's findings and the
+  rows it proposes are in [`logs/T-0020.md`](../logs/T-0020.md); nothing below has been amended
+  to agree with what was built. Third in the semantic-correctness sequence; depends on
+  [RFC 0037](0037-semantic-grain-model.md) and
   [RFC 0038](0038-measure-semantic-types-and-additivity.md).
 - **Scope:** Replace "absence of a violation" as the long-term model of query validity with
   explicit positive derivations. Introduce proof and refutation values that `bloomery
