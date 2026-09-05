@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+import subprocess
 from decimal import Decimal
 
 import duckdb
@@ -132,6 +133,95 @@ def test_bloomery_does_what_the_case_says(case: Case, expectation: Expectation) 
         f"{case.name}/{expectation.name} is {expectation.outcome} and so must plan to the "
         f"{answer!r} result"
     )
+
+
+def _decision_table(number: str) -> frozenset[str] | None:
+    """The decision numbers RFC ``number`` declares, or ``None`` if its text
+    cannot be reached.
+
+    A live RFC is read from the tree. A retired one is not in the tree at all —
+    ``RETIRED.md`` names a commit it is readable at, which is the whole reason
+    that table exists — so it is read with ``git show``. ``None`` means the
+    history is unavailable (a shallow clone), never that the RFC has no
+    decisions: the caller reports what it could not check rather than passing.
+    """
+    live = REPO / "rfcs"
+    for path in live.glob(f"{number}-*.md"):
+        return _decisions(path.read_text(encoding="utf-8"))
+
+    row = re.search(
+        rf"^\| {number} \|[^|]*\| `([0-9a-f]{{7,}})`", (live / "RETIRED.md").read_text("utf-8"), re.M
+    )
+    if row is None:
+        return frozenset()
+
+    found = subprocess.run(
+        ["git", "ls-tree", "--name-only", row.group(1), "rfcs/"],
+        capture_output=True, text=True, cwd=REPO, check=False,
+    )
+    name = next((n for n in found.stdout.split() if f"/{number}-" in n), None)
+    if found.returncode or name is None:
+        return None
+
+    shown = subprocess.run(
+        ["git", "show", f"{row.group(1)}:{name}"],
+        capture_output=True, text=True, cwd=REPO, check=False,
+    )
+
+    return _decisions(shown.stdout) if shown.returncode == 0 else None
+
+
+def _decisions(text: str) -> frozenset[str]:
+    return frozenset(re.findall(r"^\| (\d+) \|", text, re.M))
+
+
+def test_every_cited_rule_names_a_decision_that_exists() -> None:
+    """RFC 0042 D3 asks for a **stable rule ID**, and the ID is the whole
+    citation, not the number in front of it.
+
+    Before this, `RFC 0010 D9999` passed: the RFC number was checked against
+    the live and retired registers and the decision after it against nothing.
+    A citation nobody can follow is prose wearing an identifier.
+
+    Sections are refused as well as unchecked numbers. `§5.3` moves when a
+    document is edited; a decision row is append-only and its number is never
+    reused, which is what makes it stable enough to cite from outside.
+    """
+    unreachable = []
+
+    for case in CASES:
+        for expectation in case.expectations:
+            cited = re.fullmatch(r"RFC (\d{4}) D(\d+)", expectation.rule)
+            assert cited, (
+                f"{case.name}/{expectation.name}: rule {expectation.rule!r} is not "
+                "`RFC NNNN Dn`. A section number is not a stable ID — it moves when the "
+                "document is edited, and a decision row's number never does"
+            )
+            number, decision = cited.groups()
+            declared = _decision_table(number)
+            if declared is None:
+                unreachable.append(f"{expectation.rule} ({case.name}/{expectation.name})")
+                continue
+            assert decision in declared, (
+                f"{case.name}/{expectation.name} cites {expectation.rule}, and RFC "
+                f"{number} declares no decision {decision}"
+            )
+
+    # Reported, never silently skipped: a shallow clone cannot read a retired
+    # RFC, and a check that passes quietly there is one nobody notices has
+    # stopped running.
+    assert not unreachable or _shallow(), (
+        f"unreadable RFC text for {unreachable} in a repository with full history"
+    )
+
+
+def _shallow() -> bool:
+    result = subprocess.run(
+        ["git", "rev-parse", "--is-shallow-repository"],
+        capture_output=True, text=True, cwd=REPO, check=False,
+    )
+
+    return result.returncode != 0 or result.stdout.strip() != "false"
 
 
 def test_unguarded_cases_name_a_rule_that_does_not_exist_yet() -> None:

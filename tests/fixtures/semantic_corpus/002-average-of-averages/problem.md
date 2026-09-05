@@ -57,7 +57,7 @@ any other function — cannot recover the quotient of the sums.
 | Expectation | Spec | Outcome | Owner |
 | --- | --- | --- | --- |
 | **naive** | a stored per-order average, `additivity: additive`, `agg: avg` | **unguarded** | RFC 0038 D2 |
-| **decomposed** | a `ratio:` over two additive operands, from the lines | accepted | RFC 0006 §5.4 |
+| **decomposed** | a `ratio:` over two additive operands, from the lines | accepted | RFC 0006 D6 |
 
 Both are asserted by planning the metric and running the SQL bloomery renders: the naive
 spec returns `55.00000000` and the decomposed one `32.50000000`.

@@ -50,7 +50,7 @@ numeric column, and the axis it is being summed over is not visible in the query
 | Expectation | Spec | Outcome | Owner |
 | --- | --- | --- | --- |
 | **naive** | `additivity: additive` on a snapshot | **unguarded** | RFC 0038 D1 |
-| **declared** | `semi_additive: {over: as_of_day, rule: last}` | accepted | RFC 0006 D11 |
+| **declared** | `semi_additive: {over: as_of_day, rule: last}` | accepted | RFC 0006 D6 |
 
 Bloomery already enforces the *shape* of a semi-additive declaration: declare
 `semi_additive` without a policy and `AdditivityViolation` refuses it. What nothing checks

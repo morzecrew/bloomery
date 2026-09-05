@@ -61,7 +61,7 @@ cardinality supplies the missing instant.
 | Expectation | Spec | Outcome | Owner |
 | --- | --- | --- | --- |
 | **unanchored** | flatten `tier_of_customer` with no `as_of:` | refused | `HistoricalFanout`, RFC 0023 D1 |
-| **anchored** | the same flatten, `as_of: ordered_at` | accepted | RFC 0023 §5.3 |
+| **anchored** | the same flatten, `as_of: ordered_at` | accepted | RFC 0023 D8 |
 
 `HistoricalFanout` is kept apart from `FanoutRisk` for the reason this case shows: the
 `cardinality:` here is *already right*, and an error pointing at it would send the author to

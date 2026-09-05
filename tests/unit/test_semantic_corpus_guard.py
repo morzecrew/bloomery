@@ -27,6 +27,10 @@ from support.semantic_corpus import REQUIRED, Outcome, cases
 
 pytestmark = pytest.mark.unit
 
+#: The real corpus, for the one check that is about its content rather than
+#: about the loader refusing malformed input.
+REAL = cases()
+
 OUTCOME = {"one": {"outcome": "accepted", "rule": "RFC 0010 D2"}}
 
 
@@ -116,6 +120,34 @@ def test_an_unknown_outcome_word_is_refused(planted: pathlib.Path) -> None:
 
     with pytest.raises(ValueError, match="probably-fine"):
         cases()
+
+
+@pytest.mark.parametrize("case", REAL, ids=[c.name for c in REAL])
+def test_the_statement_names_what_the_outcome_file_pins(case: object) -> None:
+    """`problem.md` is the only prose in a case, and it restates every fact the
+    machine-readable half holds — the expectation names, the outcomes, the
+    rules. Nothing reads it at runtime, which is exactly why it can drift: a
+    reviewer checking the case by hand reads the prose, and a prose table
+    citing a decision the JSON does not is a case that misleads the one person
+    it exists for.
+
+    Asserted as containment rather than as a shape, so the statement stays
+    free to be a document instead of a serialization.
+    """
+    statement = (case.directory / "problem.md").read_text(encoding="utf-8")  # type: ignore[attr-defined]
+
+    for expectation in case.expectations:  # type: ignore[attr-defined]
+        assert expectation.name in statement, (
+            f"{case.name}: problem.md never mentions the {expectation.name!r} expectation"  # type: ignore[attr-defined]
+        )
+        assert expectation.rule in statement, (
+            f"{case.name}: problem.md never cites {expectation.rule}, which "  # type: ignore[attr-defined]
+            f"{expectation.name!r} is pinned against"
+        )
+        assert expectation.outcome.value in statement, (
+            f"{case.name}: problem.md never says {expectation.name!r} is "  # type: ignore[attr-defined]
+            f"{expectation.outcome.value}"
+        )
 
 
 def test_every_outcome_has_an_assertion_behind_it() -> None:

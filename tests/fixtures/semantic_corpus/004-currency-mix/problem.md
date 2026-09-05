@@ -52,7 +52,7 @@ to participate in type checking, or the only place a currency exists is the colu
 | Expectation | Spec | Outcome | Owner |
 | --- | --- | --- | --- |
 | **mixed** | `amount_eur + fee_usd`, no rate relation | refused | `CurrencyMismatch`, RFC 0006 D4 |
-| **converted** | `convert: [EUR, USD, paid_at]`, `fx_rates:` declared | accepted | RFC 0023 §5.4 |
+| **converted** | `convert: [EUR, USD, paid_at]`, `fx_rates:` declared | accepted | RFC 0023 D11 |
 
 The refusal is **unconditional** — declaring `fx_rates:` does not make mixed currencies
 addable. What the rate relation changes is the *fix* bloomery can offer: with one, it points

@@ -52,10 +52,16 @@ The metric asked for is the single column both results name. A case whose expect
 are keyed by anything else would be asserting a number against a name nothing connects to
 it, so the loader refuses that too.
 
-There is a second, weaker check beside it: every cited RFC must be either live in `rfcs/`
-or listed in `RETIRED.md` — so a mistyped number is caught rather than read as retired —
-and an `unguarded` expectation must cite a **live** one while every other outcome cites a
-**retired** one, which here means shipped.
+Two checks sit beside it, on the citation rather than on the number.
+
+**The rule must name a decision that exists.** `RFC NNNN Dn`, and the row is looked up — in
+`rfcs/` for a live RFC, and through `git show` at the commit `RETIRED.md` names for a
+retired one, which is what that table is for. Sections are refused: `§5.3` moves when a
+document is edited, while a decision row is append-only and its number is never reused. A
+citation nobody can follow is prose wearing an identifier.
+
+**And the RFC's status must match the outcome:** an `unguarded` expectation cites a **live**
+RFC, every other outcome a **retired** one, which here means shipped.
 
 That is kept because it can disagree with the number. When the owning RFC lands and is
 retired, a case it did not actually fix still plans to the naive number, so the primary
