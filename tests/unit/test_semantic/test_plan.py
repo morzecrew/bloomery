@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 import bloomery
 import pytest
-from bloomery.ir import Additivity
+from bloomery.ir import Additivity, MetricFilterIR
 from bloomery import MetricRequest
 from bloomery.planner.policy import RowPolicy
 from bloomery.planner.request import Op, Predicate
@@ -136,6 +136,34 @@ def test_restrictions_compare_as_sets_not_as_written() -> None:
     request = MetricRequest(metrics=(original.name, "reordered"))
 
     assert _plannable(request, widened, {**metrics, "reordered": reversed_clauses})
+
+
+def test_membership_values_compare_as_sets_too() -> None:
+    """The same argument one level down: no operator in the vocabulary reads
+    its values positionally, so `status in ('paid', 'refunded')` and
+    `status in ('refunded', 'paid')` are one restriction. Authored value order
+    is kept in the IR for the same reason clause order is, and means nothing
+    here."""
+    ir = fixture_ir("period_over_period")
+    metrics = {metric.name: metric for metric in ir.metrics}
+    base = metrics["revenue"]
+    members = ("paid", "refunded")
+    left = dataclasses.replace(
+        base, name="left", filter=(MetricFilterIR(dimension="status", op="in", values=members),)
+    )
+    right = dataclasses.replace(
+        base,
+        name="right",
+        filter=(MetricFilterIR(dimension="status", op="in", values=tuple(reversed(members))),),
+    )
+    (mart,) = [candidate for candidate in ir.marts if base.name in candidate.measures]
+    widened = dataclasses.replace(mart, measures=(*mart.measures, "left", "right"))
+
+    assert _plannable(
+        MetricRequest(metrics=("left", "right")),
+        widened,
+        {**metrics, "left": left, "right": right},
+    )
 
 
 def test_a_measureless_request_still_projects_its_dimensions() -> None:

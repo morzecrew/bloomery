@@ -92,6 +92,32 @@ def _served_at_grain(mart_name: str, grain: str, measures: tuple[str, ...]) -> P
 # ....................... #
 
 
+def _restriction(metric: MetricIR) -> frozenset[tuple[str, str, tuple[str, ...]]]:
+    """One metric's row restriction, with authored order discarded.
+
+    `resolve.build._metric_filters` keeps the authored order of both the
+    clauses and each clause's values, deliberately — cosmetic in SQL, and
+    load-bearing in the artifact bytes. Neither order carries meaning *here*:
+    the clauses are ANDed, and no operator in the vocabulary reads its values
+    positionally, so ``status in ('paid', 'refunded')`` and
+    ``status in ('refunded', 'paid')`` are one restriction. Comparing what was
+    written rather than what it means refuses plans these four nodes can state
+    (logs/T-0021.md, D-130).
+
+    Values are ordered by their text rather than by value: this needs *a*
+    canonical order, not a meaningful one, and a clause may carry `Decimal`
+    beside `str` beside `bool`.
+    """
+
+    return frozenset(
+        (clause.dimension, clause.op, tuple(sorted(map(str, clause.values))))
+        for clause in metric.filter
+    )
+
+
+# ....................... #
+
+
 def _plannable(request: MetricRequest, mart: MartIR, metrics: Mapping[str, MetricIR]) -> bool:
     """Whether P1's four nodes can state what this request computes.
 
@@ -110,9 +136,9 @@ def _plannable(request: MetricRequest, mart: MartIR, metrics: Mapping[str, Metri
       rollup at all;
     * all are **restricted alike** — a single `Filter` over the scan says one
       thing about every measure beneath it, so metrics with different
-      restrictions cannot share one. Compared as sets: the clauses are ANDed,
-      so two metrics restricted by the same clauses in different authored
-      order are restricted identically.
+      restrictions cannot share one. Compared through :func:`_restriction`,
+      which is authored order thrown away in the two places it carries no
+      meaning.
     """
 
     requested = tuple(metrics[name] for name in request.metrics if name in metrics)
@@ -121,7 +147,7 @@ def _plannable(request: MetricRequest, mart: MartIR, metrics: Mapping[str, Metri
         all(name in mart.measures for name in request.metrics)
         and all(metric.additivity is Additivity.ADDITIVE for metric in requested)
         and not any(metric.cumulative is not None for metric in requested)
-        and len({frozenset(metric.filter) for metric in requested}) <= 1
+        and len({_restriction(metric) for metric in requested}) <= 1
     )
 
 
