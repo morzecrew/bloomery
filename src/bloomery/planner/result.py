@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from bloomery.semantic import SemanticPlan
 from bloomery.typing import LogicalType
 
 # ----------------------- #
@@ -128,3 +129,14 @@ class QueryPlan:
     warnings: tuple[str, ...]
     explanation: Explanation
     fingerprint: str
+    #: What bloomery decided to compute, before any target saw the request
+    #: (RFC 0040). Beside the SQL rather than under or instead of it, which is
+    #: D7 closed as "beside" at P1: `sql`, `columns` and `explanation` are
+    #: shipped surfaces that every golden pins, and D5 makes P1 a
+    #: re-expression with no capability change — bundling an output change into
+    #: that phase would cost §8's parity suite its only reference point
+    #: (logs/T-0021.md, D-118).
+    #:
+    #: Optional so a caller constructing a `QueryPlan` directly — the emitter
+    #: tests do — is not obliged to build a plan it does not examine.
+    semantic: SemanticPlan | None = None
