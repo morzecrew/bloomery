@@ -9,11 +9,13 @@ authorization rule, and the determinism it inherits from the proofs it holds.
 from __future__ import annotations
 
 import ast
+import dataclasses
 import pathlib
 from dataclasses import dataclass
 
 import bloomery
 import pytest
+from bloomery.ir import Additivity
 from bloomery import MetricRequest
 from bloomery.planner.policy import RowPolicy
 from bloomery.planner.request import Op, Predicate
@@ -28,6 +30,7 @@ from bloomery.semantic import (
     SemanticJudgement,
     SemanticPlan,
 )
+from bloomery.planner.semantic_plan import _plannable
 from support.planning import fixture_ir, make_planner
 
 pytestmark = pytest.mark.unit
@@ -111,6 +114,28 @@ def test_a_measure_is_one_fact_each_not_one_for_the_mart() -> None:
         "mart:data_quality.quality_rows_deduped",
         "mart:data_quality.quality_rows_evaluated",
     }
+
+
+def test_restrictions_compare_as_sets_not_as_written() -> None:
+    """The clauses are ANDed, so two metrics restricted by the same clauses in
+    different authored order are restricted identically — and
+    `resolve.build._metric_filters` keeps authored order deliberately, since it
+    is cosmetic in SQL and load-bearing in the artifact bytes. Comparing the
+    tuples would refuse a plan those four nodes can state perfectly.
+    """
+    ir = fixture_ir("period_over_period")
+    metrics = {metric.name: metric for metric in ir.metrics}
+    original = metrics["large_recent_revenue"]
+    assert len(original.filter) == 2, "the fixture stopped carrying two clauses"
+
+    reversed_clauses = dataclasses.replace(
+        original, name="reordered", filter=tuple(reversed(original.filter))
+    )
+    (mart,) = [candidate for candidate in ir.marts if original.name in candidate.measures]
+    widened = dataclasses.replace(mart, measures=(*mart.measures, "reordered"))
+    request = MetricRequest(metrics=(original.name, "reordered"))
+
+    assert _plannable(request, widened, {**metrics, "reordered": reversed_clauses})
 
 
 def test_a_measureless_request_still_projects_its_dimensions() -> None:
@@ -228,6 +253,23 @@ def test_a_cumulative_metric_gets_no_plan() -> None:
     }
 
 
+def test_a_semi_additive_metric_gets_no_plan() -> None:
+    """`stock_on_hand` is lowered as a last-per-day pick joined back and then
+    summed. `Aggregate` names a rollup and no aggregation with it, so the plan
+    said the one operation this measure is not — the third shape a guard
+    written per counterexample let through, and the reason the rule now names
+    a property (additivity) instead.
+    """
+    planner = make_planner()
+    ir = fixture_ir("semi_additive_inventory")
+    query = planner.plan(
+        ir, MetricRequest(metrics=("stock_on_hand",), dimensions=("day",)), dialect="duckdb"
+    )
+
+    assert query.semantic is None
+    assert "stock_on_hand" in {measure for mart in ir.marts for measure in mart.measures}
+
+
 def test_metrics_with_different_restrictions_get_no_plan() -> None:
     """`Filter` is a node over the scan, so it says one thing about every
     measure beneath it. A metric's own filter narrows that measure alone —
@@ -243,6 +285,28 @@ def test_metrics_with_different_restrictions_get_no_plan() -> None:
     )
 
     assert query.semantic is None
+
+
+def test_a_measure_the_mart_does_not_carry_gets_no_plan() -> None:
+    """The condition that makes the R008 fact true, tested on its own.
+
+    `average_order_value` is also non-additive, so once the guard grew an
+    additivity condition the end-to-end test below stopped proving *which*
+    condition refused it — deleting the mart-measure check left the suite
+    green. An additive metric absent from the mart is the case only this
+    condition catches; no fixture reaches it through `plan`, so it is asked of
+    `_plannable` directly.
+    """
+    ir = fixture_ir("ecom_basic")
+    metrics = {metric.name: metric for metric in ir.metrics}
+    (mart,) = [candidate for candidate in ir.marts if "gross_revenue" in candidate.measures]
+    stripped = dataclasses.replace(
+        mart, measures=tuple(m for m in mart.measures if m != "gross_revenue")
+    )
+    assert metrics["gross_revenue"].additivity is Additivity.ADDITIVE
+
+    assert not _plannable(MetricRequest(metrics=("gross_revenue",)), stripped, metrics)
+    assert _plannable(MetricRequest(metrics=("gross_revenue",)), mart, metrics)
 
 
 def test_a_derived_metric_gets_no_plan() -> None:
