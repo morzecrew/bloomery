@@ -12,7 +12,12 @@
 
 ## The business question
 
-> What revenue did we book, broken down by customer tier?
+> What revenue did we book, with each order attributed to its customer's tier?
+
+The tier is why the dimension is joined at all, and the total is where the damage shows:
+the breakdown is wrong per group *and* the groups no longer sum to the revenue actually
+booked, so a single number is enough to prove it and small enough to check by hand
+(RFC 0042 D2).
 
 ## Declared semantic facts
 
