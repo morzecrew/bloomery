@@ -226,7 +226,20 @@ def _snapshot_entity() -> EntityIR:
     )
 
 
-@pytest.mark.parametrize("agg", ["avg", "median", "count_distinct"])
+@pytest.mark.parametrize(
+    "agg",
+    [
+        "avg",
+        "median",
+        "count_distinct",
+        # `agg` is a free string that nothing validates against a vocabulary,
+        # so these reach the guard exactly as the three above do. A denylist
+        # would bless every one of them; the allowlist refuses them all.
+        pytest.param("average", id="alias-of-avg"),
+        pytest.param("mean", id="another-alias"),
+        pytest.param("banana", id="not-an-aggregation-at-all"),
+    ],
+)
 def test_an_additive_claim_over_a_non_reaggregable_agg_is_refused(agg: str) -> None:
     """``AVG(AVG(x))`` weights each group equally instead of each row, so it is
     wrong wherever groups differ in size — which is every real dataset."""
@@ -244,7 +257,76 @@ def test_an_additive_claim_over_a_non_reaggregable_agg_is_refused(agg: str) -> N
     assert isinstance(violation, FalseAdditivityClaim)
     assert violation.source_path == "metrics: metrics.average_item_price"
     assert f"agg: {agg}" in str(violation)
-    assert "ratio: {numerator, denominator}" in str(violation)
+
+
+@pytest.mark.parametrize(
+    ("agg", "expected"),
+    [
+        ("avg", "ratio: {numerator, denominator}"),
+        ("median", "a median has no additive decomposition"),
+        ("count_distinct", "double-counting an entity present in several"),
+        ("banana", "cannot verify that this aggregation re-aggregates"),
+    ],
+)
+def test_the_remediation_is_specific_to_the_aggregation(agg: str, expected: str) -> None:
+    """One message for all of them sent authors to an invalid model: a
+    numerator/denominator ratio repairs an average and repairs neither a
+    median nor a distinct count, and an aggregation bloomery does not
+    recognise is not a claim it can call false — only one it cannot check."""
+    metric = MetricIR(
+        name="m",
+        grain="item",
+        additivity=Additivity.ADDITIVE,
+        agg=agg,
+        expr=SqlExpr("price"),
+        ratio=None,
+        semi_additive=None,
+    )
+    (violation,) = check_additivity(ProjectIR(metrics=(metric,)))
+
+    assert expected in str(violation)
+
+
+def test_a_metric_with_no_aggregation_is_not_judged_here() -> None:
+    """`agg: None` has no rollup to be wrong about, and its shape is
+    `check_metrics`' business — refusing it here would give one mistake two
+    errors, the second naming additivity, which is not what is wrong."""
+    metric = MetricIR(
+        name="m",
+        grain="item",
+        additivity=Additivity.ADDITIVE,
+        agg=None,
+        expr=SqlExpr("price"),
+        ratio=None,
+        semi_additive=None,
+    )
+
+    assert check_additivity(ProjectIR(metrics=(metric,))) == []
+
+
+@pytest.mark.parametrize("agg", ["min", "max", "count"])
+def test_a_non_accumulating_agg_over_a_snapshot_passes(agg: str) -> None:
+    """The snapshot rule is about repeated *magnitude*, not repeated rows.
+    `MIN(balance)` over an account's days is the lowest balance in the period
+    and `COUNT` is the number of account-days — both honest questions that the
+    same state appearing on many days does not corrupt. Refusing them would
+    tell an author to declare a restriction their query does not need."""
+    metric = MetricIR(
+        name="total_balance",
+        grain="balance",
+        additivity=Additivity.ADDITIVE,
+        agg=agg,
+        expr=SqlExpr("balance"),
+        ratio=None,
+        semi_additive=None,
+    )
+    project = ProjectIR(
+        entities=(_snapshot_entity(),),
+        metrics=(metric,),
+        marts=(_mart_exposing("as_of_day"),),
+    )
+
+    assert check_additivity(project) == []
 
 
 @pytest.mark.parametrize("agg", ["sum", "min", "max", "count"])

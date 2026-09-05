@@ -147,36 +147,75 @@ def _check_semi_additive(metric: MetricIR, path: str) -> list[GuardrailError]:
 # ....................... #
 
 
-#: Aggregations for which **no rollup operator over the stored value exists**.
-#: That is the line, and it is not idempotence: ``sum``, ``min`` and ``max``
-#: roll up under themselves, and ``count`` rolls up under a *different*
-#: operator — the total is the sum of the counts — so all four leave an
-#: additive claim satisfiable. An average, a median and a distinct count leave
-#: nothing: the quotient, the middle value and the distinct set cannot be
-#: recovered from their per-group results by any function.
-_NOT_REAGGREGABLE: Final = ("avg", "median", "count_distinct")
+#: Aggregations that **provably re-aggregate**, and the only ones an
+#: ``additive`` claim is accepted over. An allowlist rather than a denylist,
+#: because ``agg`` is a free string — nothing validates it against a
+#: vocabulary — so a denylist blesses every spelling it has not heard of,
+#: including typos and engine-specific names bloomery cannot reason about.
+#:
+#: The line is not idempotence but whether *any* rollup operator over the
+#: stored value exists: ``sum``, ``min`` and ``max`` roll up under themselves,
+#: and ``count`` rolls up under ``sum`` — the total is the sum of the counts.
+#: An average, a median and a distinct count leave nothing to roll up from.
+_REAGGREGABLE: Final = ("sum", "min", "max", "count")
+
+#: Aggregations that accumulate magnitude across rows, and so are the ones a
+#: snapshot's repeated state actually corrupts. ``min``, ``max`` and ``count``
+#: over a snapshot are honest questions — the lowest balance in the period,
+#: the number of account-days — and refusing them would be telling an author
+#: to declare a restriction their query does not need.
+_ACCUMULATING: Final = ("sum",)
+
+#: How to repair an additive claim, per aggregation. The default is for an
+#: aggregation bloomery does not recognise, where the honest thing to say is
+#: that it cannot verify the claim rather than that the claim is false.
+_REMEDIES: Final = {
+    "avg": (
+        "declare the additive components and let the quotient be calculated at query "
+        "time — additivity: non_additive with ratio: {numerator, denominator} naming them"
+    ),
+    "median": (
+        "a median has no additive decomposition, so there is nothing to recompute it "
+        "from — keep it at its own grain, or declare additivity: non_additive with a "
+        "derived: block if one exists"
+    ),
+    "count_distinct": (
+        "a distinct count cannot be summed across groups without double-counting an "
+        "entity present in several — keep it at its own grain, or declare additivity: "
+        "non_additive with a derived: block if one exists"
+    ),
+}
+
+_UNKNOWN_REMEDY = (
+    "bloomery cannot verify that this aggregation re-aggregates, and will not accept an "
+    f"additive claim it cannot check — the ones it knows are {', '.join(_REAGGREGABLE)}. "
+    "If this aggregation does roll up, that is a gap worth reporting; if it does not, "
+    "declare additivity: non_additive with a ratio: or derived: decomposition"
+)
 
 
 def _check_average(metric: MetricIR, path: str) -> list[GuardrailError]:
-    """An average is not additive, whatever the metric says (RFC 0038 D2).
+    """An ``additive`` claim is accepted only over an aggregation whose rollup
+    is known to be sound (RFC 0038 D2).
 
     ``AVG(AVG(x))`` weights each group equally instead of each row, so a
     re-aggregated average is wrong wherever the groups differ in size — which
     is every real dataset. D2 is the general statement: a ratio is stored as
     its operands, never as the materialized quotient, because the quotient
     cannot be rolled up and looks exactly like a number that can.
+
+    An ``agg`` of ``None`` is not judged here: a metric with no aggregation of
+    its own has no rollup to be wrong about, and its shape is
+    ``check_metrics``' business.
     """
 
-    if metric.agg not in _NOT_REAGGREGABLE:
+    if metric.agg is None or metric.agg in _REAGGREGABLE:
         return []
 
     msg = (
-        f"metric {metric.name!r} declares additivity: additive with agg: {metric.agg}, which "
-        "does not produce an additive measure — rolling it up re-aggregates an aggregate, "
-        "weighting each group equally instead of each row, and the result answers a "
-        "question nobody asked (RFC 0038 D2). Fix: declare the additive components and let "
-        "the quotient be calculated at query time — additivity: non_additive with ratio: "
-        "{numerator, denominator} naming them"
+        f"metric {metric.name!r} declares additivity: additive with agg: {metric.agg}, "
+        "which bloomery does not accept an additive claim over (RFC 0038 D2). Fix: "
+        f"{_REMEDIES.get(metric.agg, _UNKNOWN_REMEDY)}"
     )
 
     return [FalseAdditivityClaim(msg, source_path=path)]
@@ -199,8 +238,14 @@ def _check_snapshot(
     determinants, and not across this one, is exactly what ``semi_additive``
     says, which is why that is what the message asks for.
 
-    **A temporal key column is not enough on its own** (see logs/T-0019.md,
-    D-107). An entity keyed ``(payment_id, paid_at)`` is one row per payment:
+    **Only an accumulating aggregation is at risk.** A ``min``, ``max`` or
+    ``count`` over a snapshot asks an honest question — the lowest balance in
+    the period, the number of account-days — and none of them is corrupted by
+    the same state appearing on many days. Only ``sum`` adds the repeated
+    magnitude, so only ``sum`` is refused.
+
+    **A temporal key column is not enough on its own either** (see
+    logs/T-0019.md, D-107). An entity keyed ``(payment_id, paid_at)`` is one row per payment:
     ``paid_at`` is functionally dependent on ``payment_id`` and the key is
     merely redundant, so there is no axis to be non-additive over — and telling
     that author to declare ``semi_additive`` would assert a rollup axis that
@@ -211,6 +256,9 @@ def _check_snapshot(
     in the first place. Where no mart does, nothing can be summed across
     anything yet and there is no false claim to catch.
     """
+
+    if metric.agg not in _ACCUMULATING:
+        return []
 
     determinants = {d.column for d in grain_of(entity.name, entity.key).determinants}
     temporal = tuple(
