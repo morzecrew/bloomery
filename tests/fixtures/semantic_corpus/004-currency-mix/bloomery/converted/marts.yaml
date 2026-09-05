@@ -1,0 +1,8 @@
+marts_version: 1
+marts:
+  payments:
+    grain: payment
+    base: payment
+    measures: [total_usd]
+    flatten:
+      - {date: paid_at, role: paid}

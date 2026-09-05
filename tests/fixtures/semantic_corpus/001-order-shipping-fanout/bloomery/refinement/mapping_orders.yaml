@@ -1,0 +1,10 @@
+mapping_version: 1
+source: corpus__orders
+target: order
+key:
+  order_id: {from: "$.order_id", transform: [to_string]}
+fields:
+  shipping:
+    recipe: direct
+    from: {shipping: "$.shipping"}
+  ordered_at: {from: "$.created_at", transform: [{parse_ts: ISO8601}]}

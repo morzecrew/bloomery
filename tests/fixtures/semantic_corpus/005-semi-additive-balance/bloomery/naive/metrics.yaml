@@ -1,0 +1,10 @@
+# `additivity: additive` is a claim, and nothing checks it. A balance is
+# additive across accounts and not across time; declared like this, a rollup
+# over the date dimension adds every day's copy of the same money.
+metrics_version: 1
+metrics:
+  total_balance:
+    grain: balance
+    additivity: additive
+    agg: sum
+    expr: "balance"

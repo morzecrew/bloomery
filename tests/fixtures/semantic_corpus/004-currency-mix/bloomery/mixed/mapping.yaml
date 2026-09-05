@@ -1,0 +1,9 @@
+mapping_version: 1
+source: corpus__payments
+target: payment
+key:
+  payment_id: {from: "$.payment_id", transform: [to_string]}
+fields:
+  amount_eur: {from: "$.amount_eur", transform: [{to_decimal: [12, 4]}]}
+  fee_usd: {from: "$.fee_usd", transform: [{to_decimal: [12, 4]}]}
+  paid_at: {from: "$.paid_at", transform: [{parse_date: ISO8601}]}

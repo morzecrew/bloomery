@@ -1,0 +1,18 @@
+# The same number, modelled so it can be recomputed rather than re-averaged:
+# a ratio over two additive operands (RFC 0006 §5.4).
+metrics_version: 1
+metrics:
+  item_value:
+    grain: order_item
+    additivity: additive
+    agg: sum
+    expr: "unit_price"
+  item_count:
+    grain: order_item
+    additivity: additive
+    agg: count
+    expr: "line_no"
+  average_item_price:
+    grain: order_item
+    additivity: non_additive
+    ratio: {numerator: item_value, denominator: item_count}

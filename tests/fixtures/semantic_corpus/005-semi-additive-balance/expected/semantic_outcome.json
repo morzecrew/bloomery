@@ -1,0 +1,10 @@
+{
+  "naive": {
+    "outcome": "unguarded",
+    "rule": "RFC 0038 D1"
+  },
+  "declared": {
+    "outcome": "accepted",
+    "rule": "RFC 0006 D6"
+  }
+}

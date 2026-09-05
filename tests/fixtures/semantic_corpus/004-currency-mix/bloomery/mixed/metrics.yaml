@@ -1,0 +1,10 @@
+# Two amounts of money, added. Both decimal(12,4), both `unit: currency`,
+# both net of tax — and denominated in different currencies.
+metrics_version: 1
+metrics:
+  total_usd:
+    requires: [amount_eur, fee_usd]
+    grain: payment
+    additivity: additive
+    agg: sum
+    expr: amount_eur + fee_usd

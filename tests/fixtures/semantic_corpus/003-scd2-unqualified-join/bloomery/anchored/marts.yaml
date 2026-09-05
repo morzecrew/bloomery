@@ -1,0 +1,10 @@
+# The same flatten, read as of the order's own date.
+marts_version: 1
+marts:
+  orders_wide:
+    grain: order
+    base: order
+    measures: [revenue]
+    flatten:
+      - {via: tier_of_customer, prefix: tier_, as_of: ordered_at}
+      - {date: ordered_at, role: ordered}

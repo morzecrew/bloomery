@@ -1,0 +1,7 @@
+# No `fx_rates:`. The refusal below is unconditional either way; what the
+# absence changes is the fix bloomery can offer (RFC 0023 §5.4).
+catalog_version: 1
+vertical: payments
+canonical_fields:
+  amount_eur: {entity: payment, type: "decimal(12,4)", unit: currency, tax_basis: net, currency: EUR}
+  fee_usd: {entity: payment, type: "decimal(12,4)", unit: currency, tax_basis: net, currency: USD}

@@ -1,0 +1,8 @@
+mapping_version: 1
+source: corpus__balances
+target: balance
+key:
+  account_id: {from: "$.account_id", transform: [to_string]}
+  as_of_day: {from: "$.as_of_day", transform: [{parse_date: ISO8601}]}
+fields:
+  balance: {from: "$.balance", transform: [{to_decimal: [12, 4]}]}

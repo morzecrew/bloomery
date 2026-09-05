@@ -1,0 +1,9 @@
+spec_version: 1
+entities:
+  order_summary:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      average_item_price: {type: "decimal(12,4)"}
+      ordered_at: {type: timestamp}

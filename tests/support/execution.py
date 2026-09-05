@@ -157,7 +157,12 @@ def _apply(conn: duckdb.DuckDBPyConnection, artifact: EmittedArtifact, name: str
         conn.execute(f"DROP TABLE {_INCOMING}")
 
 
-def materialize(conn: duckdb.DuckDBPyConnection, artifacts: tuple[EmittedArtifact, ...]) -> None:
+def materialize(
+    conn: duckdb.DuckDBPyConnection,
+    artifacts: tuple[EmittedArtifact, ...],
+    *,
+    supplied: frozenset[str] = frozenset(),
+) -> None:
     """Run every model artifact against ``conn``, in dependency order.
 
     The order is computed from what each SELECT actually reads, then broken by
@@ -165,6 +170,13 @@ def materialize(conn: duckdb.DuckDBPyConnection, artifacts: tuple[EmittedArtifac
     the same way :func:`support.compiling.expand_engine_macros` stands in for
     its macros. Calling it a second time is a **re-run**, not a rebuild: see
     :func:`_apply`.
+
+    ``supplied`` names relations the caller has already built and this must
+    leave alone, while still counting them as satisfied dependencies. The case
+    it exists for is a ``scd: type2`` relation: its versions come from the
+    operator's snapshotting, not from anything bloomery derives out of bronze,
+    so a harness that insists on building it is asserting a pipeline nobody
+    runs.
     """
     # `.sql` only: RFC 0017's python_model wrappers are ArtifactKind.MODEL too
     # (RFC 0008 D2 — artifacts are file-shaped text, so a Python model needs no
@@ -178,11 +190,12 @@ def materialize(conn: duckdb.DuckDBPyConnection, artifacts: tuple[EmittedArtifac
     }
     names = {path: ".".join(relation_of(a)) for path, a in models.items()}
     known = frozenset(names.values())
+    models = {path: a for path, a in models.items() if names[path] not in supplied}
     pending = {
         path: _referenced(extract_select(a.content), known) - {names[path]}
         for path, a in models.items()
     }
-    built: set[str] = set()
+    built: set[str] = set(supplied)
     while pending:
         ready = sorted(path for path, deps in pending.items() if deps <= built)
         if not ready:  # pragma: no cover — a cycle would be a compiler bug

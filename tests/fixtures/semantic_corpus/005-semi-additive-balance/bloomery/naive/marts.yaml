@@ -1,0 +1,8 @@
+marts_version: 1
+marts:
+  balances:
+    grain: balance
+    base: balance
+    measures: [total_balance]
+    flatten:
+      - {date: as_of_day, role: measured}

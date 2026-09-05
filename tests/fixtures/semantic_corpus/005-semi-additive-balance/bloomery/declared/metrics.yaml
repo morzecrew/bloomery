@@ -1,0 +1,10 @@
+# The axis the measure is not additive over, declared — so the rule along it
+# (`last`) is applied at query time instead of being hoped for.
+metrics_version: 1
+metrics:
+  total_balance:
+    grain: balance
+    additivity: semi_additive
+    agg: sum
+    expr: "balance"
+    semi_additive: {over: as_of_day, rule: last}

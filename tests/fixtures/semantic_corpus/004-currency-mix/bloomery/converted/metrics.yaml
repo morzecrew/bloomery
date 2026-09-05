@@ -1,0 +1,10 @@
+# The same total, over an operand that was converted first — so both sides of
+# the addition are USD and the sum has a unit.
+metrics_version: 1
+metrics:
+  total_usd:
+    requires: [amount_usd, fee_usd]
+    grain: payment
+    additivity: additive
+    agg: sum
+    expr: amount_usd + fee_usd

@@ -1,0 +1,8 @@
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    measures: [shipping_total]
+    flatten:
+      - {date: ordered_at, role: ordered}
