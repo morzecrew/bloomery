@@ -44,6 +44,7 @@ from bloomery.ir import Additivity, Layer
 from bloomery.marts import DATE_BUCKETS
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import TimeGrain, clause_predicates
+from bloomery.semantic import Proof, RefusalReason, grain_of, prove_rollup
 
 if TYPE_CHECKING:
     from bloomery.ir import MartIR, MetricIR, ProjectIR
@@ -248,8 +249,132 @@ def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) 
 # ....................... #
 
 
+def _carried_elsewhere(ir: ProjectIR, mart: MartIR, name: str) -> MartIR | None:
+    """The first other mart flattening ``name``, or ``None``.
+
+    Sorted by mart name rather than taken in IR order: this decides which mart
+    a refusal message names, and a message that depends on iteration order is
+    one two runs can disagree about (RFC 0003).
+    """
+
+    return next(
+        (
+            candidate
+            for candidate in sorted(ir.marts, key=lambda m: m.name)
+            if candidate.name != mart.name
+            and any(dimension.column == name for dimension in candidate.dimensions)
+        ),
+        None,
+    )
+
+
+# ....................... #
+
+
+def _hop(ir: ProjectIR, source: str, target: str) -> str | None:
+    """The one declared relationship from ``source`` to ``target``, by name.
+
+    ``None`` where there is no such relationship or more than one — the
+    remediation then says to flatten the hop without naming it, rather than
+    picking one of two and sending the author to write the wrong line.
+    """
+
+    named = sorted(
+        relationship.name
+        for relationship in ir.relationships
+        if relationship.from_entity == source and relationship.to_entity == target
+    )
+
+    return named[0] if len(named) == 1 else None
+
+
+# ....................... #
+
+
+def _not_here(ir: ProjectIR, mart: MartIR, name: str, other: MartIR) -> UnreachableAtGrain:
+    """The refusal for a dimension another mart carries and this one does not
+    (RFC 0040 §11a P2, logs/T-0022.md D-135).
+
+    The name is not unknown, so `UnknownMember` would be false about the one
+    thing an author acts on: it would send them to declare a dimension that is
+    already declared. What decides the message is whether the rollup from this
+    mart's grain to that one's is provable — one line of spec fixes the first
+    case, and nothing in the spec fixes the second the same way.
+
+    Refuses either way. This phase adds no capability (D9); what it adds is a
+    refusal that says which of the two situations the author is in.
+    """
+
+    keys = {entity.name: entity.key for entity in ir.entities}
+    source, target = mart.grain, other.grain
+    answer = (
+        prove_rollup(grain_of(source, keys[source]), grain_of(target, keys[target]), ir)
+        if source in keys and target in keys
+        else None
+    )
+    lead = (
+        f"dimension {name!r} is not on mart {mart.name!r}, which serves this request; "
+        f"mart {other.name!r} carries it at grain {target!r}"
+    )
+
+    if isinstance(answer, Proof) and not answer.closed:  # pragma: no cover
+        # A proof resting on a leaf nothing closes — a heuristic or an
+        # unverified import — does not authorize "safe, just flatten it", which
+        # is the whole reason the branch above tests `closed` rather than
+        # presence. Unreachable today and deliberately still written: every
+        # basis a rollup rests on is `DECLARED` or `DERIVED`, which
+        # `test_no_rollup_basis_carries_a_provenance_that_leaves_a_proof_open`
+        # asserts, and RFC 0044's imported provenance is what makes it
+        # reachable. The code is its own, because the repair is to verify the
+        # imported fact rather than to edit a mart.
+        msg = (
+            f"{lead}, and the rollup from {source!r} to {target!r} rests on facts bloomery "
+            f"cannot close, so it is not authorization for flattening the hop."
+        )
+        return UnreachableAtGrain(msg, refusal_reason="unverified")
+
+    if isinstance(answer, Proof):
+        relationship = _hop(ir, source, target)
+        via = (
+            f"add `flatten: {{via: {relationship}}}` to mart {mart.name!r}"
+            if relationship is not None
+            else f"flatten the hop from {source!r} to {target!r} onto mart {mart.name!r}"
+        )
+        msg = (
+            f"{lead}.\n"
+            f"  Values at {source!r} roll up to {target!r} safely, so the column can be "
+            f"flattened onto this mart at build time: {via}.\n"
+            f"  bloomery does not join at plan time (RFC 0040 D3) — the join belongs to the "
+            f"mart, where it is proven once instead of per request."
+        )
+        return UnreachableAtGrain(msg, refusal_reason="not_flattened")
+
+    if answer is None:
+        msg = (
+            f"{lead}, and this project maps no entity for one of those grains, so no rollup "
+            f"between them can be stated."
+        )
+        return UnreachableAtGrain(msg, refusal_reason=str(RefusalReason.UNKNOWN_GRAIN))
+
+    obligations = "\n".join(
+        f"  required: {obligation.required}"
+        + (f"\n  found:    {obligation.found}" if obligation.found else "")
+        for obligation in answer.obligations
+    )
+    remedy = f"\n  Fix: {answer.remediation}" if answer.remediation else ""
+    msg = (
+        f"{lead}, and values at {source!r} cannot be rolled up to {target!r} "
+        f"({answer.reason}).\n{obligations}{remedy}"
+    )
+
+    return UnreachableAtGrain(msg, refusal_reason=str(answer.reason))
+
+
+# ....................... #
+
+
 def _resolve_dimension(
-    mart: MartIR, name: str, *, apply_grain: TimeGrain | None
+    mart: MartIR, name: str, *, apply_grain: TimeGrain | None, ir: ProjectIR
 ) -> ResolvedDimension:
     """One dimension reference against the covering mart's flattened columns
     (RFC 0011 D6 — role-playing needs no planner logic beyond naming)."""
@@ -264,7 +389,13 @@ def _resolve_dimension(
                 msg = f"{name!r} has roles {roles}. Use {options}."
                 raise AmbiguousDimension(msg)
             if len(roles) == 1:
-                return _resolve_dimension(mart, f"{roles[0]}_{name}", apply_grain=apply_grain)
+                return _resolve_dimension(
+                    mart, f"{roles[0]}_{name}", apply_grain=apply_grain, ir=ir
+                )
+        other = _carried_elsewhere(ir, mart, name)
+        if other is not None:
+            raise _not_here(ir, mart, name, other)
+
         known = sorted(refs)
         closest = _closest(name, known)
         msg = f"unknown dimension {name!r} on mart {mart.name!r}{_did_you_mean(closest, known)}"
@@ -307,18 +438,20 @@ def resolve_request(
     """
     mart = _covering_mart(ir, request, naming)
     dimensions = tuple(
-        _resolve_dimension(mart, name, apply_grain=request.time_grain)
+        _resolve_dimension(mart, name, apply_grain=request.time_grain, ir=ir)
         for name in request.dimensions
     )
     filter_dimensions = tuple(
         tuple(
-            _resolve_dimension(mart, predicate.dimension, apply_grain=None)
+            _resolve_dimension(mart, predicate.dimension, apply_grain=None, ir=ir)
             for predicate in clause_predicates(clause)
         )
         for clause in request.filters
     )
     policy_dimension = (
-        _resolve_dimension(mart, policy.dimension, apply_grain=None) if policy is not None else None
+        _resolve_dimension(mart, policy.dimension, apply_grain=None, ir=ir)
+        if policy is not None
+        else None
     )
     return Coverage(
         mart=mart,

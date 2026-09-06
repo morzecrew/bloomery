@@ -1,0 +1,18 @@
+# `order_items` declares no `{via: item_of_order}`, so `region` is not on it —
+# while the relationship that would make the hop safe *is* declared. That is
+# the whole point of the fixture: the gap is one line of spec, and the refusal
+# should say so rather than guess a nearest name (RFC 0040 §11a P2).
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    flatten:
+      - {date: order_date, role: ordered}
+    measures: [shipping_count]
+  order_items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {date: item_date, role: added}
+    measures: [line_discount]

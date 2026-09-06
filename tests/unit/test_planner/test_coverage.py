@@ -19,9 +19,10 @@ from bloomery.errors import (
 from bloomery.ir import ProjectIR
 from bloomery.naming import DefaultNaming
 from bloomery.planner import TimeGrain
-from bloomery.planner.coverage import check, resolve_request
+from bloomery.planner.coverage import _carried_elsewhere, _hop, check, resolve_request
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import AnyOf, Op, Predicate
+from bloomery.semantic import BASIS_PROVENANCE, RefusalReason
 from support.planning import fixture_ir
 
 pytestmark = pytest.mark.unit
@@ -294,3 +295,158 @@ def test_a_cumulative_metric_requires_its_own_measure() -> None:
         MetricRequest(metrics=("revenue_mtd",), dimensions=("sold_day",)),
         naming=NAMING,
     ) == "sales"
+
+
+# ----------------------- #
+# A dimension another mart carries (RFC 0040 §11a P2)
+
+
+def test_a_dimension_on_another_mart_is_not_an_unknown_one() -> None:
+    """`UnknownMember` says the name does not exist, and for this request that
+    is false in the one way an author acts on: it sends them to declare a
+    dimension the project already declares. `region` is on mart `orders`; what
+    is missing is the hop onto `order_items`, not the dimension.
+    """
+    with pytest.raises(UnreachableAtGrain) as excinfo:
+        check(
+            fixture_ir("unflattened_hop"),
+            MetricRequest(metrics=("line_discount",), dimensions=("region",)),
+            naming=NAMING,
+        )
+
+    assert excinfo.value.refusal_reason == "not_flattened"
+    assert "mart 'orders' carries it at grain 'order'" in str(excinfo.value)
+
+
+def test_a_provable_hop_is_refused_by_naming_the_spec_edit() -> None:
+    """The deliverable of this phase. The rollup from `order_item` to `order`
+    is provable, so the gap is one line of spec, and the refusal names that
+    line rather than guessing a nearest column name.
+
+    It stays a refusal: P2 adds no capability (RFC 0040 D9), and bloomery does
+    not join at plan time — the join belongs to the mart, proven once when it
+    is built instead of re-decided per request.
+    """
+    with pytest.raises(UnreachableAtGrain) as excinfo:
+        check(
+            fixture_ir("unflattened_hop"),
+            MetricRequest(metrics=("line_discount",), dimensions=("region",)),
+            naming=NAMING,
+        )
+
+    assert "add `flatten: {via: item_of_order}` to mart 'order_items'" in str(excinfo.value)
+
+
+def test_an_unprovable_hop_carries_the_rollup_refusal_that_explains_it() -> None:
+    """`multi_mart_refusal` declares no relationship at all, so the same shape
+    of request gets a different diagnosis — and the difference is the whole
+    point of asking the prover rather than reporting "not on this mart".
+
+    The reason code is RFC 0037's own, not a planner invention: a caller that
+    wants to branch on why gets the vocabulary that already answers it.
+    """
+    with pytest.raises(UnreachableAtGrain) as excinfo:
+        check(
+            fixture_ir("multi_mart_refusal"),
+            MetricRequest(metrics=("line_discount",), dimensions=("ship_cost",)),
+            naming=NAMING,
+        )
+
+    assert excinfo.value.refusal_reason == RefusalReason.NO_FUNCTIONAL_PATH
+    assert "cannot be rolled up" in str(excinfo.value)
+    assert "declare a relationship connecting the two entities" in str(excinfo.value)
+
+
+def test_the_reason_code_round_trips_through_the_semantic_vocabulary() -> None:
+    """`refusal_reason` is the `RefusalReason` *value*, because `errors` is the
+    bottom layer and the semantic vocabulary sits above it. The round trip is
+    what makes storing a bare string honest rather than lossy."""
+    with pytest.raises(UnreachableAtGrain) as excinfo:
+        check(
+            fixture_ir("multi_mart_refusal"),
+            MetricRequest(metrics=("line_discount",), dimensions=("ship_cost",)),
+            naming=NAMING,
+        )
+
+    assert RefusalReason(excinfo.value.refusal_reason) is RefusalReason.NO_FUNCTIONAL_PATH
+
+
+def test_a_name_no_mart_carries_is_still_an_unknown_member() -> None:
+    """The control, and the boundary this phase must not cross. A name that
+    exists nowhere is genuinely unknown, keeps its class and keeps its
+    did-you-mean — nothing here converts a refusal that was already correct.
+    """
+    with pytest.raises(UnknownMember) as excinfo:
+        check(
+            fixture_ir("unflattened_hop"),
+            MetricRequest(metrics=("line_discount",), dimensions=("nonsense",)),
+            naming=NAMING,
+        )
+
+    assert excinfo.value.did_you_mean is None
+
+
+def test_a_measure_refusal_carries_no_dimension_reason() -> None:
+    """`UnreachableAtGrain` covers two situations now, and `refusal_reason`
+    empty is what says which. A measure-coverage refusal answers with
+    `covering_marts`; reporting a dimension code there would be a value nobody
+    computed."""
+    with pytest.raises(UnreachableAtGrain) as excinfo:
+        check(
+            fixture_ir("multi_mart_refusal"),
+            MetricRequest(metrics=("line_discount", "shipping_cost")),
+            naming=NAMING,
+        )
+
+    assert excinfo.value.refusal_reason == ""
+    assert excinfo.value.covering_marts != ()
+
+
+def test_two_routes_to_the_same_entity_name_neither() -> None:
+    """A remediation that names a relationship the author must write into
+    their mart is only useful if it is the right one. With two routes there is
+    no right one to name, and guessing sends them to write the wrong line — so
+    the message says to flatten the hop and leaves the choice where it belongs.
+
+    Asked of `_hop` directly: no fixture declares two relationships between one
+    pair of entities, and one written to would be a fixture whose only reader
+    is this test.
+    """
+    ir = fixture_ir("unflattened_hop")
+    (declared,) = ir.relationships
+    doubled = replace(
+        ir, relationships=(declared, replace(declared, name="also_item_of_order"))
+    )
+
+    assert _hop(ir, "order_item", "order") == "item_of_order"
+    assert _hop(doubled, "order_item", "order") is None
+
+
+def test_the_mart_a_refusal_names_does_not_depend_on_iteration_order() -> None:
+    """Two marts may carry the same dimension, and the message names one. RFC
+    0003 makes that a sorted choice rather than whichever the IR listed first —
+    a refusal two runs disagree about is a refusal nobody can quote."""
+    ir = fixture_ir("unflattened_hop")
+    (serving,) = [mart for mart in ir.marts if mart.name == "order_items"]
+    (carrying,) = [mart for mart in ir.marts if mart.name == "orders"]
+    also = replace(carrying, name="aaa_orders")
+
+    forward = replace(ir, marts=(serving, carrying, also))
+    backward = replace(ir, marts=(serving, also, carrying))
+
+    assert _carried_elsewhere(forward, serving, "region").name == "aaa_orders"
+    assert _carried_elsewhere(backward, serving, "region").name == "aaa_orders"
+
+
+def test_no_rollup_basis_carries_a_provenance_that_leaves_a_proof_open() -> None:
+    """Why `_not_here` tests `answer.closed` and no fixture can reach the
+    branch: every basis a rollup proof rests on is `DECLARED` or `DERIVED`, so
+    `prove_rollup` cannot return an unclosed proof today.
+
+    The guard is not decoration. RFC 0044 is about imported provenance, and the
+    first basis that arrives as `IMPORTED_VERIFIED` or `INFERRED_HEURISTIC`
+    makes an open proof reachable — at which point "provable, just flatten it"
+    would be said about a heuristic. This fails then, which is where someone
+    decides whether that still counts as safe.
+    """
+    assert all(provenance.closes for provenance in BASIS_PROVENANCE.values())

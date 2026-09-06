@@ -1,0 +1,33 @@
+# The provable-but-unflattened fixture (RFC 0040 §11a P2, logs/T-0022.md
+# D-136). Two entities with a declared many_to_one between them — so a rollup
+# from `order_item` to `order` is provable — and a mart at `order_item` grain
+# that deliberately does **not** flatten the hop.
+#
+# It exists to produce one refusal. Asking for `line_discount by region` is
+# refused because the mart does not carry `region`, and the refusal can say
+# something an author acts on: the rollup is safe, so flatten it. Every other
+# fixture either flattens the hop it declares or declares no relationship at
+# all, which is why nothing else reaches that message.
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      region: {type: string}
+      order_date: {type: date}
+  order_item:
+    grain: one row per line on an order
+    key: [order_id, line_no]
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      discount: {type: "decimal(12,4)"}
+      item_date: {type: date}
+relationships:
+  - name: item_of_order
+    from: order_item
+    to: order
+    via: {order_id: order_id}
+    cardinality: many_to_one

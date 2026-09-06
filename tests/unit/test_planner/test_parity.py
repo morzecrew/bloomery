@@ -16,15 +16,23 @@ red when a message improves is one people learn to update without reading.
 **What the corpus actually covers**, since a parity run reports green either way
 and the number of requests is not the same as the number of shapes:
 
-* Ten fixtures carry marts with measures. Requests are generated per mart —
+* Eleven fixtures carry marts with measures. Requests are generated per mart —
   each measure alone, each measure by each dimension, and three two-dimension
-  pairs — which is 531 requests.
-* 423 are accepted and 108 refused across four classes, so both sides are real.
+  pairs — which is 556 requests.
+* 448 are accepted and 108 refused across four classes, so both sides are real.
 * **76 of the 108 are one fixture**, `multi_source_quality`, whose catalog
   declares no `date_dimension` — MetricFlow refuses the whole project, so those
   requests fail identically and test one fact repeatedly rather than 76. The
   refusals that vary by request shape are the other 32: `InvalidRequest` (22),
   `AmbiguousDimension` (7) and `UnknownMember` (3).
+
+The corpus grew by 25 when `unflattened_hop` was added for RFC 0040 P2's
+`not_flattened` refusal (logs/T-0022.md, D-136). Growth is not a parity event
+and was checked as one anyway: regenerating produced 25 additions, zero changes
+and zero removals, so no request that existed before this phase moved. The
+generator asks for a mart's own dimensions, so it never reaches that fixture's
+refusal — what the new rows pin is that adding a fixture shaped to be refused
+did not quietly refuse anything else.
 
 That last bullet is the honest limit of this suite and the reason it is written
 down here: it is a strong guard against a phase that changes an *outcome*, and
@@ -167,7 +175,7 @@ def test_the_corpus_is_the_size_it_claims_to_be() -> None:
     outcomes = _outcomes()
 
     assert len(outcomes) == len(_baseline())
-    assert len(outcomes) == 531
+    assert len(outcomes) == 556
 
 
 def test_no_request_changes_outcome() -> None:

@@ -107,8 +107,8 @@ BloomeryError
 | `EmitError` | emit | The IR cannot be lowered to a target artifact; also unknown target/dialect names and emitter-registration collisions |
 | `UnsupportedByTarget` | emit | An IR construct the selected target or dialect cannot express — fail loud, never approximate |
 | `PlannerError` | planner | A malformed or unanswerable request; also the fallback for untranslated backend failures |
-| `UnknownMember` | planner | A request names a metric or dimension that does not exist; message carries a did-you-mean |
-| `UnreachableAtGrain` | planner | No single mart can answer the request at the requested grain — refused, never joined at plan time |
+| `UnknownMember` | planner | A request names a metric or dimension that exists nowhere in the project; message carries a did-you-mean |
+| `UnreachableAtGrain` | planner | No single mart can answer the request at the requested grain — refused, never joined at plan time. Also a dimension another mart carries and this one does not, where `.refusal_reason` says whether one line of spec would fix it |
 | `AmbiguousDimension` | planner | An unqualified reference to a dimension with multiple roles; message names the roles |
 | `InvalidRequest` | planner | Bad filter/order/limit shapes, duplicates, malformed filter documents |
 | `FilterTypeMismatch` | planner | A filter value whose type contradicts the dimension's logical type — refused before any SQL renders |
@@ -190,6 +190,7 @@ computed on its way to writing the message:
 |---|---|---|
 | `UnknownMember` | `did_you_mean: str \| None` | The closest known metric or dimension name |
 | `UnreachableAtGrain` | `covering_marts: tuple[MartCoverage, ...]` | One entry per required measure: the mart that *does* serve it, and the grain it serves it at |
+| `UnreachableAtGrain` | `refusal_reason: str` | Why a *dimension* is out of reach: `"not_flattened"`, a `RefusalReason` value, or `""` for the measure cases above |
 | `GrainViolation` | `offending_measures: tuple[MeasureRef, ...]` | The measure at odds with the mart grain, and its own grain |
 | `UnknownStep` | `available_versions: tuple[int, ...]` | The versions of that `ref` the registry holds, ascending |
 | `UnsupportedFilter` | `nearest_supported: str \| None` | The operator that would have worked (`$regex` → `"like"`) |
@@ -208,6 +209,45 @@ except UnreachableAtGrain as refusal:
     for entry in refusal.covering_marts:
         print(f"{entry.metric} lives on {entry.mart} at grain {entry.grain}")
 ```
+
+### A dimension another mart carries
+
+Asking for a dimension the serving mart does not flatten used to refuse as `UnknownMember`
+with a guess at the nearest column name. That is false whenever the dimension exists on
+another mart: it sends you to declare something already declared. Those requests now refuse
+as `UnreachableAtGrain`, and `refusal_reason` answers the only question that changes what
+you do next.
+
+`"not_flattened"` means the rollup to that dimension's grain is **provable** and the mart
+simply does not carry the column — one line of spec fixes it, and the message names the
+line:
+
+```text
+dimension 'region' is not on mart 'order_items', which serves this request; mart 'orders'
+carries it at grain 'order'.
+  Values at 'order_item' roll up to 'order' safely, so the column can be flattened onto
+  this mart at build time: add `flatten: {via: item_of_order}` to mart 'order_items'.
+```
+
+Any other value is a `RefusalReason` — the rollup itself does not hold, and that member
+names which repair applies:
+
+```python
+from bloomery.errors import UnreachableAtGrain
+from bloomery.semantic import RefusalReason
+
+try:
+    planner.plan(ir, request, dialect="duckdb")
+except UnreachableAtGrain as refusal:
+    if refusal.refusal_reason == "not_flattened":
+        ...  # the message names the mart and the flatten to add
+    elif refusal.refusal_reason:
+        reason = RefusalReason(refusal.refusal_reason)
+```
+
+**bloomery never joins at plan time**, in either case. The join belongs to the mart, where
+it is proven once when the mart is built rather than re-decided on every request — so the
+repair is always a spec edit, never a flag on the query.
 
 **Absence has one representation, and "the attribute is missing" is not it.** Every field
 is always present: a collection field is `()` and a scalar is `None` when there is
