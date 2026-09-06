@@ -1451,6 +1451,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Fix suggestions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-dimension-another-mart-carries" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A dimension another mart carries
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1637,6 +1654,23 @@
       </span>
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Fix suggestions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-dimension-another-mart-carries" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        A dimension another mart carries
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2002,12 +2036,12 @@ pulling in any pipeline stage.</p>
 <tr>
 <td><code>UnknownMember</code></td>
 <td>planner</td>
-<td>A request names a metric or dimension that does not exist; message carries a did-you-mean</td>
+<td>A request names a metric or dimension that exists nowhere in the project; message carries a did-you-mean</td>
 </tr>
 <tr>
 <td><code>UnreachableAtGrain</code></td>
 <td>planner</td>
-<td>No single mart can answer the request at the requested grain — refused, never joined at plan time</td>
+<td>No single mart can answer the request at the requested grain — refused, never joined at plan time. Also a dimension another mart carries and this one does not, where <code>.refusal_reason</code> says whether one line of spec would fix it</td>
 </tr>
 <tr>
 <td><code>AmbiguousDimension</code></td>
@@ -2191,6 +2225,11 @@ computed on its way to writing the message:</p>
 <td>One entry per required measure: the mart that <em>does</em> serve it, and the grain it serves it at</td>
 </tr>
 <tr>
+<td><code>UnreachableAtGrain</code></td>
+<td><code>refusal_reason: str</code></td>
+<td>Why a <em>dimension</em> is out of reach: <code>"not_flattened"</code>, a <code>RefusalReason</code> value, or <code>""</code> for the measure cases above</td>
+</tr>
+<tr>
 <td><code>GrainViolation</code></td>
 <td><code>offending_measures: tuple[MeasureRef, ...]</code></td>
 <td>The measure at odds with the mart grain, and its own grain</td>
@@ -2219,6 +2258,39 @@ each covers at which grain, and that pairing is the whole content of the conflic
     <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">refusal</span><span class="o">.</span><span class="n">covering_marts</span><span class="p">:</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">entry</span><span class="o">.</span><span class="n">metric</span><span class="si">}</span><span class="s2"> lives on </span><span class="si">{</span><span class="n">entry</span><span class="o">.</span><span class="n">mart</span><span class="si">}</span><span class="s2"> at grain </span><span class="si">{</span><span class="n">entry</span><span class="o">.</span><span class="n">grain</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </code></pre></div>
+<h3 id="a-dimension-another-mart-carries">A dimension another mart carries<a class="headerlink" href="#a-dimension-another-mart-carries" title="Permanent link">&para;</a></h3>
+<p>Asking for a dimension the serving mart does not flatten used to refuse as <code>UnknownMember</code>
+with a guess at the nearest column name. That is false whenever the dimension exists on
+another mart: it sends you to declare something already declared. Those requests now refuse
+as <code>UnreachableAtGrain</code>, and <code>refusal_reason</code> answers the only question that changes what
+you do next.</p>
+<p><code>"not_flattened"</code> means the rollup to that dimension's grain is <strong>provable</strong> and the mart
+simply does not carry the column — one line of spec fixes it, and the message names the
+line:</p>
+<div class="highlight"><pre><span></span><code>dimension 'region' is not on mart 'order_items', which serves this request; mart 'orders'
+carries it at grain 'order'.
+  Values at 'order_item' roll up to 'order' safely, so the column can be flattened onto
+  this mart at build time: add `flatten: {via: item_of_order}` to mart 'order_items'.
+</code></pre></div>
+<p>Any other value is a <code>RefusalReason</code> — the rollup itself does not hold, and that member
+names which repair applies:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">UnreachableAtGrain</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">bloomery.semantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">RefusalReason</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">planner</span><span class="o">.</span><span class="n">plan</span><span class="p">(</span><span class="n">ir</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s2">"duckdb"</span><span class="p">)</span>
+<span class="k">except</span> <span class="n">UnreachableAtGrain</span> <span class="k">as</span> <span class="n">refusal</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">refusal</span><span class="o">.</span><span class="n">refusal_reason</span> <span class="o">==</span> <span class="s2">"not_flattened"</span><span class="p">:</span>
+        <span class="o">...</span>  <span class="c1"># the message names the mart and the flatten to add</span>
+    <span class="k">elif</span> <span class="n">refusal</span><span class="o">.</span><span class="n">refusal_reason</span><span class="p">:</span>
+        <span class="n">reason</span> <span class="o">=</span> <span class="n">RefusalReason</span><span class="p">(</span><span class="n">refusal</span><span class="o">.</span><span class="n">refusal_reason</span><span class="p">)</span>
+</code></pre></div>
+<p>The same diagnosis reaches a <strong>filter</strong> or a <strong>row policy</strong> naming such a column: all three
+resolve the dimension through one function, and a filter on a column another mart carries
+has the same cause and the same repair as a group-by does.</p>
+<p><strong>bloomery never joins at plan time</strong>, in either case. The join belongs to the mart, where
+it is proven once when the mart is built rather than re-decided on every request — so the
+repair is always a spec edit, never a flag on the query.</p>
 <p><strong>Absence has one representation, and "the attribute is missing" is not it.</strong> Every field
 is always present: a collection field is <code>()</code> and a scalar is <code>None</code> when there is
 nothing to suggest, so no caller needs <code>getattr</code>. An empty suggestion is a <em>fact</em> rather
