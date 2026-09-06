@@ -138,31 +138,57 @@ def test_restrictions_compare_as_sets_not_as_written() -> None:
     assert _plannable(request, widened, {**metrics, "reordered": reversed_clauses})
 
 
-def test_membership_values_compare_as_sets_too() -> None:
-    """The same argument one level down: no operator in the vocabulary reads
-    its values positionally, so `status in ('paid', 'refunded')` and
-    `status in ('refunded', 'paid')` are one restriction. Authored value order
-    is kept in the IR for the same reason clause order is, and means nothing
-    here."""
-    ir = fixture_ir("period_over_period")
-    metrics = {metric.name: metric for metric in ir.metrics}
-    base = metrics["revenue"]
-    members = ("paid", "refunded")
-    left = dataclasses.replace(
-        base, name="left", filter=(MetricFilterIR(dimension="status", op="in", values=members),)
+def _restricted(ir: object, name: str, values: tuple[object, ...]) -> object:
+    """A copy of `revenue` restricted to `status in values`, under a new name."""
+    metrics = {metric.name: metric for metric in ir.metrics}  # type: ignore[attr-defined]
+
+    return dataclasses.replace(
+        metrics["revenue"],
+        name=name,
+        filter=(MetricFilterIR(dimension="status", op="in", values=values),),
     )
-    right = dataclasses.replace(
-        base,
-        name="right",
-        filter=(MetricFilterIR(dimension="status", op="in", values=tuple(reversed(members))),),
-    )
-    (mart,) = [candidate for candidate in ir.marts if base.name in candidate.measures]
+
+
+def _plannable_pair(ir: object, left: object, right: object) -> bool:
+    metrics = {metric.name: metric for metric in ir.metrics}  # type: ignore[attr-defined]
+    (mart,) = [
+        candidate
+        for candidate in ir.marts  # type: ignore[attr-defined]
+        if "revenue" in candidate.measures
+    ]
     widened = dataclasses.replace(mart, measures=(*mart.measures, "left", "right"))
 
-    assert _plannable(
+    return _plannable(
         MetricRequest(metrics=("left", "right")),
         widened,
         {**metrics, "left": left, "right": right},
+    )
+
+
+def test_membership_values_compare_as_a_set_of_rows_admitted() -> None:
+    """The same argument one level down, and one more level after that: no
+    operator in the vocabulary reads its values positionally, and a repeated
+    member admits no extra row. So the three spellings below are one
+    restriction. Authored value order is kept in the IR for the same reason
+    clause order is, and means nothing here."""
+    ir = fixture_ir("period_over_period")
+    members = ("paid", "refunded")
+    left = _restricted(ir, "left", members)
+
+    assert _plannable_pair(ir, left, _restricted(ir, "right", tuple(reversed(members))))
+    assert _plannable_pair(ir, left, _restricted(ir, "right", ("paid", "paid", "refunded")))
+
+
+def test_a_literal_of_another_type_is_another_restriction() -> None:
+    """Sets of the values, not of their text. `1` and `"1"` admit different
+    rows, and canonicalizing through `str` flattened them onto one key —
+    leaving this comparison to rely on the filter-type guardrail two layers
+    away to keep them apart, which is not this function's to assume.
+    """
+    ir = fixture_ir("period_over_period")
+
+    assert not _plannable_pair(
+        ir, _restricted(ir, "left", (1,)), _restricted(ir, "right", ("1",))
     )
 
 

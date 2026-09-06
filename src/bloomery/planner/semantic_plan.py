@@ -92,26 +92,31 @@ def _served_at_grain(mart_name: str, grain: str, measures: tuple[str, ...]) -> P
 # ....................... #
 
 
-def _restriction(metric: MetricIR) -> frozenset[tuple[str, str, tuple[str, ...]]]:
-    """One metric's row restriction, with authored order discarded.
+def _restriction(metric: MetricIR) -> frozenset[tuple[str, str, frozenset[object]]]:
+    """One metric's row restriction, as the set of rows it admits rather than
+    as the text that was written for it.
 
     `resolve.build._metric_filters` keeps the authored order of both the
     clauses and each clause's values, deliberately — cosmetic in SQL, and
-    load-bearing in the artifact bytes. Neither order carries meaning *here*:
-    the clauses are ANDed, and no operator in the vocabulary reads its values
-    positionally, so ``status in ('paid', 'refunded')`` and
-    ``status in ('refunded', 'paid')`` are one restriction. Comparing what was
-    written rather than what it means refuses plans these four nodes can state
-    (logs/T-0021.md, D-130).
+    load-bearing in the artifact bytes. Here it carries nothing: the clauses
+    are ANDed, no operator in RFC 0015's closed vocabulary reads its values
+    positionally, and a repeated member admits no extra row. So
+    ``status in ('paid', 'refunded')``, ``status in ('refunded', 'paid')`` and
+    ``status in ('paid', 'paid', 'refunded')`` are one restriction, and
+    comparing what was written refuses plans these four nodes can state
+    (logs/T-0021.md, D-130, D-131).
 
-    Values are ordered by their text rather than by value: this needs *a*
-    canonical order, not a meaningful one, and a clause may carry `Decimal`
-    beside `str` beside `bool`.
+    Sets, and not a sorted tuple of the values' text. Text was a canonical
+    *order*, and using it as the compared identity made it a canonical
+    *value* too, which it is not: it flattens ``1`` and ``"1"`` onto one key
+    and leaves this comparison depending on the type guardrail two layers away
+    to keep them apart. A set hashes the values themselves, so distinct
+    literals stay distinct and no order has to be invented for a mixture of
+    `Decimal`, `str` and `bool`.
     """
 
     return frozenset(
-        (clause.dimension, clause.op, tuple(sorted(map(str, clause.values))))
-        for clause in metric.filter
+        (clause.dimension, clause.op, frozenset(clause.values)) for clause in metric.filter
     )
 
 
