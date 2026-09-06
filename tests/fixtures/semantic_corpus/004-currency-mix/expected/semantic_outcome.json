@@ -6,6 +6,11 @@
   },
   "converted": {
     "outcome": "accepted",
-    "rule": "RFC 0023 D11"
+    "rule": "R009"
+  },
+  "mislabelled": {
+    "outcome": "refused",
+    "error": "ResolutionError",
+    "rule": "R009"
   }
 }

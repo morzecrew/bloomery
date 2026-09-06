@@ -35,6 +35,7 @@ from bloomery import (
     compile_project,
     evaluate,
 )
+from bloomery.semantic import RULES
 from support.execution import materialize, warehouse
 from support.planning import make_planner
 from support.semantic_corpus import Case, Expectation, Outcome, cases
@@ -186,16 +187,34 @@ def test_every_cited_rule_names_a_decision_that_exists() -> None:
     Sections are refused as well as unchecked numbers. `§5.3` moves when a
     document is edited; a decision row is append-only and its number is never
     reused, which is what makes it stable enough to cite from outside.
+
+    **Two registers, both accepted, each checked against itself.** A proof rule
+    id resolves against `bloomery.semantic.RULES`, which RFC 0039 D8 governs as
+    append-only and which this process can read; an `RFC NNNN Dn` resolves
+    against that document's decision table. The R-id is the stronger citation on
+    D3's own terms — machine-readable, never reused, and verifiable without
+    opening a document that may since have been retired — and the older form
+    stays because every case written before R009 uses it (logs/T-0025.md,
+    D-159).
     """
     unreachable = []
 
     for case in CASES:
         for expectation in case.expectations:
+            if re.fullmatch(r"R\d{3}", expectation.rule):
+                assert expectation.rule in RULES, (
+                    f"{case.name}/{expectation.name}: rule {expectation.rule!r} is in no "
+                    "register — bloomery.semantic.RULES does not name it, and an id that "
+                    "resolves nowhere is prose wearing an identifier"
+                )
+                continue
+
             cited = re.fullmatch(r"RFC (\d{4}) D(\d+)", expectation.rule)
             assert cited, (
-                f"{case.name}/{expectation.name}: rule {expectation.rule!r} is not "
-                "`RFC NNNN Dn`. A section number is not a stable ID — it moves when the "
-                "document is edited, and a decision row's number never does"
+                f"{case.name}/{expectation.name}: rule {expectation.rule!r} is neither a "
+                "proof-rule id (`R0nn`) nor `RFC NNNN Dn`. A section number is not a stable "
+                "ID — it moves when the document is edited, and neither a decision row's "
+                "number nor a rule id does"
             )
             number, decision = cited.groups()
             declared = _decision_table(number)

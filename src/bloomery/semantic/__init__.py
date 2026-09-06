@@ -16,6 +16,7 @@ this docstring promising.
 """
 
 from bloomery.semantic.closure import can_roll_up, closure, dependencies, prove_rollup
+from bloomery.semantic.denomination import Conversion, DenominationRefusal, prove_conversion
 from bloomery.semantic.historical import AsOfState, qualify_as_of
 from bloomery.semantic.nodes import (
     NO_CONTEXT,
@@ -67,6 +68,9 @@ __all__ = [
     "BASIS_PROVENANCE",
     "BASIS_RULES",
     "prove_rollup",
+    "prove_conversion",
+    "Conversion",
+    "DenominationRefusal",
     "SemanticJudgement",
     "SemanticFact",
     "SUPERSEDED",

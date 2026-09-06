@@ -274,6 +274,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A conversion out of an undeclared currency is refused.** *This is a breaking
+  change; the fix is one line per converting field.* `convert`'s first argument
+  says what the column holds before the conversion, and nothing checked it — so
+  `{convert: [JPY, USD, paid_at]}` written over euros read the yen rate, applied
+  it to euros, and compiled clean. Every cast succeeds and the rate relation has
+  the row asked for; the answer is wrong by whatever the two rates differ by.
+
+  The input now needs a fact to be checked against, declared on the mapping's
+  field:
+
+  ```yaml
+  amount_usd:
+    currency_in: EUR                     # new; required where the chain converts
+    from: "$.amount"
+    transform: [{to_decimal: [12, 4]}, {convert: [EUR, USD, paid_at]}]
+  ```
+
+  It goes on the mapping rather than the canonical field because a canonical
+  field is shared across mappings, and one fed by a euro feed and a dollar feed
+  would need two answers for one declaration. A key field takes it too, on the
+  same terms.
+
+  **A chain declares once**, which is the other half of the change: each step's
+  input is the previous step's output, so converting through a bridge currency
+  where no direct rate exists needs one declaration and is now *accepted* —
+  `EUR → CHF → USD` was refused before this, on the intermediate step, with a
+  message written for a single conversion. The column's currency is what the
+  last conversion produces.
+
+  Refusals name what was being held where the chain broke, and cite `R009`.
+  Per-row denomination — `currency_in: {column: currency_code}` — parses and is
+  refused as *unbuilt* rather than invalid.
+
+
 - **A ratio metric declares `additivity: ratio`, and `non_additive` with a
   `ratio:` block is now refused.** *This is a breaking change; the fix is one
   word per metric.* A ratio is stored as its operands and never as the

@@ -55,6 +55,72 @@ def test_the_fixture_builds_as_written() -> None:
 
 
 # ....................... #
+# The declared input (RFC 0061 D1, D3) — R009 read through resolution
+
+
+def _declare(currency_in: str | None, step: str = STEP) -> None:
+    """Build the fixture with a chosen `currency_in:` and conversion chain.
+
+    The fixture ships declaring `EUR`, so removing it is an edit like any
+    other — which is the point: what these assert is that resolution asks
+    R009 and reports its answer, not that the prover is right, which
+    `tests/unit/test_semantic/test_denomination.py` owns.
+    """
+
+    sources = _sources()
+    mapping = sources["mapping"].replace(STEP, step)
+    sources["mapping"] = (
+        mapping.replace("currency_in: EUR, ", "" if currency_in is None else f"currency_in: {currency_in}, ")
+    )
+    build_project_ir(load_project(sources), catalog=_catalog())
+
+
+def test_a_conversion_with_no_declared_input_is_refused() -> None:
+    """Reproduced before the rule existed: this compiled clean, and the column
+    it produced was believed to be dollars on the strength of the assertion
+    under test (logs/T-0024.md, D-155)."""
+    with pytest.raises(ResolutionError, match=r"cannot prove what currency 'amount_usd' is in"):
+        _declare(None)
+
+    with pytest.raises(ResolutionError, match=r"currency_in: <ISO-4217 code>"):
+        _declare(None)
+
+
+def test_a_from_that_disagrees_with_the_declaration_is_refused() -> None:
+    """The wrong-rate bug itself: euros converted with the yen rate. Every cast
+    succeeds and the rate relation has the row asked for."""
+    with pytest.raises(ResolutionError, match=r"convert names 'JPY' as its input currency"):
+        _declare("EUR", "{convert: [JPY, USD, paid_at]}")
+
+
+def test_a_two_hop_chain_through_a_bridge_currency_builds() -> None:
+    """Refused before this change, and correct: `EUR -> CHF -> USD` ends in the
+    currency the catalog declares, and bridging through a major currency is how
+    minor pairs convert (RFC 0061 D3).
+
+    The `to`-side check used to run per marker, so it failed on the
+    intermediate `CHF` with a message written for a single conversion.
+    """
+    _declare("EUR", "{convert: [EUR, CHF, paid_at]}, {convert: [CHF, USD, paid_at]}")
+
+
+def test_a_two_hop_chain_whose_middle_disagrees_is_refused() -> None:
+    """The companion, so the case above is not passing because the chain is
+    unchecked: the same shape with a broken join refuses, and names what was
+    being held where it broke rather than the field's declaration."""
+    with pytest.raises(ResolutionError, match=r"required: a conversion out of 'CHF'"):
+        _declare("EUR", "{convert: [EUR, CHF, paid_at]}, {convert: [JPY, USD, paid_at]}")
+
+
+def test_a_per_row_currency_column_is_refused_as_unbuilt() -> None:
+    """In the vocabulary from the first commit, lowered by P2 (RFC 0061 D5).
+    The refusal says *unbuilt*, because "invalid" would send an author to
+    rewrite a declaration that is correct."""
+    with pytest.raises(ResolutionError, match=r"not yet lowered"):
+        _declare("{column: ccy}")
+
+
+# ....................... #
 # The currency codes
 
 
@@ -183,6 +249,7 @@ def test_a_key_field_is_a_valid_anchor() -> None:
         "fields:\n"
         '  amount_eur: {from: "$.amount", transform: [{to_decimal: [12, 4]}]}\n'
         '  amount_usd:\n'
+        "    currency_in: EUR\n"
         '    from: "$.amount"\n'
         f"    transform: [{{to_decimal: [12, 4]}}, {STEP}]\n"
         '  fee_usd: {from: "$.fee", transform: [{to_decimal: [12, 4]}]}\n'
