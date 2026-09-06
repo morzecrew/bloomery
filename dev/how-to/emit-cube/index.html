@@ -1782,7 +1782,7 @@ the physical table cannot disagree.</p>
 <span class="s2">    expr: "order_id"</span>
 <span class="s2">  average_order_value:</span>
 <span class="s2">    requires_metrics: [order_count, revenue]</span>
-<span class="s2">    additivity: non_additive</span>
+<span class="s2">    additivity: ratio</span>
 <span class="s2">    ratio: {numerator: revenue, denominator: order_count}</span>
 <span class="s2">"""</span>
 
@@ -1866,7 +1866,7 @@ configured database, so the <code>dialect</code> argument does not shape these a
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">number</span>
 <span class="w">    </span><span class="nt">sql</span><span class="p">:</span><span class="w"> </span><span class="s">'{revenue}</span><span class="nv"> </span><span class="s">/</span><span class="nv"> </span><span class="s">NULLIF({order_count},</span><span class="nv"> </span><span class="s">0)'</span>
 <span class="w">    </span><span class="nt">meta</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">additivity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">non_additive</span>
+<span class="w">      </span><span class="nt">additivity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ratio</span>
 </code></pre></div>
 <p><code>sql_table</code> is the exact <code>(namespace, relation)</code> pair the SQLMesh mart model was named
 with — same naming policy, same table.</p>

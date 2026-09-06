@@ -3621,7 +3621,7 @@ above is what carries the portability claim.</p>
 </tr>
 <tr>
 <td><code>additivity</code></td>
-<td><code>additive</code> | <code>semi_additive</code> | <code>non_additive</code></td>
+<td><code>additive</code> | <code>semi_additive</code> | <code>non_additive</code> | <code>ratio</code></td>
 <td>effectively yes (inline or via template)</td>
 <td>Aggregation class, enforced by guardrails</td>
 </tr>
@@ -3640,7 +3640,7 @@ above is what carries the portability claim.</p>
 <tr>
 <td><code>ratio</code></td>
 <td>RatioSpec</td>
-<td>with <code>non_additive</code></td>
+<td>required by, and requires, <code>additivity: ratio</code></td>
 <td>Additive decomposition to recompute from</td>
 </tr>
 <tr>

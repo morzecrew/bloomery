@@ -1934,23 +1934,31 @@ may ever be aggregated or stored:</p>
 <td><code>SemiAdditivePolicy(over, rule)</code> with <code>rule</code> ∈ <code>last</code>/<code>first</code>/<code>avg</code>/<code>max</code>/<code>min</code></td>
 </tr>
 <tr>
-<td><code>non_additive</code></td>
-<td>Never summable (ratios, averages)</td>
+<td><code>ratio</code></td>
+<td>A quotient, kept as its operands</td>
 <td><code>RatioSpec(numerator, denominator)</code> over additive components</td>
+</tr>
+<tr>
+<td><code>non_additive</code></td>
+<td>Never summable, and not a ratio</td>
+<td>a <code>derived:</code> expression, or an <code>expr</code> over additive dependencies</td>
 </tr>
 </tbody>
 </table>
 <div class="highlight"><pre><span></span><code><span class="nt">metrics</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">average_order_value</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">requires_metrics</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">net_revenue</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">order_count</span><span class="p p-Indicator">]</span>
-<span class="w">    </span><span class="nt">additivity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">non_additive</span>
+<span class="w">    </span><span class="nt">additivity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ratio</span>
 <span class="w">    </span><span class="nt">ratio</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">numerator</span><span class="p">:</span><span class="w"> </span><span class="nv">net_revenue</span><span class="p p-Indicator">,</span><span class="nt"> denominator</span><span class="p">:</span><span class="w"> </span><span class="nv">order_count</span><span class="p p-Indicator">}</span>
 </code></pre></div>
-<p>Additivity is not documentation — it is enforced. A <code>non_additive</code> metric may never be
-materialized as a stored number, only recomputed from its additive components at query
+<p>Additivity is not documentation — it is enforced. A <code>ratio</code> or <code>non_additive</code> metric may
+never be materialized as a stored number, only recomputed from its components at query
 time; a <code>non_additive</code> metric declared without a <code>RatioSpec</code> (or equivalent additive
 decomposition) is refused outright, because with nothing to recompute from it could only
-ever be answered by storing it. The <em>policy</em> — what may be stored, what may be summed —
+ever be answered by storing it. The two halves of a ratio are one declaration and are
+checked as one: <code>ratio:</code> under any other additivity, and <code>additivity: ratio</code> with no
+<code>ratio:</code> block, are both refused — a ratio kept as a materialized quotient is what
+<code>SUM(num)/SUM(den)</code> and <code>AVG(ratio)</code> disagreeing about is. The <em>policy</em> — what may be stored, what may be summed —
 is bloomery's and is checked at compile time; the <em>lowering</em> of these classes into SQL
 at query time is delegated to the embedded MetricFlow backend, which can express the
 <code>last</code> and <code>first</code> semi-additive rules (<code>avg</code>/<code>max</code>/<code>min</code> raise <code>UnsupportedByTarget</code>
@@ -1975,8 +1983,9 @@ expressible: the interesting case names one metric twice.</p>
 </code></pre></div>
 <p>The offset's other form, <code>offset: {to_grain: month}</code>, is not a fixed distance back but
 the start of the containing period — each day against the first day of its own month.
-A derived metric is <code>non_additive</code> for the same reason a ratio is: it has no measure to
-store, and is recomputed from its inputs at the requested grain.</p>
+A derived metric is <code>non_additive</code> for the same reason a ratio is not summable: it has no
+measure to store, and is recomputed from its inputs at the requested grain. It keeps the
+<code>non_additive</code> word rather than taking <code>ratio</code>, which names the fixed two-operand shape.</p>
 <p><strong>A cumulative metric accumulates its own measure</strong> over a trailing <code>window:</code> or from
 the start of a <code>grain_to_date:</code> period. It keeps its <code>agg</code>/<code>expr</code> and its additivity —
 those describe the measure, while <code>cumulative:</code> describes how the measure accumulates.</p>

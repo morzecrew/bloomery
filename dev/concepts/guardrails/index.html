@@ -1841,22 +1841,27 @@ error exists.</p>
 <h2 id="additivity">Additivity<a class="headerlink" href="#additivity" title="Permanent link">&para;</a></h2>
 <p>Additivity classes are enforced, not advisory:</p>
 <ul>
-<li>A <code>non_additive</code> metric (a ratio, an average) may <strong>never</strong> be materialized as a
-  stored number — not as a column, not as a stored aggregate — because a stored average
-  re-aggregates wrongly. Only its additive components may be stored; the ratio is
-  recomputed at query time. Storing one is <code>AdditivityViolation</code>:</li>
+<li>A <code>ratio</code> or <code>non_additive</code> metric may <strong>never</strong> be materialized as a stored number —
+  not as a column, not as a stored aggregate — because a stored average re-aggregates
+  wrongly. Only its additive components may be stored; the metric is recomputed at query
+  time. Storing one is <code>AdditivityViolation</code>:</li>
 </ul>
 <div class="highlight"><pre><span></span><code>AdditivityViolation at metrics: metrics.average_order_value
-  metric is non_additive (ratio: net_revenue / order_count) and may not be
-  materialized as a stored number — a stored average re-aggregates wrongly.
-  Fix: store the additive components (net_revenue, order_count) and emit the
-  ratio as a calculated measure; the Cube emitter does this automatically.
+  metric 'average_order_value' is ratio and may not be materialized as a
+  stored number, but entity 'order' stores a column of that name — a stored
+  result re-aggregates wrongly — the value read back is not the value the
+  components produce (RFC 0006 D6). Fix: store the components and rename
+  either the column or the metric; this metric is recomputed at query time
 </code></pre></div>
 <ul>
 <li>A <code>non_additive</code> metric declared without a <code>RatioSpec</code> (or equivalent additive
   decomposition) is <code>NonAdditiveWithoutComponents</code>: with nothing additive to recompute
   from, the metric could only ever be answered by storing it — which the first rule
   forbids.</li>
+<li>A ratio's two halves are one declaration. A <code>ratio:</code> block under any additivity but
+  <code>ratio</code>, and <code>additivity: ratio</code> with no <code>ratio:</code> block, are both <code>InvalidMetricShape</code>:
+  the first stores the quotient the class exists to keep unstored, and the second names
+  no operands to recompute from.</li>
 <li>A <code>semi_additive</code> metric may only be aggregated over dimensions other than its
   policy's <code>over:</code> dimension. Summing an inventory balance across time is refused.</li>
 <li>A mart that carries measures must declare at least one date role —
