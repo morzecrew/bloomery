@@ -231,7 +231,9 @@ def test_count_measure_takes_no_sql_and_ratio_is_calculated() -> None:
     aov = measures["average_order_value"]
     assert aov["type"] == "number"  # calculated, never a stored aggregate
     assert aov["sql"] == "{revenue} / NULLIF({order_count}, 0)"
-    assert aov["meta"] == {"additivity": "non_additive"}
+    # The word reaches the artifact, so minting the member moves bytes: Cube
+    # carries the additivity as measure metadata (logs/T-0023.md, D-148).
+    assert aov["meta"] == {"additivity": "ratio"}
 
 
 def test_ratio_requires_both_components_on_the_owning_mart() -> None:
@@ -240,7 +242,7 @@ def test_ratio_requires_both_components_on_the_owning_mart() -> None:
     metrics = (
         _metric(
             "aov",
-            additivity=Additivity.NON_ADDITIVE,
+            additivity=Additivity.RATIO,
             agg=None,
             expr=None,
             ratio=Ratio(numerator="revenue", denominator="order_count"),
@@ -266,7 +268,7 @@ def test_a_named_non_additive_metric_is_served_when_its_components_are_stored() 
         _metric("order_count", agg="count", expr="order_id"),
         _metric(
             "aov",
-            additivity=Additivity.NON_ADDITIVE,
+            additivity=Additivity.RATIO,
             agg=None,
             expr=None,
             ratio=Ratio(numerator="revenue", denominator="order_count"),
@@ -291,7 +293,7 @@ def test_a_non_additive_metric_whose_components_are_absent_is_simply_absent() ->
     metrics = (
         _metric(
             "aov",
-            additivity=Additivity.NON_ADDITIVE,
+            additivity=Additivity.RATIO,
             agg=None,
             expr=None,
             ratio=Ratio(numerator="revenue", denominator="order_count"),
@@ -345,7 +347,7 @@ def test_a_ratio_never_templates_against_a_measure_the_cube_does_not_define() ->
         ),
         _metric(
             "rate_per_order",
-            additivity=Additivity.NON_ADDITIVE,
+            additivity=Additivity.RATIO,
             agg=None,
             expr=None,
             ratio=Ratio(numerator="margin_rate", denominator="order_count"),
@@ -364,7 +366,7 @@ def test_every_member_a_measure_templates_is_a_measure_the_cube_defines() -> Non
         _metric("order_count", agg="count", expr="order_id"),
         _metric(
             "aov",
-            additivity=Additivity.NON_ADDITIVE,
+            additivity=Additivity.RATIO,
             agg=None,
             expr=None,
             ratio=Ratio(numerator="revenue", denominator="order_count"),

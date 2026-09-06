@@ -44,7 +44,7 @@ def test_ecom_basic_loads_clean() -> None:
 
     assert project.metric_set is not None
     aov = project.metric_set.metrics["average_order_value"]
-    assert aov.additivity == "non_additive"
+    assert aov.additivity == "ratio"
     assert aov.ratio is not None  # ratio metric per RFC 0009 fixture table
 
     assert project.marts is not None

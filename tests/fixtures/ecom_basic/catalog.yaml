@@ -50,5 +50,5 @@ metric_templates:
     expr: "unit_price * quantity"
   average_order_value:
     requires_metrics: [gross_revenue, order_count]
-    additivity: non_additive
+    additivity: ratio
     ratio: {numerator: gross_revenue, denominator: order_count}

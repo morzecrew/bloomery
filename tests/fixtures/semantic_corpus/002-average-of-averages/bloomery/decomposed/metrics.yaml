@@ -14,5 +14,5 @@ metrics:
     expr: "line_no"
   average_item_price:
     grain: order_item
-    additivity: non_additive
+    additivity: ratio
     ratio: {numerator: item_value, denominator: item_count}

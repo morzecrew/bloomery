@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from bloomery.errors import PlannerError, guaranteed
-from bloomery.ir import Additivity, Layer, SemiAdditiveRule
+from bloomery.ir import COMPUTED, Additivity, Layer, SemiAdditiveRule
 from bloomery.planner.request import Op, Predicate, clause_predicates
 from bloomery.planner.result import Explanation, MeasureExplanation
 
@@ -149,9 +149,9 @@ def _measure_explanation(metric: MetricIR, mart: MartIR) -> MeasureExplanation:
     if metric.derived is not None:
         return _derived_explanation(metric, additivity)
 
-    if metric.additivity is Additivity.NON_ADDITIVE:
+    if metric.additivity in COMPUTED:
         if metric.ratio is None:  # pragma: no cover — coverage refused earlier
-            raise PlannerError(f"non-additive metric {metric.name!r} has no ratio")
+            raise PlannerError(f"{additivity} metric {metric.name!r} has no ratio")
         expr = f"{metric.ratio.numerator} / {metric.ratio.denominator}"
         return MeasureExplanation(metric.name, expr, additivity, _RATIO_NOTE)
 

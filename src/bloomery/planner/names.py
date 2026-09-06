@@ -33,7 +33,7 @@ from metricflow_semantics.specs.time_dimension_spec import TimeDimensionSpec
 
 from bloomery.emit.metricflow import entity_key as emit_entity_key
 from bloomery.errors import PlannerError
-from bloomery.ir import Additivity
+from bloomery.ir import COMPUTED
 from bloomery.planner.request import TimeGrain
 from bloomery.planner.result import ColumnDescriptor
 from bloomery.typing import DecimalType, IntType
@@ -196,7 +196,7 @@ def _measure_type(metric: MetricIR, mart: MartIR) -> LogicalType:
     are ints, a bare-column SUM/MIN/MAX keeps the column's type, everything
     else (ratios, expressions) is a wide decimal."""
 
-    if metric.additivity is Additivity.NON_ADDITIVE:
+    if metric.additivity in COMPUTED:
         return DecimalType(38, 9)
 
     if metric.agg in ("count", "count_distinct"):

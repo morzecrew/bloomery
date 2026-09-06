@@ -15,5 +15,5 @@ metrics:
     expr: "order_id"
   average_order_value:
     requires_metrics: [order_count, revenue]
-    additivity: non_additive
+    additivity: ratio
     ratio: {numerator: revenue, denominator: order_count}

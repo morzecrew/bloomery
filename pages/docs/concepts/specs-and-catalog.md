@@ -161,21 +161,25 @@ may ever be aggregated or stored:
 |---|---|---|
 | `additive` | Sums correctly over every dimension (revenue, quantity) | `agg`, `expr` |
 | `semi_additive` | Sums over every dimension *except* one (inventory balance over time) | `SemiAdditivePolicy(over, rule)` with `rule` ∈ `last`/`first`/`avg`/`max`/`min` |
-| `non_additive` | Never summable (ratios, averages) | `RatioSpec(numerator, denominator)` over additive components |
+| `ratio` | A quotient, kept as its operands | `RatioSpec(numerator, denominator)` over additive components |
+| `non_additive` | Never summable, and not a ratio | a `derived:` expression, or an `expr` over additive dependencies |
 
 ```yaml
 metrics:
   average_order_value:
     requires_metrics: [net_revenue, order_count]
-    additivity: non_additive
+    additivity: ratio
     ratio: {numerator: net_revenue, denominator: order_count}
 ```
 
-Additivity is not documentation — it is enforced. A `non_additive` metric may never be
-materialized as a stored number, only recomputed from its additive components at query
+Additivity is not documentation — it is enforced. A `ratio` or `non_additive` metric may
+never be materialized as a stored number, only recomputed from its components at query
 time; a `non_additive` metric declared without a `RatioSpec` (or equivalent additive
 decomposition) is refused outright, because with nothing to recompute from it could only
-ever be answered by storing it. The *policy* — what may be stored, what may be summed —
+ever be answered by storing it. The two halves of a ratio are one declaration and are
+checked as one: `ratio:` under any other additivity, and `additivity: ratio` with no
+`ratio:` block, are both refused — a ratio kept as a materialized quotient is what
+`SUM(num)/SUM(den)` and `AVG(ratio)` disagreeing about is. The *policy* — what may be stored, what may be summed —
 is bloomery's and is checked at compile time; the *lowering* of these classes into SQL
 at query time is delegated to the embedded MetricFlow backend, which can express the
 `last` and `first` semi-additive rules (`avg`/`max`/`min` raise `UnsupportedByTarget`
@@ -206,8 +210,9 @@ metrics:
 
 The offset's other form, `offset: {to_grain: month}`, is not a fixed distance back but
 the start of the containing period — each day against the first day of its own month.
-A derived metric is `non_additive` for the same reason a ratio is: it has no measure to
-store, and is recomputed from its inputs at the requested grain.
+A derived metric is `non_additive` for the same reason a ratio is not summable: it has no
+measure to store, and is recomputed from its inputs at the requested grain. It keeps the
+`non_additive` word rather than taking `ratio`, which names the fixed two-operand shape.
 
 **A cumulative metric accumulates its own measure** over a trailing `window:` or from
 the start of a `grain_to_date:` period. It keeps its `agg`/`expr` and its additivity —

@@ -1,11 +1,15 @@
 # RFC 0038 — Measure semantic types and additivity algebra
 
-- **Status:** 🚧 In progress — §12's first phase has landed: `Additivity` is closed at six
-  members, and `additivity: additive` is checked rather than trusted, which converts corpus
-  cases 002 and 005 from `unguarded` to `refused` (RFC 0042 §8). The remaining classes wait
-  on the lowering RFC 0041 gates, so the document stays whole (`INDEX.md` — retire whole,
-  never in part). Execution's findings and the rows it proposes are in
-  [`logs/T-0019.md`](../logs/T-0019.md); nothing below has been amended to agree with what
+- **Status:** 🚧 In progress — §12's first two phases have landed. `Additivity` is closed at
+  six members and `additivity: additive` is checked rather than trusted, which converts
+  corpus cases 002 and 005 from `unguarded` to `refused` (RFC 0042 §8); `Ratio` is minted,
+  so a quotient declares its own class rather than borrowing `non_additive`'s, and the
+  property twelve of the fifteen `NON_ADDITIVE` sites were reading it for has a name (D7,
+  D8).
+  `DistinctCount` and `Snapshot` wait on the lowering RFC 0041 gates, so the document stays
+  whole (`INDEX.md` — retire whole, never in part). Execution's findings and the rows it
+  proposes are in [`logs/T-0019.md`](../logs/T-0019.md) and
+  [`logs/T-0023.md`](../logs/T-0023.md); nothing below has been amended to agree with what
   was built. Second in the semantic-correctness sequence; depends on
   [RFC 0037](0037-semantic-grain-model.md).
 - **Scope:** Give measures explicit semantic types over value domain, origin grain,
@@ -184,6 +188,8 @@ restrictions.
 | 4 | `ASSUMED` | **Migration prefers conservative semantics over inference; no project silently gains a stronger additivity claim.** The stated risk is one-directional in the RFC and is not: a measure acquiring an origin grain can *newly refuse* an accepted project. Not `LOCKED` because the conservative default may prove unusable in practice — if so, execution departs with a migration note naming the projects it moves, rather than quietly widening. |
 | 5 | `ASSUMED` | **This is a consolidation of vocabulary that already exists in three places, not a greenfield model.** `Additivity` and `SemiAdditiveRule` are on the metric, `Unit` on the column, currency in a transform. Execution should expect to *move* declarations rather than invent them, and the risk is a second spelling of a fact rather than a missing one. |
 | 6 | `OPEN` | **Whether a measure's origin grain becomes authored syntax or stays derived from its entity.** Derived is smaller and matches what projects already write; authored is explicit and survives a measure that outlives its defining entity. Whichever is chosen decides §7's migration cost, so decide it before the migration is written, and log the decision with the shape of spec it implies. |
+| 7 | `ASSUMED` | **A metric declaring `ratio:` declares `additivity: ratio`, and either half without the other is refused.** Until the member was minted the only spelling was `non_additive` with a `ratio:` block beside it, which made the additivity a field the compiler read for one thing and the author wrote for another — D5's second-spelling risk, installed as the only option. This newly refuses projects accepted yesterday, which §7 and D4 licence as a breaking change carrying a migration note rather than a silent tightening. Not `LOCKED` because the one-word migration is cheap to revisit; the alternatives — deriving the class from the block, or accepting both words — both leave the resolved IR disagreeing with the document that produced it. Bloomery's own generated `quality_quarantine_rate` was the first spec the guard refused, which states D2's reason rather than excepting it (see [`logs/T-0023.md`](../logs/T-0023.md), D-145, D-147). |
+| 8 | `LOCKED` | **A site branching on additivity tests the property it means, never the member it happened to observe.** Fifteen sites across the emitters, the planner and the guardrails read `NON_ADDITIVE`, and twelve of them meant something else — nine "never emits a measure", three "a ratio specifically" — so minting `RATIO` narrowed twelve branches at once and no test in the tree could see it. `bloomery.ir.COMPUTED` is that property under its own name, and is already complete for all six members. Locked because it is what the `RESOLVABLE` canary's promise rests on: minting `DistinctCount` or `Snapshot` is an enum edit and a lowering, not a second sweep of fifteen judgement calls (see [`logs/T-0023.md`](../logs/T-0023.md), D-146). |
 
 ## 12. Phasing
 

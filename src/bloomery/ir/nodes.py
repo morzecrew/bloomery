@@ -37,6 +37,7 @@ __all__ = [
     "FLAGS_COLUMN",
     "NODE_ID_PREFIXES",
     "RESOLVABLE",
+    "COMPUTED",
     "carries_quality_flags",
     "OK_COLUMN",
     "REJECT_SUFFIX",
@@ -273,21 +274,22 @@ class Additivity(StrEnum):
     Staging the *lowering* of a member is allowed (§12) and staging the member
     itself is not.
 
-    The last three are therefore defined and **not yet minted by resolution** —
-    the authored ``additivity:`` keyword still accepts three words, and
+    The last two are therefore defined and **not yet minted by resolution** —
     :data:`RESOLVABLE` pins which members a project can currently produce. That
-    pin is not decoration. Every site across the emitters, the planner and the
-    guardrails that branches on this enum tests ``NON_ADDITIVE`` or
-    ``SEMI_ADDITIVE`` and lets the rest fall through — the additivity guard is
-    the one exception, and it raises on the fall-through rather than inheriting
-    it. Everywhere else a member that became reachable without the site being
-    revisited would silently take a branch written for a different meaning, and
-    mypy would say nothing.
+    pin is not decoration: a member that became reachable without each site
+    being revisited would silently take a branch written for a different
+    meaning, and mypy would say nothing.
 
-    What those sites actually ask is not additivity but whether a metric is a
-    *stored* measure or is computed at query time from components — ``no`` for
-    ``RATIO``, ``yes`` for ``SNAPSHOT`` and ``DISTINCT_COUNT``, which is the
-    decision whichever commit mints them owes.
+    What most of those sites ask is not additivity at all but whether a metric
+    is a *stored* measure or is computed at query time from its components, and
+    that question now has a name of its own in :data:`COMPUTED`. Minting
+    ``RATIO`` is what forced it: fifteen sites read ``NON_ADDITIVE``, and
+    twelve of them meant something other than that member — nine "never emits
+    a measure", three "a ratio specifically" — so splitting a second member out
+    of the class narrowed every one of the twelve at once, with nothing in the
+    tree failing (logs/T-0023.md, D-146). ``SNAPSHOT`` and ``DISTINCT_COUNT``
+    are stored measures, so :data:`COMPUTED` is already complete for all six
+    members and minting them is an enum edit rather than a second sweep.
     """
 
     ADDITIVE = "additive"
@@ -306,17 +308,34 @@ class Additivity(StrEnum):
 
 
 #: The members a project can currently resolve to, and the canary that keeps
-#: the three D1 added from becoming reachable by accident (RFC 0038 §12).
+#: the two D1 added and §12 has not scheduled from becoming reachable by
+#: accident (RFC 0038 §12).
 #:
-#: Minting a new one is a real change, not a widening: it turns twenty
-#: `is not Additivity.NON_ADDITIVE` branches into decisions nobody made. The
-#: commit that mints one updates this tuple, and the test asserting it fails
-#: until then — which is the point, since no other check in the tree can see
-#: the difference.
+#: Minting a new one is a real change, not a widening. The commit that mints
+#: one updates this tuple, and the test asserting it fails until then — which
+#: is the point, since no other check in the tree can see the difference.
 RESOLVABLE: Final = (
     Additivity.ADDITIVE,
     Additivity.SEMI_ADDITIVE,
     Additivity.NON_ADDITIVE,
+    Additivity.RATIO,
+)
+
+#: The members whose metrics are **recomputed at query time from components**
+#: rather than emitted as a stored measure — the question nine of the fifteen
+#: sites across the emitters, the planner and the guardrails were asking when
+#: they read ``NON_ADDITIVE`` (RFC 0038 D1; logs/T-0023.md, D-146).
+#:
+#: Membership is a property of the class, not a shape of the metric: a ratio
+#: is recomputed from its operands, a `derived:` metric from its inputs, and
+#: the expression-over-components form from its dependencies, and all three
+#: are one answer to "does this emit a measure?". Testing the property rather
+#: than a member is what keeps minting the remaining two an enum edit — every
+#: site that means this asks it here, so a new member joins this tuple or does
+#: not, once.
+COMPUTED: Final = (
+    Additivity.NON_ADDITIVE,
+    Additivity.RATIO,
 )
 
 

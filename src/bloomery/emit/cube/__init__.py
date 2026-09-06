@@ -72,6 +72,7 @@ from bloomery.emit.base import (
 from bloomery.emit.lower import mart_column_type, measure_owners, metric_filter_sql
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import (
+    COMPUTED,
     Additivity,
     Layer,
     MartIR,
@@ -233,22 +234,24 @@ def _measures(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) -> list[ob
     owned = [name for name in mart.measures if owners[name] is mart]  # sorted on MartIR
 
     # A mart's `measures:` is "metrics this mart serves" (spec reference), not
-    # "numbers this mart stores". A non-additive metric is served by *computing*
-    # it from components the mart does store, so it is skipped here and picked up
+    # "numbers this mart stores". A computed metric is served by *computing* it
+    # from components the mart does store, so it is skipped here and picked up
     # by the ratio pass below — which is what MetricFlow already did with the
     # same spec. Refusing it made Cube the one target that rejected a project the
     # other three compiled, and only when the author named the metric explicitly:
     # leaving it out of `measures:` emitted the very same calculated measure.
     #
     # Only the *ratio* form has a calculated shape, so the skip has to be exactly
-    # as wide as the pass that picks it back up. A non-additive metric carrying an
-    # additive decomposition instead — which the additivity guardrail accepts
-    # (RFC 0006 §5.4) — is refused here rather than skipped: skipping it drops it
-    # from the artifact silently, and a ratio naming it as a component then
-    # templates `{member}` against a measure the cube does not define.
+    # as wide as the pass that picks it back up — `COMPUTED` minus `RATIO`, which
+    # is `NON_ADDITIVE`, is what this loop refuses. Such a metric carries a
+    # derived: block or an additive decomposition, both of which the additivity
+    # guardrail accepts (RFC 0006 §5.4), and it is refused here rather than
+    # skipped: skipping it drops it from the artifact silently, and a ratio
+    # naming it as a component then templates `{member}` against a measure the
+    # cube does not define.
     for name in owned:
         metric = metrics_by_name[name]
-        if metric.additivity is Additivity.NON_ADDITIVE and metric.ratio is None:
+        if metric.additivity is Additivity.NON_ADDITIVE:
             msg = (
                 f"metric {name!r} is non_additive and declares an additive decomposition "
                 "rather than a ratio, which Cube has no calculated-measure shape for — "
@@ -262,14 +265,14 @@ def _measures(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) -> list[ob
     measures: list[object] = [
         _stored_measure(metrics_by_name[name], mart)
         for name in owned
-        if metrics_by_name[name].additivity is not Additivity.NON_ADDITIVE
+        if metrics_by_name[name].additivity not in COMPUTED
     ]
     owned_set = frozenset(owned)
 
     for metric in ir.metrics:  # sorted by name on ProjectIR
         ratio = metric.ratio
         if (
-            metric.additivity is Additivity.NON_ADDITIVE
+            metric.additivity is Additivity.RATIO
             and ratio is not None
             and ratio.numerator in owned_set
             and ratio.denominator in owned_set

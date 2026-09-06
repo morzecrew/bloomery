@@ -1,14 +1,24 @@
 # RFC 0040 — Safe rollup planner and SemanticPlan IR
 
-- **Status:** 🚧 In progress — §11's P1 has landed: `SemanticPlan` beside `QueryPlan`, built
-  from the same resolution the explanation reads, with §8's parity suite capturing 531
-  requests before anything moved. **Nothing lowers from the plan yet** — MetricFlow still
-  plans from the request, which is what makes P1 a re-expression with no capability change
-  (D5). **§11's phasing was revised before P2 began** — see §11a and D9-D11: the single-hop
-  rollup had no route to SQL and no route from a spec, so P2 becomes proof-backed refusal
-  and P3-P4 are withdrawn as written. §4's `PreservingJoin` and `ConvertUnit` and §5's
-  cross-entity rule are unbuilt and, under §11a, are not this document's to build, so it
-  stays whole (`INDEX.md` — retire whole, never in part).
+- **Status:** ✅ Complete — §11a's P1 and P2 have both landed and P3-P4 are withdrawn, so
+  nothing here is in progress. P1 is `SemanticPlan` beside `QueryPlan`, built from the same
+  resolution the explanation reads, with §8's parity suite capturing 531 requests before
+  anything moved; **nothing lowers from the plan yet** — MetricFlow still plans from the
+  request, which is what makes P1 a re-expression with no capability change (D5). P2 is
+  proof-backed refusal: a dimension another mart carries is refused with the obligation and
+  the spec edit that discharges it rather than an `UnknownMember` guess. **§11's phasing was
+  revised before P2 began** — see §11a and D9-D11: the single-hop rollup had no route to SQL
+  and no route from a spec, so the capability arrives as RFC 0041's aggregate-then-join
+  (D10). §4's `PreservingJoin` and `ConvertUnit` and §5's cross-entity rule are unbuilt and,
+  under §11a, are not this document's to build.
+
+  **Retained rather than retired**, on the same reasoning `INDEX.md` applies to 0037: 0041
+  and 0058 argue from this document's vocabulary. 0058 §2 places its safety condition
+  across four documents — grain and functional dependencies in 0037, aggregation class in
+  0038, derivation in 0039, the proof-producing planner here — so what this one supplies is
+  the rollup-proof half the condition is stated in terms of, and deleting it would leave
+  0058 arguing from a premise no longer in the tree. It is retired with the last of its
+  dependants.
   Execution's findings and the rows it proposes are in [`logs/T-0021.md`](../logs/T-0021.md)
   and [`logs/T-0022.md`](../logs/T-0022.md); no prose below has been amended to agree with
   what was built — §5 and §11 keep their text and carry pointers to what replaced them. Fourth in the

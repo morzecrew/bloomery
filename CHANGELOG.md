@@ -274,6 +274,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A ratio metric declares `additivity: ratio`, and `non_additive` with a
+  `ratio:` block is now refused.** *This is a breaking change; the fix is one
+  word per metric.* A ratio is stored as its operands and never as the
+  materialized quotient — `SUM(num)/SUM(den)` and `AVG(ratio)` differ, and the
+  second is what a numeric-looking column invites — and until now the only way
+  to say so was to declare the metric `non_additive` and put a `ratio:` block
+  beside it. That spelling made the additivity a field the compiler read for
+  one thing and the author wrote for another.
+
+  ```yaml
+  average_order_value:
+    requires_metrics: [revenue, order_count]
+    additivity: ratio                      # was: non_additive
+    ratio: {numerator: revenue, denominator: order_count}
+  ```
+
+  A `ratio:` block under any other word, and `additivity: ratio` with no
+  `ratio:` block, are both refused as `InvalidMetricShape` naming the fix.
+  Nothing else moves: the metric is still recomputed at query time, still
+  never a stored measure, still lowered to MetricFlow's `RATIO` metric and to
+  Cube's `{num} / NULLIF({den}, 0)`. **Artifacts change in two places** — Cube
+  writes `meta.additivity: ratio` on the calculated measure, and the metrics
+  and catalog JSON schemas publish the new word — so every fingerprint
+  downstream of a project with a ratio moves with them.
+
+  A generated metric moved too: `quality_quarantine_rate`, the rate the data
+  quality mart carries, is now a `ratio`.
+
+
 - **`DialectPort` requires `begin_transaction`**, and `register_dialect` now
   refuses a port missing any protocol member instead of letting it fail with an
   `AttributeError` mid-emission. A `Protocol` is structural, so an extension

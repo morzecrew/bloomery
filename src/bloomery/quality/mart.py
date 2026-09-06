@@ -288,7 +288,12 @@ def quality_metrics() -> tuple[MetricIR, ...]:
         MetricIR(
             name=_RATE_METRIC,
             grain=QUALITY_MART,
-            additivity=Additivity.NON_ADDITIVE,
+            # RFC 0038 D2's member, not `NON_ADDITIVE` with a `ratio:` beside
+            # it: this metric is the reason the class exists — a quarantine
+            # rate averaged across entities is not the rate. Minting `RATIO`
+            # made bloomery's own generated metric the first spec the shape
+            # guard refused (logs/T-0023.md, D-147).
+            additivity=Additivity.RATIO,
             agg=None,
             expr=None,
             ratio=Ratio(numerator="quality_rows_quarantined", denominator="quality_rows_evaluated"),

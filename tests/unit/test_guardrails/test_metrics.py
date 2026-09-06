@@ -19,6 +19,7 @@ from bloomery.errors import (
     NonAdditiveWithoutComponents,
 )
 from bloomery.ir import ProjectIR
+from bloomery.guardrails.additivity import _REMEDIES, _UNKNOWN_REMEDY
 from support.compiling import fixture_sources, load_fixture
 
 pytestmark = pytest.mark.unit
@@ -157,13 +158,133 @@ def test_a_semi_additive_cumulative_metric_is_refused() -> None:
     assert "fans the measure out" in str(leaf)
 
 
+# ....................... #
+# A remediation prescribes a spec that compiles (RFC 0038 D7)
+
+
+def test_the_avg_remediation_prescribes_a_spec_that_compiles() -> None:
+    """The guard's own advice, followed verbatim, must not land in a refusal.
+
+    `_REMEDIES["avg"]` is what a `FalseAdditivityClaim` tells an author to
+    write, and minting `RATIO` made the pairing it named — `non_additive` with
+    a `ratio:` block — the thing the shape guard refuses. An author following
+    the fix reached a second refusal, and no test in the tree could see it
+    because remediation text is prose nothing executes.
+
+    So execute it: build the spec the remedy describes and compile it.
+    """
+    assert "additivity: ratio with ratio:" in _REMEDIES["avg"]
+    assert "non_additive" not in _REMEDIES["avg"]
+
+    compile_with(
+        "  avg_paid_revenue:\n"
+        "    requires_metrics: [paid_revenue, revenue]\n"
+        "    additivity: ratio\n"
+        "    ratio: {numerator: paid_revenue, denominator: revenue}\n"
+    )
+
+
+def test_no_remediation_names_a_ratio_block_under_another_word() -> None:
+    """The same defect, as the property rather than the one instance.
+
+    Every string here is a `Fix:` an author is meant to be able to follow, and
+    a `ratio:` block is legal under exactly one additivity now. A remedy naming
+    the block must name that word with it — checked over the whole table, so a
+    remedy added later cannot reintroduce the pairing quietly.
+    """
+    for label, text in (*_REMEDIES.items(), ("unknown", _UNKNOWN_REMEDY)):
+        if "ratio: {" in text or "a ratio: block" in text:
+            assert "additivity: ratio" in text, label
+        before = text.split("non_additive")[0] if "non_additive" in text else text
+        assert not before.endswith("additivity: ratio with a "), label
+        # `non_additive` may still be prescribed — with a `derived:` block,
+        # which stays legal under that word (RFC 0034 D1).
+        for fragment in text.split("non_additive")[1:]:
+            assert "derived:" in fragment.split(".")[0], (label, fragment[:60])
+
+
+# ....................... #
+# The two halves of a ratio (RFC 0038 D2, D7)
+
+
+def test_a_ratio_block_under_another_additivity_is_refused() -> None:
+    """The spelling every project used before the member existed.
+
+    `non_additive` plus a `ratio:` block made the additivity a field the
+    compiler read for one thing and the author wrote for another, and it is
+    what the migration note names (logs/T-0023.md, D-145).
+    """
+    leaf = one_violation(
+        "  aov:\n"
+        "    additivity: non_additive\n"
+        "    ratio: {numerator: revenue, denominator: revenue}\n"
+    )
+
+    assert isinstance(leaf, InvalidMetricShape)
+    assert "'aov'" in str(leaf)
+    assert "declares ratio: but additivity 'non_additive'" in str(leaf)
+    assert "Fix: additivity: ratio" in str(leaf)
+
+
+def test_additivity_ratio_without_a_ratio_block_is_refused() -> None:
+    """The other half, which no spec could write before and every spec can now:
+    the word without the operands names nothing to recompute from."""
+    leaf = one_violation("  aov:\n    additivity: ratio\n")
+
+    assert isinstance(leaf, InvalidMetricShape)
+    assert "'aov'" in str(leaf)
+    assert "no ratio: block" in str(leaf)
+    assert "{numerator, denominator}" in str(leaf)
+
+
+def test_a_cumulative_ratio_is_refused_even_carrying_an_aggregation() -> None:
+    """`_has_no_measure` reads the class, and the class is the whole answer.
+
+    Without an `agg:` the second clause — no aggregation at all — answers this
+    too, so the case that distinguishes the two is a ratio written *with* one.
+    Nothing refuses that pairing on its own, so it is what a narrower predicate
+    would let through: a window accumulating a measure the metric never emits
+    (logs/T-0023.md, D-149).
+    """
+    leaf = one_violation(
+        "  aov_mtd:\n"
+        "    additivity: ratio\n"
+        "    agg: sum\n"
+        '    expr: "revenue"\n'
+        "    ratio: {numerator: revenue, denominator: revenue}\n"
+        "    cumulative: {grain_to_date: month}\n"
+    )
+
+    assert isinstance(leaf, InvalidMetricShape)
+    assert "no measure to accumulate" in str(leaf)
+    assert "is ratio" in str(leaf)
+
+
+def test_a_derived_metric_is_told_one_thing_and_not_two() -> None:
+    """`derived:` with `additivity: ratio` is one mistake, so it earns one
+    message — the derived arm's, which names the word to write. Reaching this
+    through the ratio check as well would report a missing `ratio:` block on a
+    metric that must not have one."""
+    leaf = one_violation(
+        "  yoy:\n"
+        "    additivity: ratio\n"
+        "    derived:\n"
+        '      expr: "a - b"\n'
+        "      inputs: {a: {metric: revenue}, b: {metric: revenue}}\n"
+    )
+
+    assert isinstance(leaf, InvalidMetricShape)
+    assert "declares additivity 'ratio'" in str(leaf)
+    assert "Fix: additivity: non_additive" in str(leaf)
+
+
 @pytest.mark.parametrize(
     ("body", "because"),
     [
         (
-            "    additivity: non_additive\n"
+            "    additivity: ratio\n"
             "    ratio: {numerator: revenue, denominator: revenue}\n",
-            "is non_additive",
+            "is ratio",
         ),
         # The second way to have nothing to accumulate, and the one that used to
         # reach the emitter: an additive metric with no aggregation at all
@@ -182,28 +303,34 @@ def test_a_cumulative_metric_with_no_measure_is_refused(body: str, because: str)
 
 
 @pytest.mark.parametrize(
-    ("shape", "body"),
+    ("shape", "additivity", "body"),
     [
         (
             "derived",
+            "non_additive",
             "    derived:\n"
             '      expr: "a"\n'
             "      inputs: {a: {metric: revenue}}\n",
         ),
         # The ratio is the case the audit found: it had the same hole and had
         # it *silently* — the RATIO lowering carries no filter, so a metric
-        # declared as a restricted average returned the unrestricted one.
-        ("ratio", "    ratio: {numerator: revenue, denominator: revenue}\n"),
+        # declared as a restricted average returned the unrestricted one. Its
+        # word is its own since RFC 0038 minted the member, which is why the
+        # additivity is parametrized rather than shared: one refusal reached
+        # through both members of `COMPUTED` is what the predicate claims.
+        ("ratio", "ratio", "    ratio: {numerator: revenue, denominator: revenue}\n"),
     ],
 )
-def test_a_filter_on_a_metric_with_no_measure_is_refused(shape: str, body: str) -> None:
-    """A non-additive metric is never a measure, so a filter written on it
+def test_a_filter_on_a_metric_with_no_measure_is_refused(
+    shape: str, additivity: str, body: str
+) -> None:
+    """A computed metric is never a measure, so a filter written on it
     restricts its *components* rather than the metric it is written on — a
     post-aggregate filter, which RFC 0034 §9 keeps out of scope rather than
     approximating."""
     leaf = one_violation(
         f"  filtered_{shape}:\n"
-        "    additivity: non_additive\n"
+        f"    additivity: {additivity}\n"
         + body
         + "    filter: [{dimension: status, op: eq, values: [paid]}]\n"
     )

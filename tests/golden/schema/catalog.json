@@ -411,7 +411,8 @@
           "enum": [
             "additive",
             "semi_additive",
-            "non_additive"
+            "non_additive",
+            "ratio"
           ],
           "title": "Additivity",
           "type": "string"
