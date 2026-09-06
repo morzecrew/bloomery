@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import difflib
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from bloomery.emit.lower import measure_owners
 from bloomery.errors import (
@@ -40,7 +40,7 @@ from bloomery.errors import (
     UnreachableAtGrain,
     guaranteed,
 )
-from bloomery.ir import Additivity, Layer
+from bloomery.ir import Additivity, Cardinality, Layer
 from bloomery.marts import DATE_BUCKETS
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import TimeGrain, clause_predicates
@@ -294,18 +294,32 @@ def _carried_elsewhere(ir: ProjectIR, mart: MartIR, name: str) -> tuple[MartIR, 
 # ....................... #
 
 
-def _hop(ir: ProjectIR, source: str, target: str) -> str | None:
-    """The one declared relationship from ``source`` to ``target``, by name.
+#: What a mart may flatten. `one_to_many` is refused by the mart flattener —
+#: "flattening it multiplies the mart's own rows once per row" — so naming one
+#: in a remediation would send an author to write a line the compiler rejects.
+_FLATTENABLE: Final = (Cardinality.MANY_TO_ONE, Cardinality.ONE_TO_ONE)
 
-    ``None`` where there is no such relationship or more than one — the
-    remediation then says to flatten the hop without naming it, rather than
-    picking one of two and sending the author to write the wrong line.
+
+def _hop(ir: ProjectIR, source: str, target: str) -> str | None:
+    """The one relationship a mart based at ``source`` could flatten to reach
+    ``target``, by name.
+
+    ``None`` where there is none, where more than one would do — picking one of
+    two sends the author to write the wrong line — or where the only declared
+    route is one the flattener refuses. A rollup can be provable across the
+    *inverse* of a `one_to_many` (RFC 0037 admits that direction, and only
+    that one), while the mart flattener requires the relationship to run from
+    the base outward and to be non-multiplying. Provable and flattenable are
+    different questions, and the remediation answers the second
+    (logs/T-0022.md, D-140).
     """
 
     named = sorted(
         relationship.name
         for relationship in ir.relationships
-        if relationship.from_entity == source and relationship.to_entity == target
+        if relationship.from_entity == source
+        and relationship.to_entity == target
+        and relationship.cardinality in _FLATTENABLE
     )
 
     return named[0] if len(named) == 1 else None
@@ -368,7 +382,12 @@ def _not_here(
         via = (
             f"add `flatten: {{via: {relationship}}}` to mart {mart.name!r}"
             if relationship is not None
-            else f"flatten the hop from {source!r} to {target!r} onto mart {mart.name!r}"
+            else (
+                f"declare a many_to_one or one_to_one relationship from {source!r} to "
+                f"{target!r} and flatten it onto mart {mart.name!r} — no relationship this "
+                f"mart could flatten reaches {target!r} today, so ask mart {other.name!r} "
+                f"for the measure instead if it serves one"
+            )
         )
         msg = (
             f"{lead}.\n"

@@ -16,7 +16,7 @@ from bloomery.errors import (
     UnknownMember,
     UnreachableAtGrain,
 )
-from bloomery.ir import ProjectIR
+from bloomery.ir import Cardinality, ProjectIR
 from bloomery.naming import DefaultNaming
 from bloomery.planner import TimeGrain
 from bloomery.planner.coverage import _carried_elsewhere, _hop, _origin, check, resolve_request
@@ -541,3 +541,32 @@ def test_a_carried_dimension_is_proven_to_its_own_entity_not_its_carriers_grain(
 
     assert "flattened from 'customer'" in str(excinfo.value)
     assert "roll up to 'customer'" in str(excinfo.value)
+
+
+def test_a_one_to_many_is_never_named_as_the_flatten_to_add() -> None:
+    """Provable and flattenable are different questions, and the remediation
+    answers the second.
+
+    RFC 0037 admits a `one_to_many` **only inversely**, so a rollup can hold
+    across the reverse of one — while the mart flattener refuses to flatten it
+    at all ("flattening it multiplies the mart's own rows once per row"). Name
+    it and the author writes a line the compiler rejects (logs/T-0022.md,
+    D-140).
+    """
+    ir = fixture_ir("unflattened_hop")
+    (declared,) = [
+        relationship for relationship in ir.relationships if relationship.name == "item_of_order"
+    ]
+    fanning = replace(
+        ir,
+        relationships=tuple(
+            replace(relationship, cardinality=Cardinality.ONE_TO_MANY)
+            if relationship.name == "item_of_order"
+            else relationship
+            for relationship in ir.relationships
+        ),
+    )
+
+    assert declared.cardinality is Cardinality.MANY_TO_ONE
+    assert _hop(ir, "order_item", "order") == "item_of_order"
+    assert _hop(fanning, "order_item", "order") is None
