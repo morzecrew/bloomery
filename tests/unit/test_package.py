@@ -2,7 +2,12 @@
 stage RFCs and **signature closure** (RFC 0018 D1) promise (M2–M3 adds compile/resolve/build and the extension
 points; M7–M8 add the planner port types, the MetricFlow planner, and
 hydration — RFC 0011/0013/0014; M9 adds the plan stage — RFC 0007), and
-``__all__`` stays sorted."""
+``__all__`` stays sorted.
+
+RFC 0040 adds the semantic plan and, with it, the proof vocabulary: a field on
+``QueryPlan`` is a public signature, so signature closure promotes everything
+reachable through it from ``bloomery.semantic`` to here (logs/T-0021.md,
+D-120)."""
 
 from __future__ import annotations
 
@@ -57,9 +62,11 @@ def test_public_api_surface() -> None:
         "OrderSpec",
         "OutputType",
         "Plan",
+        "PlanNode",
         "Predicate",
         "Project",
         "ProjectIR",
+        "Proof",
         "Provenance",
         "QueryPlan",
         "RecipeOption",
@@ -67,6 +74,9 @@ def test_public_api_surface() -> None:
         "Resolution",
         "RowPolicy",
         "Scalar",
+        "SemanticFact",
+        "SemanticJudgement",
+        "SemanticPlan",
         "SpecEvidence",
         "SpecKind",
         "Stage",

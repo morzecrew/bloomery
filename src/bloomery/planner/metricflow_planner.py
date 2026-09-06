@@ -48,6 +48,7 @@ from bloomery.errors import (
     UnreachableAtGrain,
 )
 from bloomery.naming import DefaultNaming
+from bloomery.planner import semantic_plan
 from bloomery.planner.result import QueryPlan
 from bloomery.runtime import sql_client_for_dialect
 
@@ -219,6 +220,14 @@ class MetricFlowPlanner:
 
         sql = result.sql_statement.sql
         metrics_by_name = {metric.name: metric for metric in ir.metrics}
+        explanation = explain.build(
+            result,
+            resolved,
+            ir,
+            request,
+            naming=self._naming,
+            policy_applied=policy is not None,
+        )
         return QueryPlan(
             sql=sql,
             columns=names.columns_from(
@@ -226,13 +235,18 @@ class MetricFlowPlanner:
             ),
             mart=resolved.mart.name,
             warnings=warnings,
-            explanation=explain.build(
-                result,
-                resolved,
-                ir,
-                request,
-                naming=self._naming,
-                policy_applied=policy is not None,
-            ),
+            explanation=explanation,
             fingerprint=hashlib.sha256(sql.encode("utf-8")).hexdigest(),
+            # Built from the same `Coverage` and the same renderers the
+            # explanation reads, so the two are one account of the request
+            # rather than two (RFC 0039 §7) — over every predicate the query
+            # applies, not only the ones the explanation lists as `filters`.
+            semantic=semantic_plan.build(
+                resolved,
+                request,
+                metrics_by_name,
+                filters=explain.applied_predicates(
+                    explanation, request, resolved, metrics_by_name, policy=policy
+                ),
+            ),
         )

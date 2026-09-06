@@ -83,6 +83,13 @@ from bloomery.resolve import (
 )
 from bloomery.runtime import HydrationKey, LruManifestHydrator
 from bloomery.schema import JsonDict, SpecKind, all_spec_schemas, spec_json_schema
+from bloomery.semantic import (
+    PlanNode,
+    Proof,
+    SemanticFact,
+    SemanticJudgement,
+    SemanticPlan,
+)
 from bloomery.spec import Catalog, Project, load_catalog, load_project
 from bloomery.steps import EMPTY_REGISTRY, StepManifest, StepRegistry
 from bloomery.transforms import Builder, OutputType, TransformSpec, register_transform
@@ -152,9 +159,11 @@ __all__ = [
     "OrderSpec",
     "OutputType",
     "Plan",
+    "PlanNode",
     "Predicate",
     "Project",
     "ProjectIR",
+    "Proof",
     "Provenance",
     "QueryPlan",
     "RecipeOption",
@@ -162,6 +171,9 @@ __all__ = [
     "Resolution",
     "RowPolicy",
     "Scalar",
+    "SemanticFact",
+    "SemanticJudgement",
+    "SemanticPlan",
     "SpecEvidence",
     "SpecKind",
     "Stage",

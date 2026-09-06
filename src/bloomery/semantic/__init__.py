@@ -33,6 +33,14 @@ from bloomery.semantic.nodes import (
     RollupRefusal,
     grain_of,
 )
+from bloomery.semantic.plan import (
+    Aggregate,
+    Filter,
+    PlanNode,
+    Project,
+    Scan,
+    SemanticPlan,
+)
 from bloomery.semantic.proof import (
     BASIS_PROVENANCE,
     BASIS_RULES,
@@ -50,6 +58,12 @@ from bloomery.semantic.proof import (
 # ----------------------- #
 
 __all__ = [
+    "SemanticPlan",
+    "Scan",
+    "Project",
+    "PlanNode",
+    "Filter",
+    "Aggregate",
     "BASIS_PROVENANCE",
     "BASIS_RULES",
     "prove_rollup",

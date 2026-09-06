@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 
 from bloomery.errors import PlannerError, guaranteed
 from bloomery.ir import Additivity, Layer, SemiAdditiveRule
-from bloomery.planner.request import Op, clause_predicates
+from bloomery.planner.request import Op, Predicate, clause_predicates
 from bloomery.planner.result import Explanation, MeasureExplanation
 
 if TYPE_CHECKING:
@@ -31,11 +31,13 @@ if TYPE_CHECKING:
     from bloomery.naming import NamingPolicy
     from bloomery.planner.coverage import Coverage
     from bloomery.planner.names import ResolvedDimension
-    from bloomery.planner.request import Clause, MetricRequest, Predicate, Scalar
+    from bloomery.planner.policy import RowPolicy
+    from bloomery.planner.request import Clause, MetricRequest, Scalar
 
 # ----------------------- #
 
 __all__ = [
+    "applied_predicates",
     "build",
 ]
 
@@ -223,6 +225,56 @@ def _human_clause(clause: Clause, resolutions: tuple[ResolvedDimension, ...]) ->
         for predicate, resolved in zip(clause_predicates(clause), resolutions, strict=True)
     )
     return " OR ".join(rendered)
+
+
+# ....................... #
+
+
+def applied_predicates(
+    explanation: Explanation,
+    request: MetricRequest,
+    coverage: Coverage,
+    metrics_by_name: dict[str, MetricIR],
+    *,
+    policy: RowPolicy | None,
+) -> tuple[str, ...]:
+    """Every predicate the emitted query restricts rows by, as prose, in the
+    order the query applies them.
+
+    The :class:`Explanation` scatters these on purpose — the request's filters
+    read as a list, a metric's own restriction rides that measure's note, and
+    the policy is a boolean, because a rendered policy value in a provenance
+    block shown to the requester would disclose the scoping it enforces
+    (RFC 0013 D9). A :class:`~bloomery.semantic.SemanticPlan` has the opposite
+    obligation: it is lowered, not shown, and a plan naming only the request's
+    filters is one a target lowers into a broader answer than the SQL beside
+    it (logs/T-0021.md, D-125).
+    """
+
+    policy_predicate: tuple[str, ...] = ()
+    if policy is not None:
+        resolved = guaranteed(
+            (dimension for dimension in (coverage.policy_dimension,) if dimension is not None),
+            expected="the policy's dimension resolved against the covering mart",
+            by="`coverage.resolve_request`, which resolves it or refuses the request",
+        )
+        policy_predicate = (_human_clause(policy.as_clause(), (resolved,)),)
+
+    restrictions = tuple(
+        dict.fromkeys(
+            _human_predicate(
+                Predicate(
+                    dimension=clause.dimension, op=Op(clause.op), values=tuple(clause.values)
+                ),
+                clause.dimension,
+            )
+            for name in request.metrics
+            if (metric := metrics_by_name.get(name)) is not None
+            for clause in metric.filter
+        )
+    )
+
+    return (*policy_predicate, *explanation.filters, *restrictions)
 
 
 # ....................... #

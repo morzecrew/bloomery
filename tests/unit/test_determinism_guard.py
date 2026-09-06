@@ -158,6 +158,24 @@ for source, target in QUESTIONS:
     # to match rather than the repr.
     print(prove_rollup(source, target, CORPUS).serialize())
     print(prove_rollup(source, target, CORPUS, ANCHORED).serialize())
+
+# The semantic plan over the same walk (RFC 0040). It carries a proof, whose
+# facts deduplicate through a dict keyed on a string, and its own node
+# collections sort — so it reaches output through two of the three places a
+# hash seed has ever mattered here. `serialize` rather than the repr, since
+# that is the artifact a CI assertion would pin.
+from bloomery import MetricRequest
+from bloomery.planner.semantic_plan import build as build_plan
+from bloomery.planner.coverage import resolve_request
+from bloomery.naming import DefaultNaming
+from support.planning import fixture_ir
+
+plan_ir = fixture_ir("ecom_basic")
+plan_metrics = {metric.name: metric for metric in plan_ir.metrics}
+for dimensions in ((), ("order_date",), ("order_date", "order_customer_id")):
+    plan_request = MetricRequest(metrics=("gross_revenue",), dimensions=dimensions)
+    covered = resolve_request(plan_ir, plan_request, naming=DefaultNaming())
+    print(build_plan(covered, plan_request, plan_metrics, filters=()).serialize())
 """
 
 
