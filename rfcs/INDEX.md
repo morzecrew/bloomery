@@ -42,7 +42,8 @@ Two consequences worth knowing:
   **status line** says so — the index one-liner records what an RFC *is*, never what has
   happened to it — and it is retired with the last of its dependants. 0037 is the first:
   0038–0042, 0053 and 0058 all reason in its grain vocabulary. 0040 is the second: 0041
-  and 0058 argue in *its* vocabulary, and 0058's safety condition is written in it. This
+  and 0058 argue in *its* vocabulary, and 0058 states its safety condition across 0037-0040
+  rather than in any one of them. This
   is not a licence to keep a document because something cites it — prose citations are
   precisely what `RETIRED.md` exists to keep followable.
 

@@ -13,9 +13,12 @@
   under §11a, are not this document's to build.
 
   **Retained rather than retired**, on the same reasoning `INDEX.md` applies to 0037: 0041
-  and 0058 argue from this document's vocabulary — 0058's safety condition is written in it
-  — and deleting it would leave them arguing from a premise no longer in the tree. It is
-  retired with the last of its dependants.
+  and 0058 argue from this document's vocabulary. 0058 §5 places its safety condition
+  across four documents — grain and functional dependencies in 0037, aggregation class in
+  0038, derivation in 0039, the proof-producing planner here — so what this one supplies is
+  the rollup-proof half the condition is stated in terms of, and deleting it would leave
+  0058 arguing from a premise no longer in the tree. It is retired with the last of its
+  dependants.
   Execution's findings and the rows it proposes are in [`logs/T-0021.md`](../logs/T-0021.md)
   and [`logs/T-0022.md`](../logs/T-0022.md); no prose below has been amended to agree with
   what was built — §5 and §11 keep their text and carry pointers to what replaced them. Fourth in the
