@@ -57,11 +57,14 @@ def test_measures_are_the_four_counts_and_never_a_stored_rate() -> None:
     assert "quality_quarantine_rate" not in mart.measures
 
 
-def test_the_rate_metric_is_non_additive_with_a_ratio() -> None:
+def test_the_rate_metric_is_a_ratio_with_its_operands() -> None:
     ir = attach_quality_mart(_ir_with_quality())
     rate = next(m for m in ir.metrics if m.name == "quality_quarantine_rate")
-    assert rate.additivity is Additivity.NON_ADDITIVE
-    assert rate.expr is None  # never a measure — RATIO metric territory
+    # RFC 0038's member, not `NON_ADDITIVE` beside a `ratio:`. bloomery's own
+    # generated metric was the first spec the shape guard refused when the
+    # member was minted (logs/T-0023.md, D-147).
+    assert rate.additivity is Additivity.RATIO
+    assert rate.expr is None  # never a measure — recomputed from its operands
     assert rate.ratio is not None
 
 

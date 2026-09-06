@@ -30,5 +30,5 @@ metrics:
   average_line_value:
     description: Revenue per order line — recomputed at every grain.
     grain: order_line
-    additivity: non_additive
+    additivity: ratio
     ratio: {numerator: revenue, denominator: line_count}

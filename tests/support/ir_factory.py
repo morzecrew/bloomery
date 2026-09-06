@@ -104,7 +104,7 @@ def build_project_ir(*, column_names: tuple[str, ...] = ("unit_price", "order_id
         MetricIR(
             name="average_order_value",
             grain="order",
-            additivity=Additivity.NON_ADDITIVE,
+            additivity=Additivity.RATIO,
             agg=None,
             expr=None,
             ratio=Ratio(numerator="gross_revenue", denominator="order_count"),

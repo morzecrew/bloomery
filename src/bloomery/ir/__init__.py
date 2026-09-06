@@ -4,6 +4,7 @@ normalized IR nodes plus the ``blm1:`` content fingerprint."""
 from bloomery.ir.fingerprint import project_fingerprint
 from bloomery.ir.lower import canon, extraction, partition_specs
 from bloomery.ir.nodes import (
+    COMPUTED,
     FLAGS_COLUMN,
     NODE_ID_PREFIXES,
     OK_COLUMN,
@@ -89,6 +90,7 @@ __all__ = [
     "VALID_FROM",
     "VALID_TO",
     "VALIDITY_COLUMNS",
+    "COMPUTED",
     "RESOLVABLE",
     "Additivity",
     "AuditIR",

@@ -106,14 +106,14 @@ error exists.
 
 Additivity classes are enforced, not advisory:
 
-- A `non_additive` metric (a ratio, an average) may **never** be materialized as a
-  stored number — not as a column, not as a stored aggregate — because a stored average
-  re-aggregates wrongly. Only its additive components may be stored; the ratio is
-  recomputed at query time. Storing one is `AdditivityViolation`:
+- A `ratio` or `non_additive` metric may **never** be materialized as a stored number —
+  not as a column, not as a stored aggregate — because a stored average re-aggregates
+  wrongly. Only its additive components may be stored; the metric is recomputed at query
+  time. Storing one is `AdditivityViolation`:
 
   ```
   AdditivityViolation at metrics: metrics.average_order_value
-    metric is non_additive (ratio: net_revenue / order_count) and may not be
+    metric is ratio (ratio: net_revenue / order_count) and may not be
     materialized as a stored number — a stored average re-aggregates wrongly.
     Fix: store the additive components (net_revenue, order_count) and emit the
     ratio as a calculated measure; the Cube emitter does this automatically.
@@ -123,6 +123,10 @@ Additivity classes are enforced, not advisory:
   decomposition) is `NonAdditiveWithoutComponents`: with nothing additive to recompute
   from, the metric could only ever be answered by storing it — which the first rule
   forbids.
+- A ratio's two halves are one declaration. A `ratio:` block under any additivity but
+  `ratio`, and `additivity: ratio` with no `ratio:` block, are both `InvalidMetricShape`:
+  the first stores the quotient the class exists to keep unstored, and the second names
+  no operands to recompute from.
 - A `semi_additive` metric may only be aggregated over dimensions other than its
   policy's `over:` dimension. Summing an inventory balance across time is refused.
 - A mart that carries measures must declare at least one date role —

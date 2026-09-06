@@ -207,7 +207,7 @@ DimensionName = Annotated[
     str, StringConstraints(pattern=IDENTIFIER_PATTERN), AfterValidator(_reject_reserved_member)
 ]
 
-AdditivityName = Literal["additive", "semi_additive", "non_additive"]
+AdditivityName = Literal["additive", "semi_additive", "non_additive", "ratio"]
 CardinalityName = Literal["many_to_one", "one_to_one", "one_to_many"]
 MaterializationName = Literal["full", "incremental_by_key", "incremental_by_partition"]
 

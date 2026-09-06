@@ -8,10 +8,14 @@ Checked over ``MetricIR.additivity`` on the draft IR:
   :class:`~bloomery.errors.NonAdditiveWithoutComponents`: with nothing
   additive to recompute from at query time, the metric could only ever be
   answered by storing it, which the next rule forbids.
-- A ``non_additive`` metric may **never** materialize as a stored number. At
-  M4 the only place that could arise is an entity column sharing the metric's
-  name — a stored :class:`~bloomery.errors.AdditivityViolation`; emitters
-  re-refuse independently (RFC 0008), defense in depth.
+- A :data:`~bloomery.ir.COMPUTED` metric — ``non_additive`` or ``ratio`` — may
+  **never** materialize as a stored number. At M4 the only place that could
+  arise is an entity column sharing the metric's name — a stored
+  :class:`~bloomery.errors.AdditivityViolation`; emitters re-refuse
+  independently (RFC 0008), defense in depth.
+- A ``ratio`` metric needs no rule of its own beyond that one. Its operands are
+  guaranteed by the shape guard, which refuses ``additivity: ratio`` without a
+  ``ratio:`` block and a ``ratio:`` block under any other word (RFC 0038 D2).
 - A ``semi_additive`` metric aggregates only over dimensions *other than* its
   ``over:`` dimension: a missing ``semi_additive: {over, rule}`` policy makes
   the invariant unenforceable, and an expression that explicitly aggregates
@@ -82,6 +86,40 @@ def _aggregates_over(expr: SqlExpr, dimension: str) -> bool:
 # ....................... #
 
 
+def _check_not_stored(metric: MetricIR, draft: ProjectIR, path: str) -> list[GuardrailError]:
+    """A `COMPUTED` metric may not also exist as a stored column (RFC 0006 D6).
+
+    Shared by both computed classes rather than written twice: the reason is
+    the class's own — a metric recomputed from components at query time and a
+    column of the same name are two different numbers wearing one name, and
+    reading the stored one re-aggregates a quotient. RFC 0038 D2 is the same
+    claim stated for ratios specifically.
+    """
+
+    stored = sorted(
+        entity.name
+        for entity in draft.entities
+        for column in entity.columns
+        if column.name == metric.name
+    )
+
+    if not stored:
+        return []
+
+    msg = (
+        f"metric {metric.name!r} is {metric.additivity.value} and may not be materialized "
+        f"as a stored number, but entity {stored[0]!r} stores a column of that name — a "
+        "stored average re-aggregates wrongly (RFC 0006 D6). Fix: store the additive "
+        "components and rename either the column or the metric; the ratio is a "
+        "calculated measure at query time"
+    )
+
+    return [AdditivityViolation(msg, source_path=path)]
+
+
+# ....................... #
+
+
 def _check_non_additive(metric: MetricIR, draft: ProjectIR, path: str) -> list[GuardrailError]:
     violations: list[GuardrailError] = []
 
@@ -96,22 +134,7 @@ def _check_non_additive(metric: MetricIR, draft: ProjectIR, path: str) -> list[G
         )
         violations.append(NonAdditiveWithoutComponents(msg, source_path=path))
 
-    stored = sorted(
-        entity.name
-        for entity in draft.entities
-        for column in entity.columns
-        if column.name == metric.name
-    )
-
-    if stored:
-        msg = (
-            f"metric {metric.name!r} is non_additive and may not be materialized as a "
-            f"stored number, but entity {stored[0]!r} stores a column of that name — a "
-            "stored average re-aggregates wrongly (RFC 0006 D6). Fix: store the additive "
-            "components and rename either the column or the metric; the ratio is a "
-            "calculated measure at query time"
-        )
-        violations.append(AdditivityViolation(msg, source_path=path))
+    violations.extend(_check_not_stored(metric, draft, path))
 
     return violations
 
@@ -318,13 +341,20 @@ def check_additivity(draft: ProjectIR) -> list[GuardrailError]:
         path = f"metrics: metrics.{metric.name}"
         if metric.additivity is Additivity.NON_ADDITIVE:
             violations.extend(_check_non_additive(metric, draft, path))
+        elif metric.additivity is Additivity.RATIO:
+            # Only the not-stored half. The other half of `_check_non_additive`
+            # asks whether anything additive exists to recompute the metric
+            # from, and for a ratio the shape guard has already answered it:
+            # `additivity: ratio` without a `ratio:` block is refused there
+            # (RFC 0038 D2), so operands are guaranteed by the time this runs.
+            violations.extend(_check_not_stored(metric, draft, path))
         elif metric.additivity is Additivity.SEMI_ADDITIVE:
             violations.extend(_check_semi_additive(metric, path))
         elif metric.additivity is Additivity.ADDITIVE:
             violations.extend(_check_additive(metric, draft, path))
         else:  # pragma: no cover — `RESOLVABLE` is what keeps this unreachable
-            # RFC 0038 D1 closed the enum at six while resolution mints three,
-            # and the three it does not mint have no rule here yet. Raising
+            # RFC 0038 D1 closed the enum at six while resolution mints four,
+            # and the two it does not mint have no rule here yet. Raising
             # rather than falling through is the whole point (logs/T-0019.md,
             # D-105): a silent `else` would hand a SNAPSHOT metric the
             # additive checks, which are written for a different meaning, and
@@ -332,7 +362,7 @@ def check_additivity(draft: ProjectIR) -> list[GuardrailError]:
             msg = (
                 f"metric {metric.name!r} resolved to additivity "
                 f"{metric.additivity.value!r}, which no project can currently declare — "
-                "bloomery.ir.RESOLVABLE names the three that can, and the guard that "
+                "bloomery.ir.RESOLVABLE names the four that can, and the guard that "
                 "asserts it should have failed before this did (RFC 0038 D1)"
             )
             raise InvariantViolated(msg)

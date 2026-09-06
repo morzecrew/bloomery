@@ -52,7 +52,7 @@ metrics:
     expr: "order_id"
   average_order_value:
     requires_metrics: [order_count, revenue]
-    additivity: non_additive
+    additivity: ratio
     ratio: {numerator: revenue, denominator: order_count}
 """
 
@@ -129,7 +129,7 @@ cubes:
     type: number
     sql: '{revenue} / NULLIF({order_count}, 0)'
     meta:
-      additivity: non_additive
+      additivity: ratio
 ```
 
 `sql_table` is the exact `(namespace, relation)` pair the SQLMesh mart model was named

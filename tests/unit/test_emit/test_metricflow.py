@@ -215,7 +215,7 @@ metrics:
   aov:
     grain: order
     requires_metrics: [revenue, order_count]
-    additivity: non_additive
+    additivity: ratio
     ratio: {numerator: revenue, denominator: order_count}
     description: Average order value.
 """

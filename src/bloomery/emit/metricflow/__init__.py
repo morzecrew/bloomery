@@ -125,7 +125,7 @@ from metricflow_semantic_interfaces.type_enums.time_granularity import TimeGranu
 from bloomery.emit.base import ArtifactKind, EmittedArtifact
 from bloomery.emit.lower import mart_column_type, measure_owners, metric_filter_sql
 from bloomery.errors import EmitError, UnsupportedByTarget, guaranteed
-from bloomery.ir import Additivity, Layer, SemiAdditiveRule
+from bloomery.ir import COMPUTED, Additivity, Layer, SemiAdditiveRule
 
 if TYPE_CHECKING:
     from bloomery.emit.base import EmitContext
@@ -384,8 +384,8 @@ def _measures(
 
     for name in owned:
         metric = metrics_by_name[name]
-        if metric.additivity is Additivity.NON_ADDITIVE:
-            continue  # never a measure — RATIO metric territory (RFC 0013 D4)
+        if metric.additivity in COMPUTED:
+            continue  # never a measure — recomputed at query time (RFC 0013 D4)
         if metric.expr is None:
             msg = (
                 f"metric {metric.name!r} has no expression to emit as a MetricFlow measure "
@@ -597,12 +597,12 @@ def _emittable(ir: ProjectIR, owners: dict[str, MartIR]) -> frozenset[str]:
     """
 
     by_name = {metric.name: metric for metric in ir.metrics}
-    measures = {name for name in owners if by_name[name].additivity is not Additivity.NON_ADDITIVE}
+    measures = {name for name in owners if by_name[name].additivity not in COMPUTED}
     emitted = set(measures)
     emitted.update(
         metric.name
         for metric in ir.metrics
-        if metric.additivity is Additivity.NON_ADDITIVE
+        if metric.additivity is Additivity.RATIO
         and metric.ratio is not None
         and metric.ratio.numerator in measures
         and metric.ratio.denominator in measures
@@ -660,11 +660,11 @@ def _metric(
             config=None,
         )
 
-    if metric.additivity is Additivity.NON_ADDITIVE:
+    if metric.additivity is Additivity.RATIO:
         ratio = guaranteed(
             (metric.ratio for _ in (0,) if metric.ratio is not None),
-            expected=f"a ratio or derived decomposition on non-additive metric {metric.name!r}",
-            by="the additivity guardrail, which refuses a non-additive metric without one",
+            expected=f"the operands of ratio metric {metric.name!r}",
+            by="the metric-shape guard, which refuses additivity: ratio without a ratio: block",
         )
         return PydanticMetric(
             name=metric.name,

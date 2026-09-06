@@ -40,7 +40,7 @@ from bloomery.errors import (
     UnreachableAtGrain,
     guaranteed,
 )
-from bloomery.ir import Additivity, Cardinality, Layer
+from bloomery.ir import COMPUTED, Cardinality, Layer
 from bloomery.marts import DATE_BUCKETS
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import TimeGrain, clause_predicates
@@ -147,11 +147,12 @@ def _measures_of(ir: ProjectIR, metric: MetricIR, seen: set[str]) -> tuple[str, 
             )
         )
 
-    if metric.additivity is Additivity.NON_ADDITIVE:
+    if metric.additivity in COMPUTED:
         if metric.ratio is None:  # pragma: no cover — guardrails refuse this at compile
             msg = (
-                f"non-additive metric {metric.name!r} carries neither a ratio nor a derived "
-                "decomposition — the guardrail stage should have refused it (RFC 0006 D6)"
+                f"{metric.additivity.value} metric {metric.name!r} carries neither a ratio "
+                "nor a derived decomposition — the guardrail stage should have refused it "
+                "(RFC 0006 D6)"
             )
             raise PlannerError(msg)
         return (metric.ratio.numerator, metric.ratio.denominator)

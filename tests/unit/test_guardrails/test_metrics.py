@@ -157,13 +157,65 @@ def test_a_semi_additive_cumulative_metric_is_refused() -> None:
     assert "fans the measure out" in str(leaf)
 
 
+# ....................... #
+# The two halves of a ratio (RFC 0038 D2, D7)
+
+
+def test_a_ratio_block_under_another_additivity_is_refused() -> None:
+    """The spelling every project used before the member existed.
+
+    `non_additive` plus a `ratio:` block made the additivity a field the
+    compiler read for one thing and the author wrote for another, and it is
+    what the migration note names (logs/T-0023.md, D-145).
+    """
+    leaf = one_violation(
+        "  aov:\n"
+        "    additivity: non_additive\n"
+        "    ratio: {numerator: revenue, denominator: revenue}\n"
+    )
+
+    assert isinstance(leaf, InvalidMetricShape)
+    assert "'aov'" in str(leaf)
+    assert "declares ratio: but additivity 'non_additive'" in str(leaf)
+    assert "Fix: additivity: ratio" in str(leaf)
+
+
+def test_additivity_ratio_without_a_ratio_block_is_refused() -> None:
+    """The other half, which no spec could write before and every spec can now:
+    the word without the operands names nothing to recompute from."""
+    leaf = one_violation("  aov:\n    additivity: ratio\n")
+
+    assert isinstance(leaf, InvalidMetricShape)
+    assert "'aov'" in str(leaf)
+    assert "no ratio: block" in str(leaf)
+    assert "{numerator, denominator}" in str(leaf)
+
+
+def test_a_derived_metric_is_told_one_thing_and_not_two() -> None:
+    """`derived:` with `additivity: ratio` is one mistake, so it earns one
+    message — the derived arm's, which names the word to write. Reaching this
+    through the ratio check as well would report a missing `ratio:` block on a
+    metric that must not have one."""
+    leaf = one_violation(
+        "  yoy:\n"
+        "    additivity: ratio\n"
+        "    derived:\n"
+        '      expr: "a - b"\n'
+        "      inputs: {a: {metric: revenue}, b: {metric: revenue}}\n"
+    )
+
+    assert isinstance(leaf, InvalidMetricShape)
+    assert "declares additivity 'ratio'" in str(leaf)
+    assert "Fix: additivity: non_additive" in str(leaf)
+
+
 @pytest.mark.parametrize(
     ("body", "because"),
     [
         (
-            "    additivity: non_additive\n"
+            "    additivity: ratio\n"
             "    ratio: {numerator: revenue, denominator: revenue}\n",
-            "is non_additive",
+            "is ratio",
         ),
         # The second way to have nothing to accumulate, and the one that used to
         # reach the emitter: an additive metric with no aggregation at all
@@ -182,28 +234,34 @@ def test_a_cumulative_metric_with_no_measure_is_refused(body: str, because: str)
 
 
 @pytest.mark.parametrize(
-    ("shape", "body"),
+    ("shape", "additivity", "body"),
     [
         (
             "derived",
+            "non_additive",
             "    derived:\n"
             '      expr: "a"\n'
             "      inputs: {a: {metric: revenue}}\n",
         ),
         # The ratio is the case the audit found: it had the same hole and had
         # it *silently* — the RATIO lowering carries no filter, so a metric
-        # declared as a restricted average returned the unrestricted one.
-        ("ratio", "    ratio: {numerator: revenue, denominator: revenue}\n"),
+        # declared as a restricted average returned the unrestricted one. Its
+        # word is its own since RFC 0038 minted the member, which is why the
+        # additivity is parametrized rather than shared: one refusal reached
+        # through both members of `COMPUTED` is what the predicate claims.
+        ("ratio", "ratio", "    ratio: {numerator: revenue, denominator: revenue}\n"),
     ],
 )
-def test_a_filter_on_a_metric_with_no_measure_is_refused(shape: str, body: str) -> None:
-    """A non-additive metric is never a measure, so a filter written on it
+def test_a_filter_on_a_metric_with_no_measure_is_refused(
+    shape: str, additivity: str, body: str
+) -> None:
+    """A computed metric is never a measure, so a filter written on it
     restricts its *components* rather than the metric it is written on — a
     post-aggregate filter, which RFC 0034 §9 keeps out of scope rather than
     approximating."""
     leaf = one_violation(
         f"  filtered_{shape}:\n"
-        "    additivity: non_additive\n"
+        f"    additivity: {additivity}\n"
         + body
         + "    filter: [{dimension: status, op: eq, values: [paid]}]\n"
     )

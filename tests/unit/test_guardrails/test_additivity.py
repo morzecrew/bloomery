@@ -20,6 +20,7 @@ from bloomery.errors import (
 from bloomery.guardrails.additivity import check_additivity
 from bloomery.spec.common import AdditivityName
 from bloomery.ir import (
+    COMPUTED,
     RESOLVABLE,
     Additivity,
     MartDimensionIR,
@@ -108,10 +109,10 @@ def test_non_additive_without_ratio_or_decomposition_is_refused() -> None:
     assert "ratio: {numerator, denominator}" in str(violation)
 
 
-def test_non_additive_with_a_ratio_passes() -> None:
+def test_a_ratio_with_its_operands_passes() -> None:
     metric = _metric(
         "aov",
-        additivity=Additivity.NON_ADDITIVE,
+        additivity=Additivity.RATIO,
         ratio=Ratio(numerator="revenue", denominator="orders"),
     )
     assert check_additivity(ProjectIR(metrics=(metric,))) == []
@@ -127,14 +128,23 @@ def test_non_additive_with_an_additive_decomposition_passes() -> None:
     assert check_additivity(ProjectIR(metrics=(metric,))) == []
 
 
-def test_non_additive_metric_stored_as_an_entity_column_is_refused() -> None:
+@pytest.mark.parametrize(
+    ("additivity", "extra"),
+    [
+        (Additivity.RATIO, {"ratio": Ratio(numerator="revenue", denominator="orders")}),
+        # The other member of `COMPUTED`, through the same guard. `_check_not_stored`
+        # is shared by both arms of the dispatch, and a test that only ever reaches
+        # it through the ratio arm would pass with the non-additive arm's call
+        # deleted (logs/T-0023.md, D-146).
+        (Additivity.NON_ADDITIVE, {"expr": "wins / attempts", "depends_on": ("attempts", "wins")}),
+    ],
+)
+def test_a_computed_metric_stored_as_an_entity_column_is_refused(
+    additivity: Additivity, extra: dict[str, object]
+) -> None:
     """The M4 stored-number invariant (RFC 0006 D6): metrics never become
     stored entity columns — the only place storage can arise before marts."""
-    metric = _metric(
-        "average_order_value",
-        additivity=Additivity.NON_ADDITIVE,
-        ratio=Ratio(numerator="revenue", denominator="orders"),
-    )
+    metric = _metric("average_order_value", additivity=additivity, **extra)  # type: ignore[arg-type]
     draft = ProjectIR(entities=(_entity("item_id", "average_order_value"),), metrics=(metric,))
     (violation,) = check_additivity(draft)
     assert isinstance(violation, AdditivityViolation)
@@ -143,10 +153,10 @@ def test_non_additive_metric_stored_as_an_entity_column_is_refused() -> None:
     assert "'item'" in str(violation)
 
 
-def test_non_additive_metric_with_no_column_collision_passes() -> None:
+def test_a_ratio_with_no_column_collision_passes() -> None:
     metric = _metric(
         "aov",
-        additivity=Additivity.NON_ADDITIVE,
+        additivity=Additivity.RATIO,
         ratio=Ratio(numerator="revenue", denominator="orders"),
     )
     draft = ProjectIR(entities=(_entity("item_id", "net_price"),), metrics=(metric,))
@@ -520,15 +530,17 @@ def test_a_metric_whose_grain_names_no_entity_is_left_to_its_own_guard() -> None
 def test_only_the_resolvable_members_can_reach_the_guard() -> None:
     """The canary RFC 0038 D1's closed enum owes (see logs/T-0019.md, D-105).
 
-    Twenty sites across the emitters, the planner and the guardrails branch on
-    `Additivity`, every one of them on NON_ADDITIVE or SEMI_ADDITIVE — so the
-    three members D1 added are catch-alls at each of them, and mypy cannot see
-    it. They are safe only while nothing mints them.
+    It caught what it was written for. Twenty-one sites across the emitters,
+    the planner and the guardrails branched on NON_ADDITIVE while meaning
+    "never emits a measure", so minting RATIO narrowed all of them at once and
+    nothing else in the tree could see it (logs/T-0023.md, D-146). Those sites
+    now ask :data:`~bloomery.ir.COMPUTED`, which is that property under its own
+    name and is already complete for all six members.
 
-    This fails the moment resolution can produce one, which is where that
-    decision has to be made rather than inherited. What those sites actually
-    ask is whether a metric is a stored measure: `no` for RATIO, `yes` for
-    SNAPSHOT and DISTINCT_COUNT.
+    This still fails the moment resolution can produce one of the remaining
+    two, which is where the decision has to be made rather than inherited.
+    SNAPSHOT and DISTINCT_COUNT are stored measures, so what each owes is a
+    lowering, not another sweep.
     """
     # Against the authored grammar, not against itself: `AdditivityName` is
     # what a project can actually write, so this is the edge a new member has
@@ -537,7 +549,12 @@ def test_only_the_resolvable_members_can_reach_the_guard() -> None:
     assert set(get_args(AdditivityName)) == {member.value for member in RESOLVABLE}
 
     assert set(Additivity) - set(RESOLVABLE) == {
-        Additivity.RATIO,
         Additivity.DISTINCT_COUNT,
         Additivity.SNAPSHOT,
-    }, "a member left the unreachable set without those twenty branches being revisited"
+    }, "a member left the unreachable set without every branch on it being revisited"
+
+    # The property those branches actually test, pinned against the enum rather
+    # than against a restatement: a member minted into `RESOLVABLE` without
+    # being placed on one side of this line is the failure D-146 describes.
+    assert set(COMPUTED) == {Additivity.NON_ADDITIVE, Additivity.RATIO}
+    assert set(COMPUTED) <= set(Additivity)

@@ -30,5 +30,5 @@ metrics:
   average_order_value:
     description: Revenue per order — recomputed at every grain, never averaged.
     grain: order
-    additivity: non_additive
+    additivity: ratio
     ratio: {numerator: revenue, denominator: order_count}

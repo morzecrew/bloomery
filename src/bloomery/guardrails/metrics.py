@@ -28,7 +28,7 @@ from bloomery.errors import (
     MetricFilterInvalid,
     guaranteed,
 )
-from bloomery.ir import Additivity
+from bloomery.ir import COMPUTED, Additivity
 from bloomery.typing import (
     BoolType,
     DateType,
@@ -226,16 +226,14 @@ def _has_no_measure(metric: MetricIR) -> bool:
     """Whether this metric has nothing of its own to aggregate.
 
     Two ways to arrive there and the window is meaningless under both: a
-    non-additive metric is recomputed from components and never emits a
-    measure, and a metric with no ``agg:``/``expr:`` has no aggregation to
-    emit one from. The second reached the emitter before this, failing there as
-    an `UnsupportedByTarget` in MetricFlow's vocabulary rather than here in the
-    spec's — the stage argument D9 already makes for filters.
+    :data:`~bloomery.ir.COMPUTED` metric is recomputed from components and
+    never emits a measure, and a metric with no ``agg:``/``expr:`` has no
+    aggregation to emit one from. The second reached the emitter before this,
+    failing there as an `UnsupportedByTarget` in MetricFlow's vocabulary rather
+    than here in the spec's — the stage argument D9 already makes for filters.
     """
 
-    return metric.additivity is Additivity.NON_ADDITIVE or (
-        metric.agg is None and metric.expr is None
-    )
+    return metric.additivity in COMPUTED or (metric.agg is None and metric.expr is None)
 
 
 # ....................... #
@@ -287,6 +285,39 @@ def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
         )
         violations.append(InvalidMetricShape(msg, source_path=path))
 
+    if metric.derived is None and (metric.ratio is not None) is not (
+        metric.additivity is Additivity.RATIO
+    ):
+        # The two halves of one declaration, refused together rather than
+        # separately: `ratio:` says what the operands are and `additivity:
+        # ratio` says the quotient is never stored, and a metric carrying one
+        # without the other means half of what it says. Before RFC 0038 minted
+        # the member there was only one spelling — `non_additive` plus a
+        # `ratio:` block — so this refuses specs that compiled yesterday, which
+        # §7 licenses and CHANGELOG's migration note names
+        # (logs/T-0023.md, D-145).
+        #
+        # Skipped for a `derived:` metric: the arm above already tells it to
+        # declare `non_additive`, and two messages for one mistake is worse
+        # than one.
+        msg = (
+            (
+                f"metric {metric.name!r} declares ratio: but additivity "
+                f"{metric.additivity.value!r}. A ratio is stored as its operands and never "
+                "as the materialized quotient — SUM(num)/SUM(den) and AVG(ratio) differ, "
+                "and the second is what a numeric-looking column invites (RFC 0038 D2). "
+                "Fix: additivity: ratio"
+            )
+            if metric.ratio is not None
+            else (
+                f"metric {metric.name!r} declares additivity: ratio but no ratio: block, so "
+                "nothing names the numerator and denominator it is recomputed from at query "
+                "time (RFC 0038 D2). Fix: ratio: {numerator, denominator} naming its "
+                "additive components, or a different additivity"
+            )
+        )
+        violations.append(InvalidMetricShape(msg, source_path=path))
+
     if metric.cumulative is not None and metric.additivity is Additivity.SEMI_ADDITIVE:
         # Measured, not deduced: on the `period_over_period` fixture this
         # combination reported 2707 on a day whose revenue was 100 and whose
@@ -313,8 +344,8 @@ def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
 
     if metric.cumulative is not None and _has_no_measure(metric):
         because = (
-            "is non_additive"
-            if metric.additivity is Additivity.NON_ADDITIVE
+            f"is {metric.additivity.value}"
+            if metric.additivity in COMPUTED
             else "declares neither agg: nor expr:"
         )
         msg = (
@@ -325,20 +356,20 @@ def _check_shape(metric: MetricIR, path: str) -> list[GuardrailError]:
         )
         violations.append(InvalidMetricShape(msg, source_path=path))
 
-    if metric.filter and metric.additivity is Additivity.NON_ADDITIVE:
-        # Every shape of non-additive metric, not just `derived:`. A ratio has
-        # the same hole and had it silently: the RATIO lowering carries no
-        # filter, so a metric declared as a restricted average returned the
-        # unrestricted one. The additivity is the right predicate because it is
-        # exactly the class that never emits a measure — ratio, derived, and the
+    if metric.filter and metric.additivity in COMPUTED:
+        # Every shape of computed metric, not just `derived:`. A ratio has the
+        # same hole and had it silently: the RATIO lowering carries no filter,
+        # so a metric declared as a restricted average returned the unrestricted
+        # one. `COMPUTED` is the right predicate because it is exactly the class
+        # that never emits a measure — ratio, derived, and the
         # expression-over-components form alike.
         msg = (
-            f"metric {metric.name!r} is non_additive and carries filter:. A non-additive "
-            "metric is never a measure — it is recomputed from its components at query "
-            "time — so a filter here restricts those components rather than the metric it "
-            "is written on: a post-aggregate filter, which bloomery does not express "
-            "(RFC 0034 §9). Fix: filter the components and decompose from the filtered "
-            "ones"
+            f"metric {metric.name!r} is {metric.additivity.value} and carries filter:. A "
+            f"{metric.additivity.value} metric is never a measure — it is recomputed from "
+            "its components at query time — so a filter here restricts those components "
+            "rather than the metric it is written on: a post-aggregate filter, which "
+            "bloomery does not express (RFC 0034 §9). Fix: filter the components and "
+            "decompose from the filtered ones"
         )
         violations.append(InvalidMetricShape(msg, source_path=path))
 
