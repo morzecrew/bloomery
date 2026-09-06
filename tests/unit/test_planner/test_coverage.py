@@ -711,3 +711,36 @@ def test_the_chain_walk_holds_two_routes_at_most() -> None:
 
     assert _hops(replace(ir, relationships=diamond), "order_item", "customer") == ()
     assert _hops(ir, "order_item", "customer") == ("item_of_order", "order_of_customer")
+
+
+def test_a_date_bucket_is_not_redirected_to_its_source_column() -> None:
+    """A date role expands to six columns over one source column, so matching
+    provenance alone answers a request for `ordered_month` with `order_date` —
+    a different grain, and a different number.
+
+    The `ref` is what separates them, and it is the field the request is
+    actually about (logs/T-0022.md, D-144).
+    """
+    ir = fixture_ir("ecom_basic")
+    (items,) = ir.marts
+    (bucket,) = [c for c in items.columns if c.name == "ordered_month"]
+    (raw,) = [c for c in items.columns if c.name == "order_date"]
+    assert (bucket.source_entity, bucket.source_column) == (raw.source_entity, raw.source_column)
+
+    slim = replace(
+        items,
+        name="slim_items",
+        dimensions=tuple(d for d in items.dimensions if d.column != "ordered_month"),
+        columns=tuple(c for c in items.columns if c.name != "ordered_month"),
+    )
+    project = replace(ir, marts=(slim, replace(items, measures=())))
+
+    with pytest.raises(UnreachableAtGrain) as excinfo:
+        check(
+            project,
+            MetricRequest(metrics=("gross_revenue",), dimensions=("ordered_month",)),
+            naming=NAMING,
+        )
+
+    assert "ask for 'order_date' instead" not in str(excinfo.value)
+    assert "expose it on mart 'slim_items'" in str(excinfo.value)

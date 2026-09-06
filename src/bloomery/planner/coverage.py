@@ -311,10 +311,16 @@ def _same_source(mart: MartIR, other: MartIR, column: str) -> str | None:
     """
 
     origin = {
-        (candidate.source_entity, candidate.source_column)
+        (candidate.source_entity, candidate.source_column, candidate.ref)
         for candidate in other.columns
         if candidate.name == column
     }
+    # The `ref` and not the source column alone. A date role expands to six
+    # columns over one source — `order_date`, `ordered_day`, `ordered_month`
+    # and the rest — so provenance alone would answer a request for
+    # `ordered_month` with `order_date`, which is a different grain and a
+    # different number (logs/T-0022.md, D-144).
+    #
     # Requestable names only. A mart may flatten a column without exposing it
     # as a dimension — join keys never double as one — and naming one of those
     # would answer a refusal with a request that is refused too.
@@ -325,7 +331,7 @@ def _same_source(mart: MartIR, other: MartIR, column: str) -> str | None:
             candidate.name
             for candidate in sorted(mart.columns, key=lambda item: item.name)
             if candidate.name in requestable
-            and (candidate.source_entity, candidate.source_column) in origin
+            and (candidate.source_entity, candidate.source_column, candidate.ref) in origin
         ),
         None,
     )
