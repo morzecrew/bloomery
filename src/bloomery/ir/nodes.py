@@ -283,12 +283,13 @@ class Additivity(StrEnum):
     What most of those sites ask is not additivity at all but whether a metric
     is a *stored* measure or is computed at query time from its components, and
     that question now has a name of its own in :data:`COMPUTED`. Minting
-    ``RATIO`` is what forced it: twenty-one sites tested ``NON_ADDITIVE``
-    meaning "never emits a measure", and splitting a second member out of that
-    class narrowed every one of them at once, with nothing in the tree failing
-    (logs/T-0023.md, D-146). ``SNAPSHOT`` and ``DISTINCT_COUNT`` are stored
-    measures, so :data:`COMPUTED` is already complete for all six members and
-    minting them is an enum edit rather than a second sweep.
+    ``RATIO`` is what forced it: fifteen sites read ``NON_ADDITIVE``, and
+    twelve of them meant something other than that member — nine "never emits
+    a measure", three "a ratio specifically" — so splitting a second member out
+    of the class narrowed every one of the twelve at once, with nothing in the
+    tree failing (logs/T-0023.md, D-146). ``SNAPSHOT`` and ``DISTINCT_COUNT``
+    are stored measures, so :data:`COMPUTED` is already complete for all six
+    members and minting them is an enum edit rather than a second sweep.
     """
 
     ADDITIVE = "additive"
@@ -321,9 +322,9 @@ RESOLVABLE: Final = (
 )
 
 #: The members whose metrics are **recomputed at query time from components**
-#: rather than emitted as a stored measure — the question twenty-one sites
-#: across the emitters, the planner and the guardrails were asking when they
-#: tested ``NON_ADDITIVE`` (RFC 0038 D1; logs/T-0023.md, D-146).
+#: rather than emitted as a stored measure — the question nine of the fifteen
+#: sites across the emitters, the planner and the guardrails were asking when
+#: they read ``NON_ADDITIVE`` (RFC 0038 D1; logs/T-0023.md, D-146).
 #:
 #: Membership is a property of the class, not a shape of the metric: a ratio
 #: is recomputed from its operands, a `derived:` metric from its inputs, and

@@ -527,15 +527,39 @@ def test_a_metric_whose_grain_names_no_entity_is_left_to_its_own_guard() -> None
     assert check_additivity(ProjectIR(metrics=(metric,))) == []
 
 
+def test_every_resolvable_member_reaches_an_arm_of_its_own() -> None:
+    """The dispatch against every state of the vocabulary it dispatches on.
+
+    `check_additivity` raises `InvariantViolated` on a member with no arm,
+    which is what keeps an unminted one from inheriting rules written for a
+    different meaning — and which means a member minted without an arm fails
+    loudly rather than quietly. The canary below pins *which* members are
+    reachable; this pins that each reachable one is actually handled, so the
+    two together are the whole claim (logs/T-0023.md, D-146).
+    """
+    for member in RESOLVABLE:
+        # The shape each member needs to get past its own arm without a
+        # violation — the point is reaching an arm, not what the arm decides.
+        extra: dict[str, object] = {
+            Additivity.ADDITIVE: {"expr": "amount"},
+            Additivity.SEMI_ADDITIVE: {"expr": "stock", "semi_additive": POLICY},
+            Additivity.NON_ADDITIVE: {"expr": "wins / attempts", "depends_on": ("attempts",)},
+            Additivity.RATIO: {"ratio": Ratio(numerator="revenue", denominator="orders")},
+        }[member]
+        metric = _metric(additivity=member, **extra)  # type: ignore[arg-type]
+        assert check_additivity(ProjectIR(metrics=(metric,))) == [], member
+
+
 def test_only_the_resolvable_members_can_reach_the_guard() -> None:
     """The canary RFC 0038 D1's closed enum owes (see logs/T-0019.md, D-105).
 
-    It caught what it was written for. Twenty-one sites across the emitters,
-    the planner and the guardrails branched on NON_ADDITIVE while meaning
-    "never emits a measure", so minting RATIO narrowed all of them at once and
-    nothing else in the tree could see it (logs/T-0023.md, D-146). Those sites
-    now ask :data:`~bloomery.ir.COMPUTED`, which is that property under its own
-    name and is already complete for all six members.
+    It caught what it was written for. Fifteen sites across the emitters, the
+    planner and the guardrails read NON_ADDITIVE, and twelve meant something
+    other than that member, so minting RATIO narrowed twelve branches at once
+    and nothing else in the tree could see it (logs/T-0023.md, D-146). Nine of
+    them now ask :data:`~bloomery.ir.COMPUTED`, which is that property under
+    its own name and is already complete for all six members; three ask for
+    RATIO, which is what they always meant.
 
     This still fails the moment resolution can produce one of the remaining
     two, which is where the decision has to be made rather than inherited.

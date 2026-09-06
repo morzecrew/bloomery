@@ -110,8 +110,8 @@ def _check_not_stored(metric: MetricIR, draft: ProjectIR, path: str) -> list[Gua
         f"metric {metric.name!r} is {metric.additivity.value} and may not be materialized "
         f"as a stored number, but entity {stored[0]!r} stores a column of that name — a "
         "stored average re-aggregates wrongly (RFC 0006 D6). Fix: store the additive "
-        "components and rename either the column or the metric; the ratio is a "
-        "calculated measure at query time"
+        "components and rename either the column or the metric; this metric is "
+        "recomputed at query time"
     )
 
     return [AdditivityViolation(msg, source_path=path)]

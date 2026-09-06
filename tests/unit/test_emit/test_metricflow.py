@@ -251,6 +251,36 @@ def test_ratio_is_a_metric_never_a_measure() -> None:
     assert ratio.type_params.denominator.name == "order_count"
 
 
+def test_a_ratio_over_another_ratio_is_absent_rather_than_wrong() -> None:
+    """A ratio's operands must be *measures*, not metrics of any kind.
+
+    The set the operand test reads is the mart's measures minus everything
+    recomputed at query time, and narrowing it to `NON_ADDITIVE` alone puts
+    ratios back into it — so `aov_per_order` would be emitted naming `aov`,
+    which is a metric and not a measure the manifest defines. The Cube emitter
+    has the same case under its own templating (logs/T-0023.md, D-149).
+    """
+    _project, catalog = load_fixture("role_playing_dates")
+    docs = fixture_sources("role_playing_dates")
+    docs["metrics"] = _RATIO_SOURCES_METRICS + (
+        "  aov_per_order:\n"
+        "    grain: order\n"
+        "    requires_metrics: [aov, order_count]\n"
+        "    additivity: ratio\n"
+        "    ratio: {numerator: aov, denominator: order_count}\n"
+    )
+    docs["marts"] = _RATIO_SOURCES_MARTS.replace(
+        "measures: [aov, order_count, revenue]",
+        "measures: [aov, aov_per_order, order_count, revenue]",
+    )
+    ir = build_project_ir(load_project(docs), catalog)
+    manifest = emit_manifest(ir, naming=DefaultNaming())
+
+    names = {metric.name for metric in manifest.metrics}
+    assert "aov" in names  # its operands are measures
+    assert "aov_per_order" not in names  # its numerator is not
+
+
 def test_descriptions_are_carried_onto_metrics() -> None:
     manifest = _ratio_manifest()
     by_name = {metric.name: metric for metric in manifest.metrics}

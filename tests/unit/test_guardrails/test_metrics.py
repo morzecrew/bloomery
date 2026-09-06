@@ -191,6 +191,29 @@ def test_additivity_ratio_without_a_ratio_block_is_refused() -> None:
     assert "{numerator, denominator}" in str(leaf)
 
 
+def test_a_cumulative_ratio_is_refused_even_carrying_an_aggregation() -> None:
+    """`_has_no_measure` reads the class, and the class is the whole answer.
+
+    Without an `agg:` the second clause — no aggregation at all — answers this
+    too, so the case that distinguishes the two is a ratio written *with* one.
+    Nothing refuses that pairing on its own, so it is what a narrower predicate
+    would let through: a window accumulating a measure the metric never emits
+    (logs/T-0023.md, D-149).
+    """
+    leaf = one_violation(
+        "  aov_mtd:\n"
+        "    additivity: ratio\n"
+        "    agg: sum\n"
+        '    expr: "revenue"\n'
+        "    ratio: {numerator: revenue, denominator: revenue}\n"
+        "    cumulative: {grain_to_date: month}\n"
+    )
+
+    assert isinstance(leaf, InvalidMetricShape)
+    assert "no measure to accumulate" in str(leaf)
+    assert "is ratio" in str(leaf)
+
+
 def test_a_derived_metric_is_told_one_thing_and_not_two() -> None:
     """`derived:` with `additivity: ratio` is one mistake, so it earns one
     message — the derived arm's, which names the word to write. Reaching this
