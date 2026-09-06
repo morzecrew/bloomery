@@ -2,12 +2,14 @@
 
 Checked over ``MetricIR.additivity`` on the draft IR:
 
-- A ``non_additive`` metric declared without a ``ratio``, a ``derived:`` block
-  (RFC 0034 D1), or an equivalent additive decomposition — an expression over
-  additive dependencies — is
+- A ``non_additive`` metric declared without a ``derived:`` block (RFC 0034
+  D1) or an equivalent additive decomposition — an expression over additive
+  dependencies — is
   :class:`~bloomery.errors.NonAdditiveWithoutComponents`: with nothing
   additive to recompute from at query time, the metric could only ever be
-  answered by storing it, which the next rule forbids.
+  answered by storing it, which the next rule forbids. Its remediation names
+  ``additivity: ratio`` for the quotient case, never a ``ratio:`` block under
+  this word, which the shape guard refuses (RFC 0038 D7).
 - A :data:`~bloomery.ir.COMPUTED` metric — ``non_additive`` or ``ratio`` — may
   **never** materialize as a stored number. At M4 the only place that could
   arise is an entity column sharing the metric's name — a stored
@@ -92,8 +94,10 @@ def _check_not_stored(metric: MetricIR, draft: ProjectIR, path: str) -> list[Gua
     Shared by both computed classes rather than written twice: the reason is
     the class's own — a metric recomputed from components at query time and a
     column of the same name are two different numbers wearing one name, and
-    reading the stored one re-aggregates a quotient. RFC 0038 D2 is the same
-    claim stated for ratios specifically.
+    re-aggregating the stored one does not give back what the components
+    produce. The message says that rather than "a stored average", which was
+    true only of the class this check used to serve alone. RFC 0038 D2 is the
+    same claim stated for ratios specifically.
     """
 
     stored = sorted(
@@ -109,9 +113,9 @@ def _check_not_stored(metric: MetricIR, draft: ProjectIR, path: str) -> list[Gua
     msg = (
         f"metric {metric.name!r} is {metric.additivity.value} and may not be materialized "
         f"as a stored number, but entity {stored[0]!r} stores a column of that name — a "
-        "stored average re-aggregates wrongly (RFC 0006 D6). Fix: store the additive "
-        "components and rename either the column or the metric; this metric is "
-        "recomputed at query time"
+        "stored result re-aggregates wrongly — the value read back is not the value the "
+        "components produce (RFC 0006 D6). Fix: store the components and rename either the "
+        "column or the metric; this metric is recomputed at query time"
     )
 
     return [AdditivityViolation(msg, source_path=path)]
@@ -125,12 +129,12 @@ def _check_non_additive(metric: MetricIR, draft: ProjectIR, path: str) -> list[G
 
     if metric.ratio is None and not _has_decomposition(metric):
         msg = (
-            f"metric {metric.name!r} is non_additive but declares neither a ratio, a "
-            "derived: block, nor an additive decomposition — there is nothing additive to "
-            "recompute it from at query time, so it could only ever be answered by storing "
-            "it, which is forbidden (RFC 0006 §5.4). Fix: add ratio: {numerator, "
-            "denominator} naming its additive components, a derived: expression over other "
-            "metrics, or an expr over additive dependencies"
+            f"metric {metric.name!r} is non_additive but declares neither a derived: block "
+            "nor an additive decomposition — there is nothing additive to recompute it "
+            "from at query time, so it could only ever be answered by storing it, which is "
+            "forbidden (RFC 0006 §5.4). Fix: a derived: expression over other metrics, an "
+            "expr over additive dependencies, or — if it is a quotient — additivity: ratio "
+            "with ratio: {numerator, denominator} naming its additive components"
         )
         violations.append(NonAdditiveWithoutComponents(msg, source_path=path))
 
@@ -195,7 +199,7 @@ _ACCUMULATING: Final = ("sum",)
 _REMEDIES: Final = {
     "avg": (
         "declare the additive components and let the quotient be calculated at query "
-        "time — additivity: non_additive with ratio: {numerator, denominator} naming them"
+        "time — additivity: ratio with ratio: {numerator, denominator} naming them"
     ),
     "median": (
         "a median has no additive decomposition, so there is nothing to recompute it "
@@ -213,7 +217,8 @@ _UNKNOWN_REMEDY = (
     "bloomery cannot verify that this aggregation re-aggregates, and will not accept an "
     f"additive claim it cannot check — the ones it knows are {', '.join(_REAGGREGABLE)}. "
     "If this aggregation does roll up, that is a gap worth reporting; if it does not, "
-    "declare additivity: non_additive with a ratio: or derived: decomposition"
+    "declare additivity: ratio with a ratio: block, or additivity: non_additive with a "
+    "derived: decomposition"
 )
 
 

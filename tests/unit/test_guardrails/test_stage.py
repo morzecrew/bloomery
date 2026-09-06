@@ -211,7 +211,9 @@ metrics:
     (leaf,) = excinfo.value.collected
     assert isinstance(leaf, NonAdditiveWithoutComponents)
     assert "'average_stock'" in str(leaf)
-    assert "add ratio: {numerator, denominator}" in str(leaf)
+    # The remedy names the word the block is legal under; `non_additive` with
+    # a `ratio:` block is what the shape guard now refuses (RFC 0038 D7).
+    assert "additivity: ratio with ratio: {numerator, denominator}" in str(leaf)
 
 
 # ....................... #

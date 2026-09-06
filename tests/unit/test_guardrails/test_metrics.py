@@ -19,6 +19,7 @@ from bloomery.errors import (
     NonAdditiveWithoutComponents,
 )
 from bloomery.ir import ProjectIR
+from bloomery.guardrails.additivity import _REMEDIES, _UNKNOWN_REMEDY
 from support.compiling import fixture_sources, load_fixture
 
 pytestmark = pytest.mark.unit
@@ -155,6 +156,51 @@ def test_a_semi_additive_cumulative_metric_is_refused() -> None:
     assert isinstance(leaf, InvalidMetricShape)
     assert "'sold_at'" in str(leaf)
     assert "fans the measure out" in str(leaf)
+
+
+# ....................... #
+# A remediation prescribes a spec that compiles (RFC 0038 D7)
+
+
+def test_the_avg_remediation_prescribes_a_spec_that_compiles() -> None:
+    """The guard's own advice, followed verbatim, must not land in a refusal.
+
+    `_REMEDIES["avg"]` is what a `FalseAdditivityClaim` tells an author to
+    write, and minting `RATIO` made the pairing it named — `non_additive` with
+    a `ratio:` block — the thing the shape guard refuses. An author following
+    the fix reached a second refusal, and no test in the tree could see it
+    because remediation text is prose nothing executes.
+
+    So execute it: build the spec the remedy describes and compile it.
+    """
+    assert "additivity: ratio with ratio:" in _REMEDIES["avg"]
+    assert "non_additive" not in _REMEDIES["avg"]
+
+    compile_with(
+        "  avg_paid_revenue:\n"
+        "    requires_metrics: [paid_revenue, revenue]\n"
+        "    additivity: ratio\n"
+        "    ratio: {numerator: paid_revenue, denominator: revenue}\n"
+    )
+
+
+def test_no_remediation_names_a_ratio_block_under_another_word() -> None:
+    """The same defect, as the property rather than the one instance.
+
+    Every string here is a `Fix:` an author is meant to be able to follow, and
+    a `ratio:` block is legal under exactly one additivity now. A remedy naming
+    the block must name that word with it — checked over the whole table, so a
+    remedy added later cannot reintroduce the pairing quietly.
+    """
+    for label, text in (*_REMEDIES.items(), ("unknown", _UNKNOWN_REMEDY)):
+        if "ratio: {" in text or "a ratio: block" in text:
+            assert "additivity: ratio" in text, label
+        before = text.split("non_additive")[0] if "non_additive" in text else text
+        assert not before.endswith("additivity: ratio with a "), label
+        # `non_additive` may still be prescribed — with a `derived:` block,
+        # which stays legal under that word (RFC 0034 D1).
+        for fragment in text.split("non_additive")[1:]:
+            assert "derived:" in fragment.split(".")[0], (label, fragment[:60])
 
 
 # ....................... #
