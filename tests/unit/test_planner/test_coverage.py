@@ -687,3 +687,27 @@ def test_the_same_column_under_another_name_is_named() -> None:
         )
 
     assert "ask for 'customer_id' instead" in str(excinfo.value)
+
+
+def test_the_chain_walk_holds_two_routes_at_most() -> None:
+    """The question is "exactly one route or not", so a second witness answers
+    it and every further one is a route nobody reads.
+
+    Keeping them all is the textbook way to turn a breadth-first search into an
+    exponential one: `seen` prevents revisiting *between* levels, not within,
+    so a diamond doubles the paths held at each level. Two diamonds in series
+    is four routes, and the answer — ambiguous, name none — is the same one two
+    witnesses give (logs/T-0022.md, D-143).
+    """
+    ir = fixture_ir("unflattened_hop")
+    (direct,) = [
+        relationship for relationship in ir.relationships if relationship.name == "item_of_order"
+    ]
+    diamond = (
+        *ir.relationships,
+        replace(direct, name="item_of_order_alt"),
+        replace(direct, name="order_of_customer_alt", from_entity="order", to_entity="customer"),
+    )
+
+    assert _hops(replace(ir, relationships=diamond), "order_item", "customer") == ()
+    assert _hops(ir, "order_item", "customer") == ("item_of_order", "order_of_customer")

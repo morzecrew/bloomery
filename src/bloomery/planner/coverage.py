@@ -334,6 +334,25 @@ def _same_source(mart: MartIR, other: MartIR, column: str) -> str | None:
 # ....................... #
 
 
+#: How many routes are worth keeping. The question is "exactly one or not", so
+#: a second witness answers it and every further one is a route nobody reads.
+#: Keeping them all is the textbook way to turn a breadth-first search into an
+#: exponential one: a diamond in the relationship graph doubles the paths held
+#: at each level, and `seen` only prevents revisiting *between* levels
+#: (logs/T-0022.md, D-143).
+_WITNESSES: Final = 2
+
+
+def _witness(paths: list[tuple[str, ...]], path: tuple[str, ...]) -> None:
+    """Keep ``path`` while fewer than :data:`_WITNESSES` are held."""
+
+    if len(paths) < _WITNESSES:
+        paths.append(path)
+
+
+# ....................... #
+
+
 def _hops(ir: ProjectIR, source: str, target: str) -> tuple[str, ...]:
     """The relationships a mart based at ``source`` would flatten to reach
     ``target``, in the order they must be authored.
@@ -361,18 +380,20 @@ def _hops(ir: ProjectIR, source: str, target: str) -> tuple[str, ...]:
             )
 
     reached: list[tuple[str, ...]] = []
-    frontier: list[tuple[str, tuple[str, ...]]] = [(source, ())]
+    frontier: dict[str, list[tuple[str, ...]]] = {source: [()]}
     seen = {source}
 
     while frontier and not reached:
-        following: list[tuple[str, tuple[str, ...]]] = []
-        for entity, path in frontier:
+        following: dict[str, list[tuple[str, ...]]] = {}
+        for entity, paths in frontier.items():
             for name, to_entity in edges.get(entity, ()):
-                if to_entity == target:
-                    reached.append((*path, name))
-                elif to_entity not in seen:
-                    following.append((to_entity, (*path, name)))
-        seen.update(entity for entity, _ in following)
+                for path in paths:
+                    step = (*path, name)
+                    if to_entity == target:
+                        _witness(reached, step)
+                    elif to_entity not in seen:
+                        _witness(following.setdefault(to_entity, []), step)
+        seen.update(following)
         frontier = following
 
     return reached[0] if len(reached) == 1 else ()
