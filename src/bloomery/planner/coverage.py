@@ -300,6 +300,40 @@ def _carried_elsewhere(ir: ProjectIR, mart: MartIR, name: str) -> tuple[MartIR, 
 _FLATTENABLE: Final = (Cardinality.MANY_TO_ONE, Cardinality.ONE_TO_ONE)
 
 
+def _same_source(mart: MartIR, other: MartIR, column: str) -> str | None:
+    """What ``mart`` calls the column ``other`` calls ``column``, when both
+    trace to one source column, or ``None``.
+
+    A flattened join prefixes what it brings, so the same underlying column can
+    sit on two marts under two names — `customer_id` on the mart based at
+    `order`, `order_customer_id` on the one that joined to it. Naming the local
+    spelling turns a refusal into a corrected request (logs/T-0022.md, D-142).
+    """
+
+    origin = {
+        (candidate.source_entity, candidate.source_column)
+        for candidate in other.columns
+        if candidate.name == column
+    }
+    # Requestable names only. A mart may flatten a column without exposing it
+    # as a dimension — join keys never double as one — and naming one of those
+    # would answer a refusal with a request that is refused too.
+    requestable = {dimension.column for dimension in mart.dimensions}
+
+    return next(
+        (
+            candidate.name
+            for candidate in sorted(mart.columns, key=lambda item: item.name)
+            if candidate.name in requestable
+            and (candidate.source_entity, candidate.source_column) in origin
+        ),
+        None,
+    )
+
+
+# ....................... #
+
+
 def _hops(ir: ProjectIR, source: str, target: str) -> tuple[str, ...]:
     """The relationships a mart based at ``source`` would flatten to reach
     ``target``, in the order they must be authored.
@@ -395,6 +429,22 @@ def _not_here(
             f"cannot close, so it is not authorization for flattening the hop."
         )
         return UnreachableAtGrain(msg, refusal_reason="unverified")
+
+    if isinstance(answer, Proof) and source == target:
+        # The identity rollup, which proves trivially and involves no
+        # relationship at all. Reaching the chain logic here asked the author
+        # to declare an edge from an entity to itself (logs/T-0022.md, D-142).
+        local = _same_source(mart, other, name)
+        remedy = (
+            f"ask for {local!r} instead — the same column, under the name this mart flattens it as"
+            if local is not None
+            else f"expose it on mart {mart.name!r}, which is built from {target!r} already"
+        )
+        msg = (
+            f"{lead}, and {target!r} is this mart's own grain, so no relationship is "
+            f"involved.\n  {remedy}."
+        )
+        return UnreachableAtGrain(msg, refusal_reason="not_flattened")
 
     if isinstance(answer, Proof):
         chain = _hops(ir, source, target)

@@ -609,3 +609,81 @@ def test_the_chain_is_the_shortest_one_and_only_when_it_is_unique() -> None:
     assert _hops(replace(ir, relationships=(*ir.relationships, shortcut)), "order_item", "customer") == (
         "item_of_customer",
     )
+
+
+def test_a_dimension_from_this_marts_own_grain_asks_for_no_relationship() -> None:
+    """The identity rollup proves trivially and involves no relationship, so
+    the chain logic had nothing to name and told the author to declare an edge
+    from an entity to itself.
+
+    Reachable whenever another mart flattens a join to the entity this mart is
+    built from: the prefix gives one column two names. The remedy is the local
+    spelling, not a relationship (logs/T-0022.md, D-142).
+    """
+    ir = fixture_ir("ecom_basic")
+    (items,) = ir.marts
+    (foreign,) = [c for c in items.columns if c.name == "order_customer_id"]
+    slim = replace(
+        items,
+        name="slim_orders",
+        grain="order",
+        dimensions=tuple(d for d in items.dimensions if d.column != "order_customer_id"),
+        # The same source column is flattened here under another name and is
+        # *not* a dimension — a join key never doubles as one. Naming it would
+        # answer the refusal with a request that is refused too.
+        columns=(
+            *(c for c in items.columns if c.name != "order_customer_id"),
+            replace(foreign, name="customer_id"),
+        ),
+    )
+    # `slim_orders` owns the measure, so it is the mart serving the request;
+    # `order_items` keeps its dimensions and is the one carrying the column.
+    project = replace(ir, marts=(slim, replace(items, measures=())))
+
+    with pytest.raises(UnreachableAtGrain) as excinfo:
+        check(
+            project,
+            MetricRequest(metrics=("gross_revenue",), dimensions=("order_customer_id",)),
+            naming=NAMING,
+        )
+
+    assert excinfo.value.refusal_reason == "not_flattened"
+    assert "no relationship is involved" in str(excinfo.value)
+    assert "relationship from 'order' to 'order'" not in str(excinfo.value)
+    assert "expose it on mart 'slim_orders'" in str(excinfo.value)
+
+
+def test_the_same_column_under_another_name_is_named() -> None:
+    """The half that turns a refusal into a corrected request. A flattened join
+    prefixes what it brings, so one underlying column sits on two marts under
+    two names, and the caller reached for the wrong one.
+
+    Only names this mart exposes as dimensions: a mart may flatten a column
+    without making it requestable — join keys never double as one — and naming
+    one of those would answer a refusal with a request that is refused too.
+    """
+    ir = fixture_ir("ecom_basic")
+    (items,) = ir.marts
+    (foreign,) = [c for c in items.columns if c.name == "order_customer_id"]
+    local = replace(foreign, name="customer_id")
+    (foreign_dimension,) = [d for d in items.dimensions if d.column == "order_customer_id"]
+    slim = replace(
+        items,
+        name="slim_orders",
+        grain="order",
+        columns=(*(c for c in items.columns if c.name != "order_customer_id"), local),
+        dimensions=(
+            *(d for d in items.dimensions if d.column != "order_customer_id"),
+            replace(foreign_dimension, column="customer_id"),
+        ),
+    )
+    project = replace(ir, marts=(slim, replace(items, measures=())))
+
+    with pytest.raises(UnreachableAtGrain) as excinfo:
+        check(
+            project,
+            MetricRequest(metrics=("gross_revenue",), dimensions=("order_customer_id",)),
+            naming=NAMING,
+        )
+
+    assert "ask for 'customer_id' instead" in str(excinfo.value)
