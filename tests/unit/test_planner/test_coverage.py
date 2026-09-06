@@ -19,7 +19,7 @@ from bloomery.errors import (
 from bloomery.ir import Cardinality, ProjectIR
 from bloomery.naming import DefaultNaming
 from bloomery.planner import TimeGrain
-from bloomery.planner.coverage import _carried_elsewhere, _hop, _origin, check, resolve_request
+from bloomery.planner.coverage import _carried_elsewhere, _hops, _origin, check, resolve_request
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import AnyOf, Op, Predicate
 from bloomery.semantic import BASIS_PROVENANCE, RefusalReason
@@ -420,8 +420,8 @@ def test_two_routes_to_the_same_entity_name_neither() -> None:
         ir, relationships=(*ir.relationships, replace(declared, name="also_item_of_order"))
     )
 
-    assert _hop(ir, "order_item", "order") == "item_of_order"
-    assert _hop(doubled, "order_item", "order") is None
+    assert _hops(ir, "order_item", "order") == ("item_of_order",)
+    assert _hops(doubled, "order_item", "order") == ()
 
 
 def test_the_mart_a_refusal_names_does_not_depend_on_iteration_order() -> None:
@@ -568,5 +568,44 @@ def test_a_one_to_many_is_never_named_as_the_flatten_to_add() -> None:
     )
 
     assert declared.cardinality is Cardinality.MANY_TO_ONE
-    assert _hop(ir, "order_item", "order") == "item_of_order"
-    assert _hop(fanning, "order_item", "order") is None
+    assert _hops(ir, "order_item", "order") == ("item_of_order",)
+    assert _hops(fanning, "order_item", "order") == ()
+
+
+def test_a_transitive_hop_names_every_flatten_in_order() -> None:
+    """Marts flatten transitively, so reaching `customer` from `order_item` is
+    two `flatten:` lines and not a missing relationship.
+
+    The fallback used to tell the author to declare a direct
+    `order_item -> customer` edge they can already reach by composition —
+    redundant modelling, prescribed by a message meant to save them work
+    (logs/T-0022.md, D-141).
+    """
+    with pytest.raises(UnreachableAtGrain) as excinfo:
+        check(
+            fixture_ir("unflattened_hop"),
+            MetricRequest(metrics=("line_discount",), dimensions=("customer_tier",)),
+            naming=NAMING,
+        )
+
+    assert "`flatten: {via: item_of_order}` then `flatten: {via: order_of_customer}`" in str(
+        excinfo.value
+    )
+    assert "declare a many_to_one" not in str(excinfo.value)
+
+
+def test_the_chain_is_the_shortest_one_and_only_when_it_is_unique() -> None:
+    """Shortest, so a route that composes is preferred to one that detours;
+    unique, so two equally short routes name neither. Both matter for the same
+    reason the single-edge case did: a remediation the author cannot trust is
+    worse than one that admits it does not know."""
+    ir = fixture_ir("unflattened_hop")
+    (direct,) = [
+        relationship for relationship in ir.relationships if relationship.name == "item_of_order"
+    ]
+    shortcut = replace(direct, name="item_of_customer", to_entity="customer")
+
+    assert _hops(ir, "order_item", "customer") == ("item_of_order", "order_of_customer")
+    assert _hops(replace(ir, relationships=(*ir.relationships, shortcut)), "order_item", "customer") == (
+        "item_of_customer",
+    )

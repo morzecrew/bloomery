@@ -300,29 +300,48 @@ def _carried_elsewhere(ir: ProjectIR, mart: MartIR, name: str) -> tuple[MartIR, 
 _FLATTENABLE: Final = (Cardinality.MANY_TO_ONE, Cardinality.ONE_TO_ONE)
 
 
-def _hop(ir: ProjectIR, source: str, target: str) -> str | None:
-    """The one relationship a mart based at ``source`` could flatten to reach
-    ``target``, by name.
+def _hops(ir: ProjectIR, source: str, target: str) -> tuple[str, ...]:
+    """The relationships a mart based at ``source`` would flatten to reach
+    ``target``, in the order they must be authored.
 
-    ``None`` where there is none, where more than one would do — picking one of
-    two sends the author to write the wrong line — or where the only declared
-    route is one the flattener refuses. A rollup can be provable across the
-    *inverse* of a `one_to_many` (RFC 0037 admits that direction, and only
-    that one), while the mart flattener requires the relationship to run from
-    the base outward and to be non-multiplying. Provable and flattenable are
-    different questions, and the remediation answers the second
-    (logs/T-0022.md, D-140).
+    A chain rather than an edge: marts flatten transitively, so
+    `order_item -> order -> customer` is two `flatten:` lines and not a missing
+    relationship. Telling an author to declare a direct edge they can already
+    reach by composition is prescribing redundant modelling
+    (logs/T-0022.md, D-141).
+
+    Empty where no flattenable route exists, or where two shortest routes do —
+    picking one of two sends the author to write the wrong line. Only
+    `many_to_one` and `one_to_one` are walked: a rollup can be provable across
+    the *inverse* of a `one_to_many` (RFC 0037 admits that direction, and only
+    that one) while the mart flattener refuses to flatten it at all. Provable
+    and flattenable are different questions, and a remediation answers the
+    second (D-140).
     """
 
-    named = sorted(
-        relationship.name
-        for relationship in ir.relationships
-        if relationship.from_entity == source
-        and relationship.to_entity == target
-        and relationship.cardinality in _FLATTENABLE
-    )
+    edges: dict[str, list[tuple[str, str]]] = {}
+    for relationship in sorted(ir.relationships, key=lambda item: item.name):
+        if relationship.cardinality in _FLATTENABLE:
+            edges.setdefault(relationship.from_entity, []).append(
+                (relationship.name, relationship.to_entity)
+            )
 
-    return named[0] if len(named) == 1 else None
+    reached: list[tuple[str, ...]] = []
+    frontier: list[tuple[str, tuple[str, ...]]] = [(source, ())]
+    seen = {source}
+
+    while frontier and not reached:
+        following: list[tuple[str, tuple[str, ...]]] = []
+        for entity, path in frontier:
+            for name, to_entity in edges.get(entity, ()):
+                if to_entity == target:
+                    reached.append((*path, name))
+                elif to_entity not in seen:
+                    following.append((to_entity, (*path, name)))
+        seen.update(entity for entity, _ in following)
+        frontier = following
+
+    return reached[0] if len(reached) == 1 else ()
 
 
 # ....................... #
@@ -378,10 +397,12 @@ def _not_here(
         return UnreachableAtGrain(msg, refusal_reason="unverified")
 
     if isinstance(answer, Proof):
-        relationship = _hop(ir, source, target)
+        chain = _hops(ir, source, target)
+        steps = " then ".join(f"`flatten: {{via: {step}}}`" for step in chain)
         via = (
-            f"add `flatten: {{via: {relationship}}}` to mart {mart.name!r}"
-            if relationship is not None
+            f"add {steps} to mart {mart.name!r}"
+            + (" — chains flatten transitively, in authored order" if len(chain) > 1 else "")
+            if chain
             else (
                 f"declare a many_to_one or one_to_one relationship from {source!r} to "
                 f"{target!r} and flatten it onto mart {mart.name!r} — no relationship this "
