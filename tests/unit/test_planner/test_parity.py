@@ -17,22 +17,32 @@ red when a message improves is one people learn to update without reading.
 and the number of requests is not the same as the number of shapes:
 
 * Eleven fixtures carry marts with measures. Requests are generated per mart —
-  each measure alone, each measure by each dimension, and three two-dimension
-  pairs — which is 556 requests.
-* 448 are accepted and 108 refused across four classes, so both sides are real.
-* **76 of the 108 are one fixture**, `multi_source_quality`, whose catalog
+  each measure alone, each measure by each dimension, three two-dimension
+  pairs, and each measure by every dimension *another* mart of the same project
+  flattens — which is 700 requests.
+* 448 are accepted and 252 refused across five classes, so both sides are real.
+* **76 of the refusals are one fixture**, `multi_source_quality`, whose catalog
   declares no `date_dimension` — MetricFlow refuses the whole project, so those
-  requests fail identically and test one fact repeatedly rather than 76. The
-  refusals that vary by request shape are the other 32: `InvalidRequest` (22),
-  `AmbiguousDimension` (7) and `UnknownMember` (3).
+  requests fail identically and test one fact repeatedly rather than 76.
 
-The corpus grew by 25 when `unflattened_hop` was added for RFC 0040 P2's
-`not_flattened` refusal (logs/T-0022.md, D-136). Growth is not a parity event
-and was checked as one anyway: regenerating produced 25 additions, zero changes
-and zero removals, so no request that existed before this phase moved. The
-generator asks for a mart's own dimensions, so it never reaches that fixture's
-refusal — what the new rows pin is that adding a fixture shaped to be refused
-did not quietly refuse anything else.
+**The cross-mart requests were added by RFC 0040 P2's self-audit**
+(logs/T-0022.md, finding 1). Without them this suite could not observe the only
+behaviour that phase changed: it converts a dimension refusal from
+`UnknownMember` to `UnreachableAtGrain`, and every request the generator asked
+for named a dimension of the mart serving it, so not one could reach the
+conversion. A load-bearing parity suite blind to the phase it is guarding is
+worth more as a finding than as a pass.
+
+Two things about the baseline follow:
+
+* The 129 conversions are **licensed and visible** — generated on the merge
+  base, where those requests refuse as `UnknownMember`, so the change is a diff
+  a reviewer reads rather than a number that moved.
+  `test_only_the_licensed_conversion_moved` makes it a rule instead of a list:
+  any *other* movement fails, a newly accepted request included.
+* The 40 rows for `unflattened_hop` record a **first** value, not a preserved
+  one — that fixture does not exist at the merge base (D-136), so there is
+  nothing they could have moved from.
 
 That last bullet is the honest limit of this suite and the reason it is written
 down here: it is a strong guard against a phase that changes an *outcome*, and
@@ -91,6 +101,14 @@ def _requests(ir: ProjectIR) -> list[tuple[str, str, tuple[str, ...]]]:
 
     for mart in sorted(ir.marts, key=lambda m: m.name):
         dimensions = sorted({dimension.ref.dimension for dimension in mart.dimensions})
+        # Columns another mart of this project flattens and this one does not.
+        # `ref.dimension` above is the requestable name; a foreign column is
+        # asked for by the name it is flattened under, which is what a caller
+        # reading the other mart would type.
+        foreign = sorted(
+            {dimension.column for other in ir.marts for dimension in other.dimensions}
+            - {dimension.column for dimension in mart.dimensions}
+        )
         for measure in sorted(mart.measures):
             shapes.append((mart.name, measure, ()))
             shapes.extend((mart.name, measure, (dimension,)) for dimension in dimensions)
@@ -98,6 +116,7 @@ def _requests(ir: ProjectIR) -> list[tuple[str, str, tuple[str, ...]]]:
                 (mart.name, measure, pair)
                 for pair in itertools.islice(itertools.combinations(dimensions, 2), _PAIRS)
             )
+            shapes.extend((mart.name, measure, (dimension,)) for dimension in foreign)
 
     return shapes
 
@@ -142,12 +161,14 @@ def _outcomes() -> dict[str, str]:
 #: request, sorted. Checked in rather than recomputed: totals alone cannot see
 #: a phase that refuses one request and starts accepting another, and that
 #: trade is exactly the shape a rollup rule change makes (logs/T-0021.md,
-#: D-126). A later phase that converts a class regenerates this file, and the
-#: diff names every request it moved.
+#: D-126). A phase that converts a class regenerates this file **on the merge
+#: base** and the diff names every request it moved — which is what RFC 0040
+#: D11 asks for, and what this file records for P2.
 #:
 #: Regenerate with:
 #:     uv run python -c "import sys; sys.path.insert(0, 'tests'); \
 #:         from unit.test_planner.test_parity import write_baseline; write_baseline()"
+#: in a worktree of the merge base, never on the branch under test.
 BASELINE_PATH = pathlib.Path(__file__).with_name("parity_baseline.tsv")
 
 
@@ -175,12 +196,76 @@ def test_the_corpus_is_the_size_it_claims_to_be() -> None:
     outcomes = _outcomes()
 
     assert len(outcomes) == len(_baseline())
-    assert len(outcomes) == 556
+    assert len(outcomes) == 700
 
 
-def test_no_request_changes_outcome() -> None:
-    """RFC 0040 §8, and D5's whole reason for existing: P1 re-expresses today's
-    planning as a `SemanticPlan` and every request keeps the answer it had.
+#: The one conversion RFC 0040 P2 licenses: a request naming a dimension another
+#: mart carries stops being reported as a name that does not exist. A pair
+#: rather than a list of the 129 keys, because the rule is what the phase
+#: claims — a list would also pass for a phase that converted some other
+#: request and un-converted one of these.
+CONVERSION = ("UnknownMember", "UnreachableAtGrain")
+
+#: How many requests it moved. Pinned because "no unlicensed change" is equally
+#: true of a phase that converts nothing at all.
+CONVERTED = 129
+
+
+def _unlicensed(
+    outcomes: dict[str, str], baseline: dict[str, str]
+) -> dict[str, tuple[str, str]]:
+    """Every request whose outcome moved in a way this phase does not license.
+
+    Extracted from the test below rather than inlined, so the rule can be shown
+    to reject something. Inline, nothing created a violating move, and replacing
+    the whole computation with `{}` left the suite green — the assertion that
+    carries the guarantee was the one thing unexercised (logs/T-0022.md,
+    finding 2).
+    """
+    return {
+        key: move
+        for key, outcome in outcomes.items()
+        if key in baseline
+        and (move := (baseline[key], outcome))[0] != move[1]
+        and move != CONVERSION
+    }
+
+
+def test_the_conversion_rule_rejects_any_other_move() -> None:
+    """The rule, against moves the corpus does not contain: a refusal becoming
+    an acceptance, a different pair of classes, and the licensed pair *run
+    backwards*. Green on any of them would mean the check below asserts less
+    than it says.
+
+    The reverse move earns its line: comparing the pair as a set instead of in
+    order licenses a phase that starts reporting a dimension another mart
+    carries as a name that does not exist, which is this change undone.
+    """
+    baseline = {
+        "a": "UnknownMember",
+        "b": "InvalidRequest",
+        "c": "UnknownMember",
+        "d": "UnreachableAtGrain",
+    }
+    outcomes = {
+        "a": "UnreachableAtGrain",
+        "b": "accepted",
+        "c": "AmbiguousDimension",
+        "d": "UnknownMember",
+    }
+
+    assert _unlicensed(outcomes, baseline) == {
+        "b": ("InvalidRequest", "accepted"),
+        "c": ("UnknownMember", "AmbiguousDimension"),
+        "d": ("UnreachableAtGrain", "UnknownMember"),
+    }
+
+
+def test_only_the_licensed_conversion_moved() -> None:
+    """RFC 0040 §8, and D11: a phase preserves prior refusals except where a
+    named proof rule deliberately converts a class, and a conversion — of
+    outcome *or* of exception class — edits this baseline and says which rule
+    did it.
 
     Per request, not per class. Comparing `Counter`s over the outcomes lets a
     phase refuse one request and start accepting another with every total
@@ -190,14 +275,32 @@ def test_no_request_changes_outcome() -> None:
     outcomes = _outcomes()
     baseline = _baseline()
     changed = {
-        key: (baseline.get(key), outcome)
+        key: (baseline[key], outcome)
         for key, outcome in outcomes.items()
-        if baseline.get(key) != outcome
+        if key in baseline and baseline[key] != outcome
     }
+    unlicensed = _unlicensed(outcomes, baseline)
     dropped = sorted(set(baseline) - set(outcomes))
 
-    assert changed == {}, f"outcome changed for {len(changed)} request(s): {changed}"
+    assert unlicensed == {}, f"unlicensed outcome change(s): {unlicensed}"
+    assert len(changed) == CONVERTED, f"{len(changed)} converted, expected {CONVERTED}"
     assert dropped == [], f"request(s) no longer in the corpus: {dropped}"
+
+
+def test_nothing_the_planner_refused_became_answerable() -> None:
+    """The half of §8 a licensed conversion must not quietly carry with it. P2
+    adds no capability (D9), so a request refused before is refused after — the
+    class it is refused with is the only thing that moved.
+    """
+    outcomes = _outcomes()
+    baseline = _baseline()
+    widened = sorted(
+        key
+        for key, outcome in outcomes.items()
+        if key in baseline and baseline[key] != "accepted" and outcome == "accepted"
+    )
+
+    assert widened == [], f"request(s) newly accepted: {widened}"
 
 
 def test_both_sides_of_the_boundary_are_exercised() -> None:

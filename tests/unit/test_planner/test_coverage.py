@@ -450,3 +450,24 @@ def test_no_rollup_basis_carries_a_provenance_that_leaves_a_proof_open() -> None
     decides whether that still counts as safe.
     """
     assert all(provenance.closes for provenance in BASIS_PROVENANCE.values())
+
+
+def test_a_grain_this_project_maps_no_entity_for_states_that_much() -> None:
+    """A quality mart's grain is not an entity — it is the run itself — so
+    there is no rollup to state between it and a fact mart, and the refusal
+    says which of the two grains it could not place.
+
+    Found by the audit: the branch is reachable in four fixtures and no test
+    ran it. What made it easy to miss is that it needs a dimension of the
+    *other* mart, and reaching for a plausible name lands on `UnknownMember`
+    instead — the path only opens for a column that really is over there.
+    """
+    with pytest.raises(UnreachableAtGrain) as excinfo:
+        check(
+            fixture_ir("quality_precedence"),
+            MetricRequest(metrics=("line_amount_total",), dimensions=("disposition",)),
+            naming=NAMING,
+        )
+
+    assert excinfo.value.refusal_reason == RefusalReason.UNKNOWN_GRAIN
+    assert "maps no entity for one of those grains" in str(excinfo.value)

@@ -320,8 +320,8 @@ def _not_here(ir: ProjectIR, mart: MartIR, name: str, other: MartIR) -> Unreacha
     if isinstance(answer, Proof) and not answer.closed:  # pragma: no cover
         # A proof resting on a leaf nothing closes — a heuristic or an
         # unverified import — does not authorize "safe, just flatten it", which
-        # is the whole reason the branch above tests `closed` rather than
-        # presence. Unreachable today and deliberately still written: every
+        # is why this is tested before the branch that says so rather than
+        # folded into it. Unreachable today and deliberately still written: every
         # basis a rollup rests on is `DECLARED` or `DERIVED`, which
         # `test_no_rollup_basis_carries_a_provenance_that_leaves_a_proof_open`
         # asserts, and RFC 0044's imported provenance is what makes it
