@@ -1,0 +1,9 @@
+mapping_version: 1
+source: ufh__orders
+target: order
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  customer_id: {from: "$.customer_id", transform: [to_string]}
+  region: {from: "$.region"}
+  order_date: {from: "$.order_date", transform: [{parse_date: ISO8601}]}

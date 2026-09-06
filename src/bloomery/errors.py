@@ -715,6 +715,29 @@ class UnreachableAtGrain(PlannerError):
     serve it and the grain it serves it at. Empty means genuinely no mart
     lists the metric as a measure — a different repair (define a mart) from a
     split across grains (request them separately).
+
+    ``refusal_reason`` is the stable code for the *dimension* case this class
+    also covers (RFC 0040 §11a P2): a request naming a dimension another mart
+    carries, which this mart does not. It answers the only question an author
+    acts on differently —
+
+    - ``"not_flattened"``: the rollup to that dimension's grain is **provable**,
+      and the mart simply does not carry the column. One line of spec fixes it.
+    - a :class:`~bloomery.semantic.RefusalReason` value: the rollup is not
+      provable, and that member names which repair applies.
+    - ``"unverified"``: a proof exists and does not close — it rests on a
+      heuristic or an unverified import — so it authorizes nothing. Unreachable
+      until RFC 0044's imported provenance lands; the repair is to verify the
+      fact, not to edit a mart.
+    - ``""``: not a dimension refusal at all — the measure-coverage cases
+      above, whose shape is ``covering_marts``.
+
+    The value and not the member, because this module is the bottom layer and
+    the semantic vocabulary sits above it — ``RefusalReason`` is a ``StrEnum``,
+    so ``RefusalReason(err.refusal_reason)`` round-trips for the second case.
+    ``"not_flattened"`` is deliberately *not* a ``RefusalReason``: nothing was
+    refused there, the rollup succeeded, and adding a member for it would put a
+    planner's answer inside RFC 0037's vocabulary for rollup failures.
     """
 
     def __init__(
@@ -724,9 +747,11 @@ class UnreachableAtGrain(PlannerError):
         source_path: str | None = None,
         collected: tuple[BloomeryError, ...] = (),
         covering_marts: tuple[MartCoverage, ...] = (),
+        refusal_reason: str = "",
     ) -> None:
         super().__init__(message, source_path=source_path, collected=collected)
         self.covering_marts = covering_marts
+        self.refusal_reason = refusal_reason
 
 
 # ....................... #

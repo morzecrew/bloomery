@@ -1,0 +1,7 @@
+mapping_version: 1
+source: ufh__customers
+target: customer
+key:
+  customer_id: {from: "$.id", transform: [to_string]}
+fields:
+  tier: {from: "$.tier"}

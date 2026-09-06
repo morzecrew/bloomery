@@ -90,9 +90,10 @@ def test_every_mapped_field_appears_exactly_once() -> None:
     # reported as a number rather than a claim. RFC 0034's `period_over_period`
     # fixture adds one mapping of eight fields, and RFC 0024 P2's
     # `multi_source_quality` adds two of six and seven, and RFC 0024 D36's
-    # `path_conflict_merged` two of four: the number moves with the corpus,
-    # which is exactly what this is meant to notice.
-    assert swept == 191, f"{swept} mapped (entity, field, mapping) triples across the corpus"
+    # `path_conflict_merged` two of four, and RFC 0040 P2's `unflattened_hop`
+    # three of four, four and two: the number moves with the corpus, which is
+    # exactly what this is meant to notice.
+    assert swept == 201, f"{swept} mapped (entity, field, mapping) triples across the corpus"
 
 
 def test_every_mappings_document_is_a_real_document() -> None:

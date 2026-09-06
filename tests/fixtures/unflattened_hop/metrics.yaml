@@ -1,0 +1,12 @@
+metrics_version: 1
+metrics:
+  shipping_count:
+    grain: order
+    additivity: additive
+    agg: count
+    expr: "order_id"
+  line_discount:
+    grain: order_item
+    additivity: additive
+    agg: sum
+    expr: "discount"
