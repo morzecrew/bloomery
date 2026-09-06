@@ -19,7 +19,7 @@ from bloomery.errors import (
 from bloomery.ir import ProjectIR
 from bloomery.naming import DefaultNaming
 from bloomery.planner import TimeGrain
-from bloomery.planner.coverage import _carried_elsewhere, _hop, check, resolve_request
+from bloomery.planner.coverage import _carried_elsewhere, _hop, _origin, check, resolve_request
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import AnyOf, Op, Predicate
 from bloomery.semantic import BASIS_PROVENANCE, RefusalReason
@@ -413,9 +413,11 @@ def test_two_routes_to_the_same_entity_name_neither() -> None:
     is this test.
     """
     ir = fixture_ir("unflattened_hop")
-    (declared,) = ir.relationships
+    (declared,) = [
+        relationship for relationship in ir.relationships if relationship.name == "item_of_order"
+    ]
     doubled = replace(
-        ir, relationships=(declared, replace(declared, name="also_item_of_order"))
+        ir, relationships=(*ir.relationships, replace(declared, name="also_item_of_order"))
     )
 
     assert _hop(ir, "order_item", "order") == "item_of_order"
@@ -434,8 +436,8 @@ def test_the_mart_a_refusal_names_does_not_depend_on_iteration_order() -> None:
     forward = replace(ir, marts=(serving, carrying, also))
     backward = replace(ir, marts=(serving, also, carrying))
 
-    assert _carried_elsewhere(forward, serving, "region").name == "aaa_orders"
-    assert _carried_elsewhere(backward, serving, "region").name == "aaa_orders"
+    assert _carried_elsewhere(forward, serving, "region")[0].name == "aaa_orders"
+    assert _carried_elsewhere(backward, serving, "region")[0].name == "aaa_orders"
 
 
 def test_no_rollup_basis_carries_a_provenance_that_leaves_a_proof_open() -> None:
@@ -471,3 +473,71 @@ def test_a_grain_this_project_maps_no_entity_for_states_that_much() -> None:
 
     assert excinfo.value.refusal_reason == RefusalReason.UNKNOWN_GRAIN
     assert "maps no entity for one of those grains" in str(excinfo.value)
+
+
+def test_the_proof_target_is_the_dimension_s_own_entity() -> None:
+    """A flattened column came from an entity, and that entity — not the
+    carrying mart's grain — is what a rollup question about it is about.
+
+    `order_items` carries `order_customer_id` from `order`. Ask the carrier's
+    grain instead and a second mart at the requester's own grain would prove a
+    reflexive rollup and report "safe, just flatten it" about a hop nobody
+    proved (logs/T-0022.md, D-139).
+    """
+    ir = fixture_ir("ecom_basic")
+    (mart,) = ir.marts
+
+    assert _origin(mart, "order_customer_id") == "order"
+    assert _origin(mart, "line_no") == mart.grain
+
+
+def test_a_filter_naming_a_dimension_elsewhere_refuses_the_same_way() -> None:
+    """Filters resolve through the same function as group-bys, so they inherit
+    the diagnosis — and should: a filter on a column another mart carries has
+    the same cause and the same one-line repair (logs/T-0022.md, D-138)."""
+    with pytest.raises(UnreachableAtGrain) as excinfo:
+        check(
+            fixture_ir("unflattened_hop"),
+            MetricRequest(
+                metrics=("line_discount",),
+                filters=(Predicate(dimension="region", op=Op.EQ, values=("eu",)),),
+            ),
+            naming=NAMING,
+        )
+
+    assert excinfo.value.refusal_reason == "not_flattened"
+
+
+def test_a_row_policy_naming_a_dimension_elsewhere_refuses_the_same_way() -> None:
+    """And the policy path, which resolves its dimension through the same
+    function. A policy that cannot be applied must refuse rather than plan
+    without it, and the class it refuses with is the one that says why."""
+    with pytest.raises(UnreachableAtGrain) as excinfo:
+        resolve_request(
+            fixture_ir("unflattened_hop"),
+            MetricRequest(metrics=("line_discount",)),
+            naming=NAMING,
+            policy=RowPolicy(dimension="region", op=Op.EQ, value="eu"),
+        )
+
+    assert excinfo.value.refusal_reason == "not_flattened"
+
+
+def test_a_carried_dimension_is_proven_to_its_own_entity_not_its_carriers_grain() -> None:
+    """`customer_tier` is carried by `orders`, a mart at `order` grain, and it
+    originates at `customer`. The refusal must be about reaching `customer`.
+
+    End to end rather than through `_origin` alone: with the carrier's grain as
+    the target this proves `order_item -> order`, which holds, and the message
+    would offer a `flatten` that does not bring the column (logs/T-0022.md,
+    D-139).
+    """
+    with pytest.raises(UnreachableAtGrain) as excinfo:
+        check(
+            fixture_ir("unflattened_hop"),
+            MetricRequest(metrics=("line_discount",), dimensions=("customer_tier",)),
+            naming=NAMING,
+        )
+
+    assert "flattened from 'customer'" in str(excinfo.value)
+    assert "roll up to 'customer'" in str(excinfo.value)

@@ -249,8 +249,31 @@ def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) 
 # ....................... #
 
 
-def _carried_elsewhere(ir: ProjectIR, mart: MartIR, name: str) -> MartIR | None:
-    """The first other mart flattening ``name``, or ``None``.
+def _origin(mart: MartIR, column: str) -> str:
+    """The entity a flattened column came from — which is not the carrying
+    mart's grain whenever that mart flattened a join to reach it.
+
+    `order_items` carries `order_customer_id` from `order`, so a rollup
+    question about that column is a question about reaching `order`, and
+    asking it about the carrier's grain would prove the wrong thing: a second
+    mart at the *same* grain as the requester carries a foreign dimension, the
+    reflexive rollup succeeds, and the refusal reports "safe, just flatten it"
+    about a hop nobody proved (logs/T-0022.md, D-139).
+    """
+
+    return guaranteed(
+        (candidate.source_entity for candidate in mart.columns if candidate.name == column),
+        expected=f"a column backing dimension {column!r} of mart {mart.name!r}",
+        by="the mart flattener, which builds every dimension from a column it flattened",
+    )
+
+
+# ....................... #
+
+
+def _carried_elsewhere(ir: ProjectIR, mart: MartIR, name: str) -> tuple[MartIR, str] | None:
+    """The first other mart flattening ``name``, with the entity that column
+    came from, or ``None``.
 
     Sorted by mart name rather than taken in IR order: this decides which mart
     a refusal message names, and a message that depends on iteration order is
@@ -259,7 +282,7 @@ def _carried_elsewhere(ir: ProjectIR, mart: MartIR, name: str) -> MartIR | None:
 
     return next(
         (
-            candidate
+            (candidate, _origin(candidate, name))
             for candidate in sorted(ir.marts, key=lambda m: m.name)
             if candidate.name != mart.name
             and any(dimension.column == name for dimension in candidate.dimensions)
@@ -291,7 +314,9 @@ def _hop(ir: ProjectIR, source: str, target: str) -> str | None:
 # ....................... #
 
 
-def _not_here(ir: ProjectIR, mart: MartIR, name: str, other: MartIR) -> UnreachableAtGrain:
+def _not_here(
+    ir: ProjectIR, mart: MartIR, name: str, other: MartIR, origin: str
+) -> UnreachableAtGrain:
     """The refusal for a dimension another mart carries and this one does not
     (RFC 0040 §11a P2, logs/T-0022.md D-135).
 
@@ -306,15 +331,20 @@ def _not_here(ir: ProjectIR, mart: MartIR, name: str, other: MartIR) -> Unreacha
     """
 
     keys = {entity.name: entity.key for entity in ir.entities}
-    source, target = mart.grain, other.grain
+    source, target = mart.grain, origin
     answer = (
         prove_rollup(grain_of(source, keys[source]), grain_of(target, keys[target]), ir)
         if source in keys and target in keys
         else None
     )
+    carried = (
+        f"at grain {target!r}"
+        if other.grain == target
+        else f"at grain {other.grain!r}, flattened from {target!r}"
+    )
     lead = (
         f"dimension {name!r} is not on mart {mart.name!r}, which serves this request; "
-        f"mart {other.name!r} carries it at grain {target!r}"
+        f"mart {other.name!r} carries it {carried}"
     )
 
     if isinstance(answer, Proof) and not answer.closed:  # pragma: no cover
@@ -392,9 +422,9 @@ def _resolve_dimension(
                 return _resolve_dimension(
                     mart, f"{roles[0]}_{name}", apply_grain=apply_grain, ir=ir
                 )
-        other = _carried_elsewhere(ir, mart, name)
-        if other is not None:
-            raise _not_here(ir, mart, name, other)
+        elsewhere = _carried_elsewhere(ir, mart, name)
+        if elsewhere is not None:
+            raise _not_here(ir, mart, name, *elsewhere)
 
         known = sorted(refs)
         closest = _closest(name, known)

@@ -659,6 +659,9 @@ semi_additive_inventory|inventory|stock_on_hand|warehouse_id	accepted
 semi_additive_inventory|inventory|stock_on_hand|week	accepted
 semi_additive_inventory|inventory|stock_on_hand|year	accepted
 unflattened_hop|order_items|line_discount|	accepted
+unflattened_hop|order_items|line_discount|customer_customer_id	UnreachableAtGrain
+unflattened_hop|order_items|line_discount|customer_id	UnreachableAtGrain
+unflattened_hop|order_items|line_discount|customer_tier	UnreachableAtGrain
 unflattened_hop|order_items|line_discount|day	accepted
 unflattened_hop|order_items|line_discount|day,discount	accepted
 unflattened_hop|order_items|line_discount|day,item_date	accepted
@@ -684,10 +687,13 @@ unflattened_hop|orders|shipping_count|added_month	UnreachableAtGrain
 unflattened_hop|orders|shipping_count|added_quarter	UnreachableAtGrain
 unflattened_hop|orders|shipping_count|added_week	UnreachableAtGrain
 unflattened_hop|orders|shipping_count|added_year	UnreachableAtGrain
+unflattened_hop|orders|shipping_count|customer_customer_id	accepted
+unflattened_hop|orders|shipping_count|customer_customer_id,customer_id	UnknownMember
+unflattened_hop|orders|shipping_count|customer_customer_id,customer_tier	accepted
+unflattened_hop|orders|shipping_count|customer_customer_id,day	accepted
+unflattened_hop|orders|shipping_count|customer_id	UnknownMember
+unflattened_hop|orders|shipping_count|customer_tier	accepted
 unflattened_hop|orders|shipping_count|day	accepted
-unflattened_hop|orders|shipping_count|day,month	accepted
-unflattened_hop|orders|shipping_count|day,order_date	accepted
-unflattened_hop|orders|shipping_count|day,order_id	accepted
 unflattened_hop|orders|shipping_count|discount	UnreachableAtGrain
 unflattened_hop|orders|shipping_count|item_date	UnreachableAtGrain
 unflattened_hop|orders|shipping_count|line_no	UnreachableAtGrain

@@ -19,8 +19,8 @@ and the number of requests is not the same as the number of shapes:
 * Eleven fixtures carry marts with measures. Requests are generated per mart —
   each measure alone, each measure by each dimension, three two-dimension
   pairs, and each measure by every dimension *another* mart of the same project
-  flattens — which is 700 requests.
-* 448 are accepted and 252 refused across five classes, so both sides are real.
+  flattens — which is 706 requests.
+* 449 are accepted and 257 refused across five classes, so both sides are real.
 * **76 of the refusals are one fixture**, `multi_source_quality`, whose catalog
   declares no `date_dimension` — MetricFlow refuses the whole project, so those
   requests fail identically and test one fact repeatedly rather than 76.
@@ -40,7 +40,7 @@ Two things about the baseline follow:
   a reviewer reads rather than a number that moved.
   `test_only_the_licensed_conversion_moved` makes it a rule instead of a list:
   any *other* movement fails, a newly accepted request included.
-* The 40 rows for `unflattened_hop` record a **first** value, not a preserved
+* The 46 rows for `unflattened_hop` record a **first** value, not a preserved
   one — that fixture does not exist at the merge base (D-136), so there is
   nothing they could have moved from.
 
@@ -196,7 +196,7 @@ def test_the_corpus_is_the_size_it_claims_to_be() -> None:
     outcomes = _outcomes()
 
     assert len(outcomes) == len(_baseline())
-    assert len(outcomes) == 700
+    assert len(outcomes) == 706
 
 
 #: The one conversion RFC 0040 P2 licenses: a request naming a dimension another

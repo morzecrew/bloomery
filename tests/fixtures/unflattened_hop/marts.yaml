@@ -8,6 +8,7 @@ marts:
     grain: order
     base: order
     flatten:
+      - {via: order_of_customer, prefix: customer_}
       - {date: order_date, role: ordered}
     measures: [shipping_count]
   order_items:

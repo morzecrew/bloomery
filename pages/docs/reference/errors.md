@@ -245,6 +245,10 @@ except UnreachableAtGrain as refusal:
         reason = RefusalReason(refusal.refusal_reason)
 ```
 
+The same diagnosis reaches a **filter** or a **row policy** naming such a column: all three
+resolve the dimension through one function, and a filter on a column another mart carries
+has the same cause and the same repair as a group-by does.
+
 **bloomery never joins at plan time**, in either case. The join belongs to the mart, where
 it is proven once when the mart is built rather than re-decided on every request — so the
 repair is always a spec edit, never a flag on the query.
