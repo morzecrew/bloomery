@@ -48,12 +48,21 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from bloomery.errors import PlannerError
 from bloomery.ir import Additivity
 from bloomery.semantic import Proof, Provenance, SemanticFact, SemanticJudgement
-from bloomery.semantic.plan import Aggregate, Filter, Project, Scan, SemanticPlan
+from bloomery.semantic.plan import (
+    Aggregate,
+    Filter,
+    JoinAggregates,
+    JoinBranch,
+    Project,
+    Scan,
+    SemanticPlan,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
     from bloomery.ir import MartIR, MetricIR
     from bloomery.planner.coverage import Coverage
@@ -63,6 +72,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "build",
+    "compose",
 ]
 
 
@@ -199,5 +209,104 @@ def build(
             # answer. Dimensions before measures, which is the order the
             # emitted SELECT already uses.
             Project(columns=(*dimensions, *request.metrics)),
+        )
+    )
+
+
+# ....................... #
+
+
+def _unique_at_result_grain(branches: Sequence[JoinBranch], keys: Sequence[str]) -> Proof:
+    """R010: every branch is unique at the join key, by its own aggregate.
+
+    One fact per branch, and each one is about a node in the plan rather than
+    about the warehouse — `DERIVED`, because it follows from the branch below
+    it, and the branch was checked when it was constructed. This is the
+    difference RFC 0041 D2 draws: a uniqueness read off data would be a
+    data-dependent fact standing in for a proof (RFC 0039 D1), and the same
+    join would then be authorized by whatever happened to be loaded.
+    """
+
+    return Proof(
+        rule="R010",
+        conclusion=SemanticJudgement("UniqueAtGrain", (("keys", ", ".join(keys) or "total"),)),
+        facts=tuple(
+            SemanticFact(
+                source=f"branch:{_relation_of(branch.plan)}",
+                provenance=Provenance.DERIVED,
+                statement=(
+                    f"{_relation_of(branch.plan)} is aggregated to the requested grain "
+                    "before the join, so it holds one row per key"
+                ),
+            )
+            for branch in branches
+        ),
+    )
+
+
+# ....................... #
+
+
+def _relation_of(branch: SemanticPlan) -> str:
+    """The relation a branch scans — its identity in the composed plan.
+
+    Exactly one, checked rather than assumed. Taking the first of several
+    would name one relation in a fact that authorizes the whole branch, and a
+    proof leaf naming the wrong relation is worse than a missing one: it reads
+    as evidence.
+    """
+
+    scanned = [node.relation for node in branch.nodes if isinstance(node, Scan)]
+
+    if len(scanned) != 1:
+        msg = (
+            f"a branch scans exactly one relation, got {scanned} — R010's fact is about "
+            "the relation the branch aggregated, and a branch reading several has no "
+            "single answer to name (RFC 0041 D2)"
+        )
+        raise PlannerError(msg)
+
+    return scanned[0]
+
+
+# ....................... #
+
+
+def compose(
+    branches: Sequence[tuple[SemanticPlan | None, tuple[str, ...]]],
+    keys: Sequence[str],
+    measures: Sequence[str],
+) -> SemanticPlan | None:
+    """The composed plan for a cross-mart request (RFC 0041 D9, D15), or
+    ``None`` where any branch could not be stated.
+
+    Each branch arrives with **its own** names for the join keys, because two
+    marts spell one dimension differently and the node has to check that a
+    branch aggregated to the keys rather than to something else of the same
+    width (logs/T-0026.md, D-174).
+
+    ``None`` propagates rather than being worked around: a join whose branches
+    are only partly expressible would document one half of what the query
+    computes, and half a plan reads as a whole one.
+    """
+
+    if any(plan is None for plan, _keys in branches):
+        return None
+
+    stated = tuple(
+        JoinBranch(plan=plan, keys=names) for plan, names in branches if plan is not None
+    )
+
+    return SemanticPlan(
+        (
+            JoinAggregates(
+                keys=tuple(keys),
+                branches=stated,
+                proof=_unique_at_result_grain(stated, keys),
+            ),
+            # Dimensions before measures, in request order — the same rule the
+            # single-mart plan follows, and the order the composed SELECT
+            # projects (RFC 0041 D9).
+            Project(columns=(*keys, *measures)),
         )
     )

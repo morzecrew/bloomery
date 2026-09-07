@@ -47,6 +47,8 @@ from bloomery.semantic.proof import Proof
 __all__ = [
     "Aggregate",
     "Filter",
+    "JoinAggregates",
+    "JoinBranch",
     "PlanNode",
     "Project",
     "Scan",
@@ -70,6 +72,12 @@ class Scan:
 
     @property
     def multiplies(self) -> bool:
+        return False
+
+    # ....................... #
+
+    @property
+    def claims(self) -> bool:
         return False
 
     # ....................... #
@@ -112,6 +120,12 @@ class Filter:
 
     @property
     def multiplies(self) -> bool:
+        return False
+
+    # ....................... #
+
+    @property
+    def claims(self) -> bool:
         return False
 
     # ....................... #
@@ -171,6 +185,12 @@ class Aggregate:
 
     # ....................... #
 
+    @property
+    def claims(self) -> bool:
+        return True
+
+    # ....................... #
+
     def document(self) -> dict[str, object]:
         return {
             "node": "aggregate",
@@ -213,6 +233,12 @@ class Project:
 
     # ....................... #
 
+    @property
+    def claims(self) -> bool:
+        return False
+
+    # ....................... #
+
     def document(self) -> dict[str, object]:
         return {"node": "project", "columns": list(self.columns)}
 
@@ -224,11 +250,165 @@ class Project:
 
 # ....................... #
 
+
+@dataclass(frozen=True, slots=True)
+class JoinBranch:
+    """One branch of a join, and what *it* calls the join keys.
+
+    The pair, and not the plan alone. Two marts spell one dimension
+    differently, so a join node holding only plans cannot tell whether a
+    branch aggregated to the keys or to something else with the same number of
+    columns — and "each side is unique at the key" is the whole content of
+    R010. Carrying the branch's own names is what makes that sentence
+    checkable rather than asserted (logs/T-0026.md, D-174).
+    """
+
+    plan: SemanticPlan
+    #: This branch's names for the join keys, in the join's key order.
+    keys: tuple[str, ...] = ()
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
+class JoinAggregates:
+    """Branch plans joined on the key their aggregates already reduced them to
+    (RFC 0041 D1, D9).
+
+    Each branch is a whole :class:`SemanticPlan` rather than a node list,
+    because a branch *is* a plan: it scans, restricts, aggregates and carries
+    its own proof, and it was checked when it was constructed. Nesting them
+    keeps that so — a branch that could not stand alone cannot enter a join.
+
+    ``keys`` are the result-grain columns in the caller's vocabulary, one name
+    for every branch: two marts spell a flattened column differently, and D12
+    settles that they are the same dimension by provenance, so the join names
+    it once and each branch's own spelling stays inside that branch.
+
+    **Never multiplies, and still carries a proof.** A join of relations each
+    unique at ``keys`` returns at most one row per key — that is D2, and it is
+    structural, from the aggregate beneath each branch rather than from
+    anything the warehouse holds. R010 states it. The alternative, a join node
+    exempt from proof because its inputs obviously cannot fan out, is how the
+    fan-out returns the first time a branch stops ending in an aggregate.
+    """
+
+    keys: tuple[str, ...]
+    branches: tuple[JoinBranch, ...]
+    proof: Proof | None = None
+
+    # ....................... #
+
+    def __post_init__(self) -> None:
+        # Sorted like every other IR collection (RFC 0003) — and the branches
+        # are reordered *with* the keys, because entry `i` of a branch is that
+        # branch's name for key `i`. Sorting one side alone breaks the pairing
+        # silently: `keys` reads `('signed_up', 'tier')` while every branch
+        # still lists its tier column first, and a target lowering the plan
+        # joins the wrong columns (logs/T-0026.md, D-175).
+        order = sorted(range(len(self.keys)), key=lambda index: self.keys[index])
+
+        if order != list(range(len(self.keys))):
+            object.__setattr__(self, "keys", tuple(self.keys[index] for index in order))
+            object.__setattr__(
+                self,
+                "branches",
+                tuple(
+                    JoinBranch(plan=branch.plan, keys=tuple(branch.keys[index] for index in order))
+                    if len(branch.keys) == len(order)
+                    else branch
+                    for branch in self.branches
+                ),
+            )
+
+        # One branch is a single-mart plan, which needs no join node at all,
+        # and zero is a join over nothing that `check` would then report as
+        # authorized — the same shape as a proof resting on no facts.
+        if len(self.branches) < 2:
+            msg = (
+                f"a branch join needs at least two branches, got {len(self.branches)} — "
+                "one branch is a plan, not a join (RFC 0041 §3)"
+            )
+            raise ValueError(msg)
+
+        # R010's content is *structural*: one row per key because of the
+        # aggregate beneath. A branch that does not end in an aggregate over
+        # the join keys makes that sentence false while the proof beside it
+        # still reads as closed — the node has to require the structure it
+        # claims, or the claim is decoration (RFC 0041 D2).
+        #
+        # The **last** aggregate, and its column *names*. An earlier one says
+        # nothing about the branch's output: an aggregate to the keys followed
+        # by one to a coarser grain leaves a relation unique at neither. And a
+        # count of columns is not identity — a branch grouped by two unrelated
+        # columns counts the same as one grouped by the keys, and the join
+        # would then match rows that share nothing (logs/T-0026.md, D-174).
+        unaggregated = [
+            index for index, branch in enumerate(self.branches) if not self._ends_at(branch)
+        ]
+
+        if unaggregated:
+            msg = (
+                f"branch(es) {unaggregated} do not end in an aggregate to their own names "
+                f"for the {len(self.keys)} join key(s), so they are not unique at the "
+                "result grain and R010 would be asserting it about a plan that does not "
+                "do it (RFC 0041 D2)"
+            )
+            raise ValueError(msg)
+
+    # ....................... #
+
+    def _ends_at(self, branch: JoinBranch) -> bool:
+        """Whether ``branch`` is unique at its own names for the join keys."""
+
+        aggregates = [node for node in branch.plan.nodes if isinstance(node, Aggregate)]
+
+        return (
+            len(branch.keys) == len(self.keys)
+            and bool(aggregates)
+            and aggregates[-1].dimensions == tuple(sorted(branch.keys))
+        )
+
+    # ....................... #
+
+    @property
+    def multiplies(self) -> bool:
+        return False
+
+    # ....................... #
+
+    @property
+    def claims(self) -> bool:
+        return True
+
+    # ....................... #
+
+    def document(self) -> dict[str, object]:
+        return {
+            "node": "join_aggregates",
+            "keys": list(self.keys),
+            "branches": [
+                {"keys": list(branch.keys), **branch.plan.document()} for branch in self.branches
+            ],
+            "proof": self.proof.document() if self.proof is not None else None,
+        }
+
+    # ....................... #
+
+    def render(self) -> str:
+        joined = ", ".join(self.keys) or "total"
+        return f"JoinAggregates({len(self.branches)} branches on {joined})"
+
+
+# ....................... #
+
 #: The node vocabulary, closed. RFC 0040 §4 also lists `PreservingJoin` and
-#: `ConvertUnit`; neither exists yet — the first arrives with P2's cross-entity
-#: rollup and the second with RFC 0038's unit work — and inventing them now
-#: would be two node types no plan can contain and no test can reach.
-PlanNode = Scan | Filter | Aggregate | Project
+#: `ConvertUnit`; neither exists yet — the first would join *unaggregated*
+#: rows, which RFC 0041 D10 keeps refused, and the second arrives with
+#: RFC 0038's unit work. :class:`JoinAggregates` is the fifth kind, and the
+#: only one RFC 0041 P1 adds (D15).
+PlanNode = Scan | Filter | Aggregate | Project | JoinAggregates
 
 
 @dataclass(frozen=True, slots=True)
@@ -257,13 +437,21 @@ class SemanticPlan:
         proof of it.
 
         Two kinds of node do. A multiplicity-changing one, because it can
-        invent rows — that is D2 as written, and it is vacuous at P1, since no
-        node type here can multiply. And an :class:`Aggregate`, because
-        rolling measures up to a grain *is* the claim this compiler exists to
-        get right: an aggregate with no proof is the fan-out bug with a plan
-        wrapped around it. D2's sentence names the first; the second is the
-        same rule reaching the node P1 actually builds, rather than a rule
-        that waits for P2 to become true (logs/T-0021.md, D-124).
+        invent rows — that is D2 as written, and it is vacuous here, since no
+        node type in this vocabulary can multiply. And a node that *claims*:
+        an :class:`Aggregate`, because rolling measures up to a grain is the
+        claim this compiler exists to get right, and a
+        :class:`JoinAggregates`, because "each side is unique at the key" is
+        the whole reason its output is not a fan-out. D2's sentence names the
+        first; the second is the same rule reaching the nodes a plan actually
+        builds, rather than a rule that waits for a phase to become true
+        (logs/T-0021.md, D-124).
+
+        Asked of the node as a property rather than by listing node types
+        here. A membership test over a closed vocabulary is right until the
+        vocabulary gains a member, and the member it silently exempts is the
+        one nobody remembered to add — which for a join node is the fan-out
+        itself (RFC 0041 D14).
 
         **Closed, not merely present.** A proof resting on a heuristic or
         unknown leaf is a derivation nobody stands behind, and accepting one
@@ -286,7 +474,7 @@ class SemanticPlan:
         unauthorized = [
             node.render()
             for node in self.nodes
-            if node.multiplies or isinstance(node, Aggregate)
+            if node.multiplies or node.claims
             if not ((proof := getattr(node, "proof", None)) is not None and proof.closed)
         ]
 
@@ -312,11 +500,24 @@ class SemanticPlan:
 
     @property
     def proofs(self) -> tuple[Proof, ...]:
-        """Every proof this plan rests on, in node order."""
+        """Every proof this plan rests on, in node order — a branch join's
+        own first, then each branch's, depth first.
 
-        return tuple(
-            proof for node in self.nodes if (proof := getattr(node, "proof", None)) is not None
-        )
+        Reaching into branches rather than stopping at the top level: a
+        composed plan's authorization is mostly *inside* it, and a reader
+        counting the proofs of a two-branch plan and finding one has been told
+        the branches rest on nothing.
+        """
+
+        found: list[Proof] = []
+
+        for node in self.nodes:
+            if (proof := getattr(node, "proof", None)) is not None:
+                found.append(proof)
+            for branch in getattr(node, "branches", ()):
+                found.extend(branch.plan.proofs)
+
+        return tuple(found)
 
     # ....................... #
 

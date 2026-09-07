@@ -16,38 +16,44 @@ red when a message improves is one people learn to update without reading.
 **What the corpus actually covers**, since a parity run reports green either way
 and the number of requests is not the same as the number of shapes:
 
-* Eleven fixtures carry marts with measures. Requests are generated per mart —
+* Twelve fixtures carry marts with measures. Requests are generated per mart —
   each measure alone, each measure by each dimension, three two-dimension
   pairs, and each measure by every dimension *another* mart of the same project
-  flattens — which is 706 requests.
-* 449 are accepted and 257 refused across five classes, so both sides are real.
+  flattens — plus, per pair of measure-carrying marts, one **cross-mart**
+  request ungrouped and one by each dimension of the first mart. That is 907
+  requests, 87 of them cross-mart.
+* 510 are accepted and 397 refused across five classes, so both sides are real.
 * **76 of the refusals are one fixture**, `multi_source_quality`, whose catalog
   declares no `date_dimension` — MetricFlow refuses the whole project, so those
   requests fail identically and test one fact repeatedly rather than 76.
 
-**The cross-mart requests were added by RFC 0040 P2's self-audit**
-(logs/T-0022.md, finding 1). Without them this suite could not observe the only
-behaviour that phase changed: it converts a dimension refusal from
-`UnknownMember` to `UnreachableAtGrain`, and every request the generator asked
-for named a dimension of the mart serving it, so not one could reach the
-conversion. A load-bearing parity suite blind to the phase it is guarding is
-worth more as a finding than as a pass.
+**The generator has been widened twice, both times because it was blind to the
+phase it was guarding.** RFC 0040 P2's self-audit added the cross-mart
+*dimensions* (logs/T-0022.md, finding 1): every request named a dimension of
+the mart serving it, so not one could reach that phase's conversion. RFC 0041
+P1 adds the cross-mart *requests* — its whole subject is a request whose
+measures live on two marts, and the generator asked only single-metric ones
+(D-128), so the corpus could not contain a single instance of the shape being
+built. A load-bearing parity suite blind to the phase it is guarding is worth
+more as a finding than as a pass.
 
 Two things about the baseline follow:
 
-* The 129 conversions are **licensed and visible** — generated on the merge
-  base, where those requests refuse as `UnknownMember`, so the change is a diff
-  a reviewer reads rather than a number that moved.
-  `test_only_the_licensed_conversion_moved` makes it a rule instead of a list:
-  any *other* movement fails, a newly accepted request included.
-* The 46 rows for `unflattened_hop` record a **first** value, not a preserved
-  one — that fixture does not exist at the merge base (D-136), so there is
-  nothing they could have moved from.
+* The conversions are **licensed and visible** — the baseline is regenerated on
+  the merge base, so a change is a diff a reviewer reads rather than a number
+  that moved. `test_only_the_licensed_conversion_moved` makes it a rule instead
+  of a list: any *other* movement fails.
+* Rows for a fixture that does not exist at the merge base record a **first**
+  value, not a preserved one (D-136), so there is nothing they could have moved
+  from. Regenerating with the new fixture and the new generator present in a
+  worktree of the merge base is what keeps that set as small as possible: it
+  buys the *old planner's* answer for a new request, which is the only thing a
+  conversion can be measured against.
 
-That last bullet is the honest limit of this suite and the reason it is written
-down here: it is a strong guard against a phase that changes an *outcome*, and
-a weak one against a phase that changes only refusal *reasons*, which no
-current fixture varies enough to catch.
+The honest limit of this suite is written down here rather than discovered: it
+is a strong guard against a phase that changes an *outcome*, and a weak one
+against a phase that changes only refusal *reasons*, which no current fixture
+varies enough to catch.
 
 `parity_baseline.tsv` beside this file is the reference, generated on the
 merge base rather than on this branch — a baseline recomputed from the tree it
@@ -89,15 +95,20 @@ UNBUILDABLE = frozenset(
 _PAIRS = 3
 
 
-def _requests(ir: ProjectIR) -> list[tuple[str, str, tuple[str, ...]]]:
+def _requests(ir: ProjectIR) -> list[tuple[str, str, tuple[str, ...], tuple[str, ...]]]:
     """Every request shape this corpus asks, in a deterministic order, each
-    carrying the mart it was generated from.
+    carrying the mart it was generated from and the metrics it asks for.
 
     Sorted throughout rather than taken in IR order: the suite compares two
     runs, and a corpus whose membership depended on iteration order would
     report a difference that was its own.
+
+    **Single-metric shapes keep their key**, so every row of the checked-in
+    baseline still names the same request. The cross-mart pairs added for
+    RFC 0041 P1 (D16) key on `a+b` in both the mart and the measure field,
+    which no single-metric key can collide with.
     """
-    shapes: list[tuple[str, str, tuple[str, ...]]] = []
+    shapes: list[tuple[str, str, tuple[str, ...], tuple[str, ...]]] = []
 
     for mart in sorted(ir.marts, key=lambda m: m.name):
         dimensions = sorted({dimension.ref.dimension for dimension in mart.dimensions})
@@ -110,13 +121,51 @@ def _requests(ir: ProjectIR) -> list[tuple[str, str, tuple[str, ...]]]:
             - {dimension.column for dimension in mart.dimensions}
         )
         for measure in sorted(mart.measures):
-            shapes.append((mart.name, measure, ()))
-            shapes.extend((mart.name, measure, (dimension,)) for dimension in dimensions)
+            shapes.append((mart.name, measure, (), (measure,)))
             shapes.extend(
-                (mart.name, measure, pair)
+                (mart.name, measure, (dimension,), (measure,)) for dimension in dimensions
+            )
+            shapes.extend(
+                (mart.name, measure, pair, (measure,))
                 for pair in itertools.islice(itertools.combinations(dimensions, 2), _PAIRS)
             )
-            shapes.extend((mart.name, measure, (dimension,)) for dimension in foreign)
+            shapes.extend(
+                (mart.name, measure, (dimension,), (measure,)) for dimension in foreign
+            )
+
+    shapes.extend(_cross_mart(ir))
+
+    return shapes
+
+
+def _cross_mart(ir: ProjectIR) -> list[tuple[str, str, tuple[str, ...], tuple[str, ...]]]:
+    """One request per pair of measure-carrying marts, ungrouped and then
+    grouped by each dimension of the first of the pair.
+
+    **The shape the generator was blind to.** RFC 0040 P2's own conversions
+    were invisible until its self-audit added cross-mart *dimensions*; this is
+    the same omission one level up, and it is the whole of what RFC 0041 P1
+    changes — a request whose measures live on two marts. Without these rows
+    the baseline cannot say what the phase converted, and a suite that cannot
+    see the phase it guards reports green for it either way (D16).
+
+    The first measure of each mart rather than every combination: what varies
+    across a pair is whether the marts share a dimension by provenance, not
+    which measure was picked, and the product over measures would grow the
+    corpus without asking anything new.
+    """
+    carrying = [mart for mart in sorted(ir.marts, key=lambda m: m.name) if mart.measures]
+    shapes: list[tuple[str, str, tuple[str, ...], tuple[str, ...]]] = []
+
+    for left, right in itertools.combinations(carrying, 2):
+        metrics = (sorted(left.measures)[0], sorted(right.measures)[0])
+        mart = f"{left.name}+{right.name}"
+        measure = "+".join(metrics)
+        shapes.append((mart, measure, (), metrics))
+        shapes.extend(
+            (mart, measure, (dimension,), metrics)
+            for dimension in sorted({dimension.ref.dimension for dimension in left.dimensions})
+        )
 
     return shapes
 
@@ -144,8 +193,8 @@ def _outcomes() -> dict[str, str]:
         if not any(mart.measures for mart in ir.marts):
             continue
 
-        for mart, measure, dimensions in _requests(ir):
-            request = MetricRequest(metrics=(measure,), dimensions=dimensions)
+        for mart, measure, dimensions, metrics in _requests(ir):
+            request = MetricRequest(metrics=metrics, dimensions=dimensions)
             try:
                 planner.plan(ir, request, dialect="duckdb")
                 outcome = "accepted"
@@ -189,26 +238,43 @@ def write_baseline() -> None:  # pragma: no cover — the regeneration entry poi
 
 
 def test_the_corpus_is_the_size_it_claims_to_be() -> None:
-    """A parity run is green whether it replayed 531 requests or none, so the
+    """A parity run is green whether it replayed 907 requests or none, so the
     size is asserted rather than reported. Found worth pinning because the
     generator reads fixtures: one that stops carrying marts shrinks the corpus
     silently, and the suite keeps passing on what is left."""
     outcomes = _outcomes()
 
     assert len(outcomes) == len(_baseline())
-    assert len(outcomes) == 706
+    assert len(outcomes) == 907
 
 
-#: The one conversion RFC 0040 P2 licenses: a request naming a dimension another
-#: mart carries stops being reported as a name that does not exist. A pair
-#: rather than a list of the 129 keys, because the rule is what the phase
-#: claims — a list would also pass for a phase that converted some other
-#: request and un-converted one of these.
-CONVERSION = ("UnknownMember", "UnreachableAtGrain")
+#: What RFC 0041 P1 licenses, as moves rather than as a list of keys: the rule
+#: is what the phase claims, and a list would also pass for a phase that
+#: converted some other request and un-converted one of these.
+#:
+#: The first pair is the phase itself — a request whose measures live on two
+#: marts is answered by joining branch aggregates instead of refused. The
+#: second is **not** a capability and is licensed separately for that reason:
+#: one request in the new fixture names a column that is a mart dimension to
+#: the coverage precheck and a join key to the manifest emitter, so the branch
+#: reaches MetricFlow and is refused there. It refuses identically as a
+#: single-mart request at the merge base — the composed path reports what its
+#: branch reports — and the underlying divergence is a defect of the
+#: mart-to-manifest lowering (logs/T-0026.md, D-170).
+CONVERSIONS = {
+    ("UnreachableAtGrain", "accepted"): 19,
+    ("UnreachableAtGrain", "UnknownMember"): 1,
+}
 
-#: How many requests it moved. Pinned because "no unlicensed change" is equally
-#: true of a phase that converts nothing at all.
-CONVERTED = 129
+#: How many requests moved in total. Pinned because "no unlicensed change" is
+#: equally true of a phase that converts nothing at all.
+#:
+#: Two of the nineteen were added by review: a dimension both branches reach
+#: was refused when an unrelated mart published the same name from a different
+#: origin, because the identity lookup asked the first such mart what the name
+#: meant. `order_id` on `cross_mart_branches` is one — both marts reach
+#: `order.order_id`, so the request is answerable, and it now is.
+CONVERTED = 20
 
 
 def _unlicensed(
@@ -227,7 +293,7 @@ def _unlicensed(
         for key, outcome in outcomes.items()
         if key in baseline
         and (move := (baseline[key], outcome))[0] != move[1]
-        and move != CONVERSION
+        and move not in CONVERSIONS
     }
 
 
@@ -237,27 +303,27 @@ def test_the_conversion_rule_rejects_any_other_move() -> None:
     backwards*. Green on any of them would mean the check below asserts less
     than it says.
 
-    The reverse move earns its line: comparing the pair as a set instead of in
-    order licenses a phase that starts reporting a dimension another mart
-    carries as a name that does not exist, which is this change undone.
+    The reverse move earns its line: comparing a pair as a set instead of in
+    order licenses a phase that starts *refusing* what it now answers, which
+    is this change undone.
     """
     baseline = {
-        "a": "UnknownMember",
+        "a": "UnreachableAtGrain",
         "b": "InvalidRequest",
         "c": "UnknownMember",
-        "d": "UnreachableAtGrain",
+        "d": "accepted",
     }
     outcomes = {
-        "a": "UnreachableAtGrain",
+        "a": "accepted",
         "b": "accepted",
         "c": "AmbiguousDimension",
-        "d": "UnknownMember",
+        "d": "UnreachableAtGrain",
     }
 
     assert _unlicensed(outcomes, baseline) == {
         "b": ("InvalidRequest", "accepted"),
         "c": ("UnknownMember", "AmbiguousDimension"),
-        "d": ("UnreachableAtGrain", "UnknownMember"),
+        "d": ("accepted", "UnreachableAtGrain"),
     }
 
 
@@ -287,10 +353,20 @@ def test_only_the_licensed_conversion_moved() -> None:
     assert dropped == [], f"request(s) no longer in the corpus: {dropped}"
 
 
-def test_nothing_the_planner_refused_became_answerable() -> None:
-    """The half of §8 a licensed conversion must not quietly carry with it. P2
-    adds no capability (D9), so a request refused before is refused after — the
-    class it is refused with is the only thing that moved.
+def test_only_cross_mart_requests_became_answerable() -> None:
+    """The half of §8 a licensed conversion must not quietly carry with it.
+
+    RFC 0040 P2 added no capability, and this test asserted that nothing
+    became answerable at all. RFC 0041 P1 **is** a capability, so the claim
+    moves rather than disappearing: what may newly be accepted is a cross-mart
+    request and nothing else. A single-mart request that starts being answered
+    is a planner that stopped refusing something for a reason this phase never
+    names, which is what the empty assertion used to catch and what this one
+    catches now.
+
+    Cross-mart requests are the keys the generator writes as `a+b`
+    (:func:`_cross_mart`), so "which requests may move" is read off the corpus
+    rather than off a list somebody keeps in step by hand.
     """
     outcomes = _outcomes()
     baseline = _baseline()
@@ -299,8 +375,10 @@ def test_nothing_the_planner_refused_became_answerable() -> None:
         for key, outcome in outcomes.items()
         if key in baseline and baseline[key] != "accepted" and outcome == "accepted"
     )
+    single_mart = [key for key in widened if "+" not in key.split("|")[1]]
 
-    assert widened == [], f"request(s) newly accepted: {widened}"
+    assert single_mart == [], f"single-mart request(s) newly accepted: {single_mart}"
+    assert widened, "no request became answerable — RFC 0041 P1 is a capability phase"
 
 
 def test_both_sides_of_the_boundary_are_exercised() -> None:

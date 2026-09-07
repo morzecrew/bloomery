@@ -166,20 +166,35 @@ class Case:
     # ....................... #
 
     @property
-    def metric(self) -> str:
-        """The metric to ask for, which is the single column both results name.
+    def metrics(self) -> tuple[str, ...]:
+        """The metrics to ask for, which are the columns both results name.
 
         A convention rather than a field: a case whose expected numbers are
-        keyed by anything but the metric they measure would be asserting a
+        keyed by anything but the metrics they measure would be asserting a
         number against a name nothing connects to it.
+
+        **A tuple rather than one name.** A case was one metric until RFC 0041
+        P1, whose whole subject is a request naming measures of two grains —
+        expressible only as a case that measures two columns, and a loader
+        insisting on one could not hold it. Sorted, so the request a case asks
+        does not depend on the order a JSON object happened to be written in.
         """
-        columns = {column for row in self.results().values() for column in row}
-        if len(columns) != 1:
+        measured = {query: frozenset(row) for query, row in self.results().items()}
+        columns = set().union(*measured.values())
+
+        if not columns:
+            raise AssertionError(f"{self.name}: no measured column in expected/result.json")
+
+        # The pair is one measurement taken two ways, so both halves measure
+        # the same columns. A name on one side only is either a typo or two
+        # different questions, and nothing downstream could tell which.
+        if len(set(measured.values())) != 1:
+            listed = {query: sorted(names) for query, names in sorted(measured.items())}
             raise AssertionError(
-                f"{self.name}: expected exactly one measured column, got {sorted(columns)}"
+                f"{self.name}: the two halves measure different columns: {listed}"
             )
 
-        return columns.pop()
+        return tuple(sorted(columns))
 
     # ....................... #
 
@@ -260,11 +275,11 @@ def cases() -> tuple[Case, ...]:
         case = Case(
             name=directory.name, directory=directory, expectations=_expectations(directory)
         )
-        # Reading it is the check: `metric` parses result.json, which refuses a
-        # file naming anything but both queries, and then refuses one whose two
-        # halves measure different columns. Done here so a malformed case fails
+        # Reading it is the check: `metrics` parses result.json, which refuses
+        # a file naming anything but both queries, and then refuses one that
+        # measures nothing at all. Done here so a malformed case fails
         # at collection rather than in whichever parametrized cell reaches it.
-        _ = case.metric
+        _ = case.metrics
         found.append(case)
 
     if not found:

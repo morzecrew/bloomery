@@ -1,0 +1,18 @@
+# One mart per grain, each carrying its own measure and nothing of the other's.
+# That is the partition RFC 0041 D11 asks the planner to find, declared rather
+# than inferred: measure ownership is the emitter's answer and the planner
+# reads the same one.
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    measures: [shipping_total]
+    flatten:
+      - {date: ordered_at, role: ordered}
+  order_items:
+    grain: order_item
+    base: order_item
+    measures: [discount_total]
+    flatten:
+      - {date: ordered_at, role: ordered}

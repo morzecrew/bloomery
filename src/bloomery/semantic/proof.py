@@ -193,6 +193,14 @@ class Rule:
 #: citation of R009 is what the acceptance rests on rather than a label
 #: applied afterwards (logs/T-0025.md, D-157).
 #:
+#: R010 is the branch join's authorization (RFC 0041 D2, D14). It is the one
+#: rule here that rests on *structure* rather than on a declaration: the node
+#: beneath each branch is an aggregate to the result grain, so one row per key
+#: is a property of the plan rather than a fact about the warehouse. Stated as
+#: a rule anyway, because the alternative — a join node that needs no proof
+#: because its inputs "obviously" cannot fan out — is how the fan-out returns
+#: the first time a branch stops ending in an aggregate.
+#:
 #: R008 is not a grain rule at all: it is the *mart contract* — a measure may
 #: be embedded in a mart only at that mart's grain (RFC 0010 D2), checked by
 #: `check_grain` when the project compiles. RFC 0040's P1 plans within one
@@ -213,6 +221,7 @@ RULES: Final[dict[str, Rule]] = {
         Rule(
             "R009", "a conversion's input currency is declared, or produced by the step before it"
         ),
+        Rule("R010", "a branch's rows are unique at the result grain by its own aggregate"),
     )
 }
 

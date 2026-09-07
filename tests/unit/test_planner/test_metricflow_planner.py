@@ -179,13 +179,21 @@ def test_metricflow_failure_is_translated_never_reraised(
 
 
 def test_refusals_happen_before_delegation() -> None:
-    """Coverage refuses the split request; MetricFlow never sees it — the
-    hydrator is never even consulted for an unanswerable request."""
+    """Coverage refuses the request; MetricFlow never sees it — the hydrator
+    is never even consulted for an unanswerable one.
+
+    Grouped by `order_id`, which **both** marts carry and neither means the
+    same thing by: it is the key of the mart based at `order` and the foreign
+    key on the mart based at `order_item`. RFC 0041 P1 answers a cross-mart
+    request by joining branch aggregates, so the unanswerable one is no longer
+    "two grains" but "two grains with nothing proven to join on"
+    (RFC 0041 D12).
+    """
     planner = make_planner()
     with pytest.raises(UnreachableAtGrain):
         planner.plan(
             fixture_ir("multi_mart_refusal"),
-            MetricRequest(metrics=("shipping_cost", "line_discount")),
+            MetricRequest(metrics=("shipping_cost", "line_discount"), dimensions=("order_id",)),
             dialect="duckdb",
         )
 
@@ -326,3 +334,197 @@ def test_plan_renders_legal_sql_for_the_second_dialects(dialect: str) -> None:
     assert "gold.mart_orders" in plan.sql
     parsed = sqlglot.parse_one(plan.sql, dialect=dialect)
     assert parsed is not None
+
+
+# ....................... #
+# Cross-mart requests — RFC 0041 P1
+
+
+def _composed(dimensions: tuple[str, ...] = ("tier",), **kwargs: object):
+    planner = make_planner(**kwargs)  # type: ignore[arg-type]
+    return planner.plan(
+        fixture_ir("cross_mart_branches"),
+        MetricRequest(
+            metrics=("shipping_count", "line_discount", "customer_count"), dimensions=dimensions
+        ),
+        dialect="duckdb",
+    )
+
+
+def test_a_cross_mart_request_names_every_mart_it_read() -> None:
+    """D15: `mart` is a single name and a composed plan has several, so
+    `marts` carries them all and `mart` keeps its meaning as the first —
+    something that really served part of the answer, rather than a name
+    invented for the join."""
+    plan = _composed()
+
+    assert plan.marts == ("customers", "order_items", "orders")
+    assert plan.mart == "customers"
+
+
+def test_the_result_columns_are_the_caller_s_order_and_the_caller_s_names() -> None:
+    """Branches are sorted by mart name so the SQL is deterministic; a
+    result's column order is part of the answer and is the request's. The key
+    is answered under the name the caller asked for, not under any branch's
+    spelling of it (logs/T-0026.md, D-165)."""
+    plan = _composed()
+
+    assert [column.name for column in plan.columns] == [
+        "tier",
+        "shipping_count",
+        "line_discount",
+        "customer_count",
+    ]
+    assert [column.sql_alias for column in plan.columns][0] == "tier"
+
+
+def test_the_explanation_names_every_branch() -> None:
+    """RFC 0011 D8 asks that every number ships with how it was computed, and
+    for a composed answer that is three relations rather than one."""
+    rendered = _composed().explanation.render()
+
+    assert rendered.count("branch:") == 3
+    assert "gold.mart_orders (grain: order)" in rendered
+    assert "  mart:" not in rendered
+
+
+def test_a_default_limit_is_dropped_and_said_out_loud() -> None:
+    """A limit pushed into a branch truncates it **before** the join, which
+    answers from a prefix and reports nothing. So the guard is dropped rather
+    than applied where it would be wrong, and the caller is told — a limit
+    asked for explicitly never reaches here, because the precheck refuses that
+    request.
+    """
+    plan = _composed(default_limit=100)
+
+    assert any("default limit 100 is not applied" in warning for warning in plan.warnings)
+    assert "LIMIT" not in plan.sql.upper()
+
+
+def test_the_composed_sql_is_fingerprinted_over_the_whole_statement() -> None:
+    """The fingerprint is the caller's result-cache key, so it has to change
+    when the join around the branches changes and not only when a branch
+    does."""
+    import hashlib
+
+    plan = _composed()
+
+    assert plan.fingerprint == hashlib.sha256(plan.sql.encode("utf-8")).hexdigest()
+    # The branches are CTEs of one statement, not two statements a caller
+    # would have to run in order.
+    assert plan.sql.startswith("WITH branch_0 AS (")
+    assert plan.sql.count("LEFT JOIN branch_") == len(plan.marts)
+
+
+def test_the_key_keeps_the_requested_name_when_no_branch_spells_it_that_way() -> None:
+    """The case the three-measure test above cannot see, and a sabotage sweep
+    found: with `customers` among the branches the first branch calls the
+    dimension `tier` already, so taking the first branch's spelling and taking
+    the requested name are the same string, and a planner doing the first
+    passes a test written for the second.
+
+    Two branches, and neither spells it `tier`: `order_items` reaches it as
+    `order_customer_tier` two hops away and `orders` as `customer_tier` one
+    hop away. The caller asked for `tier` (logs/T-0026.md, D-165).
+    """
+    plan = make_planner().plan(
+        fixture_ir("cross_mart_branches"),
+        MetricRequest(metrics=("shipping_count", "line_discount"), dimensions=("tier",)),
+        dialect="duckdb",
+    )
+
+    assert plan.marts == ("order_items", "orders")
+    assert [column.name for column in plan.columns][0] == "tier"
+    assert "AS tier" in plan.sql
+
+
+def test_a_date_role_is_answered_under_its_effective_name() -> None:
+    """D-169, the exception to D-165, exercised where it decides something.
+
+    A request for `ordered_day` under a monthly `time_grain` is answered by a
+    single-mart plan under `ordered_month`, and answering a composed one under
+    the string the caller typed would print a monthly number beneath a daily
+    name. Every branch agrees on the effective name, because two marts
+    reaching one date column under different roles have different provenance
+    and D12 refuses them before a name has to be chosen.
+
+    Built from resolutions rather than from a fixture: the marts that would
+    share a date role by provenance are two marts on one base entity, and the
+    rule under test is a naming rule the resolutions already carry.
+    """
+    from bloomery.planner.coverage import Coverage, composed_keys
+    from bloomery.planner.names import ResolvedDimension
+    from bloomery.planner.request import TimeGrain
+
+    ir = fixture_ir("cross_mart_branches")
+    marts = {mart.name: mart for mart in ir.marts}
+    resolved = ResolvedDimension(name="ordered_month", role="ordered", grain=TimeGrain.MONTH)
+    branches = tuple(
+        Coverage(
+            mart=marts[name],
+            dimensions=(resolved,),
+            filter_dimensions=(),
+            policy_dimension=None,
+            metrics=(),
+        )
+        for name in ("order_items", "orders")
+    )
+
+    keys = composed_keys(
+        MetricRequest(metrics=("shipping_count",), dimensions=("ordered_day",)), branches
+    )
+
+    assert keys == ("ordered_month",)
+
+
+def test_a_metric_named_like_a_rebucketed_dimension_is_refused() -> None:
+    """The collision guard reads the name the *result* carries, not the one
+    the request typed. A metric called `ordered_month` and a request for
+    `ordered_day` under a monthly grain never share a string until the key is
+    resolved, and then they name one column twice.
+    """
+    from bloomery.planner.coverage import Coverage, composed_keys
+    from bloomery.planner.names import ResolvedDimension
+    from bloomery.planner.request import TimeGrain
+
+    ir = fixture_ir("cross_mart_branches")
+    marts = {mart.name: mart for mart in ir.marts}
+    resolved = ResolvedDimension(name="ordered_month", role="ordered", grain=TimeGrain.MONTH)
+    branches = tuple(
+        Coverage(
+            mart=marts[name],
+            dimensions=(resolved,),
+            filter_dimensions=(),
+            policy_dimension=None,
+            metrics=(),
+        )
+        for name in ("order_items", "orders")
+    )
+    request = MetricRequest(metrics=("ordered_month",), dimensions=("ordered_day",))
+
+    keys = composed_keys(request, branches)
+
+    # Nothing collides between what was typed; everything collides between
+    # what comes back, which is what the precheck now compares.
+    assert not set(request.metrics) & set(request.dimensions)
+    assert set(request.metrics) & set(keys) == {"ordered_month"}
+
+
+def test_a_time_grain_with_nothing_to_apply_to_warns_on_a_composed_plan_too() -> None:
+    """The warning a single-mart plan already carries, on the path that
+    rebuilds its own warnings: a `time_grain` is a re-bucketing instruction,
+    and a request with no date-role dimension gives it nothing to re-bucket."""
+    from bloomery.planner import TimeGrain
+
+    plan = make_planner().plan(
+        fixture_ir("cross_mart_branches"),
+        MetricRequest(
+            metrics=("shipping_count", "line_discount"),
+            dimensions=("tier",),
+            time_grain=TimeGrain.MONTH,
+        ),
+        dialect="duckdb",
+    )
+
+    assert any("has no date-role dimension" in warning for warning in plan.warnings)
+

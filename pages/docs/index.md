@@ -18,10 +18,13 @@ It does four things:
   and StepSet documents become SQLMesh, dbt, and Cube models, audits, and MetricFlow
   semantic manifests, with [declarative data quality](concepts/data-quality.md) —
   cleansing, dedupe, quarantine and replay — lowered into the same pipeline.
-- **Plans metric queries** — a `MetricRequest` becomes SQL over a wide, pre-joined
-  mart, with no query-time joins and no execution. Behind the stable request/plan
-  contract sits an embedded, render-only MetricFlow — pinned, driven entirely
-  in-process, never connected to a database.
+- **Plans metric queries** — a `MetricRequest` becomes SQL over wide, pre-joined
+  marts, with no execution and no join before an aggregate. Measures from different
+  grains are aggregated on their own marts and joined only afterwards, where every
+  requested dimension is provably the same dimension on each; where it is not, the
+  request is refused. Behind the stable request/plan contract sits an embedded,
+  render-only MetricFlow — pinned, driven entirely in-process, never connected to a
+  database.
 - **Diffs spec versions** — two compiled versions produce a plan in which every change
   is classified (additive, widening, rename, restating, breaking), with backfill scope
   and downstream impact computed from the dependency graph.

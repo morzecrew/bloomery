@@ -50,6 +50,7 @@ from bloomery.naming import DefaultNaming, NamingPolicy
 from bloomery.plan import BackfillScope, Change, ChangeClass, Plan, ReplayScope, plan
 from bloomery.planner import (
     AnyOf,
+    BranchSource,
     Clause,
     ColumnDescriptor,
     ColumnRole,
@@ -122,6 +123,7 @@ __all__ = [
     "ArtifactKind",
     "BackfillScope",
     "BloomeryError",
+    "BranchSource",
     "Builder",
     "Catalog",
     "Change",

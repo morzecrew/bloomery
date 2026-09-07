@@ -1,0 +1,12 @@
+metrics_version: 1
+metrics:
+  shipping_total:
+    grain: order
+    additivity: additive
+    agg: sum
+    expr: "shipping"
+  discount_total:
+    grain: order_item
+    additivity: additive
+    agg: sum
+    expr: "discount"
