@@ -8,6 +8,7 @@ fields:
   # The step that cannot be lowered here: `paid_at` dates the rate, but nothing
   # in this project says where the rates live.
   amount_usd:
+    currency_in: EUR
     from: "$.amount"
     transform: [{to_decimal: [12, 2]}, {convert: [EUR, USD, paid_at]}]
   paid_at: {from: "$.paid_at", transform: [{parse_date: ISO8601}]}

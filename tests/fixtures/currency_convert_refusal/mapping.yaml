@@ -5,5 +5,5 @@ key:
   payment_id: {from: "$.id", transform: [to_string]}
 fields:
   amount_eur: {from: "$.amount"}
-  amount_usd: {from: "$.amount", transform: [{to_decimal: [12, 4]}, {convert: [EUR, USD, paid_at]}]}
+  amount_usd: {currency_in: EUR, from: "$.amount", transform: [{to_decimal: [12, 4]}, {convert: [EUR, USD, paid_at]}]}
   paid_at: {from: "$.paid_at", transform: [{parse_date: ISO8601}]}

@@ -99,9 +99,11 @@ from bloomery.resolve.recipes import resolve_recipe
 from bloomery.resolve.refs import mapping_doc
 from bloomery.resolve.resolution import Resolution, resolve
 from bloomery.resolve.steps import lower_steps, step_entities
+from bloomery.semantic import Conversion, Refutation, prove_conversion
 from bloomery.spec.catalog import Catalog
 from bloomery.spec.mapping import (
     ALIAS_BOUND,
+    CurrencyColumn,
     KeyField,
     MacroFieldMapping,
     RecipeFieldMapping,
@@ -133,7 +135,7 @@ from bloomery.typing import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Iterator, Sequence
 
     from bloomery.spec.entity import Entity, Field, Relationship
     from bloomery.spec.mapping import FieldMapping, Mapping, TransformStep
@@ -2201,6 +2203,17 @@ def _anchor_expression(
     conversion is projected: both are projections of one SELECT, and a lateral
     column alias is a DuckDB extension that Postgres and Trino reject. So the
     chain is lowered a second time, here, into the conversion.
+
+    **That second lowering can never itself contain a conversion**, which is
+    why `_resolve_conversions` scans for markers once and binds anchors after.
+    It follows from two stated contracts rather than from luck: an anchor must
+    be a `date` or a `timestamp` (below), and `convert` is decimal-in,
+    decimal-out by signature. Nothing bridges the two — `parse_date` takes a
+    string — so a chain carrying a conversion cannot typecheck to what an
+    anchor has to be. Left as a sentence rather than a guard because a guard
+    here could not be reached, and an unreachable branch is a claim no test can
+    keep honest; a transform that turned a decimal into an instant would break
+    the argument, and this is where its author should be told so.
     """
     field = entity.fields.get(anchor)
 
@@ -2282,6 +2295,12 @@ def _resolve_conversions(
     The checks live here because here is where the entity, the mapping and the
     catalog are all in scope, and where a refusal can name the document that
     has to change.
+
+    **What the input is checked against is R009's** (RFC 0061). This function
+    reads the markers and hands them to
+    :func:`~bloomery.semantic.prove_conversion` in chain order; the refutation
+    it gets back is the refusal, so the rule decides rather than annotating a
+    decision made here (logs/T-0025.md, D-157).
     """
     markers = [
         node
@@ -2292,12 +2311,9 @@ def _resolve_conversions(
     if not markers:
         return expr
 
-    declared_currency = _declared_currency(entity, catalog, column)
-
     for marker in markers:
         from_ccy = marker.expressions[CONVERT_FROM].this
         to_ccy = marker.expressions[CONVERT_TO].this
-        anchor = marker.expressions[CONVERT_ANCHOR].this
 
         for role, code in (("from", from_ccy), ("to", to_ccy)):
             if not _CURRENCY_CODE.fullmatch(code):
@@ -2317,21 +2333,111 @@ def _resolve_conversions(
             )
             raise ResolutionError(msg, source_path=source_path)
 
-        if declared_currency is not None and declared_currency != to_ccy:
-            msg = (
-                f"convert produces {to_ccy!r} but column {column!r} is declared "
-                f"{declared_currency!r} in the catalog — the currency guardrail would then "
-                "reason about this column in a currency it is not in, which is how a "
-                "wrong number passes every check (RFC 0006 D4). Fix: convert to "
-                f"{declared_currency!r}, or declare the canonical field as {to_ccy!r}"
-            )
-            raise ResolutionError(msg, source_path=source_path)
+    # `find_all` is pre-order and the chain nests outward, so the *last*
+    # conversion applied is the first marker found. Both the walk below and the
+    # catalog comparison need the other order, and reversing once here is what
+    # stops each of them reversing it privately (RFC 0061 D3).
+    chain = list(reversed(markers))
+    _check_denomination(chain, entity, mapping, catalog, column=column, source_path=source_path)
 
+    for marker in markers:
         marker.expressions[CONVERT_ANCHOR] = _anchor_expression(
-            anchor, entity_name, entity, mapping, reg, steps, source_path=source_path
+            marker.expressions[CONVERT_ANCHOR].this,
+            entity_name,
+            entity,
+            mapping,
+            reg,
+            steps,
+            source_path=source_path,
         )
 
     return expr
+
+
+# ....................... #
+
+
+def _check_denomination(
+    chain: Sequence[Expression],
+    entity: Entity,
+    mapping: Mapping,
+    catalog: Catalog | None,
+    *,
+    column: str,
+    source_path: str,
+) -> None:
+    """R009 over one column's conversions, plus the catalog comparison the
+    chain's *last* step owns (RFC 0061 D1, D3).
+
+    Only the last conversion's output is compared with the canonical field's
+    declared currency. Comparing every step refused a correct two-hop chain —
+    ``EUR -> CHF -> USD`` failed on the intermediate ``CHF`` with a message
+    written for a single conversion — and bridging through a major currency is
+    how minor pairs convert in practice (logs/T-0024.md, D-155's probe).
+    """
+
+    declared_in, per_row = _declared_input_currency(mapping, column)
+    answer = prove_conversion(
+        [
+            Conversion(
+                from_ccy=marker.expressions[CONVERT_FROM].this,
+                to_ccy=marker.expressions[CONVERT_TO].this,
+                anchor=marker.expressions[CONVERT_ANCHOR].this,
+            )
+            for marker in chain
+        ],
+        column=column,
+        declared_in=declared_in,
+        per_row=per_row,
+        document=mapping.document,
+    )
+
+    if isinstance(answer, Refutation):
+        obligation = answer.obligations[0]
+        msg = (
+            f"cannot prove what currency {column!r} is in: {obligation.found} "
+            f"(required: {obligation.required}) — a conversion out of a currency nothing "
+            "declares reads the rate for a currency the values may not be in, and returns "
+            f"a number that is wrong by whatever the two rates differ by (RFC 0061 D1, "
+            f"R009). Fix: {answer.remediation}"
+        )
+        raise ResolutionError(msg, source_path=source_path)
+
+    produced = chain[-1].expressions[CONVERT_TO].this
+    declared_currency = _declared_currency(entity, catalog, column)
+
+    if declared_currency is not None and declared_currency != produced:
+        msg = (
+            f"convert produces {produced!r} but column {column!r} is declared "
+            f"{declared_currency!r} in the catalog — the currency guardrail would then "
+            "reason about this column in a currency it is not in, which is how a "
+            "wrong number passes every check (RFC 0006 D4). Fix: convert to "
+            f"{declared_currency!r}, or declare the canonical field as {produced!r}"
+        )
+        raise ResolutionError(msg, source_path=source_path)
+
+
+# ....................... #
+
+
+def _declared_input_currency(mapping: Mapping, column: str) -> tuple[str | None, bool]:
+    """This column's ``currency_in:``, as ``(literal code, is per-row)``.
+
+    Read from the mapping rather than the catalog because a canonical field is
+    shared across mappings, and one fed by a euro feed and a dollar feed would
+    need two input currencies for one declaration (RFC 0061 D6). Both a simple
+    field mapping and a key field carry the key: a key is a strange place to
+    convert and the walk that finds one exists anyway, so the declaration has
+    to reach both or the walk is decoration (logs/T-0025.md, D-158).
+    """
+
+    source = mapping.fields.get(column) or mapping.key.get(column)
+    declared = getattr(source, "currency_in", None)
+
+    if declared is None:
+        return None, False
+
+    return (None, True) if isinstance(declared, CurrencyColumn) else (str(declared), False)
 
 
 # ....................... #

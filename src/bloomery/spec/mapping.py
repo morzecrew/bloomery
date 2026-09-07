@@ -16,7 +16,7 @@ from typing import Annotated, Literal, Self, cast
 from pydantic import Discriminator, Field, Tag, model_validator
 from pydantic.json_schema import SkipJsonSchema
 
-from bloomery.spec.common import JsonPath, MemberName, SpecModel
+from bloomery.spec.common import CurrencyCode, JsonPath, MemberName, SpecModel
 from bloomery.spec.quality import FieldQualityRule
 from bloomery.spec.steps import ParameterValue, StepUse
 
@@ -24,6 +24,8 @@ from bloomery.spec.steps import ParameterValue, StepUse
 
 __all__ = [
     "ALIAS_BOUND",
+    "CurrencyColumn",
+    "CurrencyIn",
     "FieldMapping",
     "KeyField",
     "MacroFieldMapping",
@@ -97,11 +99,41 @@ class TransformStep(SpecModel):
 # ....................... #
 
 
+class CurrencyColumn(SpecModel):
+    """Per-row denomination: the sibling column holding this row's currency
+    code (RFC 0061 D5).
+
+    In the vocabulary from the first commit and lowered by P2, because the
+    alternative is a second way to say what currency a value is in, arriving
+    later — the argument that withdrew RFC 0040's P3. Resolution refuses it as
+    unbuilt rather than as invalid, so the refusal says which it is.
+    """
+
+    column: MemberName
+
+
+# ....................... #
+
+#: What a conversion's input currency may be declared as (RFC 0061 §5.1): a
+#: literal ISO-4217 code, or the column carrying one per row. A conversion
+#: whose input is neither declared here nor produced by a prior step in the
+#: same chain is refused — there is no third state in which bloomery guesses.
+CurrencyIn = CurrencyCode | CurrencyColumn
+
+
+# ....................... #
+
+
 class KeyField(SpecModel):
     """Key-column lowering: a JSONPath-lite source path plus transform chain."""
 
     from_: JsonPath = Field(alias="from")
     transform: tuple[TransformStep, ...] = ()
+    #: The currency this path's values are in, where the chain converts.
+    #: A key is a strange place to convert and `resolve.build` walks it anyway,
+    #: because a decimal key is legal and an unwalked marker reaches emit
+    #: (logs/T-0025.md, D-158).
+    currency_in: CurrencyIn | None = None
 
 
 # ....................... #
@@ -114,6 +146,12 @@ class SimpleFieldMapping(SpecModel):
     from_: JsonPath = Field(alias="from")
     transform: tuple[TransformStep, ...] = ()
     quality: tuple[FieldQualityRule, ...] = ()
+    #: The currency this path's values are in — the fact a `convert` step's
+    #: input is checked against (RFC 0061 D1). Declared here rather than on the
+    #: canonical field because a canonical field is shared across mappings, and
+    #: one fed by a euro feed and a dollar feed would need two input currencies
+    #: for one declaration (D6).
+    currency_in: CurrencyIn | None = None
 
 
 # ....................... #

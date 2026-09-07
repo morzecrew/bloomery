@@ -1,0 +1,12 @@
+# The same total as `converted`, and the same shape — the difference is one
+# word in the mapping. Nothing here is reached: the conversion feeding
+# `amount_usd` names an input currency the field does not declare, so the
+# project is refused before any metric is read.
+metrics_version: 1
+metrics:
+  total_usd:
+    requires: [amount_usd, fee_usd]
+    grain: payment
+    additivity: additive
+    agg: sum
+    expr: amount_usd + fee_usd

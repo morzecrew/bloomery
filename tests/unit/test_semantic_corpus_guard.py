@@ -24,7 +24,14 @@ import shutil
 
 import pytest
 from support import semantic_corpus
-from support.semantic_corpus import QUERIES, REQUIRED, Outcome, cases
+from bloomery.semantic import RULES
+from support.semantic_corpus import (
+    QUERIES,
+    REQUIRED,
+    Outcome,
+    cases,
+    unregistered_rule,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -250,3 +257,43 @@ def test_every_answer_names_a_query_the_result_file_carries() -> None:
     answers = {outcome.answer for outcome in Outcome} - {None}
 
     assert answers == set(QUERIES)
+
+
+# ....................... #
+# The citation predicate, against ids no case pins (logs/T-0025.md, D-160)
+
+
+@pytest.mark.parametrize(
+    ("rule", "usable"),
+    [
+        ("R009", True),  # in the registry
+        ("R001", True),
+        ("R999", False),  # shaped like an id, in no register
+        ("RFC 0042 D3", True),  # the other register, checked against its document elsewhere
+        ("RFC 0042 §5.3", False),  # a section moves when the document is edited
+        ("R09", False),  # not an id at all
+        ("R0091", False),
+        ("", False),
+    ],
+)
+def test_a_cited_rule_must_resolve_in_one_of_the_two_registers(rule: str, usable: bool) -> None:
+    """RFC 0042 D3 asks for a stable rule ID, and there are now two registers
+    that hold one: `RULES` for a proof rule, a decision table for an RFC.
+
+    Exercised here rather than only over the corpus because every real case
+    cites something that resolves — so the half of the check that *refuses* an
+    id was never reached, and weakening it left the suite green
+    (logs/T-0025.md, D-160).
+    """
+    assert bool(unregistered_rule(rule, RULES)) is not usable
+
+
+def test_the_registry_is_what_decides_and_not_the_shape() -> None:
+    """The mutation this pins: comparing against a pattern rather than the
+    registry would accept every well-shaped id, which is the failure the
+    parametrized `R999` case describes and this one names."""
+    assert "R999" not in RULES
+    assert unregistered_rule("R999", RULES)
+    assert not unregistered_rule("R009", RULES)
+    # And the registry is the *live* one, not a copy that can drift.
+    assert unregistered_rule("R009", {}) 

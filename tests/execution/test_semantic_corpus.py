@@ -35,9 +35,17 @@ from bloomery import (
     compile_project,
     evaluate,
 )
+from bloomery.semantic import RULES
 from support.execution import materialize, warehouse
 from support.planning import make_planner
-from support.semantic_corpus import Case, Expectation, Outcome, cases
+from support.semantic_corpus import (
+    DECISION_CITATION,
+    Case,
+    Expectation,
+    Outcome,
+    cases,
+    unregistered_rule,
+)
 
 pytestmark = pytest.mark.execution
 
@@ -186,17 +194,27 @@ def test_every_cited_rule_names_a_decision_that_exists() -> None:
     Sections are refused as well as unchecked numbers. `§5.3` moves when a
     document is edited; a decision row is append-only and its number is never
     reused, which is what makes it stable enough to cite from outside.
+
+    **Two registers, both accepted, each checked against itself.** A proof rule
+    id resolves against `bloomery.semantic.RULES`, which RFC 0039 D8 governs as
+    append-only and which this process can read; an `RFC NNNN Dn` resolves
+    against that document's decision table. The R-id is the stronger citation on
+    D3's own terms — machine-readable, never reused, and verifiable without
+    opening a document that may since have been retired — and the older form
+    stays because every case written before R009 uses it (logs/T-0025.md,
+    D-159).
     """
     unreachable = []
 
     for case in CASES:
         for expectation in case.expectations:
-            cited = re.fullmatch(r"RFC (\d{4}) D(\d+)", expectation.rule)
-            assert cited, (
-                f"{case.name}/{expectation.name}: rule {expectation.rule!r} is not "
-                "`RFC NNNN Dn`. A section number is not a stable ID — it moves when the "
-                "document is edited, and a decision row's number never does"
-            )
+            unusable = unregistered_rule(expectation.rule, RULES)
+            assert not unusable, f"{case.name}/{expectation.name}: {unusable}"
+
+            cited = DECISION_CITATION.fullmatch(expectation.rule)
+            if cited is None:  # a proof-rule id, resolved against RULES above
+                continue
+
             number, decision = cited.groups()
             declared = _decision_table(number)
             if declared is None:

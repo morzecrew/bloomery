@@ -107,14 +107,46 @@ amount_usd: {type: "decimal(12,4)", canonical: amount_usd}
 
 # mapping.yaml
 amount_usd:
+  currency_in: EUR
   from: "$.amount"
   transform: [{to_decimal: [12, 4]}, {convert: [EUR, USD, paid_at]}]
 ```
 
-Everything about that line is declared, and none of it is inferred. The source path
-carries no currency, so `from` is written out; the anchor could be guessed from a
-mart's date role, and a wrong guess is a plausible number computed against the wrong
-day, which is the failure class this project exists to refuse.
+Everything about that line is declared, and none of it is inferred. The anchor could be
+guessed from a mart's date role, and a wrong guess is a plausible number computed against
+the wrong day, which is the failure class this project exists to refuse.
+
+### `currency_in:` — what the source holds
+
+**A conversion out of an undeclared currency is refused.** `convert`'s first argument says
+what the column is in *before* the conversion, and on its own that is an assertion checking
+itself: writing `{convert: [JPY, USD, paid_at]}` over euros reads the yen rate, applies it
+to euros, and every cast still succeeds. `currency_in:` is the fact it is checked against,
+and it lives on the mapping's field because that is where a source path and a transform
+chain meet — a canonical field is shared across mappings, and one fed by a euro feed and a
+dollar feed would need two answers for one declaration.
+
+**A chain declares once.** Where no direct rate exists, convert through a bridge currency:
+each step's input is the previous step's output, so only the first needs declaring.
+
+```yaml
+amount_usd:
+  currency_in: EUR
+  from: "$.amount"
+  transform:
+    - {to_decimal: [12, 4]}
+    - {convert: [EUR, CHF, paid_at]}
+    - {convert: [CHF, USD, paid_at]}
+```
+
+The column's currency is what the **last** conversion produces, and that is what must match
+the canonical field's `currency:`. A step whose `from` disagrees with what the chain is
+holding at that point is refused, naming both.
+
+**Per-row denomination is declared but not yet lowered.** Where the code lives in a sibling
+column — `currency_in: {column: currency_code}` — the declaration parses and the conversion
+is refused as unbuilt rather than as invalid. Convert from a literal code, or split the
+column by currency upstream.
 
 The anchor names a `date` or `timestamp` column of the same entity, mapped by a direct
 `from:` path — a `fields:` entry or a `key:` one. A recipe or macro anchor is refused

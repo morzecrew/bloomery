@@ -52,12 +52,19 @@ to participate in type checking, or the only place a currency exists is the colu
 | Expectation | Spec | Outcome | Owner |
 | --- | --- | --- | --- |
 | **mixed** | `amount_eur + fee_usd`, no rate relation | refused | `CurrencyMismatch`, RFC 0006 D4 |
-| **converted** | `convert: [EUR, USD, paid_at]`, `fx_rates:` declared | accepted | RFC 0023 D11 |
+| **converted** | `currency_in: EUR` with `convert: [EUR, USD, paid_at]`, `fx_rates:` declared | accepted | R009 |
+| **mislabelled** | `currency_in: EUR` with `convert: [JPY, USD, paid_at]` | refused | `ResolutionError`, R009 |
 
 The refusal is **unconditional** — declaring `fx_rates:` does not make mixed currencies
 addable. What the rate relation changes is the *fix* bloomery can offer: with one, it points
 at the convert transform; without one, it says so and names the three remaining options.
 
-That distinction is why this case is `refused` today rather than `unguarded`. What RFC 0038
-D3 changes is not whether it is caught but what the catch is worth: a refusal that carries
-its basis rather than a waiver that suppresses a mismatch.
+That distinction is why this case is `refused` today rather than `unguarded`.
+
+**The third arm is the one the conversion itself can get wrong.** `mislabelled` converts the
+same euros with the yen rate: every cast succeeds, the rate relation has the row asked for,
+and the answer is wrong by whatever JPY→USD and EUR→USD differ by. It is the same failure
+this case is about — a denomination nothing checked — moved from the arithmetic to the
+conversion, and until RFC 0061 it compiled clean. What admits `converted` and refuses
+`mislabelled` is one rule, R009: a conversion's input currency is declared, or produced by
+the step before it.

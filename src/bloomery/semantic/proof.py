@@ -185,6 +185,14 @@ class Rule:
 #: a way to believe a dependency, it names the ones that existed. R006 is the
 #: rollup those compose into, and R007 the axiom they start from.
 #:
+#: R009 is not a grain rule either: it is the *denomination* contract. A
+#: conversion asserts what currency its input holds, and RFC 0061 gives that
+#: assertion a fact to be checked against — a `currency_in:` declaration, or
+#: the output of the conversion before it in the same chain. The rule decides
+#: rather than describes: `resolve.build` refuses on its refutation, so a
+#: citation of R009 is what the acceptance rests on rather than a label
+#: applied afterwards (logs/T-0025.md, D-157).
+#:
 #: R008 is not a grain rule at all: it is the *mart contract* — a measure may
 #: be embedded in a mart only at that mart's grain (RFC 0010 D2), checked by
 #: `check_grain` when the project compiles. RFC 0040's P1 plans within one
@@ -202,6 +210,9 @@ RULES: Final[dict[str, Rule]] = {
         Rule("R006", "every determinant of the target grain is determined by the source"),
         Rule("R007", "a determinant of the origin grain, which is determined by nothing"),
         Rule("R008", "a measure embedded in a mart originates at that mart's grain"),
+        Rule(
+            "R009", "a conversion's input currency is declared, or produced by the step before it"
+        ),
     )
 }
 

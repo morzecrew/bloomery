@@ -25,6 +25,8 @@ from typing import TYPE_CHECKING
 from bloomery import load_catalog, load_project
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from bloomery.spec.catalog import Catalog
     from bloomery.spec.project import Project
 
@@ -269,3 +271,45 @@ def cases() -> tuple[Case, ...]:
         raise AssertionError(f"no cases under {CORPUS} — the corpus cannot be empty")
 
     return tuple(found)
+
+
+# ....................... #
+
+
+#: A proof-rule id, the register `bloomery.semantic.RULES` governs (RFC 0039
+#: D8), and an RFC decision citation, the register a document's decision table
+#: governs. Both are stable and append-only; a section number is neither, which
+#: is why `§5.3` matches nothing here.
+RULE_ID = re.compile(r"R\d{3}")
+DECISION_CITATION = re.compile(r"RFC (\d{4}) D(\d+)")
+
+
+def unregistered_rule(rule: str, registry: Mapping[str, object]) -> str:
+    """Why ``rule`` is not a usable citation, or ``""`` when it is one.
+
+    Split out of the corpus test so the *predicate* can be exercised against
+    ids no case pins. Left in the test, weakening it broke nothing: every case
+    cites a rule that resolves, so the half that refuses one that does not was
+    never reached (logs/T-0025.md, D-160).
+
+    Returns a reason rather than a bool because the caller reports it, and a
+    caller that has to reconstruct why is a caller that will word it
+    differently each time.
+    """
+
+    if RULE_ID.fullmatch(rule):
+        if rule not in registry:
+            return (
+                f"rule {rule!r} is in no register — bloomery.semantic.RULES does not name "
+                "it, and an id that resolves nowhere is prose wearing an identifier"
+            )
+        return ""
+
+    if DECISION_CITATION.fullmatch(rule):
+        return ""
+
+    return (
+        f"rule {rule!r} is neither a proof-rule id (`R0nn`) nor `RFC NNNN Dn`. A section "
+        "number is not a stable ID — it moves when the document is edited, and neither a "
+        "decision row's number nor a rule id does"
+    )
