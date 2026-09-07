@@ -48,7 +48,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from bloomery.errors import guaranteed
+from bloomery.errors import PlannerError
 from bloomery.ir import Additivity
 from bloomery.semantic import Proof, Provenance, SemanticFact, SemanticJudgement
 from bloomery.semantic.plan import (
@@ -247,13 +247,25 @@ def _unique_at_result_grain(branches: Sequence[SemanticPlan], keys: Sequence[str
 
 
 def _relation_of(branch: SemanticPlan) -> str:
-    """The relation a branch scans — its identity in the composed plan."""
+    """The relation a branch scans — its identity in the composed plan.
 
-    return guaranteed(
-        (node.relation for node in branch.nodes if isinstance(node, Scan)),
-        expected="a branch plan that scans exactly one relation",
-        by="`build`, whose first node is always the covering mart's scan",
-    )
+    Exactly one, checked rather than assumed. Taking the first of several
+    would name one relation in a fact that authorizes the whole branch, and a
+    proof leaf naming the wrong relation is worse than a missing one: it reads
+    as evidence.
+    """
+
+    scanned = [node.relation for node in branch.nodes if isinstance(node, Scan)]
+
+    if len(scanned) != 1:
+        msg = (
+            f"a branch scans exactly one relation, got {scanned} — R010's fact is about "
+            "the relation the branch aggregated, and a branch reading several has no "
+            "single answer to name (RFC 0041 D2)"
+        )
+        raise PlannerError(msg)
+
+    return scanned[0]
 
 
 # ....................... #

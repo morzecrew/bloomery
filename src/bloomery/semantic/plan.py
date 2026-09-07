@@ -294,6 +294,28 @@ class JoinAggregates:
             )
             raise ValueError(msg)
 
+        # R010's content is *structural*: one row per key because of the
+        # aggregate beneath. A branch that does not end in an aggregate over
+        # the join keys makes that sentence false while the proof beside it
+        # still reads as closed — the node has to require the structure it
+        # claims, or the claim is decoration (RFC 0041 D2).
+        unaggregated = [
+            index
+            for index, branch in enumerate(self.branches)
+            if not any(
+                isinstance(node, Aggregate) and len(node.dimensions) == len(self.keys)
+                for node in branch.nodes
+            )
+        ]
+
+        if unaggregated:
+            msg = (
+                f"branch(es) {unaggregated} do not aggregate to the {len(self.keys)} join "
+                "key(s), so they are not unique at the result grain and R010 would be "
+                "asserting it about a plan that does not do it (RFC 0041 D2)"
+            )
+            raise ValueError(msg)
+
     # ....................... #
 
     @property

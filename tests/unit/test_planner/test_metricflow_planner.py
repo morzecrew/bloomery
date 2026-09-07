@@ -488,3 +488,27 @@ def test_a_date_role_is_answered_under_its_effective_name() -> None:
     )
 
     assert keys == ("ordered_month",)
+
+
+def test_a_branch_reading_two_relations_has_no_single_relation_to_prove() -> None:
+    """R010's fact names the relation the branch aggregated. Taking the first
+    of several would put the wrong relation in a leaf that authorizes the
+    whole branch, and a proof leaf naming the wrong thing is worse than a
+    missing one: it reads as evidence.
+    """
+    from bloomery.errors import PlannerError
+    from bloomery.planner.semantic_plan import _relation_of
+    from bloomery.semantic import Scan, SemanticPlan
+    from bloomery.semantic.plan import Project
+
+    two_scans = SemanticPlan(
+        (
+            Scan(relation="orders", grain="order"),
+            Scan(relation="order_items", grain="order_item"),
+            Project(columns=()),
+        )
+    )
+
+    with pytest.raises(PlannerError, match="exactly one relation"):
+        _relation_of(two_scans)
+

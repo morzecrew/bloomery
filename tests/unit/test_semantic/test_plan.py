@@ -610,7 +610,7 @@ def test_node_order_is_never_sorted() -> None:
 # The branch join — RFC 0041 P1
 
 
-def _branch(relation: str, measure: str) -> SemanticPlan:
+def _branch(relation: str, measure: str, keys: int = 1) -> SemanticPlan:
     proof = Proof(
         rule="R008",
         conclusion=SemanticJudgement("ServedAtGrain", (("mart", relation),)),
@@ -630,7 +630,7 @@ def _branch(relation: str, measure: str) -> SemanticPlan:
                 input_grain=relation,
                 output_grain=relation,
                 measures=(measure,),
-                dimensions=("region",),
+                dimensions=tuple(f"d{index}" for index in range(keys)),
                 proof=proof,
             ),
         )
@@ -713,7 +713,7 @@ def test_the_join_keys_are_canonicalized() -> None:
     """Sorted like every other IR collection (RFC 0003): the keys name a set
     of columns, and two runs that wrote them in different orders would
     serialize two different plans for one decision."""
-    branches = (_branch("orders", "ship"), _branch("order_items", "disc"))
+    branches = (_branch("orders", "ship", keys=2), _branch("order_items", "disc", keys=2))
     node = JoinAggregates(keys=("region", "day"), branches=branches, proof=_r010(branches))
 
     assert node.keys == ("day", "region")
@@ -755,3 +755,26 @@ def test_a_composed_plan_serializes_its_branches() -> None:
         "order_items",
     ]
     assert plan.serialize() == plan.serialize()
+
+
+def test_a_branch_that_does_not_aggregate_cannot_enter_a_join() -> None:
+    """R010's content is structural — one row per key *because of* the
+    aggregate beneath — so a branch without one makes the sentence false while
+    the proof beside it still reads as closed. The node requires the structure
+    it claims, or the claim is decoration.
+    """
+    scan_only = SemanticPlan((Scan(relation="orders", grain="order"), Project(columns=("a",))))
+
+    with pytest.raises(ValueError, match="do not aggregate"):
+        JoinAggregates(keys=("region",), branches=(scan_only, _branch("order_items", "disc")))
+
+
+def test_a_branch_aggregating_to_the_wrong_number_of_keys_cannot_enter_a_join() -> None:
+    """Two keys and a branch grouped by one is a branch with several rows per
+    result-grain key, which is the multiplicity the split was supposed to
+    remove."""
+    branches = (_branch("orders", "ship"), _branch("order_items", "disc"))
+
+    with pytest.raises(ValueError, match="do not aggregate"):
+        JoinAggregates(keys=("region", "day"), branches=branches)
+
