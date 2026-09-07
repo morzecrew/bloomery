@@ -1797,7 +1797,7 @@ metadata, rendered by an embedded MetricFlow that never executes anything. For a
 runnable end-to-end script see
 <a href="https://github.com/morzecrew/bloomery/tree/main/examples/quickstart"><code>examples/quickstart/run.py</code></a>;
 the <a href="../../concepts/wide-marts/">wide-marts</a> page explains why requests are served from
-one mart with no query-time joins.</p>
+marts with no join before an aggregate.</p>
 <h2 id="build-the-ir-and-the-planner">Build the IR and the planner<a class="headerlink" href="#build-the-ir-and-the-planner" title="Permanent link">&para;</a></h2>
 <p>The planner works on the compiled IR, not on specs, and gets its manifests through a
 hydrator — an in-process LRU that rebuilds (or loads caller-supplied bytes) whenever
@@ -1915,11 +1915,15 @@ malformed <code>nulls</code>, <code>limit</code>, or <code>offset</code> value i
 </tr>
 <tr>
 <td><code>mart</code></td>
-<td>The serving mart's logical name</td>
+<td>The serving mart's logical name — the first of <code>marts</code></td>
+</tr>
+<tr>
+<td><code>marts</code></td>
+<td>Every mart the plan read: one name, or one per branch when the measures span grains</td>
 </tr>
 <tr>
 <td><code>warnings</code></td>
-<td>Non-fatal notices: a clamped <code>limit</code>, a <code>time_grain</code> with nothing to apply to</td>
+<td>Non-fatal notices: a clamped <code>limit</code>, a <code>time_grain</code> with nothing to apply to, a default limit not applied to a cross-grain request</td>
 </tr>
 <tr>
 <td><code>explanation</code></td>
@@ -1947,11 +1951,28 @@ The three you will design UX around:</p>
 <p><code>UnknownMember</code> — a name that does not exist, with a closest match:</p>
 <div class="highlight"><pre><span></span><code>unknown metric 'revenu'; did you mean 'revenue'?
 </code></pre></div>
-<p><code>UnreachableAtGrain</code> — no single mart can serve the request. Summing across grains
-would double-count, so the planner refuses rather than join at plan time:</p>
+<p><code>UnreachableAtGrain</code> — the request cannot be served at the grain it asks for:</p>
 <div class="highlight"><pre><span></span><code>metric 'order_count' (grain: order) is served by no mart — no mart lists it as a measure.
   Define a mart at grain 'order' carrying it.
 </code></pre></div>
+<p>Measures that span grains are not automatically a refusal. Where every requested
+dimension is the same dimension on every mart involved, and the request carries no
+filter, policy, ordering or limit, the planner aggregates each measure on its own mart
+and joins the results — <code>marts</code> then names each one and the explanation prints a
+<code>branch:</code> line per mart:</p>
+<div class="highlight"><pre><span></span><code>shipping_count, line_discount
+  branch:   gold.mart_order_items (grain: order_item)
+  branch:   gold.mart_orders (grain: order)
+  measure:  shipping_count = COUNT(order_id)
+            [additive — COUNT]
+  measure:  line_discount = SUM(discount)
+            [additive — SUM]
+  filters:  (none)
+  policy:   not applied
+</code></pre></div>
+<p>Where it cannot prove that, it refuses with the conflict named — including the case
+where both marts carry a column of the same name and mean different things by it. See
+<a href="../../concepts/wide-marts/#cross-grain-requests-are-aggregated-first-or-refused">wide-marts</a>.</p>
 <p><code>AmbiguousDimension</code> — an unqualified bucket where the mart has several date roles:</p>
 <div class="highlight"><pre><span></span><code>'month' has roles ['ordered', 'shipped']. Use 'ordered_month' or 'shipped_month'.
 </code></pre></div>
