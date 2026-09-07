@@ -15,3 +15,50 @@ metrics:
     additivity: additive
     agg: sum
     expr: "discount"
+
+  # Three shapes RFC 0041 P2 reaches, none of which any single mart can serve.
+  #
+  # A ratio whose operands live on two marts: the numerator is an `order_item`
+  # measure and the denominator an `order` one, so the quotient is computed
+  # above the join rather than by either branch (D3).
+  discount_per_order:
+    grain: order
+    additivity: ratio
+    ratio: {numerator: line_discount, denominator: shipping_count}
+
+  # The general form of the same thing — an authored expression over metrics
+  # on two marts (logs/T-0027.md, D-179). Numerically uninteresting on purpose:
+  # what it exercises is that the expression is evaluated once, above the join,
+  # over columns two branches aggregated separately.
+  discount_less_orders:
+    description: Line discount net of one unit per order
+    additivity: non_additive
+    derived:
+      expr: "discount - orders"
+      inputs:
+        discount: {metric: line_discount}
+        orders: {metric: shipping_count}
+
+  # And the one that must keep the refusal: an input read at an offset names a
+  # grain no branch produced, so evaluating the expression over the unshifted
+  # column would label the wrong number with the right name (D-180).
+  discount_versus_last_year:
+    description: Line discount against orders a year earlier
+    additivity: non_additive
+    derived:
+      expr: "current - prior"
+      inputs:
+        current: {metric: line_discount}
+        prior: {metric: shipping_count, offset: {window: "1 year"}}
+
+  # And a component that itself spans branches: the wrapper would have to
+  # compose `discount_per_order` before it could evaluate this expression,
+  # which is a join inside a join and has no shape in this phase (D-181).
+  nested_discount:
+    description: A cross-mart ratio used as an input to another expression
+    additivity: non_additive
+    derived:
+      expr: "per_order + orders"
+      inputs:
+        per_order: {metric: discount_per_order}
+        orders: {metric: shipping_count}

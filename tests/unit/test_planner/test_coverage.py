@@ -13,12 +13,13 @@ from bloomery import MetricRequest, RowPolicy, build_project_ir, load_project
 from bloomery.errors import (
     AmbiguousDimension,
     InvalidRequest,
+    PlannerError,
     UnknownMember,
     UnreachableAtGrain,
 )
 from bloomery.ir import Cardinality, ProjectIR
 from bloomery.naming import DefaultNaming
-from bloomery.planner import TimeGrain
+from bloomery.planner import TimeGrain, coverage
 from bloomery.planner.coverage import (
     _carried_elsewhere,
     _hops,
@@ -827,42 +828,73 @@ def test_a_dimension_no_branch_can_reach_keeps_its_own_refusal() -> None:
 
 
 @pytest.mark.parametrize(
-    ("request_", "why"),
+    ("metrics", "why"),
     [
         (
-            MetricRequest(
-                metrics=("shipping_count", "line_discount"),
-                filters=(Predicate(dimension="region", op=Op.EQ, values=("EU",)),),
-            ),
-            "a filter has to be placed per branch, which is P2",
+            ("discount_versus_last_year",),
+            "an input read at an offset names a grain no branch produced",
         ),
         (
-            MetricRequest(metrics=("shipping_count", "line_discount"), limit=10),
-            "a limit inside a branch truncates it before the join",
-        ),
-        (
-            MetricRequest(
-                metrics=("shipping_count", "line_discount"),
-                order_by=(OrderSpec(field="shipping_count", direction="desc"),),
-            ),
-            "an order belongs to the composed statement",
+            ("nested_discount",),
+            "a component that itself spans branches is a join inside a join",
         ),
     ],
 )
 def test_the_composed_path_declines_and_the_old_refusal_stands(
-    request_: MetricRequest, why: str
+    metrics: tuple[str, ...], why: str
 ) -> None:
-    """RFC 0041 D4 and D5, as the shape of a decline rather than as prose: a
-    request the phase cannot answer keeps the refusal, the class and the
+    """RFC 0041 D4, as the shape of a decline rather than as prose: a request
+    the phase cannot answer keeps the refusal, the class and the
     ``covering_marts`` table it had before the phase existed — which is what
-    lets the parity baseline say what P1 actually converted (D16).
+    lets the parity baseline say what these phases actually converted (D16).
+
+    Both cases are P2's own boundaries (logs/T-0027.md, D-180, D-181), not P1's
+    — P1's three, a filter, an `order_by` and a `limit`, are what P2 lifted.
     """
     with pytest.raises(UnreachableAtGrain, match="different grains") as excinfo:
         resolve_branches(
-            fixture_ir("cross_mart_branches"), request_, naming=DefaultNaming()
+            fixture_ir("cross_mart_branches"),
+            MetricRequest(metrics=metrics, dimensions=("tier",)),
+            naming=DefaultNaming(),
         ), why
 
     assert excinfo.value.covering_marts
+
+
+def test_a_component_spanning_branches_is_what_refused_the_nested_metric() -> None:
+    """The reason above, as far as a behavioural test can carry it.
+
+    `discount_less_orders` and `nested_discount` are the same shape — an
+    authored expression over two components — and differ in one thing: one
+    component of the second is itself answerable only by joining two marts. So
+    the pair says the decomposition machinery works and that this shape does
+    not, which neither test says alone.
+
+    It does **not** isolate the check that D-181 names, and that is a fact
+    about the code rather than about the test: a component needing two marts
+    has to decompose, a metric that decomposes is never `additive`, and
+    `_composable`'s additivity test therefore reaches it first
+    (logs/T-0027.md, finding 1). No request can separate the two while the
+    additivity guardrail stands. What keeps the D-181 check honest is
+    `_home`, which refuses the same shape loudly instead of placing the
+    component on whichever mart sorts first.
+    """
+    ir = fixture_ir("cross_mart_branches")
+
+    composed = resolve_branches(
+        ir,
+        MetricRequest(metrics=("discount_less_orders",), dimensions=("tier",)),
+        naming=DefaultNaming(),
+    )
+
+    assert {branch.mart.name for branch in composed} == {"order_items", "orders"}
+
+    with pytest.raises(UnreachableAtGrain, match="different grains"):
+        resolve_branches(
+            ir,
+            MetricRequest(metrics=("nested_discount",), dimensions=("tier",)),
+            naming=DefaultNaming(),
+        )
 
 
 def test_a_measure_class_p1_holds_back_declines_the_composed_path() -> None:
@@ -896,16 +928,80 @@ def test_a_metric_with_its_own_restriction_declines_the_composed_path() -> None:
         )
 
 
-def test_a_row_policy_declines_the_composed_path() -> None:
-    """A policy is a predicate over a dimension, so it is D5's question with
-    a security consequence: placed on one branch and not another it narrows
-    half the answer and reports nothing (logs/T-0026.md, D-168)."""
-    with pytest.raises(UnreachableAtGrain, match="different grains"):
+def test_a_restriction_reaches_every_branch_or_the_request_refuses() -> None:
+    """RFC 0041 D4 and D5, as P2 places them (logs/T-0027.md, D-176).
+
+    `region` is a column of the mart based at `order` and reaches the
+    `order_items` mart through its flattened hop, so a filter on it can be
+    placed on both — resolved to each branch's own spelling, never duplicated
+    on a name match (D12). It does **not** reach the `customers` mart at all,
+    and a request spanning that one refuses whole rather than answering with
+    the filter applied to half of it.
+    """
+    ir = fixture_ir("cross_mart_branches")
+    clause = Predicate(dimension="region", op=Op.EQ, values=("EU",))
+
+    placed = resolve_branches(
+        ir,
+        MetricRequest(
+            metrics=("shipping_count", "line_discount"),
+            dimensions=("tier",),
+            filters=(clause,),
+        ),
+        naming=DefaultNaming(),
+    )
+
+    assert {branch.mart.name: branch.filter_dimensions[0][0].name for branch in placed} == {
+        "order_items": "order_region",
+        "orders": "region",
+    }
+
+    with pytest.raises(UnreachableAtGrain, match="not carried by every mart") as excinfo:
         resolve_branches(
-            fixture_ir("cross_mart_branches"),
-            MetricRequest(metrics=("shipping_count", "line_discount")),
+            ir,
+            MetricRequest(
+                metrics=("customer_count", "shipping_count"),
+                dimensions=("tier",),
+                filters=(clause,),
+            ),
             naming=DefaultNaming(),
-            policy=RowPolicy(dimension="region", op=Op.EQ, value="EU"),
+        )
+
+    assert "not carried" in str(excinfo.value)
+
+
+def test_a_row_policy_reaches_every_branch_or_the_request_refuses() -> None:
+    """The same rule with a security consequence, and the half §13a calls
+    merge-blocking.
+
+    A policy placed on one branch and not another does not narrow half the
+    answer visibly — it puts a scoped number beside an unscoped one at the same
+    key, and nothing in the result says which is which. So the composed path
+    resolves it against every branch, or there is no composed path.
+    """
+    ir = fixture_ir("cross_mart_branches")
+    policy = RowPolicy(dimension="region", op=Op.EQ, value="EU")
+
+    scoped = resolve_branches(
+        ir,
+        MetricRequest(metrics=("shipping_count", "line_discount"), dimensions=("tier",)),
+        naming=DefaultNaming(),
+        policy=policy,
+    )
+
+    assert [branch.policy_dimension for branch in scoped] != [None, None]
+    assert {
+        branch.mart.name: branch.policy_dimension.name
+        for branch in scoped
+        if branch.policy_dimension is not None
+    } == {"order_items": "order_region", "orders": "region"}
+
+    with pytest.raises(UnreachableAtGrain, match="row policy dimension"):
+        resolve_branches(
+            ir,
+            MetricRequest(metrics=("customer_count", "shipping_count"), dimensions=("tier",)),
+            naming=DefaultNaming(),
+            policy=policy,
         )
 
 
@@ -1014,3 +1110,26 @@ def _with_a_metric_named_like_a_dimension() -> ProjectIR:
         metrics=("customer_count", "tier"),
         marts=("customer_count", "tier"),
     )
+
+
+def test_a_component_on_two_marts_is_refused_rather_than_placed_on_one() -> None:
+    """`_home` is what stops D-181 being a comment.
+
+    Reached directly because no request can reach it: the additivity guardrail
+    refuses a decomposing metric declared `additive`, so `_composable` turns
+    every spanning component away one check earlier (logs/T-0027.md, finding
+    1). That leaves the placement itself unexercised — and the version that
+    took the first of the sorted names would read a half-computed component
+    off one branch and answer.
+    """
+    ir = fixture_ir("cross_mart_branches")
+    entries = coverage._owner_entries(  # noqa: SLF001
+        ir,
+        MetricRequest(metrics=("discount_per_order",), dimensions=("tier",)),
+        DefaultNaming(),
+    )
+
+    assert coverage._home(ir, entries, "line_discount") == "order_items"  # noqa: SLF001
+
+    with pytest.raises(PlannerError, match="has to be aggregated by one branch"):
+        coverage._home(ir, entries, "discount_per_order")  # noqa: SLF001

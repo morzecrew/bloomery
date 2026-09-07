@@ -53,6 +53,7 @@ __all__ = [
     "ResolvedDimension",
     "bloomery_dimension_name",
     "columns_from",
+    "composed_column",
     "entity_key",
     "group_by_name",
     "to_mf_group_by",
@@ -208,6 +209,28 @@ def _measure_type(metric: MetricIR, mart: MartIR) -> LogicalType:
                 return mart_column.type
 
     return DecimalType(38, 9)
+
+
+# ....................... #
+
+
+def composed_column(metric: MetricIR) -> ColumnDescriptor:
+    """The descriptor for a metric the composed statement computes above the
+    join (RFC 0041 D3).
+
+    It belongs to no branch, so no branch's :func:`columns_from` produced one.
+    A wide decimal, and honestly so: both shapes reaching here — a ratio and an
+    RFC 0034 ``derived:`` metric — are what :func:`_measure_type` already
+    answers ``DecimalType(38, 9)`` for, without consulting a mart.
+    """
+
+    return ColumnDescriptor(
+        name=metric.name,
+        sql_alias=metric.name,
+        type=DecimalType(38, 9),
+        role="measure",
+        label=metric.description,
+    )
 
 
 # ....................... #
