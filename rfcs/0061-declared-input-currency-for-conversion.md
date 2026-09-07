@@ -271,9 +271,13 @@ that was previously checked, because nothing was.
 - **What a per-row conversion does with a code the rate relation has no row for.** Per-row
   makes this a data question rather than a spec one, and the answer is probably the existing
   NULL behaviour plus a quality rule — but it is not settled, and P2 is where it must be.
-- **Whether `currency_in:` belongs on `RecipeFieldMapping` and `MacroFieldMapping` too.** A
-  recipe's chain can contain a conversion; a macro's body is opaque SQL and probably cannot
-  be reasoned about at all. Decide when P1 meets them.
+- ~~**Whether `currency_in:` belongs on `RecipeFieldMapping` and `MacroFieldMapping`
+  too.**~~ **Answered by D7 — and its premise was false.** A recipe's chain cannot contain a
+  conversion: a `Recipe` is `{id, requires, expr}`, a SQL expression over aliases with no
+  transform chain, and a macro's body is opaque SQL. Neither can carry a `convert` step, so
+  the key would be one an author could write and nothing could read. The question left
+  standing is one this section did not ask: `KeyField` *does* carry a chain, and does take
+  the declaration.
 
 ## 11. Decisions
 
