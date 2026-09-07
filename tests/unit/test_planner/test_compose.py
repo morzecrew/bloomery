@@ -167,3 +167,54 @@ def test_one_branch_is_not_a_composition() -> None:
             measures=((0, "a"),),
             dialect=get_dialect("duckdb"),
         )
+
+
+def test_every_key_is_matched_when_a_request_groups_by_more_than_one() -> None:
+    """A composed request may group by several dimensions, and each of them
+    has to appear in the domain and in every branch's match.
+
+    Found by a sabotage sweep: dropping all but the first key from the match
+    broke nothing, because every test until this one asked for a single
+    dimension. With two, matching on the first alone joins a branch's row for
+    `(gold, monday)` onto every `gold` group there is.
+    """
+    branches = [
+        Branch(sql="S0", keys=("a_tier", "a_day")),
+        Branch(sql="S1", keys=("b_tier", "b_day")),
+    ]
+    sql = compose(
+        branches,
+        keys=("tier", "day"),
+        measures=((0, "ship"), (1, "disc")),
+        dialect=get_dialect("duckdb"),
+    )
+
+    assert "SELECT branch_0.a_tier AS tier, branch_0.a_day AS day FROM branch_0" in sql
+    assert "SELECT branch_1.b_tier AS tier, branch_1.b_day AS day FROM branch_1" in sql
+    for index, prefix in enumerate("ab"):
+        condition = sql.split(f"LEFT JOIN branch_{index}\n  ON ")[1].split("\nLEFT JOIN")[0]
+
+        assert f"branch_{index}.{prefix}_tier IS NOT DISTINCT FROM branch_keys.tier" in condition
+        assert f"branch_{index}.{prefix}_day IS NOT DISTINCT FROM branch_keys.day" in condition
+
+
+def test_a_two_dimension_cross_mart_request_carries_both_keys() -> None:
+    """The same property through the planner rather than through the builder,
+    since what a request resolves to is where the pair of keys comes from:
+    `tier` and `signed_up` are both `customer` columns, so both are the same
+    dimension on every branch by D12 and both belong to the match.
+    """
+    from bloomery import MetricRequest
+    from support.planning import fixture_ir, make_planner
+
+    plan = make_planner().plan(
+        fixture_ir("cross_mart_branches"),
+        MetricRequest(
+            metrics=("shipping_count", "line_discount"), dimensions=("tier", "signed_up")
+        ),
+        dialect="duckdb",
+    )
+
+    assert [column.name for column in plan.columns][:2] == ["tier", "signed_up"]
+    assert plan.sql.count("IS NOT DISTINCT FROM") == 2 * len(plan.marts)
+
