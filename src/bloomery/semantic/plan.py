@@ -48,6 +48,7 @@ __all__ = [
     "Aggregate",
     "Filter",
     "JoinAggregates",
+    "JoinBranch",
     "PlanNode",
     "Project",
     "Scan",
@@ -251,6 +252,26 @@ class Project:
 
 
 @dataclass(frozen=True, slots=True)
+class JoinBranch:
+    """One branch of a join, and what *it* calls the join keys.
+
+    The pair, and not the plan alone. Two marts spell one dimension
+    differently, so a join node holding only plans cannot tell whether a
+    branch aggregated to the keys or to something else with the same number of
+    columns — and "each side is unique at the key" is the whole content of
+    R010. Carrying the branch's own names is what makes that sentence
+    checkable rather than asserted (logs/T-0026.md, D-174).
+    """
+
+    plan: SemanticPlan
+    #: This branch's names for the join keys, in the join's key order.
+    keys: tuple[str, ...] = ()
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
 class JoinAggregates:
     """Branch plans joined on the key their aggregates already reduced them to
     (RFC 0041 D1, D9).
@@ -274,7 +295,7 @@ class JoinAggregates:
     """
 
     keys: tuple[str, ...]
-    branches: tuple[SemanticPlan, ...]
+    branches: tuple[JoinBranch, ...]
     proof: Proof | None = None
 
     # ....................... #
@@ -299,22 +320,38 @@ class JoinAggregates:
         # the join keys makes that sentence false while the proof beside it
         # still reads as closed — the node has to require the structure it
         # claims, or the claim is decoration (RFC 0041 D2).
+        #
+        # The **last** aggregate, and its column *names*. An earlier one says
+        # nothing about the branch's output: an aggregate to the keys followed
+        # by one to a coarser grain leaves a relation unique at neither. And a
+        # count of columns is not identity — a branch grouped by two unrelated
+        # columns counts the same as one grouped by the keys, and the join
+        # would then match rows that share nothing (logs/T-0026.md, D-174).
         unaggregated = [
-            index
-            for index, branch in enumerate(self.branches)
-            if not any(
-                isinstance(node, Aggregate) and len(node.dimensions) == len(self.keys)
-                for node in branch.nodes
-            )
+            index for index, branch in enumerate(self.branches) if not self._ends_at(branch)
         ]
 
         if unaggregated:
             msg = (
-                f"branch(es) {unaggregated} do not aggregate to the {len(self.keys)} join "
-                "key(s), so they are not unique at the result grain and R010 would be "
-                "asserting it about a plan that does not do it (RFC 0041 D2)"
+                f"branch(es) {unaggregated} do not end in an aggregate to their own names "
+                f"for the {len(self.keys)} join key(s), so they are not unique at the "
+                "result grain and R010 would be asserting it about a plan that does not "
+                "do it (RFC 0041 D2)"
             )
             raise ValueError(msg)
+
+    # ....................... #
+
+    def _ends_at(self, branch: JoinBranch) -> bool:
+        """Whether ``branch`` is unique at its own names for the join keys."""
+
+        aggregates = [node for node in branch.plan.nodes if isinstance(node, Aggregate)]
+
+        return (
+            len(branch.keys) == len(self.keys)
+            and bool(aggregates)
+            and aggregates[-1].dimensions == tuple(sorted(branch.keys))
+        )
 
     # ....................... #
 
@@ -334,7 +371,9 @@ class JoinAggregates:
         return {
             "node": "join_aggregates",
             "keys": list(self.keys),
-            "branches": [branch.document() for branch in self.branches],
+            "branches": [
+                {"keys": list(branch.keys), **branch.plan.document()} for branch in self.branches
+            ],
             "proof": self.proof.document() if self.proof is not None else None,
         }
 
@@ -459,7 +498,7 @@ class SemanticPlan:
             if (proof := getattr(node, "proof", None)) is not None:
                 found.append(proof)
             for branch in getattr(node, "branches", ()):
-                found.extend(branch.proofs)
+                found.extend(branch.plan.proofs)
 
         return tuple(found)
 

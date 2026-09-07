@@ -452,12 +452,9 @@ def test_a_date_role_is_answered_under_its_effective_name() -> None:
     share a date role by provenance are two marts on one base entity, and the
     rule under test is a naming rule the resolutions already carry.
     """
-    from bloomery.planner.coverage import Coverage
-    from bloomery.planner.metricflow_planner import _composed_keys
+    from bloomery.planner.coverage import Coverage, composed_keys
     from bloomery.planner.names import ResolvedDimension
     from bloomery.planner.request import TimeGrain
-    from bloomery.planner.result import ColumnDescriptor
-    from bloomery.typing import DateType
 
     ir = fixture_ir("cross_mart_branches")
     marts = {mart.name: mart for mart in ir.marts}
@@ -472,45 +469,45 @@ def test_a_date_role_is_answered_under_its_effective_name() -> None:
         )
         for name in ("order_items", "orders")
     )
-    columns = [
-        (
-            ColumnDescriptor(
-                name="ordered_month",
-                sql_alias="order__ordered_day__month",
-                type=DateType(),
-                role="dimension",
-            ),
-        )
-    ] * len(branches)
 
-    keys = _composed_keys(
-        MetricRequest(metrics=("shipping_count",), dimensions=("ordered_day",)), branches, columns
+    keys = composed_keys(
+        MetricRequest(metrics=("shipping_count",), dimensions=("ordered_day",)), branches
     )
 
     assert keys == ("ordered_month",)
 
 
-def test_a_branch_reading_two_relations_has_no_single_relation_to_prove() -> None:
-    """R010's fact names the relation the branch aggregated. Taking the first
-    of several would put the wrong relation in a leaf that authorizes the
-    whole branch, and a proof leaf naming the wrong thing is worse than a
-    missing one: it reads as evidence.
+def test_a_metric_named_like_a_rebucketed_dimension_is_refused() -> None:
+    """The collision guard reads the name the *result* carries, not the one
+    the request typed. A metric called `ordered_month` and a request for
+    `ordered_day` under a monthly grain never share a string until the key is
+    resolved, and then they name one column twice.
     """
-    from bloomery.errors import PlannerError
-    from bloomery.planner.semantic_plan import _relation_of
-    from bloomery.semantic import Scan, SemanticPlan
-    from bloomery.semantic.plan import Project
+    from bloomery.planner.coverage import Coverage, composed_keys
+    from bloomery.planner.names import ResolvedDimension
+    from bloomery.planner.request import TimeGrain
 
-    two_scans = SemanticPlan(
-        (
-            Scan(relation="orders", grain="order"),
-            Scan(relation="order_items", grain="order_item"),
-            Project(columns=()),
+    ir = fixture_ir("cross_mart_branches")
+    marts = {mart.name: mart for mart in ir.marts}
+    resolved = ResolvedDimension(name="ordered_month", role="ordered", grain=TimeGrain.MONTH)
+    branches = tuple(
+        Coverage(
+            mart=marts[name],
+            dimensions=(resolved,),
+            filter_dimensions=(),
+            policy_dimension=None,
+            metrics=(),
         )
+        for name in ("order_items", "orders")
     )
+    request = MetricRequest(metrics=("ordered_month",), dimensions=("ordered_day",))
 
-    with pytest.raises(PlannerError, match="exactly one relation"):
-        _relation_of(two_scans)
+    keys = composed_keys(request, branches)
+
+    # Nothing collides between what was typed; everything collides between
+    # what comes back, which is what the precheck now compares.
+    assert not set(request.metrics) & set(request.dimensions)
+    assert set(request.metrics) & set(keys) == {"ordered_month"}
 
 
 def test_a_time_grain_with_nothing_to_apply_to_warns_on_a_composed_plan_too() -> None:

@@ -55,6 +55,7 @@ from bloomery.semantic.plan import (
     Aggregate,
     Filter,
     JoinAggregates,
+    JoinBranch,
     Project,
     Scan,
     SemanticPlan,
@@ -215,7 +216,7 @@ def build(
 # ....................... #
 
 
-def _unique_at_result_grain(branches: Sequence[SemanticPlan], keys: Sequence[str]) -> Proof:
+def _unique_at_result_grain(branches: Sequence[JoinBranch], keys: Sequence[str]) -> Proof:
     """R010: every branch is unique at the join key, by its own aggregate.
 
     One fact per branch, and each one is about a node in the plan rather than
@@ -231,11 +232,11 @@ def _unique_at_result_grain(branches: Sequence[SemanticPlan], keys: Sequence[str
         conclusion=SemanticJudgement("UniqueAtGrain", (("keys", ", ".join(keys) or "total"),)),
         facts=tuple(
             SemanticFact(
-                source=f"branch:{_relation_of(branch)}",
+                source=f"branch:{_relation_of(branch.plan)}",
                 provenance=Provenance.DERIVED,
                 statement=(
-                    f"{_relation_of(branch)} is aggregated to the requested grain before "
-                    "the join, so it holds one row per key"
+                    f"{_relation_of(branch.plan)} is aggregated to the requested grain "
+                    "before the join, so it holds one row per key"
                 ),
             )
             for branch in branches
@@ -272,20 +273,29 @@ def _relation_of(branch: SemanticPlan) -> str:
 
 
 def compose(
-    branches: Sequence[SemanticPlan | None], keys: Sequence[str], measures: Sequence[str]
+    branches: Sequence[tuple[SemanticPlan | None, tuple[str, ...]]],
+    keys: Sequence[str],
+    measures: Sequence[str],
 ) -> SemanticPlan | None:
     """The composed plan for a cross-mart request (RFC 0041 D9, D15), or
     ``None`` where any branch could not be stated.
+
+    Each branch arrives with **its own** names for the join keys, because two
+    marts spell one dimension differently and the node has to check that a
+    branch aggregated to the keys rather than to something else of the same
+    width (logs/T-0026.md, D-174).
 
     ``None`` propagates rather than being worked around: a join whose branches
     are only partly expressible would document one half of what the query
     computes, and half a plan reads as a whole one.
     """
 
-    if any(branch is None for branch in branches):
+    if any(plan is None for plan, _keys in branches):
         return None
 
-    stated = tuple(branch for branch in branches if branch is not None)
+    stated = tuple(
+        JoinBranch(plan=plan, keys=names) for plan, names in branches if plan is not None
+    )
 
     return SemanticPlan(
         (

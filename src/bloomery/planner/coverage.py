@@ -59,6 +59,7 @@ if TYPE_CHECKING:
 __all__ = [
     "Coverage",
     "check",
+    "composed_keys",
     "resolve_branches",
     "resolve_request",
 ]
@@ -876,6 +877,41 @@ def _composable(
 # ....................... #
 
 
+def composed_keys(request: MetricRequest, branches: Sequence[Coverage]) -> tuple[str, ...]:
+    """What the composed statement calls each joined key.
+
+    One dimension has one name per mart that reaches it — `tier` on the mart
+    based at `customer`, `customer_tier` one hop away, `order_customer_tier`
+    two — and the composed projection has to choose one (logs/T-0026.md,
+    D-165). It takes **the name the caller asked for**: every branch's column
+    is the same dimension by D12, so no branch's spelling is more the answer
+    than another's, and the request's own name is the one the caller can
+    predict.
+
+    The exception is a date-role dimension, which is answered under its
+    *effective* name — `ordered_month` for `ordered_day` under a monthly
+    ``time_grain``, exactly as a single-mart plan answers it. Every branch
+    agrees on that name when the composed path opens at all, since two marts
+    reaching one date column through different roles have different
+    provenance and D12 refuses them (logs/T-0026.md, D-169).
+
+    Read from the resolutions rather than from the rendered columns: they are
+    the same name — the bridge round-trips, which `test_names` pins — and
+    computing it here is what lets the collision check below see the name the
+    result will actually carry.
+    """
+
+    return tuple(
+        branches[0].dimensions[position].name
+        if branches[0].dimensions[position].role is not None
+        else name
+        for position, name in enumerate(request.dimensions)
+    )
+
+
+# ....................... #
+
+
 def resolve_branches(
     ir: ProjectIR,
     request: MetricRequest,
@@ -902,24 +938,6 @@ def resolve_branches(
 
     if not _composable(ir, request, entries, policy):
         raise _split_refusal(entries, naming)
-
-    # A composed statement projects a key under the caller's own name
-    # (logs/T-0026.md, D-165), so a name that is both a requested metric and a
-    # requested dimension would be projected twice under one alias and
-    # `ColumnDescriptor.sql_alias` — the binding contract since RFC 0018 D4 —
-    # would name two columns. `MetricRequest` refuses duplicates within each
-    # tuple and cannot see across them; a single-mart plan is unaffected,
-    # because there the dimension keeps its entity-qualified alias.
-    collisions = sorted(set(request.metrics) & set(request.dimensions))
-
-    if collisions:
-        msg = (
-            f"{collisions} requested as both a metric and a dimension: a cross-grain "
-            "answer projects a dimension under the name you asked for, so the result "
-            "would carry two columns with one name and binding by `sql_alias` could not "
-            "tell them apart.\n  Rename one, or request them separately."
-        )
-        raise InvalidRequest(msg)
 
     by_mart: dict[str, MartIR] = {owner.name: owner for _grain, owner in entries.values()}
     served: dict[str, tuple[str, ...]] = {
@@ -964,6 +982,28 @@ def resolve_branches(
                 requested,
                 [(branch.mart, branch.dimensions[position]) for branch in branches],
             )
+
+    # A composed statement projects a key under the name the result will carry
+    # (logs/T-0026.md, D-165), so a name that is also a requested metric would
+    # be projected twice under one alias and `ColumnDescriptor.sql_alias` — the
+    # binding contract since RFC 0018 D4 — would name two columns.
+    # `MetricRequest` refuses duplicates within each tuple and cannot see
+    # across them. Compared against the **effective** key names rather than the
+    # requested ones, because a date role is answered under its re-bucketed
+    # name: `ordered_day` under a monthly `time_grain` comes back as
+    # `ordered_month`, and a metric of that name collides with a request that
+    # never mentions it. A single-mart plan is unaffected, because there the
+    # dimension keeps its entity-qualified alias.
+    collisions = sorted(set(request.metrics) & set(composed_keys(request, branches)))
+
+    if collisions:
+        msg = (
+            f"{collisions} would name both a metric and a dimension of this answer: a "
+            "cross-grain answer projects a dimension under the name the result carries, "
+            "so it would hold two columns with one name and binding by `sql_alias` could "
+            "not tell them apart.\n  Rename one, or request them separately."
+        )
+        raise InvalidRequest(msg)
 
     return branches
 

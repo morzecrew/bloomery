@@ -211,7 +211,7 @@ class MetricFlowPlanner:
         )
         rendered = [self._branch(engine, resolved, metrics_by_name) for resolved in branches]
         width = len(request.dimensions)
-        keys = _composed_keys(request, branches, [columns for _sql, columns, _r in rendered])
+        keys = coverage.composed_keys(request, branches)
         owner = {
             metric: index for index, resolved in enumerate(branches) for metric in resolved.metrics
         }
@@ -267,11 +267,14 @@ class MetricFlowPlanner:
             fingerprint=hashlib.sha256(sql.encode("utf-8")).hexdigest(),
             semantic=semantic_plan.compose(
                 [
-                    semantic_plan.build(
-                        resolved,
-                        dataclasses.replace(request, metrics=resolved.metrics),
-                        metrics_by_name,
-                        filters=(),
+                    (
+                        semantic_plan.build(
+                            resolved,
+                            dataclasses.replace(request, metrics=resolved.metrics),
+                            metrics_by_name,
+                            filters=(),
+                        ),
+                        tuple(dimension.name for dimension in resolved.dimensions),
                     )
                     for resolved in branches
                 ],
@@ -437,35 +440,3 @@ class MetricFlowPlanner:
                 ),
             ),
         )
-
-
-# ....................... #
-
-
-def _composed_keys(
-    request: MetricRequest,
-    branches: tuple[coverage.Coverage, ...],
-    columns: list[tuple[ColumnDescriptor, ...]],
-) -> tuple[str, ...]:
-    """What the composed statement calls each joined key.
-
-    One dimension has one name per mart that reaches it — `tier` on the mart
-    based at `customer`, `customer_tier` one hop away, `order_customer_tier`
-    two — and the composed projection has to choose one
-    (logs/T-0026.md, D-165). It takes **the name the caller asked for**: every
-    branch's column is the same dimension by D12, so no branch's spelling is
-    more the answer than another's, and the request's own name is the one
-    spelling the caller can predict.
-
-    The exception is a date-role dimension, which is answered under its
-    *effective* name — `ordered_month` for `ordered_day` under a monthly
-    ``time_grain``, exactly as a single-mart plan answers it. Every branch
-    agrees on that name when the composed path opens at all, since two marts
-    reaching one date column through different roles have different
-    provenance and D12 refuses them (logs/T-0026.md, D-169).
-    """
-
-    return tuple(
-        columns[0][position].name if branches[0].dimensions[position].role is not None else name
-        for position, name in enumerate(request.dimensions)
-    )

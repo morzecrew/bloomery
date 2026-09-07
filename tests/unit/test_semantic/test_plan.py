@@ -23,6 +23,7 @@ from bloomery.semantic import (
     Aggregate,
     Filter,
     JoinAggregates,
+    JoinBranch,
     Project,
     Proof,
     Provenance,
@@ -637,7 +638,17 @@ def _branch(relation: str, measure: str, keys: int = 1) -> SemanticPlan:
     )
 
 
-def _r010(branches: tuple[SemanticPlan, ...]) -> Proof:
+def _joined(relation: str, measure: str, keys: int = 1) -> JoinBranch:
+    """A branch and its own names for the join keys — what the node needs to
+    check that it aggregated to *those* columns rather than to as many."""
+
+    return JoinBranch(
+        plan=_branch(relation, measure, keys=keys),
+        keys=tuple(f"d{index}" for index in range(keys)),
+    )
+
+
+def _r010(branches: tuple[JoinBranch, ...]) -> Proof:
     return Proof(
         rule="R010",
         conclusion=SemanticJudgement("UniqueAtGrain", (("keys", "region"),)),
@@ -657,14 +668,14 @@ def test_a_join_needs_at_least_two_branches() -> None:
     composition that composes nothing; zero is a join over nothing that
     `check` would then report as authorized."""
     with pytest.raises(ValueError, match="at least two branches"):
-        JoinAggregates(keys=("region",), branches=(_branch("orders", "ship"),))
+        JoinAggregates(keys=("region",), branches=(_joined("orders", "ship"),))
 
 
 def test_a_join_without_a_proof_is_invalid_ir() -> None:
     """RFC 0041 D2 through RFC 0040 D2: "each side is unique at the key" is
     the whole reason the output is not a fan-out, so a join that does not say
     so on some authority is invalid rather than merely unexplained."""
-    branches = (_branch("orders", "ship"), _branch("order_items", "disc"))
+    branches = (_joined("orders", "ship"), _joined("order_items", "disc"))
 
     with pytest.raises(ValueError, match="without a closed proof"):
         SemanticPlan((JoinAggregates(keys=("region",), branches=branches), Project()))
@@ -675,7 +686,7 @@ def test_a_join_whose_proof_rests_on_an_open_leaf_is_invalid_ir() -> None:
     A uniqueness resting on a leaf nothing closes is a derivation nobody
     stands behind, and reading the field for its existence instead of its
     content is how it passes."""
-    branches = (_branch("orders", "ship"), _branch("order_items", "disc"))
+    branches = (_joined("orders", "ship"), _joined("order_items", "disc"))
     open_proof = Proof(
         rule="R010",
         conclusion=SemanticJudgement("UniqueAtGrain", (("keys", "region"),)),
@@ -698,7 +709,7 @@ def test_the_plan_s_proofs_reach_into_its_branches() -> None:
     """A composed plan's authorization is mostly *inside* it. Counting the
     proofs of a two-branch plan and finding one would say the branches rest on
     nothing."""
-    branches = (_branch("orders", "ship"), _branch("order_items", "disc"))
+    branches = (_joined("orders", "ship"), _joined("order_items", "disc"))
     plan = SemanticPlan(
         (
             JoinAggregates(keys=("region",), branches=branches, proof=_r010(branches)),
@@ -713,7 +724,7 @@ def test_the_join_keys_are_canonicalized() -> None:
     """Sorted like every other IR collection (RFC 0003): the keys name a set
     of columns, and two runs that wrote them in different orders would
     serialize two different plans for one decision."""
-    branches = (_branch("orders", "ship", keys=2), _branch("order_items", "disc", keys=2))
+    branches = (_joined("orders", "ship", keys=2), _joined("order_items", "disc", keys=2))
     node = JoinAggregates(keys=("region", "day"), branches=branches, proof=_r010(branches))
 
     assert node.keys == ("day", "region")
@@ -725,7 +736,7 @@ def test_every_node_answers_whether_it_claims() -> None:
     vocabulary is right until the vocabulary gains a member, and the member it
     silently exempts is the one nobody remembered to add.
     """
-    branches = (_branch("orders", "ship"), _branch("order_items", "disc"))
+    branches = (_joined("orders", "ship"), _joined("order_items", "disc"))
     nodes = (
         Scan(relation="m", grain="order"),
         Filter(predicates=()),
@@ -740,7 +751,7 @@ def test_every_node_answers_whether_it_claims() -> None:
 def test_a_composed_plan_serializes_its_branches() -> None:
     """The document is the plan, and a target lowering it needs the branches
     rather than a count of them."""
-    branches = (_branch("orders", "ship"), _branch("order_items", "disc"))
+    branches = (_joined("orders", "ship"), _joined("order_items", "disc"))
     plan = SemanticPlan(
         (
             JoinAggregates(keys=("region",), branches=branches, proof=_r010(branches)),
@@ -754,6 +765,7 @@ def test_a_composed_plan_serializes_its_branches() -> None:
         "orders",
         "order_items",
     ]
+    assert [branch["keys"] for branch in document["branches"]] == [["d0"], ["d0"]]
     assert plan.serialize() == plan.serialize()
 
 
@@ -763,20 +775,61 @@ def test_a_branch_that_does_not_aggregate_cannot_enter_a_join() -> None:
     the proof beside it still reads as closed. The node requires the structure
     it claims, or the claim is decoration.
     """
-    scan_only = SemanticPlan((Scan(relation="orders", grain="order"), Project(columns=("a",))))
+    scan_only = JoinBranch(
+        plan=SemanticPlan((Scan(relation="orders", grain="order"), Project(columns=("a",)))),
+        keys=("d0",),
+    )
 
-    with pytest.raises(ValueError, match="do not aggregate"):
-        JoinAggregates(keys=("region",), branches=(scan_only, _branch("order_items", "disc")))
+    with pytest.raises(ValueError, match="do not end in an aggregate"):
+        JoinAggregates(keys=("region",), branches=(scan_only, _joined("order_items", "disc")))
 
 
 def test_a_branch_aggregating_to_the_wrong_number_of_keys_cannot_enter_a_join() -> None:
     """Two keys and a branch grouped by one is a branch with several rows per
     result-grain key, which is the multiplicity the split was supposed to
     remove."""
-    branches = (_branch("orders", "ship"), _branch("order_items", "disc"))
+    branches = (_joined("orders", "ship"), _joined("order_items", "disc"))
 
-    with pytest.raises(ValueError, match="do not aggregate"):
+    with pytest.raises(ValueError, match="do not end in an aggregate"):
         JoinAggregates(keys=("region", "day"), branches=branches)
+
+
+def test_a_branch_grouped_by_other_columns_of_the_same_width_cannot_enter_a_join() -> None:
+    """Counting columns is not identity. A branch grouped by two unrelated
+    columns counts the same as one grouped by the keys, and the join would
+    match rows that share nothing — so the node compares the branch's own
+    names for the keys against what its last aggregate grouped by.
+    """
+    elsewhere = JoinBranch(plan=_branch("orders", "ship", keys=1), keys=("somewhere_else",))
+
+    with pytest.raises(ValueError, match="do not end in an aggregate"):
+        JoinAggregates(keys=("region",), branches=(elsewhere, _joined("order_items", "disc")))
+
+
+def test_a_branch_that_re_aggregates_after_reaching_the_keys_cannot_enter_a_join() -> None:
+    """The *last* aggregate decides the branch's output. An aggregate to the
+    keys followed by one to a coarser grain leaves a relation unique at
+    neither, and reading any aggregate would accept it.
+    """
+    rolled = _branch("orders", "ship", keys=1)
+    twice = JoinBranch(
+        plan=SemanticPlan(
+            (
+                *rolled.nodes,
+                Aggregate(
+                    input_grain="orders",
+                    output_grain="orders",
+                    measures=("ship",),
+                    dimensions=(),
+                    proof=rolled.proofs[0],
+                ),
+            )
+        ),
+        keys=("d0",),
+    )
+
+    with pytest.raises(ValueError, match="do not end in an aggregate"):
+        JoinAggregates(keys=("region",), branches=(twice, _joined("order_items", "disc")))
 
 
 def test_a_composed_plan_is_not_stated_when_a_branch_cannot_be() -> None:
@@ -787,5 +840,5 @@ def test_a_composed_plan_is_not_stated_when_a_branch_cannot_be() -> None:
     """
     from bloomery.planner.semantic_plan import compose
 
-    assert compose([None, _branch("orders", "ship")], ("region",), ("ship",)) is None
+    assert compose([(None, ("d0",)), (_branch("orders", "ship"), ("d0",))], ("region",), ("ship",)) is None
 
