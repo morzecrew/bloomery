@@ -37,6 +37,7 @@ from bloomery.semantic.nodes import (
 from bloomery.semantic.plan import (
     Aggregate,
     Filter,
+    JoinAggregates,
     PlanNode,
     Project,
     Scan,
@@ -64,6 +65,7 @@ __all__ = [
     "Project",
     "PlanNode",
     "Filter",
+    "JoinAggregates",
     "Aggregate",
     "BASIS_PROVENANCE",
     "BASIS_RULES",

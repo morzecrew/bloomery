@@ -182,14 +182,20 @@ def test_a_result_file_naming_anything_but_both_queries_is_refused(
 
 
 def test_two_halves_measuring_different_columns_are_refused(planted: pathlib.Path) -> None:
-    """The pair is one measurement taken two ways, so the column is the same
-    on both sides. Two names is either a typo or two different questions, and
-    `metric` cannot pick between them — which is why loading reads it."""
+    """The pair is one measurement taken two ways, so the columns are the same
+    on both sides. A name on one side only is either a typo or two different
+    questions, and `metrics` cannot pick between them — which is why loading
+    reads it.
+
+    It stopped being "exactly one column" with RFC 0041 P1: a case measuring
+    two grains in one request measures two columns, and the property that
+    survives is that the two halves agree on which.
+    """
     (planted / "expected" / "result.json").write_text(
         '{"naive": {"m": "1.0000"}, "correct": {"n": "2.0000"}}', encoding="utf-8"
     )
 
-    with pytest.raises(AssertionError, match="exactly one measured column"):
+    with pytest.raises(AssertionError, match="measure different columns"):
         cases()
 
 

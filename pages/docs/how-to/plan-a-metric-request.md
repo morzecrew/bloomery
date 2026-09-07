@@ -7,7 +7,7 @@ metadata, rendered by an embedded MetricFlow that never executes anything. For a
 runnable end-to-end script see
 [`examples/quickstart/run.py`](https://github.com/morzecrew/bloomery/tree/main/examples/quickstart);
 the [wide-marts](../concepts/wide-marts.md) page explains why requests are served from
-one mart with no query-time joins.
+marts with no join before an aggregate.
 
 ## Build the IR and the planner
 
@@ -133,8 +133,9 @@ malformed `nulls`, `limit`, or `offset` value is `InvalidRequest`).
 |---|---|
 | `sql` | The rendered SQL text — runnable as-is on the requested dialect |
 | `columns` | Self-describing output envelope: one `ColumnDescriptor(name, type, role)` per output column, in bloomery names (`ordered_month`, never MetricFlow's internal names) |
-| `mart` | The serving mart's logical name |
-| `warnings` | Non-fatal notices: a clamped `limit`, a `time_grain` with nothing to apply to |
+| `mart` | The serving mart's logical name — the first of `marts` |
+| `marts` | Every mart the plan read: one name, or one per branch when the measures span grains |
+| `warnings` | Non-fatal notices: a clamped `limit`, a `time_grain` with nothing to apply to, a default limit not applied to a cross-grain request |
 | `explanation` | Deterministic provenance — `explanation.render()` gives the human-readable block |
 | `fingerprint` | `sha256(sql)` — your result-cache key |
 
@@ -162,13 +163,34 @@ The three you will design UX around:
 unknown metric 'revenu'; did you mean 'revenue'?
 ```
 
-`UnreachableAtGrain` — no single mart can serve the request. Summing across grains
-would double-count, so the planner refuses rather than join at plan time:
+`UnreachableAtGrain` — the request cannot be served at the grain it asks for:
 
 ```text
 metric 'order_count' (grain: order) is served by no mart — no mart lists it as a measure.
   Define a mart at grain 'order' carrying it.
 ```
+
+Measures that span grains are not automatically a refusal. Where every requested
+dimension is the same dimension on every mart involved, and the request carries no
+filter, policy, ordering or limit, the planner aggregates each measure on its own mart
+and joins the results — `marts` then names each one and the explanation prints a
+`branch:` line per mart:
+
+```text
+shipping_count, line_discount
+  branch:   gold.mart_order_items (grain: order_item)
+  branch:   gold.mart_orders (grain: order)
+  measure:  shipping_count = COUNT(order_id)
+            [additive — COUNT]
+  measure:  line_discount = SUM(discount)
+            [additive — SUM]
+  filters:  (none)
+  policy:   not applied
+```
+
+Where it cannot prove that, it refuses with the conflict named — including the case
+where both marts carry a column of the same name and mean different things by it. See
+[wide-marts](../concepts/wide-marts.md#cross-grain-requests-are-aggregated-first-or-refused).
 
 `AmbiguousDimension` — an unqualified bucket where the mart has several date roles:
 

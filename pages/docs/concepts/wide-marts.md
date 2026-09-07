@@ -156,10 +156,22 @@ pointing at the same `gold.dim_date` relation the SQLMesh emitter builds. The em
 never produces a semantic model for a non-materialized entity, because that would
 reintroduce the query-time joins this whole design exists to prevent.
 
-## Cross-grain requests are refused, not guessed
+## Cross-grain requests are aggregated first, or refused
 
-A request whose metrics live on different grains has no correct single answer — summing
-across grains double-counts. The planner refuses it with the conflict named:
+A request whose metrics live on different grains has no correct answer as a single
+joined scan — summing across grains double-counts. It does have a correct answer as
+**two aggregates joined afterwards**, and that is what the planner builds when it can
+prove the join is safe: each measure is aggregated on the mart that owns it, and the
+results are joined on the key they share.
+
+Two things must hold for that, and both are checked before anything is planned. Every
+requested dimension must be present on **every** branch, and be the *same* dimension on
+each — same source entity and same source column, not merely the same name. And the
+request must carry no filter, no row policy, no ordering and no limit: each of those
+has to be applied after the join, and applying one inside a branch answers from a
+narrowed or truncated branch instead.
+
+Where either fails, the request is refused with the conflict named:
 
 ```
 UnreachableAtGrain: metrics {shipping_cost, line_discount} live on different grains
@@ -169,18 +181,31 @@ UnreachableAtGrain: metrics {shipping_cost, line_discount} live on different gra
   or define a mart at the shared grain.
 ```
 
+A name both marts carry and disagree about is refused on its own terms, because it is
+the one that looks answerable:
+
+```
+UnreachableAtGrain: dimension 'order_id' is carried by every mart this request needs,
+and they do not mean the same column by it:
+  order_items          → order_id (from order_item.order_id)
+  orders               → order_id (from order.order_id)
+  Two columns are the same dimension when they come from the same source column, not
+  when they share a name.
+```
+
 The embedded MetricFlow engine would happily plan a multi-hop join across semantic
 models — so bloomery runs a **coverage precheck** before MetricFlow sees the request:
-all requested measures must live on one mart, all requested dimensions must be
-flattened onto it, and among multiple covering marts the cheapest `cost_hint` wins with
-ties broken lexicographically. Refuse-don't-guess is thereby enforced twice — once by
-the precheck, once by MetricFlow's own resolver behind it. Belt and braces is correct
-here: the product rule is that *the system may not know the answer, but may not return
-a wrong one without warning*.
+all measures of one branch on one mart, all requested dimensions resolvable on it, and
+among multiple covering marts the cheapest `cost_hint` wins with ties broken
+lexicographically. Refuse-don't-guess is thereby enforced twice — once by the precheck,
+once by MetricFlow's own resolver behind it. Belt and braces is correct here: the
+product rule is that *the system may not know the answer, but may not return a wrong
+one without warning*.
 
-The no-join property is a feature, not a gap. The planner's capability declaration
-marks query-time joins as disabled **by policy** — MetricFlow could do them; bloomery
-refuses them — so nobody "fixes" it later.
+**No join happens before an aggregate.** The join a cross-grain request needs is over
+relations that are already one row per key, so it cannot fan out; a join of raw rows at
+query time stays refused, and the mart is still where a join between entities belongs —
+proven once at build time instead of per request.
 
 Marts sit at the end of the pipeline described in
 [The compile pipeline](compile-pipeline.md); the additivity classes their measures

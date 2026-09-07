@@ -376,9 +376,15 @@ def test_a_planner_refusal_exits_one(capsys: pytest.CaptureFixture[str]) -> None
         str(FIXTURES / "multi_mart_refusal"),
         "--metrics",
         "shipping_cost,line_discount",
+        "--by",
+        "order_id",
     )
     assert code == EXIT_REFUSED
-    assert "different grains" in err
+    # Grouped by a name both marts carry and neither means the same thing by.
+    # Ungrouped, the same two metrics are now answered by joining the two
+    # branch totals (RFC 0041 P1), so the request that exercises a *planner*
+    # refusal here is the one with nothing proven to join on.
+    assert "do not mean the same column" in err
 
 
 def test_a_missing_directory_exits_two(capsys: pytest.CaptureFixture[str]) -> None:

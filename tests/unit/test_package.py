@@ -25,6 +25,7 @@ def test_public_api_surface() -> None:
         "ArtifactKind",
         "BackfillScope",
         "BloomeryError",
+        "BranchSource",
         "Builder",
         "Catalog",
         "Change",

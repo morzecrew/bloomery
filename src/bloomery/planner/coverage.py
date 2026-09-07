@@ -40,13 +40,15 @@ from bloomery.errors import (
     UnreachableAtGrain,
     guaranteed,
 )
-from bloomery.ir import COMPUTED, Cardinality, Layer
+from bloomery.ir import COMPUTED, Additivity, Cardinality, Layer
 from bloomery.marts import DATE_BUCKETS
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import TimeGrain, clause_predicates
 from bloomery.semantic import Proof, RefusalReason, grain_of, prove_rollup
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from bloomery.ir import MartIR, MetricIR, ProjectIR
     from bloomery.naming import NamingPolicy
     from bloomery.planner.policy import RowPolicy
@@ -57,6 +59,7 @@ if TYPE_CHECKING:
 __all__ = [
     "Coverage",
     "check",
+    "resolve_branches",
     "resolve_request",
 ]
 
@@ -80,6 +83,12 @@ class Coverage:
     dimensions: tuple[ResolvedDimension, ...]
     filter_dimensions: tuple[tuple[ResolvedDimension, ...], ...]
     policy_dimension: ResolvedDimension | None
+    #: The requested metrics this mart serves, in request order. One coverage
+    #: is one branch (RFC 0041 D11), and a branch that did not carry its own
+    #: metrics would leave the planner re-deriving the partition it was just
+    #: handed — two answers to "which mart serves this measure" is the
+    #: divergence D11 exists to prevent.
+    metrics: tuple[str, ...] = ()
 
 
 # ....................... #
@@ -188,9 +197,18 @@ def _required_measures(ir: ProjectIR, name: str) -> tuple[MetricIR, tuple[str, .
 # ....................... #
 
 
-def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) -> MartIR:
-    """One mart carrying every required measure, or ``UnreachableAtGrain``
-    with the per-metric grain/mart table (RFC 0011 §5.3)."""
+def _owner_entries(
+    ir: ProjectIR, request: MetricRequest, naming: NamingPolicy
+) -> dict[str, tuple[str, MartIR]]:
+    """Every measure this request needs, with its grain and the mart that owns
+    it — ownership by the exact rule the emitter placed measures with.
+
+    Split out of :func:`_covering_mart` so the partition RFC 0041 D11 asks for
+    reads the same answer the single-mart precheck does. Two computations of
+    "which mart serves this measure" is precisely the divergence D11 names,
+    and it would appear here first as a plan whose branches disagree with the
+    emitter about where a measure lives.
+    """
     owners = measure_owners(ir)
     metrics_by_name = {m.name: m for m in ir.metrics}
     entries: dict[str, tuple[str, MartIR]] = {}  # measure -> (grain, owner)
@@ -215,30 +233,56 @@ def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) 
                 raise UnreachableAtGrain(msg)
             entries[measure] = (metrics_by_name[measure].grain, owner)
 
-    marts = {owner.name for _grain, owner in entries.values()}
+    return entries
 
-    if len(marts) > 1:
-        listed = sorted(entries.items())
-        width = max(len(measure) for measure, _ in listed)
-        names = ", ".join(measure for measure, _ in listed)
-        lines = [f"metrics {{{names}}} live on different grains"]
-        lines.extend(
-            f"  {measure:<{width}} → grain: {grain} (mart: {_gold_relation(owner, naming)})"
+
+# ....................... #
+
+
+def _split_refusal(
+    entries: dict[str, tuple[str, MartIR]], naming: NamingPolicy
+) -> UnreachableAtGrain:
+    """The cross-grain refusal, unchanged from RFC 0011 §5.3.
+
+    Reached whenever the composed path declines — so a request that RFC 0041
+    P1 cannot answer keeps the refusal and the class it had before this phase
+    existed, which is what leaves the parity baseline able to say what P1
+    actually converted (D16).
+    """
+    listed = sorted(entries.items())
+    width = max(len(measure) for measure, _ in listed)
+    names = ", ".join(measure for measure, _ in listed)
+    lines = [f"metrics {{{names}}} live on different grains"]
+    lines.extend(
+        f"  {measure:<{width}} → grain: {grain} (mart: {_gold_relation(owner, naming)})"
+        for measure, (grain, owner) in listed
+    )
+    lines.append(f"  {_REMEDIATION}")
+
+    # The same table the message renders, as data (RFC 0020 §5.4): one entry
+    # per required measure, naming the mart that *does* serve it and the grain
+    # it does so at. ``mart`` is the logical name rather than the gold relation
+    # the sentence quotes — that is the identity a caller acts on, and the one
+    # ``QueryPlan.mart`` already reports.
+    return UnreachableAtGrain(
+        "\n".join(lines),
+        covering_marts=tuple(
+            MartCoverage(mart=owner.name, metric=measure, grain=grain)
             for measure, (grain, owner) in listed
-        )
-        lines.append(f"  {_REMEDIATION}")
-        # The same table the message renders, as data (RFC 0020 §5.4): one
-        # entry per required measure, naming the mart that *does* serve it and
-        # the grain it does so at. ``mart`` is the logical name rather than the
-        # gold relation the sentence quotes — that is the identity a caller
-        # acts on, and the one ``QueryPlan.mart`` already reports.
-        raise UnreachableAtGrain(
-            "\n".join(lines),
-            covering_marts=tuple(
-                MartCoverage(mart=owner.name, metric=measure, grain=grain)
-                for measure, (grain, owner) in listed
-            ),
-        )
+        ),
+    )
+
+
+# ....................... #
+
+
+def _covering_mart(ir: ProjectIR, request: MetricRequest, naming: NamingPolicy) -> MartIR:
+    """One mart carrying every required measure, or ``UnreachableAtGrain``
+    with the per-metric grain/mart table (RFC 0011 §5.3)."""
+    entries = _owner_entries(ir, request, naming)
+
+    if len({owner.name for _grain, owner in entries.values()}) > 1:
+        raise _split_refusal(entries, naming)
 
     return guaranteed(
         iter(entries.values()),
@@ -606,7 +650,220 @@ def resolve_request(
         dimensions=dimensions,
         filter_dimensions=filter_dimensions,
         policy_dimension=policy_dimension,
+        metrics=tuple(request.metrics),
     )
+
+
+# ....................... #
+
+
+def _resolve_branch_dimension(
+    mart: MartIR, name: str, *, apply_grain: TimeGrain | None, ir: ProjectIR
+) -> ResolvedDimension:
+    """One requested dimension against **a branch's** mart, by identity rather
+    than by name (RFC 0041 D12).
+
+    A flattened join prefixes what it brings, so one dimension has one name per
+    mart that reaches it: `region` on the mart based at `order`, and
+    `order_region` on the one that flattened its way there. Asking each branch
+    for the requested spelling would refuse every branch but the one the caller
+    happened to name — and answering with the wrong column would be worse.
+
+    Identity is the provenance triple :func:`_same_source` already compares for
+    P2's remediations, so the same rule decides "these are one dimension" here
+    and "ask for this name instead" there. Where no branch-local column shares
+    that provenance, the ordinary resolution runs and raises the ordinary
+    refusal: this function widens what resolves, never what is accepted
+    unproven.
+    """
+
+    if any(dimension.column == name for dimension in mart.dimensions):
+        return _resolve_dimension(mart, name, apply_grain=apply_grain, ir=ir)
+
+    elsewhere = _carried_elsewhere(ir, mart, name)
+
+    if elsewhere is not None and (local := _same_source(mart, elsewhere[0], name)) is not None:
+        return _resolve_dimension(mart, local, apply_grain=apply_grain, ir=ir)
+
+    return _resolve_dimension(mart, name, apply_grain=apply_grain, ir=ir)
+
+
+# ....................... #
+
+
+def _provenance(mart: MartIR, column: str) -> tuple[str, str, object] | None:
+    """The provenance triple behind one of a mart's columns, or ``None``.
+
+    The same triple :func:`_same_source` compares — source entity, source
+    column, and the ref that separates a date role's six buckets from each
+    other and from the column they expand.
+    """
+
+    return next(
+        (
+            (candidate.source_entity, candidate.source_column, candidate.ref)
+            for candidate in mart.columns
+            if candidate.name == column
+        ),
+        None,
+    )
+
+
+# ....................... #
+
+
+def _not_one_dimension(
+    name: str, resolved: Sequence[tuple[MartIR, ResolvedDimension]]
+) -> UnreachableAtGrain:
+    """The refusal for a name every branch has and no two branches mean the
+    same thing by (RFC 0041 D12, D5).
+
+    The dangerous case, and the reason identity is checked on every branch
+    rather than only where a name had to be translated: `order_id` is a column
+    of the mart based at `order` and *also* of the mart based at `order_item`,
+    where it is the foreign key pointing at the first. Joining branch
+    aggregates on those two would group one measure by an order and the other
+    by the order its line belongs to — plausible, sometimes even equal, and
+    not something anybody proved.
+    """
+
+    listed = "\n".join(
+        f"  {mart.name:<20} → {dimension.name} (from "
+        f"{(_provenance(mart, dimension.name) or ('?', '?', None))[0]}."
+        f"{(_provenance(mart, dimension.name) or ('?', '?', None))[1]})"
+        for mart, dimension in resolved
+    )
+    msg = (
+        f"dimension {name!r} is carried by every mart this request needs, and they do not "
+        f"mean the same column by it:\n{listed}\n"
+        "  Two columns are the same dimension when they come from the same source column, "
+        "not when they share a name (RFC 0041 D12).\n"
+        "  Request the measures separately, or flatten one shared dimension onto both marts."
+    )
+
+    return UnreachableAtGrain(msg)
+
+
+# ....................... #
+
+
+def _composable(
+    ir: ProjectIR,
+    request: MetricRequest,
+    entries: dict[str, tuple[str, MartIR]],
+    policy: RowPolicy | None,
+) -> bool:
+    """Whether RFC 0041 P1 may answer this cross-mart request by composing
+    branches, rather than refusing it as before.
+
+    Five conditions, and each one is a phase boundary the document draws
+    rather than a shape observed to break:
+
+    * **no filter, and no row policy.** A predicate has to be placed on every
+      branch that can evaluate it and on no branch that cannot, which is D5's
+      question and §13a's P2. Until then a filtered request refuses whole
+      (D4) — never with the filter quietly dropped, which is the one outcome
+      that returns a number.
+    * **no `order_by`, no `limit`.** Both belong to the composed statement,
+      and applying either per branch sorts or truncates *before* the join —
+      a limit especially, which would silently answer from a prefix of one
+      branch.
+    * **every requested metric is a stored measure of its own owning mart**,
+      so a branch is an aggregate over columns that mart holds. A ratio or a
+      derived metric whose operands straddle branches is evaluated above the
+      join (D3), which is P2.
+    * **additive and non-cumulative**, since a semi-additive pick or a window
+      is not the rollup a branch's `Aggregate` node states (RFC 0041 §8, D8).
+    * **no metric carries its own restriction**, because a per-measure filter
+      narrows one branch and the plan has no node saying so.
+    """
+
+    metrics_by_name = {metric.name: metric for metric in ir.metrics}
+
+    if request.filters or policy is not None or request.order_by or request.limit is not None:
+        return False
+
+    for name in request.metrics:
+        metric = metrics_by_name.get(name)
+        owner = entries.get(name)
+
+        if metric is None or owner is None or name not in owner[1].measures:
+            return False
+        if metric.additivity is not Additivity.ADDITIVE or metric.cumulative is not None:
+            return False
+        if metric.filter:
+            return False
+
+    return True
+
+
+# ....................... #
+
+
+def resolve_branches(
+    ir: ProjectIR,
+    request: MetricRequest,
+    *,
+    naming: NamingPolicy,
+    policy: RowPolicy | None = None,
+) -> tuple[Coverage, ...]:
+    """The precheck, widened to N branches (RFC 0041 D9, D11).
+
+    One coverage for a request every measure of which lives on one mart —
+    which is every request this planner answered before RFC 0041 — and one per
+    owning mart otherwise, sorted by mart name so a composed plan and the SQL
+    built from it read the branches in one order (RFC 0003).
+
+    A cross-mart request the composed path cannot take keeps the refusal it
+    had: :func:`_split_refusal` is the same message, the same class and the
+    same ``covering_marts`` table as before this phase, so what P1 converted is
+    a diff in the parity baseline rather than a number that moved (D16).
+    """
+    entries = _owner_entries(ir, request, naming)
+
+    if len({owner.name for _grain, owner in entries.values()}) == 1:
+        return (resolve_request(ir, request, naming=naming, policy=policy),)
+
+    if not _composable(ir, request, entries, policy):
+        raise _split_refusal(entries, naming)
+
+    by_mart: dict[str, MartIR] = {owner.name: owner for _grain, owner in entries.values()}
+    served: dict[str, tuple[str, ...]] = {
+        name: tuple(metric for metric in request.metrics if entries[metric][1].name == name)
+        for name in sorted(by_mart)
+    }
+
+    branches = tuple(
+        Coverage(
+            mart=by_mart[name],
+            dimensions=tuple(
+                _resolve_branch_dimension(
+                    by_mart[name], dimension, apply_grain=request.time_grain, ir=ir
+                )
+                for dimension in request.dimensions
+            ),
+            filter_dimensions=(),
+            policy_dimension=None,
+            metrics=served[name],
+        )
+        for name in sorted(by_mart)
+    )
+
+    # Identity is checked on **every** branch, including the ones where the
+    # requested name resolved locally and no translation was needed. A name
+    # two marts both carry is the case that most needs the check rather than
+    # the case that can skip it (RFC 0041 D12).
+    for position, requested in enumerate(request.dimensions):
+        provenances = {
+            _provenance(branch.mart, branch.dimensions[position].name) for branch in branches
+        }
+        if len(provenances) > 1 or None in provenances:
+            raise _not_one_dimension(
+                requested,
+                [(branch.mart, branch.dimensions[position]) for branch in branches],
+            )
+
+    return branches
 
 
 # ....................... #

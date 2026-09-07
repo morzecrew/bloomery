@@ -38,6 +38,7 @@ from bloomery.planner.request import (
     TimeGrain,
 )
 from bloomery.planner.result import (
+    BranchSource,
     ColumnDescriptor,
     ColumnRole,
     Explanation,
@@ -51,6 +52,7 @@ __all__ = [
     "KNOWN_UNSUPPORTED",
     "AnyOf",
     "Clause",
+    "BranchSource",
     "ColumnDescriptor",
     "ColumnRole",
     "Explanation",

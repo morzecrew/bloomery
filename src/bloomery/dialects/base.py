@@ -336,6 +336,14 @@ class DialectFeature(StrEnum):
     #: to be "the one construction SQLGlot renders verbatim on every shipped
     #: dialect" holds for DuckDB and Postgres but not Trino.
     JSON_OBJECT_POSITIONAL = "json_object_positional"
+    #: ``a IS NOT DISTINCT FROM b`` — equality that treats two NULLs as equal,
+    #: which is what a branch join needs to keep a NULL group instead of
+    #: dropping it (RFC 0041 D13). All three shipped dialects render the
+    #: standard spelling identically and were checked doing so; the flag
+    #: exists because a fourth might spell it ``<=>`` or not have it at all,
+    #: and a planner that composed a join on `=` there would answer a
+    #: cross-mart request with every NULL-keyed group silently missing.
+    NULL_SAFE_EQUALITY = "null_safe_equality"
 
 
 # ....................... #

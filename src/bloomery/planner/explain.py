@@ -22,9 +22,11 @@ from typing import TYPE_CHECKING
 from bloomery.errors import PlannerError, guaranteed
 from bloomery.ir import COMPUTED, Additivity, Layer, SemiAdditiveRule
 from bloomery.planner.request import Op, Predicate, clause_predicates
-from bloomery.planner.result import Explanation, MeasureExplanation
+from bloomery.planner.result import BranchSource, Explanation, MeasureExplanation
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from metricflow.engine.metricflow_engine import MetricFlowExplainResult
 
     from bloomery.ir import MartIR, MetricInputIR, MetricIR, ProjectIR
@@ -307,4 +309,36 @@ def build(
         measures=measures,
         filters=filters,
         policy_applied=policy_applied,
+    )
+
+
+# ....................... #
+
+
+def merge(parts: Sequence[Explanation], *, order: Sequence[str]) -> Explanation:
+    """One explanation for a composed plan, from its branches' (RFC 0041 D15).
+
+    ``measures`` come back in **request** order rather than branch order: the
+    branches were sorted by mart name so the SQL is deterministic, and a
+    reader of a provenance block is owed the order they asked in.
+
+    ``mart`` and ``grain`` keep the first branch's, and ``branches`` carries
+    every one — so the two long-standing fields report something true of part
+    of the answer instead of a name invented for the join, and `render()`
+    names all of them.
+    """
+
+    by_name = {measure.name: measure for part in parts for measure in part.measures}
+
+    return Explanation(
+        mart=parts[0].mart,
+        grain=parts[0].grain,
+        measures=tuple(by_name[name] for name in order if name in by_name),
+        # A composed request carries no filters and no policy at P1: the
+        # coverage precheck declines the composed path when either is present,
+        # so these are empty by refusal rather than by omission (RFC 0041 D4,
+        # D5; logs/T-0026.md, D-168).
+        filters=(),
+        policy_applied=False,
+        branches=tuple(BranchSource(mart=part.mart, grain=part.grain) for part in parts),
     )

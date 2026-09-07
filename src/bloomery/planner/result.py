@@ -23,6 +23,7 @@ from bloomery.typing import LogicalType
 # ----------------------- #
 
 __all__ = [
+    "BranchSource",
     "ColumnDescriptor",
     "Explanation",
     "MeasureExplanation",
@@ -84,6 +85,18 @@ class MeasureExplanation:
 
 
 @dataclass(frozen=True, slots=True)
+class BranchSource:
+    """One branch of a composed plan: the relation it aggregated, and the
+    grain it did so from (RFC 0041 D15)."""
+
+    mart: str
+    grain: str
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
 class Explanation:
     """The deterministic provenance record attached to every plan (D8)."""
 
@@ -92,13 +105,24 @@ class Explanation:
     measures: tuple[MeasureExplanation, ...]
     filters: tuple[str, ...]
     policy_applied: bool
+    #: Every branch a cross-mart request was answered from, sorted, or empty
+    #: for the single-mart plans that are still the common case (RFC 0041
+    #: D15). ``mart`` and ``grain`` above hold the first branch's, so a reader
+    #: of the old two fields is told about one of several rather than
+    #: something that is not true of any.
+    branches: tuple[BranchSource, ...] = ()
 
     # ....................... #
 
     def render(self) -> str:
         """The human-readable provenance block (RFC 0011 §5.6 shape)."""
         lines = [", ".join(measure.name for measure in self.measures)]
-        lines.append(f"  mart:     {self.mart} (grain: {self.grain})")
+
+        if self.branches:
+            for branch in self.branches:
+                lines.append(f"  branch:   {branch.mart} (grain: {branch.grain})")
+        else:
+            lines.append(f"  mart:     {self.mart} (grain: {self.grain})")
 
         for measure in self.measures:
             lines.append(f"  measure:  {measure.name} = {measure.expr}")
@@ -140,3 +164,19 @@ class QueryPlan:
     #: Optional so a caller constructing a `QueryPlan` directly — the emitter
     #: tests do — is not obliged to build a plan it does not examine.
     semantic: SemanticPlan | None = None
+    #: Every mart this plan reads, sorted — one name for the single-mart case
+    #: and one per branch for a composed one (RFC 0041 D15). ``mart`` keeps
+    #: its meaning as the first of these, so a caller reading it gets a mart
+    #: that really serves part of the answer rather than a name invented for
+    #: the join.
+    #:
+    #: Defaulted and then filled, rather than required: a caller constructing
+    #: a `QueryPlan` directly — the emitter tests do — would otherwise have to
+    #: restate a name it already passed, and the two could disagree.
+    marts: tuple[str, ...] = ()
+
+    # ....................... #
+
+    def __post_init__(self) -> None:
+        if not self.marts:
+            object.__setattr__(self, "marts", (self.mart,))

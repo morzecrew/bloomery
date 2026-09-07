@@ -22,6 +22,7 @@ from bloomery.planner.request import Op, Predicate
 from bloomery.semantic import (
     Aggregate,
     Filter,
+    JoinAggregates,
     Project,
     Proof,
     Provenance,
@@ -603,3 +604,154 @@ def test_node_order_is_never_sorted() -> None:
     )
 
     assert plan.shape == ("project", "scan")
+
+
+# ....................... #
+# The branch join — RFC 0041 P1
+
+
+def _branch(relation: str, measure: str) -> SemanticPlan:
+    proof = Proof(
+        rule="R008",
+        conclusion=SemanticJudgement("ServedAtGrain", (("mart", relation),)),
+        facts=(
+            SemanticFact(
+                source=f"mart:{relation}.{measure}",
+                provenance=Provenance.DECLARED,
+                statement=f"{measure} is a measure of {relation}",
+            ),
+        ),
+    )
+
+    return SemanticPlan(
+        (
+            Scan(relation=relation, grain=relation),
+            Aggregate(
+                input_grain=relation,
+                output_grain=relation,
+                measures=(measure,),
+                dimensions=("region",),
+                proof=proof,
+            ),
+        )
+    )
+
+
+def _r010(branches: tuple[SemanticPlan, ...]) -> Proof:
+    return Proof(
+        rule="R010",
+        conclusion=SemanticJudgement("UniqueAtGrain", (("keys", "region"),)),
+        facts=tuple(
+            SemanticFact(
+                source=f"branch:{index}",
+                provenance=Provenance.DERIVED,
+                statement="aggregated to the requested grain before the join",
+            )
+            for index, _branch in enumerate(branches)
+        ),
+    )
+
+
+def test_a_join_needs_at_least_two_branches() -> None:
+    """One branch is a plan, and a join node wrapped around it would claim a
+    composition that composes nothing; zero is a join over nothing that
+    `check` would then report as authorized."""
+    with pytest.raises(ValueError, match="at least two branches"):
+        JoinAggregates(keys=("region",), branches=(_branch("orders", "ship"),))
+
+
+def test_a_join_without_a_proof_is_invalid_ir() -> None:
+    """RFC 0041 D2 through RFC 0040 D2: "each side is unique at the key" is
+    the whole reason the output is not a fan-out, so a join that does not say
+    so on some authority is invalid rather than merely unexplained."""
+    branches = (_branch("orders", "ship"), _branch("order_items", "disc"))
+
+    with pytest.raises(ValueError, match="without a closed proof"):
+        SemanticPlan((JoinAggregates(keys=("region",), branches=branches), Project()))
+
+
+def test_a_join_whose_proof_rests_on_an_open_leaf_is_invalid_ir() -> None:
+    """Closed, not merely present — the same rule the aggregate is held to.
+    A uniqueness resting on a leaf nothing closes is a derivation nobody
+    stands behind, and reading the field for its existence instead of its
+    content is how it passes."""
+    branches = (_branch("orders", "ship"), _branch("order_items", "disc"))
+    open_proof = Proof(
+        rule="R010",
+        conclusion=SemanticJudgement("UniqueAtGrain", (("keys", "region"),)),
+        facts=(
+            SemanticFact(
+                source="branch:orders",
+                provenance=Provenance.INFERRED_HEURISTIC,
+                statement="looks unique in the data we have",
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="without a closed proof"):
+        SemanticPlan(
+            (JoinAggregates(keys=("region",), branches=branches, proof=open_proof), Project())
+        )
+
+
+def test_the_plan_s_proofs_reach_into_its_branches() -> None:
+    """A composed plan's authorization is mostly *inside* it. Counting the
+    proofs of a two-branch plan and finding one would say the branches rest on
+    nothing."""
+    branches = (_branch("orders", "ship"), _branch("order_items", "disc"))
+    plan = SemanticPlan(
+        (
+            JoinAggregates(keys=("region",), branches=branches, proof=_r010(branches)),
+            Project(columns=("region", "ship", "disc")),
+        )
+    )
+
+    assert [proof.rule for proof in plan.proofs] == ["R010", "R008", "R008"]
+
+
+def test_the_join_keys_are_canonicalized() -> None:
+    """Sorted like every other IR collection (RFC 0003): the keys name a set
+    of columns, and two runs that wrote them in different orders would
+    serialize two different plans for one decision."""
+    branches = (_branch("orders", "ship"), _branch("order_items", "disc"))
+    node = JoinAggregates(keys=("region", "day"), branches=branches, proof=_r010(branches))
+
+    assert node.keys == ("day", "region")
+
+
+def test_every_node_answers_whether_it_claims() -> None:
+    """The authorization rule reads a property of the node rather than a list
+    of node types kept in step by hand. A membership test over a closed
+    vocabulary is right until the vocabulary gains a member, and the member it
+    silently exempts is the one nobody remembered to add.
+    """
+    branches = (_branch("orders", "ship"), _branch("order_items", "disc"))
+    nodes = (
+        Scan(relation="m", grain="order"),
+        Filter(predicates=()),
+        Project(columns=()),
+        Aggregate(input_grain="order", output_grain="order", measures=("ship",)),
+        JoinAggregates(keys=("region",), branches=branches),
+    )
+
+    assert [node.claims for node in nodes] == [False, False, False, True, True]
+
+
+def test_a_composed_plan_serializes_its_branches() -> None:
+    """The document is the plan, and a target lowering it needs the branches
+    rather than a count of them."""
+    branches = (_branch("orders", "ship"), _branch("order_items", "disc"))
+    plan = SemanticPlan(
+        (
+            JoinAggregates(keys=("region",), branches=branches, proof=_r010(branches)),
+            Project(columns=("region", "ship", "disc")),
+        )
+    )
+    document = plan.document()["nodes"][0]
+
+    assert document["node"] == "join_aggregates"
+    assert [branch["nodes"][0]["relation"] for branch in document["branches"]] == [
+        "orders",
+        "order_items",
+    ]
+    assert plan.serialize() == plan.serialize()

@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A request whose measures live on different grains is answered, where the
+  join can be proven safe.** It used to refuse: summing across grains
+  double-counts, and no single mart holds both measures at their own grain.
+  There is a correct answer that no single scan can give — aggregate each
+  measure on the mart that owns it, then join the results — and the planner now
+  builds it.
+
+  Each branch is planned exactly as the single-mart request it is, and bloomery
+  composes the join itself: a `FULL OUTER JOIN` on null-safe key equality, so a
+  group present on one side only survives, and a NULL group meets the other
+  side's NULL group instead of splitting in two. No join happens before an
+  aggregate, so nothing can fan out; joining raw rows at query time stays
+  refused.
+
+  Two conditions are checked before anything is planned, and a request failing
+  either keeps the refusal it had:
+
+  - every requested dimension is present on **every** branch and is the *same*
+    dimension on each — same source entity, same source column. A name both
+    marts carry and mean different things by (`order_id` on a mart based at
+    `order` and on one based at `order_item`, where it is the foreign key) is
+    refused, and the message names both origins;
+  - the request carries no filter, no row policy, no ordering and no limit.
+    Each has to be applied after the join; applied inside a branch it answers
+    from a narrowed or truncated branch and says nothing about having done so.
+    A planner-level *default* limit is dropped with a warning rather than
+    pushed into a branch.
+
+  `QueryPlan.marts` names every mart a plan read — `mart` keeps its meaning as
+  the first of them — and the explanation prints one `branch:` line per mart.
+  The semantic plan gains a `JoinAggregates` node carrying **R010**: each
+  branch holds one row per key because of the aggregate beneath it,
+  structurally, never because the data happened to look that way.
+
 - **`additivity: additive` is checked rather than trusted.** The additivity
   guard read only metrics declared `non_additive` or `semi_additive`, so the
   one declaration nothing verified was the one most projects write. Two false

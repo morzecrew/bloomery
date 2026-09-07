@@ -130,14 +130,14 @@ def test_bloomery_does_what_the_case_says(case: Case, expectation: Expectation) 
             project, target=Target.SQLMESH, dialect="duckdb", catalog=catalog
         )
         materialize(conn, artifacts, supplied=case.supplied)
-        plan = PLANNER.plan(ir, MetricRequest(metrics=(case.metric,)), dialect="duckdb")
+        plan = PLANNER.plan(ir, MetricRequest(metrics=case.metrics), dialect="duckdb")
         (planned,) = conn.execute(plan.sql).fetchall()
     finally:
         conn.close()
 
     answer = expectation.outcome.answer
     assert answer is not None
-    assert dict(zip([case.metric], planned, strict=True)) == case.results()[answer], (
+    assert dict(zip(case.metrics, planned, strict=True)) == case.results()[answer], (
         f"{case.name}/{expectation.name} is {expectation.outcome} and so must plan to the "
         f"{answer!r} result"
     )

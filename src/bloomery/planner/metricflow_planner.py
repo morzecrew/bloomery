@@ -20,6 +20,7 @@ with no date-role dimension to apply to.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 from typing import TYPE_CHECKING
 
@@ -36,10 +37,12 @@ from metricflow_semantics.errors.error_classes import (
     UnknownMetricError,
 )
 
+import bloomery.planner.compose as compose
 import bloomery.planner.coverage as coverage
 import bloomery.planner.explain as explain
 import bloomery.planner.filters as filters
 import bloomery.planner.names as names
+from bloomery.dialects import get_dialect
 from bloomery.errors import (
     AmbiguousDimension,
     InvalidRequest,
@@ -49,11 +52,13 @@ from bloomery.errors import (
 )
 from bloomery.naming import DefaultNaming
 from bloomery.planner import semantic_plan
-from bloomery.planner.result import QueryPlan
+from bloomery.planner.result import ColumnDescriptor, QueryPlan
 from bloomery.runtime import sql_client_for_dialect
 
 if TYPE_CHECKING:
-    from bloomery.ir import ProjectIR
+    from metricflow.engine.metricflow_engine import MetricFlowExplainResult
+
+    from bloomery.ir import MetricIR, ProjectIR
     from bloomery.naming import NamingPolicy
     from bloomery.planner.policy import RowPolicy
     from bloomery.planner.request import MetricRequest
@@ -145,6 +150,177 @@ class MetricFlowPlanner:
 
     # ....................... #
 
+    def _branch(
+        self,
+        engine: MetricFlowEngine,
+        resolved: coverage.Coverage,
+        metrics_by_name: dict[str, MetricIR],
+    ) -> tuple[str, tuple[ColumnDescriptor, ...], MetricFlowExplainResult]:
+        """One branch, rendered by MetricFlow as the single-mart request it is.
+
+        No filters, no order and no limit reach it: RFC 0041 P1 declines the
+        composed path when the request carries any of them, because each would
+        have to be applied *after* the join and applying it per branch answers
+        from a narrowed or truncated branch instead (logs/T-0026.md, D-168).
+        """
+
+        entity = names.entity_key(resolved.mart)
+        mf_request = MetricFlowQueryRequest.create(
+            metric_names=names.to_mf_metrics(resolved.metrics),
+            group_by_names=names.to_mf_group_by(resolved.dimensions, entity=entity),
+            output_column_order_mode=OutputColumnOrderMode.INPUT_ORDER,
+        )
+
+        try:
+            result = engine.explain(mf_request)
+        except MetricFlowException as error:
+            raise translate_mf_error(error) from error
+
+        return (
+            result.sql_statement.sql,
+            names.columns_from(
+                result.query_spec, mart=resolved.mart, metrics_by_name=metrics_by_name
+            ),
+            result,
+        )
+
+    # ....................... #
+
+    def _composed(
+        self,
+        ir: ProjectIR,
+        request: MetricRequest,
+        branches: tuple[coverage.Coverage, ...],
+        *,
+        dialect: str,
+    ) -> QueryPlan:
+        """A cross-mart request, answered by joining branch aggregates
+        (RFC 0041 D9).
+
+        Every branch is a request this planner already answered; what is new
+        is the statement around them, which is bloomery's own SQL and carries
+        bloomery's null semantics (D13). The branches arrive sorted by mart
+        name so two runs compose the same query; the result's **columns** stay
+        in request order, because that is part of the answer.
+        """
+
+        metrics_by_name = {metric.name: metric for metric in ir.metrics}
+        lookup = self._hydrator.get(ir)
+        engine = MetricFlowEngine(
+            semantic_manifest_lookup=lookup, sql_client=sql_client_for_dialect(dialect)
+        )
+        rendered = [self._branch(engine, resolved, metrics_by_name) for resolved in branches]
+        width = len(request.dimensions)
+        keys = _composed_keys(request, branches, [columns for _sql, columns, _r in rendered])
+        owner = {
+            metric: index for index, resolved in enumerate(branches) for metric in resolved.metrics
+        }
+        measures = tuple((owner[metric], metric) for metric in request.metrics)
+        sql = compose.compose(
+            [
+                compose.Branch(
+                    sql=branch_sql,
+                    keys=tuple(column.sql_alias for column in columns[:width]),
+                )
+                for branch_sql, columns, _result in rendered
+            ],
+            keys=keys,
+            measures=measures,
+            dialect=get_dialect(dialect),
+        )
+        # The key columns keep the type and role the branch resolved them to
+        # and take the composed statement's own alias, since that is what the
+        # SQL projects (logs/T-0026.md, D-165). The measures are already what
+        # their branch called them.
+        columns = tuple(
+            dataclasses.replace(column, name=name, sql_alias=name)
+            for column, name in zip(rendered[0][1][:width], keys, strict=True)
+        ) + tuple(
+            descriptor
+            for index, metric in measures
+            for descriptor in rendered[index][1][width:]
+            if descriptor.name == metric
+        )
+        explanation = explain.merge(
+            [
+                explain.build(
+                    result,
+                    resolved,
+                    ir,
+                    dataclasses.replace(request, metrics=resolved.metrics),
+                    naming=self._naming,
+                    policy_applied=False,
+                )
+                for resolved, (_sql, _columns, result) in zip(branches, rendered, strict=True)
+            ],
+            order=request.metrics,
+        )
+        warnings = self._composed_warnings(request, branches)
+
+        return QueryPlan(
+            sql=sql,
+            columns=columns,
+            mart=branches[0].mart.name,
+            marts=tuple(resolved.mart.name for resolved in branches),
+            warnings=warnings,
+            explanation=explanation,
+            fingerprint=hashlib.sha256(sql.encode("utf-8")).hexdigest(),
+            semantic=semantic_plan.compose(
+                [
+                    semantic_plan.build(
+                        resolved,
+                        dataclasses.replace(request, metrics=resolved.metrics),
+                        metrics_by_name,
+                        filters=(),
+                    )
+                    for resolved in branches
+                ],
+                keys,
+                request.metrics,
+            ),
+        )
+
+    # ....................... #
+
+    def _composed_warnings(
+        self, request: MetricRequest, branches: tuple[coverage.Coverage, ...]
+    ) -> tuple[str, ...]:
+        """What a composed plan has to say about what it did not do.
+
+        The default limit is the one that matters. It is a guard against an
+        unbounded result, and a composed statement cannot inherit it: a limit
+        pushed into a branch truncates that branch *before* the join, which
+        answers from a prefix and reports no warning at all. So it is dropped
+        and said out loud, rather than applied where it would be wrong. A
+        limit the caller asked for explicitly never reaches here — the
+        precheck refuses that request (RFC 0041 §13a).
+        """
+
+        warnings: tuple[str, ...] = ()
+
+        if request.time_grain is not None and not any(
+            dimension.role is not None for resolved in branches for dimension in resolved.dimensions
+        ):
+            warnings += (
+                (
+                    f"time_grain {request.time_grain.value!r} has no date-role dimension "
+                    "in the request to apply to; ignored"
+                ),
+            )
+
+        if self._default_limit is not None:
+            warnings += (
+                (
+                    f"the planner's default limit {self._default_limit} is not applied to a "
+                    "cross-mart request: a limit inside a branch truncates it before the "
+                    "join, so the answer is unbounded"
+                ),
+            )
+
+        return warnings
+
+    # ....................... #
+
     def plan(
         self,
         ir: ProjectIR,
@@ -157,8 +333,19 @@ class MetricFlowPlanner:
         executed (RFC 0011 D1). Refusals raise the RFC 0011 taxonomy —
         ``UnknownMember`` / ``UnreachableAtGrain`` / ``AmbiguousDimension`` /
         ``InvalidRequest`` / ``FilterTypeMismatch`` — before delegation
-        wherever the coverage precheck can see the problem."""
-        resolved = coverage.resolve_request(ir, request, naming=self._naming, policy=policy)
+        wherever the coverage precheck can see the problem.
+
+        A request whose measures live on several marts is answered by
+        :meth:`_composed` when RFC 0041 P1's conditions hold, and refused by
+        the precheck exactly as before when they do not — the branch is taken
+        on the precheck's answer rather than on a second reading of the
+        request here."""
+        branches = coverage.resolve_branches(ir, request, naming=self._naming, policy=policy)
+
+        if len(branches) > 1:
+            return self._composed(ir, request, branches, dialect=dialect)
+
+        resolved = branches[0]
         entity = names.entity_key(resolved.mart)
         warnings: tuple[str, ...] = ()
 
@@ -250,3 +437,35 @@ class MetricFlowPlanner:
                 ),
             ),
         )
+
+
+# ....................... #
+
+
+def _composed_keys(
+    request: MetricRequest,
+    branches: tuple[coverage.Coverage, ...],
+    columns: list[tuple[ColumnDescriptor, ...]],
+) -> tuple[str, ...]:
+    """What the composed statement calls each joined key.
+
+    One dimension has one name per mart that reaches it — `tier` on the mart
+    based at `customer`, `customer_tier` one hop away, `order_customer_tier`
+    two — and the composed projection has to choose one
+    (logs/T-0026.md, D-165). It takes **the name the caller asked for**: every
+    branch's column is the same dimension by D12, so no branch's spelling is
+    more the answer than another's, and the request's own name is the one
+    spelling the caller can predict.
+
+    The exception is a date-role dimension, which is answered under its
+    *effective* name — `ordered_month` for `ordered_day` under a monthly
+    ``time_grain``, exactly as a single-mart plan answers it. Every branch
+    agrees on that name when the composed path opens at all, since two marts
+    reaching one date column through different roles have different
+    provenance and D12 refuses them (logs/T-0026.md, D-169).
+    """
+
+    return tuple(
+        columns[0][position].name if branches[0].dimensions[position].role is not None else name
+        for position, name in enumerate(request.dimensions)
+    )

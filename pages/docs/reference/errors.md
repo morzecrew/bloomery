@@ -108,7 +108,7 @@ BloomeryError
 | `UnsupportedByTarget` | emit | An IR construct the selected target or dialect cannot express — fail loud, never approximate |
 | `PlannerError` | planner | A malformed or unanswerable request; also the fallback for untranslated backend failures |
 | `UnknownMember` | planner | A request names a metric or dimension that exists nowhere in the project; message carries a did-you-mean |
-| `UnreachableAtGrain` | planner | No single mart can answer the request at the requested grain — refused, never joined at plan time. Also a dimension another mart carries and this one does not, where `.refusal_reason` says whether one line of spec would fix it |
+| `UnreachableAtGrain` | planner | The request cannot be served at the requested grain. Measures spanning grains are aggregated per mart and joined afterwards where every requested dimension is provably the same dimension on each; this is what is raised when they are not, when the request carries a filter, policy, ordering or limit, or when no mart serves a measure at all. Also a dimension another mart carries and this one does not, where `.refusal_reason` says whether one line of spec would fix it |
 | `AmbiguousDimension` | planner | An unqualified reference to a dimension with multiple roles; message names the roles |
 | `InvalidRequest` | planner | Bad filter/order/limit shapes, duplicates, malformed filter documents |
 | `FilterTypeMismatch` | planner | A filter value whose type contradicts the dimension's logical type — refused before any SQL renders |

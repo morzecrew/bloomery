@@ -1,0 +1,8 @@
+mapping_version: 1
+source: cmb__customers
+target: customer
+key:
+  customer_id: {from: "$.id", transform: [to_string]}
+fields:
+  tier: {from: "$.tier"}
+  signed_up: {from: "$.signed_up", transform: [{parse_date: ISO8601}]}

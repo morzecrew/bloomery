@@ -19,9 +19,16 @@ from bloomery.errors import (
 from bloomery.ir import Cardinality, ProjectIR
 from bloomery.naming import DefaultNaming
 from bloomery.planner import TimeGrain
-from bloomery.planner.coverage import _carried_elsewhere, _hops, _origin, check, resolve_request
+from bloomery.planner.coverage import (
+    _carried_elsewhere,
+    _hops,
+    _origin,
+    check,
+    resolve_branches,
+    resolve_request,
+)
 from bloomery.planner.names import ResolvedDimension
-from bloomery.planner.request import AnyOf, Op, Predicate
+from bloomery.planner.request import AnyOf, Op, OrderSpec, Predicate
 from bloomery.semantic import BASIS_PROVENANCE, RefusalReason
 from support.planning import fixture_ir
 
@@ -744,3 +751,127 @@ def test_a_date_bucket_is_not_redirected_to_its_source_column() -> None:
 
     assert "ask for 'order_date' instead" not in str(excinfo.value)
     assert "expose it on mart 'slim_items'" in str(excinfo.value)
+
+
+# ....................... #
+# Branch partitioning — RFC 0041 P1
+
+
+def _branches(fixture: str, metrics: tuple[str, ...], dimensions: tuple[str, ...] = ()):
+    return resolve_branches(
+        fixture_ir(fixture),
+        MetricRequest(metrics=metrics, dimensions=dimensions),
+        naming=DefaultNaming(),
+    )
+
+
+def test_a_single_mart_request_is_one_branch() -> None:
+    """The path every request took before RFC 0041 and nearly all still do —
+    one coverage, resolved by `resolve_request`, filters and policy included."""
+    (only,) = _branches("cross_mart_branches", ("shipping_count",), ("region",))
+
+    assert only.mart.name == "orders"
+    assert only.metrics == ("shipping_count",)
+
+
+def test_measures_partition_by_the_mart_that_owns_them() -> None:
+    """D11: ownership is the emitter's answer, read again rather than
+    recomputed. Sorted by mart name, so the composed statement two runs build
+    reads its branches in one order (RFC 0003)."""
+    branches = _branches(
+        "cross_mart_branches", ("shipping_count", "line_discount", "customer_count"), ("tier",)
+    )
+
+    assert [branch.mart.name for branch in branches] == ["customers", "order_items", "orders"]
+    assert [branch.metrics for branch in branches] == [
+        ("customer_count",),
+        ("line_discount",),
+        ("shipping_count",),
+    ]
+
+
+def test_a_dimension_resolves_on_each_branch_under_that_branch_s_own_name() -> None:
+    """D12, and the reason a branch cannot simply be handed the requested
+    string: one dimension has one name per mart that reaches it, and only one
+    of the three marts here spells it the way the caller did."""
+    branches = _branches(
+        "cross_mart_branches", ("shipping_count", "line_discount", "customer_count"), ("tier",)
+    )
+
+    assert [branch.dimensions[0].name for branch in branches] == [
+        "tier",
+        "order_customer_tier",
+        "customer_tier",
+    ]
+
+
+def test_a_name_two_marts_carry_and_do_not_agree_on_is_refused() -> None:
+    """The case identity exists for, and the one a translation-only check
+    would miss: `order_id` is a column of the mart based at `order` **and** of
+    the mart based at `order_item`, where it is the foreign key pointing at
+    the first. Both resolve locally, so nothing has to be translated — and
+    joining on them would group one measure by an order and the other by the
+    order its line belongs to.
+    """
+    with pytest.raises(UnreachableAtGrain, match="do not mean the same column"):
+        _branches("multi_mart_refusal", ("shipping_cost", "line_discount"), ("order_id",))
+
+
+def test_a_dimension_no_branch_can_reach_keeps_its_own_refusal() -> None:
+    """Widening what resolves is not widening what is accepted: a branch that
+    cannot produce the dimension falls through to the ordinary resolution and
+    the ordinary message."""
+    with pytest.raises(UnreachableAtGrain):
+        _branches("multi_mart_refusal", ("shipping_cost", "line_discount"), ("added_month",))
+
+
+@pytest.mark.parametrize(
+    ("request_", "why"),
+    [
+        (
+            MetricRequest(
+                metrics=("shipping_count", "line_discount"),
+                filters=(Predicate(dimension="region", op=Op.EQ, values=("EU",)),),
+            ),
+            "a filter has to be placed per branch, which is P2",
+        ),
+        (
+            MetricRequest(metrics=("shipping_count", "line_discount"), limit=10),
+            "a limit inside a branch truncates it before the join",
+        ),
+        (
+            MetricRequest(
+                metrics=("shipping_count", "line_discount"),
+                order_by=(OrderSpec(field="shipping_count", direction="desc"),),
+            ),
+            "an order belongs to the composed statement",
+        ),
+    ],
+)
+def test_the_composed_path_declines_and_the_old_refusal_stands(
+    request_: MetricRequest, why: str
+) -> None:
+    """RFC 0041 D4 and D5, as the shape of a decline rather than as prose: a
+    request the phase cannot answer keeps the refusal, the class and the
+    ``covering_marts`` table it had before the phase existed — which is what
+    lets the parity baseline say what P1 actually converted (D16).
+    """
+    with pytest.raises(UnreachableAtGrain, match="different grains") as excinfo:
+        resolve_branches(
+            fixture_ir("cross_mart_branches"), request_, naming=DefaultNaming()
+        ), why
+
+    assert excinfo.value.covering_marts
+
+
+def test_a_row_policy_declines_the_composed_path() -> None:
+    """A policy is a predicate over a dimension, so it is D5's question with
+    a security consequence: placed on one branch and not another it narrows
+    half the answer and reports nothing (logs/T-0026.md, D-168)."""
+    with pytest.raises(UnreachableAtGrain, match="different grains"):
+        resolve_branches(
+            fixture_ir("cross_mart_branches"),
+            MetricRequest(metrics=("shipping_count", "line_discount")),
+            naming=DefaultNaming(),
+            policy=RowPolicy(dimension="region", op=Op.EQ, value="EU"),
+        )
