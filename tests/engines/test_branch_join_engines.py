@@ -1,16 +1,20 @@
 """Engine tier (RFC 0009 §5.2 tier 5): the composed branch join returns the
-same numbers on every dialect the planner speaks (RFC 0041 D13, D17).
+same numbers on every dialect the planner speaks (RFC 0041 D17, D18).
 
-The unit tier asserts that all three dialects *render* `IS NOT DISTINCT FROM`,
-and corpus case `006-two-grains-one-request` executes a composed plan on
-DuckDB. Neither says PostgreSQL and Trino run it — and D17 exists precisely
-because "the documentation says they support it" is the kind of citation this
-project does not accept for a construct that decides a number.
+The unit tier asserts that all three dialects *render* the statement, and
+corpus case `006-two-grains-one-request` executes a composed plan on DuckDB.
+Neither says PostgreSQL and Trino run it, which is what these tests are for —
+and they are also what made the statement what it is. The shape D13 first
+asked for, `FULL OUTER JOIN … ON a IS NOT DISTINCT FROM b`, renders on all
+three and PostgreSQL refuses to plan it: its full join is a merge or hash
+join, and a null-safe condition is neither. D18 replaced it with the key
+domain and left joins these tests execute. That is why D17 asks for a run
+rather than for the citation every reference would have given.
 
-What is asserted is the property the join is for: **a NULL group key survives
-and does not split**. Joined on `=` it would fail `NULL = NULL`, and the group
-would appear twice with half its measures NULL on each row — a wrong answer
-that looks like data, on every engine, silently.
+What is asserted is the property the join is for: **a NULL group key keeps its
+numbers**. The key domain is a `UNION`, so the group is in the answer either
+way; matching on `=` costs it the join, and both measures come back NULL — a
+group that reads as "nothing happened here", on every engine, silently.
 
 Opt-in (Docker required); excluded from ``just test``.
 """
@@ -128,7 +132,10 @@ def trino_db() -> Iterator[trino.dbapi.Connection]:
         lines = ", ".join(f"('{order}', {discount})" for order, discount in LINES)
         cursor.execute(f"INSERT INTO cmb_lines VALUES {lines}")
         cursor.fetchall()
-        yield connection
+        try:
+            yield connection
+        finally:
+            connection.close()
 
 
 # ....................... #

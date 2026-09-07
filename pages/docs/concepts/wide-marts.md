@@ -15,10 +15,10 @@ re-planning it per query:
 
 | Classic semantic-layer problem | Under wide marts |
 |---|---|
-| Fan-out on many-to-one joins | **Structurally impossible** — no join at query time |
+| Fan-out on many-to-one joins | **Structurally impossible** — no join before an aggregate |
 | Role-playing dimensions | Flattened to distinct columns at build time |
 | Symmetric aggregates | Not needed |
-| Multi-fact root selection | Separate marts; cross-mart requests are refused, not guessed |
+| Multi-fact root selection | Separate marts; a cross-mart request is aggregated per mart and joined after, or refused — never guessed |
 | Pre-aggregation / caching tier | The mart *is* the pre-aggregation |
 | Planner complexity | `SELECT dims, AGG(measures) FROM mart WHERE … GROUP BY dims` |
 
