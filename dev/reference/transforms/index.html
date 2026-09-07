@@ -1418,6 +1418,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#currency_in-what-the-source-holds" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>currency_in:</code> — what the source holds
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-rate-relation" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1702,6 +1713,17 @@
   
     <nav class="md-nav" aria-label="Currency">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#currency_in-what-the-source-holds" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        <code>currency_in:</code> — what the source holds
+      </span>
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#the-rate-relation" class="md-nav__link">
@@ -2081,13 +2103,38 @@ to <code>decimal(p1+p2, s1+s2)</code>; crossing the 38-digit precision cap is a 
 
 <span class="c1"># mapping.yaml</span>
 <span class="nt">amount_usd</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">currency_in</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EUR</span>
 <span class="w">  </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.amount"</span>
 <span class="w">  </span><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[{</span><span class="nt">to_decimal</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">12</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]},</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">convert</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">EUR</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">USD</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">paid_at</span><span class="p p-Indicator">]}]</span>
 </code></pre></div>
-<p>Everything about that line is declared, and none of it is inferred. The source path
-carries no currency, so <code>from</code> is written out; the anchor could be guessed from a
-mart's date role, and a wrong guess is a plausible number computed against the wrong
-day, which is the failure class this project exists to refuse.</p>
+<p>Everything about that line is declared, and none of it is inferred. The anchor could be
+guessed from a mart's date role, and a wrong guess is a plausible number computed against
+the wrong day, which is the failure class this project exists to refuse.</p>
+<h3 id="currency_in-what-the-source-holds"><code>currency_in:</code> — what the source holds<a class="headerlink" href="#currency_in-what-the-source-holds" title="Permanent link">&para;</a></h3>
+<p><strong>A conversion out of an undeclared currency is refused.</strong> <code>convert</code>'s first argument says
+what the column is in <em>before</em> the conversion, and on its own that is an assertion checking
+itself: writing <code>{convert: [JPY, USD, paid_at]}</code> over euros reads the yen rate, applies it
+to euros, and every cast still succeeds. <code>currency_in:</code> is the fact it is checked against,
+and it lives on the mapping's field because that is where a source path and a transform
+chain meet — a canonical field is shared across mappings, and one fed by a euro feed and a
+dollar feed would need two answers for one declaration.</p>
+<p><strong>A chain declares once.</strong> Where no direct rate exists, convert through a bridge currency:
+each step's input is the previous step's output, so only the first needs declaring.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">amount_usd</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">currency_in</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EUR</span>
+<span class="w">  </span><span class="nt">from</span><span class="p">:</span><span class="w"> </span><span class="s">"$.amount"</span>
+<span class="w">  </span><span class="nt">transform</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">to_decimal</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">12</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]}</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">convert</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">EUR</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">CHF</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">paid_at</span><span class="p p-Indicator">]}</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">convert</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">CHF</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">USD</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">paid_at</span><span class="p p-Indicator">]}</span>
+</code></pre></div>
+<p>The column's currency is what the <strong>last</strong> conversion produces, and that is what must match
+the canonical field's <code>currency:</code>. A step whose <code>from</code> disagrees with what the chain is
+holding at that point is refused, naming both.</p>
+<p><strong>Per-row denomination is declared but not yet lowered.</strong> Where the code lives in a sibling
+column — <code>currency_in: {column: currency_code}</code> — the declaration parses and the conversion
+is refused as unbuilt rather than as invalid. Convert from a literal code, or split the
+column by currency upstream.</p>
 <p>The anchor names a <code>date</code> or <code>timestamp</code> column of the same entity, mapped by a direct
 <code>from:</code> path — a <code>fields:</code> entry or a <code>key:</code> one. A recipe or macro anchor is refused
 rather than spliced, because its whole derivation would be copied into every converted
