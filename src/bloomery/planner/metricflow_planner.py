@@ -361,18 +361,27 @@ class MetricFlowPlanner:
             )
             for measure in measures
         )
+        # Kept per branch as well as merged. The merged explanation speaks the
+        # *requested* spelling of a dimension, which is right for a reader and
+        # wrong for a branch's plan: `SemanticPlan` is lowered rather than
+        # shown, so a branch whose `Filter` said `region` while its scan
+        # restricts `order_region` would lower into a predicate on a column
+        # that relation does not have — and the `Aggregate` beside it already
+        # names the branch-local column, so the plan contradicted itself
+        # (logs/T-0027.md, finding 7).
+        per_branch = [
+            explain.build(
+                result,
+                resolved,
+                ir,
+                branch_request(resolved),
+                naming=self._naming,
+                policy_applied=policy is not None,
+            )
+            for resolved, (_sql, _columns, result) in zip(branches, rendered, strict=True)
+        ]
         explanation = explain.merge(
-            [
-                explain.build(
-                    result,
-                    resolved,
-                    ir,
-                    branch_request(resolved),
-                    naming=self._naming,
-                    policy_applied=policy is not None,
-                )
-                for resolved, (_sql, _columns, result) in zip(branches, rendered, strict=True)
-            ],
+            per_branch,
             order=request.metrics,
             computed=tuple(
                 explain.composed_measure(metrics_by_name[measure.name])
@@ -400,12 +409,16 @@ class MetricFlowPlanner:
                             branch_request(resolved),
                             metrics_by_name,
                             filters=explain.applied_predicates(
-                                explanation, request, resolved, metrics_by_name, policy=policy
+                                branch,
+                                branch_request(resolved),
+                                resolved,
+                                metrics_by_name,
+                                policy=policy,
                             ),
                         ),
                         tuple(dimension.name for dimension in resolved.dimensions),
                     )
-                    for resolved in branches
+                    for resolved, branch in zip(branches, per_branch, strict=True)
                 ],
                 keys,
                 request.metrics,

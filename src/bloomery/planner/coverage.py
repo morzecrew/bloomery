@@ -1041,6 +1041,40 @@ def _not_on_every_branch(
 # ....................... #
 
 
+def _restriction_refusal(
+    ir: ProjectIR, name: str, marts: Sequence[MartIR], *, kind: str
+) -> UnreachableAtGrain:
+    """Why a restriction cannot be placed — told apart before it is told.
+
+    Two different failures reach here wearing one shape, because
+    :func:`_shared_provenance` answers ``None`` for both. **No branch carries
+    the name** is one, and :func:`_not_on_every_branch` is its message. The
+    other is **every branch carries it and they mean different columns by it**,
+    which the unqualified date buckets make ordinary rather than exotic: a
+    filter on `month` resolves through each mart's own date role, so it is
+    `ordered_month` on one and `added_month` on the next, and the two are
+    different dimensions by D12.
+
+    Saying "not carried by every mart" of that second case sends the reader to
+    flatten a column both marts already have (logs/T-0027.md, finding 8). So
+    each branch is asked to resolve the name the ordinary way, and it is the
+    *outcome* that picks the message.
+    """
+
+    resolved: list[tuple[MartIR, ResolvedDimension]] = []
+
+    for mart in marts:
+        try:
+            resolved.append((mart, _resolve_dimension(mart, name, apply_grain=None, ir=ir)))
+        except PlannerError:
+            return _not_on_every_branch(ir, name, marts, kind=kind)
+
+    return _not_one_dimension(name, resolved)
+
+
+# ....................... #
+
+
 def _composable(
     ir: ProjectIR,
     request: MetricRequest,
@@ -1298,7 +1332,7 @@ def resolve_branches(
             continue
         target = _shared_provenance(ir, ordered, name)
         if target is None:
-            raise _not_on_every_branch(ir, name, ordered, kind=kind)
+            raise _restriction_refusal(ir, name, ordered, kind=kind)
         restrictions[name] = target
 
     def _restricted(mart: MartIR, name: str) -> ResolvedDimension:

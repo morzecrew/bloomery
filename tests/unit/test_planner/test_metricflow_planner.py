@@ -26,6 +26,7 @@ from bloomery.errors import (
 )
 from bloomery.planner import TimeGrain
 from bloomery.planner.metricflow_planner import translate_mf_error
+from bloomery.semantic.plan import Filter, Scan
 from support.planning import fixture_ir, make_planner
 
 pytestmark = pytest.mark.unit
@@ -650,3 +651,44 @@ def test_a_filter_reaches_each_branch_in_that_branchs_own_spelling() -> None:
     assert plan.explanation.render().count("region = 'EU'") == 1, (
         "one filter reached every branch; the explanation reports the request's account"
     )
+
+
+def test_each_branch_plan_names_the_column_that_branch_restricts() -> None:
+    """A `SemanticPlan` is lowered, not shown, so its predicates have to name
+    the columns the branch actually filters.
+
+    The merged explanation speaks the *requested* spelling, which is right for
+    a reader and wrong here: a branch whose `Filter` said `region` while its
+    scan restricts `order_region` lowers into a predicate on a column that
+    relation does not have. The `Aggregate` beside it already named the
+    branch-local column, so the plan contradicted itself — which is the
+    evidence, and which the self-audit missed (logs/T-0027.md, finding 7).
+    """
+    plan = make_planner().plan(
+        fixture_ir("cross_mart_branches"),
+        MetricRequest(
+            metrics=("shipping_count", "line_discount"),
+            dimensions=("tier",),
+            filters=(Predicate(dimension="region", op=Op.EQ, values=("EU",)),),
+        ),
+        dialect="duckdb",
+        policy=RowPolicy("region", Op.NE, "UK"),
+    )
+    assert plan.semantic is not None
+    join = plan.semantic.nodes[0]
+    by_relation = {
+        next(node.relation for node in branch.plan.nodes if isinstance(node, Scan)): next(
+            node.predicates for node in branch.plan.nodes if isinstance(node, Filter)
+        )
+        for branch in join.branches  # type: ignore[attr-defined]
+    }
+
+    assert by_relation == {
+        "order_items": ("order_region != 'UK'", "order_region = 'EU'"),
+        "orders": ("region != 'UK'", "region = 'EU'"),
+    }
+    # And each name is the column its own branch actually restricts — the two
+    # branches render the same clause against differently-spelled columns,
+    # which is the whole reason the plan may not speak one spelling for both.
+    assert "order_item__order_region = 'EU'" in plan.sql
+    assert "order__region = 'EU'" in plan.sql

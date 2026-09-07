@@ -1187,3 +1187,40 @@ def test_one_dimension_named_by_both_a_filter_and_the_policy_is_anchored_once() 
     for branch in branches:
         assert branch.policy_dimension is not None
         assert branch.filter_dimensions[0][0].name == branch.policy_dimension.name
+
+
+def test_a_bucket_every_mart_reads_differently_says_so() -> None:
+    """Two failures reach one refusal, and they need different messages.
+
+    An unqualified date bucket resolves through each mart's own date role, so
+    `month` is `ordered_month` on the mart based at `order` and `added_month`
+    on the one based at `order_item` — carried by both, meaning different
+    things, which is D12's collision rather than a missing column. Telling that
+    reader "not carried by every mart" sends them to flatten a column both
+    marts already have (logs/T-0027.md, finding 8).
+
+    Paired with a name genuinely absent everywhere, since one message alone
+    cannot show that the two cases were told apart.
+    """
+    ir = fixture_ir("cross_mart_branches")
+
+    def _refuse(dimension: str) -> str:
+        with pytest.raises(UnreachableAtGrain) as excinfo:
+            resolve_branches(
+                ir,
+                MetricRequest(
+                    metrics=("shipping_count", "line_discount"),
+                    dimensions=("tier",),
+                    filters=(Predicate(dimension=dimension, op=Op.IS_NULL, values=(False,)),),
+                ),
+                naming=DefaultNaming(),
+            )
+        return str(excinfo.value)
+
+    disagreed = _refuse("month")
+
+    assert "do not mean the same column by it" in disagreed
+    assert "added_month" in disagreed
+    assert "ordered_month" in disagreed
+
+    assert "not carried by every mart" in _refuse("nonesuch")
