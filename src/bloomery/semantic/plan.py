@@ -301,9 +301,26 @@ class JoinAggregates:
     # ....................... #
 
     def __post_init__(self) -> None:
-        canonical = tuple(sorted(self.keys))
-        if canonical != self.keys:
-            object.__setattr__(self, "keys", canonical)
+        # Sorted like every other IR collection (RFC 0003) — and the branches
+        # are reordered *with* the keys, because entry `i` of a branch is that
+        # branch's name for key `i`. Sorting one side alone breaks the pairing
+        # silently: `keys` reads `('signed_up', 'tier')` while every branch
+        # still lists its tier column first, and a target lowering the plan
+        # joins the wrong columns (logs/T-0026.md, D-175).
+        order = sorted(range(len(self.keys)), key=lambda index: self.keys[index])
+
+        if order != list(range(len(self.keys))):
+            object.__setattr__(self, "keys", tuple(self.keys[index] for index in order))
+            object.__setattr__(
+                self,
+                "branches",
+                tuple(
+                    JoinBranch(plan=branch.plan, keys=tuple(branch.keys[index] for index in order))
+                    if len(branch.keys) == len(order)
+                    else branch
+                    for branch in self.branches
+                ),
+            )
 
         # One branch is a single-mart plan, which needs no join node at all,
         # and zero is a join over nothing that `check` would then report as

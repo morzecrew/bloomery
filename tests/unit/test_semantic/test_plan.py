@@ -611,7 +611,7 @@ def test_node_order_is_never_sorted() -> None:
 # The branch join — RFC 0041 P1
 
 
-def _branch(relation: str, measure: str, keys: int = 1) -> SemanticPlan:
+def _branch(relation: str, measure: str, keys: int = 1, prefix: str = "d") -> SemanticPlan:
     proof = Proof(
         rule="R008",
         conclusion=SemanticJudgement("ServedAtGrain", (("mart", relation),)),
@@ -631,7 +631,7 @@ def _branch(relation: str, measure: str, keys: int = 1) -> SemanticPlan:
                 input_grain=relation,
                 output_grain=relation,
                 measures=(measure,),
-                dimensions=tuple(f"d{index}" for index in range(keys)),
+                dimensions=tuple(f"{prefix}{index}" for index in range(keys)),
                 proof=proof,
             ),
         )
@@ -718,6 +718,27 @@ def test_the_plan_s_proofs_reach_into_its_branches() -> None:
     )
 
     assert [proof.rule for proof in plan.proofs] == ["R010", "R008", "R008"]
+
+
+def test_the_branches_are_reordered_with_the_keys() -> None:
+    """Entry `i` of a branch is that branch's name for key `i`, so sorting the
+    keys alone breaks the pairing — silently, because both sides still have
+    the right *number* of entries and the aggregate check compares them
+    sorted. A target lowering such a plan joins the wrong columns.
+
+    Asserted through the node rather than through its builder: the pairing is
+    a property of the value, and a caller constructing one directly has to get
+    it too.
+    """
+    branches = (
+        JoinBranch(plan=_branch("orders", "ship", keys=2), keys=("d1", "d0")),
+        JoinBranch(plan=_branch("order_items", "disc", keys=2, prefix="e"), keys=("e1", "e0")),
+    )
+    node = JoinAggregates(keys=("tier", "signed_up"), branches=branches)
+
+    assert node.keys == ("signed_up", "tier")
+    # `signed_up` sorted to the front, so each branch's name for it comes too.
+    assert [branch.keys for branch in node.branches] == [("d0", "d1"), ("e0", "e1")]
 
 
 def test_the_join_keys_are_canonicalized() -> None:
