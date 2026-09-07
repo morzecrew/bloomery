@@ -223,7 +223,11 @@ def compose(
         )
         raise PlannerError(msg)
 
-    if not dialect.supports(DialectFeature.NULL_SAFE_EQUALITY):
+    # Asked of the keyed join only. An ungrouped request composes to a
+    # `CROSS JOIN` of one-row totals and has no key to match, so refusing it on
+    # a dialect without null-safe equality would refuse a statement that never
+    # needed the capability.
+    if keys and not dialect.supports(DialectFeature.NULL_SAFE_EQUALITY):
         msg = (
             f"dialect {dialect.name!r} declares no null-safe equality, and a branch join "
             "needs one: matching on `=` drops every group whose key is NULL from the "

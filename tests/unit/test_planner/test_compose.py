@@ -136,6 +136,31 @@ def test_every_shipped_dialect_renders_one_statement(dialect: str) -> None:
     # first shape of it was found to be unrunnable (D17).
 
 
+def test_an_ungrouped_request_needs_no_null_safe_equality() -> None:
+    """The capability is asked of the keyed join only. An ungrouped request
+    composes to a `CROSS JOIN` of one-row totals and has no key to match, so
+    refusing it on a dialect without the feature would refuse a statement that
+    never needed it."""
+
+    class _Narrow:
+        name = "narrow"
+
+        def supports(self, _feature: DialectFeature) -> bool:
+            return False
+
+        def render(self, node: object) -> str:
+            return get_dialect("duckdb").render(node)  # type: ignore[arg-type]
+
+    sql = compose(
+        [Branch(sql="S0", keys=()), Branch(sql="S1", keys=())],
+        keys=(),
+        measures=((0, "a"), (1, "b")),
+        dialect=_Narrow(),  # type: ignore[arg-type]
+    )
+
+    assert "CROSS JOIN" in sql
+
+
 def test_a_dialect_without_null_safe_equality_is_refused() -> None:
     """The reason the capability is a flag rather than an assumption: a fourth
     dialect without it would otherwise be handed `=`, which drops every
