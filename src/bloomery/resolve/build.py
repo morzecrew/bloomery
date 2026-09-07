@@ -2203,6 +2203,17 @@ def _anchor_expression(
     conversion is projected: both are projections of one SELECT, and a lateral
     column alias is a DuckDB extension that Postgres and Trino reject. So the
     chain is lowered a second time, here, into the conversion.
+
+    **That second lowering can never itself contain a conversion**, which is
+    why `_resolve_conversions` scans for markers once and binds anchors after.
+    It follows from two stated contracts rather than from luck: an anchor must
+    be a `date` or a `timestamp` (below), and `convert` is decimal-in,
+    decimal-out by signature. Nothing bridges the two — `parse_date` takes a
+    string — so a chain carrying a conversion cannot typecheck to what an
+    anchor has to be. Left as a sentence rather than a guard because a guard
+    here could not be reached, and an unreachable branch is a claim no test can
+    keep honest; a transform that turned a decimal into an instant would break
+    the argument, and this is where its author should be told so.
     """
     field = entity.fields.get(anchor)
 

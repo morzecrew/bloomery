@@ -209,6 +209,11 @@ Case 004's converted arm re-pins from `RFC 0023 D11` to `R009`.
 
 ## 6. Tests
 
+> **Two items below were struck by D9 and are not P1's** — the per-row `column:` name check
+> in the refusal battery, and the whole adversarial bullet. The text stands as written so a
+> reader can see what was asked for and what execution answered; D9 says which and why.
+> Everything else here is built.
+
 - **Refusal battery**: unknown input; `from` disagreeing with a declared `currency_in:`;
   `from` disagreeing with a prior step's output; a per-row `column:` naming a field the
   mapping does not produce.
