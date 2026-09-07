@@ -38,7 +38,14 @@ from bloomery import (
 from bloomery.semantic import RULES
 from support.execution import materialize, warehouse
 from support.planning import make_planner
-from support.semantic_corpus import Case, Expectation, Outcome, cases
+from support.semantic_corpus import (
+    DECISION_CITATION,
+    Case,
+    Expectation,
+    Outcome,
+    cases,
+    unregistered_rule,
+)
 
 pytestmark = pytest.mark.execution
 
@@ -201,21 +208,13 @@ def test_every_cited_rule_names_a_decision_that_exists() -> None:
 
     for case in CASES:
         for expectation in case.expectations:
-            if re.fullmatch(r"R\d{3}", expectation.rule):
-                assert expectation.rule in RULES, (
-                    f"{case.name}/{expectation.name}: rule {expectation.rule!r} is in no "
-                    "register — bloomery.semantic.RULES does not name it, and an id that "
-                    "resolves nowhere is prose wearing an identifier"
-                )
+            unusable = unregistered_rule(expectation.rule, RULES)
+            assert not unusable, f"{case.name}/{expectation.name}: {unusable}"
+
+            cited = DECISION_CITATION.fullmatch(expectation.rule)
+            if cited is None:  # a proof-rule id, resolved against RULES above
                 continue
 
-            cited = re.fullmatch(r"RFC (\d{4}) D(\d+)", expectation.rule)
-            assert cited, (
-                f"{case.name}/{expectation.name}: rule {expectation.rule!r} is neither a "
-                "proof-rule id (`R0nn`) nor `RFC NNNN Dn`. A section number is not a stable "
-                "ID — it moves when the document is edited, and neither a decision row's "
-                "number nor a rule id does"
-            )
             number, decision = cited.groups()
             declared = _decision_table(number)
             if declared is None:

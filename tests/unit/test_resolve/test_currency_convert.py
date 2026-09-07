@@ -121,6 +121,52 @@ def test_a_per_row_currency_column_is_refused_as_unbuilt() -> None:
 
 
 # ....................... #
+# A key column converts too (RFC 0061 D1; logs/T-0025.md, D-158)
+
+
+def _key_converts(key_line: str) -> None:
+    """The fixture with `amount_usd` moved out of `fields:` and into `key:`.
+
+    A key is a strange place to convert and `resolve.build` walks it anyway,
+    because a decimal key is legal and an unwalked marker reaches emit. So the
+    declaration has to reach a key field, and nothing here exercised one — the
+    lookup could be deleted with the suite still green (logs/T-0025.md, D-160).
+    """
+
+    sources = _sources()
+    mapping = sources["mapping"]
+    converting = next(line for line in mapping.splitlines() if line.startswith("  amount_usd:"))
+    mapping = mapping.replace(converting + "\n", "")
+    sources["mapping"] = mapping.replace(
+        '  payment_id: {from: "$.id", transform: [to_string]}',
+        '  payment_id: {from: "$.id", transform: [to_string]}\n' + key_line,
+    )
+    build_project_ir(load_project(sources), catalog=_catalog())
+
+
+KEY_DECLARED = (
+    '  amount_usd: {currency_in: EUR, from: "$.amount", '
+    "transform: [{to_decimal: [12, 4]}, {convert: [EUR, USD, paid_at]}]}"
+)
+
+
+def test_a_key_column_may_declare_its_input_currency() -> None:
+    """The non-vacuity half: without this the two refusals below would pass
+    on a spec that never compiled for an unrelated reason."""
+    _key_converts(KEY_DECLARED)
+
+
+def test_a_key_column_converting_out_of_nothing_is_refused() -> None:
+    with pytest.raises(ResolutionError, match=r"cannot prove what currency 'amount_usd' is in"):
+        _key_converts(KEY_DECLARED.replace("currency_in: EUR, ", ""))
+
+
+def test_a_key_columns_declaration_is_checked_like_any_other() -> None:
+    with pytest.raises(ResolutionError, match=r"convert names 'JPY' as its input currency"):
+        _key_converts(KEY_DECLARED.replace("[EUR, USD,", "[JPY, USD,"))
+
+
+# ....................... #
 # The currency codes
 
 
