@@ -9,7 +9,7 @@ from dataclasses import replace
 
 import pytest
 
-from bloomery import MetricRequest, RowPolicy
+from bloomery import MetricRequest, RowPolicy, build_project_ir, load_project
 from bloomery.errors import (
     AmbiguousDimension,
     InvalidRequest,
@@ -30,6 +30,7 @@ from bloomery.planner.coverage import (
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import AnyOf, Op, OrderSpec, Predicate
 from bloomery.semantic import BASIS_PROVENANCE, RefusalReason
+from support.compiling import FIXTURES, fixture_sources
 from support.planning import fixture_ir
 
 pytestmark = pytest.mark.unit
@@ -875,3 +876,110 @@ def test_a_row_policy_declines_the_composed_path() -> None:
             naming=DefaultNaming(),
             policy=RowPolicy(dimension="region", op=Op.EQ, value="EU"),
         )
+
+
+def test_a_third_marts_naming_does_not_decide_what_the_request_meant() -> None:
+    """Identity is anchored on one provenance every branch can reach, not on
+    whichever mart carrying the name happens to sort first.
+
+    Before this, a mart outside the request decided the answer: an unrelated
+    `region` published from `customer.region` was the first the lookup found,
+    so one branch translated to its customer column while the other kept its
+    own `order.region` column, and the two were joined on different things
+    until the identity check refused the pair. A legal request was refused,
+    and it was refused for the wrong reason.
+    """
+    ir = _with_extra_region_mart()
+    branches = resolve_branches(
+        ir,
+        MetricRequest(metrics=("shipping_count", "line_discount"), dimensions=("region",)),
+        naming=DefaultNaming(),
+    )
+    resolved = {branch.mart.name: branch.dimensions[0].name for branch in branches}
+
+    assert resolved == {"order_items": "order_region", "orders": "region"}
+
+
+def test_two_branches_that_publish_one_name_and_disagree_are_still_refused() -> None:
+    """The tie-break prefers a branch's own spelling, and where two branches
+    publish the name and mean different things by it there is no preference to
+    have — which is the collision D12 refuses, and it must survive the fix
+    above."""
+    with pytest.raises(UnreachableAtGrain, match="do not mean the same column"):
+        _branches("multi_mart_refusal", ("shipping_cost", "line_discount"), ("order_id",))
+
+
+def test_one_name_asked_for_as_both_a_metric_and_a_dimension_is_refused() -> None:
+    """A composed statement projects a key under the caller's own name, so a
+    name that is both would be projected twice under one alias and
+    `ColumnDescriptor.sql_alias` — the binding contract — would name two
+    columns. `MetricRequest` refuses duplicates within each tuple and cannot
+    see across them.
+    """
+    ir = _with_a_metric_named_like_a_dimension()
+    request = MetricRequest(metrics=("tier", "line_discount"), dimensions=("tier",))
+
+    with pytest.raises(InvalidRequest, match="both a metric and a dimension"):
+        resolve_branches(ir, request, naming=DefaultNaming())
+
+
+def _variant(name: str, **edits: tuple[str, str]) -> ProjectIR:
+    """One fixture's sources with substitutions applied, built into IR.
+
+    A variant rather than a fixture directory: what these two cases need is a
+    *shape* the corpus does not otherwise contain, and adding a fixture for
+    each would move parity rows for a reason unrelated to what is asserted
+    here (logs/T-0026.md, D-167).
+    """
+    from bloomery import load_catalog
+
+    sources = dict(fixture_sources(name))
+    for document, (old, new) in edits.items():
+        assert old in sources[document], f"{document}: anchor not found"
+        sources[document] = sources[document].replace(old, new)
+    catalog_path = FIXTURES / name / "catalog.yaml"
+
+    return build_project_ir(
+        load_project(sources), load_catalog(catalog_path.read_text(encoding="utf-8"))
+    )
+
+
+def _with_extra_region_mart() -> ProjectIR:
+    """`cross_mart_branches` plus a mart that publishes a `region` of its own,
+    from `customer` rather than from `order`, and sorts before both branches."""
+
+    return _variant(
+        "cross_mart_branches",
+        entity_model=(
+            "      tier: {type: string}\n      signed_up: {type: date}",
+            "      tier: {type: string}\n      region: {type: string}\n"
+            "      signed_up: {type: date}",
+        ),
+        mapping_customers=(
+            'fields:\n  tier: {from: "$.tier"}',
+            'fields:\n  tier: {from: "$.tier"}\n  region: {from: "$.region"}',
+        ),
+        marts=(
+            "  customers:\n    grain: customer",
+            "  aaa_regions:\n    grain: customer\n    base: customer\n    flatten:\n"
+            "      - {date: signed_up, role: joined}\n    measures: [region_count]\n"
+            "  customers:\n    grain: customer",
+        ),
+        metrics=(
+            "metrics:\n",
+            "metrics:\n  region_count:\n    grain: customer\n"
+            "    additivity: additive\n    agg: count\n"
+            '    expr: "customer_id"\n',
+        ),
+    )
+
+
+def _with_a_metric_named_like_a_dimension() -> ProjectIR:
+    """`cross_mart_branches` with `customer_count` renamed to `tier`, which is
+    also a mart dimension. Nothing in the spec forbids it."""
+
+    return _variant(
+        "cross_mart_branches",
+        metrics=("customer_count", "tier"),
+        marts=("customer_count", "tier"),
+    )

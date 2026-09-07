@@ -369,6 +369,23 @@ def _same_source(mart: MartIR, other: MartIR, column: str) -> str | None:
     # Requestable names only. A mart may flatten a column without exposing it
     # as a dimension — join keys never double as one — and naming one of those
     # would answer a refusal with a request that is refused too.
+    return next(
+        (name for triple in sorted(origin, key=str) if (name := _column_with(mart, triple))),
+        None,
+    )
+
+
+# ....................... #
+
+
+def _column_with(mart: MartIR, triple: tuple[str, str, object]) -> str | None:
+    """What ``mart`` calls the column with this provenance, or ``None``.
+
+    Requestable names only. A mart may flatten a column without exposing it as
+    a dimension — join keys never double as one — and naming one of those
+    would answer a refusal with a request that is refused too.
+    """
+
     requestable = {dimension.column for dimension in mart.dimensions}
 
     return next(
@@ -376,7 +393,7 @@ def _same_source(mart: MartIR, other: MartIR, column: str) -> str | None:
             candidate.name
             for candidate in sorted(mart.columns, key=lambda item: item.name)
             if candidate.name in requestable
-            and (candidate.source_entity, candidate.source_column, candidate.ref) in origin
+            and (candidate.source_entity, candidate.source_column, candidate.ref) == triple
         ),
         None,
     )
@@ -657,8 +674,64 @@ def resolve_request(
 # ....................... #
 
 
+def _shared_provenance(
+    ir: ProjectIR, marts: Sequence[MartIR], name: str
+) -> tuple[str, str, object] | None:
+    """The one provenance every branch can reach under ``name``, or ``None``.
+
+    Every mart that publishes a dimension called ``name`` offers a candidate —
+    `region` may be `order.region` on one mart and `customer.region` on another
+    — and a branch can reach a candidate when it holds a requestable column of
+    that provenance under any spelling. The answer is the candidate **all**
+    branches reach, and only if exactly one does.
+
+    Computed across the branches rather than read off whichever mart sorts
+    first. The first-mart reading let a mart that is not in the request decide
+    what the request meant: with `region` published by an unrelated mart from
+    `customer.region`, one branch translated to its customer column while
+    another kept its own `order.region` column, and the two were joined on
+    different things until the identity check refused the pair. None is
+    returned where the candidates disagree, and the ordinary per-branch
+    resolution then raises the ordinary refusal.
+    """
+
+    candidates = {
+        triple
+        for mart in ir.marts
+        if any(dimension.column == name for dimension in mart.dimensions)
+        if (triple := _provenance(mart, name)) is not None
+    }
+    reachable = [
+        triple
+        for triple in sorted(candidates, key=str)
+        if all(_column_with(mart, triple) is not None for mart in marts)
+    ]
+    # A branch that publishes the requested *spelling* is the caller's most
+    # likely meaning, and preferring it is what keeps `region` meaning what the
+    # mart serving the request means by it when an unrelated mart publishes a
+    # `region` of its own. Where two branches publish the name and disagree
+    # about it, there is no such preference — that is the collision D12
+    # refuses, and it is left to the identity check to say so.
+    published = [
+        triple for triple in reachable if any(_provenance(mart, name) == triple for mart in marts)
+    ]
+
+    if len(published) == 1:
+        return published[0]
+
+    return reachable[0] if len(reachable) == 1 else None
+
+
+# ....................... #
+
+
 def _resolve_branch_dimension(
-    mart: MartIR, name: str, *, apply_grain: TimeGrain | None, ir: ProjectIR
+    mart: MartIR,
+    name: str,
+    *,
+    target: tuple[str, str, object] | None,
+    apply_grain: TimeGrain | None,
+    ir: ProjectIR,
 ) -> ResolvedDimension:
     """One requested dimension against **a branch's** mart, by identity rather
     than by name (RFC 0041 D12).
@@ -675,14 +748,17 @@ def _resolve_branch_dimension(
     that provenance, the ordinary resolution runs and raises the ordinary
     refusal: this function widens what resolves, never what is accepted
     unproven.
+
+    ``target`` is the provenance **every** branch agreed on, computed once by
+    :func:`_shared_provenance` rather than discovered per branch. Discovering
+    it per branch meant asking the first *other* mart carrying the requested
+    name what it meant by it, and an unrelated mart that sorts earlier then
+    decided the answer for everybody: two branches resolved to columns of
+    different origins and only the identity check downstream noticed. Anchored
+    on one triple, the branches cannot disagree in the first place.
     """
 
-    if any(dimension.column == name for dimension in mart.dimensions):
-        return _resolve_dimension(mart, name, apply_grain=apply_grain, ir=ir)
-
-    elsewhere = _carried_elsewhere(ir, mart, name)
-
-    if elsewhere is not None and (local := _same_source(mart, elsewhere[0], name)) is not None:
+    if target is not None and (local := _column_with(mart, target)) is not None:
         return _resolve_dimension(mart, local, apply_grain=apply_grain, ir=ir)
 
     return _resolve_dimension(mart, name, apply_grain=apply_grain, ir=ir)
@@ -827,20 +903,46 @@ def resolve_branches(
     if not _composable(ir, request, entries, policy):
         raise _split_refusal(entries, naming)
 
+    # A composed statement projects a key under the caller's own name
+    # (logs/T-0026.md, D-165), so a name that is both a requested metric and a
+    # requested dimension would be projected twice under one alias and
+    # `ColumnDescriptor.sql_alias` — the binding contract since RFC 0018 D4 —
+    # would name two columns. `MetricRequest` refuses duplicates within each
+    # tuple and cannot see across them; a single-mart plan is unaffected,
+    # because there the dimension keeps its entity-qualified alias.
+    collisions = sorted(set(request.metrics) & set(request.dimensions))
+
+    if collisions:
+        msg = (
+            f"{collisions} requested as both a metric and a dimension: a cross-grain "
+            "answer projects a dimension under the name you asked for, so the result "
+            "would carry two columns with one name and binding by `sql_alias` could not "
+            "tell them apart.\n  Rename one, or request them separately."
+        )
+        raise InvalidRequest(msg)
+
     by_mart: dict[str, MartIR] = {owner.name: owner for _grain, owner in entries.values()}
     served: dict[str, tuple[str, ...]] = {
         name: tuple(metric for metric in request.metrics if entries[metric][1].name == name)
         for name in sorted(by_mart)
     }
 
+    ordered = [by_mart[name] for name in sorted(by_mart)]
+    # One provenance per requested dimension, agreed across the branches before
+    # any of them resolves — see :func:`_shared_provenance`.
+    targets = [_shared_provenance(ir, ordered, dimension) for dimension in request.dimensions]
     branches = tuple(
         Coverage(
             mart=by_mart[name],
             dimensions=tuple(
                 _resolve_branch_dimension(
-                    by_mart[name], dimension, apply_grain=request.time_grain, ir=ir
+                    by_mart[name],
+                    dimension,
+                    target=target,
+                    apply_grain=request.time_grain,
+                    ir=ir,
                 )
-                for dimension in request.dimensions
+                for dimension, target in zip(request.dimensions, targets, strict=True)
             ),
             filter_dimensions=(),
             policy_dimension=None,

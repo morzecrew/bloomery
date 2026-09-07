@@ -262,13 +262,19 @@ def test_the_corpus_is_the_size_it_claims_to_be() -> None:
 #: branch reports — and the underlying divergence is a defect of the
 #: mart-to-manifest lowering (logs/T-0026.md, D-170).
 CONVERSIONS = {
-    ("UnreachableAtGrain", "accepted"): 17,
+    ("UnreachableAtGrain", "accepted"): 19,
     ("UnreachableAtGrain", "UnknownMember"): 1,
 }
 
 #: How many requests moved in total. Pinned because "no unlicensed change" is
 #: equally true of a phase that converts nothing at all.
-CONVERTED = 18
+#:
+#: Two of the nineteen were added by review: a dimension both branches reach
+#: was refused when an unrelated mart published the same name from a different
+#: origin, because the identity lookup asked the first such mart what the name
+#: meant. `order_id` on `cross_mart_branches` is one — both marts reach
+#: `order.order_id`, so the request is answerable, and it now is.
+CONVERTED = 20
 
 
 def _unlicensed(
