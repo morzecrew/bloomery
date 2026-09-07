@@ -295,24 +295,44 @@ def test_a_computed_measure_is_evaluated_above_the_join(dialect: str) -> None:
     assert " / " in projected
 
 
-def test_an_expression_naming_something_no_branch_produces_is_refused() -> None:
-    """A name the expression references and `inputs` does not explain would
-    reach the SQL as a bare identifier, resolving against whatever the join
-    happens to have in scope — a number produced by an accident of column
-    naming rather than by the metric's definition."""
-    with pytest.raises(PlannerError, match="which no branch produces"):
+@pytest.mark.parametrize(
+    ("expr", "named"),
+    [
+        ("disc / rogue", "rogue"),
+        ("disc / t.disc", "t.disc"),
+        ("disc / branch_0.ship", "branch_0.ship"),
+    ],
+)
+def test_an_expression_naming_something_no_branch_produces_is_refused(
+    expr: str, named: str
+) -> None:
+    """A composed expression reads its declared inputs by their bare names and
+    nothing else.
+
+    The **qualified** cases are the ones that got through. A qualified name is
+    not a rebinding candidate, so checking what was still unqualified *after*
+    the rebinding saw nothing wrong with it: `disc / t.disc` reached the SQL
+    naming a relation the statement does not declare, and
+    `disc / branch_0.ship` named a branch CTE directly, which would read
+    another branch's column under this measure's name. The metrics guardrail
+    does not stop either first — it compares `Column.name`, and the name half
+    of `t.disc` is a declared alias (logs/T-0027.md, finding 5).
+    """
+    with pytest.raises(PlannerError, match="which no branch produces") as excinfo:
         compose(
             _two(),
             keys=("region",),
             measures=(
                 Measure(
                     name="bad",
-                    inputs=(("disc", 1, "disc"),),
-                    expr=parse_one("disc / rogue"),
+                    inputs=(("disc", 1, "disc"), ("ship", 0, "ship")),
+                    expr=parse_one(expr),
                 ),
             ),
             dialect=get_dialect("duckdb"),
         )
+
+    assert named in str(excinfo.value)
 
 
 @pytest.mark.parametrize("dialect", DIALECTS)

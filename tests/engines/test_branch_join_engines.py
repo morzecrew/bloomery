@@ -92,6 +92,25 @@ def _composed(dialect: str) -> str:
     )
 
 
+def _duckdb() -> duckdb.DuckDBPyConnection:
+    """One seeded in-memory DuckDB, for the three tests that need one.
+
+    The reference numbers, the `=` demonstration and the ratio all read the
+    same four orders and six lines; three copies of the seeding is three places
+    a row can be changed in one of them.
+    """
+
+    connection = duckdb.connect()
+    connection.execute("CREATE TABLE cmb_orders (order_id TEXT, region TEXT, shipping INT)")
+    connection.execute("CREATE TABLE cmb_lines (order_id TEXT, discount INT)")
+    connection.executemany("INSERT INTO cmb_orders VALUES (?, ?, ?)", list(ORDERS))
+    connection.executemany("INSERT INTO cmb_lines VALUES (?, ?)", list(LINES))
+    return connection
+
+
+# ....................... #
+
+
 def _as_expected(rows: list[tuple[object, ...]]) -> dict[object, tuple[int, int]]:
     return {row[0]: (int(row[1]), int(row[2])) for row in rows}
 
@@ -156,11 +175,7 @@ def test_duckdb_is_the_reference() -> None:
     """The engine the composed join was developed against, asserted against
     hand-checked numbers rather than against itself — otherwise the two
     engine tests below compare a wrong answer with a wrong answer."""
-    connection = duckdb.connect()
-    connection.execute("CREATE TABLE cmb_orders (order_id TEXT, region TEXT, shipping INT)")
-    connection.execute("CREATE TABLE cmb_lines (order_id TEXT, discount INT)")
-    connection.executemany("INSERT INTO cmb_orders VALUES (?, ?, ?)", list(ORDERS))
-    connection.executemany("INSERT INTO cmb_lines VALUES (?, ?)", list(LINES))
+    connection = _duckdb()
 
     try:
         rows = connection.execute(_composed("duckdb")).fetchall()
@@ -201,11 +216,7 @@ def test_the_null_group_loses_its_numbers_without_null_safe_equality() -> None:
     On DuckDB alone, because this is a property of `=` in SQL rather than of
     any one engine.
     """
-    connection = duckdb.connect()
-    connection.execute("CREATE TABLE cmb_orders (order_id TEXT, region TEXT, shipping INT)")
-    connection.execute("CREATE TABLE cmb_lines (order_id TEXT, discount INT)")
-    connection.executemany("INSERT INTO cmb_orders VALUES (?, ?, ?)", list(ORDERS))
-    connection.executemany("INSERT INTO cmb_lines VALUES (?, ?)", list(LINES))
+    connection = _duckdb()
     unsafe = _composed("duckdb").replace("IS NOT DISTINCT FROM", "=")
 
     try:
@@ -295,15 +306,6 @@ def _as_ratio(rows: list[tuple[object, ...]]) -> dict[object, Decimal]:
     return {
         row[0]: Decimal(str(row[1])).quantize(Decimal("0.001")) for row in rows if row[1] is not None
     }
-
-
-def _duckdb() -> duckdb.DuckDBPyConnection:
-    connection = duckdb.connect()
-    connection.execute("CREATE TABLE cmb_orders (order_id TEXT, region TEXT, shipping INT)")
-    connection.execute("CREATE TABLE cmb_lines (order_id TEXT, discount INT)")
-    connection.executemany("INSERT INTO cmb_orders VALUES (?, ?, ?)", list(ORDERS))
-    connection.executemany("INSERT INTO cmb_lines VALUES (?, ?)", list(LINES))
-    return connection
 
 
 @pytest.mark.parametrize("direction", ["asc", "desc"])

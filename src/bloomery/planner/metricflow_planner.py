@@ -307,6 +307,24 @@ class MetricFlowPlanner:
         # carry a flattened role, the translation has to already be here: its
         # absence answers, it does not fail.
         effective = dict(zip(request.dimensions, keys, strict=True))
+        ordering = tuple(
+            (effective.get(spec.field, spec.field), spec.direction) for spec in request.order_by
+        )
+        projected = {*keys, *(measure.name for measure in measures)}
+
+        # The composed statement can only order by what it projects, and the
+        # field reaches `_ordering` as SQL text. `MetricRequest` already refuses
+        # an order field that is not a requested metric or dimension (RFC 0011
+        # D4), so this cannot fire — it is the second net `names.to_mf_order`
+        # holds under the single-mart path, kept because this path builds the
+        # clause itself instead of handing a name to MetricFlow.
+        if unknown := sorted(field for field, _direction in ordering if field not in projected):
+            msg = (  # pragma: no cover — MetricRequest validation refuses this first
+                f"order_by names {unknown}, which the composed statement does not project "
+                "— a cross-grain answer can only be ordered by its own columns (RFC 0011 D4)"
+            )
+            raise PlannerError(msg)
+
         sql = compose.compose(
             [
                 compose.Branch(
@@ -317,9 +335,7 @@ class MetricFlowPlanner:
             ],
             keys=keys,
             measures=measures,
-            order_by=tuple(
-                (effective.get(spec.field, spec.field), spec.direction) for spec in request.order_by
-            ),
+            order_by=ordering,
             limit=limit,
             dialect=get_dialect(dialect),
         )

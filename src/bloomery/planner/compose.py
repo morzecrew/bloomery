@@ -100,11 +100,12 @@ class Measure:
     aggregated separately — which is the ordering D1 locks, since `SUM(a)/SUM(b)`
     and a row-level `a/b` aggregated afterwards are different numbers.
 
-    ``inputs`` says what each name the expression references resolves to:
-    the alias it was authored under, the branch that produced it, and the
-    column that branch calls it. The three differ in general — a ratio's
-    operand is `revenue` under all three, an RFC 0034 ``derived:`` input is
-    authored against an alias of its own.
+    ``inputs`` says what each name the expression references resolves to: the
+    alias it was authored under, the index of the branch that produced it, and
+    the column that branch calls it. Alias and column need not agree — a
+    ratio's operand is `revenue` under both, while an RFC 0034 ``derived:``
+    input is authored against an alias of its own and read from the column its
+    metric is named after.
     """
 
     name: str
@@ -204,37 +205,48 @@ def _bound(measure: Measure) -> Expression:
     that branch called it. Rebinding here is what keeps the two apart — the
     expression is never rewritten as text, and never re-parsed after this.
 
-    A name the expression references and ``inputs`` does not explain is
-    refused rather than emitted. It would reach the SQL as a bare identifier
-    resolving against whatever the join happens to have in scope, which is a
-    number produced by an accident of column naming.
+    Every column reference is checked **before** anything is rebound, and is
+    refused unless it is a bare name this measure declares. Checking what
+    survives the rebinding instead misses the reference that was never a
+    candidate for it: a *qualified* name is not rebound and is not bare
+    afterwards either, so `d - t.orders` passed and reached the SQL naming a
+    relation nothing in the statement declares — or, where the qualifier
+    happened to spell a branch alias, silently read another branch's column.
+    The metrics guardrail does not catch it first: it compares
+    ``Column.name``, and the name half of `t.orders` is a declared alias
+    (logs/T-0027.md, finding 5).
     """
 
     lookup = {alias: (index, column) for alias, index, column in measure.inputs}
+    expression = guaranteed(
+        (candidate for candidate in (measure.expr,) if candidate is not None),
+        expected=f"an expression for computed measure {measure.name!r}",
+        by="Measure.expr, which `_projection` checks before calling this",
+    )
+    unbound = sorted(
+        {
+            column.sql()
+            for column in expression.find_all(exp.Column)
+            if column.table or column.name not in lookup
+        }
+    )
+
+    if unbound:
+        msg = (
+            f"computed measure {measure.name!r} references {unbound}, which no branch "
+            "produces — a composed expression reads its declared inputs by their bare "
+            "names and nothing else (RFC 0041 D3)"
+        )
+        raise PlannerError(msg)
 
     def rebind(node: Expression) -> Expression:
-        if isinstance(node, exp.Column) and not node.table and node.name in lookup:
+        if isinstance(node, exp.Column) and node.name in lookup:
             index, column = lookup[node.name]
             return exp.column(column, table=_ALIAS.format(index=index))
 
         return node
 
-    bound = guaranteed(
-        (expression for expression in (measure.expr,) if expression is not None),
-        expected=f"an expression for computed measure {measure.name!r}",
-        by="Measure.expr, which `_projection` checks before calling this",
-    ).transform(rebind)
-    unbound = sorted({column.name for column in bound.find_all(exp.Column) if not column.table})
-
-    if unbound:
-        msg = (
-            f"computed measure {measure.name!r} references {unbound}, which no branch "
-            "produces — a composed expression may only read its declared inputs "
-            "(RFC 0041 D3)"
-        )
-        raise PlannerError(msg)
-
-    return bound
+    return expression.transform(rebind)
 
 
 # ....................... #

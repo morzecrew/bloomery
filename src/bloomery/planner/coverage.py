@@ -126,10 +126,21 @@ class Projected:
 
     @property
     def components(self) -> tuple[str, ...]:
-        """The component metrics a branch has to produce — the metric itself
-        where it is stored, since a branch is asked for that name."""
+        """The component metrics a branch has to produce.
 
-        return tuple(metric for _alias, metric in self.inputs) or (self.name,)
+        A stored measure has no ``inputs`` and answers with its own name,
+        because that is what a branch is asked for. The empty case is decided
+        here rather than inherited: a computed metric always has inputs — a
+        ratio has two and RFC 0034 gives ``inputs:`` a ``min_length=1`` — so
+        ``inputs`` being empty means "stored" and nothing else, and the day
+        that stops being true this reads as a branch asked for the metric it
+        was supposed to compute.
+        """
+
+        if not self.inputs:
+            return (self.name,)
+
+        return tuple(metric for _alias, metric in self.inputs)
 
 
 # ....................... #
@@ -959,7 +970,13 @@ def _homes(
 
     metric = next((candidate for candidate in ir.metrics if candidate.name == component), None)
 
-    if metric is None:
+    if metric is None:  # pragma: no cover — a component always names a real metric
+        # `_projected` reads components off `metric.ratio` and
+        # `metric.derived.inputs`, and both are checked against the metric set
+        # when the project compiles — `_measures_of` asserts the same thing
+        # with `guaranteed` on the way down. Kept because what holds it up is a
+        # guardrail rather than anything here, and `{None}` refuses where a
+        # `KeyError` two frames later would not say what went wrong.
         return {None}
 
     leaves = _measures_of(ir, metric, set())
@@ -1273,6 +1290,11 @@ def resolve_branches(
         *((("row policy", policy.dimension),) if policy is not None else ()),
     ]:
         if name in restrictions:
+            # A repeat, not a conflict: `_shared_provenance` is pure in its
+            # arguments, so the second lookup would return the first's answer.
+            # What the skip decides is which `kind` the refusal names when a
+            # dimension both a filter and the policy mention reaches no branch
+            # — the first mention, which is the filter.
             continue
         target = _shared_provenance(ir, ordered, name)
         if target is None:

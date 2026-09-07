@@ -1133,3 +1133,57 @@ def test_a_component_on_two_marts_is_refused_rather_than_placed_on_one() -> None
 
     with pytest.raises(PlannerError, match="has to be aggregated by one branch"):
         coverage._home(ir, entries, "discount_per_order")  # noqa: SLF001
+
+
+def test_a_component_carrying_its_own_restriction_declines_the_composed_path() -> None:
+    """P1 refused a *requested* metric with its own `filter:`, because a branch's
+    `Filter` node says one thing about every measure beneath it. A **component**
+    of a computed metric is aggregated by a branch in exactly the same way, and
+    the rule has to reach it there too.
+
+    Found by patch coverage rather than by the sabotage sweep: nothing mutated
+    reached this line, and no request in the corpus builds a ratio over a
+    restricted operand (logs/T-0027.md, finding 6).
+    """
+    ir = _variant(
+        "cross_mart_branches",
+        metrics=(
+            "  line_discount:\n    grain: order_item\n",
+            "  line_discount:\n    grain: order_item\n"
+            "    filter:\n      - {dimension: order_region, op: eq, values: ['EU']}\n",
+        ),
+    )
+
+    with pytest.raises(UnreachableAtGrain, match="different grains"):
+        resolve_branches(
+            ir,
+            MetricRequest(metrics=("discount_per_order",), dimensions=("tier",)),
+            naming=DefaultNaming(),
+        )
+
+
+def test_one_dimension_named_by_both_a_filter_and_the_policy_is_anchored_once() -> None:
+    """A filter and the row policy naming one dimension resolve to one column
+    on every branch.
+
+    The ordinary case — scope to a region, then filter within it — and what it
+    pins is the *result*, not the dedup that produces it: `_shared_provenance`
+    is a pure function of the IR, the branches and the name, so looking a
+    dimension up twice cannot anchor it twice differently. Emptying the skip
+    leaves this test green, and the docstring said otherwise until a mutation
+    said so (logs/T-0027.md, finding 6).
+    """
+    branches = resolve_branches(
+        fixture_ir("cross_mart_branches"),
+        MetricRequest(
+            metrics=("shipping_count", "line_discount"),
+            dimensions=("tier",),
+            filters=(Predicate(dimension="region", op=Op.NE, values=("UK",)),),
+        ),
+        naming=DefaultNaming(),
+        policy=RowPolicy(dimension="region", op=Op.EQ, value="EU"),
+    )
+
+    for branch in branches:
+        assert branch.policy_dimension is not None
+        assert branch.filter_dimensions[0][0].name == branch.policy_dimension.name
