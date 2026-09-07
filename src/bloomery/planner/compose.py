@@ -22,10 +22,23 @@ branches — the coalesced keys, the null-safe equality, the projection — and
 those are sqlglot ASTs rendered through the dialect port, never text.
 
 **Null semantics are bloomery's, once, for every dialect (D13).** The keys
-join with ``IS NOT DISTINCT FROM``, so a NULL group on one side meets the NULL
-group on the other instead of failing ``NULL = NULL`` and splitting into two
-rows that a re-aggregation pass then has to merge. All three shipped dialects
-render that spelling identically.
+match with ``IS NOT DISTINCT FROM``, so a NULL group on one side meets the
+NULL group on the other instead of failing ``NULL = NULL`` and splitting into
+two rows that a re-aggregation pass then has to merge.
+
+**The shape is a key domain and left joins, not a full outer join**, and that
+is a result rather than a preference. PostgreSQL refuses
+``FULL JOIN … ON a IS NOT DISTINCT FROM b`` outright — *"FULL JOIN is only
+supported with merge-joinable or hash-joinable join conditions"* — so the
+obvious composition is a statement one of the three shipped dialects cannot
+run at all. It renders on every one of them, which is why RFC 0041 D17 asks
+for the engine tier rather than for the documentation (logs/T-0026.md, D-171).
+
+So the branches become CTEs, their keys are unioned into the domain of groups
+the answer has — ``UNION`` deduplicates NULL against NULL, which is the same
+null semantics stated the other way round — and each branch is left-joined
+back onto that domain. Every group present in any branch appears exactly once,
+which is what the full outer join was for.
 """
 
 from __future__ import annotations
@@ -51,11 +64,15 @@ __all__ = [
     "compose",
 ]
 
-#: The alias each branch subquery is given, by position. A generated name
-#: rather than the mart's: a mart name is authored and could collide with a
-#: column the branch projects, and the alias is never shown to anybody —
-#: `QueryPlan.marts` is where a caller reads which marts answered.
+#: The name each branch's CTE is given, by position. A generated name rather
+#: than the mart's: a mart name is authored and could collide with a column the
+#: branch projects, and the name is never shown to anybody — `QueryPlan.marts`
+#: is where a caller reads which marts answered.
 _ALIAS = "branch_{index}"
+
+#: The CTE holding every group the answer has, one row per group. Named in the
+#: same generated namespace for the same reason.
+_KEYS = "branch_keys"
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,47 +111,52 @@ def _key_reference(branch: Branch, index: int, position: int) -> exp.Column:
 # ....................... #
 
 
-def _coalesced(references: Sequence[exp.Column]) -> exp.Expression:
-    """``COALESCE`` over the references, or the reference itself when there is
-    one — a one-argument ``COALESCE`` is legal everywhere and reads as though
-    a second branch went missing."""
+def _key_domain(branches: Sequence[Branch], keys: Sequence[str], dialect: DialectPort) -> str:
+    """Every group the answer has, once — the union of the branches' keys.
 
-    first, *rest = references
+    ``UNION`` and not ``UNION ALL``: the deduplication is the point, and it is
+    where D13's null semantics live on this shape. SQL's set operators compare
+    NULL to NULL as *not distinct*, so the NULL group of one branch and the
+    NULL group of another collapse to one row exactly as a matching pair of
+    ordinary keys does — the same rule as the ``IS NOT DISTINCT FROM`` below,
+    stated by a different construct because that construct is the one every
+    engine accepts here.
+    """
 
-    return exp.Coalesce(this=first, expressions=list(rest)) if rest else first
+    # S608 reads a SELECT built by concatenation as an injection vector. Every
+    # part of this one is generated: the key expressions are sqlglot ASTs
+    # rendered by the dialect port, and `branch_0` is this module's own name
+    # for a CTE. No request value reaches it — those are inside the branch SQL
+    # MetricFlow rendered, which this module never builds and never parses.
+    return "\n  UNION\n".join(
+        "  SELECT "  # noqa: S608
+        + ", ".join(
+            dialect.render(_aliased(_key_reference(branch, index, position), name))
+            for position, name in enumerate(keys)
+        )
+        + f" FROM {_ALIAS.format(index=index)}"
+        for index, branch in enumerate(branches)
+    )
 
 
 # ....................... #
 
 
-def _join_condition(branches: Sequence[Branch], index: int) -> exp.Expression:
-    """How branch ``index`` meets everything joined before it.
+def _matches(branch: Branch, index: int, keys: Sequence[str]) -> exp.Expression:
+    """How one branch is matched back onto the key domain.
 
-    Against the ``COALESCE`` of the earlier branches rather than against the
-    first of them: after a full outer join, a key present only on the second
-    branch sits in the second branch's column and is NULL in the first, so
-    comparing the third branch to the first alone would drop every group the
-    first did not have.
+    ``IS NOT DISTINCT FROM`` rather than ``=``, so the branch's NULL group
+    finds the domain's NULL group instead of vanishing from the answer. Legal
+    as a ``LEFT JOIN`` condition on all three shipped dialects; as a
+    ``FULL JOIN`` condition it is not, which is what decided this shape.
     """
-
-    if not branches[index].keys:
-        # No grouping at all: each branch is a single row of totals, and the
-        # join is the cross product of one row with one row. `ON TRUE` says
-        # that; omitting the condition would make it a syntax error, and
-        # inventing a key would make it a lie.
-        return exp.true()
 
     matched: list[exp.Expression] = [
         exp.NullSafeEQ(
-            this=_key_reference(branches[index], index, position),
-            expression=_coalesced(
-                [
-                    _key_reference(branch, earlier, position)
-                    for earlier, branch in enumerate(branches[:index])
-                ]
-            ),
+            this=_key_reference(branch, index, position),
+            expression=exp.column(name, table=_KEYS),
         )
-        for position in range(len(branches[index].keys))
+        for position, name in enumerate(keys)
     ]
 
     return functools.reduce(lambda left, right: exp.And(this=left, expression=right), matched)
@@ -146,24 +168,22 @@ def _join_condition(branches: Sequence[Branch], index: int) -> exp.Expression:
 def _projection(
     branches: Sequence[Branch], keys: Sequence[str], measures: Sequence[tuple[int, str]]
 ) -> list[exp.Expression]:
-    """The composed SELECT list: coalesced keys first, then measures in
-    request order.
+    """The composed SELECT list: the key domain's columns first, then measures
+    in request order.
 
-    A key is projected under **bloomery's** name rather than under either
+    A key is projected under **bloomery's** name rather than under any
     branch's spelling of it (logs/T-0026.md, D-165). The dunder names are
-    MetricFlow's vocabulary and survive inside the branch subqueries where
-    they are still MetricFlow's SQL; the composed statement is bloomery's, and
+    MetricFlow's vocabulary and survive inside the branch CTEs where they are
+    still MetricFlow's SQL; the composed statement is bloomery's, and
     ``ColumnDescriptor.sql_alias`` reports what it actually projects.
+
+    Read from the key domain rather than from a branch: after a left join a
+    branch's copy of the key is NULL for every group that branch does not
+    have, and the domain's copy never is.
     """
 
     projected: list[exp.Expression] = [
-        _aliased(
-            _coalesced(
-                [_key_reference(branch, index, position) for index, branch in enumerate(branches)]
-            ),
-            name,
-        )
-        for position, name in enumerate(keys)
+        _aliased(exp.column(name, table=_KEYS), name) for name in keys
     ]
     # Aliased explicitly, though a bare column reference would already come
     # back under its own name on all three dialects: the alias is what makes
@@ -206,17 +226,30 @@ def compose(
     if not dialect.supports(DialectFeature.NULL_SAFE_EQUALITY):
         msg = (
             f"dialect {dialect.name!r} declares no null-safe equality, and a branch join "
-            "needs one: joining on `=` drops every group whose key is NULL from the "
+            "needs one: matching on `=` drops every group whose key is NULL from the "
             "answer instead of reporting it (RFC 0041 D13, D17)"
         )
         raise PlannerError(msg)
 
+    defined = [
+        f"{_ALIAS.format(index=index)} AS (\n{branch.sql}\n)"
+        for index, branch in enumerate(branches)
+    ]
     selected = ",\n  ".join(dialect.render(item) for item in _projection(branches, keys, measures))
-    lines = [f"SELECT\n  {selected}", f"FROM (\n{branches[0].sql}\n) AS {_ALIAS.format(index=0)}"]
-    lines.extend(
-        f"FULL OUTER JOIN (\n{branch.sql}\n) AS {_ALIAS.format(index=index)}\n"
-        f"  ON {dialect.render(_join_condition(branches, index))}"
-        for index, branch in enumerate(branches[1:], start=1)
+
+    if not keys:
+        # No grouping at all: each branch is a single row of totals, and the
+        # answer is their cross product. There is no key domain to build, and
+        # inventing one would be a group nobody asked for.
+        crossed = " CROSS JOIN ".join(_ALIAS.format(index=index) for index in range(len(branches)))
+
+        return f"WITH {', '.join(defined)}\nSELECT\n  {selected}\nFROM {crossed}"
+
+    defined.append(f"{_KEYS} AS (\n{_key_domain(branches, keys, dialect)}\n)")
+    joined = "\n".join(
+        f"LEFT JOIN {_ALIAS.format(index=index)}\n"
+        f"  ON {dialect.render(_matches(branch, index, keys))}"
+        for index, branch in enumerate(branches)
     )
 
-    return "\n".join(lines)
+    return f"WITH {', '.join(defined)}\nSELECT\n  {selected}\nFROM {_KEYS}\n{joined}"

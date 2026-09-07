@@ -410,4 +410,81 @@ def test_the_composed_sql_is_fingerprinted_over_the_whole_statement() -> None:
     plan = _composed()
 
     assert plan.fingerprint == hashlib.sha256(plan.sql.encode("utf-8")).hexdigest()
-    assert plan.sql.startswith("SELECT")
+    # The branches are CTEs of one statement, not two statements a caller
+    # would have to run in order.
+    assert plan.sql.startswith("WITH branch_0 AS (")
+    assert plan.sql.count("LEFT JOIN branch_") == len(plan.marts)
+
+
+def test_the_key_keeps_the_requested_name_when_no_branch_spells_it_that_way() -> None:
+    """The case the three-measure test above cannot see, and a sabotage sweep
+    found: with `customers` among the branches the first branch calls the
+    dimension `tier` already, so taking the first branch's spelling and taking
+    the requested name are the same string, and a planner doing the first
+    passes a test written for the second.
+
+    Two branches, and neither spells it `tier`: `order_items` reaches it as
+    `order_customer_tier` two hops away and `orders` as `customer_tier` one
+    hop away. The caller asked for `tier` (logs/T-0026.md, D-165).
+    """
+    plan = make_planner().plan(
+        fixture_ir("cross_mart_branches"),
+        MetricRequest(metrics=("shipping_count", "line_discount"), dimensions=("tier",)),
+        dialect="duckdb",
+    )
+
+    assert plan.marts == ("order_items", "orders")
+    assert [column.name for column in plan.columns][0] == "tier"
+    assert "AS tier" in plan.sql
+
+
+def test_a_date_role_is_answered_under_its_effective_name() -> None:
+    """D-169, the exception to D-165, exercised where it decides something.
+
+    A request for `ordered_day` under a monthly `time_grain` is answered by a
+    single-mart plan under `ordered_month`, and answering a composed one under
+    the string the caller typed would print a monthly number beneath a daily
+    name. Every branch agrees on the effective name, because two marts
+    reaching one date column under different roles have different provenance
+    and D12 refuses them before a name has to be chosen.
+
+    Built from resolutions rather than from a fixture: the marts that would
+    share a date role by provenance are two marts on one base entity, and the
+    rule under test is a naming rule the resolutions already carry.
+    """
+    from bloomery.planner.coverage import Coverage
+    from bloomery.planner.metricflow_planner import _composed_keys
+    from bloomery.planner.names import ResolvedDimension
+    from bloomery.planner.request import TimeGrain
+    from bloomery.planner.result import ColumnDescriptor
+    from bloomery.typing import DateType
+
+    ir = fixture_ir("cross_mart_branches")
+    marts = {mart.name: mart for mart in ir.marts}
+    resolved = ResolvedDimension(name="ordered_month", role="ordered", grain=TimeGrain.MONTH)
+    branches = tuple(
+        Coverage(
+            mart=marts[name],
+            dimensions=(resolved,),
+            filter_dimensions=(),
+            policy_dimension=None,
+            metrics=(),
+        )
+        for name in ("order_items", "orders")
+    )
+    columns = [
+        (
+            ColumnDescriptor(
+                name="ordered_month",
+                sql_alias="order__ordered_day__month",
+                type=DateType(),
+                role="dimension",
+            ),
+        )
+    ] * len(branches)
+
+    keys = _composed_keys(
+        MetricRequest(metrics=("shipping_count",), dimensions=("ordered_day",)), branches, columns
+    )
+
+    assert keys == ("ordered_month",)

@@ -17,11 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   builds it.
 
   Each branch is planned exactly as the single-mart request it is, and bloomery
-  composes the join itself: a `FULL OUTER JOIN` on null-safe key equality, so a
-  group present on one side only survives, and a NULL group meets the other
-  side's NULL group instead of splitting in two. No join happens before an
-  aggregate, so nothing can fan out; joining raw rows at query time stays
-  refused.
+  composes the join itself: the branches become CTEs, their keys are `UNION`ed
+  into the domain of groups the answer has, and each branch is left-joined back
+  onto that domain on `IS NOT DISTINCT FROM`. So a group present in one branch
+  only survives, and a NULL group meets the other branch's NULL group instead
+  of splitting in two. It is a full outer join written the long way — the same
+  shape the reconcile emitter already uses, and for the same reason:
+  PostgreSQL will not plan a `FULL JOIN` on a null-safe condition. No join
+  happens before an aggregate, so nothing can fan out; joining raw rows at
+  query time stays refused.
 
   Two conditions are checked before anything is planned, and a request failing
   either keeps the refusal it had:

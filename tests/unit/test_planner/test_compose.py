@@ -36,17 +36,25 @@ def _two() -> list[Branch]:
 # ....................... #
 
 
-def test_the_branches_are_joined_full_outer_on_a_null_safe_key() -> None:
-    """Both halves of D13 in one statement: a group present on one side only
-    survives the join, and a NULL group meets the other side's NULL group
-    instead of failing `NULL = NULL` and splitting into two rows."""
+def test_the_answer_is_a_key_domain_every_branch_is_matched_back_onto() -> None:
+    """Both halves of D13 in one statement: a group present on one branch only
+    survives, and a NULL group meets the other branch's NULL group instead of
+    failing `NULL = NULL`.
+
+    A `UNION`ed key domain and left joins rather than a full outer join —
+    PostgreSQL refuses `FULL JOIN … ON a IS NOT DISTINCT FROM b` outright, so
+    the obvious composition is one a shipped dialect cannot run
+    (logs/T-0026.md, D-171).
+    """
     sql = compose(
         _two(), keys=("region",), measures=((0, "ship"), (1, "disc")), dialect=get_dialect("duckdb")
     )
 
-    assert "FULL OUTER JOIN" in sql
-    assert "IS NOT DISTINCT FROM" in sql
+    assert "FULL" not in sql
     assert "INNER JOIN" not in sql
+    assert sql.count("LEFT JOIN") == 2
+    assert "UNION\n" in sql and "UNION ALL" not in sql
+    assert sql.count("IS NOT DISTINCT FROM") == 2
 
 
 def test_the_key_is_projected_once_under_the_name_the_caller_asked_for() -> None:
@@ -58,15 +66,16 @@ def test_the_key_is_projected_once_under_the_name_the_caller_asked_for() -> None
         _two(), keys=("region",), measures=((0, "ship"), (1, "disc")), dialect=get_dialect("duckdb")
     )
 
-    assert "COALESCE(branch_0.order__region, branch_1.item__order_region) AS region" in sql
-    assert sql.count(" AS region") == 1
+    assert "branch_keys.region AS region" in sql
+    # Once in the projection, and once per branch in the key domain — never
+    # read from a branch, whose copy is NULL for every group it does not have.
+    assert sql.count(" AS region") == 1 + len(_two())
 
 
-def test_a_third_branch_joins_against_every_earlier_one() -> None:
-    """The generalization that a two-branch case cannot see. After a full
-    outer join a key present only on the second branch is NULL in the first,
-    so joining the third against the first alone would drop every group the
-    first did not have."""
+def test_every_branch_contributes_to_the_key_domain_and_is_matched_back() -> None:
+    """The generalization a chain of pairwise joins gets wrong: with a key
+    domain there is no "earlier branch" to compare against, so a group only
+    the third branch has is in the answer for the same reason as any other."""
     branches = [
         Branch(sql="S0", keys=("k0",)),
         Branch(sql="S1", keys=("k1",)),
@@ -79,21 +88,23 @@ def test_a_third_branch_joins_against_every_earlier_one() -> None:
         dialect=get_dialect("duckdb"),
     )
 
-    assert "ON branch_1.k1 IS NOT DISTINCT FROM branch_0.k0" in sql
-    assert "ON branch_2.k2 IS NOT DISTINCT FROM COALESCE(branch_0.k0, branch_1.k1)" in sql
+    for index in range(3):
+        assert f"SELECT branch_{index}.k{index} AS region FROM branch_{index}" in sql
+        assert f"ON branch_{index}.k{index} IS NOT DISTINCT FROM branch_keys.region" in sql
 
 
-def test_an_ungrouped_request_joins_on_true() -> None:
-    """Each branch is one row of totals, so the join is their cross product.
-    Omitting the condition is a syntax error and inventing a key is a lie;
-    `ON TRUE` is what the shape actually is."""
+def test_an_ungrouped_request_is_a_cross_join_of_totals() -> None:
+    """Each branch is one row of totals, so the answer is their cross product.
+    There is no key domain to build, and inventing one would be a group nobody
+    asked for."""
     branches = [Branch(sql="S0", keys=()), Branch(sql="S1", keys=())]
     sql = compose(
         branches, keys=(), measures=((0, "a"), (1, "b")), dialect=get_dialect("duckdb")
     )
 
-    assert "ON TRUE" in sql
-    assert "COALESCE" not in sql
+    assert "CROSS JOIN" in sql
+    assert "branch_keys" not in sql
+    assert "LEFT JOIN" not in sql
 
 
 def test_measures_are_projected_in_the_order_they_were_asked_for() -> None:
@@ -120,6 +131,9 @@ def test_every_shipped_dialect_renders_one_statement(dialect: str) -> None:
 
     assert port.supports(DialectFeature.NULL_SAFE_EQUALITY)
     assert "IS NOT DISTINCT FROM" in sql
+    # Rendering is not running: `tests/engines/test_branch_join_engines.py`
+    # executes this statement on PostgreSQL and Trino, which is where the
+    # first shape of it was found to be unrunnable (D17).
 
 
 def test_a_dialect_without_null_safe_equality_is_refused() -> None:
