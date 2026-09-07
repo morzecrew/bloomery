@@ -110,6 +110,21 @@
       "title": "CoercibleRule",
       "type": "object"
     },
+    "CurrencyColumn": {
+      "additionalProperties": false,
+      "description": "Per-row denomination: the sibling column holding this row's currency\ncode (RFC 0061 D5).\n\nIn the vocabulary from the first commit and lowered by P2, because the\nalternative is a second way to say what currency a value is in, arriving\nlater \u2014 the argument that withdrew RFC 0040's P3. Resolution refuses it as\nunbuilt rather than as invalid, so the refusal says which it is.",
+      "properties": {
+        "column": {
+          "title": "Column",
+          "type": "string"
+        }
+      },
+      "required": [
+        "column"
+      ],
+      "title": "CurrencyColumn",
+      "type": "object"
+    },
     "InEnumRule": {
       "additionalProperties": false,
       "description": "``{rule: in_enum}`` \u2014 the value survived its ``enum_map`` chain\nunmapped. Parameterless by construction: the admissible set *is* the\nchain's mapping, and restating it here would let the two drift.",
@@ -206,6 +221,22 @@
       "additionalProperties": false,
       "description": "Key-column lowering: a JSONPath-lite source path plus transform chain.",
       "properties": {
+        "currency_in": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{3}$",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/CurrencyColumn"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Currency In"
+        },
         "from": {
           "pattern": "^\\$(?:\\.[A-Za-z_][A-Za-z0-9_]*)+$",
           "title": "From",
@@ -744,6 +775,22 @@
       "additionalProperties": false,
       "description": "Direct field mapping: one source path plus a transform chain, and the\nfield's ``quality:`` rules (RFC 0016 \u00a75.3).",
       "properties": {
+        "currency_in": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{3}$",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/CurrencyColumn"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Currency In"
+        },
         "from": {
           "pattern": "^\\$(?:\\.[A-Za-z_][A-Za-z0-9_]*)+$",
           "title": "From",
