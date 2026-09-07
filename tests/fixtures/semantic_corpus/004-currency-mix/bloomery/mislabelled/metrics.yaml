@@ -1,5 +1,7 @@
-# The same total, over an operand that was converted first — so both sides of
-# the addition are USD and the sum has a unit.
+# The same total as `converted`, and the same shape — the difference is one
+# word in the mapping. Nothing here is reached: the conversion feeding
+# `amount_usd` names an input currency the field does not declare, so the
+# project is refused before any metric is read.
 metrics_version: 1
 metrics:
   total_usd:
