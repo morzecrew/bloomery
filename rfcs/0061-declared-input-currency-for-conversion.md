@@ -1,6 +1,6 @@
 # RFC 0061 — Declared input currency for conversion
 
-- **Status:** 📝 Draft — execution-ready. The refusal it adds is small; the spec surface it
+- **Status:** 🚧 In progress — P1 has landed: `currency_in:`, R009, the chain walk and §5.3's two-hop fix. P2 (per-row denomination lowered) is unscheduled. D9 records the two §6 tests execution struck and why; §6 keeps its text. The refusal it adds is small; the spec surface it
   adds is one optional key, and the migration is one line per converting field.
 - **Scope:** Give a currency conversion's *input* a declared fact to be checked against.
   `{convert: [<from>, <to>, <anchor>]}` asserts what currency the column holds, and nothing
@@ -282,6 +282,7 @@ that was previously checked, because nothing was.
 | 6 | `ASSUMED` | **The declaration lives on the mapping's field, not on the entity or canonical field.** The mapping is where a source path and a transform chain meet, and a canonical field is shared across mappings — one field fed by a euro feed and a dollar feed would need two input currencies for one declaration. Not `LOCKED` because a project that never maps the same canonical field twice would not notice the difference. |
 | 7 | `OPEN` | **Whether `currency_in:` extends to `RecipeFieldMapping` and `MacroFieldMapping`.** A recipe's chain can hold a conversion and probably should carry the key; a macro's body is opaque SQL, and the honest answer may be that a conversion inside one cannot be reasoned about and should be refused. Decide when P1 reaches them, and log which, with what the refusal says. |
 | 8 | `OPEN` | **Whether R009's proof is retained anywhere or produced on demand.** `prove_rollup` is called by the planner when someone asks; a conversion happens once at compile time and nobody asks later. Deciding it decides whether the guardrail stage grows a proof channel — which is a bigger change than this document, and probably the wrong place for it. Prefer on demand, and log the reason. |
+| 9 | `ASSUMED` | **Two of §6's tests are struck rather than written.** The per-row item — a `column:` naming a field the mapping does not produce — cannot be written as §6 states it, because D5 refuses per-row as *unbuilt* before anything reads the name; the check belongs with the P2 lowering that would use it. The monotonicity item is a property this phase declares itself an exception to: converting specs that compiled yesterday are refused, which §9 names as breaking, so asserting `SafeQueries(N) ⊆ SafeQueries(N+1)` over a corpus containing the exception either fails or is written to exclude what it exists to check. The residue — that nothing which does not convert is affected — is what the whole-corpus suite already asserts. Not `LOCKED` because a later phase that makes per-row real should re-read §6 rather than this row. Added by execution 2026-09-07 — see [`logs/T-0025.md`](../logs/T-0025.md) (D-161, attempt 4). |
 
 ## 12. Phasing
 

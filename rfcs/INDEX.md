@@ -100,7 +100,7 @@ know it has a companion recording where it turned out to be wrong.
 | [0058](0058-rollup-marts-and-pre-aggregations.md) | Rollup marts and pre-aggregations | 📝 Draft | Aggregate marts and Cube `pre_aggregations` are one feature; blocked on RFC 0037 and RFC 0040, whose vocabulary its safety condition is written in. |
 | [0059](0059-multi-project-composition.md) | Multi-project composition | 📝 Draft | One project reading another's published surface: what may cross the boundary, and what a fingerprint means once something does. |
 | [0060](0060-replay-on-a-historical-entity.md) | Replay on a historical entity | 📝 Draft | Replay writes past the framework that owns a type 2 relation's versions, so a recovered row lands invisible; the pair is refused until a route through the framework exists. |
-| [0061](0061-declared-input-currency-for-conversion.md) | Declared input currency for conversion | 📝 Draft | A conversion asserts what currency its column holds and nothing checks it, so the wrong rate is reachable from four characters; the input gets a declaration and a proof rule that reads it. |
+| [0061](0061-declared-input-currency-for-conversion.md) | Declared input currency for conversion | 🚧 In progress | A conversion asserts what currency its column holds and nothing checks it, so the wrong rate is reachable from four characters; the input gets a declaration and a proof rule that reads it. |
 
 ## Status legend
 

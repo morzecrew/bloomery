@@ -120,6 +120,26 @@ def test_a_per_row_currency_column_is_refused_as_unbuilt() -> None:
         _declare("{column: ccy}")
 
 
+def test_a_column_the_catalog_gives_no_currency_converts_freely() -> None:
+    """RFC 0061 checks the *input*; the output is the catalog's business and
+    the catalog may decline to have an opinion.
+
+    `_declared_currency` returns None for both "no catalog" and "no currency
+    declared", so this is the branch where the chain is proven and then
+    compared against nothing. Untested, the comparison could be made
+    unconditional and every fixture would still pass, because every other
+    converting column declares one (logs/T-0025.md, D-161).
+    """
+    sources = _sources()
+    catalog = (FIXTURE / "catalog.yaml").read_text().replace(
+        '  amount_usd: {entity: payment, type: "decimal(12,4)", unit: currency, '
+        "tax_basis: net, currency: USD}",
+        '  amount_usd: {entity: payment, type: "decimal(12,4)", unit: currency, '
+        "tax_basis: net}",
+    )
+    build_project_ir(load_project(sources), catalog=load_catalog(catalog))
+
+
 # ....................... #
 # A key column converts too (RFC 0061 D1; logs/T-0025.md, D-158)
 

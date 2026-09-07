@@ -23,6 +23,7 @@ already withdrawn for having no consumer.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Final
 
@@ -91,20 +92,20 @@ _REMEDIES: Final[dict[DenominationRefusal, str]] = {
 # ....................... #
 
 
+@dataclass(frozen=True, slots=True)
 class Conversion:
     """One ``convert`` step's declared triple, as the prover reads it.
 
-    A plain object rather than a dataclass over the marker's expressions: the
-    prover has no business knowing what a SQLGlot node looks like, and the
-    caller has no business knowing what a proof needs.
+    Its own type rather than the marker's expressions: the prover has no
+    business knowing what a SQLGlot node looks like, and `resolve.build` has
+    none knowing what a proof needs. Frozen and slotted like every other node
+    in this package — a prover that could mutate its own input is a prover
+    whose answer depends on when you read it.
     """
 
-    __slots__ = ("anchor", "from_ccy", "to_ccy")
-
-    def __init__(self, from_ccy: str, to_ccy: str, anchor: str) -> None:
-        self.from_ccy = from_ccy
-        self.to_ccy = to_ccy
-        self.anchor = anchor
+    from_ccy: str
+    to_ccy: str
+    anchor: str
 
 
 # ....................... #
