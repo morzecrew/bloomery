@@ -43,11 +43,11 @@ which is what the full outer join was for.
 
 from __future__ import annotations
 
-import functools
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from sqlglot import exp
+from sqlglot.expressions.core import Expression
 
 from bloomery.dialects import DialectFeature
 from bloomery.errors import PlannerError
@@ -89,7 +89,7 @@ class Branch:
     keys: tuple[str, ...]
 
 
-def _aliased(expression: exp.Expression, name: str) -> exp.Alias:
+def _aliased(expression: Expression, name: str) -> exp.Alias:
     """``expression AS name``, built rather than parsed.
 
     :func:`sqlglot.expressions.alias_` would do it and is typed to return the
@@ -142,7 +142,7 @@ def _key_domain(branches: Sequence[Branch], keys: Sequence[str], dialect: Dialec
 # ....................... #
 
 
-def _matches(branch: Branch, index: int, keys: Sequence[str]) -> exp.Expression:
+def _matches(branch: Branch, index: int, keys: Sequence[str]) -> Expression:
     """How one branch is matched back onto the key domain.
 
     ``IS NOT DISTINCT FROM`` rather than ``=``, so the branch's NULL group
@@ -151,15 +151,22 @@ def _matches(branch: Branch, index: int, keys: Sequence[str]) -> exp.Expression:
     ``FULL JOIN`` condition it is not, which is what decided this shape.
     """
 
-    matched: list[exp.Expression] = [
+    matched: list[Expression] = [
         exp.NullSafeEQ(
             this=_key_reference(branch, index, position),
             expression=exp.column(name, table=_KEYS),
         )
         for position, name in enumerate(keys)
     ]
+    # Folded rather than `functools.reduce`d: the accumulator is an
+    # `Expression` and each step returns an `And`, which reduce's own signature
+    # cannot express — it binds one type variable to both.
+    conjunction = matched[0]
 
-    return functools.reduce(lambda left, right: exp.And(this=left, expression=right), matched)
+    for extra in matched[1:]:
+        conjunction = exp.And(this=conjunction, expression=extra)
+
+    return conjunction
 
 
 # ....................... #
@@ -167,7 +174,7 @@ def _matches(branch: Branch, index: int, keys: Sequence[str]) -> exp.Expression:
 
 def _projection(
     branches: Sequence[Branch], keys: Sequence[str], measures: Sequence[tuple[int, str]]
-) -> list[exp.Expression]:
+) -> list[Expression]:
     """The composed SELECT list: the key domain's columns first, then measures
     in request order.
 
@@ -182,7 +189,7 @@ def _projection(
     have, and the domain's copy never is.
     """
 
-    projected: list[exp.Expression] = [
+    projected: list[Expression] = [
         _aliased(exp.column(name, table=_KEYS), name) for name in keys
     ]
     # Aliased explicitly, though a bare column reference would already come

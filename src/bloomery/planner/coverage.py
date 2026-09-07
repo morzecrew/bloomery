@@ -918,7 +918,7 @@ def resolve_branches(
     *,
     naming: NamingPolicy,
     policy: RowPolicy | None = None,
-) -> tuple[Coverage, ...]:
+) -> tuple[Coverage, *tuple[Coverage, ...]]:
     """The precheck, widened to N branches (RFC 0041 D9, D11).
 
     One coverage for a request every measure of which lives on one mart —
@@ -1005,7 +1005,10 @@ def resolve_branches(
         )
         raise InvalidRequest(msg)
 
-    return branches
+    # Rebuilt as a non-empty tuple rather than returned as-is: the return type
+    # says a branch always comes back, which is what lets a caller read
+    # `branches[0]` without a guard for a case `by_mart` cannot produce.
+    return (branches[0], *branches[1:])
 
 
 # ....................... #
