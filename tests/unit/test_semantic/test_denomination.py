@@ -67,6 +67,44 @@ def test_every_leaf_is_a_provenance_that_may_close() -> None:
     assert {fact.provenance for fact in answer.facts} == {Provenance.DECLARED}
 
 
+def test_the_same_pair_read_on_two_dates_is_two_facts() -> None:
+    """`Proof` deduplicates by `source`, which it calls the identity — so a
+    rate reading whose source did not carry its anchor was dropped, silently,
+    and the surviving fact still looked right.
+
+    Four conversions in, three facts out before this (logs/T-0025.md, D-163).
+    The chain is pathological on purpose: converting back and forth is legal
+    and nothing refuses it, which is what makes it the case that reaches the
+    collision.
+    """
+    answer = _prove(
+        EUR_USD,
+        Conversion(from_ccy="USD", to_ccy="EUR", anchor="paid_at"),
+        Conversion(from_ccy="EUR", to_ccy="USD", anchor="settled_at"),
+    )
+
+    assert isinstance(answer, Proof)
+    # One declaration plus one per rate read, none collapsed into another.
+    assert len(answer.facts) == 4
+    assert len({fact.source for fact in answer.facts}) == 4
+
+
+def test_a_refutation_is_about_the_chain_the_proof_would_have_concluded() -> None:
+    """Both halves of one question name one judgement. A three-hop chain that
+    breaks in the middle used to document the middle step's output, so a
+    refusal and the proof it stands against serialized under different
+    conclusions."""
+    answer = _prove(
+        EUR_CHF,
+        Conversion(from_ccy="JPY", to_ccy="GBP", anchor="paid_at"),
+        Conversion(from_ccy="GBP", to_ccy="USD", anchor="paid_at"),
+    )
+
+    assert isinstance(answer, Refutation)
+    # The chain's destination, not 'GBP' where it broke.
+    assert answer.judgement.render() == "Denominated(column=amount_usd, currency=USD)"
+
+
 # ....................... #
 # What refuses
 

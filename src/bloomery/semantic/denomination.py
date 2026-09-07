@@ -121,15 +121,23 @@ def _judgement(column: str, to_ccy: str) -> SemanticJudgement:
 def _refuse(
     reason: DenominationRefusal,
     column: str,
-    conversion: Conversion,
+    target: str,
     *,
     required: str,
     found: str,
     rejected: tuple[SemanticFact, ...] = (),
 ) -> Refutation:
+    """``target`` is the chain's **final** destination, not the step that broke.
+
+    A proof concludes about where the chain ends, and a refutation stands
+    against the same judgement — otherwise a three-hop chain failing at its
+    second step documents an obligation nobody asked for, and the two halves of
+    one question serialize under different names (logs/T-0025.md, D-163).
+    """
+
     return Refutation(
         reason=reason.value,
-        judgement=_judgement(column, conversion.to_ccy),
+        judgement=_judgement(column, target),
         obligations=(Obligation(required=required, found=found),),
         remediation=_REMEDIES[reason],
         rejected=rejected,
@@ -167,12 +175,15 @@ def prove_conversion(
         raise ValueError("prove_conversion needs at least one conversion")
 
     first = conversions[0]
+    #: What the chain sets out to produce — the judgement both a proof and a
+    #: refutation are about, so that they describe one question.
+    target = conversions[-1].to_ccy
 
     if per_row:
         return _refuse(
             DenominationRefusal.PER_ROW_UNBUILT,
             column,
-            first,
+            target,
             required=f"a rate for each row's own currency, converting to {first.to_ccy!r}",
             found="a per-row currency column, which the rate lookup does not yet read",
         )
@@ -181,7 +192,7 @@ def prove_conversion(
         return _refuse(
             DenominationRefusal.UNDECLARED_INPUT,
             column,
-            first,
+            target,
             required=f"what currency {column!r} holds before conversion",
             found=f"convert names {first.from_ccy!r} and nothing declares it",
             rejected=(
@@ -214,7 +225,7 @@ def prove_conversion(
             return _refuse(
                 DenominationRefusal.INPUT_DISAGREES,
                 column,
-                step,
+                target,
                 required=f"a conversion out of {holding!r}",
                 found=f"convert names {step.from_ccy!r} as its input currency",
                 rejected=(
@@ -227,7 +238,12 @@ def prove_conversion(
             )
         facts.append(
             SemanticFact(
-                source=f"convert:{document}.{column}.{step.from_ccy}-{step.to_ccy}",
+                # The anchor belongs to the identity, not only to the
+                # statement: `Proof` deduplicates by `source`, so a chain
+                # reading the same pair on two different dates lost one of the
+                # readings it depends on — silently, since the surviving fact
+                # still looked right (logs/T-0025.md, D-163).
+                source=(f"convert:{document}.{column}.{step.from_ccy}-{step.to_ccy}@{step.anchor}"),
                 provenance=Provenance.DECLARED,
                 statement=(
                     f"a declared rate converts {step.from_ccy} to {step.to_ccy} as of {step.anchor}"
