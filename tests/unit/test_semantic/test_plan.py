@@ -778,3 +778,14 @@ def test_a_branch_aggregating_to_the_wrong_number_of_keys_cannot_enter_a_join() 
     with pytest.raises(ValueError, match="do not aggregate"):
         JoinAggregates(keys=("region", "day"), branches=branches)
 
+
+def test_a_composed_plan_is_not_stated_when_a_branch_cannot_be() -> None:
+    """`None` propagates rather than being worked around. A join whose
+    branches are only partly expressible would document one half of what the
+    query computes, and half a plan reads as a whole one — which is what
+    `QueryPlan.semantic` being optional is for.
+    """
+    from bloomery.planner.semantic_plan import compose
+
+    assert compose([None, _branch("orders", "ship")], ("region",), ("ship",)) is None
+

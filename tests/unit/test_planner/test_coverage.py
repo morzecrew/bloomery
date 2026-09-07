@@ -865,6 +865,37 @@ def test_the_composed_path_declines_and_the_old_refusal_stands(
     assert excinfo.value.covering_marts
 
 
+def test_a_measure_class_p1_holds_back_declines_the_composed_path() -> None:
+    """RFC 0041 §8 and D8: `SemiAdditive` is not part of P1. A semi-additive
+    measure is lowered as a first/last pick over its own dimension and then
+    summed, which a branch's plain `Aggregate` cannot state — so the request
+    keeps the refusal it had rather than being composed.
+    """
+    with pytest.raises(UnreachableAtGrain, match="different grains"):
+        _branches("semi_additive_inventory", ("stock_on_hand", "quality_rows_deduped"))
+
+
+def test_a_metric_with_its_own_restriction_declines_the_composed_path() -> None:
+    """A per-measure filter narrows one branch, and the composed plan has no
+    node that says so — the branch's `Filter` would claim the restriction
+    applies to everything beneath it."""
+    ir = _variant(
+        "cross_mart_branches",
+        metrics=(
+            '  shipping_count:\n    grain: order\n',
+            '  shipping_count:\n    grain: order\n'
+            "    filter:\n      - {dimension: region, op: eq, values: ['EU']}\n",
+        ),
+    )
+
+    with pytest.raises(UnreachableAtGrain, match="different grains"):
+        resolve_branches(
+            ir,
+            MetricRequest(metrics=("shipping_count", "line_discount")),
+            naming=DefaultNaming(),
+        )
+
+
 def test_a_row_policy_declines_the_composed_path() -> None:
     """A policy is a predicate over a dimension, so it is D5's question with
     a security consequence: placed on one branch and not another it narrows

@@ -512,3 +512,22 @@ def test_a_branch_reading_two_relations_has_no_single_relation_to_prove() -> Non
     with pytest.raises(PlannerError, match="exactly one relation"):
         _relation_of(two_scans)
 
+
+def test_a_time_grain_with_nothing_to_apply_to_warns_on_a_composed_plan_too() -> None:
+    """The warning a single-mart plan already carries, on the path that
+    rebuilds its own warnings: a `time_grain` is a re-bucketing instruction,
+    and a request with no date-role dimension gives it nothing to re-bucket."""
+    from bloomery.planner import TimeGrain
+
+    plan = make_planner().plan(
+        fixture_ir("cross_mart_branches"),
+        MetricRequest(
+            metrics=("shipping_count", "line_discount"),
+            dimensions=("tier",),
+            time_grain=TimeGrain.MONTH,
+        ),
+        dialect="duckdb",
+    )
+
+    assert any("has no date-role dimension" in warning for warning in plan.warnings)
+
