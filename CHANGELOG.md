@@ -93,8 +93,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   aggregation — and a second word for the same fact is the two-spellings
   problem `ratio` just left behind.
 
-  **Migrating.** Nothing that compiled before is refused. A distinct count kept
-  out of a project because no word accepted it can now be declared. Corpus
+  **Migrating.** This change refuses nothing that compiled without it. A distinct
+  count kept out of a project because no word accepted it can now be declared. Corpus
   case 007 pins both outcomes: the `additive` claim refused, the
   `distinct_count` declaration planned to the correct number.
 
