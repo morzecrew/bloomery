@@ -50,7 +50,7 @@ Two consequences worth knowing:
 
 ## Allocating a number
 
-The next free number is **0062**. Before creating an RFC, read the number above — do not
+The next free number is **0066**. Before creating an RFC, read the number above — do not
 compute it from `ls`, which no longer sees retired documents. **Numbers are never reused**:
 0001–0022 are retired and permanently spent. Update this section in the same change that
 mints a number.
@@ -102,6 +102,10 @@ know it has a companion recording where it turned out to be wrong.
 | [0059](0059-multi-project-composition.md) | Multi-project composition | 📝 Draft | One project reading another's published surface: what may cross the boundary, and what a fingerprint means once something does. |
 | [0060](0060-replay-on-a-historical-entity.md) | Replay on a historical entity | 📝 Draft | Replay writes past the framework that owns a type 2 relation's versions, so a recovered row lands invisible; the pair is refused until a route through the framework exists. |
 | [0061](0061-declared-input-currency-for-conversion.md) | Declared input currency for conversion | 🚧 In progress | A conversion asserts what currency its column holds and nothing checks it, so the wrong rate is reachable from four characters; the input gets a declaration and a proof rule that reads it. |
+| [0062](0062-stable-node-identity.md) | Stable node identity across renames | 📝 Draft | A node id minted once and never derived from the name, so a rename relabels a vertex instead of deleting one node and adding another. |
+| [0063](0063-as-of-compile.md) | As-of compile over spec history | 📝 Draft | Compiling a project as its specs stood at a past instant, so an artifact set can be reconstructed for a date and a number's movement traced to a definition. |
+| [0064](0064-definition-supersession.md) | Definition supersession and change attribution | 📝 Draft | An edge between two versions of one node carrying what changed in spec vocabulary, so "why did this number move" is answered above the level of a text diff. |
+| [0065](0065-consumer-evidence-strictness.md) | Consumer-declared evidence strictness | 📝 Draft | A minimum evidence grade a mart or exposure requires of the facts beneath it, projected from RFC 0039's provenance and refused at compile time. |
 
 ## Status legend
 
