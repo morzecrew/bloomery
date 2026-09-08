@@ -276,6 +276,8 @@ def compose(
     branches: Sequence[tuple[SemanticPlan | None, tuple[str, ...]]],
     keys: Sequence[str],
     measures: Sequence[str],
+    *,
+    computed: bool = False,
 ) -> SemanticPlan | None:
     """The composed plan for a cross-mart request (RFC 0041 D9, D15), or
     ``None`` where any branch could not be stated.
@@ -285,12 +287,20 @@ def compose(
     branch aggregated to the keys rather than to something else of the same
     width (logs/T-0026.md, D-174).
 
+    ``computed`` says a requested metric is produced by an expression *above*
+    the join (RFC 0041 D3), and the answer is then ``None`` as well. §4's
+    vocabulary is a scan, a filter, an aggregate, a projection and a join, and
+    none of them states arithmetic — so naming the metric in ``Project.columns``
+    would claim the join produced a column the join does not produce. This is
+    the rule :func:`build` has followed for a derived metric since RFC 0040 P1,
+    applied one level up (logs/T-0027.md, D-178).
+
     ``None`` propagates rather than being worked around: a join whose branches
     are only partly expressible would document one half of what the query
     computes, and half a plan reads as a whole one.
     """
 
-    if any(plan is None for plan, _keys in branches):
+    if computed or any(plan is None for plan, _keys in branches):
         return None
 
     stated = tuple(

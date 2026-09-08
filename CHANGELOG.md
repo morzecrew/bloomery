@@ -27,25 +27,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   happens before an aggregate, so nothing can fan out; joining raw rows at
   query time stays refused.
 
-  Two conditions are checked before anything is planned, and a request failing
-  either keeps the refusal it had:
+  One condition is checked before anything is planned, and a request failing it
+  keeps the refusal it had: every requested dimension is present on **every**
+  branch and is the *same* dimension on each — same source entity, same source
+  column. A name both marts carry and mean different things by (`order_id` on a
+  mart based at `order` and on one based at `order_item`, where it is the
+  foreign key) is refused, and the message names both origins.
 
-  - every requested dimension is present on **every** branch and is the *same*
-    dimension on each — same source entity, same source column. A name both
-    marts carry and mean different things by (`order_id` on a mart based at
-    `order` and on one based at `order_item`, where it is the foreign key) is
-    refused, and the message names both origins;
-  - the request carries no filter, no row policy, no ordering and no limit.
-    Each has to be applied after the join; applied inside a branch it answers
-    from a narrowed or truncated branch and says nothing about having done so.
-    A planner-level *default* limit is dropped with a warning rather than
-    pushed into a branch.
+  **Filters and the row policy** are held to that same rule and to nothing
+  else. Each is placed on every branch, resolved to that branch's own spelling
+  of the dimension — `region` on the mart based at `order`, `order_region` on
+  the one that flattened its way there — and never duplicated onto a column
+  that merely shares a name. A restriction one branch cannot evaluate refuses
+  the whole request: applied to some branches and not others it does not
+  narrow the answer, it puts a restricted number beside an unrestricted one at
+  the same key and reports nothing. The refusal names each mart and what it
+  carries, because the fix is a mart change.
+
+  **`order_by` and `limit`** apply to the joined result. Both would be wrong
+  inside a branch — an order is undone by the join and a limit answers from a
+  prefix of one branch — so they are rendered on the composed statement, with
+  `RFC 0011`'s clamp unchanged. The ordering states `NULLS LAST` in both
+  directions rather than leaving it to the engine: the join mints a NULL group
+  on purpose, and where a NULL sorts is a per-engine *setting*.
+
+  **A metric whose components live on different marts is computed above the
+  join.** A ratio becomes `SUM(num) / NULLIF(SUM(den), 0)` and a `derived:`
+  metric its own expression, each operand aggregated by the mart that owns it
+  and combined once over the joined result — which is not the number a
+  row-level expression aggregated afterwards gives. The branches are asked for
+  the components; the requested name exists only in the composed projection.
+  Two shapes stay refused: a component that itself needs two marts, and a
+  derived input read at a time offset, which names a grain no branch produced.
 
   `QueryPlan.marts` names every mart a plan read — `mart` keeps its meaning as
   the first of them — and the explanation prints one `branch:` line per mart.
   The semantic plan gains a `JoinAggregates` node carrying **R010**: each
   branch holds one row per key because of the aggregate beneath it,
-  structurally, never because the data happened to look that way.
+  structurally, never because the data happened to look that way. Where a
+  metric is computed above the join the semantic plan is withheld rather than
+  stated: the node vocabulary is a scan, a filter, an aggregate, a projection
+  and a join, and naming the metric in the projection would claim the join
+  produced a column it does not produce.
 
 - **`additivity: additive` is checked rather than trusted.** The additivity
   guard read only metrics declared `non_additive` or `semi_additive`, so the

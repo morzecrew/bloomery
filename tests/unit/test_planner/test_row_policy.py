@@ -148,3 +148,36 @@ def test_policy_alone_still_reaches_every_scan() -> None:
     )
     verdicts = audit_scans(plan.sql, "gold.mart_inventory", "warehouse_id", "A")
     assert verdicts and all(protected for _scan, protected in verdicts)
+
+
+def test_the_policy_reaches_every_branch_of_a_composed_statement() -> None:
+    """RFC 0041 §13a's merge-blocking half: the row policy must reach **every**
+    branch of a cross-mart answer.
+
+    The failure this rules out is not a narrower answer, it is a mixed one — a
+    scoped number and an unscoped number at the same key, with nothing in the
+    result saying which is which. So the same AST audit the single-mart path
+    has runs over each branch's mart relation, and a scan the predicate does
+    not reach at or below its first aggregate is a defect whichever branch it
+    is in (RFC 0013 §5.9d).
+    """
+    ir = fixture_ir("cross_mart_branches")
+    policy = RowPolicy("region", Op.EQ, "EU")
+    plan = PLANNER.plan(
+        ir,
+        MetricRequest(
+            metrics=("shipping_count", "line_discount"),
+            dimensions=("tier",),
+            filters=(Predicate(dimension="tier", op=Op.EQ, values=("gold",)),),
+        ),
+        dialect="duckdb",
+        policy=policy,
+    )
+
+    assert plan.marts == ("order_items", "orders")
+
+    for relation in ("gold.mart_orders", "gold.mart_order_items"):
+        verdicts = audit_scans(plan.sql, relation, "region", "EU")
+        assert verdicts, f"no scan of {relation} found:\n{plan.sql}"
+        unprotected = [scan for scan, protected in verdicts if not protected]
+        assert not unprotected, f"policy missing from {unprotected}:\n{plan.sql}"

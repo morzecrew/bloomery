@@ -164,14 +164,27 @@ joined scan — summing across grains double-counts. It does have a correct answ
 prove the join is safe: each measure is aggregated on the mart that owns it, and the
 results are joined on the key they share.
 
-Two things must hold for that, and both are checked before anything is planned. Every
-requested dimension must be present on **every** branch, and be the *same* dimension on
-each — same source entity and same source column, not merely the same name. And the
-request must carry no filter, no row policy, no ordering and no limit: each of those
-has to be applied after the join, and applying one inside a branch answers from a
-narrowed or truncated branch instead.
+One thing must hold, and it is checked before anything is planned: every requested
+dimension must be present on **every** branch, and be the *same* dimension on each —
+same source entity and same source column, not merely the same name.
 
-Where either fails, the request is refused with the conflict named:
+A **filter** and a **row policy** are held to that rule too, and to it alone. Each is
+placed on every branch, resolved to that branch's own spelling of the dimension, and a
+restriction one branch cannot evaluate refuses the whole request rather than being
+applied to part of it — half a filter does not give a narrower answer, it gives a
+restricted number beside an unrestricted one at the same key. An **ordering** and a
+**limit** apply to the joined result, never inside a branch, so they need no rule: a
+limit inside a branch would answer from a prefix of that branch.
+
+A metric whose own components live on different marts — a ratio, or a `derived:`
+expression — is answered too. Each component is aggregated by the mart that owns it and
+the expression is evaluated once, over the join. `revenue / quantity` across two marts
+is `SUM(revenue) / SUM(quantity)` at the requested grain, which is not the same number
+as a row-level `revenue / quantity` summed afterwards. Two shapes stay refused: a
+component that itself needs two marts, and an input read at a time offset, which names
+a grain no branch produced.
+
+Where any of that fails, the request is refused with the conflict named:
 
 ```
 UnreachableAtGrain: metrics {shipping_cost, line_discount} live on different grains
@@ -191,6 +204,20 @@ and they do not mean the same column by it:
   orders               → order_id (from order.order_id)
   Two columns are the same dimension when they come from the same source column, not
   when they share a name.
+```
+
+And a filter no branch pair can agree on says which mart is missing it, because the fix
+is a mart change rather than a request change:
+
+```
+UnreachableAtGrain: filter dimension 'region' is not carried by every mart this request
+needs:
+  customers            → not carried
+  orders               → region
+  A restriction placed on some branches and not others narrows one measure and not the
+  other, and the join reports the two side by side as though one restriction applied
+  throughout.
+  Request the measures separately, or flatten 'region' onto every mart above.
 ```
 
 The embedded MetricFlow engine would happily plan a multi-hop join across semantic

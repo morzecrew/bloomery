@@ -22,6 +22,8 @@ Opt-in (Docker required); excluded from ``just test``.
 from __future__ import annotations
 
 from collections.abc import Iterator
+from decimal import Decimal
+
 import duckdb
 import psycopg
 import pytest
@@ -30,7 +32,9 @@ from testcontainers.community.postgres import PostgresContainer
 from testcontainers.community.trino import TrinoContainer
 
 from bloomery.dialects import get_dialect
-from bloomery.planner.compose import Branch, compose
+from sqlglot import parse_one
+
+from bloomery.planner.compose import Branch, Measure, compose
 
 #: Pinned rather than ``latest``: an engine tier that silently changes engine
 #: version is a tier that cannot tell a regression from an upgrade.
@@ -50,6 +54,13 @@ EXPECTED = {
     "UK": (3, 4),
     None: (1, 8),
 }
+
+
+def _m(index: int, name: str) -> Measure:
+    return Measure(name=name, inputs=((name, index, name),))
+
+
+_MEASURES = (_m(0, "shipping_total"), _m(1, "discount_total"))
 
 
 def _branches() -> list[Branch]:
@@ -76,9 +87,28 @@ def _composed(dialect: str) -> str:
     return compose(
         _branches(),
         keys=("region",),
-        measures=((0, "shipping_total"), (1, "discount_total")),
+        measures=_MEASURES,
         dialect=get_dialect(dialect),
     )
+
+
+def _duckdb() -> duckdb.DuckDBPyConnection:
+    """One seeded in-memory DuckDB, for the three tests that need one.
+
+    The reference numbers, the `=` demonstration and the ratio all read the
+    same four orders and six lines; three copies of the seeding is three places
+    a row can be changed in one of them.
+    """
+
+    connection = duckdb.connect()
+    connection.execute("CREATE TABLE cmb_orders (order_id TEXT, region TEXT, shipping INT)")
+    connection.execute("CREATE TABLE cmb_lines (order_id TEXT, discount INT)")
+    connection.executemany("INSERT INTO cmb_orders VALUES (?, ?, ?)", list(ORDERS))
+    connection.executemany("INSERT INTO cmb_lines VALUES (?, ?)", list(LINES))
+    return connection
+
+
+# ....................... #
 
 
 def _as_expected(rows: list[tuple[object, ...]]) -> dict[object, tuple[int, int]]:
@@ -145,11 +175,7 @@ def test_duckdb_is_the_reference() -> None:
     """The engine the composed join was developed against, asserted against
     hand-checked numbers rather than against itself — otherwise the two
     engine tests below compare a wrong answer with a wrong answer."""
-    connection = duckdb.connect()
-    connection.execute("CREATE TABLE cmb_orders (order_id TEXT, region TEXT, shipping INT)")
-    connection.execute("CREATE TABLE cmb_lines (order_id TEXT, discount INT)")
-    connection.executemany("INSERT INTO cmb_orders VALUES (?, ?, ?)", list(ORDERS))
-    connection.executemany("INSERT INTO cmb_lines VALUES (?, ?)", list(LINES))
+    connection = _duckdb()
 
     try:
         rows = connection.execute(_composed("duckdb")).fetchall()
@@ -190,11 +216,7 @@ def test_the_null_group_loses_its_numbers_without_null_safe_equality() -> None:
     On DuckDB alone, because this is a property of `=` in SQL rather than of
     any one engine.
     """
-    connection = duckdb.connect()
-    connection.execute("CREATE TABLE cmb_orders (order_id TEXT, region TEXT, shipping INT)")
-    connection.execute("CREATE TABLE cmb_lines (order_id TEXT, discount INT)")
-    connection.executemany("INSERT INTO cmb_orders VALUES (?, ?, ?)", list(ORDERS))
-    connection.executemany("INSERT INTO cmb_lines VALUES (?, ?)", list(LINES))
+    connection = _duckdb()
     unsafe = _composed("duckdb").replace("IS NOT DISTINCT FROM", "=")
 
     try:
@@ -208,3 +230,143 @@ def test_the_null_group_loses_its_numbers_without_null_safe_equality() -> None:
     assert set(by_key) == set(EXPECTED)
     assert by_key[None] == (None, None)
     assert by_key["EU"] == EXPECTED["EU"]
+
+
+# ....................... #
+# RFC 0041 P2: the statement's own tail, and computation above the join.
+
+
+def _shadowing() -> list[Branch]:
+    """Branches whose key column is spelled exactly as the composed alias.
+
+    The composed statement projects the key as `region` and `branch_0` holds a
+    `region` of its own, so a bare `ORDER BY region` has two candidates. All
+    three dialects are documented to prefer the output column; documented is
+    what D17 says is not enough.
+    """
+
+    return [
+        Branch(
+            sql="SELECT region, SUM(shipping) AS shipping_total FROM cmb_orders GROUP BY region",
+            keys=("region",),
+        ),
+        Branch(
+            sql=(
+                "SELECT o.region AS l_region, SUM(l.discount) AS discount_total "
+                "FROM cmb_lines l JOIN cmb_orders o ON l.order_id = o.order_id "
+                "GROUP BY o.region"
+            ),
+            keys=("l_region",),
+        ),
+    ]
+
+
+def _ordered(dialect: str, direction: str) -> str:
+    return compose(
+        _shadowing(),
+        keys=("region",),
+        measures=_MEASURES,
+        order_by=(("region", direction),),
+        dialect=get_dialect(dialect),
+    )
+
+
+#: The NULL group last whichever way the answer is sorted (logs/T-0027.md,
+#: D-177), and the non-NULL groups in the order asked for.
+ORDERED = {"asc": ["EU", "UK", None], "desc": ["UK", "EU", None]}
+
+
+def _ratio(dialect: str) -> str:
+    return compose(
+        _branches(),
+        keys=("region",),
+        measures=(
+            Measure(
+                name="shipping_per_discount",
+                inputs=(
+                    ("shipping_total", 0, "shipping_total"),
+                    ("discount_total", 1, "discount_total"),
+                ),
+                expr=parse_one("shipping_total / NULLIF(discount_total, 0)"),
+            ),
+        ),
+        dialect=get_dialect(dialect),
+    )
+
+
+#: 14/5, 3/4 and 1/8 — the branch totals divided **after** each was aggregated.
+#: A row-level division summed afterwards gives 2.5, 0.75 and 0.75 for the same
+#: rows, which is the whole content of RFC 0041 D1's ordering.
+#: Three decimals rather than two: 1/8 is 0.125, and rounding it half-even at
+#: two places would make the expected value an artefact of the comparison.
+RATIO = {"EU": Decimal("2.800"), "UK": Decimal("0.750"), None: Decimal("0.125")}
+
+
+def _as_ratio(rows: list[tuple[object, ...]]) -> dict[object, Decimal]:
+    return {
+        row[0]: Decimal(str(row[1])).quantize(Decimal("0.001")) for row in rows if row[1] is not None
+    }
+
+
+@pytest.mark.parametrize("direction", ["asc", "desc"])
+def test_duckdb_sorts_the_null_group_last_either_way(direction: str) -> None:
+    connection = _duckdb()
+
+    try:
+        rows = connection.execute(_ordered("duckdb", direction)).fetchall()
+    finally:
+        connection.close()
+
+    assert [row[0] for row in rows] == ORDERED[direction]
+
+
+@pytest.mark.engine("postgres")
+@pytest.mark.parametrize("direction", ["asc", "desc"])
+def test_postgres_sorts_the_null_group_last_either_way(
+    postgres: psycopg.Connection, direction: str
+) -> None:
+    """PostgreSQL is the one whose defaults disagree with the other two — its
+    `DESC` sorts NULLs first — so this is the row that would move if the clause
+    were left to the engine."""
+    rows = postgres.execute(_ordered("postgres", direction)).fetchall()
+
+    assert [row[0] for row in rows] == ORDERED[direction]
+
+
+@pytest.mark.engine("trino")
+@pytest.mark.parametrize("direction", ["asc", "desc"])
+def test_trino_sorts_the_null_group_last_either_way(
+    trino_db: trino.dbapi.Connection, direction: str
+) -> None:
+    cursor = trino_db.cursor()
+    cursor.execute(_ordered("trino", direction))
+
+    assert [row[0] for row in cursor.fetchall()] == ORDERED[direction]
+
+
+def test_duckdb_divides_after_the_aggregate() -> None:
+    """RFC 0041 D1 and D3, as a number: each operand is aggregated in its own
+    branch and the quotient is taken once, over the join."""
+    connection = _duckdb()
+
+    try:
+        rows = connection.execute(_ratio("duckdb")).fetchall()
+    finally:
+        connection.close()
+
+    assert _as_ratio(rows) == RATIO
+
+
+@pytest.mark.engine("postgres")
+def test_postgres_divides_after_the_aggregate(postgres: psycopg.Connection) -> None:
+    rows = postgres.execute(_ratio("postgres")).fetchall()
+
+    assert _as_ratio([tuple(row) for row in rows]) == RATIO
+
+
+@pytest.mark.engine("trino")
+def test_trino_divides_after_the_aggregate(trino_db: trino.dbapi.Connection) -> None:
+    cursor = trino_db.cursor()
+    cursor.execute(_ratio("trino"))
+
+    assert _as_ratio([tuple(row) for row in cursor.fetchall()]) == RATIO

@@ -40,7 +40,7 @@ from bloomery.errors import (
     UnreachableAtGrain,
     guaranteed,
 )
-from bloomery.ir import COMPUTED, Additivity, Cardinality, Layer
+from bloomery.ir import COMPUTED, Additivity, Cardinality, Layer, SqlExpr
 from bloomery.marts import DATE_BUCKETS
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import TimeGrain, clause_predicates
@@ -58,8 +58,10 @@ if TYPE_CHECKING:
 
 __all__ = [
     "Coverage",
+    "Projected",
     "check",
     "composed_keys",
+    "composed_projection",
     "resolve_branches",
     "resolve_request",
 ]
@@ -84,12 +86,61 @@ class Coverage:
     dimensions: tuple[ResolvedDimension, ...]
     filter_dimensions: tuple[tuple[ResolvedDimension, ...], ...]
     policy_dimension: ResolvedDimension | None
-    #: The requested metrics this mart serves, in request order. One coverage
-    #: is one branch (RFC 0041 D11), and a branch that did not carry its own
+    #: The metrics this mart is asked for, in request order. One coverage is
+    #: one branch (RFC 0041 D11), and a branch that did not carry its own
     #: metrics would leave the planner re-deriving the partition it was just
     #: handed — two answers to "which mart serves this measure" is the
     #: divergence D11 exists to prevent.
+    #:
+    #: These are the request's own metrics wherever a metric is a stored
+    #: measure, and its **components** where it is computed above the join
+    #: (RFC 0041 D3): a branch is asked for `revenue`, never for the
+    #: `revenue_per_item` the wrapper divides to get.
     metrics: tuple[str, ...] = ()
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
+class Projected:
+    """One requested metric, and where the composed statement gets it from.
+
+    A stored measure is projected from the branch that carries it and has no
+    ``expr``. Anything else is computed **above** the join (RFC 0041 D3), from
+    components each branch aggregated on its own — which is the whole reason
+    the ordering in D1 is locked: `SUM(a)/SUM(b)` and a row-level `a/b`
+    aggregated afterwards are different numbers.
+
+    ``inputs`` pairs the alias ``expr`` references with the component metric a
+    branch was asked for. For a ratio the two are the same name; for an
+    RFC 0034 ``derived:`` metric they differ, because the expression was
+    authored against aliases.
+    """
+
+    name: str
+    inputs: tuple[tuple[str, str], ...] = ()
+    expr: SqlExpr | None = None
+
+    # ....................... #
+
+    @property
+    def components(self) -> tuple[str, ...]:
+        """The component metrics a branch has to produce.
+
+        A stored measure has no ``inputs`` and answers with its own name,
+        because that is what a branch is asked for. The empty case is decided
+        here rather than inherited: a computed metric always has inputs — a
+        ratio has two and RFC 0034 gives ``inputs:`` a ``min_length=1`` — so
+        ``inputs`` being empty means "stored" and nothing else, and the day
+        that stops being true this reads as a branch asked for the metric it
+        was supposed to compute.
+        """
+
+        if not self.inputs:
+            return (self.name,)
+
+        return tuple(metric for _alias, metric in self.inputs)
 
 
 # ....................... #
@@ -675,6 +726,28 @@ def resolve_request(
 # ....................... #
 
 
+def _candidate_triples(ir: ProjectIR, name: str) -> list[tuple[str, str, object]]:
+    """Every provenance any mart publishes under ``name``, sorted.
+
+    Sorted by the triple's text rather than left as a set: the order decides
+    which candidate wins a tie below, and a set's iteration order would make
+    that depend on the hash seed (RFC 0003).
+    """
+
+    return sorted(
+        {
+            triple
+            for mart in ir.marts
+            if any(dimension.column == name for dimension in mart.dimensions)
+            if (triple := _provenance(mart, name)) is not None
+        },
+        key=str,
+    )
+
+
+# ....................... #
+
+
 def _shared_provenance(
     ir: ProjectIR, marts: Sequence[MartIR], name: str
 ) -> tuple[str, str, object] | None:
@@ -696,15 +769,9 @@ def _shared_provenance(
     resolution then raises the ordinary refusal.
     """
 
-    candidates = {
-        triple
-        for mart in ir.marts
-        if any(dimension.column == name for dimension in mart.dimensions)
-        if (triple := _provenance(mart, name)) is not None
-    }
     reachable = [
         triple
-        for triple in sorted(candidates, key=str)
+        for triple in _candidate_triples(ir, name)
         if all(_column_with(mart, triple) is not None for mart in marts)
     ]
     # A branch that publishes the requested *spelling* is the caller's most
@@ -824,54 +891,281 @@ def _not_one_dimension(
 # ....................... #
 
 
+def _projected(ir: ProjectIR, name: str) -> Projected | None:
+    """How a composed statement would produce one requested metric, or
+    ``None`` where it could not produce it at all.
+
+    Shape only — nothing here knows which mart owns anything. Three forms come
+    back with an expression the wrapper evaluates above the join (D3), and one
+    stored measure comes back bare:
+
+    * an RFC 0034 ``derived:`` metric carries its own expression over its
+      inputs' aliases, and is the general case P2 admits (logs/T-0027.md,
+      D-179);
+    * a ratio is that with the expression fixed — ``num / NULLIF(den, 0)``,
+      which is what the Cube emitter already writes for the same metric;
+    * a stored additive measure needs no expression, and the branch that
+      carries it projects it under its own name.
+
+    ``None`` for everything else, and the request then keeps the cross-grain
+    refusal it had. A **cumulative** metric is a window rather than a rollup;
+    a metric with its own ``filter`` narrows one branch and the composed
+    statement has no way to say that it did; and a derived input carrying a
+    time **offset** names a shifted grain no branch produced, so evaluating
+    the expression over the unshifted column would label the wrong number with
+    the right name (logs/T-0027.md, D-180).
+    """
+
+    metric = next((candidate for candidate in ir.metrics if candidate.name == name), None)
+
+    if metric is None or metric.cumulative is not None or metric.filter:
+        return None
+
+    if metric.derived is not None:
+        if any(
+            input_.offset_window is not None or input_.offset_to_grain is not None
+            for input_ in metric.derived.inputs
+        ):
+            return None
+
+        return Projected(
+            name=name,
+            inputs=tuple((input_.alias, input_.metric) for input_ in metric.derived.inputs),
+            expr=metric.derived.expr,
+        )
+
+    if metric.additivity in COMPUTED:
+        if metric.ratio is None:  # pragma: no cover — the additivity guardrail refuses it
+            return None
+
+        numerator, denominator = metric.ratio.numerator, metric.ratio.denominator
+
+        return Projected(
+            name=name,
+            inputs=((numerator, numerator), (denominator, denominator)),
+            expr=SqlExpr(f"{numerator} / NULLIF({denominator}, 0)"),
+        )
+
+    if metric.additivity is not Additivity.ADDITIVE:
+        return None
+
+    return Projected(name=name)
+
+
+# ....................... #
+
+
+def _homes(
+    ir: ProjectIR, entries: dict[str, tuple[str, MartIR]], component: str
+) -> set[str | None]:
+    """The marts a component metric's leaf measures live on.
+
+    One element means one branch answers the component whole, which is what
+    the composed path requires: the wrapper's expression reads a component as
+    a single column, and a component needing two branches would be a join
+    inside a join (logs/T-0027.md, D-181). ``None`` in the set is a leaf no
+    mart serves, which :func:`_owner_entries` has already refused for a
+    requested metric and can still reach here through a component of one.
+    """
+
+    metric = next((candidate for candidate in ir.metrics if candidate.name == component), None)
+
+    if metric is None:  # pragma: no cover — a component always names a real metric
+        # `_projected` reads components off `metric.ratio` and
+        # `metric.derived.inputs`, and both are checked against the metric set
+        # when the project compiles — `_measures_of` asserts the same thing
+        # with `guaranteed` on the way down. Kept because what holds it up is a
+        # guardrail rather than anything here, and `{None}` refuses where a
+        # `KeyError` two frames later would not say what went wrong.
+        return {None}
+
+    leaves = _measures_of(ir, metric, set())
+
+    if not leaves:  # pragma: no cover — a decomposition always reaches a leaf
+        return {None}
+
+    return {None if (entry := entries.get(leaf)) is None else entry[1].name for leaf in leaves}
+
+
+# ....................... #
+
+
+def _not_on_every_branch(
+    ir: ProjectIR, name: str, marts: Sequence[MartIR], *, kind: str
+) -> UnreachableAtGrain:
+    """The refusal for a restriction one branch can evaluate and another cannot
+    (RFC 0041 D4, D5; logs/T-0027.md, D-176).
+
+    Placing it on the branches that can is the outcome that returns a number:
+    with a restriction on the orders mart alone, restricted revenue and
+    unrestricted quantity meet at one key and the row reads as one filter
+    applied throughout. So the whole request refuses, and the message names
+    every branch and what it has, because the fix is a mart change rather than
+    a request change.
+    """
+
+    candidates = _candidate_triples(ir, name)
+    width = max(len(mart.name) for mart in marts)
+    listed = "\n".join(
+        f"  {mart.name:<{width}} → "
+        + (
+            local
+            if (
+                local := next(
+                    (
+                        found
+                        for triple in candidates
+                        if (found := _column_with(mart, triple)) is not None
+                    ),
+                    None,
+                )
+            )
+            is not None
+            else "not carried"
+        )
+        for mart in marts
+    )
+
+    msg = (
+        f"{kind} dimension {name!r} is not carried by every mart this request needs:\n"
+        f"{listed}\n"
+        "  A restriction placed on some branches and not others narrows one measure and "
+        "not the other, and the join reports the two side by side as though one "
+        "restriction applied throughout (RFC 0041 D4, D5).\n"
+        f"  Request the measures separately, or flatten {name!r} onto every mart above."
+    )
+
+    return UnreachableAtGrain(msg)
+
+
+# ....................... #
+
+
+def _restricted_dimensions(
+    ir: ProjectIR, name: str, marts: Sequence[MartIR], *, kind: str
+) -> list[tuple[MartIR, ResolvedDimension]]:
+    """Each branch's own column for one restriction, when no single provenance
+    anchors it — or the refusal that says why there is none.
+
+    :func:`_shared_provenance` answers ``None`` for three different situations,
+    and they need three different answers. It matches on a mart's *column*
+    names, so an unqualified date bucket has no candidate at all: `month` is
+    published as `ordered_month`, and is reached through a role rather than
+    under its own name.
+
+    * **one branch cannot resolve it** — :func:`_not_on_every_branch`, which is
+      the message about a mart that does not carry the dimension;
+    * **a branch resolves it two ways** — the ordinary ``AmbiguousDimension``
+      travels, because the roles it names are the answer the author needs.
+      Reporting "not carried" instead sends them to flatten a column that mart
+      already has twice (logs/T-0027.md, finding 9);
+    * **every branch resolves it, and they agree** — nothing is wrong. Two
+      marts on one base entity flattening one date under one role reach the
+      same column from the same source, and refusing that pair as a collision
+      refuses a request whose filter means exactly one thing (finding 10).
+
+    Only a real disagreement refuses, and :func:`_one_dimension` is what says
+    so — on this path it is load-bearing, where on the anchored path it cannot
+    fire at all.
+    """
+
+    resolved: list[tuple[MartIR, ResolvedDimension]] = []
+
+    for mart in marts:
+        try:
+            resolved.append((mart, _resolve_dimension(mart, name, apply_grain=None, ir=ir)))
+        except AmbiguousDimension:
+            raise
+        except PlannerError:
+            raise _not_on_every_branch(ir, name, marts, kind=kind) from None
+
+    _one_dimension(name, resolved)
+
+    return resolved
+
+
+# ....................... #
+
+
 def _composable(
     ir: ProjectIR,
     request: MetricRequest,
     entries: dict[str, tuple[str, MartIR]],
-    policy: RowPolicy | None,
 ) -> bool:
-    """Whether RFC 0041 P1 may answer this cross-mart request by composing
+    """Whether RFC 0041 P2 may answer this cross-mart request by composing
     branches, rather than refusing it as before.
 
-    Five conditions, and each one is a phase boundary the document draws
-    rather than a shape observed to break:
+    Two conditions now, where P1 had five. Filters, the row policy,
+    ``order_by`` and ``limit`` are no longer among them — each has a place on
+    the composed statement, and where a restriction cannot reach every branch
+    the refusal is :func:`_not_on_every_branch`, which says which dimension
+    rather than which grains.
 
-    * **no filter, and no row policy.** A predicate has to be placed on every
-      branch that can evaluate it and on no branch that cannot, which is D5's
-      question and §13a's P2. Until then a filtered request refuses whole
-      (D4) — never with the filter quietly dropped, which is the one outcome
-      that returns a number.
-    * **no `order_by`, no `limit`.** Both belong to the composed statement,
-      and applying either per branch sorts or truncates *before* the join —
-      a limit especially, which would silently answer from a prefix of one
-      branch.
-    * **every requested metric is a stored measure of its own owning mart**,
-      so a branch is an aggregate over columns that mart holds. A ratio or a
-      derived metric whose operands straddle branches is evaluated above the
-      join (D3), which is P2.
-    * **additive and non-cumulative**, since a semi-additive pick or a window
-      is not the rollup a branch's `Aggregate` node states (RFC 0041 §8, D8).
-    * **no metric carries its own restriction**, because a per-measure filter
-      narrows one branch and the plan has no node saying so.
+    * **every requested metric has a projection** — it is a stored additive
+      measure, or it decomposes into components the wrapper computes over
+      (:func:`_projected`);
+    * **every component is answered whole by one branch**, and is itself
+      additive, unrestricted and non-cumulative. A component's own restriction
+      would narrow one branch with nothing in the composed statement saying so,
+      which is P1's rule applied one level down.
+
+    The two halves of the second condition are not independent today, and the
+    branch that says so is unreachable rather than merely untaken: a component
+    needing two marts has to decompose, and a metric that decomposes is never
+    ``ADDITIVE`` — the additivity guardrail refuses ``additivity: additive``
+    beside a ``derived:`` block, and ``ratio`` beside anything else. So the
+    additivity test above catches every spanning component first
+    (logs/T-0027.md, finding 1).
+
+    It stays, and :func:`_home` refuses the same shape loudly, because what
+    holds it up is a rule in another package. Were that rule relaxed, dropping
+    this line would not fail a test — it would place a component on whichever
+    of its marts sorts first, and answer.
     """
 
     metrics_by_name = {metric.name: metric for metric in ir.metrics}
 
-    if request.filters or policy is not None or request.order_by or request.limit is not None:
-        return False
-
     for name in request.metrics:
-        metric = metrics_by_name.get(name)
-        owner = entries.get(name)
+        projection = _projected(ir, name)
 
-        if metric is None or owner is None or name not in owner[1].measures:
+        if projection is None:
             return False
-        if metric.additivity is not Additivity.ADDITIVE or metric.cumulative is not None:
-            return False
-        if metric.filter:
-            return False
+
+        for component in projection.components:
+            metric = metrics_by_name.get(component)
+
+            if metric is None or metric.cumulative is not None or metric.filter:
+                return False
+            if metric.additivity is not Additivity.ADDITIVE:
+                return False
+            homes = _homes(ir, entries, component)
+
+            if len(homes) != 1 or None in homes:  # pragma: no cover — see below
+                return False
 
     return True
+
+
+# ....................... #
+
+
+def composed_projection(ir: ProjectIR, request: MetricRequest) -> tuple[Projected, ...]:
+    """Every requested metric's projection, in request order.
+
+    Public because the planner needs it and must not compute it a second way:
+    :func:`resolve_branches` accepted the request on exactly these projections,
+    so a planner deriving its own would be the second opinion RFC 0041 D11
+    exists to prevent — one level up from the partition D11 is about.
+    """
+
+    return tuple(
+        guaranteed(
+            (found for found in (_projected(ir, name),) if found is not None),
+            expected=f"a projection for requested metric {name!r}",
+            by="resolve_branches, which keeps the cross-grain refusal for a metric with none",
+        )
+        for name in request.metrics
+    )
 
 
 # ....................... #
@@ -901,6 +1195,13 @@ def composed_keys(request: MetricRequest, branches: Sequence[Coverage]) -> tuple
     result will actually carry.
     """
 
+    # The date-role arm cannot be taken by a composed request as the mart
+    # grammar stands: a role may only name a column of its mart's base entity,
+    # so two marts at different grains never publish one date column as a role,
+    # and two roles of different origin are refused by D12 before they reach
+    # here (logs/T-0027.md, finding 3). Kept because what forbids it is a rule
+    # in the mart grammar rather than anything about this function, and because
+    # its absence would answer under the wrong name rather than fail.
     return tuple(
         branches[0].dimensions[position].name
         if branches[0].dimensions[position].role is not None
@@ -912,13 +1213,64 @@ def composed_keys(request: MetricRequest, branches: Sequence[Coverage]) -> tuple
 # ....................... #
 
 
+def _home(ir: ProjectIR, entries: dict[str, tuple[str, MartIR]], component: str) -> str:
+    """The one mart answering a component whole, after :func:`_composable`.
+
+    Exactly one, checked rather than taken. The obvious spelling — the first of
+    the sorted names — answers for a component whose leaves span two marts by
+    silently choosing one of them, and the composed statement would then read
+    that component's column off a branch that computed half of it. Nothing
+    downstream could tell (logs/T-0027.md, finding 1).
+    """
+
+    homes = sorted(name for name in _homes(ir, entries, component) if name is not None)
+
+    if len(homes) != 1:
+        msg = (
+            f"component {component!r} is served by {homes or 'no mart'} — a component the "
+            "composed statement reads as one column has to be aggregated by one branch "
+            "(RFC 0041 D4)"
+        )
+        raise PlannerError(msg)
+
+    return homes[0]
+
+
+# ....................... #
+
+
+def _one_dimension(name: str, resolved: Sequence[tuple[MartIR, ResolvedDimension]]) -> None:
+    """Refuse unless every branch resolved the *same* dimension for one name.
+
+    Run over every **requested** dimension, including the ones where the
+    requested name resolved locally and no translation was needed. Checking
+    only where a name had to be translated is the asymmetry that let
+    `order_id` — a key on one mart and a foreign key on another — join two
+    branches on different things (RFC 0041 D12).
+
+    The restrictions are not run through it, and that is a difference in what
+    is *known* rather than in what matters: a restriction whose provenance no
+    branch shares is refused before any branch resolves it, so every branch
+    takes the anchored path and there is nothing left to disagree about
+    (logs/T-0027.md, finding 2).
+    """
+
+    provenances = {_provenance(mart, dimension.name) for mart, dimension in resolved}
+
+    if len(provenances) > 1 or None in provenances:
+        raise _not_one_dimension(name, resolved)
+
+
+# ....................... #
+
+
 def resolve_branches(
     ir: ProjectIR,
     request: MetricRequest,
     *,
     naming: NamingPolicy,
     policy: RowPolicy | None = None,
-) -> tuple[Coverage, ...]:
+) -> tuple[Coverage, *tuple[Coverage, ...]]:
     """The precheck, widened to N branches (RFC 0041 D9, D11).
 
     One coverage for a request every measure of which lives on one mart —
@@ -926,29 +1278,95 @@ def resolve_branches(
     owning mart otherwise, sorted by mart name so a composed plan and the SQL
     built from it read the branches in one order (RFC 0003).
 
+    Each branch carries the restrictions the composed request applies, resolved
+    against **its own** mart by provenance identity: a filter and the row
+    policy reach every branch or the whole request refuses (RFC 0041 D4, D5;
+    logs/T-0027.md, D-176). The policy reaching every branch is the merge
+    -blocking half — a branch left unscoped answers from rows the caller may
+    not read, and the join puts that number beside a scoped one.
+
     A cross-mart request the composed path cannot take keeps the refusal it
     had: :func:`_split_refusal` is the same message, the same class and the
-    same ``covering_marts`` table as before this phase, so what P1 converted is
-    a diff in the parity baseline rather than a number that moved (D16).
+    same ``covering_marts`` table as before this phase, so what these phases
+    converted is a diff in the parity baseline rather than a number that moved
+    (D16).
     """
     entries = _owner_entries(ir, request, naming)
 
     if len({owner.name for _grain, owner in entries.values()}) == 1:
         return (resolve_request(ir, request, naming=naming, policy=policy),)
 
-    if not _composable(ir, request, entries, policy):
+    if not _composable(ir, request, entries):
         raise _split_refusal(entries, naming)
 
     by_mart: dict[str, MartIR] = {owner.name: owner for _grain, owner in entries.values()}
+    ordered = [by_mart[name] for name in sorted(by_mart)]
+    projections = composed_projection(ir, request)
+    # Components rather than requested metrics: a branch is asked for `revenue`
+    # and never for the ratio the wrapper divides to get (D3). Deduplicated in
+    # request order, since a component may also be requested on its own.
     served: dict[str, tuple[str, ...]] = {
-        name: tuple(metric for metric in request.metrics if entries[metric][1].name == name)
+        name: tuple(
+            dict.fromkeys(
+                component
+                for projection in projections
+                for component in projection.components
+                if _home(ir, entries, component) == name
+            )
+        )
         for name in sorted(by_mart)
     }
 
-    ordered = [by_mart[name] for name in sorted(by_mart)]
     # One provenance per requested dimension, agreed across the branches before
     # any of them resolves — see :func:`_shared_provenance`.
     targets = [_shared_provenance(ir, ordered, dimension) for dimension in request.dimensions]
+    # Every dimension a restriction names, resolved to each branch's own column
+    # before any branch is built — by one shared provenance where the branches
+    # publish one, and branch by branch where they do not. A restriction that
+    # cannot reach every branch, or that two branches mean differently, refuses
+    # the whole request here: a filter one branch cannot evaluate is not a
+    # filter placed elsewhere, it is a request with no consistent meaning.
+    restrictions: dict[str, dict[str, ResolvedDimension]] = {}
+
+    for kind, name in [
+        *(
+            ("filter", predicate.dimension)
+            for clause in request.filters
+            for predicate in clause_predicates(clause)
+        ),
+        *((("row policy", policy.dimension),) if policy is not None else ()),
+    ]:
+        if name in restrictions:
+            # A repeat, not a conflict: both routes below are pure in their
+            # arguments, so the second lookup would return the first's answer.
+            # What the skip decides is which `kind` a refusal names when a
+            # dimension both a filter and the policy mention reaches no branch
+            # — the first mention, which is the filter.
+            continue
+
+        target = _shared_provenance(ir, ordered, name)
+        # Anchored where one provenance every branch reaches exists, and
+        # per-branch where none does. The second is not a failure: an
+        # unqualified date bucket has no candidate at all, because
+        # `_shared_provenance` matches a mart's *column* names and `month` is
+        # published as `ordered_month` (logs/T-0027.md, findings 9 and 10).
+        restrictions[name] = (
+            {
+                mart.name: _resolve_branch_dimension(
+                    mart, name, target=target, apply_grain=None, ir=ir
+                )
+                for mart in ordered
+            }
+            if target is not None
+            else {
+                mart.name: dimension
+                for mart, dimension in _restricted_dimensions(ir, name, ordered, kind=kind)
+            }
+        )
+
+    def _restricted(mart: MartIR, name: str) -> ResolvedDimension:
+        return restrictions[name][mart.name]
+
     branches = tuple(
         Coverage(
             mart=by_mart[name],
@@ -962,8 +1380,16 @@ def resolve_branches(
                 )
                 for dimension, target in zip(request.dimensions, targets, strict=True)
             ),
-            filter_dimensions=(),
-            policy_dimension=None,
+            filter_dimensions=tuple(
+                tuple(
+                    _restricted(by_mart[name], predicate.dimension)
+                    for predicate in clause_predicates(clause)
+                )
+                for clause in request.filters
+            ),
+            policy_dimension=(
+                _restricted(by_mart[name], policy.dimension) if policy is not None else None
+            ),
             metrics=served[name],
         )
         for name in sorted(by_mart)
@@ -974,14 +1400,18 @@ def resolve_branches(
     # two marts both carry is the case that most needs the check rather than
     # the case that can skip it (RFC 0041 D12).
     for position, requested in enumerate(request.dimensions):
-        provenances = {
-            _provenance(branch.mart, branch.dimensions[position].name) for branch in branches
-        }
-        if len(provenances) > 1 or None in provenances:
-            raise _not_one_dimension(
-                requested,
-                [(branch.mart, branch.dimensions[position]) for branch in branches],
-            )
+        _one_dimension(
+            requested, [(branch.mart, branch.dimensions[position]) for branch in branches]
+        )
+
+    # The restrictions need no such check, and one was written and removed
+    # rather than left reading as protection. Their provenance is agreed
+    # *before* resolution — a restriction with no triple every branch reaches
+    # was already refused above — so `_resolve_branch_dimension` takes the
+    # anchored path on every branch and cannot produce two origins. The
+    # requested dimensions differ precisely because their anchor may be `None`,
+    # and the per-branch fallback is then what can disagree (logs/T-0027.md,
+    # finding 2).
 
     # A composed statement projects a key under the name the result will carry
     # (logs/T-0026.md, D-165), so a name that is also a requested metric would
@@ -1005,7 +1435,10 @@ def resolve_branches(
         )
         raise InvalidRequest(msg)
 
-    return branches
+    # Rebuilt as a non-empty tuple rather than returned as-is: the return type
+    # says a branch always comes back, which is what lets a caller read
+    # `branches[0]` without a guard for a case `by_mart` cannot produce.
+    return (branches[0], *branches[1:])
 
 
 # ....................... #

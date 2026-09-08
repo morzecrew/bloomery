@@ -26,6 +26,7 @@ from bloomery.errors import (
 )
 from bloomery.planner import TimeGrain
 from bloomery.planner.metricflow_planner import translate_mf_error
+from bloomery.semantic.plan import Filter, Scan
 from support.planning import fixture_ir, make_planner
 
 pytestmark = pytest.mark.unit
@@ -340,12 +341,19 @@ def test_plan_renders_legal_sql_for_the_second_dialects(dialect: str) -> None:
 # Cross-mart requests — RFC 0041 P1
 
 
-def _composed(dimensions: tuple[str, ...] = ("tier",), **kwargs: object):
+def _composed(
+    dimensions: tuple[str, ...] = ("tier",),
+    *,
+    limit: int | None = None,
+    **kwargs: object,
+):
     planner = make_planner(**kwargs)  # type: ignore[arg-type]
     return planner.plan(
         fixture_ir("cross_mart_branches"),
         MetricRequest(
-            metrics=("shipping_count", "line_discount", "customer_count"), dimensions=dimensions
+            metrics=("shipping_count", "line_discount", "customer_count"),
+            dimensions=dimensions,
+            limit=limit,
         ),
         dialect="duckdb",
     )
@@ -388,17 +396,31 @@ def test_the_explanation_names_every_branch() -> None:
     assert "  mart:" not in rendered
 
 
-def test_a_default_limit_is_dropped_and_said_out_loud() -> None:
-    """A limit pushed into a branch truncates it **before** the join, which
-    answers from a prefix and reports nothing. So the guard is dropped rather
-    than applied where it would be wrong, and the caller is told — a limit
-    asked for explicitly never reaches here, because the precheck refuses that
-    request.
+def test_a_limit_lands_on_the_composed_statement_and_not_in_a_branch() -> None:
+    """RFC 0041 §13a's P2 half of the limit (logs/T-0027.md, D-182).
+
+    P1 dropped the planner's default and said so, because a limit pushed into
+    a branch truncates it **before** the join and answers from a prefix. The
+    composed statement is where it means what the caller asked for, so it goes
+    there — and nowhere else, which is what the branch count asserts: exactly
+    one `LIMIT` in the whole statement, after the joins.
     """
     plan = _composed(default_limit=100)
 
-    assert any("default limit 100 is not applied" in warning for warning in plan.warnings)
-    assert "LIMIT" not in plan.sql.upper()
+    assert plan.sql.upper().count("LIMIT") == 1
+    assert plan.sql.rstrip().endswith("LIMIT 100")
+    assert not any("default limit" in warning for warning in plan.warnings)
+
+
+def test_a_clamped_limit_still_warns_on_the_composed_path() -> None:
+    """RFC 0011 D4's clamp is the planner's, not MetricFlow's, so moving the
+    limit onto bloomery's own statement must not leave the clamp behind — the
+    composed path reuses `_effective_limit` rather than keeping a second copy
+    of the rule (D-182)."""
+    plan = _composed(max_limit=25, limit=1_000)
+
+    assert plan.sql.rstrip().endswith("LIMIT 25")
+    assert any("clamped to 25" in warning for warning in plan.warnings)
 
 
 def test_the_composed_sql_is_fingerprinted_over_the_whole_statement() -> None:
@@ -528,3 +550,145 @@ def test_a_time_grain_with_nothing_to_apply_to_warns_on_a_composed_plan_too() ->
 
     assert any("has no date-role dimension" in warning for warning in plan.warnings)
 
+
+
+# ....................... #
+# RFC 0041 P2: computation above the join.
+
+
+def _computed(metric: str):
+    return make_planner().plan(
+        fixture_ir("cross_mart_branches"),
+        MetricRequest(metrics=(metric,), dimensions=("tier",)),
+        dialect="duckdb",
+    )
+
+
+@pytest.mark.parametrize(
+    ("metric", "operator"),
+    [("discount_per_order", "/ NULLIF("), ("discount_less_orders", " - ")],
+)
+def test_a_metric_whose_components_split_is_computed_above_the_join(
+    metric: str, operator: str
+) -> None:
+    """RFC 0041 D3 and D1 together: the operands are aggregated in their own
+    branches and combined afterwards, because `SUM(a)/SUM(b)` and a row-level
+    `a/b` summed afterwards are different numbers.
+
+    Both shapes P2 admits — a ratio with the spelling §13a fixes, and the
+    RFC 0034 ``derived:`` expression the same phase reaches (logs/T-0027.md,
+    D-179). The branches were asked for the **components**; the requested name
+    exists only in the composed projection.
+    """
+    plan = _computed(metric)
+    # The composed SELECT is the last one at column zero: every branch body
+    # sits inside a CTE above it, and the key domain's SELECTs are indented.
+    branch_sql, _, composed = plan.sql.rpartition("\nSELECT\n")
+
+    assert plan.marts == ("order_items", "orders")
+    assert operator in composed
+    assert metric not in branch_sql, "a branch was asked for the computed metric itself"
+    assert [column.name for column in plan.columns] == ["tier", metric]
+
+
+def test_a_computed_metric_is_described_though_no_branch_produced_it() -> None:
+    """It belongs to no mart, so no branch's column envelope or explanation
+    carries it — and a caller binding the result still needs both."""
+    plan = _computed("discount_per_order")
+    column = plan.columns[-1]
+    rendered = plan.explanation.render()
+
+    assert (column.name, column.sql_alias, column.role) == (
+        "discount_per_order",
+        "discount_per_order",
+        "measure",
+    )
+    assert "discount_per_order = line_discount / shipping_count" in rendered
+    assert "line_discount = SUM" not in rendered, "the components are not what was asked for"
+
+
+def test_a_computed_metric_withholds_the_semantic_plan() -> None:
+    """RFC 0041 D3 says where the arithmetic happens; §4's node vocabulary has
+    nowhere to say it. A plan naming `discount_per_order` in `Project.columns`
+    would claim the join produced a column the join does not produce, so it is
+    withheld — the rule `build` has followed for a derived metric since
+    RFC 0040 P1, one level up (logs/T-0027.md, D-178).
+
+    Paired with the stored-measure request so the assertion cannot pass because
+    composed plans are never stated at all.
+    """
+    assert _computed("discount_per_order").semantic is None
+    assert (
+        make_planner()
+        .plan(
+            fixture_ir("cross_mart_branches"),
+            MetricRequest(metrics=("shipping_count", "line_discount"), dimensions=("tier",)),
+            dialect="duckdb",
+        )
+        .semantic
+        is not None
+    )
+
+
+def test_a_filter_reaches_each_branch_in_that_branchs_own_spelling() -> None:
+    """RFC 0041 D12 applied to a restriction: `region` is `region` on the mart
+    based at `order` and `order_region` on the one that flattened its way
+    there, and both are the same column. Placing the requested spelling on both
+    would refuse one branch; placing a same-named column on both would be the
+    name match D5 refuses."""
+    plan = make_planner().plan(
+        fixture_ir("cross_mart_branches"),
+        MetricRequest(
+            metrics=("shipping_count", "line_discount"),
+            dimensions=("tier",),
+            filters=(Predicate(dimension="region", op=Op.EQ, values=("EU",)),),
+        ),
+        dialect="duckdb",
+    )
+
+    assert "WHERE order__region = 'EU'" in plan.sql
+    assert "WHERE order_item__order_region = 'EU'" in plan.sql
+    assert plan.explanation.render().count("region = 'EU'") == 1, (
+        "one filter reached every branch; the explanation reports the request's account"
+    )
+
+
+def test_each_branch_plan_names_the_column_that_branch_restricts() -> None:
+    """A `SemanticPlan` is lowered, not shown, so its predicates have to name
+    the columns the branch actually filters.
+
+    The merged explanation speaks the *requested* spelling, which is right for
+    a reader and wrong here: a branch whose `Filter` said `region` while its
+    scan restricts `order_region` lowers into a predicate on a column that
+    relation does not have. The `Aggregate` beside it already named the
+    branch-local column, so the plan contradicted itself — which is the
+    evidence, and which the self-audit missed (logs/T-0027.md, finding 7).
+    """
+    plan = make_planner().plan(
+        fixture_ir("cross_mart_branches"),
+        MetricRequest(
+            metrics=("shipping_count", "line_discount"),
+            dimensions=("tier",),
+            filters=(Predicate(dimension="region", op=Op.EQ, values=("EU",)),),
+        ),
+        dialect="duckdb",
+        policy=RowPolicy("region", Op.NE, "UK"),
+    )
+    assert plan.semantic is not None
+    join = plan.semantic.nodes[0]
+    by_relation = {
+        next(node.relation for node in branch.plan.nodes if isinstance(node, Scan)): next(
+            node.predicates for node in branch.plan.nodes if isinstance(node, Filter)
+        )
+        for branch in join.branches  # type: ignore[attr-defined]
+    }
+
+    assert by_relation == {
+        "order_items": ("order_region != 'UK'", "order_region = 'EU'"),
+        "orders": ("region != 'UK'", "region = 'EU'"),
+    }
+    # And each name is the column its own branch actually restricts — the two
+    # branches render the same clause against differently-spelled columns,
+    # which is the whole reason the plan may not speak one spelling for both.
+    assert "order_item__order_region = 'EU'" in plan.sql
+    assert "order__region = 'EU'" in plan.sql

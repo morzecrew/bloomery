@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 
 from bloomery.errors import PlannerError, guaranteed
 from bloomery.ir import COMPUTED, Additivity, Layer, SemiAdditiveRule
+from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import Op, Predicate, clause_predicates
 from bloomery.planner.result import BranchSource, Explanation, MeasureExplanation
 
@@ -32,7 +33,6 @@ if TYPE_CHECKING:
     from bloomery.ir import MartIR, MetricInputIR, MetricIR, ProjectIR
     from bloomery.naming import NamingPolicy
     from bloomery.planner.coverage import Coverage
-    from bloomery.planner.names import ResolvedDimension
     from bloomery.planner.policy import RowPolicy
     from bloomery.planner.request import Clause, MetricRequest, Scalar
 
@@ -145,7 +145,16 @@ def _filter_note(metric: MetricIR) -> str:
 # ....................... #
 
 
-def _measure_explanation(metric: MetricIR, mart: MartIR) -> MeasureExplanation:
+def _measure_explanation(metric: MetricIR, mart: MartIR | None) -> MeasureExplanation:
+    """How one measure was computed.
+
+    ``mart`` is optional because a metric the composed statement computes above
+    the join belongs to no branch (RFC 0041 D3). It is read on the
+    semi-additive path alone, which the composed path never reaches — §8 holds
+    that class back — and a semi-additive metric arriving without one is a
+    planner defect rather than a request the caller can fix.
+    """
+
     additivity = metric.additivity.value
 
     if metric.derived is not None:
@@ -166,6 +175,12 @@ def _measure_explanation(metric: MetricIR, mart: MartIR) -> MeasureExplanation:
 
     if metric.additivity is Additivity.SEMI_ADDITIVE and metric.semi_additive is not None:
         policy = metric.semi_additive
+        if mart is None:  # pragma: no cover — §8 keeps the class off the composed path
+            msg = (
+                f"semi-additive metric {metric.name!r} has no mart to explain over — "
+                "RFC 0041 §8 holds the class back from branch planning"
+            )
+            raise PlannerError(msg)
         over = _day_column(mart, policy.over.qualified)
         window = _WINDOWS.get(policy.rule, policy.rule.value.upper())
         note = f"semi-additive {policy.rule.value} over {over} — {window}-join then SUM"
@@ -227,6 +242,45 @@ def _human_clause(clause: Clause, resolutions: tuple[ResolvedDimension, ...]) ->
         for predicate, resolved in zip(clause_predicates(clause), resolutions, strict=True)
     )
     return " OR ".join(rendered)
+
+
+# ....................... #
+
+
+def composed_clauses(request: MetricRequest) -> tuple[str, ...]:
+    """The request's filters as prose, under the names the caller used.
+
+    A branch renders a clause under its own mart's spelling of the dimension —
+    `tier` on one mart, `customer_tier` on another — and the composed answer
+    applied one filter rather than one per branch. The requested name is the
+    spelling every branch agreed to (RFC 0041 D12), so it is the one the
+    explanation says.
+    """
+
+    return tuple(
+        _human_clause(
+            clause,
+            tuple(
+                ResolvedDimension(name=predicate.dimension)
+                for predicate in clause_predicates(clause)
+            ),
+        )
+        for clause in request.filters
+    )
+
+
+# ....................... #
+
+
+def composed_measure(metric: MetricIR) -> MeasureExplanation:
+    """How a metric computed above the join was computed (RFC 0041 D3).
+
+    It is not any branch's measure, so no branch's explanation carries it —
+    and both shapes reaching here, a ratio and an RFC 0034 ``derived:``
+    metric, explain from their own decomposition rather than from a mart.
+    """
+
+    return _measure_explanation(metric, None)
 
 
 # ....................... #
@@ -315,7 +369,14 @@ def build(
 # ....................... #
 
 
-def merge(parts: Sequence[Explanation], *, order: Sequence[str]) -> Explanation:
+def merge(
+    parts: Sequence[Explanation],
+    *,
+    order: Sequence[str],
+    computed: Sequence[MeasureExplanation] = (),
+    filters: tuple[str, ...] = (),
+    policy_applied: bool = False,
+) -> Explanation:
     """One explanation for a composed plan, from its branches' (RFC 0041 D15).
 
     ``measures`` come back in **request** order rather than branch order: the
@@ -326,19 +387,23 @@ def merge(parts: Sequence[Explanation], *, order: Sequence[str]) -> Explanation:
     every one — so the two long-standing fields report something true of part
     of the answer instead of a name invented for the join, and `render()`
     names all of them.
+
+    ``computed`` carries the metrics no branch produced because the composed
+    statement computes them above the join (RFC 0041 D3) — they answer to a
+    requested name that appears in no part's measures. ``filters`` arrives
+    already rendered under the requested spellings rather than any branch's
+    (:func:`composed_clauses`), because one filter reached every branch and
+    the explanation reports the request's account of it, not three.
     """
 
     by_name = {measure.name: measure for part in parts for measure in part.measures}
+    by_name.update({measure.name: measure for measure in computed})
 
     return Explanation(
         mart=parts[0].mart,
         grain=parts[0].grain,
         measures=tuple(by_name[name] for name in order if name in by_name),
-        # A composed request carries no filters and no policy at P1: the
-        # coverage precheck declines the composed path when either is present,
-        # so these are empty by refusal rather than by omission (RFC 0041 D4,
-        # D5; logs/T-0026.md, D-168).
-        filters=(),
-        policy_applied=False,
+        filters=filters,
+        policy_applied=policy_applied,
         branches=tuple(BranchSource(mart=part.mart, grain=part.grain) for part in parts),
     )

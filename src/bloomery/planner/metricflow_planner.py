@@ -49,6 +49,7 @@ from bloomery.errors import (
     PlannerError,
     UnknownMember,
     UnreachableAtGrain,
+    guaranteed,
 )
 from bloomery.naming import DefaultNaming
 from bloomery.planner import semantic_plan
@@ -155,19 +156,44 @@ class MetricFlowPlanner:
         engine: MetricFlowEngine,
         resolved: coverage.Coverage,
         metrics_by_name: dict[str, MetricIR],
+        *,
+        request: MetricRequest,
+        policy: RowPolicy | None,
     ) -> tuple[str, tuple[ColumnDescriptor, ...], MetricFlowExplainResult]:
         """One branch, rendered by MetricFlow as the single-mart request it is.
 
-        No filters, no order and no limit reach it: RFC 0041 P1 declines the
-        composed path when the request carries any of them, because each would
-        have to be applied *after* the join and applying it per branch answers
-        from a narrowed or truncated branch instead (logs/T-0026.md, D-168).
+        The request's filters and the row policy **do** reach it, resolved
+        against this branch's own mart: a restriction that could not reach
+        every branch had the whole request refused before this ran
+        (logs/T-0027.md, D-176), so a branch here is one that can evaluate all
+        of them. They go through the same :mod:`~bloomery.planner.filters`
+        pipeline the single-mart path uses — one renderer, one set of
+        injection rules, policy prepended.
+
+        ``order_by`` and ``limit`` do not. Both belong to the composed
+        statement, because a branch sorted before the join has its order undone
+        by it and a branch truncated before the join answers from a prefix
+        (D-182).
+
+        The metrics asked for are the branch's **components**, which for a
+        computed metric are not the names the caller requested (D3).
         """
 
         entity = names.entity_key(resolved.mart)
         mf_request = MetricFlowQueryRequest.create(
             metric_names=names.to_mf_metrics(resolved.metrics),
             group_by_names=names.to_mf_group_by(resolved.dimensions, entity=entity),
+            where_constraints=list(
+                filters.to_where(
+                    request.filters,
+                    resolved.filter_dimensions,
+                    mart=resolved.mart,
+                    entity=entity,
+                    policy=policy,
+                    policy_dimension=resolved.policy_dimension,
+                )
+            )
+            or None,
             output_column_order_mode=OutputColumnOrderMode.INPUT_ORDER,
         )
 
@@ -186,6 +212,42 @@ class MetricFlowPlanner:
 
     # ....................... #
 
+    def _measures(
+        self,
+        ir: ProjectIR,
+        request: MetricRequest,
+        branches: tuple[coverage.Coverage, ...],
+    ) -> tuple[compose.Measure, ...]:
+        """Every requested metric as the composed statement produces it.
+
+        The projection comes from :func:`coverage.composed_projection` rather
+        than being read off the request a second time — the precheck accepted
+        the request on exactly those projections, and a planner deriving its
+        own would be RFC 0041 D11's divergence one level up. What is added
+        here is the only thing coverage does not know: which branch index each
+        component landed on.
+        """
+
+        owner = {
+            component: index
+            for index, resolved in enumerate(branches)
+            for component in resolved.metrics
+        }
+
+        return tuple(
+            compose.Measure(
+                name=projection.name,
+                inputs=tuple(
+                    (alias, owner[component], component) for alias, component in projection.inputs
+                )
+                or ((projection.name, owner[projection.name], projection.name),),
+                expr=projection.expr.ast() if projection.expr is not None else None,
+            )
+            for projection in coverage.composed_projection(ir, request)
+        )
+
+    # ....................... #
+
     def _composed(
         self,
         ir: ProjectIR,
@@ -193,6 +255,7 @@ class MetricFlowPlanner:
         branches: tuple[coverage.Coverage, ...],
         *,
         dialect: str,
+        policy: RowPolicy | None,
     ) -> QueryPlan:
         """A cross-mart request, answered by joining branch aggregates
         (RFC 0041 D9).
@@ -209,13 +272,58 @@ class MetricFlowPlanner:
         engine = MetricFlowEngine(
             semantic_manifest_lookup=lookup, sql_client=sql_client_for_dialect(dialect)
         )
-        rendered = [self._branch(engine, resolved, metrics_by_name) for resolved in branches]
+
+        def branch_request(resolved: coverage.Coverage) -> MetricRequest:
+            """The request as *this branch* answers it.
+
+            Its own components rather than the caller's metrics, and neither
+            `order_by` nor `limit`: both are the composed statement's
+            (D-182), and `order_by` naming a metric no branch was asked for
+            would not even construct — `MetricRequest` refuses an order field
+            that is not a requested metric or dimension (RFC 0011 D4). The
+            filters stay, because the branch is where they are applied.
+            """
+
+            return dataclasses.replace(request, metrics=resolved.metrics, order_by=(), limit=None)
+
+        rendered = [
+            self._branch(engine, resolved, metrics_by_name, request=request, policy=policy)
+            for resolved in branches
+        ]
         width = len(request.dimensions)
         keys = coverage.composed_keys(request, branches)
-        owner = {
-            metric: index for index, resolved in enumerate(branches) for metric in resolved.metrics
-        }
-        measures = tuple((owner[metric], metric) for metric in request.metrics)
+        measures = self._measures(ir, request, branches)
+        limit, warnings = self._effective_limit(request)
+        # A date-role dimension is answered under its re-bucketed name, so an
+        # `order_by` naming the requested spelling has to be translated to the
+        # one the composed statement projects (`ordered_day` → `ordered_month`).
+        #
+        # An identity map today, and kept rather than dropped. A date role may
+        # only name a column of its mart's **base** entity, so two marts at
+        # different grains cannot expose one date column as a role, and D12
+        # refuses two roles of different origin — no composed request re-buckets
+        # anything (logs/T-0027.md, finding 3). What is unreachable is the
+        # grammar's doing rather than this planner's, and the day a mart may
+        # carry a flattened role, the translation has to already be here: its
+        # absence answers, it does not fail.
+        effective = dict(zip(request.dimensions, keys, strict=True))
+        ordering = tuple(
+            (effective.get(spec.field, spec.field), spec.direction) for spec in request.order_by
+        )
+        projected = {*keys, *(measure.name for measure in measures)}
+
+        # The composed statement can only order by what it projects, and the
+        # field reaches `_ordering` as SQL text. `MetricRequest` already refuses
+        # an order field that is not a requested metric or dimension (RFC 0011
+        # D4), so this cannot fire — it is the second net `names.to_mf_order`
+        # holds under the single-mart path, kept because this path builds the
+        # clause itself instead of handing a name to MetricFlow.
+        if unknown := sorted(field for field, _direction in ordering if field not in projected):
+            raise PlannerError(  # pragma: no cover — MetricRequest refuses this first
+                f"order_by names {unknown}, which the composed statement does not project "
+                "— a cross-grain answer can only be ordered by its own columns (RFC 0011 D4)"
+            )
+
         sql = compose.compose(
             [
                 compose.Branch(
@@ -226,36 +334,63 @@ class MetricFlowPlanner:
             ],
             keys=keys,
             measures=measures,
+            order_by=ordering,
+            limit=limit,
             dialect=get_dialect(dialect),
         )
         # The key columns keep the type and role the branch resolved them to
         # and take the composed statement's own alias, since that is what the
-        # SQL projects (logs/T-0026.md, D-165). The measures are already what
-        # their branch called them.
+        # SQL projects (logs/T-0026.md, D-165). A stored measure is already
+        # what its branch called it; a computed one belongs to no branch and
+        # is described here (D3).
         columns = tuple(
             dataclasses.replace(column, name=name, sql_alias=name)
             for column, name in zip(rendered[0][1][:width], keys, strict=True)
         ) + tuple(
-            descriptor
-            for index, metric in measures
-            for descriptor in rendered[index][1][width:]
-            if descriptor.name == metric
+            names.composed_column(metrics_by_name[measure.name])
+            if measure.expr is not None
+            else guaranteed(
+                (
+                    descriptor
+                    for descriptor in rendered[measure.inputs[0][1]][1][width:]
+                    if descriptor.name == measure.name
+                ),
+                expected=f"a column descriptor for measure {measure.name!r}",
+                by="the branch that was asked for it, which returns one per metric",
+            )
+            for measure in measures
         )
+        # Kept per branch as well as merged. The merged explanation speaks the
+        # *requested* spelling of a dimension, which is right for a reader and
+        # wrong for a branch's plan: `SemanticPlan` is lowered rather than
+        # shown, so a branch whose `Filter` said `region` while its scan
+        # restricts `order_region` would lower into a predicate on a column
+        # that relation does not have — and the `Aggregate` beside it already
+        # names the branch-local column, so the plan contradicted itself
+        # (logs/T-0027.md, finding 7).
+        per_branch = [
+            explain.build(
+                result,
+                resolved,
+                ir,
+                branch_request(resolved),
+                naming=self._naming,
+                policy_applied=policy is not None,
+            )
+            for resolved, (_sql, _columns, result) in zip(branches, rendered, strict=True)
+        ]
         explanation = explain.merge(
-            [
-                explain.build(
-                    result,
-                    resolved,
-                    ir,
-                    dataclasses.replace(request, metrics=resolved.metrics),
-                    naming=self._naming,
-                    policy_applied=False,
-                )
-                for resolved, (_sql, _columns, result) in zip(branches, rendered, strict=True)
-            ],
+            per_branch,
             order=request.metrics,
+            computed=tuple(
+                explain.composed_measure(metrics_by_name[measure.name])
+                for measure in measures
+                if measure.expr is not None
+            ),
+            filters=explain.composed_clauses(request),
+            policy_applied=policy is not None,
         )
-        warnings = self._composed_warnings(request, branches)
+        warnings += self._composed_warnings(request, branches)
 
         return QueryPlan(
             sql=sql,
@@ -270,16 +405,28 @@ class MetricFlowPlanner:
                     (
                         semantic_plan.build(
                             resolved,
-                            dataclasses.replace(request, metrics=resolved.metrics),
+                            branch_request(resolved),
                             metrics_by_name,
-                            filters=(),
+                            filters=explain.applied_predicates(
+                                branch,
+                                branch_request(resolved),
+                                resolved,
+                                metrics_by_name,
+                                policy=policy,
+                            ),
                         ),
                         tuple(dimension.name for dimension in resolved.dimensions),
                     )
-                    for resolved in branches
+                    for resolved, branch in zip(branches, per_branch, strict=True)
                 ],
                 keys,
                 request.metrics,
+                # A metric computed above the join has no node saying so: the
+                # plan's vocabulary states a scan, a filter, an aggregate, a
+                # projection and a join, and none of them is an arithmetic
+                # expression. So the plan is withheld rather than stated
+                # incompletely (logs/T-0027.md, D-178).
+                computed=any(measure.expr is not None for measure in measures),
             ),
         )
 
@@ -290,13 +437,11 @@ class MetricFlowPlanner:
     ) -> tuple[str, ...]:
         """What a composed plan has to say about what it did not do.
 
-        The default limit is the one that matters. It is a guard against an
-        unbounded result, and a composed statement cannot inherit it: a limit
-        pushed into a branch truncates that branch *before* the join, which
-        answers from a prefix and reports no warning at all. So it is dropped
-        and said out loud, rather than applied where it would be wrong. A
-        limit the caller asked for explicitly never reaches here — the
-        precheck refuses that request (RFC 0041 §13a).
+        Only the `time_grain` case is left. P1 also dropped the planner's
+        default limit and said so, because a limit pushed into a branch
+        truncates it before the join; P2 puts the limit on the composed
+        statement instead, where it means what the caller asked for
+        (logs/T-0027.md, D-182).
         """
 
         warnings: tuple[str, ...] = ()
@@ -308,15 +453,6 @@ class MetricFlowPlanner:
                 (
                     f"time_grain {request.time_grain.value!r} has no date-role dimension "
                     "in the request to apply to; ignored"
-                ),
-            )
-
-        if self._default_limit is not None:
-            warnings += (
-                (
-                    f"the planner's default limit {self._default_limit} is not applied to a "
-                    "cross-mart request: a limit inside a branch truncates it before the "
-                    "join, so the answer is unbounded"
                 ),
             )
 
@@ -346,7 +482,7 @@ class MetricFlowPlanner:
         branches = coverage.resolve_branches(ir, request, naming=self._naming, policy=policy)
 
         if len(branches) > 1:
-            return self._composed(ir, request, branches, dialect=dialect)
+            return self._composed(ir, request, branches, dialect=dialect, policy=policy)
 
         resolved = branches[0]
         entity = names.entity_key(resolved.mart)

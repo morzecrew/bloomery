@@ -20,22 +20,27 @@ and the number of requests is not the same as the number of shapes:
   each measure alone, each measure by each dimension, three two-dimension
   pairs, and each measure by every dimension *another* mart of the same project
   flattens — plus, per pair of measure-carrying marts, one **cross-mart**
-  request ungrouped and one by each dimension of the first mart. That is 907
-  requests, 87 of them cross-mart.
-* 510 are accepted and 397 refused across five classes, so both sides are real.
+  request ungrouped, one by each dimension of the first mart, one **restricted**
+  by each of those dimensions, and one per metric whose own components straddle
+  the pair. That is 991 requests, 171 of them cross-mart.
+* 527 are accepted and 464 refused across five classes, so both sides are real.
 * **76 of the refusals are one fixture**, `multi_source_quality`, whose catalog
   declares no `date_dimension` — MetricFlow refuses the whole project, so those
   requests fail identically and test one fact repeatedly rather than 76.
 
-**The generator has been widened twice, both times because it was blind to the
-phase it was guarding.** RFC 0040 P2's self-audit added the cross-mart
+**The generator has been widened three times, each time because it was blind
+to the phase it was guarding.** RFC 0040 P2's self-audit added the cross-mart
 *dimensions* (logs/T-0022.md, finding 1): every request named a dimension of
 the mart serving it, so not one could reach that phase's conversion. RFC 0041
-P1 adds the cross-mart *requests* — its whole subject is a request whose
+P1 added the cross-mart *requests* — its whole subject is a request whose
 measures live on two marts, and the generator asked only single-metric ones
 (D-128), so the corpus could not contain a single instance of the shape being
-built. A load-bearing parity suite blind to the phase it is guarding is worth
-more as a finding than as a pass.
+built. RFC 0041 P2 adds the two shapes *it* is about: a cross-mart request
+carrying a restriction, and one whose metric is computed above the join. The
+widening was written before the code this time rather than after an audit, on
+the standing evidence that a suite which cannot reach a change abstained rather
+than passed. A load-bearing parity suite blind to the phase it is guarding is
+worth more as a finding than as a pass.
 
 Two things about the baseline follow:
 
@@ -68,7 +73,7 @@ import pathlib
 from collections import Counter
 
 import pytest
-from bloomery import MetricRequest
+from bloomery import MetricRequest, Op, Predicate
 from bloomery.ir import ProjectIR
 from support.compiling import spec_fixture_names
 from support.planning import fixture_ir, make_planner
@@ -95,7 +100,9 @@ UNBUILDABLE = frozenset(
 _PAIRS = 3
 
 
-def _requests(ir: ProjectIR) -> list[tuple[str, str, tuple[str, ...], tuple[str, ...]]]:
+def _requests(
+    ir: ProjectIR,
+) -> list[tuple[str, str, tuple[str, ...], tuple[str, ...], tuple[Predicate, ...]]]:
     """Every request shape this corpus asks, in a deterministic order, each
     carrying the mart it was generated from and the metrics it asks for.
 
@@ -108,7 +115,7 @@ def _requests(ir: ProjectIR) -> list[tuple[str, str, tuple[str, ...], tuple[str,
     RFC 0041 P1 (D16) key on `a+b` in both the mart and the measure field,
     which no single-metric key can collide with.
     """
-    shapes: list[tuple[str, str, tuple[str, ...], tuple[str, ...]]] = []
+    shapes: list[tuple[str, str, tuple[str, ...], tuple[str, ...], tuple[Predicate, ...]]] = []
 
     for mart in sorted(ir.marts, key=lambda m: m.name):
         dimensions = sorted({dimension.ref.dimension for dimension in mart.dimensions})
@@ -121,16 +128,16 @@ def _requests(ir: ProjectIR) -> list[tuple[str, str, tuple[str, ...], tuple[str,
             - {dimension.column for dimension in mart.dimensions}
         )
         for measure in sorted(mart.measures):
-            shapes.append((mart.name, measure, (), (measure,)))
+            shapes.append((mart.name, measure, (), (measure,), ()))
             shapes.extend(
-                (mart.name, measure, (dimension,), (measure,)) for dimension in dimensions
+                (mart.name, measure, (dimension,), (measure,), ()) for dimension in dimensions
             )
             shapes.extend(
-                (mart.name, measure, pair, (measure,))
+                (mart.name, measure, pair, (measure,), ())
                 for pair in itertools.islice(itertools.combinations(dimensions, 2), _PAIRS)
             )
             shapes.extend(
-                (mart.name, measure, (dimension,), (measure,)) for dimension in foreign
+                (mart.name, measure, (dimension,), (measure,), ()) for dimension in foreign
             )
 
     shapes.extend(_cross_mart(ir))
@@ -138,7 +145,39 @@ def _requests(ir: ProjectIR) -> list[tuple[str, str, tuple[str, ...], tuple[str,
     return shapes
 
 
-def _cross_mart(ir: ProjectIR) -> list[tuple[str, str, tuple[str, ...], tuple[str, ...]]]:
+def _leaves(ir: ProjectIR, name: str, seen: set[str] | None = None) -> tuple[str, ...]:
+    """The measures a metric ultimately needs, following ratios and derived
+    inputs.
+
+    A local walk rather than the planner's, deliberately: this decides only
+    **which requests to ask**, so disagreeing with the planner costs a row that
+    records a refusal instead of an acceptance — never a wrong assertion. Wiring
+    it to the planner's own walk would make the corpus a function of the code
+    under test.
+    """
+    seen = set() if seen is None else seen
+
+    if name in seen:
+        return ()
+
+    seen.add(name)
+    metric = next((candidate for candidate in ir.metrics if candidate.name == name), None)
+
+    if metric is None:
+        return ()
+
+    if metric.derived is not None:
+        return tuple(
+            leaf for input_ in metric.derived.inputs for leaf in _leaves(ir, input_.metric, seen)
+        )
+
+    if metric.ratio is not None:
+        return (*_leaves(ir, metric.ratio.numerator, seen), *_leaves(ir, metric.ratio.denominator, seen))
+
+    return (name,)
+
+
+def _cross_mart(ir: ProjectIR) -> list[tuple[str, str, tuple[str, ...], tuple[str, ...], tuple[Predicate, ...]]]:
     """One request per pair of measure-carrying marts, ungrouped and then
     grouped by each dimension of the first of the pair.
 
@@ -155,16 +194,42 @@ def _cross_mart(ir: ProjectIR) -> list[tuple[str, str, tuple[str, ...], tuple[st
     corpus without asking anything new.
     """
     carrying = [mart for mart in sorted(ir.marts, key=lambda m: m.name) if mart.measures]
-    shapes: list[tuple[str, str, tuple[str, ...], tuple[str, ...]]] = []
+    shapes: list[tuple[str, str, tuple[str, ...], tuple[str, ...], tuple[Predicate, ...]]] = []
 
     for left, right in itertools.combinations(carrying, 2):
         metrics = (sorted(left.measures)[0], sorted(right.measures)[0])
         mart = f"{left.name}+{right.name}"
         measure = "+".join(metrics)
-        shapes.append((mart, measure, (), metrics))
+        dimensions = sorted({dimension.ref.dimension for dimension in left.dimensions})
+        shapes.append((mart, measure, (), metrics, ()))
         shapes.extend(
-            (mart, measure, (dimension,), metrics)
-            for dimension in sorted({dimension.ref.dimension for dimension in left.dimensions})
+            (mart, measure, (dimension,), metrics, ()) for dimension in dimensions
+        )
+        # A **restricted** cross-mart request, which is the half of P2 the
+        # generator was blind to for the same reason it was blind to cross-mart
+        # requests at all (D16). `is_null` rather than a comparison: it needs no
+        # literal, so one shape reaches every column type without the outcome
+        # recording a type mismatch instead of a placement.
+        shapes.extend(
+            (
+                mart,
+                f"{measure}|not-null:{dimension}",
+                (),
+                metrics,
+                (Predicate(dimension=dimension, op=Op.IS_NULL, values=(False,)),),
+            )
+            for dimension in dimensions
+        )
+        # And a metric whose own components straddle this pair — P2's other
+        # half, computed above the join rather than by either branch (D3).
+        pair = set(left.measures) | set(right.measures)
+        shapes.extend(
+            (mart, f"{measure}|computed:{metric.name}", (), (metric.name,), ())
+            for metric in sorted(ir.metrics, key=lambda m: m.name)
+            if (leaves := set(_leaves(ir, metric.name))) != {metric.name}
+            if leaves <= pair
+            if leaves & set(left.measures)
+            if leaves & set(right.measures)
         )
 
     return shapes
@@ -193,8 +258,8 @@ def _outcomes() -> dict[str, str]:
         if not any(mart.measures for mart in ir.marts):
             continue
 
-        for mart, measure, dimensions, metrics in _requests(ir):
-            request = MetricRequest(metrics=metrics, dimensions=dimensions)
+        for mart, measure, dimensions, metrics, filters in _requests(ir):
+            request = MetricRequest(metrics=metrics, dimensions=dimensions, filters=filters)
             try:
                 planner.plan(ir, request, dialect="duckdb")
                 outcome = "accepted"
@@ -238,43 +303,45 @@ def write_baseline() -> None:  # pragma: no cover — the regeneration entry poi
 
 
 def test_the_corpus_is_the_size_it_claims_to_be() -> None:
-    """A parity run is green whether it replayed 907 requests or none, so the
+    """A parity run is green whether it replayed 991 requests or none, so the
     size is asserted rather than reported. Found worth pinning because the
     generator reads fixtures: one that stops carrying marts shrinks the corpus
     silently, and the suite keeps passing on what is left."""
     outcomes = _outcomes()
 
     assert len(outcomes) == len(_baseline())
-    assert len(outcomes) == 907
+    assert len(outcomes) == 991
 
 
-#: What RFC 0041 P1 licenses, as moves rather than as a list of keys: the rule
+#: What RFC 0041 P2 licenses, as moves rather than as a list of keys: the rule
 #: is what the phase claims, and a list would also pass for a phase that
 #: converted some other request and un-converted one of these.
 #:
-#: The first pair is the phase itself — a request whose measures live on two
-#: marts is answered by joining branch aggregates instead of refused. The
-#: second is **not** a capability and is licensed separately for that reason:
-#: one request in the new fixture names a column that is a mart dimension to
-#: the coverage precheck and a join key to the manifest emitter, so the branch
-#: reaches MetricFlow and is refused there. It refuses identically as a
-#: single-mart request at the merge base — the composed path reports what its
-#: branch reports — and the underlying divergence is a defect of the
-#: mart-to-manifest lowering (logs/T-0026.md, D-170).
+#: Measured against the merge base, which already carries P1 — so P1's own
+#: conversions are in the baseline and these are P2's alone. The first pair is
+#: the phase: a cross-mart request carrying a **restriction** every branch can
+#: evaluate, and one whose metric is **computed above the join**, are answered
+#: instead of refused. The second is **not** a capability and is licensed
+#: separately for that reason: one request names a column that is a mart
+#: dimension to the coverage precheck and a join key to the manifest emitter,
+#: so the branch reaches MetricFlow and is refused there. P1 licensed the same
+#: move for the grouped form of that request; this is its filtered form, and
+#: the underlying divergence is a defect of the mart-to-manifest lowering
+#: (logs/T-0026.md, D-170).
 CONVERSIONS = {
-    ("UnreachableAtGrain", "accepted"): 19,
+    ("UnreachableAtGrain", "accepted"): 15,
     ("UnreachableAtGrain", "UnknownMember"): 1,
 }
 
 #: How many requests moved in total. Pinned because "no unlicensed change" is
 #: equally true of a phase that converts nothing at all.
 #:
-#: Two of the nineteen were added by review: a dimension both branches reach
-#: was refused when an unrelated mart published the same name from a different
-#: origin, because the identity lookup asked the first such mart what the name
-#: meant. `order_id` on `cross_mart_branches` is one — both marts reach
-#: `order.order_id`, so the request is answerable, and it now is.
-CONVERTED = 20
+#: Thirteen of the fifteen are filtered cross-mart requests and two are the
+#: computed metrics — a ratio and an authored expression whose components live
+#: on different marts (logs/T-0027.md, D-179). Nothing single-mart moves: a
+#: filter on one mart was always placeable, and P2 changes only where a
+#: restriction has more than one branch to reach.
+CONVERTED = 16
 
 
 def _unlicensed(

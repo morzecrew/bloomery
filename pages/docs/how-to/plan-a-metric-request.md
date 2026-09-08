@@ -135,7 +135,7 @@ malformed `nulls`, `limit`, or `offset` value is `InvalidRequest`).
 | `columns` | Self-describing output envelope: one `ColumnDescriptor(name, type, role)` per output column, in bloomery names (`ordered_month`, never MetricFlow's internal names) |
 | `mart` | The serving mart's logical name — the first of `marts` |
 | `marts` | Every mart the plan read: one name, or one per branch when the measures span grains |
-| `warnings` | Non-fatal notices: a clamped `limit`, a `time_grain` with nothing to apply to, a default limit not applied to a cross-grain request |
+| `warnings` | Non-fatal notices: a clamped `limit`, a `time_grain` with nothing to apply to |
 | `explanation` | Deterministic provenance — `explanation.render()` gives the human-readable block |
 | `fingerprint` | `sha256(sql)` — your result-cache key |
 
@@ -171,10 +171,9 @@ metric 'order_count' (grain: order) is served by no mart — no mart lists it as
 ```
 
 Measures that span grains are not automatically a refusal. Where every requested
-dimension is the same dimension on every mart involved, and the request carries no
-filter, policy, ordering or limit, the planner aggregates each measure on its own mart
-and joins the results — `marts` then names each one and the explanation prints a
-`branch:` line per mart:
+dimension is the same dimension on every mart involved, the planner aggregates each
+measure on its own mart and joins the results — `marts` then names each one and the
+explanation prints a `branch:` line per mart:
 
 ```text
 shipping_count, line_discount
@@ -188,8 +187,20 @@ shipping_count, line_discount
   policy:   not applied
 ```
 
-Where it cannot prove that, it refuses with the conflict named — including the case
-where both marts carry a column of the same name and mean different things by it. See
+Filters, the row policy, `order_by` and `limit` all work on such a request. A filter and
+the policy are placed on **every** branch in that branch's own spelling of the dimension;
+one a branch cannot evaluate refuses the whole request, because a restriction applied to
+half the answer returns a number rather than an error. The ordering and the limit apply to
+the joined result, so a limit is a limit on rows you get back and not on rows one branch
+contributed.
+
+A metric whose components span the marts — a ratio, or a `derived:` expression — is
+computed once above the join, over operands each branch aggregated. Two shapes stay
+refused: a component that itself needs two marts, and a derived input read at a time
+offset.
+
+Where it cannot prove a request safe, it refuses with the conflict named — including the
+case where both marts carry a column of the same name and mean different things by it. See
 [wide-marts](../concepts/wide-marts.md#cross-grain-requests-are-aggregated-first-or-refused).
 
 `AmbiguousDimension` — an unqualified bucket where the mart has several date roles:
