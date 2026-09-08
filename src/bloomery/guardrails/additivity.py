@@ -33,10 +33,11 @@ Checked over ``MetricIR.additivity`` on the draft IR:
   grain is taken along.
 - A ``distinct_count`` metric is a ``count_distinct`` over the identity it
   counts, and nothing else (RFC 0038 §4; logs/T-0028.md). The word is what
-  keeps the planner from ever rolling the stored count up — summing per-group
-  distinct counts double-counts an identity present in several — so a
-  ``distinct_count`` with any other aggregation is an additive measure wearing
-  a non-additive word, and is :class:`~bloomery.errors.FalseAdditivityClaim`.
+  keeps every rollup — a composed branch, a rollup mart — from re-aggregating
+  the stored count: summing per-group distinct counts double-counts an
+  identity present in several. So a ``distinct_count`` with any other
+  aggregation is an additive measure wearing a non-additive word, and is
+  :class:`~bloomery.errors.FalseAdditivityClaim`.
   The converse — ``count_distinct`` under ``additive`` — is the allowlist rule
   above, whose remedy names this word.
 """
@@ -340,8 +341,9 @@ def _check_distinct_count(metric: MetricIR, path: str) -> list[GuardrailError]:
 
     The word exists so no rollup ever re-aggregates the stored count; a metric
     carrying it over ``sum`` would be additive in fact and non-additive in
-    name, and every branch that reads the class would then refuse a measure
-    that could have been answered. ``expr`` is the identity being counted, so
+    name — the composed path would refuse a rollup it could have answered, and
+    the resolved IR would disagree with the artifact it produced, which is the
+    second-spelling risk RFC 0038 D5 names. ``expr`` is the identity being counted, so
     a metric without one has nothing to be distinct over — and the emitters
     refuse a measure with no expression anyway; saying it here names the
     class rather than the target.
