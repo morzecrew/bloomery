@@ -13,11 +13,11 @@ from functools import lru_cache
 import sqlglot
 from sqlglot import expressions as exp
 
-from bloomery import MetricFlowPlanner, build_project_ir
+from bloomery import MetricFlowPlanner, build_project_ir, load_catalog, load_project
 from bloomery.ir import MartIR, ProjectIR
 from bloomery.naming import DefaultNaming
 from bloomery.runtime import LruManifestHydrator
-from support.compiling import load_fixture
+from support.compiling import FIXTURES, fixture_sources, load_fixture
 
 __all__ = [
     "audit_scans",
@@ -26,6 +26,7 @@ __all__ = [
     "make_planner",
     "normalize_month",
     "quantized",
+    "variant_ir",
 ]
 
 
@@ -44,6 +45,26 @@ def fixture_mart(fixture: str, name: str) -> MartIR:
     there than it did before M12.
     """
     return next(mart for mart in fixture_ir(fixture).marts if mart.name == name)
+
+
+def variant_ir(name: str, **edits: tuple[str, str]) -> ProjectIR:
+    """One fixture's sources with substitutions applied, built into IR.
+
+    A variant rather than a fixture directory: what a test needs is often a
+    *shape* the corpus does not otherwise contain, and adding a fixture for
+    each would move parity rows for a reason unrelated to what is asserted
+    (logs/T-0026.md, D-167). Each keyword names a document and gives the
+    ``(old, new)`` pair to substitute; the anchor must be present.
+    """
+    sources = dict(fixture_sources(name))
+    for document, (old, new) in edits.items():
+        assert old in sources[document], f"{document}: anchor not found"
+        sources[document] = sources[document].replace(old, new)
+    catalog_path = FIXTURES / name / "catalog.yaml"
+
+    return build_project_ir(
+        load_project(sources), load_catalog(catalog_path.read_text(encoding="utf-8"))
+    )
 
 
 def make_planner(**kwargs: object) -> MetricFlowPlanner:

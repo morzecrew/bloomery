@@ -451,7 +451,7 @@ A metric is a template instantiation (`template:` plus overrides) or fully inlin
 | `requires` | list of canonical field names | no (`[]`) | Leaves the metric reads |
 | `requires_metrics` | list of metric names | no (`[]`) | Metrics a derived metric reads |
 | `grain` | string | no | Entity grain the metric aggregates from |
-| `additivity` | `additive` \| `semi_additive` \| `non_additive` \| `ratio` | effectively yes (inline or via template) | Aggregation class, enforced by guardrails |
+| `additivity` | `additive` \| `semi_additive` \| `non_additive` \| `ratio` \| `distinct_count` | effectively yes (inline or via template) | Aggregation class, enforced by guardrails; `distinct_count` requires `agg: count_distinct` and an `expr` naming the counted identity |
 | `agg` | string | no | Aggregation function (`sum`, `count`, …) |
 | `expr` | string | no | Expression over the required names |
 | `ratio` | RatioSpec | required by, and requires, `additivity: ratio` | Additive decomposition to recompute from |

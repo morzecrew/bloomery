@@ -1,0 +1,8 @@
+mapping_version: 1
+source: corpus__sessions
+target: session
+key:
+  session_id: {from: "$.session_id", transform: [to_string]}
+fields:
+  user_id: {from: "$.user_id", transform: [to_string]}
+  session_day: {from: "$.session_day", transform: [{parse_date: ISO8601}]}

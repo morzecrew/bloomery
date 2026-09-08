@@ -163,6 +163,7 @@ may ever be aggregated or stored:
 | `semi_additive` | Sums over every dimension *except* one (inventory balance over time) | `SemiAdditivePolicy(over, rule)` with `rule` ∈ `last`/`first`/`avg`/`max`/`min` |
 | `ratio` | A quotient, kept as its operands | `RatioSpec(numerator, denominator)` over additive components |
 | `non_additive` | Never summable, and not a ratio | a `derived:` expression, or an `expr` over additive dependencies |
+| `distinct_count` | A count of distinct identities (active users) — computed from rows at the requested grain, never rolled up | `agg: count_distinct` with `expr` naming the identity, and nothing else |
 
 ```yaml
 metrics:

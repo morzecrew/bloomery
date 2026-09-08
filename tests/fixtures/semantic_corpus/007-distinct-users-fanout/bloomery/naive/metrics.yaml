@@ -1,0 +1,10 @@
+# `additivity: additive` over a distinct count is a claim that summing the
+# per-group counts gives the count of the whole — it does not, whenever an
+# identity appears in more than one group.
+metrics_version: 1
+metrics:
+  active_users:
+    grain: session
+    additivity: additive
+    agg: count_distinct
+    expr: "user_id"

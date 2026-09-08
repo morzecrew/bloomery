@@ -27,7 +27,7 @@ from bloomery.errors import (
 from bloomery.planner import TimeGrain
 from bloomery.planner.metricflow_planner import translate_mf_error
 from bloomery.semantic.plan import Filter, Scan
-from support.planning import fixture_ir, make_planner
+from support.planning import fixture_ir, make_planner, variant_ir
 
 pytestmark = pytest.mark.unit
 
@@ -297,6 +297,38 @@ def test_semi_additive_explanation_render() -> None:
         "  mart:     gold.mart_inventory (grain: inventory_level)\n"
         "  measure:  stock_on_hand = SUM(stock_level)\n"
         "            [semi-additive last over snapshot_day — MAX-join then SUM]\n"
+        "  filters:  (none)\n"
+        "  policy:   not applied"
+    )
+
+
+def test_a_distinct_count_is_planned_on_one_mart_and_explained_as_one() -> None:
+    """A `COUNT(DISTINCT x)` over the scan is one plain aggregate, so the
+    single-mart `SemanticPlan` states it (logs/T-0028.md) — and the note says
+    what the class means rather than calling it additive.
+    """
+    ir = variant_ir(
+        "cross_mart_branches",
+        metrics=(
+            "  shipping_count:\n    grain: order\n    additivity: additive\n    agg: count\n"
+            '    expr: "order_id"\n',
+            "  shipping_count:\n    grain: order\n    additivity: distinct_count\n"
+            '    agg: count_distinct\n    expr: "customer_id"\n',
+        ),
+    )
+    plan = PLANNER.plan(
+        ir, MetricRequest(metrics=("shipping_count",), dimensions=("region",)), dialect="duckdb"
+    )
+
+    assert "COUNT(DISTINCT" in plan.sql
+    assert plan.semantic is not None
+    assert plan.semantic.nodes[2].measures == ("shipping_count",)
+    assert plan.explanation.render() == (
+        "shipping_count\n"
+        "  mart:     gold.mart_orders (grain: order)\n"
+        "  measure:  shipping_count = COUNT(DISTINCT customer_id)\n"
+        "            [distinct count — COUNT(DISTINCT) over the rows at the requested grain, "
+        "never rolled up]\n"
         "  filters:  (none)\n"
         "  policy:   not applied"
     )

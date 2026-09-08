@@ -1,0 +1,9 @@
+# The class the measure actually has: a distinct count over the identity it
+# counts, computed from rows at the requested grain and never rolled up.
+metrics_version: 1
+metrics:
+  active_users:
+    grain: session
+    additivity: distinct_count
+    agg: count_distinct
+    expr: "user_id"

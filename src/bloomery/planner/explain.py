@@ -12,7 +12,9 @@ Lowering notes (RFC 0011 D5 vocabulary, fixed strings the docs cite):
 - semi-additive → ``semi-additive last over snapshot_day — MAX-join then
   SUM``;
 - non-additive ratio → ``non-additive ratio — recomputed at the requested
-  grain, not summed``.
+  grain, not summed``;
+- distinct count → ``distinct count — COUNT(DISTINCT) over the rows at the
+  requested grain, never rolled up``.
 """
 
 from __future__ import annotations
@@ -44,6 +46,9 @@ __all__ = [
 ]
 
 _RATIO_NOTE = "non-additive ratio — recomputed at the requested grain, not summed"
+_DISTINCT_NOTE = (
+    "distinct count — COUNT(DISTINCT) over the rows at the requested grain, never rolled up"
+)
 
 _WINDOWS = {SemiAdditiveRule.LAST: "MAX", SemiAdditiveRule.FIRST: "MIN"}
 
@@ -167,7 +172,14 @@ def _measure_explanation(metric: MetricIR, mart: MartIR | None) -> MeasureExplan
         return MeasureExplanation(metric.name, expr, additivity, _RATIO_NOTE)
 
     agg = (metric.agg or "sum").upper()
-    expr = f"{agg}({metric.expr.sql})" if metric.expr is not None else metric.name
+    if metric.expr is None:
+        expr = metric.name
+    elif metric.agg == "count_distinct":
+        # The SQL spelling, not the keyword's: the note beside it says
+        # COUNT(DISTINCT), and the two are read together.
+        expr = f"COUNT(DISTINCT {metric.expr.sql})"
+    else:
+        expr = f"{agg}({metric.expr.sql})"
     restriction = _filter_note(metric)
 
     if cumulative := _cumulative_note(metric, agg):
@@ -185,6 +197,9 @@ def _measure_explanation(metric: MetricIR, mart: MartIR | None) -> MeasureExplan
         window = _WINDOWS.get(policy.rule, policy.rule.value.upper())
         note = f"semi-additive {policy.rule.value} over {over} — {window}-join then SUM"
         return MeasureExplanation(metric.name, expr, additivity, note + restriction)
+
+    if metric.additivity is Additivity.DISTINCT_COUNT:
+        return MeasureExplanation(metric.name, expr, additivity, _DISTINCT_NOTE + restriction)
 
     return MeasureExplanation(metric.name, expr, additivity, f"additive — {agg}{restriction}")
 

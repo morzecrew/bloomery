@@ -220,6 +220,25 @@ def test_semi_additive_measure_carries_its_policy_in_meta() -> None:
     }
 
 
+def test_a_distinct_count_is_a_stored_count_distinct_measure() -> None:
+    """`distinct_count` is a stored measure — outside `COMPUTED` — lowered as
+    the `count_distinct` type Cube already had, with the class in `meta` so
+    the word reaches the artifact (logs/T-0028.md).
+    """
+    metric = _metric(
+        "distinct_customers",
+        additivity=Additivity.DISTINCT_COUNT,
+        agg="count_distinct",
+        expr="customer_id",
+    )
+    artifacts = CubeEmitter().emit(_project((metric,), ("distinct_customers",)), _ctx())
+    (measure,) = cast("list[dict[str, object]]", _cube_yaml(artifacts, "orders")["measures"])
+
+    assert measure["type"] == "count_distinct"
+    assert measure["sql"] == "customer_id"
+    assert measure["meta"] == {"additivity": "distinct_count", "grain": "order"}
+
+
 def test_count_measure_takes_no_sql_and_ratio_is_calculated() -> None:
     (artifact, _view) = compile_fixture("non_additive_aov", target=Target.CUBE)
     (cube,) = cast("dict[str, list[dict[str, object]]]", yaml.safe_load(artifact.content))["cubes"]

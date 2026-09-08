@@ -104,8 +104,8 @@ fields:
 ### MetricSet
 
 The tenant's measures, each carrying grain and an additivity class — `additive`,
-`semi_additive`, `ratio`, or `non_additive` — which decides how the metric may ever be
-aggregated or stored.
+`semi_additive`, `ratio`, `non_additive`, or `distinct_count` — which decides how the
+metric may ever be aggregated or stored.
 
 ```yaml
 metrics:

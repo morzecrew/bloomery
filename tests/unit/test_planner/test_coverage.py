@@ -31,8 +31,7 @@ from bloomery.planner.coverage import (
 from bloomery.planner.names import ResolvedDimension
 from bloomery.planner.request import AnyOf, Op, OrderSpec, Predicate
 from bloomery.semantic import BASIS_PROVENANCE, RefusalReason
-from support.compiling import FIXTURES, fixture_sources
-from support.planning import fixture_ir
+from support.planning import fixture_ir, variant_ir as _variant
 
 pytestmark = pytest.mark.unit
 
@@ -907,6 +906,46 @@ def test_a_measure_class_p1_holds_back_declines_the_composed_path() -> None:
         _branches("semi_additive_inventory", ("stock_on_hand", "quality_rows_deduped"))
 
 
+#: `shipping_count` re-declared in each class RFC 0041 §8 holds back — one
+#: edit per class, so the tests below run against every held-back state of the
+#: vocabulary rather than the one a fixture happened to contain.
+_HELD_BACK = {
+    "distinct_count": (
+        "  shipping_count:\n    grain: order\n    additivity: additive\n    agg: count\n"
+        '    expr: "order_id"\n',
+        "  shipping_count:\n    grain: order\n    additivity: distinct_count\n"
+        '    agg: count_distinct\n    expr: "customer_id"\n',
+    ),
+    "semi_additive": (
+        "  shipping_count:\n    grain: order\n    additivity: additive\n    agg: count\n"
+        '    expr: "order_id"\n',
+        "  shipping_count:\n    grain: order\n    additivity: semi_additive\n    agg: count\n"
+        '    expr: "order_id"\n    semi_additive: {over: order_date, rule: last}\n',
+    ),
+}
+
+
+@pytest.mark.parametrize("held", sorted(_HELD_BACK), ids=sorted(_HELD_BACK))
+@pytest.mark.parametrize(
+    "requested",
+    [("shipping_count", "line_discount"), ("discount_less_orders",)],
+    ids=["as-a-measure", "as-a-component"],
+)
+def test_every_held_back_class_declines_the_composed_path(
+    held: str, requested: tuple[str, ...]
+) -> None:
+    """RFC 0041 D8, decided per class (logs/T-0027.md D-183; logs/T-0028.md):
+    a distinct count is never rolled up from a coarser result, and a branch
+    is exactly that — so it declines the composed path directly and as a
+    component of a derived metric, the same as a semi-additive measure. The
+    restriction survives the alias (RFC 0038 §9).
+    """
+    ir = _variant("cross_mart_branches", metrics=_HELD_BACK[held])
+
+    with pytest.raises(UnreachableAtGrain, match="different grains"):
+        resolve_branches(ir, MetricRequest(metrics=requested), naming=DefaultNaming())
+
+
 def test_a_metric_with_its_own_restriction_declines_the_composed_path() -> None:
     """A per-measure filter narrows one branch, and the composed plan has no
     node that says so — the branch's `Filter` would claim the restriction
@@ -1049,26 +1088,6 @@ def test_one_name_asked_for_as_both_a_metric_and_a_dimension_is_refused() -> Non
     with pytest.raises(InvalidRequest, match="both a metric and a dimension"):
         resolve_branches(ir, request, naming=DefaultNaming())
 
-
-def _variant(name: str, **edits: tuple[str, str]) -> ProjectIR:
-    """One fixture's sources with substitutions applied, built into IR.
-
-    A variant rather than a fixture directory: what these two cases need is a
-    *shape* the corpus does not otherwise contain, and adding a fixture for
-    each would move parity rows for a reason unrelated to what is asserted
-    here (logs/T-0026.md, D-167).
-    """
-    from bloomery import load_catalog
-
-    sources = dict(fixture_sources(name))
-    for document, (old, new) in edits.items():
-        assert old in sources[document], f"{document}: anchor not found"
-        sources[document] = sources[document].replace(old, new)
-    catalog_path = FIXTURES / name / "catalog.yaml"
-
-    return build_project_ir(
-        load_project(sources), load_catalog(catalog_path.read_text(encoding="utf-8"))
-    )
 
 
 def _with_extra_region_mart() -> ProjectIR:

@@ -46,7 +46,7 @@ version of it did.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from bloomery.errors import PlannerError
 from bloomery.ir import Additivity
@@ -133,6 +133,14 @@ def _restriction(metric: MetricIR) -> frozenset[tuple[str, str, frozenset[object
 # ....................... #
 
 
+#: The classes one ``Aggregate`` node states whole: the engine applies the
+#: declared aggregation to the scan's rows and nothing is picked, joined back
+#: or recomputed first. A distinct count belongs here and *not* in a composed
+#: plan — RFC 0041 D8 holds it out of branch planning, where it would be rolled
+#: up rather than computed (logs/T-0028.md).
+_PLAIN_AGGREGATE: Final = (Additivity.ADDITIVE, Additivity.DISTINCT_COUNT)
+
+
 def _plannable(request: MetricRequest, mart: MartIR, metrics: Mapping[str, MetricIR]) -> bool:
     """Whether P1's four nodes can state what this request computes.
 
@@ -144,9 +152,10 @@ def _plannable(request: MetricRequest, mart: MartIR, metrics: Mapping[str, Metri
     * every requested metric is a **stored measure of the covering mart**, so
       the R008 fact beneath the aggregate is true and no node is needed for a
       derivation;
-    * every one is **additive**, since a semi-additive measure is lowered as a
-      first/last pick over its own dimension and then summed, which a plain
-      aggregate cannot say;
+    * every one is **a plain aggregate over the scan** — additive, or a
+      distinct count computed from the mart's own rows. A semi-additive
+      measure is lowered as a first/last pick over its own dimension and then
+      summed, which one `Aggregate` cannot say (logs/T-0028.md);
     * none is **cumulative**, since a window and a `period_agg` are not a
       rollup at all;
     * all are **restricted alike** — a single `Filter` over the scan says one
@@ -160,7 +169,7 @@ def _plannable(request: MetricRequest, mart: MartIR, metrics: Mapping[str, Metri
 
     return (
         all(name in mart.measures for name in request.metrics)
-        and all(metric.additivity is Additivity.ADDITIVE for metric in requested)
+        and all(metric.additivity in _PLAIN_AGGREGATE for metric in requested)
         and not any(metric.cumulative is not None for metric in requested)
         and len({_restriction(metric) for metric in requested}) <= 1
     )
