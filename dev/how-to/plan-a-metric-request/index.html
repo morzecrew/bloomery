@@ -1923,7 +1923,7 @@ malformed <code>nulls</code>, <code>limit</code>, or <code>offset</code> value i
 </tr>
 <tr>
 <td><code>warnings</code></td>
-<td>Non-fatal notices: a clamped <code>limit</code>, a <code>time_grain</code> with nothing to apply to, a default limit not applied to a cross-grain request</td>
+<td>Non-fatal notices: a clamped <code>limit</code>, a <code>time_grain</code> with nothing to apply to</td>
 </tr>
 <tr>
 <td><code>explanation</code></td>
@@ -1956,10 +1956,9 @@ The three you will design UX around:</p>
   Define a mart at grain 'order' carrying it.
 </code></pre></div>
 <p>Measures that span grains are not automatically a refusal. Where every requested
-dimension is the same dimension on every mart involved, and the request carries no
-filter, policy, ordering or limit, the planner aggregates each measure on its own mart
-and joins the results — <code>marts</code> then names each one and the explanation prints a
-<code>branch:</code> line per mart:</p>
+dimension is the same dimension on every mart involved, the planner aggregates each
+measure on its own mart and joins the results — <code>marts</code> then names each one and the
+explanation prints a <code>branch:</code> line per mart:</p>
 <div class="highlight"><pre><span></span><code>shipping_count, line_discount
   branch:   gold.mart_order_items (grain: order_item)
   branch:   gold.mart_orders (grain: order)
@@ -1970,8 +1969,18 @@ and joins the results — <code>marts</code> then names each one and the explana
   filters:  (none)
   policy:   not applied
 </code></pre></div>
-<p>Where it cannot prove that, it refuses with the conflict named — including the case
-where both marts carry a column of the same name and mean different things by it. See
+<p>Filters, the row policy, <code>order_by</code> and <code>limit</code> all work on such a request. A filter and
+the policy are placed on <strong>every</strong> branch in that branch's own spelling of the dimension;
+one a branch cannot evaluate refuses the whole request, because a restriction applied to
+half the answer returns a number rather than an error. The ordering and the limit apply to
+the joined result, so a limit is a limit on rows you get back and not on rows one branch
+contributed.</p>
+<p>A metric whose components span the marts — a ratio, or a <code>derived:</code> expression — is
+computed once above the join, over operands each branch aggregated. Two shapes stay
+refused: a component that itself needs two marts, and a derived input read at a time
+offset.</p>
+<p>Where it cannot prove a request safe, it refuses with the conflict named — including the
+case where both marts carry a column of the same name and mean different things by it. See
 <a href="../../concepts/wide-marts/#cross-grain-requests-are-aggregated-first-or-refused">wide-marts</a>.</p>
 <p><code>AmbiguousDimension</code> — an unqualified bucket where the mart has several date roles:</p>
 <div class="highlight"><pre><span></span><code>'month' has roles ['ordered', 'shipped']. Use 'ordered_month' or 'shipped_month'.

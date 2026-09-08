@@ -2041,7 +2041,7 @@ pulling in any pipeline stage.</p>
 <tr>
 <td><code>UnreachableAtGrain</code></td>
 <td>planner</td>
-<td>The request cannot be served at the requested grain. Measures spanning grains are aggregated per mart and joined afterwards where every requested dimension is provably the same dimension on each; this is what is raised when they are not, when the request carries a filter, policy, ordering or limit, or when no mart serves a measure at all. Also a dimension another mart carries and this one does not, where <code>.refusal_reason</code> says whether one line of spec would fix it</td>
+<td>The request cannot be served at the requested grain. Measures spanning grains are aggregated per mart and joined afterwards where every requested dimension is provably the same dimension on each; this is what is raised when they are not, when a filter or the row policy names a dimension some branch does not carry, when a metric's own components cannot each be answered by one branch, or when no mart serves a measure at all. Also a dimension another mart carries and this one does not, where <code>.refusal_reason</code> says whether one line of spec would fix it</td>
 </tr>
 <tr>
 <td><code>AmbiguousDimension</code></td>
