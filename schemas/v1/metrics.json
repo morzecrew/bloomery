@@ -85,7 +85,8 @@
                 "additive",
                 "semi_additive",
                 "non_additive",
-                "ratio"
+                "ratio",
+                "distinct_count"
               ],
               "type": "string"
             },
