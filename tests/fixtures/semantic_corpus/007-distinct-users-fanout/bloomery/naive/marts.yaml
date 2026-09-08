@@ -1,0 +1,8 @@
+marts_version: 1
+marts:
+  sessions:
+    grain: session
+    base: session
+    measures: [active_users]
+    flatten:
+      - {date: session_day, role: started}

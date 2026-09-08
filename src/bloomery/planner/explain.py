@@ -44,6 +44,9 @@ __all__ = [
 ]
 
 _RATIO_NOTE = "non-additive ratio — recomputed at the requested grain, not summed"
+_DISTINCT_NOTE = (
+    "distinct count — COUNT(DISTINCT) over the rows at the requested grain, never rolled up"
+)
 
 _WINDOWS = {SemiAdditiveRule.LAST: "MAX", SemiAdditiveRule.FIRST: "MIN"}
 
@@ -185,6 +188,9 @@ def _measure_explanation(metric: MetricIR, mart: MartIR | None) -> MeasureExplan
         window = _WINDOWS.get(policy.rule, policy.rule.value.upper())
         note = f"semi-additive {policy.rule.value} over {over} — {window}-join then SUM"
         return MeasureExplanation(metric.name, expr, additivity, note + restriction)
+
+    if metric.additivity is Additivity.DISTINCT_COUNT:
+        return MeasureExplanation(metric.name, expr, additivity, _DISTINCT_NOTE + restriction)
 
     return MeasureExplanation(metric.name, expr, additivity, f"additive — {agg}{restriction}")
 

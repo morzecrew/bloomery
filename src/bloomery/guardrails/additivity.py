@@ -31,6 +31,14 @@ Checked over ``MetricIR.additivity`` on the draft IR:
   the spec alone and both are :class:`~bloomery.errors.FalseAdditivityClaim`:
   an ``avg`` re-averaged, and a measure summed across the very axis its origin
   grain is taken along.
+- A ``distinct_count`` metric is a ``count_distinct`` over the identity it
+  counts, and nothing else (RFC 0038 §4; logs/T-0028.md). The word is what
+  keeps the planner from ever rolling the stored count up — summing per-group
+  distinct counts double-counts an identity present in several — so a
+  ``distinct_count`` with any other aggregation is an additive measure wearing
+  a non-additive word, and is :class:`~bloomery.errors.FalseAdditivityClaim`.
+  The converse — ``count_distinct`` under ``additive`` — is the allowlist rule
+  above, whose remedy names this word.
 """
 
 from __future__ import annotations
@@ -208,8 +216,8 @@ _REMEDIES: Final = {
     ),
     "count_distinct": (
         "a distinct count cannot be summed across groups without double-counting an "
-        "entity present in several — keep it at its own grain, or declare additivity: "
-        "non_additive with a derived: block if one exists"
+        "entity present in several — declare additivity: distinct_count, which is "
+        "computed from rows at the requested grain and never rolled up"
     ),
 }
 
@@ -322,6 +330,49 @@ def _check_snapshot(
 # ....................... #
 
 
+#: The one aggregation a ``distinct_count`` claim is true of.
+_DISTINCT: Final = "count_distinct"
+
+
+def _check_distinct_count(metric: MetricIR, path: str) -> list[GuardrailError]:
+    """``additivity: distinct_count`` is ``count_distinct`` over the counted
+    identity, and nothing else (RFC 0038 §4).
+
+    The word exists so no rollup ever re-aggregates the stored count; a metric
+    carrying it over ``sum`` would be additive in fact and non-additive in
+    name, and every branch that reads the class would then refuse a measure
+    that could have been answered. ``expr`` is the identity being counted, so
+    a metric without one has nothing to be distinct over — and the emitters
+    refuse a measure with no expression anyway; saying it here names the
+    class rather than the target.
+    """
+
+    if metric.agg == _DISTINCT and metric.expr is not None:
+        return []
+
+    if metric.agg != _DISTINCT:
+        what = f"agg: {metric.agg}" if metric.agg is not None else "no agg:"
+        fix = (
+            "agg: count_distinct over the column that identifies what is counted, or "
+            "the additivity the aggregation is actually true of"
+        )
+    else:
+        what = "no expr:"
+        fix = "expr: <the column that identifies what is counted>"
+
+    msg = (
+        f"metric {metric.name!r} declares additivity: distinct_count with {what} — a "
+        "distinct count is count_distinct over the identity it counts, and the word "
+        "exists so the stored count is never rolled up (RFC 0038 §4). Fix: "
+        f"{fix}"
+    )
+
+    return [FalseAdditivityClaim(msg, source_path=path)]
+
+
+# ....................... #
+
+
 def _check_additive(metric: MetricIR, draft: ProjectIR, path: str) -> list[GuardrailError]:
     """``additivity: additive`` is a claim; these are the two shapes of it that
     are false and decidable without a planner (RFC 0038 D1/D2)."""
@@ -357,17 +408,19 @@ def check_additivity(draft: ProjectIR) -> list[GuardrailError]:
             violations.extend(_check_semi_additive(metric, path))
         elif metric.additivity is Additivity.ADDITIVE:
             violations.extend(_check_additive(metric, draft, path))
+        elif metric.additivity is Additivity.DISTINCT_COUNT:
+            violations.extend(_check_distinct_count(metric, path))
         else:  # pragma: no cover — `RESOLVABLE` is what keeps this unreachable
-            # RFC 0038 D1 closed the enum at six while resolution mints four,
-            # and the two it does not mint have no rule here yet. Raising
-            # rather than falling through is the whole point (logs/T-0019.md,
-            # D-105): a silent `else` would hand a SNAPSHOT metric the
-            # additive checks, which are written for a different meaning, and
-            # nothing would say so.
+            # RFC 0038 D1 closed the enum at six while resolution mints five;
+            # SNAPSHOT is declared as `semi_additive` and has no word of its
+            # own (logs/T-0028.md). Raising rather than falling through is the
+            # whole point (logs/T-0019.md, D-105): a silent `else` would hand
+            # a SNAPSHOT metric the additive checks, which are written for a
+            # different meaning, and nothing would say so.
             msg = (
                 f"metric {metric.name!r} resolved to additivity "
-                f"{metric.additivity.value!r}, which no project can currently declare — "
-                "bloomery.ir.RESOLVABLE names the four that can, and the guard that "
+                f"{metric.additivity.value!r}, which no project can declare — "
+                "bloomery.ir.RESOLVABLE names the five that can, and the guard that "
                 "asserts it should have failed before this did (RFC 0038 D1)"
             )
             raise InvariantViolated(msg)

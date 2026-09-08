@@ -274,11 +274,14 @@ class Additivity(StrEnum):
     Staging the *lowering* of a member is allowed (§12) and staging the member
     itself is not.
 
-    The last two are therefore defined and **not yet minted by resolution** —
-    :data:`RESOLVABLE` pins which members a project can currently produce. That
-    pin is not decoration: a member that became reachable without each site
-    being revisited would silently take a branch written for a different
-    meaning, and mypy would say nothing.
+    ``SNAPSHOT`` is therefore defined and **not minted by resolution** —
+    :data:`RESOLVABLE` pins which members a project can produce. That pin is
+    not decoration: a member that became reachable without each site being
+    revisited would silently take a branch written for a different meaning,
+    and mypy would say nothing. A snapshot's declaration is ``semi_additive``
+    with a ``rule``: §4's "explicit time-selection before cross-time
+    aggregation" is exactly ``{over, rule: first|last}``, and an authored
+    ``snapshot`` beside it would give one fact two spellings (logs/T-0028.md).
 
     What most of those sites ask is not additivity at all but whether a metric
     is a *stored* measure or is computed at query time from its components, and
@@ -288,8 +291,9 @@ class Additivity(StrEnum):
     a measure", three "a ratio specifically" — so splitting a second member out
     of the class narrowed every one of the twelve at once, with nothing in the
     tree failing (logs/T-0023.md, D-146). ``SNAPSHOT`` and ``DISTINCT_COUNT``
-    are stored measures, so :data:`COMPUTED` is already complete for all six
-    members and minting them is an enum edit rather than a second sweep.
+    are stored measures, so :data:`COMPUTED` is complete for all six members;
+    minting ``DISTINCT_COUNT`` was the enum edit and a lowering D8 promised,
+    not a second sweep (logs/T-0028.md).
     """
 
     ADDITIVE = "additive"
@@ -299,17 +303,20 @@ class Additivity(StrEnum):
     #: ``SUM(num)/SUM(den)`` and ``AVG(ratio)`` differ, and the second is what
     #: a numeric-looking column invites (RFC 0038 D2).
     RATIO = "ratio"
-    #: Carries the counted identity. Never additive across partitions unless a
-    #: later proof rule establishes disjointness.
+    #: Carries the counted identity — ``agg: count_distinct`` over the column
+    #: that names it. Computed from rows at the requested grain and never
+    #: rolled up from a coarser result: additive across partitions only under a
+    #: disjointness proof no rule yet supplies, so it stays out of branch
+    #: planning (RFC 0041 D8).
     DISTINCT_COUNT = "distinct_count"
     #: Point-in-time state, requiring explicit time-selection semantics
     #: (first/last/as-of) before any cross-time aggregation.
     SNAPSHOT = "snapshot"
 
 
-#: The members a project can currently resolve to, and the canary that keeps
-#: the two D1 added and §12 has not scheduled from becoming reachable by
-#: accident (RFC 0038 §12).
+#: The members a project can resolve to, and the canary that keeps ``SNAPSHOT``
+#: — in the closed set by D1, declared through ``semi_additive`` rather than
+#: by its own word — from becoming reachable by accident (RFC 0038 §12).
 #:
 #: Minting a new one is a real change, not a widening. The commit that mints
 #: one updates this tuple, and the test asserting it fails until then — which
@@ -319,6 +326,7 @@ RESOLVABLE: Final = (
     Additivity.SEMI_ADDITIVE,
     Additivity.NON_ADDITIVE,
     Additivity.RATIO,
+    Additivity.DISTINCT_COUNT,
 )
 
 #: The members whose metrics are **recomputed at query time from components**

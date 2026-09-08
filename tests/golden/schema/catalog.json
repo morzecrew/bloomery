@@ -412,7 +412,8 @@
             "additive",
             "semi_additive",
             "non_additive",
-            "ratio"
+            "ratio",
+            "distinct_count"
           ],
           "title": "Additivity",
           "type": "string"

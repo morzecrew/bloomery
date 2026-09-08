@@ -130,6 +130,15 @@ Additivity classes are enforced, not advisory:
   no operands to recompute from.
 - A `semi_additive` metric may only be aggregated over dimensions other than its
   policy's `over:` dimension. Summing an inventory balance across time is refused.
+- `additivity: additive` is a claim, and it is checked. An `avg`, a `median` or a
+  `count_distinct` declared additive is `FalseAdditivityClaim` — none of them can be
+  rolled up from a coarser result — and so is a `sum` over a snapshot whose time axis a
+  mart exposes as a dimension. Each refusal names the repair for its own aggregation.
+- A `distinct_count` metric is `count_distinct` over the identity it counts, and nothing
+  else. The word exists so no rollup ever re-aggregates the stored count — summing
+  per-group distinct counts double-counts an identity present in several groups — so
+  `distinct_count` over any other aggregation is `FalseAdditivityClaim` too, in the other
+  direction: an additive measure wearing a non-additive word.
 - A mart that carries measures must declare at least one date role —
   `MartMissingTimeDimension` otherwise. Every measure in the emitted MetricFlow
   semantic model needs an aggregation time dimension, and without this compile-time

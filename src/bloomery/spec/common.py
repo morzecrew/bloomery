@@ -207,7 +207,10 @@ DimensionName = Annotated[
     str, StringConstraints(pattern=IDENTIFIER_PATTERN), AfterValidator(_reject_reserved_member)
 ]
 
-AdditivityName = Literal["additive", "semi_additive", "non_additive", "ratio"]
+#: The authored aggregation classes — the members of :class:`~bloomery.ir.Additivity`
+#: a project can write (RFC 0038 D1). ``snapshot`` is deliberately absent: its
+#: declaration is ``semi_additive`` with a ``rule`` (logs/T-0028.md).
+AdditivityName = Literal["additive", "semi_additive", "non_additive", "ratio", "distinct_count"]
 CardinalityName = Literal["many_to_one", "one_to_one", "one_to_many"]
 MaterializationName = Literal["full", "incremental_by_key", "incremental_by_partition"]
 

@@ -70,6 +70,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a join, and naming the metric in the projection would claim the join
   produced a column it does not produce.
 
+- **A distinct count has a word of its own: `additivity: distinct_count`.** A
+  `count_distinct` measure could not be declared at all. `additive` was
+  refused — summing per-group distinct counts double-counts an identity present
+  in several groups — and the refusal's own advice, `non_additive` with a
+  `derived:` block, named a decomposition a plain distinct count does not have.
+
+  `distinct_count` declares what the measure is: `count_distinct` over the
+  column that identifies what is counted, computed from rows at whatever grain
+  a request asks and never rolled up from a coarser result. MetricFlow and
+  Cube emit it as the measure they already knew how to; the planner states it
+  in the single-mart semantic plan and keeps it out of the aggregate-then-join
+  path, where a branch is a rollup and two branches' distinct counts would be
+  summed without the disjointness proof nothing supplies. The explanation
+  reads `distinct count — …` rather than `additive`. Either half without the
+  other is refused: `distinct_count` over any other aggregation, and
+  `count_distinct` under `additive`, whose remedy now names the word.
+
+  `snapshot` stays in the resolved vocabulary and out of the authored one. Its
+  declaration already exists — `semi_additive: {over: <axis>, rule: last|first}`
+  names the axis and the time selection a snapshot needs before any cross-time
+  aggregation — and a second word for the same fact is the two-spellings
+  problem `ratio` just left behind.
+
+  **Migrating.** Nothing that compiled before is refused. A distinct count kept
+  out of a project because no word accepted it can now be declared. Corpus
+  case 007 pins both outcomes: the `additive` claim refused, the
+  `distinct_count` declaration planned to the correct number.
+
 - **`additivity: additive` is checked rather than trusted.** The additivity
   guard read only metrics declared `non_additive` or `semi_additive`, so the
   one declaration nothing verified was the one most projects write. Two false

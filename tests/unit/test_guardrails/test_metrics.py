@@ -184,6 +184,28 @@ def test_the_avg_remediation_prescribes_a_spec_that_compiles() -> None:
     )
 
 
+def test_the_count_distinct_remediation_prescribes_a_spec_that_compiles() -> None:
+    """The same shape one member later (logs/T-0028.md).
+
+    Before `distinct_count` was minted, `_REMEDIES["count_distinct"]` sent an
+    author to `non_additive with a derived: block` — and a plain distinct
+    count has no decomposition, so the advice named a spec nothing could
+    write. It now names the word, and the word is executed here.
+    """
+    assert "additivity: distinct_count" in _REMEDIES["count_distinct"]
+    assert "non_additive" not in _REMEDIES["count_distinct"]
+
+    ir = compile_with(
+        "  distinct_channels:\n"
+        "    grain: sale\n"
+        "    additivity: distinct_count\n"
+        "    agg: count_distinct\n"
+        '    expr: "channel"\n'
+    )
+    (metric,) = (m for m in ir.metrics if m.name == "distinct_channels")
+    assert metric.additivity.value == "distinct_count"
+
+
 def test_no_remediation_names_a_ratio_block_under_another_word() -> None:
     """The same defect, as the property rather than the one instance.
 

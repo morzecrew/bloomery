@@ -1,0 +1,9 @@
+spec_version: 1
+entities:
+  session:
+    grain: one row per session
+    key: [session_id]
+    fields:
+      session_id: {type: string, required: true}
+      user_id: {type: string, required: true}
+      session_day: {type: date, required: true}

@@ -52,12 +52,13 @@ def _metric(
     ratio: Ratio | None = None,
     semi_additive: SemiAdditivePolicy | None = None,
     depends_on: tuple[str, ...] = (),
+    agg: str | None = "sum",
 ) -> MetricIR:
     return MetricIR(
         name=name,
         grain="item",
         additivity=additivity,
-        agg="sum",
+        agg=agg,
         expr=SqlExpr(expr) if expr is not None else None,
         ratio=ratio,
         semi_additive=semi_additive,
@@ -274,7 +275,7 @@ def test_an_additive_claim_over_a_non_reaggregable_agg_is_refused(agg: str) -> N
     [
         ("avg", "ratio: {numerator, denominator}"),
         ("median", "a median has no additive decomposition"),
-        ("count_distinct", "double-counting an entity present in several"),
+        ("count_distinct", "declare additivity: distinct_count"),
         ("banana", "cannot verify that this aggregation re-aggregates"),
     ],
 )
@@ -527,6 +528,49 @@ def test_a_metric_whose_grain_names_no_entity_is_left_to_its_own_guard() -> None
     assert check_additivity(ProjectIR(metrics=(metric,))) == []
 
 
+# ....................... #
+# distinct_count: count_distinct over the counted identity, and nothing else
+# (RFC 0038 §4; logs/T-0028.md)
+
+
+def test_a_distinct_count_over_its_identity_passes() -> None:
+    metric = _metric(additivity=Additivity.DISTINCT_COUNT, agg="count_distinct", expr="customer_id")
+    assert check_additivity(ProjectIR(metrics=(metric,))) == []
+
+
+@pytest.mark.parametrize(
+    ("agg", "expected"),
+    [
+        ("sum", "agg: sum"),
+        ("count", "agg: count"),
+        (None, "no agg:"),
+    ],
+)
+def test_a_distinct_count_over_another_aggregation_is_refused(
+    agg: str | None, expected: str
+) -> None:
+    """The word exists so the stored count is never rolled up; over ``sum`` it
+    would be an additive measure the planner then refuses to roll up, which is
+    a false claim in the other direction from the ones ``additive`` makes."""
+    metric = _metric(
+        name="distinct_customers", additivity=Additivity.DISTINCT_COUNT, agg=agg, expr="customer_id"
+    )
+    (violation,) = check_additivity(ProjectIR(metrics=(metric,)))
+
+    assert isinstance(violation, FalseAdditivityClaim)
+    assert violation.source_path == "metrics: metrics.distinct_customers"
+    assert expected in str(violation)
+    assert "agg: count_distinct" in str(violation)
+
+
+def test_a_distinct_count_with_nothing_to_count_is_refused() -> None:
+    metric = _metric(additivity=Additivity.DISTINCT_COUNT, agg="count_distinct", expr=None)
+    (violation,) = check_additivity(ProjectIR(metrics=(metric,)))
+
+    assert isinstance(violation, FalseAdditivityClaim)
+    assert "no expr:" in str(violation)
+
+
 def test_every_resolvable_member_reaches_an_arm_of_its_own() -> None:
     """The dispatch against every state of the vocabulary it dispatches on.
 
@@ -545,6 +589,7 @@ def test_every_resolvable_member_reaches_an_arm_of_its_own() -> None:
             Additivity.SEMI_ADDITIVE: {"expr": "stock", "semi_additive": POLICY},
             Additivity.NON_ADDITIVE: {"expr": "wins / attempts", "depends_on": ("attempts",)},
             Additivity.RATIO: {"ratio": Ratio(numerator="revenue", denominator="orders")},
+            Additivity.DISTINCT_COUNT: {"expr": "customer_id", "agg": "count_distinct"},
         }[member]
         metric = _metric(additivity=member, **extra)  # type: ignore[arg-type]
         assert check_additivity(ProjectIR(metrics=(metric,))) == [], member
@@ -561,10 +606,12 @@ def test_only_the_resolvable_members_can_reach_the_guard() -> None:
     its own name and is already complete for all six members; three ask for
     RATIO, which is what they always meant.
 
-    This still fails the moment resolution can produce one of the remaining
-    two, which is where the decision has to be made rather than inherited.
-    SNAPSHOT and DISTINCT_COUNT are stored measures, so what each owes is a
-    lowering, not another sweep.
+    This still fails the moment resolution can produce SNAPSHOT, which is
+    where the decision has to be made rather than inherited. DISTINCT_COUNT
+    crossed this line in logs/T-0028.md — an arm in the guard, a note in the
+    explanation, admission to the single-mart plan — and SNAPSHOT is held out
+    on purpose: its declaration is ``semi_additive`` with a ``rule``, and a
+    word of its own would be a second spelling of that fact.
     """
     # Against the authored grammar, not against itself: `AdditivityName` is
     # what a project can actually write, so this is the edge a new member has
@@ -573,7 +620,6 @@ def test_only_the_resolvable_members_can_reach_the_guard() -> None:
     assert set(get_args(AdditivityName)) == {member.value for member in RESOLVABLE}
 
     assert set(Additivity) - set(RESOLVABLE) == {
-        Additivity.DISTINCT_COUNT,
         Additivity.SNAPSHOT,
     }, "a member left the unreachable set without every branch on it being revisited"
 
