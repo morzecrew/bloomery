@@ -12,7 +12,9 @@ Lowering notes (RFC 0011 D5 vocabulary, fixed strings the docs cite):
 - semi-additive → ``semi-additive last over snapshot_day — MAX-join then
   SUM``;
 - non-additive ratio → ``non-additive ratio — recomputed at the requested
-  grain, not summed``.
+  grain, not summed``;
+- distinct count → ``distinct count — COUNT(DISTINCT) over the rows at the
+  requested grain, never rolled up``.
 """
 
 from __future__ import annotations
