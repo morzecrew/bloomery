@@ -326,7 +326,7 @@ def test_a_distinct_count_is_planned_on_one_mart_and_explained_as_one() -> None:
     assert plan.explanation.render() == (
         "shipping_count\n"
         "  mart:     gold.mart_orders (grain: order)\n"
-        "  measure:  shipping_count = COUNT_DISTINCT(customer_id)\n"
+        "  measure:  shipping_count = COUNT(DISTINCT customer_id)\n"
         "            [distinct count — COUNT(DISTINCT) over the rows at the requested grain, "
         "never rolled up]\n"
         "  filters:  (none)\n"

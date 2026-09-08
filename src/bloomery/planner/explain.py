@@ -170,7 +170,14 @@ def _measure_explanation(metric: MetricIR, mart: MartIR | None) -> MeasureExplan
         return MeasureExplanation(metric.name, expr, additivity, _RATIO_NOTE)
 
     agg = (metric.agg or "sum").upper()
-    expr = f"{agg}({metric.expr.sql})" if metric.expr is not None else metric.name
+    if metric.expr is None:
+        expr = metric.name
+    elif metric.agg == "count_distinct":
+        # The SQL spelling, not the keyword's: the note beside it says
+        # COUNT(DISTINCT), and the two are read together.
+        expr = f"COUNT(DISTINCT {metric.expr.sql})"
+    else:
+        expr = f"{agg}({metric.expr.sql})"
     restriction = _filter_note(metric)
 
     if cumulative := _cumulative_note(metric, agg):
