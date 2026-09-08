@@ -319,11 +319,10 @@ class MetricFlowPlanner:
         # holds under the single-mart path, kept because this path builds the
         # clause itself instead of handing a name to MetricFlow.
         if unknown := sorted(field for field, _direction in ordering if field not in projected):
-            msg = (  # pragma: no cover — MetricRequest validation refuses this first
+            raise PlannerError(  # pragma: no cover — MetricRequest refuses this first
                 f"order_by names {unknown}, which the composed statement does not project "
                 "— a cross-grain answer can only be ordered by its own columns (RFC 0011 D4)"
             )
-            raise PlannerError(msg)
 
         sql = compose.compose(
             [

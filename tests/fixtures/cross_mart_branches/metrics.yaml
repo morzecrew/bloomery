@@ -16,7 +16,8 @@ metrics:
     agg: sum
     expr: "discount"
 
-  # Three shapes RFC 0041 P2 reaches, none of which any single mart can serve.
+  # Four shapes RFC 0041 P2 reaches, none of which any single mart can serve:
+  # two it answers, and two it refuses for reasons of its own.
   #
   # A ratio whose operands live on two marts: the numerator is an `order_item`
   # measure and the denominator an `order` one, so the quotient is computed

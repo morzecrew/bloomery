@@ -1041,24 +1041,32 @@ def _not_on_every_branch(
 # ....................... #
 
 
-def _restriction_refusal(
+def _restricted_dimensions(
     ir: ProjectIR, name: str, marts: Sequence[MartIR], *, kind: str
-) -> UnreachableAtGrain:
-    """Why a restriction cannot be placed — told apart before it is told.
+) -> list[tuple[MartIR, ResolvedDimension]]:
+    """Each branch's own column for one restriction, when no single provenance
+    anchors it — or the refusal that says why there is none.
 
-    Two different failures reach here wearing one shape, because
-    :func:`_shared_provenance` answers ``None`` for both. **No branch carries
-    the name** is one, and :func:`_not_on_every_branch` is its message. The
-    other is **every branch carries it and they mean different columns by it**,
-    which the unqualified date buckets make ordinary rather than exotic: a
-    filter on `month` resolves through each mart's own date role, so it is
-    `ordered_month` on one and `added_month` on the next, and the two are
-    different dimensions by D12.
+    :func:`_shared_provenance` answers ``None`` for three different situations,
+    and they need three different answers. It matches on a mart's *column*
+    names, so an unqualified date bucket has no candidate at all: `month` is
+    published as `ordered_month`, and is reached through a role rather than
+    under its own name.
 
-    Saying "not carried by every mart" of that second case sends the reader to
-    flatten a column both marts already have (logs/T-0027.md, finding 8). So
-    each branch is asked to resolve the name the ordinary way, and it is the
-    *outcome* that picks the message.
+    * **one branch cannot resolve it** — :func:`_not_on_every_branch`, which is
+      the message about a mart that does not carry the dimension;
+    * **a branch resolves it two ways** — the ordinary ``AmbiguousDimension``
+      travels, because the roles it names are the answer the author needs.
+      Reporting "not carried" instead sends them to flatten a column that mart
+      already has twice (logs/T-0027.md, finding 9);
+    * **every branch resolves it, and they agree** — nothing is wrong. Two
+      marts on one base entity flattening one date under one role reach the
+      same column from the same source, and refusing that pair as a collision
+      refuses a request whose filter means exactly one thing (finding 10).
+
+    Only a real disagreement refuses, and :func:`_one_dimension` is what says
+    so — on this path it is load-bearing, where on the anchored path it cannot
+    fire at all.
     """
 
     resolved: list[tuple[MartIR, ResolvedDimension]] = []
@@ -1066,10 +1074,14 @@ def _restriction_refusal(
     for mart in marts:
         try:
             resolved.append((mart, _resolve_dimension(mart, name, apply_grain=None, ir=ir)))
+        except AmbiguousDimension:
+            raise
         except PlannerError:
-            return _not_on_every_branch(ir, name, marts, kind=kind)
+            raise _not_on_every_branch(ir, name, marts, kind=kind) from None
 
-    return _not_one_dimension(name, resolved)
+    _one_dimension(name, resolved)
+
+    return resolved
 
 
 # ....................... #
@@ -1308,12 +1320,13 @@ def resolve_branches(
     # One provenance per requested dimension, agreed across the branches before
     # any of them resolves — see :func:`_shared_provenance`.
     targets = [_shared_provenance(ir, ordered, dimension) for dimension in request.dimensions]
-    # The same, for every dimension a restriction names. Refused up front where
-    # no one provenance reaches every branch, because unlike a requested
-    # dimension there is no per-branch resolution worth attempting: a filter
-    # one branch cannot evaluate is not a filter placed elsewhere, it is a
-    # request with no consistent meaning.
-    restrictions: dict[str, tuple[str, str, object]] = {}
+    # Every dimension a restriction names, resolved to each branch's own column
+    # before any branch is built — by one shared provenance where the branches
+    # publish one, and branch by branch where they do not. A restriction that
+    # cannot reach every branch, or that two branches mean differently, refuses
+    # the whole request here: a filter one branch cannot evaluate is not a
+    # filter placed elsewhere, it is a request with no consistent meaning.
+    restrictions: dict[str, dict[str, ResolvedDimension]] = {}
 
     for kind, name in [
         *(
@@ -1324,21 +1337,35 @@ def resolve_branches(
         *((("row policy", policy.dimension),) if policy is not None else ()),
     ]:
         if name in restrictions:
-            # A repeat, not a conflict: `_shared_provenance` is pure in its
+            # A repeat, not a conflict: both routes below are pure in their
             # arguments, so the second lookup would return the first's answer.
-            # What the skip decides is which `kind` the refusal names when a
+            # What the skip decides is which `kind` a refusal names when a
             # dimension both a filter and the policy mention reaches no branch
             # — the first mention, which is the filter.
             continue
+
         target = _shared_provenance(ir, ordered, name)
-        if target is None:
-            raise _restriction_refusal(ir, name, ordered, kind=kind)
-        restrictions[name] = target
+        # Anchored where one provenance every branch reaches exists, and
+        # per-branch where none does. The second is not a failure: an
+        # unqualified date bucket has no candidate at all, because
+        # `_shared_provenance` matches a mart's *column* names and `month` is
+        # published as `ordered_month` (logs/T-0027.md, findings 9 and 10).
+        restrictions[name] = (
+            {
+                mart.name: _resolve_branch_dimension(
+                    mart, name, target=target, apply_grain=None, ir=ir
+                )
+                for mart in ordered
+            }
+            if target is not None
+            else {
+                mart.name: dimension
+                for mart, dimension in _restricted_dimensions(ir, name, ordered, kind=kind)
+            }
+        )
 
     def _restricted(mart: MartIR, name: str) -> ResolvedDimension:
-        return _resolve_branch_dimension(
-            mart, name, target=restrictions[name], apply_grain=None, ir=ir
-        )
+        return restrictions[name][mart.name]
 
     branches = tuple(
         Coverage(

@@ -1224,3 +1224,97 @@ def test_a_bucket_every_mart_reads_differently_says_so() -> None:
     assert "ordered_month" in disagreed
 
     assert "not carried by every mart" in _refuse("nonesuch")
+
+
+def test_an_ambiguous_bucket_names_its_roles_rather_than_going_missing() -> None:
+    """A mart with two date roles cannot answer an unqualified `month`, and the
+    single-mart path says exactly that — the roles are the fix.
+
+    The composed path used to catch every resolution failure alike and report
+    "not carried by every mart", which names two marts that both carry the
+    column and sends the author to flatten what one of them has *twice*
+    (logs/T-0027.md, finding 9). `AmbiguousDimension` travels instead.
+    """
+    ir = _variant(
+        "cross_mart_branches",
+        marts=(
+            "      - {date: order_date, role: ordered}\n",
+            "      - {date: order_date, role: ordered}\n"
+            "      - {date: order_date, role: shipped}\n",
+        ),
+    )
+
+    with pytest.raises(AmbiguousDimension, match="has roles"):
+        resolve_branches(
+            ir,
+            MetricRequest(
+                metrics=("shipping_count", "line_discount"),
+                dimensions=("tier",),
+                filters=(Predicate(dimension="month", op=Op.IS_NULL, values=(False,)),),
+            ),
+            naming=DefaultNaming(),
+        )
+
+
+def test_two_branches_reading_one_bucket_the_same_way_is_not_a_collision() -> None:
+    """`_shared_provenance` matches a mart's *column* names, and `month` is
+    published as `ordered_month` — so an unqualified bucket has no candidate
+    and every restriction naming one fell through to the per-branch route.
+
+    That route refused any such restriction as a dimension collision, including
+    the case where the branches agree: two marts on one base entity flattening
+    one date under one role reach the same column from the same source column.
+    The refusal even printed the two identical rows, which is the tell
+    (logs/T-0027.md, finding 10). Only a real disagreement refuses now, and the
+    control below is what says the refusal still works.
+    """
+    ir = _variant(
+        "cross_mart_branches",
+        marts=(
+            "  order_items:\n",
+            "  orders_wide:\n"
+            "    grain: order\n"
+            "    base: order\n"
+            "    cost_hint: 9\n"
+            "    flatten:\n"
+            "      - {via: order_of_customer, prefix: customer_}\n"
+            "      - {date: order_date, role: ordered}\n"
+            "    measures: [order_total]\n"
+            "  order_items:\n",
+        ),
+        metrics=(
+            '  shipping_count:\n    grain: order\n    additivity: additive\n'
+            '    agg: count\n    expr: "order_id"\n',
+            '  shipping_count:\n    grain: order\n    additivity: additive\n'
+            '    agg: count\n    expr: "order_id"\n\n'
+            '  order_total:\n    grain: order\n    additivity: additive\n'
+            '    agg: count\n    expr: "customer_id"\n',
+        ),
+    )
+    bucket = (Predicate(dimension="month", op=Op.IS_NULL, values=(False,)),)
+
+    agreed = resolve_branches(
+        ir,
+        MetricRequest(
+            metrics=("shipping_count", "order_total"), dimensions=("tier",), filters=bucket
+        ),
+        naming=DefaultNaming(),
+    )
+
+    assert {branch.mart.name: branch.filter_dimensions[0][0].name for branch in agreed} == {
+        "orders": "ordered_month",
+        "orders_wide": "ordered_month",
+    }
+
+    # The control: two marts whose `month` comes from different date columns
+    # are still two dimensions, and the request still refuses.
+    with pytest.raises(UnreachableAtGrain, match="do not mean the same column"):
+        resolve_branches(
+            fixture_ir("cross_mart_branches"),
+            MetricRequest(
+                metrics=("shipping_count", "line_discount"),
+                dimensions=("tier",),
+                filters=bucket,
+            ),
+            naming=DefaultNaming(),
+        )
