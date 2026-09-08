@@ -116,6 +116,6 @@ know it has a companion recording where it turned out to be wrong.
 ✅ and ❌ are transient: a row reaching either status is retired in the same change, so a
 steady-state table holds only 📝 and 🚧 rows — **except a ✅ root of a live sequence**, which
 stays until its last dependant is retired, for the reason the retirement section above
-gives. Such a row says so in its own status line. 0037 and 0040 are the two today. Do not
-relabel them 🚧: nothing about either is in progress, and the exception is about what other
+gives. Such a row says so in its own status line. 0037, 0038 and 0040 are the three today. Do
+not relabel them 🚧: nothing about any of them is in progress, and the exception is about what other
 documents still need, not about what these have left to do.
