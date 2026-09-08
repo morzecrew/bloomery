@@ -1892,8 +1892,8 @@ upstream; the compiler validates the recorded decision and never re-makes it.</p
 </code></pre></div>
 <h3 id="metricset">MetricSet<a class="headerlink" href="#metricset" title="Permanent link">&para;</a></h3>
 <p>The tenant's measures, each carrying grain and an additivity class — <code>additive</code>,
-<code>semi_additive</code>, <code>ratio</code>, or <code>non_additive</code> — which decides how the metric may ever be
-aggregated or stored.</p>
+<code>semi_additive</code>, <code>ratio</code>, <code>non_additive</code>, or <code>distinct_count</code> — which decides how the
+metric may ever be aggregated or stored.</p>
 <div class="highlight"><pre><span></span><code><span class="nt">metrics</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">gross_revenue</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">requires</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">unit_price</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">quantity</span><span class="p p-Indicator">]</span>

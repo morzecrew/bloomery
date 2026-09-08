@@ -3621,9 +3621,9 @@ above is what carries the portability claim.</p>
 </tr>
 <tr>
 <td><code>additivity</code></td>
-<td><code>additive</code> | <code>semi_additive</code> | <code>non_additive</code> | <code>ratio</code></td>
+<td><code>additive</code> | <code>semi_additive</code> | <code>non_additive</code> | <code>ratio</code> | <code>distinct_count</code></td>
 <td>effectively yes (inline or via template)</td>
-<td>Aggregation class, enforced by guardrails</td>
+<td>Aggregation class, enforced by guardrails; <code>distinct_count</code> requires <code>agg: count_distinct</code> and an <code>expr</code> naming the counted identity</td>
 </tr>
 <tr>
 <td><code>agg</code></td>

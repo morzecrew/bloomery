@@ -1956,7 +1956,7 @@ pulling in any pipeline stage.</p>
 <tr>
 <td><code>FalseAdditivityClaim</code></td>
 <td>guardrails</td>
-<td>A metric declared <code>additive</code> that is not: an aggregation outside the <code>sum</code>/<code>min</code>/<code>max</code>/<code>count</code> allowlist, for which no sound rollup is known — each is told the repair for its own case, or a measure whose entity key carries a date <em>and</em> whose mart offers that column as a dimension — one row per thing per period, with the axis exposed to sum across</td>
+<td>A metric declared <code>additive</code> that is not: an aggregation outside the <code>sum</code>/<code>min</code>/<code>max</code>/<code>count</code> allowlist, for which no sound rollup is known — each is told the repair for its own case, or a measure whose entity key carries a date <em>and</em> whose mart offers that column as a dimension — one row per thing per period, with the axis exposed to sum across. Also a <code>distinct_count</code> over anything but <code>count_distinct</code>, or with no <code>expr</code> to be distinct over — the same claim false in the other direction</td>
 </tr>
 <tr>
 <td><code>InvalidMetricShape</code></td>

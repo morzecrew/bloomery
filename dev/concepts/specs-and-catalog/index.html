@@ -1943,6 +1943,11 @@ may ever be aggregated or stored:</p>
 <td>Never summable, and not a ratio</td>
 <td>a <code>derived:</code> expression, or an <code>expr</code> over additive dependencies</td>
 </tr>
+<tr>
+<td><code>distinct_count</code></td>
+<td>A count of distinct identities (active users) — computed from rows at the requested grain, never rolled up</td>
+<td><code>agg: count_distinct</code> with <code>expr</code> naming the identity, and nothing else</td>
+</tr>
 </tbody>
 </table>
 <div class="highlight"><pre><span></span><code><span class="nt">metrics</span><span class="p">:</span>
