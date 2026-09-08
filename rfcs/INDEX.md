@@ -43,8 +43,9 @@ Two consequences worth knowing:
   happened to it — and it is retired with the last of its dependants. 0037 is the first:
   0038–0042, 0053 and 0058 all reason in its grain vocabulary. 0040 is the second: 0041
   and 0058 argue in *its* vocabulary, and 0058 states its safety condition across 0037-0040
-  rather than in any one of them. This
-  is not a licence to keep a document because something cites it — prose citations are
+  rather than in any one of them. 0038 is the third: 0041 depends on its operand-preserving
+  ratio absolutely, and 0058's rollup obligation is discharged over its aggregation classes.
+  This is not a licence to keep a document because something cites it — prose citations are
   precisely what `RETIRED.md` exists to keep followable.
 
 ## Allocating a number
