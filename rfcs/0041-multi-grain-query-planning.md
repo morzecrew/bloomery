@@ -1,8 +1,14 @@
 # RFC 0041 — Multi-grain aggregate-then-join query planning
 
-- **Status:** 🚧 In progress — §13a's P1 has landed: two or more additive branches,
-  shared dimensions by provenance, no filters. P2 (filters, row policy, cross-branch
-  ratios) is not built. Depends on [RFC 0040](0040-safe-rollup-planner.md), complete.
+- **Status:** 🚧 In progress — §13a's P1 and P2 have both landed. P1: two or more
+  additive branches, shared dimensions by provenance, no filters
+  ([`logs/T-0026.md`](../logs/T-0026.md)). P2: a filter and the row policy placed on every
+  branch or the request refused, `order_by`/`limit` on the composed statement, and a ratio
+  or `derived:` metric whose components live on different branches computed above the join
+  ([`logs/T-0027.md`](../logs/T-0027.md)). The held-back classes (§8, D8) are decided per
+  class — all three stay out of branch planning, directly and as components (T-0027 D-183;
+  `DistinctCount`'s lowering is [`logs/T-0028.md`](../logs/T-0028.md)) — and nothing further
+  is scheduled. Depends on [RFC 0040](0040-safe-rollup-planner.md), complete.
 - **Scope:** Answer requests containing measures from different origin grains by
   independently aggregating each safe branch to a common result grain and joining only
   after aggregation.
