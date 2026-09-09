@@ -520,7 +520,13 @@ def _reads_semantic(source: str) -> list[int]:
 #:
 #: A path and not a glob, so the next module wanting in has to be named here and
 #: argued for, which is what the guard is for (logs/T-0031.md).
-_RENDERS_THE_PLAN = ("cli/__init__.py",)
+#:
+#: The value is **how many reads that file is admitted for**, because a per-file
+#: exemption is coarser than the claim it stands for: "the renderer reads the
+#: plan" would let a second read anywhere in the same module ride in free,
+#: including one that generated something from it. One read, and a second has to
+#: be argued the way the first was (raised on PR #94).
+_RENDERS_THE_PLAN = {"cli/__init__.py": 1}
 
 
 def test_only_the_renderer_reads_the_plan() -> None:
@@ -561,16 +567,17 @@ def test_only_the_renderer_reads_the_plan() -> None:
 
     assert readers == [], f"something now generates from the plan: {readers}"
 
-    # The allowlist is checked for *use*, not just legality: an entry that has
-    # stopped reading the plan is an exemption nobody needs, and one left behind
-    # exempts whatever lands in that file next.
-    admitted = sorted(
-        name
+    # The allowlist is checked for *use* and for size, not just legality. An
+    # entry that has stopped reading the plan is an exemption nobody needs, and
+    # one left behind exempts whatever lands in that file next; an entry that
+    # reads it more often than it was admitted for has grown a second reader
+    # under cover of the first.
+    admitted = {
+        name: len(_reads_semantic((source / name).read_text(encoding="utf-8")))
         for name in _RENDERS_THE_PLAN
-        if _reads_semantic((source / name).read_text(encoding="utf-8"))
-    )
-    assert admitted == sorted(_RENDERS_THE_PLAN), (
-        f"an admitted module no longer reads the plan: {set(_RENDERS_THE_PLAN) - set(admitted)}"
+    }
+    assert admitted == _RENDERS_THE_PLAN, (
+        f"the allowlist no longer describes the tree: admitted {_RENDERS_THE_PLAN}, found {admitted}"
     )
 
 

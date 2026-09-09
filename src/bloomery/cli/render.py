@@ -32,8 +32,8 @@ if TYPE_CHECKING:
 
 __all__ = [
     "render_check",
-    "render_evidence_grades",
     "render_evidence",
+    "render_evidence_grades",
     "render_lineage",
     "render_plan",
 ]

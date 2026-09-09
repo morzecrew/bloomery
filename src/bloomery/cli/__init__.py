@@ -541,9 +541,10 @@ def _explain(arguments: argparse.Namespace) -> int:
         # one directly — so its absence prints nothing rather than an empty
         # heading claiming a plan rests on no facts.
         rendered = query.sql + "\n\n" + query.explanation.render()
+        plan = query.semantic
 
-        if query.semantic is not None:
-            rendered += "\n\n" + render.render_evidence_grades(query.semantic)
+        if plan is not None:
+            rendered += "\n\n" + render.render_evidence_grades(plan)
 
         _emit(rendered, as_json=False)
 
