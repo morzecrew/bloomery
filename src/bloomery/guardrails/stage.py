@@ -27,7 +27,7 @@ from bloomery.guardrails.arithmetic import check_arithmetic
 from bloomery.guardrails.asserts import lower_asserts
 from bloomery.guardrails.conflict import Shadow, path_conflict_amendments
 from bloomery.guardrails.grain import check_grain
-from bloomery.guardrails.lineage import check_lineage_names
+from bloomery.guardrails.lineage import check_lineage_names, check_node_ids
 from bloomery.guardrails.metrics import check_metrics
 from bloomery.guardrails.operands import collect_derivations
 from bloomery.guardrails.quality import check_quality
@@ -134,6 +134,7 @@ def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | N
     violations.extend(check_additivity(draft))
     violations.extend(check_metrics(draft))
     violations.extend(check_lineage_names(draft))
+    violations.extend(check_node_ids(project, catalog))
     # Mart-level checks (RFC 0006 D10): the flattener re-runs here as a pure
     # sibling stage; its leaves batch into the same aggregate as the rest.
     violations.extend(lower_marts(project.marts, draft).violations)

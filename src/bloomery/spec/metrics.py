@@ -331,6 +331,14 @@ class Metric(SpecModel):
     (resolution RFC 0005; guardrails RFC 0006).
     """
 
+    #: A stable identity, minted once and never edited (RFC 0062 §5.1). When
+    #: present it replaces the name in this node's lineage id, so a rename
+    #: relabels a vertex instead of deleting one node and adding another.
+    #:
+    #: **Opaque** (D2): compared for equality, never parsed, never used to
+    #: derive a path, a relation name or an ordering. Absent everywhere, a
+    #: project compiles byte for byte as it does today (D3).
+    id: str | None = None
     template: str | None = None
     description: str | None = None
     requires: tuple[str, ...] = ()

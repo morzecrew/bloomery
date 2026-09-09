@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 
 from bloomery import build_project_ir, load_project
-from bloomery.errors import GuardrailError, ReservedEntityName
+from bloomery.errors import DuplicateNodeId, GuardrailError, ReservedEntityName
 from bloomery.ir import NODE_ID_PREFIXES
 from bloomery.steps import StepManifest, StepRegistry
 
@@ -151,3 +151,96 @@ def test_the_source_refusal_does_not_claim_a_collision_it_cannot_show() -> None:
     message = str(caught.value)
     assert "mints an id in the source namespace" in message
     assert "are one id" not in message
+
+
+# ....................... #
+# RFC 0062 §9 — two nodes, one identity
+
+
+def _metrics(**bodies: str) -> str:
+    lines = ["metrics_version: 1", "metrics:"]
+    for name, body in bodies.items():
+        lines.append(f"  {name}:")
+        lines.extend(f"    {line}" for line in body.strip().splitlines())
+    return "\n".join(lines) + "\n"
+
+
+_SIMPLE = "grain: order\nadditivity: additive\nagg: count\nexpr: order_id"
+
+
+def _project(metrics: str) -> None:
+    """Compile a one-entity project carrying ``metrics``; raises on refusal."""
+
+    build_project_ir(
+        load_project(
+            {
+                "entity_model": _entity_model("order"),
+                "metrics": metrics,
+            }
+        )
+    )
+
+
+def test_a_copied_id_is_refused_naming_both_metrics() -> None:
+    """§9's risk: duplicating a spec and forgetting to change ``id:``."""
+
+    with pytest.raises(GuardrailError) as raised:
+        _project(
+            _metrics(
+                revenue=f"id: mtr_1\n{_SIMPLE}",
+                revenue_net=f"id: mtr_1\n{_SIMPLE}",
+            )
+        )
+
+    duplicates = [e for e in raised.value.collected if isinstance(e, DuplicateNodeId)]
+    assert len(duplicates) == 1
+    assert "'revenue', 'revenue_net'" in str(duplicates[0])
+    assert "metric.mtr_1" in str(duplicates[0])
+
+
+def test_an_id_equal_to_another_metrics_name_is_refused() -> None:
+    """The collision partial adoption makes likely, which §9 does not name.
+
+    One metric adopts ``id: revenue``; another is *named* ``revenue`` and
+    adopts nothing. Both mint ``metric.revenue``. Comparing ids to each other
+    would miss this entirely — there is only one id.
+    """
+
+    with pytest.raises(GuardrailError) as raised:
+        _project(
+            _metrics(
+                revenue=_SIMPLE,
+                revenue_net=f"id: revenue\n{_SIMPLE}",
+            )
+        )
+
+    duplicates = [e for e in raised.value.collected if isinstance(e, DuplicateNodeId)]
+    assert len(duplicates) == 1
+    assert "metric.revenue" in str(duplicates[0])
+
+
+def test_an_id_equal_to_a_renamed_metrics_old_name_is_accepted() -> None:
+    """The control, and the reason the check reads keys rather than ids.
+
+    ``revenue`` carries ``id: net`` and ``net`` carries ``id: gross``: the keys
+    are ``net`` and ``gross``, which do not collide. A rule comparing ids to
+    names would refuse this legal project — and it is the shape a rollout
+    produces, where an id is chosen to match a name something else already has.
+    """
+
+    _project(
+        _metrics(
+            revenue=f"id: net\n{_SIMPLE}",
+            net=f"id: gross\n{_SIMPLE}",
+        )
+    )
+
+
+def test_two_kinds_sharing_a_key_do_not_collide() -> None:
+    """``metric.`` and ``canonical.`` are separate namespaces.
+
+    Checking across kinds would refuse a project whose metric and canonical
+    field happen to share a name, which every project is free to do today.
+    """
+
+    _project(_metrics(unit_price=f"id: shared\n{_SIMPLE}"))

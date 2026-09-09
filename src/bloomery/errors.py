@@ -492,6 +492,19 @@ class MartMissingTimeDimension(GuardrailError):
 # ....................... #
 
 
+class DuplicateNodeId(GuardrailError):
+    """Guardrail stage (RFC 0062 §9): two nodes of one kind whose lineage ids
+    are the same string — a copied ``id:``, or an ``id:`` equal to another
+    node's name where only one of the two adopted one.
+
+    Both are one identity claimed twice, which is worse than no identity: the
+    graph silently holds one vertex where the spec declares two, and every
+    consumer citing that id gets whichever the compiler kept."""
+
+
+# ....................... #
+
+
 class ReservedEntityName(GuardrailError):
     """Guardrail stage (RFC 0051 §5.2, D6/D7): an entity named after one of the
     four lineage node-id prefixes. Every node id but an entity field's carries

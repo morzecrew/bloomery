@@ -57,6 +57,16 @@ class CanonicalField(SpecModel):
     ``description`` is carried through the IR into semantic-layer emissions
     (RFC 0013 R1) — it grounds the Query Agent."""
 
+    #: A stable identity, minted once and never edited (RFC 0062 §5.1). When
+    #: present it replaces the name in this node's lineage id, so a rename
+    #: relabels a vertex instead of deleting one node and adding another.
+    #:
+    #: **Opaque** (D2): compared for equality, never parsed, never used to
+    #: derive a path, a relation name or an ordering. Not :attr:`Recipe.id`,
+    #: which names a derivation this field may be built by rather than the
+    #: field itself. Absent everywhere, a
+    #: project compiles byte for byte as it does today (D3).
+    id: str | None = None
     entity: str
     type: TypeString
     description: str | None = None

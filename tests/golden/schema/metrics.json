@@ -175,6 +175,18 @@
           "default": null,
           "title": "Grain"
         },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
         "ratio": {
           "anyOf": [
             {

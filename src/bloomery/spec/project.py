@@ -204,3 +204,60 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
         marts=mart_sets[0][1] if mart_sets else None,
         steps=step_sets[0][1] if step_sets else None,
     )
+
+
+# ....................... #
+
+
+def node_keys(project: Project, catalog: Catalog | None) -> dict[str, dict[str, str]]:
+    """Per node kind, the authored name of each node mapped to the string its
+    lineage id is built from (RFC 0062 §5.2).
+
+    **A reference names a node; what the node's key is belongs to the
+    definition.** ``requires_metrics`` names another metric, ``requires`` names
+    a canonical field, and a step input names another step's output — each by
+    name, from a document that is not the one carrying the ``id:``.
+    Substituting only where a node is *defined* would leave every one of those
+    edges pointing at a vertex nothing built, so the substitution happens
+    through this map and the reference sites read it.
+
+    A kind with no adopted ids maps nothing and :func:`key` then returns the
+    name it was given, which is how an unadopted project gets today's ids
+    without a branch anywhere (D3).
+
+    **Here rather than beside the node builders in ``resolve.graph``**, for the
+    reason :data:`~bloomery.ir.NODE_ID_PREFIXES` is not there either: the
+    guardrail that refuses a duplicate key sits *below* ``resolve`` in the layer
+    contract and cannot import it. Two copies of this map would be two answers
+    to "what is this node called", and the refusal would be checking a
+    different question from the one the graph asks.
+
+    Reads the authored metrics rather than the template-merged ones, and that
+    is what makes one map serve both callers: an id is never merged from a
+    template, because a template is instantiated many times and an id it
+    carried would make every instantiation the same node.
+    """
+
+    canonical = {} if catalog is None else catalog.canonical_fields
+    metrics = {} if project.metric_set is None else project.metric_set.metrics
+    steps = () if project.steps is None else project.steps.steps
+
+    return {
+        "metric": {name: m.id for name, m in metrics.items() if m.id is not None},
+        "canonical": {name: f.id for name, f in canonical.items() if f.id is not None},
+        "step": {w.ref: w.id for w in steps if w.id is not None},
+    }
+
+
+# ....................... #
+
+
+def key(name: str, ids: dict[str, str]) -> str:
+    """``name`` as the node id should spell it — the adopted id, or the name.
+
+    Opaque (RFC 0062 D2): the value is substituted whole and never parsed, so
+    an id of ``../../etc/passwd`` becomes a node nothing resolves a path from,
+    which is the property §6 asks for.
+    """
+
+    return ids.get(name, name)

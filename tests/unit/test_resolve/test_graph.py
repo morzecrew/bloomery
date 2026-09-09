@@ -6,6 +6,7 @@ from __future__ import annotations
 import pytest
 
 from bloomery import load_project
+from bloomery.errors import BloomeryError
 from bloomery.ir import NODE_ID_PREFIXES
 from bloomery.spec import Project
 from bloomery.resolve.graph import (
@@ -18,7 +19,8 @@ from bloomery.resolve.graph import (
     step_node,
 )
 from bloomery.resolve.metrics import effective_metrics
-from support.compiling import load_fixture
+from bloomery.spec.project import key, node_keys
+from support.compiling import FIXTURES, fixture_sources, load_fixture
 
 pytestmark = pytest.mark.unit
 
@@ -258,3 +260,148 @@ def test_every_prefixed_builder_uses_a_reserved_name() -> None:
     )
     assert {node_id.split(".", 1)[0] for node_id in ids} == set(NODE_ID_PREFIXES)
     assert entity_field_node("order_item", "unit_price").name == "order_item.unit_price"
+
+
+# ....................... #
+# RFC 0062 P1 — a stable id substitutes for the name
+
+
+def _with_metric_ids(**ids: str) -> tuple[Project, object]:
+    """``ecom_basic`` with an ``id:`` added to each named metric."""
+
+    project, catalog = load_fixture("ecom_basic")
+    sources = fixture_sources("ecom_basic")
+
+    for name, value in ids.items():
+        anchor = f"  {name}:\n"
+        assert anchor in sources["metrics"], name
+        sources["metrics"] = sources["metrics"].replace(anchor, f"{anchor}    id: {value}\n", 1)
+
+    return load_project(sources), catalog
+
+
+def test_an_unadopted_project_keys_every_node_by_name() -> None:
+    """D3, at the level the substitution happens.
+
+    The byte-exact promise rests on this: with no ``id:`` anywhere, the map is
+    empty for every kind and ``key`` is the identity, so nothing downstream can
+    take a different branch.
+    """
+
+    project, catalog = load_fixture("ecom_basic")
+    ids = node_keys(project, catalog)
+
+    assert ids == {"metric": {}, "canonical": {}, "step": {}}
+    assert key("gross_revenue", ids["metric"]) == "gross_revenue"
+
+
+def test_an_adopted_id_replaces_the_name_in_the_node_id() -> None:
+    project, catalog = _with_metric_ids(gross_revenue="mtr_7f3a9c")
+    metrics = effective_metrics(project, catalog)
+    graph = build_graph(project, catalog, metrics)
+    names = {node.name for node in graph.nodes}
+
+    assert "metric.mtr_7f3a9c" in names
+    assert "metric.gross_revenue" not in names
+
+
+def test_a_reference_by_name_reaches_the_node_its_id_renamed() -> None:
+    """The edge case §5.2's "nothing else moves" understates.
+
+    ``average_order_value`` names ``gross_revenue`` in ``requires_metrics``,
+    from a different block than the one carrying the id. Substituting only at
+    the definition would leave this edge pointing at ``metric.gross_revenue``,
+    a vertex nothing built — a graph split in two with no error anywhere.
+    """
+
+    project, catalog = _with_metric_ids(gross_revenue="mtr_7f3a9c")
+    graph = build_graph(project, catalog, effective_metrics(project, catalog))
+
+    into_aov = {
+        edge.src.name for edge in graph.edges if edge.dst.name == "metric.average_order_value"
+    }
+
+    assert "metric.mtr_7f3a9c" in into_aov
+    assert "metric.gross_revenue" not in into_aov
+
+
+def test_a_rename_moves_the_label_and_not_the_node() -> None:
+    """§6's traversal test: the same id, a different name, the same edges."""
+
+    project, catalog = _with_metric_ids(gross_revenue="mtr_7f3a9c")
+    before = build_graph(project, catalog, effective_metrics(project, catalog))
+
+    sources = fixture_sources("ecom_basic")
+    sources["metrics"] = sources["metrics"].replace(
+        "  gross_revenue:\n", "  revenue_gross:\n    id: mtr_7f3a9c\n", 1
+    )
+    sources["metrics"] = sources["metrics"].replace(
+        "requires_metrics: [gross_revenue, order_count]",
+        "requires_metrics: [revenue_gross, order_count]",
+        1,
+    )
+    renamed = load_project(sources)
+    after = build_graph(renamed, catalog, effective_metrics(renamed, catalog))
+
+    assert {(e.src.name, e.dst.name, e.label) for e in before.edges} == {
+        (e.src.name, e.dst.name, e.label) for e in after.edges
+    }
+
+
+def test_an_id_is_substituted_whole_and_never_parsed() -> None:
+    """D2 and §6: opaque means opaque.
+
+    A traversal-shaped value reaches a node id and nothing else — no path is
+    resolved from it, and the dots do not split it into segments the way
+    ``source.<relation>.<path>`` is built.
+    """
+
+    project, catalog = _with_metric_ids(gross_revenue="../../etc/passwd")
+    graph = build_graph(project, catalog, effective_metrics(project, catalog))
+
+    assert "metric.../../etc/passwd" in {node.name for node in graph.nodes}
+
+
+def test_an_authored_id_opens_no_route_to_the_entity_field_namespace() -> None:
+    """§6's last test, which the existing reservation already answers.
+
+    An entity field is ``<entity>.<field>`` **bare**; every other id carries a
+    kind prefix. An id can put anything after that prefix and never remove it,
+    so no authored value reaches the bare form — the collision RFC 0051 D6-D8
+    closes stays closed, and this says so rather than leaving a reader to
+    re-derive it.
+    """
+
+    project, catalog = _with_metric_ids(gross_revenue="order_item.unit_price")
+    graph = build_graph(project, catalog, effective_metrics(project, catalog))
+    names = {node.name for node in graph.nodes}
+
+    assert "metric.order_item.unit_price" in names
+    assert "order_item.unit_price" in names
+    assert len({n for n in names if n.endswith("order_item.unit_price")}) == 2
+
+
+def test_the_whole_fixture_corpus_is_unadopted() -> None:
+    """§6's byte-exact opt-out, stated as the thing that makes it true.
+
+    Every golden in the tree was generated before this feature existed, and they
+    all still pass — which is evidence only for as long as no fixture adopts an
+    ``id:``. The day one does, its artifacts are the ones that have to be
+    re-examined, and this fails then rather than letting a golden be regenerated
+    against a changed identity model without anybody saying so.
+    """
+
+    adopted: dict[str, dict[str, dict[str, str]]] = {}
+
+    for path in sorted(FIXTURES.iterdir()):
+        if not path.is_dir() or not list(path.glob("*.yaml")):
+            continue
+        try:
+            project, catalog = load_fixture(path.name)
+        except BloomeryError:
+            continue
+        ids = node_keys(project, catalog)
+        if any(ids.values()):
+            adopted[path.name] = ids
+
+    assert adopted == {}, f"a fixture adopted an id: {adopted}"

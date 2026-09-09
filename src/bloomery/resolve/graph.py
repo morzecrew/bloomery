@@ -14,6 +14,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Final
 
 from bloomery.spec.mapping import ALIAS_BOUND, RecipeFieldMapping
+from bloomery.spec.project import key, node_keys
 
 if TYPE_CHECKING:
     from bloomery.resolve.metrics import EffectiveMetric
@@ -230,7 +231,7 @@ def _mapping_edges(mapping: Mapping, canonical_by_field: dict[str, str | None]) 
 # ....................... #
 
 
-def _step_edges(project: Project) -> list[Edge]:
+def _step_edges(project: Project, ids: dict[str, str]) -> list[Edge]:
     """Wire each step between what fills its inputs and what it produces
     (RFC 0017 §5.6, D11).
 
@@ -263,12 +264,12 @@ def _step_edges(project: Project) -> list[Edge]:
     edges: list[Edge] = []
 
     for wiring in project.steps.steps:
-        node = step_node(wiring.ref)
+        node = step_node(key(wiring.ref, ids))
         for _name, bound in sorted(wiring.inputs.items()):
             relation = bound.rsplit(".", 1)[-1]
             producer = producer_of.get(relation)
             if producer is not None and producer != wiring.ref:
-                edges.append(Edge(src=step_node(producer), dst=node, label="step_input"))
+                edges.append(Edge(src=step_node(key(producer, ids)), dst=node, label="step_input"))
                 continue
             entity = entities.get(relation)
             if entity is None:
@@ -316,8 +317,9 @@ def build_graph(
     links); canonical fields feed metrics (``requires``); metrics feed
     metrics (``requires_metrics``).
     """
+    ids = node_keys(project, catalog)
     edges: list[Edge] = []
-    edges.extend(_step_edges(project))
+    edges.extend(_step_edges(project, ids["step"]))
 
     for mapping in project.mappings:
         entity = project.entity_model.entities[mapping.target]
@@ -325,27 +327,29 @@ def build_graph(
         edges.extend(_mapping_edges(mapping, canonical_by_field))
 
     for metric in metrics:
-        dst = metric_node(metric.name)
+        dst = metric_node(key(metric.name, ids["metric"]))
         edges.extend(
-            Edge(src=canonical_field_node(leaf), dst=dst, label="requires")
+            Edge(src=canonical_field_node(key(leaf, ids["canonical"])), dst=dst, label="requires")
             for leaf in metric.requires
         )
         edges.extend(
-            Edge(src=metric_node(required), dst=dst, label="requires_metrics")
+            Edge(src=metric_node(key(required, ids["metric"])), dst=dst, label="requires_metrics")
             for required in metric.requires_metrics
         )
 
     nodes: set[Node] = set()
 
     if catalog is not None:
-        nodes.update(canonical_field_node(name) for name in catalog.canonical_fields)
+        nodes.update(
+            canonical_field_node(key(name, ids["canonical"])) for name in catalog.canonical_fields
+        )
 
-    nodes.update(metric_node(metric.name) for metric in metrics)
+    nodes.update(metric_node(key(metric.name, ids["metric"])) for metric in metrics)
 
     if project.steps is not None:
         # A step with no wired inputs still exists in the lineage; without
         # this it would vanish from the topological order entirely.
-        nodes.update(step_node(wiring.ref) for wiring in project.steps.steps)
+        nodes.update(step_node(key(wiring.ref, ids["step"])) for wiring in project.steps.steps)
 
     # A mapped field with no edge at all, for the same reason and with the same
     # fix. Both alias-bound shapes can bind **zero** source paths: a

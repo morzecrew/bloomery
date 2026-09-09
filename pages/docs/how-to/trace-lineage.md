@@ -74,6 +74,35 @@ $ bloomery lineage specs/ --node metric.gross_revenu
 no node named 'metric.gross_revenu' in this project's dependency graph. did you mean: metric.gross_revenue
 ```
 
+### Identity, when the name is not it
+
+`metric.<name>` makes the name the identity, so renaming a metric deletes one node and
+adds another: the history stops, and every citation of the old id points at nothing.
+
+Give the node an `id:` and the name becomes a label:
+
+```yaml
+metrics:
+  gross_revenue:
+    id: mtr_7f3a9c        # minted once, never edited
+```
+
+The node is now `metric.mtr_7f3a9c` whatever the metric is called, and a rename relabels a
+vertex instead of replacing one. The value is opaque — compared, never parsed — so any
+string that does not change will do; a generated-looking one is a convention, not a
+requirement.
+
+Three things are worth knowing before you adopt it:
+
+- **It is write-once.** Editing an `id:` is a delete and an add, and nothing can tell that
+  apart from an actual delete and add — that distinction is exactly what the id was
+  carrying. The compiler cannot enforce this; you can.
+- **Two nodes of one kind may not mint the same id.** Copying a spec file and leaving the
+  `id:` behind is refused, and so is an `id:` equal to another node's *name* — during a
+  partial rollout, that is the easier of the two to write by accident.
+- **Adopting nothing costs nothing.** A project with no `id:` anywhere gets exactly the
+  ids and exactly the artifacts it gets today.
+
 ## It returns a sub-DAG, not paths
 
 `Lineage.nodes` carries each node **once**, however many ways it is reachable, and
