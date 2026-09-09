@@ -368,6 +368,10 @@ def _prove_ratio(
                         found=f"{name} is not a metric of this project",
                     ),
                 ),
+                remediation=(
+                    f"a ratio's operands are metrics of this project — declare {name}, or "
+                    f"point {metric.name}'s ratio: at one that exists"
+                ),
                 # `UNKNOWN` and not `DECLARED`: unlike a wrong additivity there
                 # is no fact here at all — the name reaches nothing.
                 rejected=(
@@ -653,6 +657,10 @@ def prove_mart_rollup(
                         required=f"read {name} as a measure of mart {mart.name!r}",
                         found=f"{name} is not a metric of this project",
                     ),
+                ),
+                remediation=(
+                    f"a mart's measures name metrics — declare {name}, or drop it from "
+                    f"{mart.name!r}'s measures"
                 ),
                 rejected=(
                     SemanticFact(

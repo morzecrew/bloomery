@@ -15,6 +15,8 @@ would be asserting that this module does something it must not.
 from __future__ import annotations
 
 import dataclasses
+import pathlib
+import re
 
 import pytest
 
@@ -458,3 +460,106 @@ def test_the_measure_question_refuses_an_unknown_dimension_too() -> None:
 
     assert isinstance(answer, Refutation)
     assert answer.reason == "unknown_dimension"
+
+
+#: Every refusal this module can produce, one construction each. A list rather
+#: than a crawl of the source: what it pins is that the set is *known*, so a
+#: refusal added without a case here is one nobody decided the wording of.
+_EVERY_REFUSAL = (
+    ("no_kept_dimensions", lambda: prove_mart_rollup(items("revenue"), (), PROJECT)),
+    ("unknown_dimension", lambda: prove_mart_rollup(items("revenue"), ("channel",), PROJECT)),
+    ("drops_nothing", lambda: prove_mart_rollup(items("revenue"), DIMENSIONS, PROJECT)),
+    ("no_measures", lambda: prove_mart_rollup(items(), KEEP, PROJECT)),
+    ("unknown_measure", lambda: prove_mart_rollup(items("ghost"), KEEP, PROJECT)),
+    ("measure_not_carried", lambda: prove_measure_rollup(REVENUE, items("lines"), KEEP, PROJECT)),
+    ("not_the_mart_grain", lambda: prove_measure_rollup(SHIPPING, items("shipping"), KEEP, PROJECT)),
+    (
+        "semi_additive_rollup_unsupported",
+        lambda: prove_measure_rollup(BALANCE, items("balance"), KEEP, PROJECT),
+    ),
+    (
+        "non_additive_not_summable",
+        lambda: prove_measure_rollup(MARGIN, items("margin"), KEEP, PROJECT),
+    ),
+    (
+        "distinct_count_not_reaggregable",
+        lambda: prove_measure_rollup(SESSIONS, items("sessions"), KEEP, PROJECT),
+    ),
+    (
+        "snapshot_needs_time_selection",
+        lambda: prove_measure_rollup(
+            dataclasses.replace(REVENUE, name="stock", additivity=Additivity.SNAPSHOT),
+            items("stock"),
+            KEEP,
+            PROJECT,
+        ),
+    ),
+    (
+        "nothing_to_aggregate",
+        lambda: prove_measure_rollup(HOLLOW, items("hollow"), KEEP, PROJECT),
+    ),
+    (
+        "not_a_ratio",
+        lambda: prove_measure_rollup(
+            dataclasses.replace(AVERAGE, ratio=None), items("average_line_value"), KEEP, PROJECT
+        ),
+    ),
+    (
+        "operand_not_carried",
+        lambda: prove_measure_rollup(
+            AVERAGE, items("average_line_value", "revenue"), KEEP, PROJECT
+        ),
+    ),
+    (
+        "operand_unreachable",
+        lambda: prove_measure_rollup(
+            dataclasses.replace(AVERAGE, ratio=Ratio(numerator="revenue", denominator="ghost")),
+            items("average_line_value", "revenue", "ghost"),
+            KEEP,
+            PROJECT,
+        ),
+    ),
+    (
+        "operand_not_additive",
+        lambda: prove_measure_rollup(
+            dataclasses.replace(
+                AVERAGE, ratio=Ratio(numerator="average_line_value", denominator="lines")
+            ),
+            items("average_line_value", "lines"),
+            KEEP,
+            PROJECT,
+        ),
+    ),
+)
+
+
+@pytest.mark.parametrize(("reason", "build"), _EVERY_REFUSAL, ids=[r for r, _ in _EVERY_REFUSAL])
+def test_every_refusal_tells_the_author_what_to_do(reason: str, build: object) -> None:
+    """`Refutation.render()` emits its `fix:` line only when `remediation` is
+    set, so an empty one is a refusal an author reads and cannot act on.
+
+    Empty is a legitimate choice where the compiler does not know — the field's
+    own docstring says a wrong remediation costs more than a missing one — and
+    it is not the choice here: every refusal this module produces knows the
+    repair, because it knows which of the rollup's parts was wrong.
+    """
+
+    answer = build()  # type: ignore[operator]
+
+    assert isinstance(answer, Refutation)
+    assert answer.reason == reason
+    assert answer.remediation
+    assert "fix:" in answer.render()
+
+
+def test_the_refusal_list_is_complete() -> None:
+    """The parametrization above is only worth its weight if it is exhaustive.
+    Read from the source rather than from a constant nobody else uses:
+    `tests/unit/test_semantic/test_plan.py` guards its own invariant the same
+    way, and a constant duplicating the literals would drift from them silently.
+    """
+
+    source = pathlib.Path(rollup_module.__file__).read_text(encoding="utf-8")
+    declared = set(re.findall(r'reason="([a-z_]+)"', source))
+
+    assert declared == {reason for reason, _ in _EVERY_REFUSAL}
