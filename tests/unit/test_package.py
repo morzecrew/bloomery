@@ -39,6 +39,7 @@ def test_public_api_surface() -> None:
         "EMPTY_REGISTRY",
         "Edge",
         "EmittedArtifact",
+        "EvidenceGrade",
         "Explanation",
         "FieldProvenance",
         "Gap",

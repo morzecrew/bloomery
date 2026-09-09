@@ -23,6 +23,7 @@ asserted through a subprocess.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import subprocess  # nosec B404 — a python subprocess, argv-only, no shell
@@ -43,6 +44,7 @@ from bloomery import (
     MetricRequest,
     Op,
     Plan,
+    QueryPlan,
     ReplayScope,
     RowPolicy,
     SpecEvidence,
@@ -58,9 +60,23 @@ from bloomery import (
     project_fingerprint,
 )
 from bloomery.cli import EXIT_INTERNAL, EXIT_OK, EXIT_REFUSED, EXIT_USAGE, build_parser, main
+from bloomery.semantic import (
+    Aggregate,
+    Proof,
+    Provenance,
+    Scan,
+    SemanticFact,
+    SemanticJudgement,
+    SemanticPlan,
+)
 from bloomery.cli.io import CliIoError, read_spec_directory, write_files
 from bloomery.cli import render
-from bloomery.cli.render import render_check, render_evidence, render_plan
+from bloomery.cli.render import (
+    render_check,
+    render_evidence,
+    render_evidence_grades,
+    render_plan,
+)
 from bloomery.cli.serialize import SpecEncoder
 from bloomery.errors import BloomeryError
 from bloomery.naming import DefaultNaming
@@ -1670,3 +1686,198 @@ def test_check_renders_the_value_it_was_given(capsys: pytest.CaptureFixture[str]
     _code, out, _err = run(capsys, "check", ECOM)
 
     assert out.strip() == render_check(evaluate(project, catalog=catalog)).strip()
+
+
+# ....................... #
+# RFC 0065 P1 — evidence grades in `explain`
+
+
+def test_explain_renders_a_grade_beside_every_fact(capsys: pytest.CaptureFixture[str]) -> None:
+    """The visible half of P1: the grades before the requirement.
+
+    Nothing is refused and nothing is required yet, so the only thing to assert
+    is that a reader can see where each fact came from — which is what tells a
+    team whether the feature is worth adopting at all (§12).
+    """
+
+    code, out, err = run(
+        capsys, "explain", ECOM, "--metrics", "gross_revenue", "--by", "ordered_month"
+    )
+
+    assert code == EXIT_OK, err
+    assert "Evidence (1 locked)" in out
+    assert "LOCKED" in out
+    assert "mart:order_items.gross_revenue" in out
+
+
+def test_the_evidence_section_changes_nothing_above_it(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The section is additive, and this is what lets the plan be read at all.
+
+    `test_only_the_renderer_reads_the_plan` admits the CLI to read
+    `query.semantic` on the argument that a renderer generates nothing. That
+    argument is only worth the exemption if it is true, so it is asserted here
+    rather than left in a comment: everything above the heading is exactly the
+    SQL and the explanation the planner produced.
+    """
+
+    project, catalog = load_fixture("ecom_basic")
+    naming = DefaultNaming()
+    planner = MetricFlowPlanner(LruManifestHydrator(naming), naming=naming)
+    query = planner.plan(
+        build_project_ir(project, catalog=catalog),
+        MetricRequest(metrics=("gross_revenue",), dimensions=("ordered_month",)),
+        dialect="duckdb",
+    )
+
+    _code, out, _err = run(
+        capsys, "explain", ECOM, "--metrics", "gross_revenue", "--by", "ordered_month"
+    )
+    above, heading, _below = out.partition("Evidence (")
+
+    assert heading, "the section is missing, so this test proves nothing"
+    assert above.strip() == (query.sql + "\n\n" + query.explanation.render()).strip()
+
+
+def test_a_plan_without_a_semantic_half_prints_no_evidence_heading(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``QueryPlan.semantic`` is optional, and absent is not empty.
+
+    A caller may build a `QueryPlan` directly and never fill it in — the
+    emitter tests do — and a heading over nothing would say the plan rests on
+    no facts, which is a claim about the plan rather than about what the caller
+    supplied. The planner always fills it in, so the branch is unreachable
+    through the CLI without taking the field away deliberately.
+    """
+
+    planned = MetricFlowPlanner.plan
+
+    def without_semantic(self: MetricFlowPlanner, *args: object, **kwargs: object) -> QueryPlan:
+        return dataclasses.replace(planned(self, *args, **kwargs), semantic=None)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(MetricFlowPlanner, "plan", without_semantic)
+
+    code, out, err = run(
+        capsys, "explain", ECOM, "--metrics", "gross_revenue", "--by", "ordered_month"
+    )
+
+    assert code == EXIT_OK, err
+    assert out.strip(), "the SQL and explanation are still printed"
+    assert "Evidence" not in out
+
+
+def test_the_evidence_section_walks_every_proof_in_a_composed_plan(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """One fact is not a walk, and the single-mart case is one fact.
+
+    A cross-mart request is planned as a branch per mart joined above the
+    aggregate (RFC 0041), and its authorization is mostly *inside* it: three
+    proofs, four distinct facts. A renderer reading only the top-level nodes
+    would print one row here and look correct on every single-mart fixture.
+
+    It is also the only plan in the corpus that grades two ways, which is what
+    makes it worth asserting the tally rather than a count. Each measure is
+    ``LOCKED`` — somebody wrote it into a mart — while each branch's
+    one-row-per-key fact is ``ASSUMED``, derived by the planner from the
+    aggregate it just built. That contrast is the feature: the numbers a
+    statutory reader would ask about are declared, and the reasoning that makes
+    the join safe is the compiler's own.
+    """
+
+    directory = str(FIXTURES / "cross_mart_branches")
+    code, out, err = run(
+        capsys, "explain", directory, "--metrics", "line_discount,shipping_count"
+    )
+
+    assert code == EXIT_OK, err
+    assert "Evidence (2 locked, 2 assumed)" in out
+    assert out.count("LOCKED  mart:") == 2
+    assert out.count("ASSUMED branch:") == 2
+
+
+def test_a_plan_resting_on_no_proof_says_so_rather_than_tallying_nothing() -> None:
+    """The empty case, decided rather than inherited.
+
+    A plan of nodes that neither claim nor multiply carries no proof, and
+    ``SemanticPlan.check`` admits it — only a claiming node owes one. An
+    ``Evidence (…)`` heading with an empty tally would read as a plan whose
+    facts are all of some grade nobody printed.
+    """
+
+    plan = SemanticPlan((Scan(relation="order_items", grain="order_item"),))
+
+    assert plan.proofs == ()
+    assert render_evidence_grades(plan) == "Evidence\n  (no facts — this plan carries no proof)"
+
+
+def _fact(source: str, provenance: Provenance = Provenance.DECLARED) -> SemanticFact:
+    # The statement deliberately does not repeat the source: the dedup test
+    # counts occurrences of the source string, and a statement echoing it would
+    # count the one row twice and fail a working renderer.
+    return SemanticFact(source=source, provenance=provenance, statement="a fact about it")
+
+
+def _aggregate(proof: Proof) -> Aggregate:
+    return Aggregate(
+        input_grain="order_item",
+        output_grain="order",
+        measures=("revenue",),
+        proof=proof,
+    )
+
+
+def test_a_fact_under_two_proofs_is_listed_and_counted_once() -> None:
+    """The dedup, on the only input that can show it.
+
+    No plan the planner builds shares a leaf between two proofs — a cross-mart
+    request yields three proofs and four distinct facts — so removing the set
+    changed nothing in the sweep (``logs/T-0031.md``). The failure it prevents
+    is a count that reports one declared fact as two, which is the one way a
+    tally of "how much of this project is declared" can lie.
+    """
+
+    shared = _fact("mart:order_items.revenue")
+    plan = SemanticPlan(
+        (
+            _aggregate(Proof(rule="R008", conclusion=_judgement("A"), facts=(shared,))),
+            _aggregate(Proof(rule="R008", conclusion=_judgement("B"), facts=(shared,))),
+        )
+    )
+
+    assert len(plan.proofs) == 2
+    rendered = render_evidence_grades(plan)
+
+    assert rendered.count("mart:order_items.revenue") == 1
+    assert "Evidence (1 locked)" in rendered
+
+
+def test_a_fact_reached_only_through_a_premise_is_still_listed() -> None:
+    """Proofs compose, and a renderer reading ``facts`` would miss the halves.
+
+    R011 and R012 carry their grain proof as a premise (RFC 0039 §3), so a fact
+    can sit two levels down. Nothing the planner builds today has a premise —
+    every proof in the corpus is flat — which is why the sabotage that read
+    ``proof.facts`` instead of ``proof.leaves`` survived, and why the input here
+    is hand-built rather than planned.
+    """
+
+    deep = _fact("metric:revenue", Provenance.DERIVED)
+    premise = Proof(rule="R010", conclusion=_judgement("premise"), facts=(deep,))
+    top = Proof(
+        rule="R011",
+        conclusion=_judgement("top"),
+        premises=(premise,),
+        facts=(_fact("mart:orders.revenue"),),
+    )
+
+    rendered = render_evidence_grades(SemanticPlan((_aggregate(top),)))
+
+    assert "metric:revenue" in rendered
+    assert "Evidence (1 locked, 1 assumed)" in rendered
+
+
+def _judgement(name: str) -> SemanticJudgement:
+    return SemanticJudgement("SafeRollup", (("of", name),))

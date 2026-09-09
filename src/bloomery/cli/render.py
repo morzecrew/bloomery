@@ -14,17 +14,18 @@ what a plan *is* — one formats, the other converts.
 from __future__ import annotations
 
 import textwrap
+from collections import Counter
 from typing import TYPE_CHECKING
 
 # At run time because :func:`render_evidence` compares against ``COMPLETE``:
 # the stage decides whether the counts below it are totals or a prefix, which
 # is the one thing this module must not get wrong (RFC 0022 D5).
-from bloomery import Direction, Stage
+from bloomery import Direction, EvidenceGrade, Stage
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from bloomery import Lineage, OpenDecision, Plan, SpecEvidence, UnreachableMetric
+    from bloomery import Lineage, OpenDecision, Plan, SemanticPlan, SpecEvidence, UnreachableMetric
     from bloomery.errors import BloomeryError
 
 # ----------------------- #
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
 __all__ = [
     "render_check",
     "render_evidence",
+    "render_evidence_grades",
     "render_lineage",
     "render_plan",
 ]
@@ -79,6 +81,52 @@ CHECKED_SURFACES: tuple[tuple[str, str], ...] = (
 #: count beside that refusal, and the stage never finished ruling on them.
 #: Every other verb here names a stage that completed before the count was
 #: taken; ``safe`` would name a verdict nothing reached.
+
+
+def render_evidence_grades(plan: SemanticPlan) -> str:
+    """The facts a plan rests on, each with the grade a consumer reads
+    (RFC 0065 P1).
+
+    **Visible before it is enforced**, which is the whole of P1: no requirement
+    exists yet and nothing is refused, so the only thing this can do is let a
+    team see how much of its semantics somebody wrote down and how much the
+    compiler defaulted — §12's "useful number nobody currently has".
+
+    The tally is a count per grade and never a ratio, a score or an average
+    (§4). Counting how many facts are declared answers a question; dividing it
+    by the total invents a number that reads as a quality measure of a project,
+    which is the thing this design refuses to be.
+
+    Facts are deduplicated across the plan's proofs, and the honest statement is
+    that no plan in the fixture corpus currently produces a duplicate: a
+    cross-mart request yields three proofs and four distinct leaves. The dedup
+    is here because ``Proof.leaves`` already applies it *within* a proof, so a
+    tally that skipped it across proofs would count one fact as two the first
+    time two nodes rested on the same premise — and a count that can lie about
+    how much of a project is declared is worse than no count.
+    """
+
+    facts = tuple(sorted({fact for proof in plan.proofs for fact in proof.leaves}))
+
+    if not facts:
+        return "Evidence\n  (no facts — this plan carries no proof)"
+
+    tally = Counter(fact.provenance.grade for fact in facts)
+    counted = ", ".join(f"{tally[grade]} {grade.value}" for grade in EvidenceGrade if tally[grade])
+    lines = [f"Evidence ({counted})"]
+
+    for fact in facts:
+        lines.append(f"  {fact.provenance.grade.value.upper():<8}{fact.source}")
+        lines.extend(
+            textwrap.wrap(
+                fact.statement, width=WRAP, initial_indent=" " * 10, subsequent_indent=" " * 10
+            )
+        )
+
+    return "\n".join(lines)
+
+
+# ....................... #
 
 
 def render_check(evidence: SpecEvidence) -> str:

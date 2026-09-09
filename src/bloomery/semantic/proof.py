@@ -35,6 +35,7 @@ __all__ = [
     "BASIS_RULES",
     "RULES",
     "SUPERSEDED",
+    "EvidenceGrade",
     "Obligation",
     "Proof",
     "Provenance",
@@ -80,12 +81,83 @@ class Provenance(StrEnum):
 
         return self in _CLOSING
 
+    # ....................... #
+
+    @property
+    def grade(self) -> EvidenceGrade:
+        """This provenance as the grade a consumer reads (RFC 0065 §5.1).
+
+        A projection, never a second scale: five members collapse to three,
+        and the question the three answer is "did a human *here* write this
+        down". :attr:`closes` draws a different line through the same members
+        — soundness, not authorship — and the two are deliberately not the
+        same line: ``DERIVED`` closes an obligation and is not ``LOCKED``.
+        """
+
+        return _GRADES[self]
+
+
+class EvidenceGrade(StrEnum):
+    """How a semantic fact was obtained, as a consumer weighs it
+    (RFC 0065 §5.1, D5 `ASSUMED`).
+
+    Three states, not five, because the finer distinctions :class:`Provenance`
+    draws do not change a consumer's answer. Ordered strongest first, and
+    ordered is all they are: there is no arithmetic here, nothing is summed or
+    averaged, and a project does not have a score.
+
+    **Never written, only derived** (D1, `LOCKED`). Nothing accepts a grade as
+    input — it is computed from the provenance of a fact the compiler already
+    holds. A grade an author could assert would be an unchecked claim about a
+    claim, which is the failure the whole idea exists to remove. That is also
+    why this is not a field on :class:`SemanticFact`: a field is settable by
+    every constructor caller, which is the letter of D1 and not its point.
+
+    ``ASSUMED`` is not a criticism (§9). A mechanically derived fact is sound
+    under RFC 0039's floor and this says nothing about whether it is right —
+    only that nobody here wrote it down. Wording that implied doubt would push
+    authors to declare things they have not thought about, and a ``LOCKED``
+    fact nobody considered is worse than the default it replaced.
+    """
+
+    #: Authored in a spec, by a person who owns it.
+    LOCKED = "locked"
+    #: Obtained mechanically and soundly — a default, an inference from a
+    #: type, a propagation through a proof rule, or an exact read of an
+    #: external artifact.
+    ASSUMED = "assumed"
+    #: Closes nothing, so under RFC 0039's floor a project resting on it does
+    #: not compile at all. Present so the three states are total rather than
+    #: because a consumer will ever be handed one.
+    OPEN = "open"
+
 
 #: The three that close, named positively. An allowlist rather than a test
 #: against the two that do not: a member added to this enum without a decision
 #: would otherwise default to closing obligations, which is the failure this
 #: whole document exists to prevent.
 _CLOSING: Final = frozenset({Provenance.DECLARED, Provenance.DERIVED, Provenance.IMPORTED_VERIFIED})
+
+#: The projection, written out member by member (RFC 0065 D7, `LOCKED`).
+#:
+#: A mapping and not a chain of tests, for the reason ``_CLOSING`` is an
+#: allowlist: a member added to :class:`Provenance` without a decision here
+#: raises a ``KeyError`` at the first fact that carries it, where a fallback
+#: would silently grade it — and the grade it would silently take is the one
+#: nobody argued for. ``test_every_provenance_has_a_grade`` is what turns that
+#: into a failure at the commit rather than at a call site.
+#:
+#: ``IMPORTED_VERIFIED`` is the one placement worth arguing about and D8 leaves
+#: it open. It grades ``ASSUMED`` here: it was authored, and not authored
+#: *here*, and the second is what a strict consumer is asking about
+#: (logs/T-0031.md, D8).
+_GRADES: Final[dict[Provenance, EvidenceGrade]] = {
+    Provenance.DECLARED: EvidenceGrade.LOCKED,
+    Provenance.DERIVED: EvidenceGrade.ASSUMED,
+    Provenance.IMPORTED_VERIFIED: EvidenceGrade.ASSUMED,
+    Provenance.INFERRED_HEURISTIC: EvidenceGrade.OPEN,
+    Provenance.UNKNOWN: EvidenceGrade.OPEN,
+}
 
 
 # ....................... #
