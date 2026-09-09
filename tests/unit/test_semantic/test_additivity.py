@@ -47,8 +47,13 @@ AVERAGE = metric(
     ratio=Ratio(numerator="revenue", denominator="lines"),
 )
 SESSIONS = metric("sessions", "order_item", Additivity.DISTINCT_COUNT, agg="count_distinct")
+#: Declared at the *order*, so it is the measure whose rollup to line grain is a
+#: refinement rather than a wrong-origin question.
+SHIPPING = metric("shipping", "order", Additivity.ADDITIVE)
 
-PROJECT = project((ORDER, ORDER_ITEM), (ITEM_ORDER,), (REVENUE, LINES, AVERAGE, SESSIONS))
+PROJECT = project(
+    (ORDER, ORDER_ITEM), (ITEM_ORDER,), (REVENUE, LINES, AVERAGE, SESSIONS, SHIPPING)
+)
 
 
 # ....................... #
@@ -90,12 +95,38 @@ def test_a_failed_grain_proof_is_returned_rather_than_relabelled() -> None:
     grain is a refinement, and the refusal keeps `SafeRollup`'s judgement — so
     a caller can tell "these values may not travel this way" from "this measure
     may not be summed", which is §6's smallest-failed-obligation rule applied
-    to a two-part question."""
-    answer = prove_additive_rollup(REVENUE, ORDER_GRAIN, ITEM, PROJECT)
+    to a two-part question.
+
+    `SHIPPING` rather than `REVENUE`, because the origin check below would
+    otherwise answer first: revenue originates at the line, so asking it to
+    travel *from* the order is a different mistake.
+    """
+    answer = prove_additive_rollup(SHIPPING, ORDER_GRAIN, ITEM, PROJECT)
 
     assert isinstance(answer, Refutation)
     assert answer.judgement.kind == "SafeRollup"
     assert answer.reason == "refinement"
+
+
+def test_a_measure_summed_from_a_grain_it_does_not_originate_at_is_refused() -> None:
+    """The rule takes the grain to sum *from* as an argument, and a caller who
+    names the wrong one is describing the fan-out case 001 is about — a measure
+    copied onto a finer grain and counted once per copy.
+
+    Found by the self-audit rather than by the sweep: nothing here was wrong
+    about additivity or about the route, so both existing obligations passed
+    and the proof certified a judgement that was false. A proof is evidence,
+    and evidence built on a caller's word is the thing this document replaced
+    (logs/T-0029.md, finding 1).
+    """
+    answer = prove_additive_rollup(SHIPPING, ITEM, ORDER_GRAIN, PROJECT)
+
+    assert isinstance(answer, Refutation)
+    assert answer.reason == "not_the_origin_grain"
+    assert "originates at order" in answer.obligations[0].found
+    # The route is fine and the additivity is fine; it is the premise about
+    # where the measure lives that fails, so the rejected fact is that.
+    assert [fact.statement for fact in answer.rejected] == ["originates at order"]
 
 
 @pytest.mark.parametrize("additivity", sorted(set(Additivity) - {Additivity.ADDITIVE}, key=str))

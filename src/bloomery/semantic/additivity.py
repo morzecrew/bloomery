@@ -87,12 +87,42 @@ def prove_additive_rollup(
     declaration the compiler has already refused to take on faith.
     """
 
+    judgement = _judgement("AdditiveRollup", metric.name, source, target)
+    origins = {column.entity for column in source.determinants}
+
+    # The caller names the grain to sum *from*, and a measure that does not
+    # originate there is the fan-out case 001 is about — summed once per row of
+    # a finer grain it was copied onto. Checked rather than trusted: a proof is
+    # evidence, and one built from a source the caller got wrong would certify
+    # exactly the duplication this sequence exists to refuse
+    # (logs/T-0029.md, finding 1).
+    if origins != {metric.grain}:
+        return Refutation(
+            reason="not_the_origin_grain",
+            judgement=judgement,
+            obligations=(
+                Obligation(
+                    required=f"sum {metric.name} from {source.label}",
+                    found=f"{metric.name} originates at {metric.grain}",
+                ),
+            ),
+            remediation=(
+                "ask from the grain the measure originates at — a measure summed from a "
+                "finer grain it was copied onto is counted once per copy"
+            ),
+            rejected=(
+                SemanticFact(
+                    source=f"metric:{metric.name}",
+                    provenance=Provenance.DECLARED,
+                    statement=f"originates at {metric.grain}",
+                ),
+            ),
+        )
+
     grain = prove_rollup(source, target, project, context)
 
     if isinstance(grain, Refutation):
         return grain
-
-    judgement = _judgement("AdditiveRollup", metric.name, source, target)
 
     if metric.additivity is not Additivity.ADDITIVE:
         return Refutation(
