@@ -157,6 +157,12 @@ parses and the golden matches" has tested nothing about the only thing that can 
 The load-bearing test is an execution-tier one comparing the rollup's answer against the
 same request computed from silver, over data chosen so an unsafe rollup differs.
 
+One test is inherited rather than invented here. RFC 0041 §10 asked for a property test
+constructing a partition that merges two aggregate branches and asserting the merge is
+refused without a preservation proof (D8). It was never written, because the optimization
+pass it would test does not exist; whichever document builds one owes it, and it is named
+here so the obligation has a live home until then.
+
 ## 7. Docs
 
 When built. The page that matters is the one explaining *why a rollup was refused*, since
@@ -208,6 +214,7 @@ that refusal is the feature's whole product for anyone who declares a wrong one.
 | 5 | `LOCKED` | An unprovable rollup is **refused**, never warned about. A rollup is read instead of the detail table, so a wrong one answers quickly and plausibly — the class this project refuses rather than approximates. |
 | 6 | `ASSUMED` | The acceptance evidence is RFC 0042's semantic bug corpus plus an execution-tier comparison against the same request computed from silver. A golden proves nothing here. |
 | 7 | `LOCKED` | Cube-to-cube `joins` stay out of this RFC. They reintroduce the query-time joins the wide-mart design removes — the position RFC 0013 D3 states for MetricFlow semantic models, reached independently for Cube rather than inherited from it. Cube's own refusal is unwritten, and writing it belongs with whatever RFC takes Cube's surface. |
+| 8 | `LOCKED` | **No plan transformation may merge two aggregate branches before aggregation without proving the merge preserves every measure's grain.** Inherited from RFC 0041 §9 and §10, readable at `654d93e`: that document stated the rule and asked for a property test constructing such a partition and asserting the merge is refused. Neither was built, because the optimization pass §9 deferred it to does not exist. Parked here rather than dropped at RFC 0041's retirement, because this is the live document holding a preservation obligation (§5.2) and the two are one shape — a transformation is legal only when it can show the aggregate it produces is the one the detail would have produced. It is **not** a rollup-mart decision and does not gate this feature: it transfers to whatever document builds a `SemanticPlan` optimization pass, which owes §6's inherited test with it. `LOCKED` because a merge without the proof is silent double counting, which this sequence refuses rather than approximates. Recorded at RFC 0041's retirement — see `81df8cc`. |
 
 ## 12. Phasing
 
