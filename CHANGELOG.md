@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A rollup becomes a Cube `pre_aggregations` block.** The rollups a marts
+  document declares land on the cube of the mart they name, listing the measures
+  each carries and the dimensions it keeps:
+
+  ```yaml
+  pre_aggregations:
+    - name: order_items_monthly
+      type: rollup
+      measures: [CUBE.gross_revenue]
+      dimensions: [CUBE.order_customer_id]
+      time_dimension: CUBE.ordered_month
+      granularity: month
+  ```
+
+  What is in the block is the safety bound. A query naming a measure the rollup
+  could not prove re-aggregable, or a dimension it dropped, cannot match it, and
+  Cube answers from the mart. A rollup adds no cube and no view — it is a key
+  inside its parent's document — so nothing gains a second surface serving the
+  same measures.
+
+  `time_dimension` appears when the rollup keeps exactly one role-playing date
+  bucket, which is the only kind of kept column carrying the `granularity` Cube
+  requires beside it. No `refresh_key` is emitted; Cube's default applies.
+
+  Note that Cube builds its own copy of the aggregate, from the parent cube's
+  table — it does not read the gold rollup model the SQLMesh and dbt targets
+  build. Emitting both targets materializes the same aggregate twice.
+
 - **A mart can be rolled up, and an unprovable rollup is refused.** The marts
   document takes a `rollups:` key beside `marts:`: a rollup names the mart it
   derives from with `of:`, the columns it groups by with `keep:`, and the

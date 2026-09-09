@@ -1,0 +1,20 @@
+{
+  "id": "T-0035",
+  "spec": "rfcs/0058-rollup-marts-and-pre-aggregations.md",
+  "phase": "P3 — Cube: the pre_aggregations block §5.3 names, with §9's third risk recorded for RFC 0043's capability matrix rather than asserted here. Completes RFC 0058, which retires with 0038 and 0040.",
+  "decisions": [
+    {"id": "RFC 0058 D1", "grade": "LOCKED"},
+    {"id": "RFC 0058 D3", "grade": "LOCKED",
+     "paths": ["src/bloomery/emit/cube/**"]},
+    {"id": "RFC 0058 D5", "grade": "LOCKED",
+     "paths": ["src/bloomery/emit/cube/**", "src/bloomery/emit/lower/rollups.py"]},
+    {"id": "RFC 0058 D7", "grade": "LOCKED",
+     "paths": ["src/bloomery/emit/cube/**"]},
+    {"id": "RFC 0058 D14", "grade": "LOCKED",
+     "paths": ["src/bloomery/emit/cube/**"]},
+    {"id": "RFC 0058 D15", "grade": "ASSUMED",
+     "paths": ["src/bloomery/emit/cube/**", "src/bloomery/emit/lower/rollups.py"]},
+    {"id": "RFC 0058 D16", "grade": "ASSUMED",
+     "paths": ["src/bloomery/emit/cube/**"]}
+  ]
+}

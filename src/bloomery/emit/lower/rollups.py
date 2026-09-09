@@ -41,17 +41,24 @@ __all__ = [
     "rollup_select",
 ]
 
-#: Metric ``agg`` → the SQL aggregate a rollup builds it with. Deliberately the
-#: same five :mod:`bloomery.emit.lower.reconcile` gives a mart assertion: both
-#: compute one number over a column of a gold relation, and two lists that mean
-#: the same thing drift.
+#: Metric ``agg`` → the SQL aggregate a rollup builds it with: exactly the four
+#: ``guardrails.additivity._REAGGREGABLE`` accepts an ``additive`` claim over.
 #:
-#: ``count_distinct`` is absent rather than mapped. It is the aggregate whose
-#: whole problem is that summing per-group results double-counts, R013 refuses
-#: a ``distinct_count`` measure on a rollup for exactly that reason, and a
-#: mapping here would be a second answer to a question already settled.
+#: It was five, copied from the list :mod:`bloomery.emit.lower.reconcile` gives
+#: a mart assertion, on the grounds that two lists meaning the same thing drift.
+#: They do not mean the same thing. An assertion computes one number over rows a
+#: relation already holds, and *any* aggregate is honest about those; a rollup
+#: re-aggregates, and only some survive it. Copying the nearer list mapped
+#: ``avg`` — which cannot be reached, because an ``additive`` claim over ``avg``
+#: is refused one stage earlier and R013 admits nothing else — and so said in
+#: the one place a reader looks that a rollup can average
+#: (logs/T-0035.md).
+#:
+#: ``count_distinct`` and ``median`` are absent for the same reason rather than
+#: a different one: the additivity guardrail refuses an additive claim over
+#: either, and R013 refuses a ``distinct_count`` measure outright. A mapping
+#: here would be a second answer to a question settled twice already.
 ROLLUP_AGGREGATES: dict[str, type[exp.AggFunc]] = {
-    "avg": exp.Avg,
     "count": exp.Count,
     "max": exp.Max,
     "min": exp.Min,

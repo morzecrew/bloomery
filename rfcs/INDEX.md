@@ -40,11 +40,10 @@ Two consequences worth knowing:
   vocabulary — not merely citing a decision it made, but arguing from terms it defines —
   retiring it leaves them unreadable in exactly the way the point above refuses. Its
   **status line** says so — the index one-liner records what an RFC *is*, never what has
-  happened to it — and it is retired with the last of its dependants. 0037 is the first:
-  0038, 0039, 0040, 0042, 0053 and 0058 all reason in its grain vocabulary. 0040 is the
-  second: 0058 argues in *its* vocabulary, and states its safety condition across 0037-0040
-  rather than in any one of them. 0038 is the third: 0058's rollup obligation is discharged
-  over its aggregation classes.
+  happened to it — and it is retired with the last of its dependants. 0037 is the one
+  today: 0039, 0042 and 0053 still reason in its grain vocabulary. 0038 and 0040 were the
+  other two and are gone, retired with 0058 — the last dependant of each, which is the
+  rule working rather than an exception to it.
   This is not a licence to keep a document because something cites it — prose citations are
   precisely what `RETIRED.md` exists to keep followable.
 
@@ -81,9 +80,7 @@ know it has a companion recording where it turned out to be wrong.
 |---|---|---|---|
 | [0033](0033-observability-logging-and-a-warnings-channel.md) | Observability: logging and a warnings channel | 📝 Draft | Stage-level stdlib logging that stays silent by default and cannot touch artifact bytes, a typed compile-time advisory channel riding `SpecEvidence`, and `warnings` reserved for deprecation alone. |
 | [0037](0037-semantic-grain-model.md) | Semantic grain model and functional dependencies | ✅ Complete | Grain as structural identity rather than a name, with functional dependencies carrying their basis, so rollup safety is proven instead of inferred from string equality. Root of the semantic sequence. |
-| [0038](0038-measure-semantic-types-and-additivity.md) | Measure semantic types and additivity algebra | ✅ Complete | A measure typed over value, origin grain, aggregation class, and unit — consolidating additivity, units and currency, which today live on three different nodes. |
 | [0039](0039-semantic-proof-ir.md) | Semantic proof IR and closed-world checking | 🚧 In progress | Acceptance as a positive derivation rather than the absence of a violation, with provenance on every leaf: unknown is not safe, and capability grows by adding proof rules. |
-| [0040](0040-safe-rollup-planner.md) | Safe rollup planner and SemanticPlan IR | ✅ Complete | A proof-producing planner for single-measure requests, separating what a mart may represent from what a query may answer. The mart's grain rule does not move. |
 | [0042](0042-semantic-bug-corpus.md) | Production-style semantic bug corpus | 🚧 In progress | Cases where the SQL is valid, every cast succeeds and the number is wrong anyway — the opposite question to the dirty corpus. Startable immediately; the acceptance evidence for the rest. |
 | [0043](0043-semantic-capability-matrix.md) | Evidence-based semantic capability matrix | 📝 Draft | Comparing represented semantic properties across engines, one tested configuration at a time, with bloomery scored by the same standard including where it loses. |
 | [0044](0044-check-command-and-imported-provenance.md) | `bloomery check` and imported semantic provenance | 🚧 In progress | A CI command that resolves, type-checks and proves without emitting or executing, and the provenance rules deciding which imported facts may close a proof obligation. |
@@ -97,7 +94,6 @@ know it has a companion recording where it turned out to be wrong.
 | [0055](0055-ownership-classification-and-grants.md) | Ownership, classification and grants | 📝 Draft | Who owns a thing, what class of data it holds and who may read it — three annotations reaching metadata slots every target already has, plus the seeds refusal. |
 | [0056](0056-exposures-and-downstream-consumers.md) | Exposures and downstream consumers | 📝 Draft | The lineage graph stops at gold; a declared consumer gives it a sink, so `plan()` can name the dashboards a breaking change reaches. |
 | [0057](0057-declared-source-freshness.md) | Declared source freshness | 📝 Draft | A staleness threshold on a bronze source, emitted for the framework to measure — the declaring half of freshness, which needs no evidence intake. |
-| [0058](0058-rollup-marts-and-pre-aggregations.md) | Rollup marts and pre-aggregations | 🚧 In progress | Aggregate marts and Cube `pre_aggregations` are one feature: a mart at a coarser grain, refused unless every measure it carries is provably re-aggregable over the dimensions it drops. |
 | [0059](0059-multi-project-composition.md) | Multi-project composition | 📝 Draft | One project reading another's published surface: what may cross the boundary, and what a fingerprint means once something does. |
 | [0060](0060-replay-on-a-historical-entity.md) | Replay on a historical entity | 📝 Draft | Replay writes past the framework that owns a type 2 relation's versions, so a recovered row lands invisible; the pair is refused until a route through the framework exists. |
 | [0061](0061-declared-input-currency-for-conversion.md) | Declared input currency for conversion | 🚧 In progress | A conversion asserts what currency its column holds and nothing checks it, so the wrong rate is reachable from four characters; the input gets a declaration and a proof rule that reads it. |
@@ -119,6 +115,6 @@ know it has a companion recording where it turned out to be wrong.
 ✅ and ❌ are transient: a row reaching either status is retired in the same change, so a
 steady-state table holds only 📝 and 🚧 rows — **except a ✅ root of a live sequence**, which
 stays until its last dependant is retired, for the reason the retirement section above
-gives. Such a row says so in its own status line. 0037, 0038 and 0040 are the three today. Do
-not relabel them 🚧: nothing about any of them is in progress, and the exception is about what other
-documents still need, not about what these have left to do.
+gives. Such a row says so in its own status line. 0037 is the one today. Do
+not relabel it 🚧: nothing about it is in progress, and the exception is about what other
+documents still need, not about what it has left to do.

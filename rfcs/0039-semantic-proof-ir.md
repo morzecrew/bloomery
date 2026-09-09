@@ -13,7 +13,7 @@
   rows it proposes are in [`logs/T-0020.md`](../logs/T-0020.md); nothing below has been amended
   to agree with what was built. Third in the semantic-correctness sequence; depends on
   [RFC 0037](0037-semantic-grain-model.md) and
-  [RFC 0038](0038-measure-semantic-types-and-additivity.md).
+  RFC 0038.
 - **Scope:** Replace "absence of a violation" as the long-term model of query validity with
   explicit positive derivations. Introduce proof and refutation values that `bloomery
   explain` can render and planners can consume. No guardrail is deleted here.
@@ -185,6 +185,7 @@ remain intact.
 | 6 | `LOCKED` | **Proof serialization is deterministic under RFC 0003.** Canonical premise order, stable rule IDs, no addresses, no timestamps, no traversal-order dependence. Locked rather than assumed because a proof tree is evidence, a graph walk produces it, and this codebase's determinism failures have always entered through iteration order. |
 | 7 | `OPEN` | **Whether a proof is retained after acceptance or discarded once the obligation closes.** `explain` needs it; a compile may not, and holding every proof for a large project is an unmeasured cost. Execution decides — a return value, a lazily rebuilt artifact, or retention behind a flag — and logs the decision with whatever measurement prompted it. |
 | 8 | `OPEN` | **What happens to a rule ID when a rule is split or subsumed.** They become a public contract the moment CI asserts on them (RFC 0044 §6 aligns its refusal codes to them). Decide the versioning discipline before the first ID ships, since the choice is unmakeable afterwards. |
+| 9 | `LOCKED` | **No plan transformation may merge two aggregate branches before aggregation without proving the merge preserves every measure's grain.** Inherited twice and built neither time: RFC 0041 §9 and §10 stated the rule and asked for a property test constructing such a partition and asserting the merge is refused; RFC 0058 D8 parked it when 0041 retired, because 0058 then held a live preservation obligation of the same shape. 0058 has now retired too, and the row is readable with its full argument at `efba2b6`. It lands here because a merge is legal exactly when it can *derive* that the aggregate it produces is the one the detail would have produced, which is this document's subject and not the rollup mart's — the two were one shape only for as long as 0058 was the nearest live home. It does **not** gate any phase of this RFC: it transfers on to whatever document builds a `SemanticPlan` optimization pass, and that document owes the inherited property test in its own Tests section, as 0058 §6 named it in its. `LOCKED` because a merge without the proof is silent double counting, which this sequence refuses rather than approximates. Transferred at RFC 0058's retirement — see [`logs/T-0035.md`](../logs/T-0035.md). |
 
 ## 13. Phasing
 

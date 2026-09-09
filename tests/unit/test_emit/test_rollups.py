@@ -14,6 +14,7 @@ import pytest
 
 from bloomery.emit.base import EmitContext
 from bloomery.emit.lower import ROLLUP_AGGREGATES, rollup_measures, rollup_select
+from bloomery.guardrails.additivity import _REAGGREGABLE
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import Additivity, MetricIR, ProjectIR, Ratio, RollupIR, SqlExpr
 from bloomery.naming import DefaultNaming
@@ -66,6 +67,27 @@ def test_the_body_groups_the_parent_by_the_kept_columns() -> None:
     assert sql == (
         "SELECT ordered_month, SUM(amount) AS revenue "
         "FROM gold.mart_items GROUP BY ordered_month"
+    )
+
+
+@pytest.mark.parametrize(
+    ("agg", "rendered"),
+    [("count", "COUNT(amount)"), ("max", "MAX(amount)"), ("min", "MIN(amount)"),
+     ("sum", "SUM(amount)")],
+)  # fmt: skip
+def test_every_aggregate_a_rollup_builds_renders_as_itself(agg: str, rendered: str) -> None:
+    """All four of `ROLLUP_AGGREGATES`, not just the one the fixture uses.
+
+    Only `sum` was rendered anywhere, so three of the four mappings produced
+    SQL nothing asserted — and a swap between `min` and `max` is precisely the
+    failure D5 refuses to approximate: a rollup holding the wrong extreme
+    answers quickly, plausibly and wrongly.
+    """
+
+    sql = rollup_select(_rollup("m"), _project(_metric("m", agg=agg)), _ctx()).sql()
+
+    assert sql == (
+        f"SELECT ordered_month, {rendered} AS m FROM gold.mart_items GROUP BY ordered_month"
     )
 
 
@@ -124,3 +146,23 @@ def test_an_aggregation_a_rollup_cannot_build_is_refused() -> None:
 
     with pytest.raises(UnsupportedByTarget, match="which a rollup has no way to build"):
         rollup_select(_rollup("revenue"), project, _ctx())
+
+
+def test_the_aggregates_a_rollup_builds_are_the_ones_an_additive_claim_survives() -> None:
+    """One list, asserted rather than remembered (logs/T-0035.md).
+
+    `ROLLUP_AGGREGATES` held five, copied from the list `reconcile` gives a
+    mart assertion on the grounds that two lists meaning the same thing drift.
+    They do not mean the same thing: an assertion computes one number over rows
+    a relation already holds and any aggregate is honest about those, while a
+    rollup re-aggregates and only some survive it. The copy mapped `avg`, which
+    nothing can reach — the additivity guardrail refuses an `additive` claim
+    over it and R013 admits no other class — and so said, in the one place a
+    reader looks, that a rollup can average.
+
+    A comment asking the next reader to keep the two in step is what this
+    replaces: the guardrail's list is the authority, and this fails if either
+    moves without the other.
+    """
+
+    assert set(ROLLUP_AGGREGATES) == set(_REAGGREGABLE)
