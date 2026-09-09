@@ -12,8 +12,8 @@
   (D10). §4's `PreservingJoin` and `ConvertUnit` and §5's cross-entity rule are unbuilt and,
   under §11a, are not this document's to build.
 
-  **Retained rather than retired**, on the same reasoning `INDEX.md` applies to 0037: 0041
-  and 0058 argue from this document's vocabulary. 0058 §2 places its safety condition
+  **Retained rather than retired**, on the same reasoning `INDEX.md` applies to 0037: 0058
+  argues from this document's vocabulary. 0058 §2 places its safety condition
   across four documents — grain and functional dependencies in 0037, aggregation class in
   0038, derivation in 0039, the proof-producing planner here — so what this one supplies is
   the rollup-proof half the condition is stated in terms of, and deleting it would leave

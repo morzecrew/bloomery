@@ -14,8 +14,8 @@
   by D10, both proposed from T-0024, where executing it halted: the waiver it replaces was
   already deleted, and the fact a currency rule would read does not exist in the spec
   language. That fact is [RFC 0061](0061-declared-input-currency-for-conversion.md)'s.
-  **Stays in the tree** as the root of a live sequence (`INDEX.md`): RFC 0041 and RFC 0058
-  argue in its aggregation-class vocabulary, and it is retired with the last of them.
+  **Stays in the tree** as the root of a live sequence (`INDEX.md`): RFC 0058 argues in its
+  aggregation-class vocabulary, and it is retired with it.
   Second in the semantic-correctness sequence; depends on
   [RFC 0037](0037-semantic-grain-model.md).
 - **Scope:** Give measures explicit semantic types over value domain, origin grain,
