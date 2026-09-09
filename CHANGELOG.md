@@ -23,11 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   worklist — which metrics are computable, what is missing for the rest;
   `check` is a gate's summary of whether what the project declares holds.
 
+  Each verb names the process a count came from rather than a verdict: marts
+  are `checked`, never *safe*, because a guardrail refusal is reported over the
+  draft it was handed. The bloomery-owned quality mart is not counted — it
+  attaches after the guardrails, so nothing checked it and nobody wrote it.
+
   **No total and no percentage**, which would imply a coverage nobody proved,
-  and no count at all where analysis stopped before an IR existed — a zero
-  there would read as a surface checked and found empty. `SpecEvidence` gains
-  `checked`, a `CheckedSurfaces` or `None`, so a Python caller reads the same
-  numbers.
+  and where analysis stopped before an IR existed the counts are reported
+  *unavailable* rather than zero — a zero reads as a surface checked and found
+  empty. `SpecEvidence` gains `checked`, a `CheckedSurfaces` or `None`, so a
+  Python caller reads the same numbers.
 
   An unreachable metric and an open decision are reported and do not fail the
   gate: they say the mappings are incomplete, not that what is written is

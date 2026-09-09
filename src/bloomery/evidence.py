@@ -40,11 +40,14 @@ from typing import TYPE_CHECKING
 
 from bloomery.errors import BloomeryError, InvariantViolated
 from bloomery.ir import Materialization, UnreachableMetric, project_fingerprint
+from bloomery.quality import is_quality_mart
 from bloomery.resolve import FieldProvenance, Resolution, Stage, StageProgress, pipeline
 
-# Imported at run time rather than under ``TYPE_CHECKING``: both appear in
-# ``evaluate``'s signature, and the signature-closure test resolves every
-# public annotation for real (RFC 0018 D10).
+# ``Catalog`` and ``Project`` are imported at run time rather than under
+# ``TYPE_CHECKING``: both appear in ``evaluate``'s signature, and the
+# signature-closure test resolves every public annotation for real
+# (RFC 0018 D10). Named here because the comment travels with whatever import
+# sorts after it, and this one no longer does.
 from bloomery.spec import Catalog, Project
 from bloomery.steps import EMPTY_REGISTRY, StepRegistry
 from bloomery.transforms import CONVERT_TRANSFORM
@@ -109,7 +112,10 @@ class CheckedSurfaces:
     relationships: int
     #: Authored metrics the resolve stage ruled on, reachable or not.
     measures: int
-    #: Marts whose grain and measures the guardrails admitted.
+    #: Authored marts the guardrail stage ruled on. The quality mart is
+    #: excluded: it is bloomery-owned and attaches *after* the guardrails, so
+    #: counting it would report a surface as checked that nothing checked and
+    #: nobody wrote — the population mistake ``measures`` avoids one field up.
     marts: int
     #: ``convert`` steps across every mapping's key and field chains.
     conversions: int
@@ -524,7 +530,7 @@ def _from_ir(
             entities=len(ir.entities),
             relationships=len(ir.relationships),
             measures=len(reachable) + len(unreachable),
-            marts=len(ir.marts),
+            marts=sum(1 for mart in ir.marts if not is_quality_mart(mart)),
             conversions=_conversions(project),
             temporal_joins=sum(
                 1 for mart in ir.marts for join in mart.joins if join.as_of is not None

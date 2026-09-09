@@ -53,16 +53,18 @@ from bloomery import (
     build_project_ir,
     compile_project,
     evaluate,
+    load_project,
     plan,
     project_fingerprint,
 )
 from bloomery.cli import EXIT_INTERNAL, EXIT_OK, EXIT_REFUSED, EXIT_USAGE, build_parser, main
 from bloomery.cli.io import CliIoError, read_spec_directory, write_files
+from bloomery.cli import render
 from bloomery.cli.render import render_check, render_evidence, render_plan
 from bloomery.cli.serialize import SpecEncoder
 from bloomery.errors import BloomeryError
 from bloomery.naming import DefaultNaming
-from support.compiling import COLLIDING_ID_SOURCES, load_fixture
+from support.compiling import COLLIDING_ID_SOURCES, fixture_sources, load_fixture
 
 
 def as_json_value(value: object) -> object:
@@ -1592,21 +1594,56 @@ def test_check_prints_no_obligations_line(capsys: pytest.CaptureFixture[str]) ->
     assert "obligation" not in out.lower()
 
 
-def test_check_says_nothing_was_checked_rather_than_printing_zeros(
+def test_check_reports_the_counts_as_unavailable_rather_than_zero(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A refusal before an IR prints a sentence, not six zeros.
+    """A refusal before an IR prints a sentence, not six zeros — and the
+    sentence says *unavailable*, not "nothing was checked".
 
-    ``step_resolution`` refuses at the lower stage. Six zeros would say six
-    surfaces were checked and found empty; the renderer says what actually
-    happened instead.
+    ``step_resolution`` refuses at the lower stage, so the resolve and
+    typecheck stages ran and checked plenty; what is missing is the arithmetic
+    over an IR nobody built. Six zeros would claim six surfaces were checked
+    and found empty, and "no surfaces checked" claims something else false.
     """
 
     code, out, _err = run(capsys, "check", str(FIXTURES / "step_resolution"))
 
     assert code == EXIT_REFUSED
-    assert "No surfaces checked" in out
+    assert "Checked-surface counts unavailable" in out
     assert "  0  " not in out
+    assert "No surfaces checked" not in out
+
+
+def test_a_mart_count_beside_a_refusal_is_not_called_safe(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A guardrail refusal is reported over the draft IR the stage was handed.
+
+    Refuse ``ecom_basic`` for a reason that has nothing to do with its marts —
+    a ratio metric declaring ``additivity: additive`` — and the mart is still
+    in that draft and still counted. The stage never finished ruling on it, so
+    the column says ``checked`` where §3's sample says ``safe``: one names the
+    process the count came from, the other a verdict nothing reached.
+    """
+
+    _project, catalog = load_fixture("ecom_basic")
+    sources = fixture_sources("ecom_basic")
+    sources["metrics"] = sources["metrics"].replace(
+        "    additivity: ratio\n", "    additivity: additive\n"
+    )
+    evidence = evaluate(load_project(sources), catalog=catalog)
+
+    assert evidence.stage_reached is Stage.GUARDRAILS
+    assert evidence.checked is not None
+    assert evidence.checked.marts == 1
+    assert "marts" in [name for name, _verb in render.CHECKED_SURFACES]
+    assert dict(render.CHECKED_SURFACES)["marts"] == "checked"
+
+    rendered = render_check(evidence)
+    assert "1  marts           checked" in rendered
+    # Anchored to the row, not to the word: a refusal message is rendered below
+    # and is free to contain "safe" without this test having an opinion on it.
+    assert "marts           safe" not in rendered
 
 
 def test_check_labels_a_stopped_stages_counts_as_a_prefix(

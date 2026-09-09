@@ -69,10 +69,16 @@ CHECKED_SURFACES: tuple[tuple[str, str], ...] = (
     ("entities", "resolved"),
     ("relationships", "checked"),
     ("measures", "type-check"),
-    ("marts", "safe"),
+    ("marts", "checked"),
     ("conversions", "proven"),
     ("temporal_joins", "anchored"),
 )
+#: Marts are ``checked`` and not ``safe``, which is §3's word. A guardrail
+#: refusal is reported over the draft IR the stage was handed, so a project
+#: refused for a reason that has nothing to do with its marts prints its mart
+#: count beside that refusal, and the stage never finished ruling on them.
+#: Every other verb here names a stage that completed before the count was
+#: taken; ``safe`` would name a verdict nothing reached.
 
 
 def render_check(evidence: SpecEvidence) -> str:
@@ -86,10 +92,13 @@ def render_check(evidence: SpecEvidence) -> str:
 
     **Whether a refused project prints counts depends on whether one was
     computed, not on whether it was refused.** A pipeline that stopped before
-    building an IR has nothing honest to print, and prints a sentence saying
-    so: a zero would read as a checked surface holding nothing, which is the
-    misreading :attr:`~bloomery.SpecEvidence.checked` is ``None`` rather than
-    zeroed to prevent. One that stopped *after* building a draft IR — refused
+    building an IR has no counts to print, and says they are *unavailable* —
+    not that no surface was checked, which is a different claim and a false
+    one: the stages that ran checked plenty, and what is missing is the
+    arithmetic over an IR nobody built. A zero would read as a checked surface
+    holding nothing, which is the misreading
+    :attr:`~bloomery.SpecEvidence.checked` is ``None`` rather than zeroed to
+    prevent. One that stopped *after* building a draft IR — refused
     two stages later — has counts that are real, and they are printed under
     the stage that says they are a prefix.
 
@@ -110,7 +119,7 @@ def render_check(evidence: SpecEvidence) -> str:
     lines.append("")
 
     if evidence.checked is None:
-        lines.append("No surfaces checked — the pipeline stopped before an IR was built.")
+        lines.append("Checked-surface counts unavailable — no IR was built to count from.")
     else:
         lines.extend(
             _table(

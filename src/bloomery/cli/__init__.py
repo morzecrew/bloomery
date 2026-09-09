@@ -1,7 +1,8 @@
-"""The command line: six commands, each a shell over one public function
+"""The command line: eight commands, each a shell over one public function
 (RFC 0020 §5.2, D4–D6).
 
-``bloomery compile|plan|resolve|explain|schema|fingerprint``. Every command is
+``bloomery compile|plan|resolve|check|lineage|explain|schema|fingerprint``.
+Every command is
 *read files → call the public API → write stdout or a directory*. None of them
 adds logic: what they add is that the most useful thing bloomery knows — which
 metrics are computable, and which specific leaf is missing for the ones that
@@ -20,9 +21,14 @@ are not — stops requiring a Python script to ask.
   hanging up early is not an error at all, so ``bloomery schema | head``
   exits ``0`` quietly.
 
-``--format json`` on ``plan``, ``resolve`` and ``explain`` emits the same
-values the Python API returns, so the CLI is not a second, lossier surface
-(:mod:`bloomery.cli.serialize`).
+``--format json`` on ``plan``, ``resolve``, ``check``, ``lineage`` and
+``explain`` emits the same values the Python API returns, so the CLI is not a
+second, lossier surface (:mod:`bloomery.cli.serialize`).
+
+``check`` is ``resolve``'s sibling rather than its replacement (RFC 0044 D7):
+one evaluation, one exit rule, two questions. ``resolve`` answers which metrics
+are computable and what is missing for the rest; ``check`` answers whether what
+the project declares holds, as a count per semantic surface and a refusal list.
 
 **What is deliberately absent.** No ``run`` and no engine connection, ever
 (D9) — ``explain`` prints SQL and the consumer executes it, which is what keeps

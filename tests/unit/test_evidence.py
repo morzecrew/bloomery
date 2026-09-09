@@ -505,10 +505,10 @@ def test_the_fixture_corpus_is_actually_being_walked() -> None:
         ("minimal", "relationships", 0),
     ],
 )
-def test_each_counted_surface_has_a_fixture_that_makes_it_non_zero(
+def test_each_counted_surface_is_pinned_by_a_fixture(
     name: str, surface: str, count: int
 ) -> None:
-    """One fixture per surface where the count is not zero (RFC 0044 §3).
+    """One fixture per surface, non-zero where it can be (RFC 0044 §3).
 
     A count read from the wrong place is green against a corpus where every
     project happens to hold none of that surface, which is what a table of
@@ -663,3 +663,39 @@ def test_a_conversion_on_a_key_is_counted() -> None:
 
     assert _conversions(load_project(sources)) == 2
     assert _conversions(load_project(fixture_sources("currency_convert"))) == 1
+
+
+def test_the_quality_mart_is_not_a_checked_surface() -> None:
+    """It is neither authored nor guarded, and counting it claims both.
+
+    ``attach_quality_mart`` runs *after* ``check_guardrails`` — the source says
+    so where it does it — so the quality mart reaches the finished IR without a
+    guardrail ever having ruled on it, and nobody wrote it. ``dirty_corpus``
+    declares no mart at all; a count of one there is the same population
+    mistake ``measures`` avoids one field up.
+    """
+
+    project, catalog = load_fixture("dirty_corpus")
+    ir = build_project_ir(project, catalog=catalog)
+    evidence = evaluate(project, catalog=catalog)
+
+    assert [mart.name for mart in ir.marts] == ["data_quality"]
+    assert evidence.checked is not None
+    assert evidence.checked.marts == 0
+
+
+def test_an_authored_mart_is_counted_beside_the_quality_one() -> None:
+    """The exclusion is by identity, not by dropping the first mart.
+
+    ``quality_precedence`` carries both, and ``data_quality`` sorts first — so
+    a count that sliced rather than filtered would give the same answer here
+    and the wrong one for the reason the answer is right.
+    """
+
+    project, catalog = load_fixture("quality_precedence")
+    ir = build_project_ir(project, catalog=catalog)
+    evidence = evaluate(project, catalog=catalog)
+
+    assert [mart.name for mart in ir.marts] == ["data_quality", "lines"]
+    assert evidence.checked is not None
+    assert evidence.checked.marts == 1

@@ -212,7 +212,7 @@ Fingerprint: blm1:46f0d4f549273b5e43db9b6961ce4ef35919611d2987e1dc0f841c35584008
   2  entities        resolved
   1  relationships   checked
   4  measures        type-check
-  1  marts           safe
+  1  marts           checked
   0  conversions     proven
   0  temporal joins  anchored
 
@@ -235,9 +235,17 @@ every future query against it is safe.
 **What fails it is a refusal, and only a refusal.** An unreachable metric and an open
 decision are both reported by `resolve` and neither fails `check` — they say the mappings
 are incomplete, which is the state a draft passes through, not that what is written is
-wrong. Where analysis stopped before an IR existed, `check` says `No surfaces checked`
-rather than printing six zeros, because a zero would read as a surface that was checked
-and held nothing.
+wrong. Where analysis stopped before an IR existed, `check` says the counts are
+**unavailable** rather than printing six zeros: a zero reads as a surface that was checked
+and held nothing, and "nothing was checked" is false too — the stages that ran checked
+plenty, and what is missing is the arithmetic over an IR nobody built.
+
+Each verb names the process the count came from, not a verdict. Marts are `checked` and
+not *safe*: a guardrail refusal is reported over the draft it was handed, so a project
+refused for a reason unrelated to its marts prints its mart count beside that refusal,
+and the stage never finished ruling on them. The quality mart is not counted at all — it
+is bloomery-owned and attaches after the guardrails, so nothing checked it and nobody
+wrote it.
 
 ## Exit codes
 

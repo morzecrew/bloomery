@@ -9,7 +9,12 @@
   in that log. **P2 (mechanical imports) is unscheduled** and is what holds this document
   open; it depends on [RFC 0039](0039-semantic-proof-ir.md)'s provenance model, which is
   itself still in progress. Execution's findings and the rows it proposes are in the same
-  log; nothing below has been amended to agree with what was built.
+  log; nothing below has been amended to agree with what was built. **§§2, 3 and 7 read as
+  they were written and describe the pre-P1 state** — no `check`, no exit contract on
+  `resolve`, an obligations line, a `status` field, D7 and D8 open. They are the record of
+  what was believed when the design was made, and retrofitting them would destroy the only
+  evidence that any of it changed; what shipped instead is the code, the tests and
+  [`use-the-cli.md`](../pages/docs/how-to/use-the-cli.md).
 - **Scope:** A low-friction CI command performing semantic validation and proof without
   emission or execution, and a conservative provenance model for importing facts from
   external project artifacts.
