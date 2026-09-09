@@ -716,3 +716,87 @@ def test_a_rollup_storing_no_measure_is_refused_not_written_empty() -> None:
 
     with pytest.raises(UnsupportedByTarget, match="stores no measure"):
         CubeEmitter().emit(project, _ctx())
+
+
+def _two_marts(*, rollup_of: str, measures: tuple[str, ...] = ("revenue",)) -> ProjectIR:
+    """Two marts serving one metric, so `measure_owners` has a choice to make.
+
+    `a_cheap` owns every metric both list — lower `cost_hint` wins — which
+    leaves `z_dear`'s cube defining none of them.
+    """
+
+    base = _mart(measures)
+    metrics = tuple(
+        _metric(name, agg="count" if name == "orders" else "sum",
+                expr="order_id" if name == "orders" else "amount")
+        for name in measures
+    )  # fmt: skip
+    return ProjectIR(
+        entities=(_entity(),),
+        metrics=metrics,
+        marts=(
+            dataclasses.replace(base, name="a_cheap", cost_hint=1),
+            dataclasses.replace(base, name="z_dear", cost_hint=5),
+        ),
+        rollups=(_rollup(of=rollup_of, measures=measures),),
+    )
+
+
+def test_a_pre_aggregation_never_names_a_measure_its_cube_does_not_define() -> None:
+    """`MartIR.measures` is "metrics this mart serves", and `measure_owners`
+    puts each on exactly one cube. A mart listing a metric a cheaper mart owns
+    emits no measure for it, so a pre-aggregation naming it would reference a
+    member the cube does not define — which Cube rejects or ignores.
+
+    The block is dropped rather than the project refused, which is what this
+    file already does with a ratio whose components sit elsewhere: no query
+    against this cube can ask for the measure at all, so the block would have
+    been unusable rather than merely absent.
+    """
+
+    assert _pre_aggs(_two_marts(rollup_of="z_dear"), "z_dear") == []
+
+    (block,) = _pre_aggs(_two_marts(rollup_of="a_cheap"), "a_cheap")
+    assert block["measures"] == ["CUBE.revenue"]
+
+
+def test_a_pre_aggregation_keeps_the_measures_its_cube_does_own() -> None:
+    """The partial case: a rollup carrying two measures on a cube owning one
+    pre-aggregates that one, which is a correct and useful materialization for
+    every query the cube can actually answer."""
+
+    project = _two_marts(rollup_of="z_dear", measures=("orders", "revenue"))
+    owner = dataclasses.replace(
+        project.marts[1], measures=("orders", "revenue"), cost_hint=5
+    )
+    # `revenue` moves to the cheap mart and `orders` stays here: one each.
+    cheap = dataclasses.replace(project.marts[0], measures=("revenue",), cost_hint=1)
+    (block,) = _pre_aggs(dataclasses.replace(project, marts=(cheap, owner)), "z_dear")
+
+    assert block["measures"] == ["CUBE.orders"]
+
+
+def test_every_measure_a_pre_aggregation_names_is_one_its_cube_defines() -> None:
+    """The invariant behind both cases above, asserted directly rather than
+    through the shapes that happened to break it — the same statement
+    `test_every_member_a_measure_templates_is_a_measure_the_cube_defines` makes
+    about ratio templating.
+    """
+
+    project = _two_marts(rollup_of="z_dear", measures=("orders", "revenue"))
+
+    for artifact in CubeEmitter().emit(project, _ctx()):
+        if not artifact.path.startswith("model/cubes/"):
+            continue
+        (cube,) = cast("dict[str, list[dict[str, object]]]",
+                       yaml.safe_load(artifact.content))["cubes"]  # fmt: skip
+        defined = {
+            cast("str", m["name"])
+            for m in cast("list[dict[str, object]]", cube["measures"])
+        }
+        for block in cast("list[dict[str, object]]", cube.get("pre_aggregations", [])):
+            named = {
+                member.removeprefix("CUBE.")
+                for member in cast("list[str]", block["measures"])
+            }
+            assert named <= defined, f"{artifact.path}: {named - defined} not defined"

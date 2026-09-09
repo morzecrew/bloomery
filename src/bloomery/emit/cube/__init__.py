@@ -297,7 +297,7 @@ def _measures(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) -> list[ob
 # ....................... #
 
 
-def _pre_aggregations(mart: MartIR, ir: ProjectIR) -> list[object]:
+def _pre_aggregations(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) -> list[object]:
     """The ``pre_aggregations`` block for every rollup of this mart
     (RFC 0058 §5.3, P3) — the payoff the feature is worth its cost for.
 
@@ -310,8 +310,9 @@ def _pre_aggregations(mart: MartIR, ir: ProjectIR) -> list[object]:
 
     It states less, in fact, and that is the safety argument. A pre-aggregation
     Cube may serve a query from is bounded by what it contains, so the only
-    measures listed are the ones the rollup *stores* — what it carries, less
-    the computed ones — and the only dimensions are the ones it keeps. A query naming a measure R013 refused, or a dimension
+    measures listed are the ones the rollup *stores* and this cube *serves* —
+    what it carries, less the computed ones, less the ones ``measure_owners``
+    put on a cheaper mart — and the only dimensions are the ones it keeps. A query naming a measure R013 refused, or a dimension
     the rollup dropped, cannot match — Cube falls back to the mart, which is
     the correct answer arrived at by Cube's own rules rather than by trusting
     them.
@@ -381,13 +382,26 @@ def _pre_aggregations(mart: MartIR, ir: ProjectIR) -> list[object]:
             )
             raise UnsupportedByTarget(msg)
 
+        # Only the measures *this* cube defines. `MartIR.measures` is "metrics
+        # this mart serves", and `measure_owners` puts each one on exactly one
+        # cube — so a mart listing a metric a cheaper mart owns emits no measure
+        # for it here, and a pre-aggregation naming it would reference a member
+        # the cube does not define. Filtered rather than refused, which is what
+        # this file already does with a ratio whose components sit elsewhere:
+        # the measure is served, on the cube that owns it, and no query against
+        # *this* cube can ask for it — so the block would have been unusable
+        # rather than merely absent.
+        owned = [metric for metric in stored if owners[metric.name] is mart]
+
+        if not owned:
+            continue
+
         entry: dict[str, object] = {
             "name": rollup.name,
             "type": "rollup",
             # `rollup.measures` names what the author declared; this names what
-            # the relation stores, which is the same list minus the computed
-            # ones. Cube may only pre-aggregate a stored number.
-            "measures": [f"CUBE.{metric.name}" for metric in stored],
+            # the relation stores and this cube serves.
+            "measures": [f"CUBE.{metric.name}" for metric in owned],
         }
 
         if grouped:
@@ -417,7 +431,7 @@ def _cube_artifact(
         "dimensions": _dimensions(mart),
         "measures": _measures(mart, ir, owners),
     }
-    pre_aggregations = _pre_aggregations(mart, ir)
+    pre_aggregations = _pre_aggregations(mart, ir, owners)
 
     if pre_aggregations:
         # Absent rather than empty on a mart nothing rolls up: every project

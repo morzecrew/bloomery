@@ -1,9 +1,11 @@
 # RFC 0037 — Semantic grain model and functional dependencies
 
 - **Status:** ✅ Complete — landed in `src/bloomery/semantic/`, and **retained rather than
-  retired**: 0038, 0039, 0040, 0042, 0053 and 0058 all argue from this document's
-  vocabulary, and deleting it would leave every one of them arguing from a premise that is
-  no longer in the tree — the same reason a 🚧 RFC is retired whole rather than in part.
+  retired**: 0039, 0042 and 0053 argue from this document's vocabulary, and deleting it
+  would leave every one of them arguing from a premise that is no longer in the tree — the
+  same reason a 🚧 RFC is retired whole rather than in part. 0038, 0040 and 0058 were
+  dependants too and have retired, which is the rule working rather than an exception to
+  it; this line names the live ones, so it is what says when 0037 may go.
   It is retired with the last of its dependants. Execution's findings and the rows it
   proposes are in [`logs/T-0017.md`](../logs/T-0017.md); nothing below has been amended to
   agree with what was built. **Root of the semantic-correctness
