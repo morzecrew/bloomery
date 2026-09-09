@@ -9,7 +9,8 @@
   **It stays 🚧 rather than completing**, and not for want of cases: two of them are
   `unguarded` and cite D5 as the decision a future rule converting them answers to, and
   `test_a_retired_rfc_owns_no_unguarded_case` refuses a retired RFC in that position — so
-  the document is held open by the gate it wrote for itself (logs/T-0029.md). Execution's findings and the rows it proposes are in
+  the document is held open by the gate it wrote for itself (logs/T-0029.md).
+  Execution's findings and the rows it proposes are in
   [`logs/T-0018.md`](../logs/T-0018.md); nothing below has been amended to agree with what
   was built. It had no upstream dependency, and it is what gives the rest of the
   semantic-correctness sequence its acceptance evidence.
