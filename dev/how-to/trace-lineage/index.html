@@ -1210,6 +1210,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Naming a node">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#identity-when-the-name-is-not-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Identity, when the name is not it
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1616,6 +1633,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Naming a node">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#identity-when-the-name-is-not-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Identity, when the name is not it
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1813,6 +1847,30 @@ suffix. Mistype one and the refusal suggests the spelling it thinks you meant:</
 <div class="highlight"><pre><span></span><code><span class="gp">$ </span>bloomery<span class="w"> </span>lineage<span class="w"> </span>specs/<span class="w"> </span>--node<span class="w"> </span>metric.gross_revenu
 <span class="go">no node named 'metric.gross_revenu' in this project's dependency graph. did you mean: metric.gross_revenue</span>
 </code></pre></div>
+<h3 id="identity-when-the-name-is-not-it">Identity, when the name is not it<a class="headerlink" href="#identity-when-the-name-is-not-it" title="Permanent link">&para;</a></h3>
+<p><code>metric.&lt;name&gt;</code> makes the name the identity, so renaming a metric deletes one node and
+adds another: the history stops, and every citation of the old id points at nothing.</p>
+<p>Give the node an <code>id:</code> and the name becomes a label:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">metrics</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">gross_revenue</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mtr_7f3a9c</span><span class="w">        </span><span class="c1"># minted once, never edited</span>
+</code></pre></div>
+<p>The node is now <code>metric.mtr_7f3a9c</code> whatever the metric is called, and a rename relabels a
+vertex instead of replacing one. The value is opaque — compared, never parsed — so any
+string that does not change will do; a generated-looking one is a convention, not a
+requirement.</p>
+<p>Three things are worth knowing before you adopt it:</p>
+<ul>
+<li><strong>It is write-once.</strong> Editing an <code>id:</code> is a delete and an add, and nothing can tell that
+  apart from an actual delete and add — that distinction is exactly what the id was
+  carrying. The compiler cannot enforce this; you can.</li>
+<li><strong>Two nodes of one kind may not mint the same id.</strong> Copying a spec file and leaving the
+  <code>id:</code> behind is refused, and so is an <code>id:</code> equal to another node's <em>name</em> — during a
+  partial rollout, that is the easier of the two to write by accident. Both are refused as
+  the document is read, before anything builds a graph from it.</li>
+<li><strong>Adopting nothing costs nothing.</strong> A project with no <code>id:</code> anywhere gets exactly the
+  ids and exactly the artifacts it gets today.</li>
+</ul>
 <h2 id="it-returns-a-sub-dag-not-paths">It returns a sub-DAG, not paths<a class="headerlink" href="#it-returns-a-sub-dag-not-paths" title="Permanent link">&para;</a></h2>
 <p><code>Lineage.nodes</code> carries each node <strong>once</strong>, however many ways it is reachable, and
 <code>Lineage.edges</code> carries every connection between them. A node fed by two sources appears
