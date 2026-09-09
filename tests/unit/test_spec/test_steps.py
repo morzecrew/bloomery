@@ -196,3 +196,65 @@ def test_an_ordinary_namespaced_relation_is_accepted() -> None:
         "    outputs: {customer: warehouse.silver.customer}\n"
     ).steps
     assert wiring.outputs["customer"] == "warehouse.silver.customer"
+
+
+# ....................... #
+# RFC 0062 §9 — two wirings, one identity
+
+
+#: Two wirings with a slot under each. Filled by ``replace`` and never by
+#: ``format``: the YAML is full of flow mappings, and ``str.format`` reads
+#: ``{raw: silver.customer_raw}`` as a replacement field named ``raw``.
+_TWO_STEPS = """
+steps_version: 1
+steps:
+  - use: resolve_customers@3
+    inputs: {raw: silver.customer_raw}
+    outputs: {customer: silver.customer}
+#FIRST
+  - use: dedupe_orders@1
+    inputs: {raw: silver.customer_raw}
+    outputs: {order: silver.order}
+#SECOND
+"""
+
+
+def _two_steps(first: str = "", second: str = "") -> StepSet:
+    return _steps(_TWO_STEPS.replace("#FIRST", first).replace("#SECOND", second))
+
+
+def test_two_wirings_may_not_claim_one_identity() -> None:
+    """A copied ``id:`` between two wirings of different steps."""
+
+    with pytest.raises(SpecParseError) as raised:
+        _two_steps(first="    id: stp_1", second="    id: stp_1")
+
+    assert "'resolve_customers', 'dedupe_orders'" in str(raised.value)
+    assert "step.stp_1" in str(raised.value)
+
+
+def test_a_step_id_equal_to_another_wirings_ref_is_refused() -> None:
+    """One wiring adopts an id that is already another wiring's ``ref``."""
+
+    with pytest.raises(SpecParseError) as raised:
+        _two_steps(second="    id: resolve_customers")
+
+    assert "step.resolve_customers" in str(raised.value)
+
+
+def test_a_duplicate_ref_still_gets_the_fork_message() -> None:
+    """Ordering, asserted rather than assumed.
+
+    Two wirings of one step with no ids at all are a duplicate *ref*, and
+    ``_refs_are_unique`` explains that as the fork attempt it is. The identity
+    validator is defined after it precisely so this message survives — running
+    first, it answered the same mistake with one about identity
+    (``logs/T-0032.md``).
+    """
+
+    with pytest.raises(SpecParseError, match="wired more than once"):
+        _steps(
+            _TWO_STEPS.replace("#FIRST", "")
+            .replace("#SECOND", "")
+            .replace("  - use: dedupe_orders@1", "  - use: resolve_customers@4", 1)
+        )
