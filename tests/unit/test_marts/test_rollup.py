@@ -180,7 +180,7 @@ def test_a_distinct_count_measure_refuses_the_rollup() -> None:
     assert lowering.rollups == ()
     assert [type(v).__name__ for v in lowering.violations] == ["UnprovableRollup"]
     assert "distinct_count_not_reaggregable" in lowering.violations[0].args[0]
-    assert lowering.violations[0].source_path == "marts: marts.monthly"
+    assert lowering.violations[0].source_path == "marts: rollups.monthly"
 
 
 def test_a_measure_the_parent_does_not_carry_refuses_the_rollup() -> None:
@@ -210,7 +210,7 @@ def test_a_declaration_the_aggregate_would_drop_refuses_the_rollup(
     assert lowering.rollups == ()
     assert isinstance(lowering.violations[0], UnprovableRollup)
     assert dropped in lowering.violations[0].args[0]
-    assert lowering.violations[0].source_path == "marts: marts.monthly.measures"
+    assert lowering.violations[0].source_path == "marts: rollups.monthly.measures"
 
 
 # ....................... #
@@ -222,20 +222,61 @@ def test_a_declaration_the_aggregate_would_drop_refuses_the_rollup(
     [
         (_rollup(of="ghost"), "which this document does not declare as a mart"),
         (_rollup(keep="ordered_month, ordered_month"), "repeats a keep: column"),
-        ("rollups:\n  items:\n    of: items\n    keep: [ordered_month]\n", "takes the name of a mart"),
+        (_rollup(measures="revenue, revenue"), "repeats a measure"),
+        ("rollups:\n  monthly:\n    of: items\n    keep: [ordered_month]\n", "Field required"),
+        (
+            "rollups:\n  items:\n    of: items\n    keep: [ordered_month]\n    measures: [revenue]\n",
+            "takes the name of a mart",
+        ),
     ],
 )
 def test_the_document_refuses_what_it_can_answer_alone(rollups: str, expected: str) -> None:
     """A parent this document does not declare, a grouping level stated twice,
-    and a rollup taking a mart's name are all answerable from the marts
-    document, which is what the spec layer is for. The name collision is the
-    one with teeth: both are relations of the gold layer, so the two would
-    build one table."""
+    a measure stated twice, a rollup carrying none, and a rollup taking a
+    mart's name are all answerable from the marts document, which is what the
+    spec layer is for. The name collision is the one with teeth: both are
+    relations of the gold layer, so the two would build one table.
+
+    A repeated measure is not a harmless restatement: every entry becomes one
+    aggregate column, so it would emit two columns of one name and neither
+    engine accepts that relation. And a rollup carrying no measure is refused
+    *here* rather than by R013, which would answer it truthfully about the
+    wrong subject — the obligation is asked with the rollup's measures
+    substituted onto the parent, so an empty list makes it report that the
+    parent carries no measure, which is a fact about a mart the author did not
+    write down (logs/T-0034.md).
+    """
 
     with pytest.raises(SpecParseError) as excinfo:
         load_project({**_SOURCES, "marts": _MART.replace("{measures}", "revenue").replace("{rollups}", rollups)})
 
     assert expected in str(excinfo.value)
+
+
+def test_a_refusal_addresses_the_key_the_author_wrote() -> None:
+    """`rollups.<name>`, never `marts.<name>`.
+
+    A source path addresses the authored document (RFC 0002 §5.3), and both
+    layers that can refuse a rollup have to spell it the same way — the spec
+    layer, which sees the pydantic location, and the lowering stage, which
+    builds the path itself.
+    """
+
+    with pytest.raises(SpecParseError) as parse:
+        load_project(
+            {
+                **_SOURCES,
+                "marts": _MART.replace("{measures}", "revenue").replace(
+                    "{rollups}", "rollups:\n  monthly:\n    of: items\n    keep: [ordered_month]\n"
+                ),
+            }
+        )
+
+    assert parse.value.source_path == "marts: rollups.monthly.measures"
+
+    lowering = _lowering(measures="revenue, buyers", rollups=_rollup(measures="buyers"))
+
+    assert lowering.violations[0].source_path == "marts: rollups.monthly"
 
 
 # ....................... #

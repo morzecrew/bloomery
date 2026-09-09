@@ -590,7 +590,7 @@ rollups:
 |---|---|---|---|
 | `of` | mart name | yes | The mart this aggregates; must be a mart of this document, never another rollup |
 | `keep` | list of parent columns | yes, non-empty | The grouping; each named once, and not every column of the parent |
-| `measures` | list of metric names | no (`[]`) | Metrics this rollup carries; each must be one the parent stores |
+| `measures` | list of metric names | yes, non-empty | Metrics this rollup carries; each named once, and each one the parent stores |
 | `partition_by` | list of partition specs | no (`[]`) | Physical partitioning |
 | `materialization` | as Entity | no | Materialization override |
 

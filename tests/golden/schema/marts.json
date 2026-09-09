@@ -227,10 +227,10 @@
           "title": "Materialization"
         },
         "measures": {
-          "default": [],
           "items": {
             "type": "string"
           },
+          "minItems": 1,
           "title": "Measures",
           "type": "array"
         },
@@ -251,6 +251,7 @@
       },
       "required": [
         "keep",
+        "measures",
         "of"
       ],
       "title": "RollupMart",

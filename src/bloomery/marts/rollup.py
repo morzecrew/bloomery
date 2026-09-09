@@ -182,7 +182,13 @@ def lower_rollups(mart_set: MartSet | None, draft: ProjectIR) -> RollupLowering:
         if parent is None:
             continue
 
-        path = f"marts: marts.{name}"
+        # `rollups.<name>`, not `marts.<name>`: a source path addresses the
+        # authored document (RFC 0002 §5.3), and a rollup is authored under its
+        # own key. Sending an author to `marts.monthly` when they wrote
+        # `rollups: monthly` is the same defect that ruled out putting a rollup
+        # in `marts:` as a discriminated union — a path naming a key nobody
+        # wrote (logs/T-0034.md).
+        path = f"marts: rollups.{name}"
         missing = _not_on_the_parent(name, rollup, parent, path)
 
         if missing is not None:

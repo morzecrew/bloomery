@@ -220,7 +220,12 @@ class RollupMart(SpecModel):
     #: is the right answer for a library caller and the wrong one for a
     #: document a person wrote.
     keep: tuple[str, ...] = Field(min_length=1)
-    measures: tuple[str, ...] = ()
+    #: The parent's measures this rollup carries. At least one, and each named
+    #: once. A repeat is not a harmless restatement here the way it might be in
+    #: a list of names: every entry becomes one aggregate column, so a measure
+    #: stated twice emits ``SUM(expr) AS m, SUM(expr) AS m`` and neither engine
+    #: accepts a relation with two columns of one name.
+    measures: tuple[str, ...] = Field(min_length=1)
     partition_by: tuple[PartitionSpecString, ...] = ()
     materialization: MaterializationName | None = None
 
@@ -230,6 +235,16 @@ class RollupMart(SpecModel):
     def _keep_is_a_set(self) -> Self:
         if len(set(self.keep)) != len(self.keep):
             msg = "a rollup repeats a keep: column — each names one grouping level"
+            raise ValueError(msg)
+
+        return self
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _measures_are_a_set(self) -> Self:
+        if len(set(self.measures)) != len(self.measures):
+            msg = "a rollup repeats a measure — each names one column it carries"
             raise ValueError(msg)
 
         return self
