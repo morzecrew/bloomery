@@ -38,9 +38,9 @@ Two things a reader might expect here and will not find. **Row 14's exclusion**
 planner and the emitters, not this module; a rollup mart handed here is a
 question about arithmetic, not about which mart serves a request. And **no
 escape hatch** (RFC 0058 D3, `LOCKED`): nothing an author can declare makes a
-refused class admissible, because a hand-authored permission is an assertion
-nothing checks and would become the second source of truth this obligation
-exists to be.
+refused class admissible. A hand-authored permission is an assertion nothing
+checks, and it would end up disagreeing with the proof beside it — the second
+source of truth §2 says this obligation exists to avoid.
 """
 
 from __future__ import annotations
@@ -70,8 +70,8 @@ __all__ = [
 
 
 @dataclass(frozen=True, slots=True)
-class _Unsummable:
-    """Why an aggregation class may not be re-aggregated across a rollup.
+class _ClassRefusal:
+    """The refusal an aggregation class earns when a rollup would carry it.
 
     ``found`` and ``remediation`` are per class rather than shared, because
     each names a different repair and "unsafe" naming none is the collapse
@@ -83,22 +83,22 @@ class _Unsummable:
     remediation: str
 
 
-#: Aggregation class → why it may not be re-aggregated, or ``None`` where it
-#: may (RFC 0058 D13). Written out member by member and **subscripted**, never
-#: read with ``.get``: a member added to :class:`~bloomery.ir.Additivity`
+#: Aggregation class → the refusal it earns, or ``None`` where the class is
+#: admitted (RFC 0058 D13). Written out member by member and **subscripted**,
+#: never read with ``.get``: a member added to :class:`~bloomery.ir.Additivity`
 #: without a decision here raises at the first measure that carries it, where a
 #: fallback would silently admit it — and admitting one silently is the whole
 #: failure this obligation exists to prevent.
 #: ``test_every_additivity_has_a_rollup_answer`` turns that into a failure at
 #: the commit rather than at a call site.
 #:
-#: ``RATIO`` maps to ``None`` and is *not* thereby summed: a ratio is never
-#: rolled up, it is rebuilt from operands at the requested grain, which
-#: :func:`_prove_ratio` checks and R012 already states.
-_UNSUMMABLE: Final[dict[Additivity, _Unsummable | None]] = {
+#: Admitted is not the same as summed. ``RATIO`` is admitted and never summed —
+#: it is rebuilt from operands at the coarse grain, which :func:`_prove_ratio`
+#: checks and R012 already states.
+_REFUSALS: Final[dict[Additivity, _ClassRefusal | None]] = {
     Additivity.ADDITIVE: None,
     Additivity.RATIO: None,
-    Additivity.SEMI_ADDITIVE: _Unsummable(
+    Additivity.SEMI_ADDITIVE: _ClassRefusal(
         reason="semi_additive_rollup_unsupported",
         found="declared semi_additive, which is not additive along its own over: dimension",
         remediation=(
@@ -107,7 +107,7 @@ _UNSUMMABLE: Final[dict[Additivity, _Unsummable | None]] = {
             "leave it off the rollup and request it at the grain it originates"
         ),
     ),
-    Additivity.NON_ADDITIVE: _Unsummable(
+    Additivity.NON_ADDITIVE: _ClassRefusal(
         reason="non_additive_not_summable",
         found="declared non_additive, so it is recomputed from components rather than stored",
         remediation=(
@@ -116,7 +116,7 @@ _UNSUMMABLE: Final[dict[Additivity, _Unsummable | None]] = {
             "operands on the rollup, so it is rebuilt at the coarse grain"
         ),
     ),
-    Additivity.DISTINCT_COUNT: _Unsummable(
+    Additivity.DISTINCT_COUNT: _ClassRefusal(
         reason="distinct_count_not_reaggregable",
         found="declared distinct_count, and summing per-group distinct counts double-counts",
         remediation=(
@@ -125,7 +125,7 @@ _UNSUMMABLE: Final[dict[Additivity, _Unsummable | None]] = {
             "(RFC 0041 D8) — count it at the grain the question is asked at"
         ),
     ),
-    Additivity.SNAPSHOT: _Unsummable(
+    Additivity.SNAPSHOT: _ClassRefusal(
         reason="snapshot_needs_time_selection",
         found="declared snapshot, which is point-in-time state",
         remediation=(
@@ -160,6 +160,68 @@ def _kept(keep: tuple[str, ...]) -> tuple[str, ...]:
     """
 
     return tuple(sorted(set(keep)))
+
+
+# ....................... #
+
+
+def _grouping_refusal(
+    mart: MartIR, kept: tuple[str, ...], judgement: SemanticJudgement
+) -> Refutation | None:
+    """Whether the grouping itself is askable, or ``None`` where it is.
+
+    Shared by both entry points rather than owned by :func:`prove_mart_rollup`,
+    because :func:`prove_measure_rollup` is public too and the class question
+    never reads ``keep`` — so it would prove a measure against a rollup that
+    groups by nothing, or by a column the mart does not have. Neither is a
+    rollup and neither is a question anyone asked. One guard meets every
+    caller, or only the entry point that happens to validate is safe to call.
+    """
+
+    if not kept:
+        return Refutation(
+            reason="no_kept_dimensions",
+            judgement=judgement,
+            obligations=(
+                Obligation(
+                    required=f"group {mart.name!r} by the dimensions the rollup keeps",
+                    found="the rollup keeps no dimension",
+                ),
+            ),
+            remediation=(
+                "a rollup states the dimensions it keeps and derives what it drops "
+                "(RFC 0058 D4) — name at least one"
+            ),
+        )
+
+    requestable = {dimension.ref.qualified for dimension in mart.dimensions}
+    unknown = tuple(name for name in kept if name not in requestable)
+
+    if not unknown:
+        return None
+
+    return Refutation(
+        reason="unknown_dimension",
+        judgement=judgement,
+        obligations=(
+            Obligation(
+                required=f"keep {', '.join(unknown)} on a rollup of {mart.name!r}",
+                found=f"mart {mart.name!r} has no such dimension",
+            ),
+        ),
+        remediation=(
+            f"the rollup groups the mart's own columns — {mart.name!r} offers "
+            f"{', '.join(sorted(requestable)) or 'none at all'}"
+        ),
+        rejected=tuple(
+            SemanticFact(
+                source=f"dimension:{mart.name}.{name}",
+                provenance=Provenance.UNKNOWN,
+                statement="no such dimension on this mart",
+            )
+            for name in unknown
+        ),
+    )
 
 
 # ....................... #
@@ -232,7 +294,7 @@ def _prove_ratio(
             judgement=judgement,
             obligations=(
                 Obligation(
-                    required=f"rebuild {metric.name} on {mart.name}",
+                    required=f"rebuild {metric.name} on {mart.name!r}",
                     found=f"{metric.name} declares no ratio to rebuild from",
                 ),
             ),
@@ -243,7 +305,14 @@ def _prove_ratio(
         )
 
     carried = set(mart.measures)
-    premises: list[Proof] = [_mart_contract(mart, metric)]
+    #: The operands' proofs and nothing else. A ratio is not *embedded* in the
+    #: mart — it is calculated from measures that are — so citing R008 for the
+    #: quotient itself would conclude `EmbeddedAtMartGrain` about something the
+    #: mart never stores. Each operand carries that premise in its own subtree,
+    #: which is R012's argument exactly: a ratio is sound at the target grain
+    #: when its inputs are, and `prove_ratio_reconstruction` premises the same
+    #: way.
+    premises: list[Proof] = []
 
     for name in (metric.ratio.numerator, metric.ratio.denominator):
         if name not in carried:
@@ -296,9 +365,9 @@ def _prove_ratio(
                     ),
                 ),
                 remediation=(
-                    "a ratio is exactly as sound as the two sums beneath it — declare "
-                    f"{name} over an additive measure, or ask {metric.name} at the grain "
-                    "its operands originate"
+                    "a ratio is exactly as sound as the two sums beneath it — give "
+                    f"{metric.name} additive operands, or ask it at the grain its "
+                    "operands originate"
                 ),
                 rejected=(
                     SemanticFact(
@@ -348,8 +417,11 @@ def prove_measure_rollup(
 ) -> Proof | Refutation:
     """Whether ``metric`` survives a rollup of ``mart`` that keeps ``keep``.
 
-    The grain premise first, then the aggregation class, in that order because
-    the first refusal is the more specific one: "this measure does not
+    The malformed question first — a rollup grouping by nothing, or by a column
+    the mart does not have, is not one, and the class question would answer it
+    anyway because it never reads ``keep``. Then the grain premise, then the
+    aggregation class, in that order because
+    the earlier refusal is the more specific one: "this measure does not
     originate at this mart's grain" tells an author about a mart, and reporting
     a class refusal over a measure that is not this mart's to sum would send
     them to change the wrong declaration.
@@ -362,6 +434,11 @@ def prove_measure_rollup(
 
     kept = _kept(keep)
     judgement = _judgement(mart, kept, metric.name)
+
+    grouping = _grouping_refusal(mart, kept, judgement)
+
+    if grouping is not None:
+        return grouping
 
     if metric.grain != mart.grain:
         return Refutation(
@@ -386,19 +463,19 @@ def prove_measure_rollup(
             ),
         )
 
-    unsummable = _UNSUMMABLE[metric.additivity]
+    refused = _REFUSALS[metric.additivity]
 
-    if unsummable is not None:
+    if refused is not None:
         return Refutation(
-            reason=unsummable.reason,
+            reason=refused.reason,
             judgement=judgement,
             obligations=(
                 Obligation(
                     required=f"re-aggregate {metric.name} onto a rollup of {mart.name!r}",
-                    found=unsummable.found,
+                    found=refused.found,
                 ),
             ),
-            remediation=unsummable.remediation,
+            remediation=refused.remediation,
             # `DECLARED` rather than `UNKNOWN`: the word is written down and is
             # the wrong one for a rollup. Reporting it as absent would send an
             # author to declare something that is already there.
@@ -451,48 +528,10 @@ def prove_mart_rollup(
     kept = _kept(keep)
     judgement = _judgement(mart, kept)
 
-    if not kept:
-        return Refutation(
-            reason="no_kept_dimensions",
-            judgement=judgement,
-            obligations=(
-                Obligation(
-                    required=f"group {mart.name!r} by the dimensions the rollup keeps",
-                    found="the rollup keeps no dimension",
-                ),
-            ),
-            remediation=(
-                "a rollup states the dimensions it keeps and derives what it drops "
-                "(RFC 0058 D4) — name at least one"
-            ),
-        )
+    grouping = _grouping_refusal(mart, kept, judgement)
 
-    requestable = {dimension.ref.qualified for dimension in mart.dimensions}
-    unknown = tuple(name for name in kept if name not in requestable)
-
-    if unknown:
-        return Refutation(
-            reason="unknown_dimension",
-            judgement=judgement,
-            obligations=(
-                Obligation(
-                    required=f"keep {', '.join(unknown)} on a rollup of {mart.name!r}",
-                    found=f"mart {mart.name!r} has no such dimension",
-                ),
-            ),
-            remediation=(
-                f"the rollup groups the mart's own columns — {mart.name!r} offers "
-                f"{', '.join(sorted(requestable))}"
-            ),
-            rejected=tuple(
-                SemanticFact(
-                    source=f"dimension:{mart.name}.{name}",
-                    provenance=Provenance.UNKNOWN,
-                    statement="no such dimension on this mart",
-                )
-                for name in unknown
-            ),
-        )
+    if grouping is not None:
+        return grouping
 
     if not mart.measures:
         # Decided rather than inherited. Every measure of an empty set is

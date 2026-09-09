@@ -126,7 +126,7 @@ def test_every_additivity_has_a_rollup_answer() -> None:
     without a decision here must fail at the commit rather than at a call
     site."""
 
-    assert set(rollup_module._UNSUMMABLE) == set(Additivity)
+    assert set(rollup_module._REFUSALS) == set(Additivity)
 
 
 def test_an_unmapped_class_raises_rather_than_being_admitted(
@@ -136,7 +136,7 @@ def test_an_unmapped_class_raises_rather_than_being_admitted(
     matters is that the *subscript* is what reads it, so a fallback introduced
     later would fail here even with the mapping still total."""
 
-    monkeypatch.delitem(rollup_module._UNSUMMABLE, Additivity.ADDITIVE)
+    monkeypatch.delitem(rollup_module._REFUSALS, Additivity.ADDITIVE)
 
     with pytest.raises(KeyError):
         prove_measure_rollup(REVENUE, items("revenue"), KEEP, PROJECT)
@@ -167,7 +167,11 @@ def test_a_ratio_rebuilds_from_operands_the_rollup_carries() -> None:
 
     assert isinstance(answer, Proof)
     assert answer.rule == "R013"
-    assert sorted(premise.rule for premise in answer.premises) == ["R008", "R013", "R013"]
+    # The operands' proofs and nothing else: a ratio is calculated, not
+    # embedded, so R008 is cited inside each operand's subtree rather than for
+    # the quotient the mart never stores.
+    assert [premise.rule for premise in answer.premises] == ["R013", "R013"]
+    assert [premise.premises[0].rule for premise in answer.premises] == ["R008", "R008"]
     assert answer.closed
 
 
@@ -259,8 +263,29 @@ def test_a_rollup_is_refused_by_its_first_failing_measure() -> None:
     assert answer.reason == "distinct_count_not_reaggregable"
 
 
-def test_a_rollup_keeping_nothing_is_refused() -> None:
+def test_a_rollup_keeping_nothing_is_refused_before_any_measure_is_read() -> None:
+    """Both guards produce this reason — the per-measure one fires too, since
+    the composing call reaches it. What only the composing guard gives is a
+    judgement that names *no* measure: an empty grouping is a malformed
+    question about the rollup, and answering it against whichever measure
+    sorted first would send an author to look at that measure.
+    """
+
     answer = prove_mart_rollup(items("revenue"), (), PROJECT)
+
+    assert isinstance(answer, Refutation)
+    assert answer.reason == "no_kept_dimensions"
+    assert answer.judgement.kind == "RollupMart"
+    assert "measure" not in dict(answer.judgement.operands)
+
+
+def test_an_empty_grouping_outranks_an_empty_measure_list() -> None:
+    """Two degenerate inputs at once, and the order between them is a choice:
+    the grouping is refused first, so an author reads one repair rather than
+    fixing the measures and meeting the same refusal again."""
+
+    bare = mart("order_items", "order_item", dimensions=DIMENSIONS)
+    answer = prove_mart_rollup(bare, (), PROJECT)
 
     assert isinstance(answer, Refutation)
     assert answer.reason == "no_kept_dimensions"
@@ -311,3 +336,48 @@ def test_the_kept_dimensions_are_canonical() -> None:
     assert isinstance(scrambled, Proof)
     assert isinstance(canonical, Proof)
     assert scrambled.serialize() == canonical.serialize()
+
+
+def test_the_measure_question_refuses_an_empty_grouping_too() -> None:
+    """The class question does not read `keep`, so without this the public
+    per-measure entry point would prove a measure against a rollup that groups
+    by nothing — a guard the composing caller has and the other does not."""
+
+    answer = prove_measure_rollup(REVENUE, items("revenue"), (), PROJECT)
+
+    assert isinstance(answer, Refutation)
+    assert answer.reason == "no_kept_dimensions"
+
+
+def test_a_mart_with_no_dimensions_at_all_says_so() -> None:
+    """The empty case of the offer list, decided rather than rendered as a
+    sentence that trails off after "offers"."""
+
+    bare = mart("order_items", "order_item", measures=("revenue",))
+    answer = prove_mart_rollup(bare, ("ordered_month",), PROJECT)
+
+    assert isinstance(answer, Refutation)
+    assert answer.reason == "unknown_dimension"
+    assert answer.remediation.endswith("offers none at all")
+
+
+def test_a_rollup_carrying_a_ratio_beside_its_operands_proves() -> None:
+    """The composition, not just the per-measure answer: `prove_mart_rollup`
+    walks a mart whose measures include the ratio and both its operands."""
+
+    answer = prove_mart_rollup(items("average_line_value", "lines", "revenue"), KEEP, PROJECT)
+
+    assert isinstance(answer, Proof)
+    assert len(answer.premises) == 3
+    assert answer.closed
+
+
+def test_the_measure_question_refuses_an_unknown_dimension_too() -> None:
+    """The other half of the same asymmetry: the class question never reads
+    `keep`, so both malformed groupings have to be refused wherever the
+    question is entered, not only where it is composed."""
+
+    answer = prove_measure_rollup(REVENUE, items("revenue"), ("channel",), PROJECT)
+
+    assert isinstance(answer, Refutation)
+    assert answer.reason == "unknown_dimension"
