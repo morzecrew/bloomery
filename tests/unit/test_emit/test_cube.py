@@ -695,3 +695,24 @@ def test_a_rollup_is_no_cube_no_view_and_no_member() -> None:
     assert [m["name"] for m in cast("list[dict[str, object]]", cube["measures"])] == ["revenue"]
     assert all("orders_monthly" not in str(d["name"])
                for d in cast("list[dict[str, object]]", cube["dimensions"]))  # fmt: skip
+
+
+def test_a_rollup_storing_no_measure_is_refused_not_written_empty() -> None:
+    """The empty case decided rather than inherited.
+
+    The compile path cannot produce one — R013 requires a ratio's operands be
+    carried and they are additive, so a proven rollup always stores a number.
+    But this emitter is public and takes any `ProjectIR`, and `measures: []` is
+    a model Cube rejects at load without mentioning bloomery.
+    """
+
+    ratio = _metric("aov", additivity=Additivity.RATIO, agg=None, expr=None,
+                    ratio=Ratio(numerator="revenue", denominator="orders"))  # fmt: skip
+    project = _rolled(
+        _rollup(measures=("aov",)),
+        mart=dataclasses.replace(_mart(("aov",)), measures=("aov",)),
+        metrics=(ratio, _metric("orders", agg="count", expr="order_id"), _metric("revenue")),
+    )
+
+    with pytest.raises(UnsupportedByTarget, match="stores no measure"):
+        CubeEmitter().emit(project, _ctx())

@@ -183,7 +183,9 @@ The block lists only the measures the rollup carries and the dimensions it keeps
 bound is the safety property: a query naming a measure the rollup could not prove
 re-aggregable, or a dimension it dropped, cannot match the pre-aggregation, and Cube
 answers it from the mart instead. Every measure in the block is one bloomery proved
-summable over the dropped dimensions before writing it.
+re-aggregable over the dropped dimensions before writing it — which for `min` and `max`
+is not a sum, and is the reason the proof asks about the aggregation rather than
+assuming one.
 
 A rollup adds no cube and no view. It is a key inside its parent's document, so nothing
 in your Cube model gains a second surface serving the same measures, and no query is

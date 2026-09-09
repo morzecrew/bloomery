@@ -70,6 +70,27 @@ def test_the_body_groups_the_parent_by_the_kept_columns() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("agg", "rendered"),
+    [("count", "COUNT(amount)"), ("max", "MAX(amount)"), ("min", "MIN(amount)"),
+     ("sum", "SUM(amount)")],
+)  # fmt: skip
+def test_every_aggregate_a_rollup_builds_renders_as_itself(agg: str, rendered: str) -> None:
+    """All four of `ROLLUP_AGGREGATES`, not just the one the fixture uses.
+
+    Only `sum` was rendered anywhere, so three of the four mappings produced
+    SQL nothing asserted — and a swap between `min` and `max` is precisely the
+    failure D5 refuses to approximate: a rollup holding the wrong extreme
+    answers quickly, plausibly and wrongly.
+    """
+
+    sql = rollup_select(_rollup("m"), _project(_metric("m", agg=agg)), _ctx()).sql()
+
+    assert sql == (
+        f"SELECT ordered_month, {rendered} AS m FROM gold.mart_items GROUP BY ordered_month"
+    )
+
+
 def test_a_computed_measure_is_not_a_column() -> None:
     """A ratio is recomputed from its operands at query time and is never a
     stored number, so a column for it would be the materialized quotient

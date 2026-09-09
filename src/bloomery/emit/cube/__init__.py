@@ -310,8 +310,8 @@ def _pre_aggregations(mart: MartIR, ir: ProjectIR) -> list[object]:
 
     It states less, in fact, and that is the safety argument. A pre-aggregation
     Cube may serve a query from is bounded by what it contains, so the only
-    measures listed are the ones the rollup carries and the only dimensions are
-    the ones it keeps. A query naming a measure R013 refused, or a dimension
+    measures listed are the ones the rollup *stores* — what it carries, less
+    the computed ones — and the only dimensions are the ones it keeps. A query naming a measure R013 refused, or a dimension
     the rollup dropped, cannot match — Cube falls back to the mart, which is
     the correct answer arrived at by Cube's own rules rather than by trusting
     them.
@@ -362,13 +362,32 @@ def _pre_aggregations(mart: MartIR, ir: ProjectIR) -> list[object]:
         buckets = [column for column in rollup.keep if column in granularities]
         timed = buckets[0] if len(buckets) == 1 else None
         grouped = [column for column in rollup.keep if column != timed]
+        stored = rollup_measures(rollup, ir)
+
+        if not stored:
+            # Decided rather than inherited. A pre-aggregation of nothing is not
+            # a valid Cube model, and the compile path cannot produce one — R013
+            # requires a ratio's operands be carried and they are additive, so a
+            # proven rollup always stores at least one number. This emitter is
+            # public and takes any `ProjectIR`, though, so the case is
+            # constructible: refused loudly here rather than written out as
+            # `measures: []`, which Cube rejects at load with no mention of
+            # bloomery (RFC 0008 D3).
+            msg = (
+                f"rollup {rollup.name!r} stores no measure, so its Cube pre-aggregation would "
+                "aggregate nothing — a rollup carries at least one number that is not "
+                "computed at query time (RFC 0058 §5.3). Fix: name an additive measure among "
+                "the rollup's measures:"
+            )
+            raise UnsupportedByTarget(msg)
+
         entry: dict[str, object] = {
             "name": rollup.name,
             "type": "rollup",
             # `rollup.measures` names what the author declared; this names what
             # the relation stores, which is the same list minus the computed
             # ones. Cube may only pre-aggregate a stored number.
-            "measures": [f"CUBE.{metric.name}" for metric in rollup_measures(rollup, ir)],
+            "measures": [f"CUBE.{metric.name}" for metric in stored],
         }
 
         if grouped:
