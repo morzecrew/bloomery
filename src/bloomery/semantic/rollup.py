@@ -417,16 +417,18 @@ def prove_measure_rollup(
 ) -> Proof | Refutation:
     """Whether ``metric`` survives a rollup of ``mart`` that keeps ``keep``.
 
-    The malformed question first — a rollup grouping by nothing, or by a column
-    the mart does not have, is not one, and the class question would answer it
-    anyway because it never reads ``keep``. Then the grain premise, then the
-    aggregation class, in that order because
-    the earlier refusal is the more specific one: "this measure does not
-    originate at this mart's grain" tells an author about a mart, and reporting
-    a class refusal over a measure that is not this mart's to sum would send
-    them to change the wrong declaration.
+    Four questions before the class question, and the order is what makes each
+    refusal the useful one. Is the **grouping** askable — a rollup grouping by
+    nothing, or by a column the mart does not have, is not one, and the class
+    question would answer it anyway because it never reads ``keep``. Is the
+    measure **on this mart** — a rollup re-aggregates what its parent stores,
+    and a measure that is not there has no rollup to survive. Is it at the
+    mart's **grain** — R008's premise, and the answer that tells an author
+    about a mart rather than about a word. Does it **have** a measure at all —
+    an aggregation with no aggregation is not a hard case, it is a
+    contradiction. Only then, may it be summed.
 
-    That first check re-asks what ``GrainViolation`` already refuses when a
+    The grain check re-asks what ``GrainViolation`` already refuses when a
     project compiles, and asks it anyway. A proof is evidence, and one built
     over a caller's mart that nothing had validated would certify exactly the
     fan-out RFC 0010 D2 exists to prevent.
@@ -439,6 +441,31 @@ def prove_measure_rollup(
 
     if grouping is not None:
         return grouping
+
+    if metric.name not in mart.measures:
+        return Refutation(
+            reason="measure_not_carried",
+            judgement=judgement,
+            obligations=(
+                Obligation(
+                    required=f"re-aggregate {metric.name} from mart {mart.name!r}",
+                    found=f"mart {mart.name!r} does not carry {metric.name}",
+                ),
+            ),
+            remediation=(
+                "a rollup re-aggregates what its parent stores — name the measure among "
+                "the mart's measures, or roll up from the mart that carries it"
+            ),
+            # `DECLARED`: the mart's measure list exists and is the author's,
+            # and what is wrong with it is an absence rather than the list.
+            rejected=(
+                SemanticFact(
+                    source=f"mart:{mart.name}",
+                    provenance=Provenance.DECLARED,
+                    statement=f"carries {', '.join(mart.measures) or 'no measure'}",
+                ),
+            ),
+        )
 
     if metric.grain != mart.grain:
         return Refutation(
@@ -490,6 +517,40 @@ def prove_measure_rollup(
 
     if metric.additivity is Additivity.RATIO:
         return _prove_ratio(metric, mart, kept, project, judgement)
+
+    if metric.agg is None and metric.expr is None:
+        # Below the class question rather than beside it. `additive` is a claim
+        # about a measure, and this metric has none to make it about: nothing
+        # in the spec or guardrail layer refuses the shape — `_has_no_measure`
+        # in `guardrails/metrics` says so, and refuses it only under
+        # `cumulative:` — so it reaches here declared additive with nothing to
+        # sum. Below, because a `distinct_count` with no aggregation is better
+        # answered by its class than by this, and a ratio legitimately has no
+        # aggregation of its own and never reaches this line.
+        return Refutation(
+            reason="nothing_to_aggregate",
+            judgement=judgement,
+            obligations=(
+                Obligation(
+                    required=f"sum {metric.name} onto a rollup of {mart.name!r}",
+                    found=f"{metric.name} declares neither agg: nor expr:",
+                ),
+            ),
+            remediation=(
+                "an additive measure is re-aggregated by summing the one it emits, and a "
+                "metric with no aggregation emits none — declare agg: or expr:, or "
+                "decompose it and carry the components the rollup would rebuild it from"
+            ),
+            # `UNKNOWN` and not `DECLARED`: unlike a wrong additivity there is
+            # no fact here at all — nothing says how this metric aggregates.
+            rejected=(
+                SemanticFact(
+                    source=f"metric:{metric.name}",
+                    provenance=Provenance.UNKNOWN,
+                    statement="no aggregation declared",
+                ),
+            ),
+        )
 
     return Proof(
         rule="R013",

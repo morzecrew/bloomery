@@ -46,11 +46,14 @@ MARGIN = metric("margin", "order_item", Additivity.NON_ADDITIVE, agg=None)
 #: Declared at the *order*, so a mart at line grain is not the one it is
 #: embedded in — the premise R008 supplies, asked of a caller that got it wrong.
 SHIPPING = metric("shipping", "order", Additivity.ADDITIVE)
+#: Declared additive with neither `agg:` nor `expr:` — a shape nothing before
+#: this module refuses, and one whose "may it be summed" has no subject.
+HOLLOW = metric("hollow", "order_item", Additivity.ADDITIVE, agg=None)
 
 PROJECT = project(
     (ORDER, ORDER_ITEM),
     (ITEM_ORDER,),
-    (REVENUE, LINES, AVERAGE, SESSIONS, BALANCE, MARGIN, SHIPPING),
+    (REVENUE, LINES, AVERAGE, SESSIONS, BALANCE, MARGIN, SHIPPING, HOLLOW),
 )
 
 DIMENSIONS = ("customer_segment", "ordered_day", "ordered_month", "region")
@@ -154,6 +157,59 @@ def test_a_measure_that_is_not_the_marts_is_refused_before_its_class() -> None:
     assert isinstance(answer, Refutation)
     assert answer.reason == "not_the_mart_grain"
     assert "order_item" in answer.obligations[0].found
+
+
+def test_a_measure_the_mart_does_not_carry_is_refused() -> None:
+    """A rollup re-aggregates what its parent stores. The composing entry point
+    cannot reach this — it iterates `mart.measures` — so the guard has to live
+    where the per-measure question is entered, which is the same asymmetry the
+    ratio path already refuses as `operand_not_carried`."""
+
+    answer = prove_measure_rollup(REVENUE, items("lines"), KEEP, PROJECT)
+
+    assert isinstance(answer, Refutation)
+    assert answer.reason == "measure_not_carried"
+    assert answer.rejected[0].statement == "carries lines"
+
+
+def test_carriage_is_asked_before_the_grain() -> None:
+    """`shipping` is neither carried nor at the mart's grain. The absent measure
+    is the outer fact: an author told to fix a grain would fix it and meet the
+    same refusal."""
+
+    answer = prove_measure_rollup(SHIPPING, items("revenue"), KEEP, PROJECT)
+
+    assert isinstance(answer, Refutation)
+    assert answer.reason == "measure_not_carried"
+
+
+def test_a_measure_with_no_aggregation_has_nothing_to_re_aggregate() -> None:
+    """`additive` is a claim about a measure, and a metric declaring neither
+    `agg:` nor `expr:` has none to make it about. Nothing before this refuses
+    the shape — `_has_no_measure` in `guardrails/metrics` refuses it only under
+    `cumulative:` and says the rest reaches the emitter — so it arrives here
+    declared additive with nothing to sum."""
+
+    answer = prove_measure_rollup(HOLLOW, items("hollow"), KEEP, PROJECT)
+
+    assert isinstance(answer, Refutation)
+    assert answer.reason == "nothing_to_aggregate"
+    assert answer.rejected[0].provenance is Provenance.UNKNOWN
+
+
+def test_a_ratio_operand_with_no_aggregation_is_refused_by_the_same_guard() -> None:
+    """One guard, both callers: the operand is additive and carried, so the
+    ratio path admits it and the recursion is where it stops."""
+
+    hollow_ratio = dataclasses.replace(
+        AVERAGE, ratio=Ratio(numerator="hollow", denominator="lines")
+    )
+    answer = prove_measure_rollup(
+        hollow_ratio, items("average_line_value", "hollow", "lines"), KEEP, PROJECT
+    )
+
+    assert isinstance(answer, Refutation)
+    assert answer.reason == "nothing_to_aggregate"
 
 
 # ....................... #

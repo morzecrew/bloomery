@@ -24,7 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Admitted: `additive`, and `ratio` where the mart carries both operands and
   each is itself additive. `semi_additive`, `non_additive`, `distinct_count`
   and `snapshot` are refused, each under its own reason and its own repair,
-  because each names a different thing to change.
+  because each names a different thing to change. So are the questions that
+  have no subject: a measure the mart does not carry, and one declaring neither
+  `agg:` nor `expr:`, which is `additive` said about nothing.
 
   Nothing consults it yet — no spec key declares a rollup and no target emits
   one. That is deliberate: a rollup looks like an emitter feature, the safety
