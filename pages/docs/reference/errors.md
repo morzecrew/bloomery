@@ -34,6 +34,7 @@ BloomeryError
 │   ├── InvalidMetricShape
 │   ├── MetricFilterInvalid
 │   ├── MartMissingTimeDimension
+│   ├── UnprovableRollup
 │   ├── ReservedEntityName
 │   ├── QuarantineRetentionMissing
 │   ├── DedupeTieBreakMissing
@@ -95,6 +96,7 @@ BloomeryError
 | `InvalidMetricShape` | guardrails | A metric whose declaration contradicts itself — `derived:` beside `cumulative:`, a derived metric declared additive, a cumulative one with no measure to accumulate, or a derived expression referencing an alias its `inputs:` do not declare |
 | `MetricFilterInvalid` | guardrails | A metric `filter:` naming a dimension the carrying mart does not flatten, a date-role dimension, or a value that does not fit the column's declared type |
 | `MartMissingTimeDimension` | guardrails | A measure-carrying mart that declares no date role |
+| `UnprovableRollup` | guardrails | A declared rollup carrying a measure that may not be re-aggregated over the dimensions it drops — a non-additive or distinct-count measure, one the parent mart does not store, or one whose `filter:`/`cumulative:` the rollup's aggregate would drop |
 | `ReservedEntityName` | guardrails | An entity named `canonical`, `metric`, `source` or `step` — every lineage node id but an entity field's is `<prefix>.<rest>`, so such an entity mints ids in another kind's namespace |
 | `QuarantineRetentionMissing` | guardrails | An entity with a `quarantine` disposition and no `quarantine:` block — reject rows hold raw payloads, so retention is required and never defaulted |
 | `DedupeTieBreakMissing` | guardrails | `dedupe: {keep: latest_by}` without `tie_break` — rows sharing a timestamp would make the winner arbitrary |

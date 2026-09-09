@@ -9,6 +9,7 @@ from bloomery.marts.flatten import (
     MartLowering,
     lower_marts,
 )
+from bloomery.marts.rollup import RollupLowering, lower_rollups
 
 # ----------------------- #
 
@@ -16,5 +17,7 @@ __all__ = [
     "DATE_BUCKETS",
     "HAS_QUALITY_FLAGS",
     "MartLowering",
+    "RollupLowering",
     "lower_marts",
+    "lower_rollups",
 ]

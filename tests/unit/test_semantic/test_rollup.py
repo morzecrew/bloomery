@@ -48,9 +48,11 @@ MARGIN = metric("margin", "order_item", Additivity.NON_ADDITIVE, agg=None)
 #: Declared at the *order*, so a mart at line grain is not the one it is
 #: embedded in — the premise R008 supplies, asked of a caller that got it wrong.
 SHIPPING = metric("shipping", "order", Additivity.ADDITIVE)
-#: Declared additive with neither `agg:` nor `expr:` — a shape nothing before
-#: this module refuses, and one whose "may it be summed" has no subject.
-HOLLOW = metric("hollow", "order_item", Additivity.ADDITIVE, agg=None)
+#: Declared additive with no `agg:` — a shape nothing before this module
+#: refuses, and one whose "may it be summed" has no subject. It keeps an
+#: `expr:`, which is the case that matters: the pair reads as a measure and
+#: is not one.
+HOLLOW = metric("hollow", "order_item", Additivity.ADDITIVE, agg=None, expr="unit_price")
 
 PROJECT = project(
     (ORDER, ORDER_ITEM),
@@ -187,10 +189,10 @@ def test_carriage_is_asked_before_the_grain() -> None:
 
 def test_a_measure_with_no_aggregation_has_nothing_to_re_aggregate() -> None:
     """`additive` is a claim about a measure, and a metric declaring neither
-    `agg:` nor `expr:` has none to make it about. Nothing before this refuses
-    the shape — `_has_no_measure` in `guardrails/metrics` refuses it only under
-    `cumulative:` and says the rest reaches the emitter — so it arrives here
-    declared additive with nothing to sum."""
+    `agg:` has none to make it about — an `expr:` alone is a column expression,
+    not a measure. Nothing before this refuses the shape: `_has_no_measure` in
+    `guardrails/metrics` refuses it only under `cumulative:` and says the rest
+    reaches the emitter, which is a stage `bloomery check` never gets to."""
 
     answer = prove_measure_rollup(HOLLOW, items("hollow"), KEEP, PROJECT)
 

@@ -81,7 +81,7 @@ from bloomery.ir import (
     partition_specs,
     quality_sort_key,
 )
-from bloomery.marts import lower_marts
+from bloomery.marts import lower_marts, lower_rollups
 from bloomery.quality import (
     attach_quality_mart,
     enum_chain,
@@ -2171,7 +2171,14 @@ def _lower_draft(
     )
     # Mart flattening (RFC 0010 D6): pure, total — violations are re-derived
     # and raised by the guardrail stage below; only clean marts attach here.
-    return replace(draft, marts=lower_marts(project.marts, draft).marts)
+    flattened = replace(draft, marts=lower_marts(project.marts, draft).marts)
+
+    # Rollups lower *against* the flattened draft (RFC 0058 §5.2): a rollup
+    # names a mart, and R013's premise is the mart contract, so the parent has
+    # to be a resolved `MartIR` before the obligation can be asked at all. They
+    # attach to their own collection, which is what makes row 14 true by
+    # construction rather than by a filter in `measure_owners`.
+    return replace(flattened, rollups=lower_rollups(project.marts, flattened).rollups)
 
 
 # ....................... #

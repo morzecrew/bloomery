@@ -1844,6 +1844,48 @@ def _diff_marts(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
 
 
 # ....................... #
+
+
+def _diff_rollups(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
+    """Rollups, diffed like marts and reported as their own subject
+    (RFC 0058 §5.2).
+
+    A dropped rollup is **not** a dropped measure. A mart is where a measure
+    lives, so losing one loses the column; a rollup only pre-aggregates
+    measures its parent still stores, and row 14 keeps it out of the planner's
+    reach, so nothing that reads a measure reads it. What breaks is whatever
+    was reading the relation itself, which is the ordinary breaking change a
+    dropped gold model is.
+
+    Any redefinition is breaking. A rollup is three facts — the parent, the
+    grouping, the measures — and every one of them changes the rows the table
+    holds. There is no cost-hint-shaped metadata half to sort into
+    :attr:`ChangeClass.ADDITIVE`, so pretending to grade it would be inventing
+    a distinction the node does not have.
+    """
+
+    old_map = {rollup.name: rollup for rollup in old.rollups} if old is not None else {}
+    new_map = {rollup.name: rollup for rollup in new.rollups}
+
+    for name in sorted(old_map.keys() | new_map.keys()):
+        subject = f"rollup:{name}"
+
+        if name not in old_map:
+            acc.changes.append(Change(None, subject, ChangeClass.ADDITIVE, "rollup added"))
+        elif name not in new_map:
+            acc.changes.append(Change(None, subject, ChangeClass.BREAKING, "rollup dropped"))
+        elif old_map[name] != new_map[name]:
+            acc.changes.append(
+                Change(
+                    None,
+                    subject,
+                    ChangeClass.BREAKING,
+                    "rollup redefined — the rows it holds changed",
+                )
+            )
+
+
+# ....................... #
 # Relationships and the date dimension
 
 
@@ -2064,6 +2106,7 @@ def plan(old: ProjectIR | None, new: ProjectIR) -> Plan:
     _diff_entities(old, new, acc)
     _diff_metrics(old, new, acc)
     _diff_marts(old, new, acc)
+    _diff_rollups(old, new, acc)
     _diff_relationships(old, new, acc)
     _diff_date_dimension(old, new, acc)
     _diff_reconcile(old, new, acc)

@@ -34,6 +34,7 @@ __all__ = [
     "MartAggregate",
     "MartAssert",
     "MartSet",
+    "RollupMart",
     "ViaStep",
 ]
 
@@ -182,6 +183,61 @@ class Mart(SpecModel):
 # ....................... #
 
 
+class RollupMart(SpecModel):
+    """A mart at a coarser grain than one this project already builds
+    (RFC 0058 §5.1), declared under the document's ``rollups:`` key.
+
+    It names a parent and the dimensions it keeps; what it **drops** is derived
+    — every column of the parent not listed — because listing what you keep and
+    what you drop is two statements of one fact that will disagree (D4).
+
+    **Its own key rather than a member of `marts:`**, which is where row 9 put
+    it. Row 9's deciding argument was that ``measure_owners`` already
+    arbitrates between marts and a second shape would have to be taught that
+    arbitration again; row 14 then removed the arbitration entirely — a rollup
+    is never a measure owner — so the argument no longer reaches. What decided
+    it in the end was smaller and more concrete: a discriminated union inside
+    ``marts:`` puts its tag into every mart's error path, and
+    ``marts.m.wide.flatten[0].via.prefix`` names a ``wide`` the author did not
+    write, which is not what a source path is (RFC 0002 §5.3). Two keys in one
+    document mirror ``ProjectIR.marts`` and ``ProjectIR.rollups``, which is the
+    same separation row 14 is built on (logs/T-0034.md).
+
+    It declares no ``base:`` and no ``grain:`` (row 11): those name an *entity*,
+    and a rollup's rows are identified by ``keep``. Nor ``cost_hint:`` or
+    ``assert:``, which row 9 expected it to reuse — ``cost_hint`` breaks the tie
+    in ``measure_owners``, which a rollup never reaches, and ``assert:`` is out
+    of this phase rather than refused on principle: the audit body reads a
+    :class:`~bloomery.ir.MartIR` for its bound types, and teaching it a second
+    node is work this phase does not need.
+    """
+
+    of: RelationName
+    #: The parent's columns this rollup groups by. At least one, and each named
+    #: once: a repeat is one grouping level stated twice, refused here the way
+    #: :class:`MartAssert` refuses a repeated ``by:``. The obligation itself
+    #: canonicalizes a repeat rather than refusing it (RFC 0058 row 16), which
+    #: is the right answer for a library caller and the wrong one for a
+    #: document a person wrote.
+    keep: tuple[str, ...] = Field(min_length=1)
+    measures: tuple[str, ...] = ()
+    partition_by: tuple[PartitionSpecString, ...] = ()
+    materialization: MaterializationName | None = None
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _keep_is_a_set(self) -> Self:
+        if len(set(self.keep)) != len(self.keep):
+            msg = "a rollup repeats a keep: column — each names one grouping level"
+            raise ValueError(msg)
+
+        return self
+
+
+# ....................... #
+
+
 class MartSet(SpecModel):
     """The per-project marts document (``marts_version``), at most one per
     project, optional — a project without marts compiles silver only
@@ -195,3 +251,47 @@ class MartSet(SpecModel):
     #: identified at all.
     marts_version: Literal[1]
     marts: dict[RelationName, Mart]
+    #: Rollups of the marts above (RFC 0058 §5.2). A second key of the same
+    #: document rather than a document of its own: a rollup is meaningless
+    #: without the mart it names, and the two are authored together.
+    rollups: dict[RelationName, RollupMart] = Field(default_factory=dict)
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _rollups_name_a_mart(self) -> Self:
+        """A rollup's parent is a mart of this document, and its own name is
+        not one (RFC 0058 D10).
+
+        **Chaining is refused rather than resolved**, and the separate key is
+        what makes that trivially true: ``of:`` names a member of ``marts:``,
+        so a rollup of a rollup cannot be spelled. The obligation would
+        compose — a monthly rollup of a daily one is the same arithmetic twice
+        — but its *premise* does not: R008 says a measure is embedded in a
+        mart at that mart's grain, and a rollup's measures do not originate at
+        its grain, they arrive there.
+
+        **A rollup may not take a mart's name.** Both become one relation in
+        the gold layer, so a collision is two models writing one table — which
+        the emitters would report as a duplicate artifact path at best and
+        silently order-dependently at worst. Refused here because both names
+        are in this document and nothing downstream has a better view of them.
+        """
+
+        for name, rollup in self.rollups.items():
+            if name in self.marts:
+                msg = (
+                    f"rollup {name!r} takes the name of a mart. Both are relations of the "
+                    "gold layer, so the two would build one table (RFC 0010 §5.4). Fix: name "
+                    "the rollup for the grain it holds"
+                )
+                raise ValueError(msg)
+
+            if rollup.of not in self.marts:
+                msg = (
+                    f"rollup {name!r} is a rollup of {rollup.of!r}, which this document does "
+                    f"not declare as a mart. Marts: {sorted(self.marts)}"
+                )
+                raise ValueError(msg)
+
+        return self

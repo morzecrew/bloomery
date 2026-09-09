@@ -74,6 +74,7 @@ __all__ = [
     "RedactionConflict",
     "StepError",
     "UnknownStep",
+    "UnprovableRollup",
     "StepDeterminismError",
     "StepContractViolation",
     "PlanError",
@@ -487,6 +488,27 @@ class MetricFilterInvalid(GuardrailError):
 class MartMissingTimeDimension(GuardrailError):
     """Guardrail stage (RFC 0010 §5.5 rule 6, RFC 0013 R1): a measure-carrying
     mart that declares no date role."""
+
+
+# ....................... #
+
+
+class UnprovableRollup(GuardrailError):
+    """Guardrail stage, rollup-level (RFC 0058 D5, `LOCKED`): a declared rollup
+    whose obligation R013 does not discharge.
+
+    **Refused, never warned about.** A rollup is read *instead of* the detail
+    table, so a wrong one does not error at run time — it answers, and it
+    answers quickly, which is the plausible-but-wrong class this compiler
+    exists to refuse. A warning here would leave the number in production with
+    a line in a log nobody reads.
+
+    Its own class rather than a bare :class:`GuardrailError` for the reason
+    :class:`HistoricalFanout` is its own: the repair differs. A
+    :class:`GrainViolation` sends an author to the mart's base; this sends them
+    to the measure's aggregation class, or to the dimensions the rollup drops,
+    and the message carries which.
+    """
 
 
 # ....................... #

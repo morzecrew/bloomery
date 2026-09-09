@@ -1,0 +1,4 @@
+metrics_version: 1
+metrics:
+  gross_revenue:
+    template: gross_revenue

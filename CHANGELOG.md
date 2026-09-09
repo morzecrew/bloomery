@@ -9,6 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A mart can be rolled up, and an unprovable rollup is refused.** The marts
+  document takes a `rollups:` key beside `marts:`: a rollup names the mart it
+  derives from with `of:`, the columns it groups by with `keep:`, and the
+  measures it carries. What it *drops* is derived — every other column of the
+  parent — because listing both is two statements of one fact that will
+  disagree.
+
+  It compiles to an ordinary derived gold model on SQLMesh and dbt:
+  `SELECT keep…, agg(expr) … FROM <parent> GROUP BY keep…`. What makes it a
+  rollup is not the SQL, which is unremarkable, but the obligation discharged
+  before it is written — R013, for every measure it carries. A rollup carrying
+  a `distinct_count`, a `semi_additive`, a `non_additive` or a `snapshot`
+  measure is refused with `UnprovableRollup`, as is one carrying a measure the
+  parent does not store, one whose `filter:` or `cumulative:` the aggregate
+  would silently drop, and one that keeps every column of its parent and so
+  drops nothing.
+
+  **A rollup is never chosen for you.** It is not a measure owner and not a
+  covering mart, so no request is answered from it and no query is quietly
+  redirected to monthly totals. Choosing to read a rollup instead of the detail
+  is a planner capability that does not exist yet. This holds by construction
+  rather than by a filter: a rollup lands on `ProjectIR.rollups`, and the
+  measure-ownership rule and the planner's covering-mart search both read
+  `ProjectIR.marts`.
+
+  Cube `pre_aggregations` — the emitted form of this on that target — is not in
+  this release.
+
 - **R013 — a rollup mart's obligation, and the grain half it does not
   re-derive.** `prove_mart_rollup` takes a mart and the dimensions a rollup of
   it would keep, and answers per measure with a proof or a refusal.

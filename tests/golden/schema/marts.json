@@ -197,6 +197,65 @@
       "title": "MartAssert",
       "type": "object"
     },
+    "RollupMart": {
+      "additionalProperties": false,
+      "description": "A mart at a coarser grain than one this project already builds\n(RFC 0058 \u00a75.1), declared under the document's ``rollups:`` key.\n\nIt names a parent and the dimensions it keeps; what it **drops** is derived\n\u2014 every column of the parent not listed \u2014 because listing what you keep and\nwhat you drop is two statements of one fact that will disagree (D4).\n\n**Its own key rather than a member of `marts:`**, which is where row 9 put\nit. Row 9's deciding argument was that ``measure_owners`` already\narbitrates between marts and a second shape would have to be taught that\narbitration again; row 14 then removed the arbitration entirely \u2014 a rollup\nis never a measure owner \u2014 so the argument no longer reaches. What decided\nit in the end was smaller and more concrete: a discriminated union inside\n``marts:`` puts its tag into every mart's error path, and\n``marts.m.wide.flatten[0].via.prefix`` names a ``wide`` the author did not\nwrite, which is not what a source path is (RFC 0002 \u00a75.3). Two keys in one\ndocument mirror ``ProjectIR.marts`` and ``ProjectIR.rollups``, which is the\nsame separation row 14 is built on (logs/T-0034.md).\n\nIt declares no ``base:`` and no ``grain:`` (row 11): those name an *entity*,\nand a rollup's rows are identified by ``keep``. Nor ``cost_hint:`` or\n``assert:``, which row 9 expected it to reuse \u2014 ``cost_hint`` breaks the tie\nin ``measure_owners``, which a rollup never reaches, and ``assert:`` is out\nof this phase rather than refused on principle: the audit body reads a\n:class:`~bloomery.ir.MartIR` for its bound types, and teaching it a second\nnode is work this phase does not need.",
+      "properties": {
+        "keep": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Keep",
+          "type": "array"
+        },
+        "materialization": {
+          "anyOf": [
+            {
+              "enum": [
+                "full",
+                "incremental_by_key",
+                "incremental_by_partition"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Materialization"
+        },
+        "measures": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Measures",
+          "type": "array"
+        },
+        "of": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Of",
+          "type": "string"
+        },
+        "partition_by": {
+          "default": [],
+          "items": {
+            "pattern": "^(?:(days|months|years|hours)\\(([A-Za-z_][A-Za-z0-9_]*)\\)|[A-Za-z_][A-Za-z0-9_]*)$",
+            "type": "string"
+          },
+          "title": "Partition By",
+          "type": "array"
+        }
+      },
+      "required": [
+        "keep",
+        "of"
+      ],
+      "title": "RollupMart",
+      "type": "object"
+    },
     "ViaStep": {
       "additionalProperties": false,
       "description": "Flatten one declared relationship into the mart, prefixing every\nflattened column with ``prefix`` (RFC 0010 D3 \u2014 prefixes mandatory,\nso an empty prefix is a parse error, not a silent no-op).\n\n``as_of`` names the **anchor**: a date or timestamp column of the mart's\nbase entity, and the instant the joined entity is read *as of* (RFC 0023\n\u00a75.3, D8). It is required to flatten an ``scd: type2`` entity and refused\non any other, because a historical relation joined without one matches\nevery version of each key and multiplies the base grain, while a\ncurrent-view relation has no version to choose between.\n\nDeclared, never inferred: which date history is read on is intent, and\nRFC 0021 closed inference. The anchor sits here rather than on the mart\nbecause it qualifies *this* join \u2014 two historical dimensions in one mart\ncan legitimately be read as of different dates.",
@@ -249,6 +308,15 @@
       "const": 1,
       "title": "Marts Version",
       "type": "integer"
+    },
+    "rollups": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "$ref": "#/$defs/RollupMart"
+        }
+      },
+      "title": "Rollups",
+      "type": "object"
     }
   },
   "required": [

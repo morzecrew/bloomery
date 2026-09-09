@@ -87,7 +87,7 @@ def test_the_declared_ir_version_is_the_current_one() -> None:
     # fingerprint does not move at all — two compilers of different shape then
     # agree on the fingerprint as well as the version. Named for what it pins
     # rather than for a number, because the number is what changes.
-    assert ProjectIR().bloomery_ir_version == 11
+    assert ProjectIR().bloomery_ir_version == 12
 
 
 def test_the_compiler_emits_the_declared_ir_version() -> None:

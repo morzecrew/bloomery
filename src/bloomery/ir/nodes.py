@@ -72,6 +72,7 @@ __all__ = [
     "Ratio",
     "TimeWindow",
     "ReconcileIR",
+    "RollupIR",
     "RelationshipIR",
     "SCDKind",
     "SemiAdditivePolicy",
@@ -1114,6 +1115,50 @@ class MartIR:
 
 
 @dataclass(frozen=True, slots=True)
+class RollupIR:
+    """A mart at a coarser grain than one this project builds (RFC 0058 §5.2).
+
+    Its own collection on :class:`ProjectIR` rather than a flag on
+    :class:`MartIR`, and that is what makes RFC 0058 row 14 (`LOCKED`) true by
+    construction. That row says a rollup is never a measure owner and never a
+    covering mart; ``measure_owners`` and the planner's covering-mart search
+    both walk ``ProjectIR.marts``, as do the Cube and MetricFlow emitters,
+    which emit one surface per member. A rollup living there would be picked
+    by every one of them by default, and the row would hold only for as long
+    as three filters survived — while here nothing has to be excluded, because
+    nothing that must not see a rollup is looking at this field
+    (logs/T-0034.md).
+
+    ``of`` names the parent mart and ``keep`` the parent columns this groups
+    by; what it **drops** is derived (D4). There is no ``base`` or ``grain``:
+    those name an entity, and a rollup's rows are identified by ``keep``.
+    There is no ``cost_hint`` — it breaks ties in ``measure_owners``, which a
+    rollup never reaches — and no ``joins``, because the parent is already
+    flattened and that is the whole of what makes a rollup cheap.
+
+    There is no ``columns`` either, and that one is worth a sentence.
+    :class:`MartIR` carries its resolved schema because RFC 0010 §5.4 does not
+    want a consumer re-running the flatten recipe — joins in authored order,
+    transitive prefixes, bucket expansion. A rollup has no recipe: ``keep``
+    *is* the kept column set by name, ``measures`` is the rest, and the types
+    come from the parent this names, which sits in the same
+    :class:`ProjectIR`. A ``columns`` here would either duplicate that or
+    carry half of it, and a field called ``columns`` holding some of them is
+    worse than none (logs/T-0034.md).
+    """
+
+    name: str
+    of: str
+    keep: tuple[str, ...]
+    measures: tuple[str, ...]
+    partition_by: tuple[PartitionSpec, ...] = ()
+    materialization: Materialization = Materialization.FULL
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
 class DateDimensionIR:
     """The vertical-owned date dimension (RFC 0008 D13, RFC 0013 R1 rule 4):
     one catalog definition emits both the gold ``dim_date`` model and, at M6,
@@ -1326,12 +1371,15 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 11
+    bloomery_ir_version: int = 12
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()
     relationships: tuple[RelationshipIR, ...] = ()
     marts: tuple[MartIR, ...] = ()
+    #: Rollup marts, sorted by name (RFC 0058 §5.2). Deliberately *not* folded
+    #: into ``marts``: see :class:`RollupIR`.
+    rollups: tuple[RollupIR, ...] = ()
     date_dimension: DateDimensionIR | None = None
     fx_rates: FxRatesIR | None = None
     reconcile: tuple[ReconcileIR, ...] = ()
