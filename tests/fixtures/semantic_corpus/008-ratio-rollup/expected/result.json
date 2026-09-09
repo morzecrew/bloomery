@@ -1,0 +1,4 @@
+{
+  "naive": {"revenue_per_item": "3.50"},
+  "correct": {"revenue_per_item": "3.25"}
+}

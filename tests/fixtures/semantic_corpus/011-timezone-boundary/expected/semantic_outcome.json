@@ -1,0 +1,10 @@
+{
+  "zoneless": {
+    "outcome": "unguarded",
+    "rule": "RFC 0042 D5"
+  },
+  "anchored": {
+    "outcome": "accepted",
+    "rule": "R011"
+  }
+}

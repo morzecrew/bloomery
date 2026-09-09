@@ -1,0 +1,11 @@
+{
+  "naive": {
+    "outcome": "refused",
+    "error": "FalseAdditivityClaim",
+    "rule": "RFC 0038 D2"
+  },
+  "declared": {
+    "outcome": "accepted",
+    "rule": "R012"
+  }
+}

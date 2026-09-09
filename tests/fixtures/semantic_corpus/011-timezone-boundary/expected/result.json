@@ -1,0 +1,4 @@
+{
+  "naive": {"february_revenue": "40.00"},
+  "correct": {"february_revenue": "140.00"}
+}

@@ -1,0 +1,9 @@
+mapping_version: 1
+source: corpus__shipments
+target: shipment
+key:
+  shipment_id: {from: "$.shipment_id", transform: [to_string]}
+fields:
+  carrier_cost: {from: "$.carrier_cost"}
+  parcels: {from: "$.parcels", transform: [to_int]}
+  shipped_on: {from: "$.shipped_on", transform: [{parse_date: ISO8601}]}

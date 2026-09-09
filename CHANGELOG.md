@@ -9,6 +9,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A rollup now has to answer two questions, and they are asked separately.**
+  `can_roll_up` says whether values may travel from one grain to another; it
+  has never said anything about what may be done with them on arrival, and
+  nothing in the semantic package read a measure's additivity at all. Two
+  rules close that:
+
+  - **R011** — an additive measure may be summed across a rollup its grain
+    proof permits. The grain proof is carried as a premise rather than
+    restated, so one tree holds both facts a reader needs.
+  - **R012** — a ratio is recomputed from operands that each roll up, never
+    summed. Its premises are R011 answers, one per operand, because a ratio is
+    sound at the target grain exactly when its inputs are.
+
+  They compose rather than nest, and the order is what makes a refusal useful:
+  a measure whose grain proof fails gets the grain refusal, so an author is
+  sent to the relationships; a measure whose grain proof passes and whose
+  additivity is wrong gets a refusal naming the metric. A single rule
+  answering both could not tell those apart. Both are expressed *beside* the
+  additivity guardrail rather than replacing it (RFC 0039 D3).
+
+- **Four semantic corpus cases**, completing the set RFC 0042 §3 named:
+  `008-ratio-rollup` (averaging per-order quotients weights the orders instead
+  of the items), `009-null-denominator` (a zero-denominator row contributes to
+  the numerator and moves cost onto units that did not incur it),
+  `010-many-to-many-bridge` (every edge is `many_to_one` and the fan-out is a
+  property of the path), and `011-timezone-boundary` (a zoneless local
+  timestamp read as UTC puts an order in the wrong month).
+
+  Two of them are the corpus's first **`unguarded`** cases — the word RFC 0042
+  minted for a case whose guard does not exist yet, unused until now. Both
+  compile, plan, and return the wrong number, and say so rather than being
+  written as fictions or left out.
+
 - **A request whose measures live on different grains is answered, where the
   join can be proven safe.** It used to refuse: summing across grains
   double-counts, and no single mart holds both measures at their own grain.

@@ -1,0 +1,8 @@
+catalog_version: 1
+vertical: logistics
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2025
+  end_year: 2025
+canonical_fields: {}

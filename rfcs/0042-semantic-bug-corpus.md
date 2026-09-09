@@ -1,10 +1,15 @@
 # RFC 0042 — Production-style semantic bug corpus
 
-- **Status:** 🚧 In progress — §11's first phase has landed: cases 001–005 under
+- **Status:** 🚧 In progress — every name in §3's set now exists under
   [`tests/fixtures/semantic_corpus/`](../tests/fixtures/semantic_corpus/), with the loader,
-  its guard, and the execution tier that runs them. The remaining five follow as the proof
-  rules that own them are designed, so the document stays whole (`INDEX.md` — retire whole,
-  never in part). Execution's findings and the rows it proposes are in
+  its guard, and the execution tier that runs them. **The numbers drifted from §3's list and
+  the names did not**: 006 went to a case §3 never names, so `distinct-users-fanout` landed
+  as 007 and the last four as 008–011 (logs/T-0028.md, logs/T-0029.md). D7 is answered for
+  every case; all of them run in the default suite.
+  **It stays 🚧 rather than completing**, and not for want of cases: two of them are
+  `unguarded` and cite D5 as the decision a future rule converting them answers to, and
+  `test_a_retired_rfc_owns_no_unguarded_case` refuses a retired RFC in that position — so
+  the document is held open by the gate it wrote for itself (logs/T-0029.md). Execution's findings and the rows it proposes are in
   [`logs/T-0018.md`](../logs/T-0018.md); nothing below has been amended to agree with what
   was built. It had no upstream dependency, and it is what gives the rest of the
   semantic-correctness sequence its acceptance evidence.

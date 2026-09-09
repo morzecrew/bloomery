@@ -1,0 +1,33 @@
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      revenue: {type: "decimal(12,2)", required: true}
+      placed_on: {type: date, required: true}
+  promo:
+    grain: one row per promotion
+    key: [promo_id]
+    fields:
+      promo_id: {type: string, required: true}
+      label: {type: string}
+  order_promo:
+    grain: one row per promotion applied to an order
+    key: [order_id, promo_id]
+    fields:
+      order_id: {type: string, required: true}
+      promo_id: {type: string, required: true}
+      applied_on: {type: date, required: true}
+relationships:
+  - name: bridge_of_order
+    from: order_promo
+    to: order
+    via: {order_id: order_id}
+    cardinality: many_to_one
+  - name: bridge_of_promo
+    from: order_promo
+    to: promo
+    via: {promo_id: promo_id}
+    cardinality: many_to_one

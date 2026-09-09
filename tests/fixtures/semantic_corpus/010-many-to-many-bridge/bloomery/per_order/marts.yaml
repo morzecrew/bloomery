@@ -1,0 +1,10 @@
+# Revenue lives where it originates. A promotion is reachable from an order
+# through the bridge and is not a grain revenue may be spread across.
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    measures: [revenue]
+    flatten:
+      - {date: placed_on, role: placed}

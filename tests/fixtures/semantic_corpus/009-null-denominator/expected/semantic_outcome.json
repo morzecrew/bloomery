@@ -1,0 +1,10 @@
+{
+  "declared": {
+    "outcome": "unguarded",
+    "rule": "RFC 0042 D5"
+  },
+  "restricted": {
+    "outcome": "accepted",
+    "rule": "R012"
+  }
+}

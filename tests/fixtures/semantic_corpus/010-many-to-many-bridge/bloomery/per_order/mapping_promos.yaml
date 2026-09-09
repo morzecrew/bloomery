@@ -1,0 +1,7 @@
+mapping_version: 1
+source: corpus__promos
+target: promo
+key:
+  promo_id: {from: "$.promo_id", transform: [to_string]}
+fields:
+  label: {from: "$.label"}

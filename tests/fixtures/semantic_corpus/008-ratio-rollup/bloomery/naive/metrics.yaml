@@ -1,0 +1,20 @@
+# The tempting declaration: the per-order ratio is a number, so call it a
+# measure and average it. `avg` under `additive` is the claim RFC 0038 D2
+# refuses — rolling one up re-aggregates an aggregate.
+metrics_version: 1
+metrics:
+  revenue:
+    grain: order
+    additivity: additive
+    agg: sum
+    expr: "revenue"
+  item_count:
+    grain: order
+    additivity: additive
+    agg: sum
+    expr: "item_count"
+  revenue_per_item:
+    grain: order
+    additivity: additive
+    agg: avg
+    expr: "revenue / item_count"

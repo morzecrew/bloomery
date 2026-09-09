@@ -1,0 +1,13 @@
+# One month of revenue, as an expression over the instant rather than as a
+# restriction on a bucket: bloomery refuses a metric filtered to a fixed period
+# (RFC 0034), and rightly — a constant is not a metric. The period is part of
+# what this measure *is*, and the expression is identical in both arms. What
+# differs is which instant `placed_at` holds, decided in the mapping and
+# nowhere else.
+metrics_version: 1
+metrics:
+  february_revenue:
+    grain: order
+    additivity: additive
+    agg: sum
+    expr: "CASE WHEN placed_at >= TIMESTAMP '2025-02-01 00:00:00' AND placed_at < TIMESTAMP '2025-03-01 00:00:00' THEN revenue ELSE 0 END"

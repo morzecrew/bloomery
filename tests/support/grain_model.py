@@ -10,13 +10,17 @@ parser between the assertion and the thing asserted.
 from __future__ import annotations
 
 from bloomery.ir import (
+    Additivity,
     Cardinality,
     ColumnIR,
     EntityIR,
     Materialization,
+    MetricIR,
     ProjectIR,
+    Ratio,
     RelationshipIR,
     SCDKind,
+    SqlExpr,
 )
 from bloomery.semantic import ColumnRef, GrainRef, RollupContext
 from bloomery.typing import IntType, StringType, TimestampType
@@ -83,8 +87,40 @@ def relationship(
 # ....................... #
 
 
+def metric(
+    name: str,
+    grain_name: str,
+    additivity: Additivity,
+    *,
+    agg: str | None = "sum",
+    expr: str | None = None,
+    ratio: Ratio | None = None,
+) -> MetricIR:
+    """One measure, as little of it as the grain model needs.
+
+    The rollup rules read three fields — the name, the additivity and the ratio
+    — and a builder that filled the rest with plausible values would invite a
+    test to assert against something it did not set.
+    """
+
+    return MetricIR(
+        name=name,
+        grain=grain_name,
+        additivity=additivity,
+        agg=agg,
+        expr=SqlExpr(expr) if expr is not None else None,
+        ratio=ratio,
+        semi_additive=None,
+    )
+
+
+# ....................... #
+
+
 def project(
-    entities: tuple[EntityIR, ...], relationships: tuple[RelationshipIR, ...] = ()
+    entities: tuple[EntityIR, ...],
+    relationships: tuple[RelationshipIR, ...] = (),
+    metrics: tuple[MetricIR, ...] = (),
 ) -> ProjectIR:
     """Sorted by name, as :class:`~bloomery.ir.ProjectIR` promises — the grain
     model reads that promise rather than re-sorting."""
@@ -92,6 +128,7 @@ def project(
     return ProjectIR(
         entities=tuple(sorted(entities, key=lambda e: e.name)),
         relationships=tuple(sorted(relationships, key=lambda r: r.name)),
+        metrics=tuple(sorted(metrics, key=lambda m: m.name)),
     )
 
 
