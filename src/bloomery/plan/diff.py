@@ -95,7 +95,7 @@ unit-tested per branch):
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from decimal import Decimal
 from types import MappingProxyType
@@ -124,6 +124,7 @@ if TYPE_CHECKING:
         QualityRuleIR,
         QuarantineIR,
         ReconcileIR,
+        RollupIR,
         SourceColumnIR,
         StepIR,
         TransformStepIR,
@@ -1857,11 +1858,18 @@ def _diff_rollups(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     was reading the relation itself, which is the ordinary breaking change a
     dropped gold model is.
 
-    Any redefinition is breaking. A rollup is three facts — the parent, the
-    grouping, the measures — and every one of them changes the rows the table
-    holds. There is no cost-hint-shaped metadata half to sort into
-    :attr:`ChangeClass.ADDITIVE`, so pretending to grade it would be inventing
-    a distinction the node does not have.
+    Any redefinition of *what the table holds* is breaking: the parent, the
+    grouping and the measures each change its rows, and there is no
+    cost-hint-shaped half of those to grade down.
+
+    ``partition_by`` is the exception, and it is not a rollup-shaped judgement
+    — it is the one :func:`_mart_pair` already makes about the same field on
+    the node beside this one, where a partitioning change is
+    ``ADDITIVE`` and "metadata only". Physical layout is not rows. Grading it
+    breaking here would have one module answer one question two ways depending
+    on which collection the node came from, which is worse than either answer.
+    ``materialization`` stays breaking, also as a mart's does: it decides how
+    much of the table is rebuilt, not merely where it lands.
     """
 
     old_map = {rollup.name: rollup for rollup in old.rollups} if old is not None else {}
@@ -1874,15 +1882,36 @@ def _diff_rollups(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
             acc.changes.append(Change(None, subject, ChangeClass.ADDITIVE, "rollup added"))
         elif name not in new_map:
             acc.changes.append(Change(None, subject, ChangeClass.BREAKING, "rollup dropped"))
-        elif old_map[name] != new_map[name]:
-            acc.changes.append(
-                Change(
-                    None,
-                    subject,
-                    ChangeClass.BREAKING,
-                    "rollup redefined — the rows it holds changed",
-                )
+        else:
+            _rollup_pair(old_map[name], new_map[name], acc)
+
+
+# ....................... #
+
+
+def _rollup_pair(old_r: RollupIR, new_r: RollupIR, acc: _Acc) -> None:
+    """One rollup against itself, split at rows-versus-layout.
+
+    The content comparison stays a whole-node ``!=`` with the physical fields
+    normalized out, rather than a list of the three that matter. A field added
+    to :class:`~bloomery.ir.RollupIR` later is then breaking until someone
+    decides otherwise, which is the right default for a node whose whole
+    purpose is to be read instead of the detail table.
+    """
+
+    subject = f"rollup:{new_r.name}"
+
+    if replace(old_r, partition_by=()) != replace(new_r, partition_by=()):
+        acc.changes.append(
+            Change(
+                None, subject, ChangeClass.BREAKING, "rollup redefined — the rows it holds changed"
             )
+        )
+
+    if old_r.partition_by != new_r.partition_by:
+        acc.changes.append(
+            Change(None, subject, ChangeClass.ADDITIVE, "partition_by changed (metadata only)")
+        )
 
 
 # ....................... #
