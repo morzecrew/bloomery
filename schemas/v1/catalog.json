@@ -33,6 +33,19 @@
           "title": "Entity",
           "type": "string"
         },
+        "id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
         "recipes": {
           "default": [],
           "items": {
