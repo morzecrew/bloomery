@@ -27,6 +27,7 @@ from bloomery.semantic import (
     prove_rollup,
 )
 from bloomery.semantic.nodes import DependencyBasis, RollupProof
+from bloomery.semantic.proof import _GRADES
 from support.grain_model import ANCHORED, CORPUS, QUESTIONS, grain
 
 pytestmark = pytest.mark.unit
@@ -627,6 +628,36 @@ def test_every_provenance_has_a_grade() -> None:
 
     for provenance in Provenance:
         assert isinstance(provenance.grade, EvidenceGrade)
+
+    assert set(_GRADES) == set(Provenance)
+
+
+def test_an_ungraded_provenance_raises_rather_than_defaulting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The drift protection is the *raise*, and it needs its own test.
+
+    ``test_every_provenance_has_a_grade`` passes just as happily against a
+    lookup with a fallback — every member is mapped, so a default never fires
+    and both implementations look identical from outside. The sabotage that
+    replaced the subscript with ``.get(self, ASSUMED)`` survived the sweep
+    twice: first because no test asked, then because the test that asked
+    subscripted the mapping instead of calling the property the mutation
+    changed (``logs/T-0031.md``).
+
+    A member cannot be added to a :class:`StrEnum` at run time, so the
+    condition is reached from the other side: a member whose row is taken away
+    is a member with no decision, which is what D7 says must stop something.
+    """
+
+    monkeypatch.delitem(_GRADES, Provenance.DERIVED)
+
+    with pytest.raises(KeyError):
+        _ = Provenance.DERIVED.grade
+
+    # The control: every other member still answers, so the raise above is the
+    # missing row and not a lookup broken for everyone.
+    assert Provenance.DECLARED.grade is EvidenceGrade.LOCKED
 
 
 def test_a_grade_is_not_a_second_scale_for_closing() -> None:

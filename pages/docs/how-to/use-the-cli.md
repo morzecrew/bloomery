@@ -186,20 +186,37 @@ After the provenance record comes the **evidence**: every fact the plan rests on
 where each one came from.
 
 ```text
-Evidence (1 locked)
-  LOCKED  mart:order_items.gross_revenue
-          gross_revenue is a measure of order_items, whose grain is order_item
+Evidence (2 locked, 2 assumed)
+  ASSUMED branch:order_items
+          order_items is aggregated to the requested grain before the join, so it holds
+          one row per key
+  ASSUMED branch:orders
+          orders is aggregated to the requested grain before the join, so it holds one
+          row per key
+  LOCKED  mart:order_items.line_discount
+          line_discount is a measure of order_items, whose grain is order_item
+  LOCKED  mart:orders.shipping_count
+          shipping_count is a measure of orders, whose grain is order
 ```
 
-Two words appear there. **`LOCKED`** means a person wrote the fact down in a spec.
-**`ASSUMED`** means the compiler obtained it mechanically — a default, an inference from a
-type, or a propagation through a proof rule. `ASSUMED` is not a criticism: such a fact is
-sound, and the grade records where it came from, not whether it is right. What it tells
-you is which of your semantics somebody has actually decided.
+**`LOCKED`** means a person wrote the fact down in a spec. **`ASSUMED`** means the compiler
+obtained it mechanically — a default, an inference from a type, or a propagation through a
+proof rule. The request above is both at once, and the split is the useful part: the
+measures are yours, and the reasoning that makes joining two grains safe is bloomery's.
+
+`ASSUMED` is not a criticism. Such a fact is sound — nothing rests on a guess, because a
+guess cannot close a proof at all — and the grade records where the fact came from, not
+whether it is right. What it tells you is which of your semantics somebody has actually
+decided.
 
 Nothing is enforced by this. The grades are shown so you can see how much of a project is
 declared before there is any way to require it — a finance mart and an exploration mart
 want different answers, and neither can act on the number until it exists.
+
+**Not every request has an evidence section yet.** A derived metric is planned by a route
+that builds no semantic plan, so `explain` prints the SQL and the provenance record and
+stops. That is the absence of a plan to read, not a plan that rests on nothing — the
+section is omitted rather than printed empty, so the two cannot be confused.
 
 **`explain` prints; it never runs anything.** There is no `bloomery run`, no connection
 string, and no profile — not as an omission but as a decision. Execution belongs to

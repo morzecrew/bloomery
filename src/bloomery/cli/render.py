@@ -97,10 +97,13 @@ def render_evidence_grades(plan: SemanticPlan) -> str:
     by the total invents a number that reads as a quality measure of a project,
     which is the thing this design refuses to be.
 
-    Facts are deduplicated across the plan's proofs. ``Proof.leaves`` already
-    gathers a proof's premises' facts with its own, and two proofs of one plan
-    routinely share a leaf — listing it twice would make the tally count one
-    fact as two, which is the one way a count here can lie.
+    Facts are deduplicated across the plan's proofs, and the honest statement is
+    that no plan in the fixture corpus currently produces a duplicate: a
+    cross-mart request yields three proofs and four distinct leaves. The dedup
+    is here because ``Proof.leaves`` already applies it *within* a proof, so a
+    tally that skipped it across proofs would count one fact as two the first
+    time two nodes rested on the same premise — and a count that can lie about
+    how much of a project is declared is worse than no count.
     """
 
     facts = tuple(sorted({fact for proof in plan.proofs for fact in proof.leaves}))

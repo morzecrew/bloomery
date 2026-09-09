@@ -514,8 +514,9 @@ def _reads_semantic(source: str) -> list[int]:
 #: RFC 0065 P1 renders each fact's evidence grade in ``bloomery explain``, which
 #: reads ``query.semantic`` — the first reader in the tree. It is admitted
 #: because what the guard below protects is that nothing changes *what the query
-#: is generated from*, and a renderer generates nothing: the SQL, the columns and
-#: the explanation are byte-identical with the section present or absent.
+#: is generated from*, and a renderer generates nothing: the section is appended
+#: to the CLI's output after the SQL and the explanation, which
+#: ``test_the_evidence_section_changes_nothing_above_it`` pins byte for byte.
 #:
 #: A path and not a glob, so the next module wanting in has to be named here and
 #: argued for, which is what the guard is for (logs/T-0031.md).
