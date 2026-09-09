@@ -992,6 +992,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pre-aggregations" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Pre-aggregations
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-cube-cannot-express" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1641,6 +1652,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pre-aggregations" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Pre-aggregations
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#what-cube-cannot-express" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1891,6 +1913,43 @@ that owns both components. Cube then recomputes it at whatever grain a query gro
 which is the only way a ratio stays correct. A spec that tries to store a non-additive
 metric as a mart measure is already refused at the guardrail stage; the emitter checks
 again and raises <code>UnsupportedByTarget</code> rather than approximate.</p>
+<h2 id="pre-aggregations">Pre-aggregations<a class="headerlink" href="#pre-aggregations" title="Permanent link">&para;</a></h2>
+<p>A <a href="../../reference/spec-schemas/">rollup</a> — a mart declared under the marts document's
+<code>rollups:</code> key — becomes a <code>pre_aggregations</code> entry on the cube of the mart it names:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">pre_aggregations</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_items_monthly</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rollup</span>
+<span class="w">    </span><span class="nt">measures</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CUBE.gross_revenue</span>
+<span class="w">    </span><span class="nt">dimensions</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CUBE.order_customer_id</span>
+<span class="w">    </span><span class="nt">time_dimension</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CUBE.ordered_month</span>
+<span class="w">    </span><span class="nt">granularity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">month</span>
+</code></pre></div>
+<p>The block lists only the measures the rollup carries and the dimensions it keeps. That
+bound is the safety property: a query naming a measure the rollup could not prove
+re-aggregable, or a dimension it dropped, cannot match the pre-aggregation, and Cube
+answers it from the mart instead. Every measure in the block is one bloomery proved
+re-aggregable over the dropped dimensions before writing it — which for <code>min</code> and <code>max</code>
+is not a sum, and is the reason the proof asks about the aggregation rather than
+assuming one.</p>
+<p>A rollup adds no cube and no view. It is a key inside its parent's document, so nothing
+in your Cube model gains a second surface serving the same measures, and no query is
+redirected to monthly totals by bloomery. Cube decides at query time whether the
+pre-aggregation can serve a request, using its own matching rules.</p>
+<p><code>time_dimension</code> appears when the rollup keeps exactly one role-playing date bucket —
+Cube allows one per pre-aggregation, and a bucket is the only kept column carrying the
+<code>granularity</code> that must accompany it. Keep none or several and every kept column is an
+ordinary dimension; the pre-aggregation means the same thing and Cube simply cannot
+partition it.</p>
+<p>No <code>refresh_key</code> is emitted, so Cube's default applies. How often Cube rebuilds its
+copy is a deployment decision, and bloomery has nothing to base it on.</p>
+<p><strong>Cube materializes its own copy.</strong> A <code>type: rollup</code> pre-aggregation is built by Cube
+from the parent cube's table into Cube's pre-aggregation store — it does not read the
+<code>gold.mart_order_items_monthly</code> table the SQLMesh and dbt targets build from the same
+rollup. Emit both targets and the same aggregate is materialized twice, by two systems
+on two schedules. That is deliberate: the gold model is queryable SQL for anything that
+is not Cube, and the pre-aggregation is what makes Cube fast.</p>
 <h2 id="what-cube-cannot-express">What Cube cannot express<a class="headerlink" href="#what-cube-cannot-express" title="Permanent link">&para;</a></h2>
 <p>What this target cannot express is refused per construct with
 <code>UnsupportedByTarget</code>, never approximated: an aggregation outside Cube's closed
@@ -1901,7 +1960,9 @@ tables that SQLMesh (or dbt) builds and maintains.</p>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Measure aggregations map to Cube's closed set (<code>sum</code>, <code>count</code>, <code>count_distinct</code>,
-  <code>avg</code>, <code>min</code>, <code>max</code>); anything else fails loudly rather than approximate.</li>
+  <code>avg</code>, <code>min</code>, <code>max</code>); anything else fails loudly rather than approximate. A <em>rollup</em>
+  is narrower — <code>sum</code>, <code>count</code>, <code>min</code>, <code>max</code> — because those are the four an additive
+  claim survives, and only an additive measure can be pre-aggregated.</li>
 <li>A <code>count</code> metric emits <code>type: count</code> with no <code>sql</code> — at the mart's grain, counting
   rows equals counting the metric's key expression.</li>
 <li>A metric served by several marts lands as a measure on exactly one cube — the same
