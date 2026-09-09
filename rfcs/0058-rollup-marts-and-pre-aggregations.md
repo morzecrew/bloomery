@@ -134,6 +134,12 @@ The mart names a parent and the dimensions it keeps. What it drops is derived �
 dimension of the parent not listed — because listing what you keep and what you drop is
 two statements of one fact that will disagree.
 
+**The `grain:` key above is superseded by row 11**, which moves the kept dimensions to
+`keep:`. `grain:` names an *entity* on a mart and the builder refuses it unless it equals
+`base:`, so a column list cannot share it. The block is left as it was written rather than
+corrected in place — it is what this document proposed, and the record of a spelling
+changing is worth more than a tidy example. §12's P2 names the spelling to build.
+
 ### 5.2 The obligation
 
 For each measure the rollup carries, a proof that re-aggregating it over the dropped
