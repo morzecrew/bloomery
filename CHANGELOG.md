@@ -26,7 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `snapshot` are refused, each under its own reason and its own repair,
   because each names a different thing to change. So are the questions that
   have no subject: a measure the mart does not carry, and one declaring neither
-  `agg:` nor `expr:`, which is `additive` said about nothing.
+  `agg:` nor `expr:`, which is `additive` said about nothing. And so is a rollup
+  that keeps every column of its parent — the proof would be true, since
+  re-aggregating over nothing is sound, and it would authorize a second copy of
+  the mart, which is the opposite of the reason a rollup exists.
 
   Nothing consults it yet — no spec key declares a rollup and no target emits
   one. That is deliberate: a rollup looks like an emitter feature, the safety

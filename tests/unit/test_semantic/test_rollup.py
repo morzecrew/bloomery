@@ -356,6 +356,27 @@ def test_a_rollup_keeping_a_dimension_the_mart_lacks_is_refused() -> None:
     assert "ordered_day" in answer.remediation
 
 
+def test_a_rollup_that_drops_nothing_is_refused() -> None:
+    """The proof would be *true* — re-aggregating over nothing is sound — and
+    it is still the wrong answer: a rollup is read instead of the detail table
+    and is coarser than it, so one keeping every column authorizes a duplicate
+    gold table that costs storage and answers nothing faster."""
+
+    answer = prove_mart_rollup(items("revenue"), DIMENSIONS, PROJECT)
+
+    assert isinstance(answer, Refutation)
+    assert answer.reason == "drops_nothing"
+
+
+def test_dropping_one_dimension_is_enough() -> None:
+    """The boundary beside it: the refusal is equality with the whole column
+    set, not a threshold on how much a rollup must drop."""
+
+    answer = prove_mart_rollup(items("revenue"), DIMENSIONS[:-1], PROJECT)
+
+    assert isinstance(answer, Proof)
+
+
 def test_a_mart_carrying_no_measure_is_refused_rather_than_trivially_proved() -> None:
     """Every measure of an empty set is re-aggregable, so a reduction would
     prove this — and a proof resting on nothing is the one thing a closed-world

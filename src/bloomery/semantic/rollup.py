@@ -170,11 +170,14 @@ def _grouping_refusal(
 ) -> Refutation | None:
     """Whether the grouping itself is askable, or ``None`` where it is.
 
+    Three ways it is not, and all three are the same mistake in different
+    directions: a rollup grouping by nothing, one grouping by a column the mart
+    does not have, and one grouping by *every* column, which drops nothing and
+    is the parent mart under a second name.
+
     Shared by both entry points rather than owned by :func:`prove_mart_rollup`,
     because :func:`prove_measure_rollup` is public too and the class question
-    never reads ``keep`` — so it would prove a measure against a rollup that
-    groups by nothing, or by a column the mart does not have. Neither is a
-    rollup and neither is a question anyone asked. One guard meets every
+    never reads ``keep`` — so it would answer all three. One guard meets every
     caller, or only the entry point that happens to validate is safe to call.
     """
 
@@ -197,29 +200,51 @@ def _grouping_refusal(
     requestable = {dimension.ref.qualified for dimension in mart.dimensions}
     unknown = tuple(name for name in kept if name not in requestable)
 
-    if not unknown:
+    if unknown:
+        return Refutation(
+            reason="unknown_dimension",
+            judgement=judgement,
+            obligations=(
+                Obligation(
+                    required=f"keep {', '.join(unknown)} on a rollup of {mart.name!r}",
+                    found=f"mart {mart.name!r} has no such dimension",
+                ),
+            ),
+            remediation=(
+                f"the rollup groups the mart's own columns — {mart.name!r} offers "
+                f"{', '.join(sorted(requestable)) or 'none at all'}"
+            ),
+            rejected=tuple(
+                SemanticFact(
+                    source=f"dimension:{mart.name}.{name}",
+                    provenance=Provenance.UNKNOWN,
+                    statement="no such dimension on this mart",
+                )
+                for name in unknown
+            ),
+        )
+
+    if set(kept) != requestable:
         return None
 
+    # A rollup is a mart at a *coarser* grain than the one it derives from
+    # (RFC 0058 §1), and one keeping every column is the parent under a second
+    # name. Refused rather than proved, even though the proof would be true —
+    # re-aggregating over nothing is sound, and answering "yes" here would
+    # authorize a duplicate gold table that costs storage and answers nothing
+    # faster, which is the opposite of the reason the feature exists.
     return Refutation(
-        reason="unknown_dimension",
+        reason="drops_nothing",
         judgement=judgement,
         obligations=(
             Obligation(
-                required=f"keep {', '.join(unknown)} on a rollup of {mart.name!r}",
-                found=f"mart {mart.name!r} has no such dimension",
+                required=f"roll {mart.name!r} up to a coarser grain",
+                found=f"the rollup keeps every column of {mart.name!r}, so it drops none",
             ),
         ),
         remediation=(
-            f"the rollup groups the mart's own columns — {mart.name!r} offers "
-            f"{', '.join(sorted(requestable)) or 'none at all'}"
-        ),
-        rejected=tuple(
-            SemanticFact(
-                source=f"dimension:{mart.name}.{name}",
-                provenance=Provenance.UNKNOWN,
-                statement="no such dimension on this mart",
-            )
-            for name in unknown
+            "a rollup is read instead of the detail table and is coarser than it — drop "
+            "at least one dimension, or read the mart itself"
         ),
     )
 
