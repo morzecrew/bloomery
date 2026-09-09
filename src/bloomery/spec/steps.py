@@ -64,7 +64,7 @@ class StepWiring(SpecModel):
     #: **Opaque** (D2): compared for equality, never parsed, never used to
     #: derive a path, a relation name or an ordering. Absent everywhere, a
     #: project compiles byte for byte as it does today (D3).
-    id: str | None = None
+    id: str | None = Field(default=None, min_length=1)
     use: StepUse
     inputs: dict[str, BoundRelation] = Field(default_factory=dict[str, BoundRelation])
     outputs: dict[str, BoundRelation] = Field(min_length=1)

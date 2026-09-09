@@ -181,7 +181,9 @@ def step_node(ref: str) -> Node:
 # ....................... #
 
 
-def _mapping_edges(mapping: Mapping, canonical_by_field: dict[str, str | None]) -> list[Edge]:
+def _mapping_edges(
+    mapping: Mapping, canonical_by_field: dict[str, str | None], ids: dict[str, str]
+) -> list[Edge]:
     edges: list[Edge] = []
 
     for field_name, key_field in mapping.key.items():
@@ -220,7 +222,7 @@ def _mapping_edges(mapping: Mapping, canonical_by_field: dict[str, str | None]) 
             edges.append(
                 Edge(
                     src=entity_field_node(mapping.target, field_name),
-                    dst=canonical_field_node(canonical),
+                    dst=canonical_field_node(key(canonical, ids)),
                     label="canonical",
                 )
             )
@@ -231,7 +233,7 @@ def _mapping_edges(mapping: Mapping, canonical_by_field: dict[str, str | None]) 
 # ....................... #
 
 
-def _step_edges(project: Project, ids: dict[str, str]) -> list[Edge]:
+def _step_edges(project: Project, ids: dict[str, dict[str, str]]) -> list[Edge]:
     """Wire each step between what fills its inputs and what it produces
     (RFC 0017 §5.6, D11).
 
@@ -264,12 +266,14 @@ def _step_edges(project: Project, ids: dict[str, str]) -> list[Edge]:
     edges: list[Edge] = []
 
     for wiring in project.steps.steps:
-        node = step_node(key(wiring.ref, ids))
+        node = step_node(key(wiring.ref, ids["step"]))
         for _name, bound in sorted(wiring.inputs.items()):
             relation = bound.rsplit(".", 1)[-1]
             producer = producer_of.get(relation)
             if producer is not None and producer != wiring.ref:
-                edges.append(Edge(src=step_node(key(producer, ids)), dst=node, label="step_input"))
+                edges.append(
+                    Edge(src=step_node(key(producer, ids["step"])), dst=node, label="step_input")
+                )
                 continue
             entity = entities.get(relation)
             if entity is None:
@@ -296,7 +300,11 @@ def _step_edges(project: Project, ids: dict[str, str]) -> list[Edge]:
                 field = entity_field_node(produced, column)
                 edges.append(Edge(src=node, dst=field, label="step_output"))
                 edges.append(
-                    Edge(src=field, dst=canonical_field_node(canonical), label="canonical")
+                    Edge(
+                        src=field,
+                        dst=canonical_field_node(key(canonical, ids["canonical"])),
+                        label="canonical",
+                    )
                 )
 
     return edges
@@ -319,12 +327,12 @@ def build_graph(
     """
     ids = node_keys(project, catalog)
     edges: list[Edge] = []
-    edges.extend(_step_edges(project, ids["step"]))
+    edges.extend(_step_edges(project, ids))
 
     for mapping in project.mappings:
         entity = project.entity_model.entities[mapping.target]
         canonical_by_field = {name: field.canonical for name, field in entity.fields.items()}
-        edges.extend(_mapping_edges(mapping, canonical_by_field))
+        edges.extend(_mapping_edges(mapping, canonical_by_field, ids["canonical"]))
 
     for metric in metrics:
         dst = metric_node(key(metric.name, ids["metric"]))

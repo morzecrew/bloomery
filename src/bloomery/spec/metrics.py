@@ -338,7 +338,7 @@ class Metric(SpecModel):
     #: **Opaque** (D2): compared for equality, never parsed, never used to
     #: derive a path, a relation name or an ordering. Absent everywhere, a
     #: project compiles byte for byte as it does today (D3).
-    id: str | None = None
+    id: str | None = Field(default=None, min_length=1)
     template: str | None = None
     description: str | None = None
     requires: tuple[str, ...] = ()

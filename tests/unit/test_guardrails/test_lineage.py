@@ -12,7 +12,12 @@ from __future__ import annotations
 import pytest
 
 from bloomery import build_project_ir, load_project
-from bloomery.errors import DuplicateNodeId, GuardrailError, ReservedEntityName
+from bloomery.errors import (
+    DuplicateNodeId,
+    GuardrailError,
+    ReservedEntityName,
+    SpecParseError,
+)
 from bloomery.ir import NODE_ID_PREFIXES
 from bloomery.steps import StepManifest, StepRegistry
 
@@ -244,3 +249,68 @@ def test_two_kinds_sharing_a_key_do_not_collide() -> None:
     """
 
     _project(_metrics(unit_price=f"id: shared\n{_SIMPLE}"))
+
+
+def test_an_empty_id_is_refused_rather_than_minting_a_bare_prefix() -> None:
+    """An id that identifies nothing is not an identity.
+
+    ``id: ""`` passed the opacity rule — it is a string, compared and never
+    parsed — and minted the node id ``metric.``, which is the prefix and
+    nothing else. The metric then answers to a name no reader would guess and
+    disappears from every lookup of its own name, with no refusal anywhere.
+
+    Non-emptiness is a boundary constraint, not the parsing D2 forbids: nothing
+    reads *into* the value, and any non-empty string is still accepted whatever
+    it contains.
+
+    It refuses at **parse**, not here, which is where a shape rule belongs
+    (RFC 0002 D4) and is earlier than the stage this module's other refusals
+    reach. The test lives beside them because the defect it prevents is a node
+    id, and that is what a reader looking for this will be reading about.
+    """
+
+    with pytest.raises(SpecParseError) as raised:
+        _project(_metrics(revenue=f'id: ""\n{_SIMPLE}'))
+
+    assert "at least 1 character" in str(raised.value)
+
+
+def test_a_duplicate_points_at_one_of_the_colliding_specs() -> None:
+    """The refusal's ``source_path`` follows the document convention.
+
+    A bare ``metrics`` sends an author to a file and leaves them to find which
+    of its entries is at fault; the message names every claimant and the path
+    anchors on the first, which is what every other guardrail in this stage
+    does.
+    """
+
+    with pytest.raises(GuardrailError) as raised:
+        _project(
+            _metrics(
+                revenue=f"id: mtr_1\n{_SIMPLE}",
+                revenue_net=f"id: mtr_1\n{_SIMPLE}",
+            )
+        )
+
+    duplicates = [e for e in raised.value.collected if isinstance(e, DuplicateNodeId)]
+    assert duplicates[0].source_path == "metrics: metrics.revenue"
+
+
+def test_a_node_kind_with_no_population_raises_rather_than_going_unchecked() -> None:
+    """The kind lists in ``node_keys`` and in the refusal must stay in step.
+
+    Both enumerate the same three kinds, so reverting the refusal to iterate its
+    own list changed no test (`logs/T-0032.md`) — they agree today. What the
+    guard buys is the day they do not: a kind added to the key map and forgotten
+    here would be a kind whose collisions nobody checks, and silence is the one
+    outcome a duplicate-detector must not have.
+    """
+
+    from unittest.mock import patch
+
+    from bloomery.guardrails import lineage
+
+    with patch.object(
+        lineage, "node_keys", return_value={"metric": {}, "canonical": {}, "step": {}, "mart": {}}
+    ), pytest.raises(KeyError, match="mart"):
+        lineage.check_node_ids(load_project({"entity_model": _entity_model("order")}), None)

@@ -141,14 +141,22 @@ def check_node_ids(project: Project, catalog: Catalog | None) -> list[GuardrailE
     canonical = {} if catalog is None else catalog.canonical_fields
     steps = () if project.steps is None else project.steps.steps
 
+    #: Per kind, every node's authored name and how a refusal spells the way to
+    #: one of them. The *whole* population, not the adopted subset: a key
+    #: collides with a name as readily as with another id, and a check reading
+    #: only what adopted an id would miss the half of the collision that did not.
     populations = {
-        "metric": (tuple(metrics), "metrics"),
-        "canonical": (tuple(canonical), "catalog"),
-        "step": (tuple(wiring.ref for wiring in steps), "steps"),
+        "metric": (tuple(metrics), "metrics: metrics"),
+        "canonical": (tuple(canonical), "catalog: canonical_fields"),
+        "step": (tuple(wiring.ref for wiring in steps), "steps: steps"),
     }
     errors: list[GuardrailError] = []
 
-    for kind, (names, document) in populations.items():
+    # Driven off ``ids`` rather than off ``populations``, so a node kind added to
+    # :func:`~bloomery.spec.project.node_keys` and forgotten here raises instead
+    # of being skipped — a skipped kind is a kind whose collisions nobody checks.
+    for kind in ids:
+        names, anchor = populations[kind]
         claimed: dict[str, list[str]] = {}
 
         for name in names:
@@ -167,6 +175,6 @@ def check_node_ids(project: Project, catalog: Catalog | None) -> list[GuardrailE
                 f"compiler kept. Fix: give each an 'id:' of its own, and never copy one "
                 f"between specs"
             )
-            errors.append(DuplicateNodeId(msg, source_path=document))
+            errors.append(DuplicateNodeId(msg, source_path=f"{anchor}.{sharing[0]}"))
 
     return errors

@@ -66,7 +66,7 @@ class CanonicalField(SpecModel):
     #: which names a derivation this field may be built by rather than the
     #: field itself. Absent everywhere, a
     #: project compiles byte for byte as it does today (D3).
-    id: str | None = None
+    id: str | None = Field(default=None, min_length=1)
     entity: str
     type: TypeString
     description: str | None = None

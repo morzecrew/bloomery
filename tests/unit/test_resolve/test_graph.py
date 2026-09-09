@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from bloomery import load_project
+from bloomery import load_catalog, load_project
 from bloomery.errors import BloomeryError
 from bloomery.ir import NODE_ID_PREFIXES
 from bloomery.spec import Project
@@ -405,3 +405,84 @@ def test_the_whole_fixture_corpus_is_unadopted() -> None:
             adopted[path.name] = ids
 
     assert adopted == {}, f"a fixture adopted an id: {adopted}"
+
+
+def test_a_canonical_id_is_substituted_and_its_references_follow() -> None:
+    """The canonical kind, which the metric tests do not reach.
+
+    ``requires`` names a canonical field from the metrics document while the
+    ``id:`` sits in the catalog — the same cross-document reference the metric
+    case has, one kind over. Removing the substitution from this edge left every
+    metric test green (`logs/T-0032.md`), because none of them adopted a
+    canonical id.
+    """
+
+    project, _ = load_fixture("ecom_basic")
+    catalog_text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    assert "  unit_price:\n" in catalog_text
+    catalog = load_catalog(
+        catalog_text.replace("  unit_price:\n", "  unit_price:\n    id: cnl_9b2\n", 1)
+    )
+
+    graph = build_graph(project, catalog, effective_metrics(project, catalog))
+    names = {node.name for node in graph.nodes}
+    into_revenue = {
+        edge.src.name for edge in graph.edges if edge.dst.name == "metric.gross_revenue"
+    }
+
+    assert "canonical.cnl_9b2" in names
+    assert "canonical.unit_price" not in names
+    assert "canonical.cnl_9b2" in into_revenue
+
+
+def test_a_step_id_is_substituted_and_its_wiring_follows() -> None:
+    """The step kind, likewise unreached by the metric tests.
+
+    A step node is keyed by its ``ref``, and an adopted id replaces that ref
+    everywhere the wiring appears — the node itself and the edges a step input
+    draws from another step's output.
+    """
+
+    project = load_project(
+        {
+            "entity_model": STEP_ENTITIES,
+            "steps": STEP_WIRING.replace(
+                "  - use: resolve_customers@3\n",
+                "  - use: resolve_customers@3\n    id: stp_44c\n",
+                1,
+            ),
+        }
+    )
+    graph = build_graph(project, None, effective_metrics(project, None))
+    names = {node.name for node in graph.nodes}
+
+    assert "step.stp_44c" in names
+    assert "step.resolve_customers" not in names
+
+
+def test_a_step_output_link_reaches_the_canonical_field_by_id() -> None:
+    """The twin of the mapping-link site, and it needed its own fixture.
+
+    A step wiring's ``canonical:`` block links a produced column to a canonical
+    field — a third place a canonical name is referenced, from a document that
+    is neither the catalog nor the metrics. The mapping-link bug was found by
+    covering the canonical kind at all; this one survived the re-sweep because
+    the step fixture used above declares no ``canonical:`` block
+    (`logs/T-0032.md`).
+    """
+
+    project, _ = load_fixture("identity_resolution")
+    catalog_text = (FIXTURES / "identity_resolution" / "catalog.yaml").read_text()
+    assert "  customer_ref:\n" in catalog_text
+    catalog = load_catalog(
+        catalog_text.replace("  customer_ref:\n", "  customer_ref:\n    id: cnl_ref\n", 1)
+    )
+
+    graph = build_graph(project, catalog, effective_metrics(project, catalog))
+    linked = {
+        edge.dst.name
+        for edge in graph.edges
+        if edge.label == "canonical" and edge.src.name.endswith("canonical_id")
+    }
+
+    assert linked == {"canonical.cnl_ref"}
