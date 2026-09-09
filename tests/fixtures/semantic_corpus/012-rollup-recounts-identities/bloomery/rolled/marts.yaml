@@ -1,0 +1,17 @@
+# The same project, plus the monthly table the dashboard wants. `revenue`
+# survives the rollup and `buyers` does not, and the declaration says nothing
+# about which — which is why the obligation is discharged per measure.
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    measures: [buyers, revenue]
+    flatten:
+      - {date: ordered_on, role: ordered}
+
+rollups:
+  orders_monthly:
+    of: orders
+    keep: [ordered_month]
+    measures: [buyers, revenue]

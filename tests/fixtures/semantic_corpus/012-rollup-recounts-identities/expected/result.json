@@ -1,0 +1,8 @@
+{
+  "naive": {
+    "buyers": "4"
+  },
+  "correct": {
+    "buyers": "3"
+  }
+}

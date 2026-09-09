@@ -1,0 +1,9 @@
+# No rollup: every request reads the orders at their own grain.
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    measures: [buyers, revenue]
+    flatten:
+      - {date: ordered_on, role: ordered}
