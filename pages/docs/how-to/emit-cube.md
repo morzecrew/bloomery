@@ -162,6 +162,50 @@ which is the only way a ratio stays correct. A spec that tries to store a non-ad
 metric as a mart measure is already refused at the guardrail stage; the emitter checks
 again and raises `UnsupportedByTarget` rather than approximate.
 
+## Pre-aggregations
+
+A [rollup](../reference/spec-schemas.md) — a mart declared under the marts document's
+`rollups:` key — becomes a `pre_aggregations` entry on the cube of the mart it names:
+
+```yaml
+pre_aggregations:
+  - name: order_items_monthly
+    type: rollup
+    measures:
+      - CUBE.gross_revenue
+    dimensions:
+      - CUBE.order_customer_id
+    time_dimension: CUBE.ordered_month
+    granularity: month
+```
+
+The block lists only the measures the rollup carries and the dimensions it keeps. That
+bound is the safety property: a query naming a measure the rollup could not prove
+re-aggregable, or a dimension it dropped, cannot match the pre-aggregation, and Cube
+answers it from the mart instead. Every measure in the block is one bloomery proved
+summable over the dropped dimensions before writing it.
+
+A rollup adds no cube and no view. It is a key inside its parent's document, so nothing
+in your Cube model gains a second surface serving the same measures, and no query is
+redirected to monthly totals by bloomery. Cube decides at query time whether the
+pre-aggregation can serve a request, using its own matching rules.
+
+`time_dimension` appears when the rollup keeps exactly one role-playing date bucket —
+Cube allows one per pre-aggregation, and a bucket is the only kept column carrying the
+`granularity` that must accompany it. Keep none or several and every kept column is an
+ordinary dimension; the pre-aggregation means the same thing and Cube simply cannot
+partition it.
+
+No `refresh_key` is emitted, so Cube's default applies. How often Cube rebuilds its
+copy is a deployment decision, and bloomery has nothing to base it on.
+
+**Cube materializes its own copy.** A `type: rollup` pre-aggregation is built by Cube
+from the parent cube's table into Cube's pre-aggregation store — it does not read the
+`gold.mart_order_items_monthly` table the SQLMesh and dbt targets build from the same
+rollup. Emit both targets and the same aggregate is materialized twice, by two systems
+on two schedules. That is deliberate: the gold model is queryable SQL for anything that
+is not Cube, and the pre-aggregation is what makes Cube fast.
+
 ## What Cube cannot express
 
 What this target cannot express is refused per construct with
@@ -174,7 +218,9 @@ tables that SQLMesh (or dbt) builds and maintains.
 ## Notes
 
 - Measure aggregations map to Cube's closed set (`sum`, `count`, `count_distinct`,
-  `avg`, `min`, `max`); anything else fails loudly rather than approximate.
+  `avg`, `min`, `max`); anything else fails loudly rather than approximate. A *rollup*
+  is narrower — `sum`, `count`, `min`, `max` — because those are the four an additive
+  claim survives, and only an additive measure can be pre-aggregated.
 - A `count` metric emits `type: count` with no `sql` — at the mart's grain, counting
   rows equals counting the metric's key expression.
 - A metric served by several marts lands as a measure on exactly one cube — the same
