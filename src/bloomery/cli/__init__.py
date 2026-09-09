@@ -530,7 +530,22 @@ def _explain(arguments: argparse.Namespace) -> int:
     if arguments.format == "json":
         _emit(query, as_json=True)
     else:
-        _emit(query.sql + "\n\n" + query.explanation.render(), as_json=False)
+        # The evidence section reads ``query.semantic`` and never
+        # ``query.explanation``: the explanation is a planner value carrying no
+        # fact and no proof, and putting them there would move a surface every
+        # golden pins. RFC 0040 D7 put the semantic plan *beside* `sql`,
+        # `columns` and `explanation` for that reason, and RFC 0065 P1 renders
+        # from where it was put (logs/T-0031.md).
+        #
+        # ``semantic`` is optional on a `QueryPlan` — an emitter test may build
+        # one directly — so its absence prints nothing rather than an empty
+        # heading claiming a plan rests on no facts.
+        rendered = query.sql + "\n\n" + query.explanation.render()
+
+        if query.semantic is not None:
+            rendered += "\n\n" + render.render_evidence_grades(query.semantic)
+
+        _emit(rendered, as_json=False)
 
     return EXIT_OK
 

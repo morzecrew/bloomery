@@ -23,6 +23,7 @@ asserted through a subprocess.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import subprocess  # nosec B404 — a python subprocess, argv-only, no shell
@@ -43,6 +44,7 @@ from bloomery import (
     MetricRequest,
     Op,
     Plan,
+    QueryPlan,
     ReplayScope,
     RowPolicy,
     SpecEvidence,
@@ -1670,3 +1672,83 @@ def test_check_renders_the_value_it_was_given(capsys: pytest.CaptureFixture[str]
     _code, out, _err = run(capsys, "check", ECOM)
 
     assert out.strip() == render_check(evaluate(project, catalog=catalog)).strip()
+
+
+# ....................... #
+# RFC 0065 P1 — evidence grades in `explain`
+
+
+def test_explain_renders_a_grade_beside_every_fact(capsys: pytest.CaptureFixture[str]) -> None:
+    """The visible half of P1: the grades before the requirement.
+
+    Nothing is refused and nothing is required yet, so the only thing to assert
+    is that a reader can see where each fact came from — which is what tells a
+    team whether the feature is worth adopting at all (§12).
+    """
+
+    code, out, err = run(
+        capsys, "explain", ECOM, "--metrics", "gross_revenue", "--by", "ordered_month"
+    )
+
+    assert code == EXIT_OK, err
+    assert "Evidence (1 locked)" in out
+    assert "LOCKED" in out
+    assert "mart:order_items.gross_revenue" in out
+
+
+def test_the_evidence_section_changes_nothing_above_it(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The section is additive, and this is what lets the plan be read at all.
+
+    `test_only_the_renderer_reads_the_plan` admits the CLI to read
+    `query.semantic` on the argument that a renderer generates nothing. That
+    argument is only worth the exemption if it is true, so it is asserted here
+    rather than left in a comment: everything above the heading is exactly the
+    SQL and the explanation the planner produced.
+    """
+
+    project, catalog = load_fixture("ecom_basic")
+    naming = DefaultNaming()
+    planner = MetricFlowPlanner(LruManifestHydrator(naming), naming=naming)
+    query = planner.plan(
+        build_project_ir(project, catalog=catalog),
+        MetricRequest(metrics=("gross_revenue",), dimensions=("ordered_month",)),
+        dialect="duckdb",
+    )
+
+    _code, out, _err = run(
+        capsys, "explain", ECOM, "--metrics", "gross_revenue", "--by", "ordered_month"
+    )
+    above, heading, _below = out.partition("Evidence (")
+
+    assert heading, "the section is missing, so this test proves nothing"
+    assert above.strip() == (query.sql + "\n\n" + query.explanation.render()).strip()
+
+
+def test_a_plan_without_a_semantic_half_prints_no_evidence_heading(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``QueryPlan.semantic`` is optional, and absent is not empty.
+
+    A caller may build a `QueryPlan` directly and never fill it in — the
+    emitter tests do — and a heading over nothing would say the plan rests on
+    no facts, which is a claim about the plan rather than about what the caller
+    supplied. The planner always fills it in, so the branch is unreachable
+    through the CLI without taking the field away deliberately.
+    """
+
+    planned = MetricFlowPlanner.plan
+
+    def without_semantic(self: MetricFlowPlanner, *args: object, **kwargs: object) -> QueryPlan:
+        return dataclasses.replace(planned(self, *args, **kwargs), semantic=None)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(MetricFlowPlanner, "plan", without_semantic)
+
+    code, out, err = run(
+        capsys, "explain", ECOM, "--metrics", "gross_revenue", "--by", "ordered_month"
+    )
+
+    assert code == EXIT_OK, err
+    assert out.strip(), "the SQL and explanation are still printed"
+    assert "Evidence" not in out

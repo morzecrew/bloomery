@@ -1,8 +1,16 @@
 # RFC 0065 — Consumer-declared evidence strictness
 
-- **Status:** 📝 Draft — independent of the identity and history sequence. Reads
-  [RFC 0039](0039-semantic-proof-ir.md)'s `Provenance` vocabulary, which ships today, and
-  degrades to a two-state form for facts no proof rule has reached yet.
+- **Status:** 🚧 In progress — §12's P1 has landed: `EvidenceGrade`, its total derivation
+  from [RFC 0039](0039-semantic-proof-ir.md)'s `Provenance`, and `bloomery explain`
+  rendering a grade beside every fact ([`logs/T-0031.md`](../logs/T-0031.md)). Nothing is
+  required and nothing is refused, which is what P1 is: the grades become visible before
+  there is a way to demand them. D8 is settled there — `IMPORTED_VERIFIED` grades
+  `ASSUMED` — and revisits when RFC 0044 P2 gives that provenance a producer. **P2
+  (`requires_evidence` and the refusal) and P3 (exposures, transitivity) are unscheduled**
+  and are what hold this document open. Execution's findings and the rows it proposes are
+  in the same log; nothing below has been amended to agree with what was built. **§§5.2,
+  5.3 and 7 describe the annotation, its refusal and its worked example** — all P2's, none
+  built here.
 - **Scope:** A minimum evidence grade a mart or an exposure may require of the facts its
   measures rest on, refused at compile time. The `LOCKED` / `ASSUMED` / `OPEN` vocabulary the
   RFC corpus already uses for decisions, applied to spec assertions. One annotation on two

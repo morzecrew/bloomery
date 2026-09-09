@@ -182,6 +182,25 @@ bloomery explain specs/ --metrics gross_revenue \
 operator, and a value, comma-separated for `in` / `not_in`. It is a filter, not an
 identity: deciding whose policy applies is your side of the boundary.
 
+After the provenance record comes the **evidence**: every fact the plan rests on, and
+where each one came from.
+
+```text
+Evidence (1 locked)
+  LOCKED  mart:order_items.gross_revenue
+          gross_revenue is a measure of order_items, whose grain is order_item
+```
+
+Two words appear there. **`LOCKED`** means a person wrote the fact down in a spec.
+**`ASSUMED`** means the compiler obtained it mechanically — a default, an inference from a
+type, or a propagation through a proof rule. `ASSUMED` is not a criticism: such a fact is
+sound, and the grade records where it came from, not whether it is right. What it tells
+you is which of your semantics somebody has actually decided.
+
+Nothing is enforced by this. The grades are shown so you can see how much of a project is
+declared before there is any way to require it — a finance mart and an exploration mart
+want different answers, and neither can act on the number until it exists.
+
 **`explain` prints; it never runs anything.** There is no `bloomery run`, no connection
 string, and no profile — not as an omission but as a decision. Execution belongs to
 whatever already owns your warehouse credentials.

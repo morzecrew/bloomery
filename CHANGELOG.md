@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`bloomery explain` shows where each semantic fact came from.** Every fact
+  a plan rests on now prints with an evidence grade: `LOCKED` where a person
+  declared it in a spec, `ASSUMED` where the compiler obtained it mechanically
+  — a default, an inference from a type, a propagation through a proof rule.
+  `ASSUMED` is not a criticism; such a fact is sound under the closed-world
+  floor, and the grade records where it came from rather than whether it is
+  right.
+
+  `EvidenceGrade` is a projection of `Provenance`, five members onto three, and
+  the mapping is total and tested: a provenance added without a grade raises at
+  the first fact that carries it. It is **derived and never written** — there
+  is no field, no argument and no spec key, because a grade an author could
+  assert would be an unchecked claim about a claim.
+
+  Nothing is required and nothing is refused. The grades exist so a project can
+  see how much of its semantics is declared and how much is defaulted, which is
+  the number a consumer would need before it could ask for more.
+
 - **`bloomery check` — a semantic gate for CI.** Load, resolve, type-check,
   prove the static invariants, report; no target emission, no warehouse, no
   credentials and no network, because compilation was already pure and this

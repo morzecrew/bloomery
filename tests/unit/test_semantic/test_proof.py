@@ -16,6 +16,7 @@ from bloomery.semantic import (
     BASIS_RULES,
     RULES,
     SUPERSEDED,
+    EvidenceGrade,
     Obligation,
     Proof,
     Provenance,
@@ -582,3 +583,87 @@ def test_facts_are_deduplicated_on_a_proof() -> None:
     proof = Proof(rule="R001", conclusion=SemanticJudgement("Reaches"), facts=(fact, fact))
 
     assert proof.facts == (fact,)
+
+
+# ....................... #
+# RFC 0065 §5.1 — the grade projection
+
+
+@pytest.mark.parametrize(
+    ("provenance", "grade"),
+    [
+        (Provenance.DECLARED, EvidenceGrade.LOCKED),
+        (Provenance.DERIVED, EvidenceGrade.ASSUMED),
+        (Provenance.IMPORTED_VERIFIED, EvidenceGrade.ASSUMED),
+        (Provenance.INFERRED_HEURISTIC, EvidenceGrade.OPEN),
+        (Provenance.UNKNOWN, EvidenceGrade.OPEN),
+    ],
+)
+def test_the_projection_is_stated_once_as_a_table(
+    provenance: Provenance, grade: EvidenceGrade
+) -> None:
+    """§5.1's table, parametrized over every member rather than sampled.
+
+    ``IMPORTED_VERIFIED`` landing in ``ASSUMED`` is the row D8 leaves open and
+    execution settled (``logs/T-0031.md``): it was authored, and not authored
+    *here*, and the second is what a strict consumer asks about.
+    """
+
+    assert provenance.grade is grade
+
+
+def test_every_provenance_has_a_grade() -> None:
+    """D7, `LOCKED` — the one test §9 says must not be dropped as ritual.
+
+    §5.1's table is a second place :class:`Provenance` is enumerated, and a
+    projection can drift from what it projects. This is what keeps them
+    together: a member added to the enum without a row is a ``KeyError`` at the
+    first fact that carries it, and this fails in the commit that adds it
+    rather than at some later call site.
+
+    Asked of every member rather than of the mapping's size, because a mapping
+    of the right length with the wrong keys satisfies a count and not this.
+    """
+
+    for provenance in Provenance:
+        assert isinstance(provenance.grade, EvidenceGrade)
+
+
+def test_a_grade_is_not_a_second_scale_for_closing() -> None:
+    """The two lines through :class:`Provenance` are deliberately different.
+
+    ``closes`` asks whether a fact is sound enough to prove something; a grade
+    asks whether a human here wrote it down. ``DERIVED`` answers yes to the
+    first and no to the second, and a reader who assumed the grades were a
+    relabelling of ``closes`` would conclude that an ``ASSUMED`` fact fails
+    RFC 0039's floor — which is the misreading §9 warns the wording can cause.
+    """
+
+    assert Provenance.DERIVED.closes
+    assert Provenance.DERIVED.grade is EvidenceGrade.ASSUMED
+
+    closing = {member for member in Provenance if member.closes}
+    locked = {member for member in Provenance if member.grade is EvidenceGrade.LOCKED}
+    assert locked < closing
+
+
+def test_a_grade_is_never_taken_as_input() -> None:
+    """D1, `LOCKED` — derived, never written.
+
+    A fact carries a provenance and computes its grade; there is no field, no
+    argument and no setter, so nothing in a spec or a caller can assert one.
+    The absence is asserted because it is the whole guarantee: a settable
+    grade would be an unchecked claim about a claim.
+    """
+
+    fields = {field.name for field in dataclasses.fields(SemanticFact)}
+    assert "grade" not in fields
+    assert "provenance" in fields
+
+    with pytest.raises(TypeError):
+        SemanticFact(  # type: ignore[call-arg]
+            source="metric:revenue",
+            provenance=Provenance.DECLARED,
+            statement="declared additive",
+            grade=EvidenceGrade.LOCKED,
+        )

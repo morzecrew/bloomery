@@ -86,6 +86,7 @@ from bloomery.resolve import (
 from bloomery.runtime import HydrationKey, LruManifestHydrator
 from bloomery.schema import JsonDict, SpecKind, all_spec_schemas, spec_json_schema
 from bloomery.semantic import (
+    EvidenceGrade,
     PlanNode,
     Proof,
     SemanticFact,
@@ -138,6 +139,7 @@ __all__ = [
     "EMPTY_REGISTRY",
     "Edge",
     "EmittedArtifact",
+    "EvidenceGrade",
     "Explanation",
     "FieldProvenance",
     "Gap",

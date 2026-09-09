@@ -509,16 +509,33 @@ def _reads_semantic(source: str) -> list[int]:
     ]
 
 
-def test_nothing_in_the_tree_reads_the_plan_yet() -> None:
-    """P1 is the IR alone, pinned rather than left for a reader to infer from a
-    plan sitting beside the SQL.
+#: The one module admitted to read the plan, by path rather than by pattern.
+#:
+#: RFC 0065 P1 renders each fact's evidence grade in ``bloomery explain``, which
+#: reads ``query.semantic`` — the first reader in the tree. It is admitted
+#: because what the guard below protects is that nothing changes *what the query
+#: is generated from*, and a renderer generates nothing: the SQL, the columns and
+#: the explanation are byte-identical with the section present or absent.
+#:
+#: A path and not a glob, so the next module wanting in has to be named here and
+#: argued for, which is what the guard is for (logs/T-0031.md).
+_RENDERS_THE_PLAN = ("cli/__init__.py",)
+
+
+def test_only_the_renderer_reads_the_plan() -> None:
+    """Nothing *generates* from the plan, pinned rather than left for a reader
+    to infer from a plan sitting beside the SQL.
 
     Wiring a target to the plan would change what the query is generated from,
     which is the one thing this phase must not do if §8's parity suite is to
     mean anything (D5). Asserted structurally because there is no behaviour to
-    observe: the plan being unread is exactly why it changes nothing, so the
-    only evidence is that no module reads it. When P2 wires a target, this is
-    where someone has to say so deliberately.
+    observe: the plan being unread by any generator is exactly why it changes
+    nothing, so the only evidence is which modules read it.
+
+    It began as "nothing in the tree reads the plan yet" and said that when P2
+    wires a target, someone has to say so deliberately. RFC 0065 P1 is not that
+    phase — it renders the plan's facts in ``explain`` and emits nothing from
+    them — so the guard narrows to a named allowlist instead of being deleted.
 
     Over the parsed tree, not a regex. A grep for ``.semantic`` matches every
     ``from bloomery.semantic import`` line in the package and does not match
@@ -537,10 +554,23 @@ def test_nothing_in_the_tree_reads_the_plan_yet() -> None:
     readers = sorted(
         f"{path.relative_to(source)}:{line}"
         for path in source.rglob("*.py")
+        if path.relative_to(source).as_posix() not in _RENDERS_THE_PLAN
         for line in _reads_semantic(path.read_text(encoding="utf-8"))
     )
 
-    assert readers == [], f"something now reads the plan: {readers}"
+    assert readers == [], f"something now generates from the plan: {readers}"
+
+    # The allowlist is checked for *use*, not just legality: an entry that has
+    # stopped reading the plan is an exemption nobody needs, and one left behind
+    # exempts whatever lands in that file next.
+    admitted = sorted(
+        name
+        for name in _RENDERS_THE_PLAN
+        if _reads_semantic((source / name).read_text(encoding="utf-8"))
+    )
+    assert admitted == sorted(_RENDERS_THE_PLAN), (
+        f"an admitted module no longer reads the plan: {set(_RENDERS_THE_PLAN) - set(admitted)}"
+    )
 
 
 def test_a_multiplying_node_with_a_closed_proof_is_accepted() -> None:
