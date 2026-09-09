@@ -283,8 +283,9 @@ entity_model: entities.order.fields.total.type: String should match pattern '^(?
 
 ## Scripting with `--format json`
 
-`plan`, `resolve` and `explain` take `--format json`, and it emits the **same values the
-Python API returns** — not a summary of them. `bloomery resolve --format json` carries
+`plan`, `resolve`, `check` and `explain` take `--format json`, and it emits the **same
+values the Python API returns** — not a summary of them. `bloomery resolve --format json`
+carries
 each mart's measures and dimensions and the full text of every refusal even though the
 table prints neither, because a script should not have to drop into Python for a field
 the function already returned.
@@ -300,6 +301,16 @@ writes it as, `decimal(12, 4)`. And a refusal — which is an exception, not a d
 becomes its `type`, its `message`, and every attribute it carries, so `source_path` and
 the [structured fix suggestions](../reference/errors.md) arrive as fields rather than as
 prose to re-parse.
+
+**There is no `status` field, and `check` does not add one.** The verdict is the exit
+code, and a key repeating it would be a second answer that can disagree with the first.
+A consumer reading a stored artifact rather than an exit code reads the stage, which says
+more than a verdict would — *where* analysis stopped, not just that it did:
+
+```bash
+bloomery check specs/ --format json | jq -e '.stage_reached == "complete"'
+bloomery check specs/ --format json | jq '.checked // "stopped before an IR was built"'
+```
 
 ## What the CLI will never grow
 

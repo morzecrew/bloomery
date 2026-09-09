@@ -55,6 +55,7 @@ from bloomery import (
     Node,
     Op,
     RowPolicy,
+    SpecEvidence,
     SpecKind,
     Stage,
     Target,
@@ -251,6 +252,28 @@ def _resolve(arguments: argparse.Namespace) -> int:
     else:
         _emit(render.render_evidence(evidence), as_json=False)
 
+    return _evidence_exit(evidence)
+
+
+# ....................... #
+
+
+def _evidence_exit(evidence: SpecEvidence) -> int:
+    """The one exit rule ``resolve`` and ``check`` both return.
+
+    Shared rather than spelled twice, and the reason is RFC 0044 D7: the row's
+    objection to a second command is that two commands which mostly agree is
+    its own defect. They cannot *stop* agreeing about the exit code if there is
+    one rule — and a divergence here is the expensive kind, because a gate that
+    passes what the other command refuses is discovered by a wrong number in
+    production rather than by a failing test.
+
+    ``COMPLETE`` and not ``not evidence.refusals``: the two coincide today, and
+    the stage is the one that stays true. A refusal is *why* the pipeline
+    stopped; the stage is *that* it stopped, and a future stage that ends
+    analysis without collecting a refusal would silently pass the second form.
+    """
+
     return EXIT_OK if evidence.stage_reached is Stage.COMPLETE else EXIT_REFUSED
 
 
@@ -288,7 +311,7 @@ def _check(arguments: argparse.Namespace) -> int:
     else:
         _emit(render.render_check(evidence), as_json=False)
 
-    return EXIT_OK if evidence.stage_reached is Stage.COMPLETE else EXIT_REFUSED
+    return _evidence_exit(evidence)
 
 
 # ....................... #

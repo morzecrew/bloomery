@@ -84,12 +84,14 @@ def render_check(evidence: SpecEvidence) -> str:
     rest" — which is why the counts here are surfaces and the counts there are
     metric names (RFC 0044 D7, settled in ``logs/T-0030.md``).
 
-    **A refused project prints no counts at all.** Where the pipeline stopped
-    before building an IR there is nothing honest to print: a zero would read
-    as a checked surface holding nothing, which is the misreading
-    :attr:`~bloomery.SpecEvidence.checked` is ``None`` rather than zeroed to
-    prevent. Where it stopped *after* one — a draft IR refused two stages
-    later — the counts are real and are labelled as the prefix they are.
+    **Whether a refused project prints counts depends on whether one was
+    computed, not on whether it was refused.** A pipeline that stopped before
+    building an IR has nothing honest to print, and prints a sentence saying
+    so: a zero would read as a checked surface holding nothing, which is the
+    misreading :attr:`~bloomery.SpecEvidence.checked` is ``None`` rather than
+    zeroed to prevent. One that stopped *after* building a draft IR — refused
+    two stages later — has counts that are real, and they are printed under
+    the stage that says they are a prefix.
 
     **No total, no percentage, and no "obligations proven" line.** The first
     two would imply coverage nobody proved (D5); the third has no denominator,

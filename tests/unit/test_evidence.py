@@ -512,11 +512,12 @@ def test_each_counted_surface_has_a_fixture_that_makes_it_non_zero(
     zeros cannot distinguish from a working counter. ``minimal`` is the
     control: it carries no relationships and must say so.
 
-    ``currency_convert_refusal`` is here for a narrower reason. A conversion is
-    counted from the mapping chain rather than from the IR, and this fixture is
-    one whose conversion the compiler refuses to *lower* — so a count that had
-    quietly become "conversions that lowered" would read zero here and stay
-    green on ``currency_convert``.
+    ``currency_convert_refusal`` is here for a narrower reason. Its conversion
+    resolves and passes every guardrail and is refused at **emit**, where the
+    marker reaches a target that does not define it (RFC 0023 D4) — a stage
+    ``check`` never runs. It is counted, because it was checked; a count that
+    had quietly become "conversions that survive emission" would read zero here
+    and stay green on ``currency_convert``.
     """
 
     project, catalog = load_fixture(name)
@@ -595,3 +596,26 @@ def test_a_draft_ir_is_counted_and_the_stage_says_it_is_a_prefix() -> None:
     assert evidence.checked == CheckedSurfaces(
         entities=2, relationships=1, measures=2, marts=0, conversions=0, temporal_joins=0
     )
+
+
+def test_only_a_simple_mapping_and_a_key_carry_a_transform_chain() -> None:
+    """The count reads a chain off whatever has one, and this says which do.
+
+    ``_conversions`` asks each field for its ``transform`` with a default, so a
+    mapping kind that gained a chain would be walked past in silence and every
+    conversion in it would go uncounted — a failure with no symptom, since the
+    number would simply be smaller. This fails instead, in the commit that adds
+    the chain (RFC 0061 D7 reached the same answer for ``currency_in``).
+    """
+
+    from bloomery.spec.mapping import (
+        KeyField,
+        MacroFieldMapping,
+        RecipeFieldMapping,
+        SimpleFieldMapping,
+    )
+
+    assert "transform" in KeyField.model_fields
+    assert "transform" in SimpleFieldMapping.model_fields
+    assert "transform" not in RecipeFieldMapping.model_fields
+    assert "transform" not in MacroFieldMapping.model_fields

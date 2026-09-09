@@ -87,9 +87,17 @@ class CheckedSurfaces:
     ``conversions`` is counted from the mapping chains rather than from the IR,
     because a conversion is a *step inside* a field mapping and does not survive
     into :class:`~bloomery.ProjectIR` as a node of its own. Every one of them is
-    walked and proven during resolve (RFC 0061's R009), so the declared count
-    and the proven count are the same number — a chain carrying a conversion
-    that could not be proven does not reach a stage that builds an IR.
+    walked and proven during resolve (RFC 0061's R009), so wherever there is an
+    IR to count against, the declared count and the proven count are the same
+    number: a chain whose conversion could not be proven refuses before an IR
+    exists, and this field is then not reported at all.
+
+    A conversion refused *later*, at emit, is still counted — ``convert`` lowers
+    to a token some targets do not define (RFC 0023 D4), and that refusal
+    belongs to the target rather than to the project. ``check`` reaches no
+    target by construction (RFC 0044 D1), so counting it as unchecked would
+    report a surface as unexamined because a command that never runs would
+    reject it.
 
     The set of categories is D5's `ASSUMED` half, adjustable by a later phase;
     what is not adjustable is that each one names something checked.
