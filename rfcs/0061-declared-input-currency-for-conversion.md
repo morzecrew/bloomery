@@ -16,7 +16,7 @@
   — the conversion lowering and its `to`-side refusal;
   [`src/bloomery/guardrails/arithmetic.py`](../src/bloomery/guardrails/arithmetic.py) — the
   currency rule; [`src/bloomery/spec/catalog.py`](../src/bloomery/spec/catalog.py) — where
-  `currency:` may be declared today; [RFC 0038](0038-measure-semantic-types-and-additivity.md)
+  `currency:` may be declared today; RFC 0038
   D3, whose second clause this document is the missing half of;
   [RFC 0039](0039-semantic-proof-ir.md) — the proof registry this mints into;
   [RFC 0042](0042-semantic-bug-corpus.md) — case 004.

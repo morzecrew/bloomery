@@ -13,7 +13,7 @@
   rows it proposes are in [`logs/T-0020.md`](../logs/T-0020.md); nothing below has been amended
   to agree with what was built. Third in the semantic-correctness sequence; depends on
   [RFC 0037](0037-semantic-grain-model.md) and
-  [RFC 0038](0038-measure-semantic-types-and-additivity.md).
+  RFC 0038.
 - **Scope:** Replace "absence of a violation" as the long-term model of query validity with
   explicit positive derivations. Introduce proof and refutation values that `bloomery
   explain` can render and planners can consume. No guardrail is deleted here.
