@@ -2,6 +2,10 @@
 
 - **Origin:** `industry-pattern`. Every per-unit rate has rows where the unit count is
   zero, and the cost those rows carry has to go somewhere.
+- **Why a zero and not a null**, under a name RFC 0042 §3 wrote as `null-denominator`:
+  `SUM` skips a null, so both spellings return the same 4.00 — but a null lets the wrong
+  answer be read as an aggregation artefact, while a zero is a count the source asserts.
+  The bug is which rows the ratio is about, and a zero says that with nothing missing.
 - **Tier:** execution (DuckDB).
 
 ## The business question
