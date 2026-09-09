@@ -1,7 +1,8 @@
-"""The command line: six commands, each a shell over one public function
+"""The command line: eight commands, each a shell over one public function
 (RFC 0020 §5.2, D4–D6).
 
-``bloomery compile|plan|resolve|explain|schema|fingerprint``. Every command is
+``bloomery compile|plan|resolve|check|lineage|explain|schema|fingerprint``.
+Every command is
 *read files → call the public API → write stdout or a directory*. None of them
 adds logic: what they add is that the most useful thing bloomery knows — which
 metrics are computable, and which specific leaf is missing for the ones that
@@ -20,9 +21,14 @@ are not — stops requiring a Python script to ask.
   hanging up early is not an error at all, so ``bloomery schema | head``
   exits ``0`` quietly.
 
-``--format json`` on ``plan``, ``resolve`` and ``explain`` emits the same
-values the Python API returns, so the CLI is not a second, lossier surface
-(:mod:`bloomery.cli.serialize`).
+``--format json`` on ``plan``, ``resolve``, ``check``, ``lineage`` and
+``explain`` emits the same values the Python API returns, so the CLI is not a
+second, lossier surface (:mod:`bloomery.cli.serialize`).
+
+``check`` is ``resolve``'s sibling rather than its replacement (RFC 0044 D7):
+one evaluation, one exit rule, two questions. ``resolve`` answers which metrics
+are computable and what is missing for the rest; ``check`` answers whether what
+the project declares holds, as a count per semantic surface and a refusal list.
 
 **What is deliberately absent.** No ``run`` and no engine connection, ever
 (D9) — ``explain`` prints SQL and the consumer executes it, which is what keeps
@@ -55,6 +61,7 @@ from bloomery import (
     Node,
     Op,
     RowPolicy,
+    SpecEvidence,
     SpecKind,
     Stage,
     Target,
@@ -251,7 +258,66 @@ def _resolve(arguments: argparse.Namespace) -> int:
     else:
         _emit(render.render_evidence(evidence), as_json=False)
 
+    return _evidence_exit(evidence)
+
+
+# ....................... #
+
+
+def _evidence_exit(evidence: SpecEvidence) -> int:
+    """The one exit rule ``resolve`` and ``check`` both return.
+
+    Shared rather than spelled twice, and the reason is RFC 0044 D7: the row's
+    objection to a second command is that two commands which mostly agree is
+    its own defect. They cannot *stop* agreeing about the exit code if there is
+    one rule — and a divergence here is the expensive kind, because a gate that
+    passes what the other command refuses is discovered by a wrong number in
+    production rather than by a failing test.
+
+    ``COMPLETE`` and not ``not evidence.refusals``: the two coincide today, and
+    the stage is the one that stays true. A refusal is *why* the pipeline
+    stopped; the stage is *that* it stopped, and a future stage that ends
+    analysis without collecting a refusal would silently pass the second form.
+    """
+
     return EXIT_OK if evidence.stage_reached is Stage.COMPLETE else EXIT_REFUSED
+
+
+# ....................... #
+
+
+def _check(arguments: argparse.Namespace) -> int:
+    """``bloomery check`` — the CI gate (RFC 0044 P1).
+
+    Load, resolve, semantic type-check, prove the static invariants, report.
+    **No emission, no warehouse, no credentials, no network** (D1) — which is
+    not a property this command establishes but one it inherits: compilation is
+    already pure under RFC 0003, and :func:`~bloomery.evaluate` runs the same
+    stages ``resolve`` does and stops before any target is asked for anything.
+
+    A separate command from ``resolve`` rather than an exit contract grown onto
+    it (D7, settled in ``logs/T-0030.md``). The exit behaviour is identical **by
+    construction** — both read ``stage_reached`` off one ``SpecEvidence``, so
+    there is no second contract that can drift from the first — and what differs
+    is the question each answers and therefore what each prints.
+
+    **What does not fail this command**: an unreachable metric, and an open
+    decision. Neither is a refusal — the pipeline reported them and carried on
+    to ``COMPLETE`` — and a gate that failed on either would refuse every
+    project mid-build, which is the state a draft is supposed to pass through.
+    Both are logged as unlisted decisions in the same log, because §3 settles
+    the exit code against refusals and says nothing about these.
+    """
+
+    project, catalog = _load(arguments.directory, arguments.catalog)
+    evidence = evaluate(project, catalog=catalog)
+
+    if arguments.format == "json":
+        _emit(evidence, as_json=True)
+    else:
+        _emit(render.render_check(evidence), as_json=False)
+
+    return _evidence_exit(evidence)
 
 
 # ....................... #
@@ -618,6 +684,13 @@ def build_parser() -> argparse.ArgumentParser:
     _add_spec_directory(resolve_parser)
     _add_format(resolve_parser)
     resolve_parser.set_defaults(run=_resolve)
+
+    check_parser = commands.add_parser(
+        "check", help="semantic gate for CI: what was checked, and what refused"
+    )
+    _add_spec_directory(check_parser)
+    _add_format(check_parser)
+    check_parser.set_defaults(run=_check)
 
     lineage_parser = commands.add_parser(
         "lineage", help="where a node comes from, or what a change to it would reach"

@@ -1,8 +1,20 @@
 # RFC 0044 — `bloomery check` and imported semantic provenance
 
-- **Status:** 📝 Draft — proposed. P1 (native-spec `check`) needs only today's compiler and
-  can start once the refusal vocabulary is stable; P2 (mechanical imports) depends on
-  [RFC 0039](0039-semantic-proof-ir.md)'s provenance model.
+- **Status:** 🚧 In progress — §9's P1 has landed: `bloomery check`, its per-surface counts,
+  and the CI exit contract ([`logs/T-0030.md`](../logs/T-0030.md)). P1 was smaller than §2
+  describes, because `resolve` has since gained the exit-code contract §2 says it lacks and
+  the CLI encoder has since gained the refusal serialisation D6 asks for — the command is
+  the shape those two did not have, not the purity they already did. D7 is settled as a
+  separate command over one shared evaluation and D8 by omitting the obligations line, both
+  in that log. **P2 (mechanical imports) is unscheduled** and is what holds this document
+  open; it depends on [RFC 0039](0039-semantic-proof-ir.md)'s provenance model, which is
+  itself still in progress. Execution's findings and the rows it proposes are in the same
+  log; nothing below has been amended to agree with what was built. **§§2, 3 and 7 read as
+  they were written and describe the pre-P1 state** — no `check`, no exit contract on
+  `resolve`, an obligations line, a `status` field, D7 and D8 open. They are the record of
+  what was believed when the design was made, and retrofitting them would destroy the only
+  evidence that any of it changed; what shipped instead is the code, the tests and
+  [`use-the-cli.md`](../pages/docs/how-to/use-the-cli.md).
 - **Scope:** A low-friction CI command performing semantic validation and proof without
   emission or execution, and a conservative provenance model for importing facts from
   external project artifacts.

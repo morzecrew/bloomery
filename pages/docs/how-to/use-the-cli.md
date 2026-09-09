@@ -1,7 +1,7 @@
 # Use the CLI
 
 You want to compile a spec directory, or find out which metrics it can actually answer,
-without writing a Python script. `bloomery` is that: six commands, each a thin argument
+without writing a Python script. `bloomery` is that: eight commands, each a thin argument
 shell over one public function.
 
 ```bash
@@ -58,12 +58,13 @@ A project that wires a `steps:` document reports the unwired step here, because 
 passes no registry — see [Steps are the one thing the CLI cannot wire](#compiling) below.
 `bloomery compile` on the same project refuses for the same reason.
 
-## The seven commands
+## The eight commands
 
 ```text
 bloomery compile     <dir> [--target sqlmesh] [--dialect duckdb] [--catalog F] [--out DIR]
 bloomery plan        <old-dir> <new-dir> [--catalog F] [--format table|json]
 bloomery resolve     <dir> [--catalog F] [--format table|json]
+bloomery check       <dir> [--catalog F] [--format table|json]
 bloomery lineage     <dir> --node ID [--direction upstream|downstream|both] [--max-depth N]
                            [--catalog F] [--format table|json]
 bloomery explain     <dir> --metrics a,b [--by x,y] [--where JSON] [--grain month]
@@ -195,6 +196,57 @@ bloomery schema --kind entity_model | jq .
 See the [JSON Schema reference](../reference/json-schema.md) for what the documents
 contain and how to point an editor at them.
 
+## Checking in CI
+
+`resolve` answers "what can I compute, and what is missing for the rest". `check` answers
+"is what this project declares sound" — the same analysis, summarised as a gate:
+
+```bash
+bloomery check specs/
+```
+
+```text
+Stage: complete
+Fingerprint: blm1:46f0d4f549273b5e43db9b6961ce4ef35919611d2987e1dc0f841c355840087c
+
+  2  entities        resolved
+  1  relationships   checked
+  4  measures        type-check
+  1  marts           checked
+  0  conversions     proven
+  0  temporal joins  anchored
+
+0 refusal(s)
+```
+
+It needs no warehouse, no credentials, no network and no target — it reads files and calls
+[`evaluate()`](evaluate-a-spec.md), the same function `resolve` calls — so it runs in
+pre-commit and on a runner with no secrets:
+
+```yaml
+- name: bloomery semantic check
+  run: bloomery check .
+```
+
+**Each number is a surface that was checked, and there is no total.** A sum would imply a
+coverage nobody proved: a green `check` says the project's own declarations hold, not that
+every future query against it is safe.
+
+**What fails it is a refusal, and only a refusal.** An unreachable metric and an open
+decision are both reported by `resolve` and neither fails `check` — they say the mappings
+are incomplete, which is the state a draft passes through, not that what is written is
+wrong. Where analysis stopped before an IR existed, `check` says the counts are
+**unavailable** rather than printing six zeros: a zero reads as a surface that was checked
+and held nothing, and "nothing was checked" is false too — the stages that ran checked
+plenty, and what is missing is the arithmetic over an IR nobody built.
+
+Each verb names the process the count came from, not a verdict. Marts are `checked` and
+not *safe*: a guardrail refusal is reported over the draft it was handed, so a project
+refused for a reason unrelated to its marts prints its mart count beside that refusal,
+and the stage never finished ruling on them. The quality mart is not counted at all — it
+is bloomery-owned and attaches after the guardrails, so nothing checked it and nobody
+wrote it.
+
 ## Exit codes
 
 | Code | Meaning |
@@ -239,8 +291,9 @@ entity_model: entities.order.fields.total.type: String should match pattern '^(?
 
 ## Scripting with `--format json`
 
-`plan`, `resolve` and `explain` take `--format json`, and it emits the **same values the
-Python API returns** — not a summary of them. `bloomery resolve --format json` carries
+`plan`, `resolve`, `check` and `explain` take `--format json`, and it emits the **same
+values the Python API returns** — not a summary of them. `bloomery resolve --format json`
+carries
 each mart's measures and dimensions and the full text of every refusal even though the
 table prints neither, because a script should not have to drop into Python for a field
 the function already returned.
@@ -256,6 +309,16 @@ writes it as, `decimal(12, 4)`. And a refusal — which is an exception, not a d
 becomes its `type`, its `message`, and every attribute it carries, so `source_path` and
 the [structured fix suggestions](../reference/errors.md) arrive as fields rather than as
 prose to re-parse.
+
+**There is no `status` field, and `check` does not add one.** The verdict is the exit
+code, and a key repeating it would be a second answer that can disagree with the first.
+A consumer reading a stored artifact rather than an exit code reads the stage, which says
+more than a verdict would — *where* analysis stopped, not just that it did:
+
+```bash
+bloomery check specs/ --format json | jq -e '.stage_reached == "complete"'
+bloomery check specs/ --format json | jq '.checked // "stopped before an IR was built"'
+```
 
 ## What the CLI will never grow
 

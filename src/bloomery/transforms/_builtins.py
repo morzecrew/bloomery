@@ -787,9 +787,15 @@ CONVERT_FROM, CONVERT_TO, CONVERT_ANCHOR, CONVERT_TYPE = 1, 2, 3, 4
 #: where it compared a string literal against a date and neither guard noticed.
 CONVERT_ARITY = 5
 
+#: The chain step's authored name, as against :data:`CONVERT_MARKER`, which is
+#: the SQL token it lowers to. Shared for the reason the marker is: the
+#: registration here and the surface count in ``evidence`` both name it, and a
+#: count that spells it differently reports every project as converting nothing.
+CONVERT_TRANSFORM = "convert"
+
 
 @transform(
-    "convert",
+    CONVERT_TRANSFORM,
     arity=3,
     arg_kinds=(ArgKind.STR, ArgKind.STR, ArgKind.STR),
     input=(DecimalType,),

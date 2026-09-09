@@ -30,6 +30,7 @@ def test_public_api_surface() -> None:
         "Catalog",
         "Change",
         "ChangeClass",
+        "CheckedSurfaces",
         "Clause",
         "ColumnDescriptor",
         "ColumnRole",

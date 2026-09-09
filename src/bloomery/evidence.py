@@ -40,13 +40,17 @@ from typing import TYPE_CHECKING
 
 from bloomery.errors import BloomeryError, InvariantViolated
 from bloomery.ir import Materialization, UnreachableMetric, project_fingerprint
+from bloomery.quality import is_quality_mart
 from bloomery.resolve import FieldProvenance, Resolution, Stage, StageProgress, pipeline
 
-# Imported at run time rather than under ``TYPE_CHECKING``: both appear in
-# ``evaluate``'s signature, and the signature-closure test resolves every
-# public annotation for real (RFC 0018 D10).
+# ``Catalog`` and ``Project`` are imported at run time rather than under
+# ``TYPE_CHECKING``: both appear in ``evaluate``'s signature, and the
+# signature-closure test resolves every public annotation for real
+# (RFC 0018 D10). Named here because the comment travels with whatever import
+# sorts after it, and this one no longer does.
 from bloomery.spec import Catalog, Project
 from bloomery.steps import EMPTY_REGISTRY, StepRegistry
+from bloomery.transforms import CONVERT_TRANSFORM
 
 if TYPE_CHECKING:
     from bloomery.ir import MartIR, ProjectIR
@@ -54,6 +58,7 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 __all__ = [
+    "CheckedSurfaces",
     "Gap",
     "MartSummary",
     "OpenDecision",
@@ -61,6 +66,61 @@ __all__ = [
     "SpecEvidence",
     "evaluate",
 ]
+
+
+@dataclass(frozen=True, slots=True)
+class CheckedSurfaces:
+    """How many of each semantic surface the pipeline actually checked
+    (RFC 0044 §3, D5).
+
+    **Counts of what was checked, never of what exists.** The distinction is
+    the whole of D5: a total implying coverage nobody proved is what makes a
+    green gate read as "every future query is safe", and a large round number
+    is exactly what invites that reading. Every number here is a surface the
+    stages that ran had to form an opinion about in order to reach the stage
+    they reached.
+
+    ``measures`` is reachable-plus-unreachable and **not** ``len(ir.metrics)``,
+    for the reason :func:`_from_ir` gives about reachability: a finished IR also
+    carries the quality mart's bloomery-owned metrics, which nobody authored.
+    Counting those would put five measures in front of a reader that are not in
+    their spec, and would make this field answer about a different population
+    than :attr:`SpecEvidence.reachable` does.
+
+    ``conversions`` is counted from the mapping chains rather than from the IR,
+    because a conversion is a *step inside* a field mapping and does not survive
+    into :class:`~bloomery.ProjectIR` as a node of its own. Every one of them is
+    walked and proven during resolve (RFC 0061's R009), so wherever there is an
+    IR to count against, the declared count and the proven count are the same
+    number: a chain whose conversion could not be proven refuses before an IR
+    exists, and this field is then not reported at all.
+
+    A conversion refused *later*, at emit, is still counted — ``convert`` lowers
+    to a token some targets do not define (RFC 0023 D4), and that refusal
+    belongs to the target rather than to the project. ``check`` reaches no
+    target by construction (RFC 0044 D1), so counting it as unchecked would
+    report a surface as unexamined because a command that never runs would
+    reject it.
+
+    The set of categories is D5's `ASSUMED` half, adjustable by a later phase;
+    what is not adjustable is that each one names something checked.
+    """
+
+    #: Entities in the IR, including step-produced ones.
+    entities: int
+    #: Declared relationships whose endpoints and ``via`` columns resolved.
+    relationships: int
+    #: Authored metrics the resolve stage ruled on, reachable or not.
+    measures: int
+    #: Authored marts the guardrail stage ruled on. The quality mart is
+    #: excluded: it is bloomery-owned and attaches *after* the guardrails, so
+    #: counting it would report a surface as checked that nothing checked and
+    #: nobody wrote — the population mistake ``measures`` avoids one field up.
+    marts: int
+    #: ``convert`` steps across every mapping's key and field chains.
+    conversions: int
+    #: Mart joins carrying an ``as_of`` anchor (RFC 0023 §5.3).
+    temporal_joins: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -278,6 +338,16 @@ class SpecEvidence:
     #: entity's** field appears once per mapping that builds it, each naming the
     #: document it was read from — see :class:`~bloomery.FieldProvenance`.
     provenance: tuple[FieldProvenance, ...] = ()
+    #: How many of each semantic surface were checked (RFC 0044 §3), or
+    #: ``None`` where the pipeline stopped before an IR existed to count from.
+    #:
+    #: ``None`` rather than a zeroed :class:`CheckedSurfaces`, and that is the
+    #: one field here that escapes the read-``stage_reached``-first rule by
+    #: construction rather than by documentation: every tuple above is empty in
+    #: two situations meaning opposite things, and a count of ``0`` would be
+    #: read as "this surface was checked and held nothing" by anyone who skims.
+    #: There is no honest zero to print, so the field says so itself.
+    checked: CheckedSurfaces | None = None
 
 
 # ....................... #
@@ -456,6 +526,42 @@ def _from_ir(
         ),
         entities=tuple(sorted(entity.name for entity in ir.entities)),
         fingerprint=fingerprint,
+        checked=CheckedSurfaces(
+            entities=len(ir.entities),
+            relationships=len(ir.relationships),
+            measures=len(reachable) + len(unreachable),
+            marts=sum(1 for mart in ir.marts if not is_quality_mart(mart)),
+            conversions=_conversions(project),
+            temporal_joins=sum(
+                1 for mart in ir.marts for join in mart.joins if join.as_of is not None
+            ),
+        ),
+    )
+
+
+# ....................... #
+
+
+def _conversions(project: Project) -> int:
+    """``convert`` steps across every mapping's key and field chains.
+
+    Both halves are walked because ``resolve.build`` walks both: a decimal key
+    is legal and a conversion on one is strange rather than refused, so a count
+    reading only ``fields`` would report a surface as unchecked that the
+    compiler proved (`KeyField.currency_in`, RFC 0061 D7).
+
+    ``getattr`` rather than a type test: only a simple mapping and a key field
+    carry a chain, and a recipe or macro mapping has no ``transform`` at all —
+    neither can hold a ``convert`` step, which is the same answer RFC 0061 D7
+    reached for ``currency_in``.
+    """
+
+    return sum(
+        1
+        for mapping in project.mappings
+        for field in (*mapping.key.values(), *mapping.fields.values())
+        for step in getattr(field, "transform", ())
+        if step.name == CONVERT_TRANSFORM
     )
 
 

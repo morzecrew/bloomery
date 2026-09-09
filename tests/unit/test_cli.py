@@ -53,16 +53,18 @@ from bloomery import (
     build_project_ir,
     compile_project,
     evaluate,
+    load_project,
     plan,
     project_fingerprint,
 )
 from bloomery.cli import EXIT_INTERNAL, EXIT_OK, EXIT_REFUSED, EXIT_USAGE, build_parser, main
 from bloomery.cli.io import CliIoError, read_spec_directory, write_files
-from bloomery.cli.render import render_evidence, render_plan
+from bloomery.cli import render
+from bloomery.cli.render import render_check, render_evidence, render_plan
 from bloomery.cli.serialize import SpecEncoder
 from bloomery.errors import BloomeryError
 from bloomery.naming import DefaultNaming
-from support.compiling import COLLIDING_ID_SOURCES, load_fixture
+from support.compiling import COLLIDING_ID_SOURCES, fixture_sources, load_fixture
 
 
 def as_json_value(value: object) -> object:
@@ -109,6 +111,8 @@ def _json(capsys: pytest.CaptureFixture[str], *argv: str) -> object:
     [
         ("resolve", ECOM),
         ("resolve", ECOM, "--format", "json"),
+        ("check", ECOM),
+        ("check", ECOM, "--format", "json"),
         ("fingerprint", ECOM),
         ("schema",),
         ("schema", "--kind", "metrics"),
@@ -890,6 +894,7 @@ def test_there_is_no_execution_command() -> None:
         "compile",
         "plan",
         "resolve",
+        "check",
         "lineage",
         "explain",
         "schema",
@@ -1493,3 +1498,175 @@ def test_a_command_body_os_error_is_still_an_internal_error(
     assert code == EXIT_INTERNAL
     assert "internal error" in err
     assert "stdout:" not in err
+
+
+# ....................... #
+# RFC 0044 P1 — `bloomery check`, the CI gate
+
+
+def test_check_json_matches_the_python_call(capsys: pytest.CaptureFixture[str]) -> None:
+    """The machine surface is the value, not a summary of it (RFC 0044 D6).
+
+    ``check`` and ``resolve`` dump the same ``SpecEvidence`` through the same
+    encoder, which is what keeps one refusal vocabulary across both rather than
+    a second one written for the gate.
+    """
+
+    project, catalog = load_fixture("ecom_basic")
+    assert _json(capsys, "check", ECOM, "--format", "json") == as_json_value(
+        evaluate(project, catalog=catalog)
+    )
+
+
+def test_check_and_resolve_cannot_disagree_about_the_exit_code(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """D7's separate command, and the reason it costs no second contract.
+
+    Both read ``stage_reached`` off one value, so the codes agree by
+    construction. Asserted over a passing project *and* a refused one, because
+    agreement on only the green path is what a divergent second contract looks
+    like right up until CI meets a bad spec.
+    """
+
+    for directory in (ECOM, FANOUT):
+        checked, _out, _err = run(capsys, "check", directory)
+        resolved, _out, _err = run(capsys, "resolve", directory)
+        assert checked == resolved
+
+    assert run(capsys, "check", ECOM)[0] == EXIT_OK
+    assert run(capsys, "check", FANOUT)[0] == EXIT_REFUSED
+
+
+def test_check_passes_a_project_with_an_unreachable_metric_and_an_open_decision(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Neither is a refusal, so neither fails the gate (``logs/T-0030.md``).
+
+    ``ecom_basic`` carries one of each and reaches ``COMPLETE``. A gate that
+    failed on them would refuse every project mid-build — the state a draft is
+    supposed to pass through — and the pipeline reported both and carried on.
+    """
+
+    project, catalog = load_fixture("ecom_basic")
+    evidence = evaluate(project, catalog=catalog)
+
+    assert evidence.unreachable
+    assert evidence.unresolved
+    assert not evidence.refusals
+
+    code, out, _err = run(capsys, "check", ECOM)
+    assert code == EXIT_OK
+    assert "0 refusal(s)" in out
+
+
+def test_check_prints_a_line_per_surface_and_no_total(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """One line per surface, and nothing that sums them (RFC 0044 D5).
+
+    A total or a percentage is what makes a green gate read as "every future
+    query is safe". The absence is asserted rather than trusted, because a
+    summary line is exactly the addition that looks like an improvement.
+    """
+
+    code, out, _err = run(capsys, "check", ECOM)
+    assert code == EXIT_OK
+
+    for surface in ("entities", "relationships", "measures", "marts", "conversions"):
+        assert surface in out
+
+    assert "temporal joins" in out
+    assert "total" not in out.lower()
+    assert "%" not in out
+
+
+def test_check_prints_no_obligations_line(capsys: pytest.CaptureFixture[str]) -> None:
+    """D8, settled by omission (``logs/T-0030.md``).
+
+    §3's sample output has a fifth line — "64 requested semantic obligations
+    proven" — and nothing in a project declares a request to count against, so
+    the line would be the vanity total D5 refuses. It returns when there is a
+    denominator.
+    """
+
+    _code, out, _err = run(capsys, "check", ECOM)
+    assert "obligation" not in out.lower()
+
+
+def test_check_reports_the_counts_as_unavailable_rather_than_zero(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A refusal before an IR prints a sentence, not six zeros — and the
+    sentence says *unavailable*, not "nothing was checked".
+
+    ``step_resolution`` refuses at the lower stage, so the resolve and
+    typecheck stages ran and checked plenty; what is missing is the arithmetic
+    over an IR nobody built. Six zeros would claim six surfaces were checked
+    and found empty, and "no surfaces checked" claims something else false.
+    """
+
+    code, out, _err = run(capsys, "check", str(FIXTURES / "step_resolution"))
+
+    assert code == EXIT_REFUSED
+    assert "Checked-surface counts unavailable" in out
+    assert "  0  " not in out
+    assert "No surfaces checked" not in out
+
+
+def test_a_mart_count_beside_a_refusal_is_not_called_safe(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A guardrail refusal is reported over the draft IR the stage was handed.
+
+    Refuse ``ecom_basic`` for a reason that has nothing to do with its marts —
+    a ratio metric declaring ``additivity: additive`` — and the mart is still
+    in that draft and still counted. The stage never finished ruling on it, so
+    the column says ``checked`` where §3's sample says ``safe``: one names the
+    process the count came from, the other a verdict nothing reached.
+    """
+
+    _project, catalog = load_fixture("ecom_basic")
+    sources = fixture_sources("ecom_basic")
+    sources["metrics"] = sources["metrics"].replace(
+        "    additivity: ratio\n", "    additivity: additive\n"
+    )
+    evidence = evaluate(load_project(sources), catalog=catalog)
+
+    assert evidence.stage_reached is Stage.GUARDRAILS
+    assert evidence.checked is not None
+    assert evidence.checked.marts == 1
+    assert "marts" in [name for name, _verb in render.CHECKED_SURFACES]
+    assert dict(render.CHECKED_SURFACES)["marts"] == "checked"
+
+    rendered = render_check(evidence)
+    assert "1  marts           checked" in rendered
+    # Anchored to the row, not to the word: a refusal message is rendered below
+    # and is free to contain "safe" without this test having an opinion on it.
+    assert "marts           safe" not in rendered
+
+
+def test_check_labels_a_stopped_stages_counts_as_a_prefix(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``fanout_trap`` refuses over a draft IR, so its counts are real and partial.
+
+    The banner is the same one ``resolve`` prints, and for the same reason
+    (RFC 0022 D5): every count below it is empty in two situations that mean
+    opposite things.
+    """
+
+    code, out, _err = run(capsys, "check", FANOUT)
+
+    assert code == EXIT_REFUSED
+    assert "prefix, not a total" in out
+    assert "3 refusal(s)" in out
+
+
+def test_check_renders_the_value_it_was_given(capsys: pytest.CaptureFixture[str]) -> None:
+    """The command formats and decides nothing (``cli.render``'s contract)."""
+
+    project, catalog = load_fixture("ecom_basic")
+    _code, out, _err = run(capsys, "check", ECOM)
+
+    assert out.strip() == render_check(evaluate(project, catalog=catalog)).strip()
