@@ -33,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   gate: they say the mappings are incomplete, not that what is written is
   wrong.
 
+- `bloomery.transforms` exports `CONVERT_TRANSFORM`, the `convert` chain
+  step's authored name, beside `CONVERT_MARKER`, which is the SQL token it
+  lowers to. Two places name it now — the registration and the surface count —
+  and a count spelling it differently would report every project as converting
+  nothing.
+
 - **A rollup now has to answer two questions, and they are asked separately.**
   `can_roll_up` says whether values may travel from one grain to another; it
   has never said anything about what may be done with them on arrival, and

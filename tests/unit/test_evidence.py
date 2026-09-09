@@ -27,6 +27,8 @@ import pytest
 from support.compiling import FIXTURES, fixture_sources, load_fixture
 from support.steps import registry_for
 
+from bloomery.evidence import _conversions
+
 from bloomery import (
     Catalog,
     CheckedSurfaces,
@@ -499,6 +501,7 @@ def test_the_fixture_corpus_is_actually_being_walked() -> None:
         ("currency_convert", "conversions", 1),
         ("currency_convert_refusal", "conversions", 1),
         ("scd2_as_of", "temporal_joins", 1),
+        ("ecom_basic", "temporal_joins", 0),
         ("minimal", "relationships", 0),
     ],
 )
@@ -509,8 +512,11 @@ def test_each_counted_surface_has_a_fixture_that_makes_it_non_zero(
 
     A count read from the wrong place is green against a corpus where every
     project happens to hold none of that surface, which is what a table of
-    zeros cannot distinguish from a working counter. ``minimal`` is the
-    control: it carries no relationships and must say so.
+    zeros cannot distinguish from a working counter. Two rows are controls:
+    ``minimal`` carries no relationships, and ``ecom_basic`` carries a mart
+    join that is *not* temporal — without it, counting every join and counting
+    the anchored ones are the same number on every fixture in the corpus, and
+    a sabotage that drops the ``as_of`` test survives (`logs/T-0030.md`).
 
     ``currency_convert_refusal`` is here for a narrower reason. Its conversion
     resolves and passes every guardrail and is refused at **emit**, where the
@@ -579,6 +585,24 @@ def test_nothing_is_counted_before_an_ir_exists(name: str) -> None:
     assert evidence.checked is None
 
 
+def test_nothing_is_counted_when_there_is_no_resolution_either() -> None:
+    """The *other* IR-less shape, which the fixtures above do not reach.
+
+    ``_partial`` has two ways to return without counts: a resolution that
+    produced no IR, and no resolution at all. Every refusing fixture in the
+    corpus takes the first — they all get past the resolve stage — so a
+    sabotage that zeroed the second survived the sweep untouched
+    (`logs/T-0030.md`). ``BAD_REFERENCE`` refuses at ``RESOLVE``, which is the
+    only thing that reaches it.
+    """
+
+    evidence = evaluate(load_project(BAD_REFERENCE))
+
+    assert evidence.stage_reached is Stage.RESOLVE
+    assert evidence.reachable == ()
+    assert evidence.checked is None
+
+
 def test_a_draft_ir_is_counted_and_the_stage_says_it_is_a_prefix() -> None:
     """``fanout_trap`` refuses at the guardrail stage over a draft IR.
 
@@ -619,3 +643,23 @@ def test_only_a_simple_mapping_and_a_key_carry_a_transform_chain() -> None:
     assert "transform" in SimpleFieldMapping.model_fields
     assert "transform" not in RecipeFieldMapping.model_fields
     assert "transform" not in MacroFieldMapping.model_fields
+
+
+def test_a_conversion_on_a_key_is_counted() -> None:
+    """``resolve.build`` walks a key's chain, so the count walks it too.
+
+    A key is a strange place to convert and RFC 0061 D7 keeps it legal anyway:
+    a decimal key can carry a marker, and an unwalked one reaches emit. No
+    fixture has one, so dropping ``mapping.key`` from the walk changed no test
+    (`logs/T-0030.md`) — the helper is exercised directly here rather than
+    through a pipeline that would first have to accept a decimal key.
+    """
+
+    sources = fixture_sources("currency_convert")
+    original = 'payment_id: {from: "$.id", transform: [to_string]}'
+    converted = 'payment_id: {from: "$.id", transform: [{convert: [EUR, USD, paid_at]}]}'
+    assert original in sources["mapping"]
+    sources["mapping"] = sources["mapping"].replace(original, converted)
+
+    assert _conversions(load_project(sources)) == 2
+    assert _conversions(load_project(fixture_sources("currency_convert"))) == 1
