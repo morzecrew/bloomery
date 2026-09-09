@@ -49,6 +49,11 @@ class EffectiveMetric:
     filter: tuple[MetricFilter, ...]
     description: str | None
     source_path: str
+    #: The authored stable id, or ``None`` (RFC 0062 §5.1). Appended so a
+    #: positional construction keeps working, and **never merged from a
+    #: template**: a template is instantiated many times and an id it carried
+    #: would make every instantiation the same node.
+    id: str | None = None
 
 
 # ....................... #
@@ -87,6 +92,7 @@ def _merge(name: str, metric: Metric, template: MetricTemplate | None) -> Effect
         filter=metric.filter or (template.filter if template else ()),
         description=metric.description or (template.description if template else None),
         source_path=source_path,
+        id=metric.id,
     )
 
 

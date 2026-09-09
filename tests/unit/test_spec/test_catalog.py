@@ -203,3 +203,56 @@ def test_fx_rates_refuses_one_column_in_two_roles() -> None:
     message = str(excinfo.value)
     assert "same column for more than one role" in message
     assert "'rate'" in message
+
+
+# ....................... #
+# RFC 0062 §9 — two canonical fields, one identity
+
+
+_TWO_FIELDS = """
+catalog_version: 1
+vertical: ecom_retail
+canonical_fields:
+  unit_price:
+    entity: order_item
+    type: decimal(12,4)
+{first}
+  list_price:
+    entity: order_item
+    type: decimal(12,4)
+{second}
+"""
+
+
+def test_two_canonical_fields_may_not_claim_one_identity() -> None:
+    """A copied ``id:`` between two catalog fields."""
+
+    with pytest.raises(SpecParseError) as raised:
+        load_catalog(_TWO_FIELDS.format(first="    id: cnl_1", second="    id: cnl_1"))
+
+    # Document order, not sorted: the keys are sorted so the *report* is
+    # deterministic, and within one collision the names stay in the order an
+    # author reads them.
+    assert "'unit_price', 'list_price'" in str(raised.value)
+    assert "canonical.cnl_1" in str(raised.value)
+
+
+def test_a_canonical_id_equal_to_a_sibling_name_is_refused() -> None:
+    """The half a rollout writes by accident: one field adopts an id that is
+    already another field's *name*, and only one of the two adopted anything."""
+
+    with pytest.raises(SpecParseError) as raised:
+        load_catalog(_TWO_FIELDS.format(first="", second="    id: unit_price"))
+
+    assert "canonical.unit_price" in str(raised.value)
+
+
+def test_two_canonical_fields_whose_keys_differ_are_accepted() -> None:
+    """The control. ``unit_price`` keys as ``list_price`` and ``list_price``
+    keys as ``spot`` — adjacent, and not a collision."""
+
+    catalog = load_catalog(
+        _TWO_FIELDS.format(first="    id: list_price", second="    id: spot")
+    )
+
+    assert sorted(catalog.canonical_fields) == ["list_price", "unit_price"]

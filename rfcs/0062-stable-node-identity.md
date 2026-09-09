@@ -1,9 +1,15 @@
 # RFC 0062 — Stable node identity across renames
 
-- **Status:** 📝 Draft — schedulable, and the smallest of the four-document identity and
-  history sequence. Nothing below depends on unlanded work except §9's duplicate-id refusal,
-  which wants RFC 0044's `check` and can land in the guardrail stage meanwhile; the other
-  three documents depend on this one.
+- **Status:** 🚧 In progress — §12's P1 has landed: the optional `id:` on every spec kind
+  that mints a node, node-id construction reading it, the duplicate refusal, and the
+  byte-exact opt-out ([`logs/T-0032.md`](../logs/T-0032.md)). D6 is settled there — a
+  write-once `id:`, because RFC 0063 reads history backwards and an annotation only exists
+  in the current spec — and D4 too: partial adoption is allowed and only a collision is
+  refused. **P2 (`plan()`'s second `RENAME` producer) and P3 (`lineage` and `explain`
+  carrying both id and name) are unscheduled** and are what hold this document open.
+  Execution's findings and the rows it proposes are in the same log; nothing below has been
+  amended to agree with what was built — §9's "until `check` lands" reads as written, and
+  the log records that `check` turned out not to be a place checks live.
 - **Scope:** A stable identifier on every node kind in `NODE_ID_PREFIXES`, minted once and
   never derived from the name, with the name demoted to a display label. One optional spec
   field, one change to node-id construction, one widened classification in `plan()`. No

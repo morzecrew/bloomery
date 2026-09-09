@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 from bloomery.errors import SpecParseError
+from bloomery import load_project
 from bloomery.spec import MetricSet
 from bloomery.spec.metrics import parse_time_window
 from bloomery.spec.common import validate_document
@@ -295,3 +296,95 @@ def test_a_filter_dimension_must_be_a_bare_identifier() -> None:
             "      - {dimension: \"evil') }} = 1 OR 1=1 --\", op: eq, values: [paid]}\n"
         )
     assert excinfo.value.source_path == "metrics: metrics.m.filter[0].dimension"
+
+
+# ....................... #
+# RFC 0062 §9 — two nodes, one identity
+
+
+def _metric_set(**bodies: str) -> MetricSet:
+    lines = ["metrics_version: 1", "metrics:"]
+    for name, body in bodies.items():
+        lines.append(f"  {name}:")
+        lines.extend(f"    {line}" for line in body.strip().splitlines())
+    return parse("\n".join(lines))
+
+
+_SIMPLE = "grain: order\nadditivity: additive\nagg: count\nexpr: order_id"
+
+
+def test_a_copied_id_is_refused_naming_both_metrics() -> None:
+    """§9's risk: duplicating a spec and forgetting to change ``id:``."""
+
+    with pytest.raises(SpecParseError) as raised:
+        _metric_set(revenue=f"id: mtr_1\n{_SIMPLE}", revenue_net=f"id: mtr_1\n{_SIMPLE}")
+
+    assert "'revenue', 'revenue_net'" in str(raised.value)
+    assert "metric.mtr_1" in str(raised.value)
+
+
+def test_an_id_equal_to_another_metrics_name_is_refused() -> None:
+    """The collision partial adoption makes likely, which §9 does not name.
+
+    One metric adopts ``id: revenue``; another is *named* ``revenue`` and adopts
+    nothing. Both mint ``metric.revenue``. Comparing ids to each other would
+    miss this entirely — there is only one id.
+    """
+
+    with pytest.raises(SpecParseError) as raised:
+        _metric_set(revenue=_SIMPLE, revenue_net=f"id: revenue\n{_SIMPLE}")
+
+    assert "metric.revenue" in str(raised.value)
+
+
+def test_an_id_matching_a_sibling_that_renamed_itself_is_accepted() -> None:
+    """The control, and the reason the check reads keys rather than ids.
+
+    ``revenue`` carries ``id: net`` and ``net`` carries ``id: gross``: the keys
+    are ``net`` and ``gross``, which do not collide. A rule comparing ids to
+    names would refuse this legal document — and it is the shape a rollout
+    produces, where an id is chosen to match a name something else already has.
+    """
+
+    assert _metric_set(revenue=f"id: net\n{_SIMPLE}", net=f"id: gross\n{_SIMPLE}").metrics
+
+
+def test_an_empty_id_is_refused_rather_than_minting_a_bare_prefix() -> None:
+    """An id that identifies nothing is not an identity.
+
+    ``id: ""`` passed the opacity rule — it is a string, compared and never
+    parsed — and minted the node id ``metric.``, the prefix and nothing else.
+    Non-emptiness is a boundary constraint, not the parsing RFC 0062 D2 forbids:
+    nothing reads *into* the value, and any non-empty string still passes.
+    """
+
+    with pytest.raises(SpecParseError) as raised:
+        _metric_set(revenue=f'id: ""\n{_SIMPLE}')
+
+    assert "at least 1 character" in str(raised.value)
+
+
+def test_the_duplicate_is_refused_before_a_graph_can_be_built() -> None:
+    """Why this is a document rule and not a guardrail (``logs/T-0032.md``).
+
+    ``resolve()`` builds and returns the graph before the guardrail stage runs,
+    so a duplicate refused there would already have collapsed two metrics into
+    one vertex in a graph a library caller is holding. Refusing at parse means
+    no caller can reach that state.
+    """
+
+    with pytest.raises(SpecParseError):
+        load_project(
+            {
+                "entity_model": (
+                    "spec_version: 1\nentities:\n  order:\n"
+                    "    grain: one row per order\n    key: [order_id]\n"
+                    "    fields:\n      order_id: {type: string, required: true}\n"
+                ),
+                "metrics": (
+                    "metrics_version: 1\nmetrics:\n"
+                    f"  revenue:\n    id: dup\n    {_SIMPLE.replace(chr(10), chr(10) + '    ')}\n"
+                    f"  revenue_net:\n    id: dup\n    {_SIMPLE.replace(chr(10), chr(10) + '    ')}\n"
+                ),
+            }
+        )

@@ -26,7 +26,7 @@ from __future__ import annotations
 import re
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
 from pydantic import BeforeValidator, Field, StringConstraints, model_validator
 
@@ -331,6 +331,14 @@ class Metric(SpecModel):
     (resolution RFC 0005; guardrails RFC 0006).
     """
 
+    #: A stable identity, minted once and never edited (RFC 0062 §5.1). When
+    #: present it replaces the name in this node's lineage id, so a rename
+    #: relabels a vertex instead of deleting one node and adding another.
+    #:
+    #: **Opaque** (D2): compared for equality, never parsed, never used to
+    #: derive a path, a relation name or an ordering. Absent everywhere, a
+    #: project compiles byte for byte as it does today (D3).
+    id: str | None = Field(default=None, min_length=1)
     template: str | None = None
     description: str | None = None
     requires: tuple[str, ...] = ()
@@ -361,3 +369,46 @@ class MetricSet(SpecModel):
     #: identified at all.
     metrics_version: Literal[1]
     metrics: dict[MemberName, Metric]
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _node_ids_are_unique(self) -> Self:
+        """No two metrics mint the same lineage node id (RFC 0062 §9).
+
+        **Over the resulting keys**, not over the ids: what has a uniqueness
+        requirement is the string the node id is built from. Comparing ids to
+        each other misses an ``id:`` equal to another node's *name* — the
+        collision a partial rollout writes by accident — and comparing ids to
+        names refuses a project whose keys do not collide at all.
+
+        Here rather than in the guardrail stage, and the reason is where
+        ``resolve()`` sits: it builds and returns the graph *before* the
+        guardrails run, so a duplicate refused there would already have
+        collapsed two nodes into one in a graph a library caller is holding.
+        Every other guardrail leaves that graph accurate and unsafe; this one
+        left it inaccurate (logs/T-0032.md, attempt 4). ``_refs_are_unique``
+        below is the same shape for the same reason.
+        """
+
+        claimed: dict[str, list[str]] = {}
+
+        for name in self.metrics:
+            claimed.setdefault(self.metrics[name].id or name, []).append(name)
+
+        collisions = {k: v for k, v in sorted(claimed.items()) if len(v) > 1}
+
+        if collisions:
+            spelled = "; ".join(
+                f"{', '.join(repr(n) for n in names)} all mint 'metric.{node_key}'"
+                for node_key, names in collisions.items()
+            )
+            msg = (
+                f"two or more metrics claim one lineage identity: {spelled}. A stable "
+                "'id:' is one identity, and two nodes claiming it leave the graph holding "
+                "one vertex where this document declares two (RFC 0062 §9). Fix: give each "
+                "an 'id:' of its own, and never copy one between specs"
+            )
+            raise ValueError(msg)
+
+        return self

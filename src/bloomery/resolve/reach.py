@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from bloomery.ir import UnreachableMetric
+from bloomery.spec.project import key
 
 if TYPE_CHECKING:
     from bloomery.resolve.graph import Graph
@@ -47,10 +48,25 @@ def available_canonicals(graph: Graph) -> frozenset[str]:
 
 
 def compute_reachability(
-    metrics: tuple[EffectiveMetric, ...], available: frozenset[str]
+    metrics: tuple[EffectiveMetric, ...],
+    available: frozenset[str],
+    canonical_ids: dict[str, str] | None = None,
 ) -> tuple[tuple[str, ...], tuple[UnreachableMetric, ...]]:
     """Split metrics into (reachable names, unreachable + missing leaves),
     both sorted by name (RFC 0003 §5.3).
+
+    **Compared in key space, reported in name space** (RFC 0062 §5.2).
+    ``available`` is read off the graph, whose canonical nodes are keyed by an
+    adopted ``id:`` where there is one, while ``requires`` names a field the way
+    its author wrote it. Testing one against the other reported every metric
+    over an adopted field as unreachable and stopped the project compiling
+    (logs/T-0032.md, attempt 4). The membership test therefore keys the leaf and
+    :attr:`~bloomery.UnreachableMetric.missing` keeps the name, because
+    ``missing: cnl_9b2`` is not a thing an author can act on.
+
+    ``canonical_ids`` defaults to ``None`` for the callers that have no catalog
+    to adopt in — the map is empty for an unadopted project either way, so the
+    default is a convenience and never a second behaviour.
 
     ``missing`` names leaves and never intermediate metrics, which is D3's rule
     and the right one: the fix is always a mapping, never a metric. But for a
@@ -61,6 +77,7 @@ def compute_reachability(
     because ``cogs`` is unmapped" gains "…and what it is blocking on the way is
     ``gross_revenue``".
     """
+    ids = canonical_ids or {}
     by_name = {metric.name: metric for metric in metrics}
     memo: dict[str, tuple[frozenset[str], frozenset[str]]] = {}
 
@@ -78,7 +95,7 @@ def compute_reachability(
             return cached
 
         metric = by_name[name]
-        missing = frozenset(leaf for leaf in metric.requires if leaf not in available)
+        missing = frozenset(leaf for leaf in metric.requires if key(leaf, ids) not in available)
         via: frozenset[str] = frozenset()
 
         for required in metric.requires_metrics:

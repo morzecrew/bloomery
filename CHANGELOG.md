@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A node can keep its identity across a rename.** Every spec kind that mints
+  a lineage node — a metric, a catalog canonical field, a wired step — takes an
+  optional `id:`. Where one is present the node id is built from it instead of
+  the name, so `metric.mtr_7f3a9c` stays put while the metric is renamed and
+  `lineage` traverses across the rename in both directions.
+
+  The value is opaque: compared for equality, never parsed, never resolved to a
+  path or an ordering. References keep naming nodes by name — `requires`,
+  `requires_metrics`, a step input — and resolve through the same map the graph
+  is built from, so adopting an id on one metric does not strand the edges that
+  point at it from elsewhere.
+
+  **Two nodes of one kind may not mint the same id**, and that is refused when
+  the document is parsed: a copied `id:`, and an `id:` equal to another node's
+  *name* where only one of the two adopted one. The second is the one a partial
+  rollout writes by accident. Refused at parse rather than by a guardrail
+  because `resolve()` returns the graph before the guardrail stage runs, and a
+  duplicate caught there would already have collapsed two nodes into one in a
+  graph the caller is holding.
+
+  **A project with no `id:` anywhere is byte-identical.** The field never
+  reaches the IR — it lives on the spec models and is consumed where the graph
+  is built — so no fingerprint moves and no artifact changes.
+
 - **`bloomery explain` shows where each semantic fact came from.** Every fact
   a plan rests on now prints with an evidence grade: `LOCKED` where a person
   declared it in a spec, `ASSUMED` where the compiler obtained it mechanically

@@ -10,7 +10,8 @@
   and are what hold this document open. Execution's findings and the rows it proposes are
   in the same log; nothing below has been amended to agree with what was built. **§§5.2,
   5.3 and 7 describe the annotation, its refusal and its worked example** — all P2's, none
-  built here.
+  built here. **Rows 9-13 record accepted execution decisions** — 9 supersedes 8, and the rest
+  record what P1 had to decide that §12 did not settle.
 - **Scope:** A minimum evidence grade a mart or an exposure may require of the facts its
   measures rest on, refused at compile time. The `LOCKED` / `ASSUMED` / `OPEN` vocabulary the
   RFC corpus already uses for decisions, applied to spec assertions. One annotation on two
@@ -229,7 +230,12 @@ it.
 | 5 | `ASSUMED` | Three grades, not five. The consumer-facing question is "did a human here write this down", and `Provenance`'s finer distinctions do not change a mart's answer to it. |
 | 6 | `OPEN` | Where the annotation lives: mart, exposure, or project with overrides (§10). |
 | 7 | `LOCKED` | The grades are a total function of `Provenance` and every member maps to exactly one, checked by a test. A second vocabulary that drifted from the first would grade facts by a rule nobody could find. |
-| 8 | `OPEN` | Whether `IMPORTED_VERIFIED` grades `ASSUMED` or `LOCKED` (§5.1). It is authored, and not authored here, and which of those a statutory consumer means is the question. |
+| 8 | `OPEN` | **Superseded by 9.** Whether `IMPORTED_VERIFIED` grades `ASSUMED` or `LOCKED` (§5.1). It is authored, and not authored here, and which of those a statutory consumer means is the question. |
+| 9 | `ASSUMED` | **`IMPORTED_VERIFIED` grades `ASSUMED`, following §5.1's table — supersedes 8.** The question a strict consumer asks is "did a human *here* write this down", and an exact read of another project's artifact answers no however exact the rule was. Not `LOCKED` because nothing yet produces that provenance — RFC 0044 P2 would — so the choice was made where it was unobservable, and RFC 0059 asks the same question from the other direction (§10). Added by execution 2026-09-09 — see [`logs/T-0031.md`](../logs/T-0031.md) (D8, attempt 1). |
+| 10 | `ASSUMED` | **The grade is rendered by the CLI, off `QueryPlan.semantic`, not by `Explanation`.** §12 says `explain` renders it and does not say in which layer; `Explanation` carries no fact and no proof, and every golden pins it. RFC 0040 D7 put the semantic plan *beside* `sql`, `columns` and `explanation` for that reason, and a phase §12 calls close to free should not be the one that moves a pinned surface. Added by execution 2026-09-09 — see [`logs/T-0031.md`](../logs/T-0031.md) (unlisted, attempt 1). |
+| 11 | `ASSUMED` | **The grade is derived on demand and is never a field.** D1 says a grade can never be written; a field on `SemanticFact` would make it writable everywhere except a spec, which is the letter of that rule and not its point. `--format json` carries `provenance` and is not lossy for it: the grade is a total function of that value and the function is public. Added by execution 2026-09-09 — see [`logs/T-0031.md`](../logs/T-0031.md) (unlisted, attempt 1). |
+| 12 | `ASSUMED` | **§7's docs section splits along the phases.** P1 documents what a grade is and how to read it where a reader meets it; §7's worked example is a mart declaring `requires_evidence`, a key P1 does not add, so it lands with P2. Writing it earlier would document a key nobody can type. Added by execution 2026-09-09 — see [`logs/T-0031.md`](../logs/T-0031.md) (unlisted, attempt 1). |
+| 13 | `ASSUMED` | **Rendering the plan narrows `test_only_the_renderer_reads_the_plan` rather than deleting it.** That guard protected "nothing in the tree reads the semantic plan"; what it is *for* is that nothing changes what the query is generated from, and a renderer generates nothing. It became a named allowlist carrying how many reads each admitted file gets, because a per-file exemption would cover a generator landing in the same module later. Added by execution 2026-09-09 — see [`logs/T-0031.md`](../logs/T-0031.md) (unlisted, attempt 1; tightened after review on #94). |
 
 ## 12. Phasing
 

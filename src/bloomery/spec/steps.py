@@ -57,6 +57,14 @@ class StepWiring(SpecModel):
     than a value nothing reads (§5.5, D5).
     """
 
+    #: A stable identity, minted once and never edited (RFC 0062 §5.1). When
+    #: present it replaces the ``use`` ref in this wiring's lineage id, so a rename
+    #: relabels a vertex instead of deleting one node and adding another.
+    #:
+    #: **Opaque** (D2): compared for equality, never parsed, never used to
+    #: derive a path, a relation name or an ordering. Absent everywhere, a
+    #: project compiles byte for byte as it does today (D3).
+    id: str | None = Field(default=None, min_length=1)
     use: StepUse
     inputs: dict[str, BoundRelation] = Field(default_factory=dict[str, BoundRelation])
     outputs: dict[str, BoundRelation] = Field(min_length=1)
@@ -213,3 +221,53 @@ class StepSet(SpecModel):
             seen.add(wiring.ref)
 
         return self
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _node_ids_are_unique(self) -> Self:
+        """No two steps mint the same lineage node id (RFC 0062 §9).
+
+        **After** ``_refs_are_unique``, deliberately. Two wirings of one step
+        with no ids at all are a duplicate *ref*, which that validator explains
+        as the fork attempt it is; running first, this one answered the same
+        mistake with a message about identity and buried the better one. Two
+        messages for one mistake is worse than one, and the better message wins.
+
+        **Over the resulting keys**, not over the ids: what has a uniqueness
+        requirement is the string the node id is built from. Comparing ids to
+        each other misses an ``id:`` equal to another node's *name* — the
+        collision a partial rollout writes by accident — and comparing ids to
+        names refuses a project whose keys do not collide at all.
+
+        Here rather than in the guardrail stage, and the reason is where
+        ``resolve()`` sits: it builds and returns the graph *before* the
+        guardrails run, so a duplicate refused there would already have
+        collapsed two nodes into one in a graph a library caller is holding.
+        Every other guardrail leaves that graph accurate and unsafe; this one
+        left it inaccurate (logs/T-0032.md, attempt 4).
+        """
+
+        claimed: dict[str, list[str]] = {}
+
+        for name in [w.ref for w in self.steps]:
+            claimed.setdefault({w.ref: w.id or w.ref for w in self.steps}[name], []).append(name)
+
+        collisions = {k: v for k, v in sorted(claimed.items()) if len(v) > 1}
+
+        if collisions:
+            spelled = "; ".join(
+                f"{', '.join(repr(n) for n in names)} all mint 'step.{node_key}'"
+                for node_key, names in collisions.items()
+            )
+            msg = (
+                f"two or more steps claim one lineage identity: {spelled}. A stable "
+                "'id:' is one identity, and two nodes claiming it leave the graph holding "
+                "one vertex where this document declares two (RFC 0062 §9). Fix: give each "
+                "an 'id:' of its own, and never copy one between specs"
+            )
+            raise ValueError(msg)
+
+        return self
+
+    # ....................... #
