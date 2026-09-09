@@ -99,7 +99,8 @@ Three things are worth knowing before you adopt it:
   carrying. The compiler cannot enforce this; you can.
 - **Two nodes of one kind may not mint the same id.** Copying a spec file and leaving the
   `id:` behind is refused, and so is an `id:` equal to another node's *name* — during a
-  partial rollout, that is the easier of the two to write by accident.
+  partial rollout, that is the easier of the two to write by accident. Both are refused as
+  the document is read, before anything builds a graph from it.
 - **Adopting nothing costs nothing.** A project with no `id:` anywhere gets exactly the
   ids and exactly the artifacts it gets today.
 

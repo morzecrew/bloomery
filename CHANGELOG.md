@@ -21,10 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is built from, so adopting an id on one metric does not strand the edges that
   point at it from elsewhere.
 
-  **Two nodes of one kind may not mint the same id**, and that is refused at
-  compile time: a copied `id:`, and an `id:` equal to another node's *name*
-  where only one of the two adopted one. The second is the one a partial
-  rollout writes by accident.
+  **Two nodes of one kind may not mint the same id**, and that is refused when
+  the document is parsed: a copied `id:`, and an `id:` equal to another node's
+  *name* where only one of the two adopted one. The second is the one a partial
+  rollout writes by accident. Refused at parse rather than by a guardrail
+  because `resolve()` returns the graph before the guardrail stage runs, and a
+  duplicate caught there would already have collapsed two nodes into one in a
+  graph the caller is holding.
 
   **A project with no `id:` anywhere is byte-identical.** The field never
   reaches the IR — it lives on the spec models and is consumed where the graph

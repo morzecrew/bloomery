@@ -8,7 +8,7 @@ Authored by the operator, deliberately not part of :class:`Project`
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import Field, model_validator
 
@@ -224,6 +224,7 @@ class Catalog(SpecModel):
     catalog_version: Literal[1]
     vertical: str
     canonical_fields: dict[str, CanonicalField] = Field(default_factory=dict)
+
     canonical_relationships: tuple[CanonicalRelationship, ...] = ()
     metric_templates: dict[str, MetricTemplate] = Field(default_factory=dict)
     date_dimension: DateDimension | None = None
@@ -231,3 +232,45 @@ class Catalog(SpecModel):
     #: ``convert`` refusal names (RFC 0023 §5.4): the transform stays legal,
     #: typechecks, and is refused at emit until a rate relation is declared.
     fx_rates: FxRates | None = None
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _node_ids_are_unique(self) -> Self:
+        """No two canonical fields mint the same lineage node id (RFC 0062 §9).
+
+        **Over the resulting keys**, not over the ids: what has a uniqueness
+        requirement is the string the node id is built from. Comparing ids to
+        each other misses an ``id:`` equal to another node's *name* — the
+        collision a partial rollout writes by accident — and comparing ids to
+        names refuses a project whose keys do not collide at all.
+
+        Here rather than in the guardrail stage, and the reason is where
+        ``resolve()`` sits: it builds and returns the graph *before* the
+        guardrails run, so a duplicate refused there would already have
+        collapsed two nodes into one in a graph a library caller is holding.
+        Every other guardrail leaves that graph accurate and unsafe; this one
+        left it inaccurate (logs/T-0032.md, attempt 4).
+        """
+
+        claimed: dict[str, list[str]] = {}
+
+        for name in self.canonical_fields:
+            claimed.setdefault(self.canonical_fields[name].id or name, []).append(name)
+
+        collisions = {k: v for k, v in sorted(claimed.items()) if len(v) > 1}
+
+        if collisions:
+            spelled = "; ".join(
+                f"{', '.join(repr(n) for n in names)} all mint 'canonical.{node_key}'"
+                for node_key, names in collisions.items()
+            )
+            msg = (
+                f"two or more canonical fields claim one lineage identity: {spelled}. A stable "
+                "'id:' is one identity, and two nodes claiming it leave the graph holding "
+                "one vertex where this document declares two (RFC 0062 §9). Fix: give each "
+                "an 'id:' of its own, and never copy one between specs"
+            )
+            raise ValueError(msg)
+
+        return self

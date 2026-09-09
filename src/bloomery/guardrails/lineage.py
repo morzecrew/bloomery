@@ -19,21 +19,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from bloomery.errors import DuplicateNodeId, ReservedEntityName
+from bloomery.errors import ReservedEntityName
 from bloomery.ir import NODE_ID_PREFIXES
-from bloomery.spec.project import key, node_keys
 
 if TYPE_CHECKING:
     from bloomery.errors import GuardrailError
     from bloomery.ir import EntityIR, ProjectIR
-    from bloomery.spec.catalog import Catalog
-    from bloomery.spec.project import Project
 
 # ----------------------- #
 
 __all__ = [
     "check_lineage_names",
-    "check_node_ids",
 ]
 
 #: The id each prefix mints, and whether an entity field can *equal* one.
@@ -107,74 +103,5 @@ def check_lineage_names(draft: ProjectIR) -> list[GuardrailError]:
             f"node-id prefixes"
         )
         errors.append(ReservedEntityName(msg, source_path=_source_path(entity)))
-
-    return errors
-
-
-# ....................... #
-
-
-def check_node_ids(project: Project, catalog: Catalog | None) -> list[GuardrailError]:
-    """Refuse two nodes of one kind that mint the same lineage id (RFC 0062 §9).
-
-    **The check is over the resulting keys, not over the ids.** What has a
-    uniqueness requirement is the string a node id is built from, and reasoning
-    about the inputs instead gets it wrong in both directions: comparing ids to
-    each other misses a metric adopting ``id: x`` beside a metric *named* ``x``
-    that adopted nothing — the collision partial adoption makes likely, and the
-    one §9 does not name — while comparing ids to names refuses a project where
-    a metric named ``p`` carries ``id: q`` beside one named ``q`` carrying
-    ``id: r``, whose keys are ``q`` and ``r`` and do not collide at all
-    (logs/T-0032.md, attempt 2).
-
-    Per kind, because ``metric.`` and ``canonical.`` are separate namespaces: a
-    metric and a canonical field sharing a key mint two different node ids and
-    collide with nothing.
-
-    Reported once per duplicated key rather than once per node, naming every
-    name that reaches it — an author fixes the collision, and the collision is
-    the set.
-    """
-
-    ids = node_keys(project, catalog)
-    metrics = {} if project.metric_set is None else project.metric_set.metrics
-    canonical = {} if catalog is None else catalog.canonical_fields
-    steps = () if project.steps is None else project.steps.steps
-
-    #: Per kind, every node's authored name and how a refusal spells the way to
-    #: one of them. The *whole* population, not the adopted subset: a key
-    #: collides with a name as readily as with another id, and a check reading
-    #: only what adopted an id would miss the half of the collision that did not.
-    populations = {
-        "metric": (tuple(metrics), "metrics: metrics"),
-        "canonical": (tuple(canonical), "catalog: canonical_fields"),
-        "step": (tuple(wiring.ref for wiring in steps), "steps: steps"),
-    }
-    errors: list[GuardrailError] = []
-
-    # Driven off ``ids`` rather than off ``populations``, so a node kind added to
-    # :func:`~bloomery.spec.project.node_keys` and forgotten here raises instead
-    # of being skipped — a skipped kind is a kind whose collisions nobody checks.
-    for kind in ids:
-        names, anchor = populations[kind]
-        claimed: dict[str, list[str]] = {}
-
-        for name in names:
-            claimed.setdefault(key(name, ids[kind]), []).append(name)
-
-        for node_key, sharing in sorted(claimed.items()):
-            if len(sharing) < 2:
-                continue
-
-            spelled = ", ".join(repr(name) for name in sharing)
-            msg = (
-                f"{kind} nodes {spelled} all mint the lineage id "
-                f"'{kind}.{node_key}' (RFC 0062 §9). A stable id is one identity, and two "
-                f"nodes claiming it leave the graph holding one vertex where the spec "
-                f"declares two — every consumer citing that id then gets whichever the "
-                f"compiler kept. Fix: give each an 'id:' of its own, and never copy one "
-                f"between specs"
-            )
-            errors.append(DuplicateNodeId(msg, source_path=f"{anchor}.{sharing[0]}"))
 
     return errors

@@ -24,7 +24,7 @@ from bloomery.resolve.recipes import validate_recipes
 from bloomery.resolve.refs import validate_references
 from bloomery.spec.catalog import Catalog
 from bloomery.spec.mapping import RecipeFieldMapping
-from bloomery.spec.project import Project
+from bloomery.spec.project import Project, node_keys
 
 # ----------------------- #
 
@@ -203,7 +203,9 @@ def resolve(project: Project, catalog: Catalog | None = None) -> Resolution:
     metrics = effective_metrics(project, catalog)
     graph = build_graph(project, catalog, metrics)
     topo_order = toposort(graph)
-    reachable, unreachable = compute_reachability(metrics, available_canonicals(graph))
+    reachable, unreachable = compute_reachability(
+        metrics, available_canonicals(graph), node_keys(project, catalog)["canonical"]
+    )
 
     return Resolution(
         reachable_metrics=reachable,
