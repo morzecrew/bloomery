@@ -41,6 +41,7 @@ from bloomery.ir import (
     Unit,
     UnreachableMetric,
     quality_sort_key,
+    RollupIR,
 )
 from bloomery.typing import LogicalType, StringType
 
@@ -227,6 +228,7 @@ def project(
     unreachable: tuple[UnreachableMetric, ...] = (),
     relationships: tuple[RelationshipIR, ...] = (),
     marts: tuple[MartIR, ...] = (),
+    rollups: tuple[RollupIR, ...] = (),
     date_dimension: DateDimensionIR | None = None,
     reconcile: tuple[ReconcileIR, ...] = (),
     steps: tuple[StepIR, ...] = (),
@@ -238,6 +240,7 @@ def project(
         unreachable=tuple(sorted(unreachable, key=lambda u: u.name)),
         relationships=tuple(sorted(relationships, key=lambda r: r.name)),
         marts=tuple(sorted(marts, key=lambda m: m.name)),
+        rollups=tuple(sorted(rollups, key=lambda r: r.name)),
         date_dimension=date_dimension,
         reconcile=tuple(sorted(reconcile, key=lambda check: check.name)),
         steps=tuple(sorted(steps, key=step_sort_key)),

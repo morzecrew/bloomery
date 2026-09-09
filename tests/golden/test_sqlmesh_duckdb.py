@@ -21,6 +21,19 @@ EXPECTED_PATHS = {
     # two-output step is two `.py` models. The extension is the point of this
     # entry — RFC 0008 D2's "artifacts are file-shaped text" is what lets a
     # Python model reuse ArtifactKind.MODEL with a different suffix.
+    # RFC 0058 P2: a rollup beside the mart it derives from. What the goldens
+    # show is the shape of the first aggregate bloomery puts in a model — a
+    # GROUP BY over the parent's gold relation — and that it is an *ordinary*
+    # derived model, which is D5's whole claim about the SQL: what makes it a
+    # rollup is the obligation discharged at compile, not anything here.
+    "rollup_mart": [
+        "config.yaml",
+        "models/gold/dim_date.sql",
+        "models/gold/mart_order_items.sql",
+        "models/gold/mart_order_items_monthly.sql",
+        "models/silver/order.sql",
+        "models/silver/order_item.sql",
+    ],
     "step_resolution": [
         "audits/step_customer_xref_canonical_id_references_customer.sql",
         "config.yaml",

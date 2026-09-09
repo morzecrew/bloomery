@@ -557,6 +557,7 @@ At most one per project; a project without marts compiles silver only.
 |---|---|---|---|
 | `marts_version` | int ≥ 1 | yes | Document version key |
 | `marts` | map name → Mart | yes | The gold layer |
+| `rollups` | map name → Rollup | no (`{}`) | Aggregates of the marts above; a name a mart already uses is refused |
 
 ### Mart
 
@@ -569,6 +570,46 @@ At most one per project; a project without marts compiles silver only.
 | `partition_by` | list of partition specs | no (`[]`) | Physical partitioning |
 | `materialization` | as Entity | no | Materialization override |
 | `cost_hint` | int ≥ 1 | no (`1`) | Tie-breaker when several marts can serve a metric — cheapest wins |
+
+### Rollup
+
+A mart at a coarser grain than one above it: `SELECT keep…, agg(measure) … FROM
+<parent> GROUP BY keep…`, built once instead of computed per query. It names what
+it **keeps**; what it drops is every other column of the parent, derived rather
+than listed, because two statements of one fact will disagree.
+
+```yaml
+rollups:
+  order_items_monthly:
+    of: order_items
+    keep: [order_customer_id, ordered_month]
+    measures: [gross_revenue]
+```
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `of` | mart name | yes | The mart this aggregates; must be a mart of this document, never another rollup |
+| `keep` | list of parent columns | yes, non-empty | The grouping; each named once, and not every column of the parent |
+| `measures` | list of metric names | yes, non-empty | Metrics this rollup carries; each named once, and each one the parent stores |
+| `partition_by` | list of partition specs | no (`[]`) | Physical partitioning |
+| `materialization` | as Entity | no | Materialization override |
+
+There is no `grain`, no `base` and no `cost_hint`. The first two name an entity
+and a rollup's rows are identified by `keep`; the third breaks ties between marts
+that can serve a metric, and a rollup is never one of them.
+
+**A rollup is never chosen for you.** No request is answered from it and no query
+is redirected to it — reading a rollup instead of the detail is a decision
+bloomery does not yet make, so the table is there for whatever reads it directly.
+
+**An unprovable rollup is refused, not warned about** (`UnprovableRollup`). A
+rollup is read *instead of* the detail table, so a wrong one does not fail — it
+answers, quickly and plausibly. Refused: a measure that may not be re-aggregated
+over what the rollup drops (`distinct_count`, `semi_additive`, `non_additive`,
+`snapshot`), one the parent does not store, one whose `filter:` or `cumulative:`
+the single aggregate would drop, and a rollup that keeps every column and so
+drops nothing. A `ratio` measure is carried as its operands and recomputed, which
+is what it is on every other target too.
 
 ### Flatten steps — two forms
 

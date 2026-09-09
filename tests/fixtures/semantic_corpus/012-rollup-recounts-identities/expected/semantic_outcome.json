@@ -1,0 +1,11 @@
+{
+  "detail": {
+    "outcome": "accepted",
+    "rule": "R008"
+  },
+  "rolled": {
+    "outcome": "refused",
+    "error": "UnprovableRollup",
+    "rule": "R013"
+  }
+}

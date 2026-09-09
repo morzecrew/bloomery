@@ -1,0 +1,36 @@
+# The smallest catalog a rollup needs: one additive measure over two canonical
+# fields, and the date dimension a measure-carrying mart must have.
+catalog_version: 1
+vertical: ecom_retail
+
+canonical_fields:
+  unit_price:
+    entity: order_item
+    type: decimal(12,4)
+    unit: currency
+    tax_basis: net
+    recipes:
+      - {id: direct, requires: [unit_price]}
+  quantity:
+    entity: order_item
+    type: int
+    unit: count
+    recipes:
+      - {id: direct, requires: [quantity]}
+
+canonical_relationships:
+  - {from: order_item, to: order, via: order_id, cardinality: many_to_one}
+
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2020
+  end_year: 2030
+
+metric_templates:
+  gross_revenue:
+    requires: [unit_price, quantity]
+    grain: order_item
+    additivity: additive
+    agg: sum
+    expr: "unit_price * quantity"

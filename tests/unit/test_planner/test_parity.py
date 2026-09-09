@@ -310,7 +310,7 @@ def test_the_corpus_is_the_size_it_claims_to_be() -> None:
     outcomes = _outcomes()
 
     assert len(outcomes) == len(_baseline())
-    assert len(outcomes) == 991
+    assert len(outcomes) == 1007
 
 
 #: What RFC 0041 P2 licenses, as moves rather than as a list of keys: the rule

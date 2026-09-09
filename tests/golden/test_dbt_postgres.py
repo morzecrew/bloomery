@@ -79,6 +79,21 @@ EXPECTED_PATHS = {
         "tests/q_line_conservation.sql",
         "tests/q_line_ingestion_metadata.sql",
     ],
+    # RFC 0058 P2: the rollup on the second target. §12 asks for an ordinary
+    # derived gold model on SQLMesh *and* dbt, and one golden per target is how
+    # "ordinary" is checked — the two files should differ only in the envelope
+    # each target writes around the same aggregate.
+    "rollup_mart": [
+        "dbt_project.yml",
+        "macros/generate_schema_name.sql",
+        "models/gold/dim_date.sql",
+        "models/gold/mart_order_items.sql",
+        "models/gold/mart_order_items_monthly.sql",
+        "models/schema.yml",
+        "models/silver/order.sql",
+        "models/silver/order_item.sql",
+        "models/sources.yml",
+    ],
     "scd2_customers": [
         "dbt_project.yml",
         "macros/generate_schema_name.sql",

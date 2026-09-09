@@ -154,6 +154,7 @@ from bloomery.emit.lower import (
     reject_relation,
     reject_select,
     replay_statements,
+    rollup_select,
 )
 from bloomery.emit.steps import (
     consistency_audits,
@@ -174,6 +175,7 @@ from bloomery.ir import (
     Materialization,
     ProjectIR,
     ReconcileIR,
+    RollupIR,
     SCDKind,
     StepKind,
     StepOutputIR,
@@ -717,6 +719,31 @@ def _mart_artifact(
 
 
 # ....................... #
+
+
+def _rollup_artifact(
+    rollup: RollupIR, ir: ProjectIR, ctx: EmitContext, references: dict[tuple[str, str], str]
+) -> EmittedArtifact:
+    """One gold model per rollup (RFC 0058 §5.3, P2).
+
+    An ordinary derived model reading the parent mart — nothing exotic, which
+    is the point: what makes it a rollup is the obligation discharged at
+    compile, not the SQL. It has no base entity, so the unique key for an
+    incremental build is ``keep``: one row comes out per distinct combination,
+    by construction.
+    """
+
+    namespace, relation = ctx.naming.relation(rollup.name, Layer.GOLD)
+
+    return _model_artifact(
+        path=f"models/{namespace}/{relation}.sql",
+        config_line=_config_line(rollup.materialization, rollup.keep),
+        select=_render(rollup_select(rollup, ir, ctx), references, ctx),
+        ctx=ctx,
+    )
+
+
+# ....................... #
 # Audit lowering → schema.yml (RFC 0006 → RFC 0008 §5.5)
 
 
@@ -1163,6 +1190,10 @@ def _reference_map(ir: ProjectIR, ctx: EmitContext) -> dict[tuple[str, str], str
         namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
         add(namespace, relation, f"{{{{ ref('{relation}') }}}}")
 
+    for rollup in ir.rollups:
+        namespace, relation = ctx.naming.relation(rollup.name, Layer.GOLD)
+        add(namespace, relation, f"{{{{ ref('{relation}') }}}}")
+
     if ir.date_dimension is not None:
         namespace, _relation = ctx.naming.relation(ir.date_dimension.name, Layer.GOLD)
         add(namespace, ir.date_dimension.name, f"{{{{ ref('{ir.date_dimension.name}') }}}}")
@@ -1378,6 +1409,7 @@ class DbtEmitter:
             artifacts.extend(_reconcile_artifacts(check, ir, ctx, references))
 
         artifacts.extend(_mart_artifact(mart, ir, ctx, references) for mart in ir.marts)
+        artifacts.extend(_rollup_artifact(rollup, ir, ctx, references) for rollup in ir.rollups)
 
         for mart in ir.marts:
             artifacts.extend(_mart_test_artifacts(mart, ctx, references))

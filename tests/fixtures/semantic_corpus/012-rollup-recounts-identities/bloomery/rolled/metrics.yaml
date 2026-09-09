@@ -1,0 +1,15 @@
+# Both measures declared honestly. `buyers` says what it is — a distinct count
+# over the identity it counts — so nothing here is a false additivity claim;
+# what is wrong in `rolled` is the *relation* somebody asks to be built.
+metrics_version: 1
+metrics:
+  revenue:
+    grain: order
+    additivity: additive
+    agg: sum
+    expr: "amount"
+  buyers:
+    grain: order
+    additivity: distinct_count
+    agg: count_distinct
+    expr: "customer_id"

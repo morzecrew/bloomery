@@ -31,7 +31,7 @@ from bloomery.guardrails.lineage import check_lineage_names
 from bloomery.guardrails.metrics import check_metrics
 from bloomery.guardrails.operands import collect_derivations
 from bloomery.guardrails.quality import check_quality
-from bloomery.marts import lower_marts
+from bloomery.marts import lower_marts, lower_rollups
 
 if TYPE_CHECKING:
     from bloomery.ir import AuditIR, EntityIR, ProjectIR
@@ -137,6 +137,11 @@ def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | N
     # Mart-level checks (RFC 0006 D10): the flattener re-runs here as a pure
     # sibling stage; its leaves batch into the same aggregate as the rest.
     violations.extend(lower_marts(project.marts, draft).violations)
+    # Rollup-level checks (RFC 0058 D5, `LOCKED`): the same sibling-stage shape,
+    # asked against the draft's already-resolved marts. An unprovable rollup is
+    # refused rather than warned about — it is read instead of the detail table,
+    # so a wrong one answers quickly and plausibly.
+    violations.extend(lower_rollups(project.marts, draft).violations)
     # Data-quality leaves (RFC 0016 §5.9): the model-is-wrong half of this
     # RFC, batched into the same aggregate as everything else.
     violations.extend(check_quality(draft, project))

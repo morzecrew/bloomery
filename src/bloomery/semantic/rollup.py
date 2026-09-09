@@ -547,7 +547,7 @@ def prove_measure_rollup(
     if metric.additivity is Additivity.RATIO:
         return _prove_ratio(metric, mart, kept, project, judgement)
 
-    if metric.agg is None and metric.expr is None:
+    if metric.agg is None:
         # Below the class question rather than beside it. `additive` is a claim
         # about a measure, and this metric has none to make it about: nothing
         # in the spec or guardrail layer refuses the shape — `_has_no_measure`
@@ -556,19 +556,27 @@ def prove_measure_rollup(
         # sum. Below, because a `distinct_count` with no aggregation is better
         # answered by its class than by this, and a ratio legitimately has no
         # aggregation of its own and never reaches this line.
+        #
+        # The condition is the **aggregation**, not the pair. A metric with an
+        # `expr:` and no `agg:` is a column expression rather than a measure —
+        # there is nothing to sum it with — and reading the pair let such a
+        # metric prove here and then refuse at emit, which puts a refusal
+        # behind a target and so behind `bloomery check`, which reaches none
+        # (RFC 0044 D1; logs/T-0034.md).
         return Refutation(
             reason="nothing_to_aggregate",
             judgement=judgement,
             obligations=(
                 Obligation(
                     required=f"sum {metric.name} onto a rollup of {mart.name!r}",
-                    found=f"{metric.name} declares neither agg: nor expr:",
+                    found=f"{metric.name} declares no agg:",
                 ),
             ),
             remediation=(
                 "an additive measure is re-aggregated by summing the one it emits, and a "
-                "metric with no aggregation emits none — declare agg: or expr:, or "
-                "decompose it and carry the components the rollup would rebuild it from"
+                "metric with no aggregation emits none — declare the agg: this aggregates "
+                "with, or decompose it and carry the components the rollup would rebuild "
+                "it from"
             ),
             # `UNKNOWN` and not `DECLARED`: unlike a wrong additivity there is
             # no fact here at all — nothing says how this metric aggregates.

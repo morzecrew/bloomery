@@ -2,8 +2,8 @@
 
 - **Status:** 🚧 In progress — the block D2 states is **lifted**: RFC 0037 and RFC 0040
   have both landed. §12's phasing and rows 9–14 were written at that moment, against the
-  vocabulary those documents actually chose, which is what §12 said would happen. P1 is
-  built; P2 and P3 are not. Neither of those two is *retired*, and this document is part
+  vocabulary those documents actually chose, which is what §12 said would happen. P1 and
+  P2 are built; P3 is not. Neither of those two is *retired*, and this document is part
   of why — [`INDEX.md`](INDEX.md) names 0058 as a dependant of 0037, 0038 and 0040, all
   three of which stay in the tree until it does.
 - **Scope:** One feature under two names. The ceiling review listed "aggregate marts" in

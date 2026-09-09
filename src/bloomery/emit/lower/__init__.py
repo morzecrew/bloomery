@@ -19,6 +19,9 @@ order:
 * `reconcile` — reconcile models, coverage checks and mart asserts.
 * `quality_mart` — rule evaluations as a gold model.
 * `marts` — mart flattening, the date dimension, measure ownership (RFC 0010).
+* `rollups` — the aggregate body of a rollup mart (RFC 0058). Beside `marts`
+  rather than above it: it renders a relation over a *built* parent and reads
+  nothing the flattener produces.
 
 Stages compose downward and never sideways or upward, enforced rather than
 agreed ("Lowering stages compose downward"). This module is the surface
@@ -53,6 +56,11 @@ from bloomery.emit.lower.reconcile import (
     reconcile_relation,
     reconcile_select,
 )
+from bloomery.emit.lower.rollups import (
+    ROLLUP_AGGREGATES,
+    rollup_measures,
+    rollup_select,
+)
 from bloomery.emit.lower.silver import (
     COLLISION_COUNT_COLUMN,
     REJECT_KEY,
@@ -78,6 +86,9 @@ from bloomery.emit.lower.silver import (
 
 __all__ = [
     "REJECT_KEY",
+    "ROLLUP_AGGREGATES",
+    "rollup_measures",
+    "rollup_select",
     "COLLISION_COUNT_COLUMN",
     "ROW_ID_COUNT_COLUMN",
     "THIS_MODEL",

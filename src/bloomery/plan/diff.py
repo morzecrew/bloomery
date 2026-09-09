@@ -95,7 +95,7 @@ unit-tested per branch):
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from decimal import Decimal
 from types import MappingProxyType
@@ -124,6 +124,7 @@ if TYPE_CHECKING:
         QualityRuleIR,
         QuarantineIR,
         ReconcileIR,
+        RollupIR,
         SourceColumnIR,
         StepIR,
         TransformStepIR,
@@ -1844,6 +1845,76 @@ def _diff_marts(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
 
 
 # ....................... #
+
+
+def _diff_rollups(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
+    """Rollups, diffed like marts and reported as their own subject
+    (RFC 0058 §5.2).
+
+    A dropped rollup is **not** a dropped measure. A mart is where a measure
+    lives, so losing one loses the column; a rollup only pre-aggregates
+    measures its parent still stores, and row 14 keeps it out of the planner's
+    reach, so nothing that reads a measure reads it. What breaks is whatever
+    was reading the relation itself, which is the ordinary breaking change a
+    dropped gold model is.
+
+    Any redefinition of *what the table holds* is breaking: the parent, the
+    grouping and the measures each change its rows, and there is no
+    cost-hint-shaped half of those to grade down.
+
+    ``partition_by`` is the exception, and it is not a rollup-shaped judgement
+    — it is the one :func:`_mart_pair` already makes about the same field on
+    the node beside this one, where a partitioning change is
+    ``ADDITIVE`` and "metadata only". Physical layout is not rows. Grading it
+    breaking here would have one module answer one question two ways depending
+    on which collection the node came from, which is worse than either answer.
+    ``materialization`` stays breaking, also as a mart's does: it decides how
+    much of the table is rebuilt, not merely where it lands.
+    """
+
+    old_map = {rollup.name: rollup for rollup in old.rollups} if old is not None else {}
+    new_map = {rollup.name: rollup for rollup in new.rollups}
+
+    for name in sorted(old_map.keys() | new_map.keys()):
+        subject = f"rollup:{name}"
+
+        if name not in old_map:
+            acc.changes.append(Change(None, subject, ChangeClass.ADDITIVE, "rollup added"))
+        elif name not in new_map:
+            acc.changes.append(Change(None, subject, ChangeClass.BREAKING, "rollup dropped"))
+        else:
+            _rollup_pair(old_map[name], new_map[name], acc)
+
+
+# ....................... #
+
+
+def _rollup_pair(old_r: RollupIR, new_r: RollupIR, acc: _Acc) -> None:
+    """One rollup against itself, split at rows-versus-layout.
+
+    The content comparison stays a whole-node ``!=`` with the physical fields
+    normalized out, rather than a list of the three that matter. A field added
+    to :class:`~bloomery.ir.RollupIR` later is then breaking until someone
+    decides otherwise, which is the right default for a node whose whole
+    purpose is to be read instead of the detail table.
+    """
+
+    subject = f"rollup:{new_r.name}"
+
+    if replace(old_r, partition_by=()) != replace(new_r, partition_by=()):
+        acc.changes.append(
+            Change(
+                None, subject, ChangeClass.BREAKING, "rollup redefined — the rows it holds changed"
+            )
+        )
+
+    if old_r.partition_by != new_r.partition_by:
+        acc.changes.append(
+            Change(None, subject, ChangeClass.ADDITIVE, "partition_by changed (metadata only)")
+        )
+
+
+# ....................... #
 # Relationships and the date dimension
 
 
@@ -2064,6 +2135,7 @@ def plan(old: ProjectIR | None, new: ProjectIR) -> Plan:
     _diff_entities(old, new, acc)
     _diff_metrics(old, new, acc)
     _diff_marts(old, new, acc)
+    _diff_rollups(old, new, acc)
     _diff_relationships(old, new, acc)
     _diff_date_dimension(old, new, acc)
     _diff_reconcile(old, new, acc)

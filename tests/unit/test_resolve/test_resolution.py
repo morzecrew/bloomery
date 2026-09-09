@@ -92,9 +92,10 @@ def test_every_mapped_field_appears_exactly_once() -> None:
     # `multi_source_quality` adds two of six and seven, and RFC 0024 D36's
     # `path_conflict_merged` two of four, and RFC 0040 P2's `unflattened_hop`
     # three of four, four and two, and RFC 0041 P1's `cross_mart_branches`
-    # three of three, four and four: the number moves with the corpus, which
-    # is exactly what this is meant to notice.
-    assert swept == 212, f"{swept} mapped (entity, field, mapping) triples across the corpus"
+    # three of three, four and four, and RFC 0058 P2's `rollup_mart` two of
+    # five and two: the number moves with the corpus, which is exactly what
+    # this is meant to notice.
+    assert swept == 219, f"{swept} mapped (entity, field, mapping) triples across the corpus"
 
 
 def test_every_mappings_document_is_a_real_document() -> None:

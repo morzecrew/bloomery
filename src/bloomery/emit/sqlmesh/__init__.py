@@ -86,6 +86,7 @@ from bloomery.emit.lower import (
     reject_select,
     reject_when_matched,
     replay_statements,
+    rollup_select,
 )
 from bloomery.emit.steps import step_artifacts
 from bloomery.errors import UnsupportedByTarget, guaranteed
@@ -101,6 +102,7 @@ from bloomery.ir import (
     PartitionSpec,
     ProjectIR,
     ReconcileIR,
+    RollupIR,
     SCDKind,
 )
 from bloomery.quality import RunContext, is_quality_mart
@@ -457,6 +459,76 @@ def _mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArti
         content=content.rstrip("\n") + "\n",
         kind=ArtifactKind.MODEL,
     )
+
+
+# ....................... #
+
+
+def _rollup_artifact(rollup: RollupIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact:
+    """One gold model per rollup (RFC 0058 §5.3, P2).
+
+    An ordinary derived model: what makes it a rollup is the obligation
+    discharged at compile, not the SQL. Its ``grain`` is ``keep`` rather than a
+    base entity's key, because that is what identifies one of its rows — a
+    rollup has no base entity, which is why it is not lowered through
+    :func:`_mart_artifact` at all.
+
+    Partition types come from the **parent**, since every kept column is one of
+    the parent's and a rollup declares no column of its own.
+    """
+
+    namespace, relation = ctx.naming.relation(rollup.name, Layer.GOLD)
+    parent = guaranteed(
+        (mart for mart in ir.marts if mart.name == rollup.of),
+        expected=f"the parent mart {rollup.of!r} of rollup {rollup.name!r}",
+        by="the rollup guardrail (RFC 0058 D5), which lowers no rollup whose parent did not",
+    )
+    content = _ENVELOPE.render(
+        fingerprint=ctx.fingerprint,
+        name=f"{namespace}.{relation}",
+        kind=_rollup_kind_clause(rollup, parent),
+        grain=", ".join(rollup.keep),
+        partitioned_by=_partitioned_by(rollup.partition_by),
+        audits="",
+        select=ctx.dialect.render(rollup_select(rollup, ir, ctx)),
+    )
+    return EmittedArtifact.create(
+        path=f"models/{namespace}/{relation}.sql",
+        content=content.rstrip("\n") + "\n",
+        kind=ArtifactKind.MODEL,
+    )
+
+
+# ....................... #
+
+
+def _rollup_kind_clause(rollup: RollupIR, parent: MartIR) -> str:
+    """A rollup's materialization *is* its kind, as a mart's is.
+
+    ``INCREMENTAL_BY_KEY`` takes the columns identifying a row, which for a
+    rollup is ``keep`` — the grouping is the key, by construction, since one
+    row comes out per distinct combination.
+
+    The partition column's type comes from the parent, because a rollup
+    declares no column of its own — but only for the columns it **keeps**. The
+    parent's other columns are exactly the ones the rollup dropped, and typing
+    a partition column against one of them accepted a ``time_column`` naming a
+    column the built table does not have: a model that compiles and fails on
+    its first run, which is the degradation RFC 0008 D3 refuses. A measure is
+    not a candidate either and is absent for the same reason — the check asks
+    which kept column the table is partitioned along, and a measure is never
+    one (logs/T-0034.md).
+    """
+
+    if rollup.materialization is Materialization.INCREMENTAL_BY_KEY:
+        return f"INCREMENTAL_BY_UNIQUE_KEY (\n    unique_key ({', '.join(rollup.keep)})\n  )"
+
+    if rollup.materialization is Materialization.INCREMENTAL_BY_PARTITION:
+        kept = set(rollup.keep)
+        declared = {column.name: column.type for column in parent.columns if column.name in kept}
+        return _time_range_kind(f"rollup {rollup.name!r}", rollup.partition_by, declared)
+
+    return "FULL"
 
 
 # ....................... #
@@ -861,9 +933,16 @@ def _backfills_by_time(ir: ProjectIR) -> bool:
     ``scd``, so their materialization *is* their kind.
     """
 
-    return any(
-        _kind_clause(entity).startswith("INCREMENTAL_BY_TIME_RANGE") for entity in ir.entities
-    ) or any(mart.materialization is Materialization.INCREMENTAL_BY_PARTITION for mart in ir.marts)
+    return (
+        any(_kind_clause(entity).startswith("INCREMENTAL_BY_TIME_RANGE") for entity in ir.entities)
+        or any(
+            mart.materialization is Materialization.INCREMENTAL_BY_PARTITION for mart in ir.marts
+        )
+        or any(
+            rollup.materialization is Materialization.INCREMENTAL_BY_PARTITION
+            for rollup in ir.rollups
+        )
+    )
 
 
 # ....................... #
@@ -998,6 +1077,7 @@ class SQLMeshEmitter:
 
         artifacts.extend(_coverage_artifacts(ir, ctx))
         artifacts.extend(_mart_artifact(mart, ir, ctx) for mart in ir.marts)
+        artifacts.extend(_rollup_artifact(rollup, ir, ctx) for rollup in ir.rollups)
 
         for mart in ir.marts:
             artifacts.extend(_mart_assert_artifacts(mart, ctx))

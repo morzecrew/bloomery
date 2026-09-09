@@ -72,9 +72,17 @@ CHECKED_SURFACES: tuple[tuple[str, str], ...] = (
     ("relationships", "checked"),
     ("measures", "type-check"),
     ("marts", "checked"),
+    ("rollups", "proven"),
     ("conversions", "proven"),
     ("temporal_joins", "anchored"),
 )
+#: Rollups are ``proven`` where marts are ``checked``, and the difference is
+#: real rather than decorative: a mart's leaves say a flatten step resolved and
+#: a grain matched, while a rollup reaches the IR only if R013 produced a
+#: derivation for every measure it carries (RFC 0058 D5). One is the absence of
+#: a violation, the other is a positive proof, and this collection has spent
+#: four RFCs on that distinction.
+#:
 #: Marts are ``checked`` and not ``safe``, which is §3's word. A guardrail
 #: refusal is reported over the draft IR the stage was handed, so a project
 #: refused for a reason that has nothing to do with its marts prints its mart

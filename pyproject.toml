@@ -608,6 +608,6 @@ type = "layers"
 layers = [
     "(bloomery.emit.lower.quality_mart)",
     "(bloomery.emit.lower.reconcile)",
-    "(bloomery.emit.lower.silver) | (bloomery.emit.lower.marts)",
+    "(bloomery.emit.lower.silver) | (bloomery.emit.lower.marts) | (bloomery.emit.lower.rollups)",
     "(bloomery.emit.lower.predicates)",
 ]

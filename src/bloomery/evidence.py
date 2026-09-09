@@ -117,6 +117,11 @@ class CheckedSurfaces:
     #: counting it would report a surface as checked that nothing checked and
     #: nobody wrote — the population mistake ``measures`` avoids one field up.
     marts: int
+    #: Declared rollups R013 discharged the obligation for (RFC 0058 D5). Its
+    #: own number rather than folded into ``marts``: the two surfaces are ruled
+    #: on by different checks, and a reader adding them would be told a rollup
+    #: had a mart's flatten and grain checks run over it, which nothing did.
+    rollups: int
     #: ``convert`` steps across every mapping's key and field chains.
     conversions: int
     #: Mart joins carrying an ``as_of`` anchor (RFC 0023 §5.3).
@@ -531,6 +536,7 @@ def _from_ir(
             relationships=len(ir.relationships),
             measures=len(reachable) + len(unreachable),
             marts=sum(1 for mart in ir.marts if not is_quality_mart(mart)),
+            rollups=len(ir.rollups),
             conversions=_conversions(project),
             temporal_joins=sum(
                 1 for mart in ir.marts for join in mart.joins if join.as_of is not None

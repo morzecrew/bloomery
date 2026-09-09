@@ -618,7 +618,13 @@ def test_a_draft_ir_is_counted_and_the_stage_says_it_is_a_prefix() -> None:
 
     assert evidence.stage_reached is Stage.GUARDRAILS
     assert evidence.checked == CheckedSurfaces(
-        entities=2, relationships=1, measures=2, marts=0, conversions=0, temporal_joins=0
+        entities=2,
+        relationships=1,
+        measures=2,
+        marts=0,
+        rollups=0,
+        conversions=0,
+        temporal_joins=0,
     )
 
 
