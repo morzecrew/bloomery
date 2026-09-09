@@ -10,6 +10,7 @@ import pytest
 import yaml
 
 from bloomery import Target, build_project_ir, compile_project, project_fingerprint
+from bloomery.errors import UnsupportedByTarget
 from bloomery.dialects import get_dialect
 from bloomery.emit import ArtifactKind, EmitContext
 from bloomery.emit.sqlmesh import SQLMeshEmitter
@@ -746,3 +747,125 @@ def test_no_project_file_where_the_start_cannot_be_stated() -> None:
         for entity in stripped.entities
     ), "the fixture must still backfill by time for this to prove anything"
     assert not any(a.path == "config.yaml" for a in SQLMeshEmitter().emit(stripped, ctx))
+
+
+# ....................... #
+# Rollup kinds (RFC 0058 §5.3)
+
+_ROLLUP_SOURCES = {
+    "entity_model": """\
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      amount: {type: "decimal(12,2)"}
+      ordered_on: {type: date}
+""",
+    "mapping": """\
+mapping_version: 1
+source: raw__orders
+target: order
+key:
+  order_id: {from: "$.id", transform: [to_string]}
+fields:
+  amount: {from: "$.amount", transform: [{to_decimal: [12, 2]}]}
+  ordered_on: {from: "$.ordered_on", transform: [{parse_date: ISO8601}]}
+""",
+    "metrics": """\
+metrics_version: 1
+metrics:
+  revenue: {grain: order, additivity: additive, agg: sum, expr: "amount"}
+""",
+}
+
+
+def _rollup_model(rollup_body: str) -> str:
+    from bloomery import load_project
+
+    marts = f"""\
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    measures: [revenue]
+    flatten: [{{date: ordered_on, role: ordered}}]
+
+rollups:
+  orders_monthly:
+    of: orders
+    keep: [ordered_month]
+    measures: [revenue]
+{rollup_body}"""
+
+    return next(
+        artifact.content
+        for artifact in compile_project(
+            load_project({**_ROLLUP_SOURCES, "marts": marts}),
+            target=Target.SQLMESH,
+            dialect="duckdb",
+        )
+        if artifact.path.endswith("mart_orders_monthly.sql")
+    )
+
+
+def test_a_rollup_defaults_to_a_full_kind() -> None:
+    assert "kind FULL" in _rollup_model("")
+
+
+def test_an_incremental_rollup_keys_on_the_grouping() -> None:
+    """The grouping *is* the key: one row comes out per distinct combination,
+    by construction, so a rollup needs no `unique_key` of its own to declare."""
+
+    content = _rollup_model("    materialization: incremental_by_key\n")
+
+    assert "INCREMENTAL_BY_UNIQUE_KEY" in content
+    assert "unique_key (ordered_month)" in content
+
+
+def test_a_partitioned_rollup_reads_its_column_type_from_the_parent() -> None:
+    """A rollup declares no column of its own, so the type that decides whether
+    the partition column is temporal is the parent mart's."""
+
+    content = _rollup_model(
+        "    materialization: incremental_by_partition\n"
+        "    partition_by: [months(ordered_month)]\n"
+    )
+
+    assert "INCREMENTAL_BY_TIME_RANGE" in content
+    assert "time_column ordered_month" in content
+
+
+def test_a_rollup_partitioned_on_a_column_that_is_not_temporal_is_refused() -> None:
+    """The refusal names the rollup rather than a mart — the message an author
+    reads has to point at the thing they wrote.
+
+    `order_id` is a column of the parent and not a date, which is the case
+    worth pinning: a name that resolves and is the wrong type, rather than one
+    that resolves to nothing.
+    """
+
+    with pytest.raises(UnsupportedByTarget, match="rollup 'orders_monthly'"):
+        _rollup_model(
+            "    materialization: incremental_by_partition\n"
+            "    partition_by: [order_id]\n"
+        )
+
+
+def test_a_rollup_partitioned_on_a_column_it_dropped_is_refused() -> None:
+    """`ordered_year` is a column of the parent and not of the rollup, which
+    is what a rollup *is*: the parent's other columns are the ones it dropped.
+
+    Typing the partition column against the parent's whole schema accepted a
+    `time_column` naming a column the built table does not have — a model that
+    compiles and fails on its first run.
+    """
+
+    with pytest.raises(UnsupportedByTarget, match="names no column of the model"):
+        _rollup_model(
+            "    materialization: incremental_by_partition\n"
+            "    partition_by: [years(ordered_year)]\n"
+        )

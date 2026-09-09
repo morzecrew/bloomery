@@ -143,6 +143,23 @@ def test_the_kept_columns_are_canonical() -> None:
     assert lowering.rollups[0].keep == ("ordered_month", "ordered_year")
 
 
+def test_a_rollup_may_take_the_provable_subset_of_a_marts_measures() -> None:
+    """The reason `measures:` is declarable on a rollup at all.
+
+    `items` carries `buyers`, which no rollup may re-aggregate. Asking the
+    obligation about the *parent's* measure list would refuse every rollup of
+    that mart, including one carrying only `revenue` — a mart with one distinct
+    count would have no provable rollup, however much of it is additive. The
+    obligation is put with the measures the rollup carries (§5.2), and the
+    check that they are the parent's is separate.
+    """
+
+    lowering = _lowering(measures="buyers, revenue", rollups=_rollup(measures="revenue"))
+
+    assert lowering.violations == ()
+    assert [rollup.measures for rollup in lowering.rollups] == [("revenue",)]
+
+
 def test_a_project_with_no_rollups_lowers_to_nothing() -> None:
     lowering = _lowering(measures="revenue", rollups="")
 

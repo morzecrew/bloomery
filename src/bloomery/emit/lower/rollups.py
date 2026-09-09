@@ -6,12 +6,14 @@
 and two renderings of one aggregate would disagree the first time either
 changed.
 
-This is the **first aggregate bloomery puts in a model**. A wide mart projects
-columns at its base grain and every measure over it is aggregated at query
-time, by the planner or by the engine reading the semantic layer. A rollup is
-where that moves into the build, which is exactly why the obligation had to be
-built before the emitter: from here the safety condition is invisible, and the
-SQL below is correct-looking whatever it aggregates.
+This is the first place a **measure** is aggregated at build time. Models have
+aggregated before — the quality mart counts rule evaluations, a reconcile model
+compares two totals — but a metric has always been aggregated at query time, by
+the planner or by the engine reading the semantic layer, and a wide mart
+projects columns at its base grain. A rollup moves that into the build, which
+is exactly why the obligation had to exist before this emitter: from here the
+safety condition is invisible, and the SQL below is correct-looking whatever it
+aggregates.
 
 What is *not* here is any decision about whether a rollup may be read. Row 14
 keeps it out of ``measure_owners`` and the covering-mart search by putting it

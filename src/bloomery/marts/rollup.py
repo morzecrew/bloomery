@@ -85,9 +85,9 @@ def _not_on_the_parent(
 def _refused(name: str, answer: Refutation, path: str) -> UnprovableRollup:
     """R013's refutation, as the guardrail leaf an author reads.
 
-    The rendered proof form is not used: a refutation renders over four lines
-    and every other leaf in this stage is one sentence, so the aggregate would
-    read as two formats. What is kept is everything the four lines carry — the
+    The rendered proof form is not used: a refutation renders over several
+    lines and every other leaf in this stage is one sentence, so the aggregate
+    would read as two formats. What is kept is everything the four lines carry — the
     obligation, the reason code and the fix — in the shape
     ``resolve.build`` already uses for R009's refusal.
     """

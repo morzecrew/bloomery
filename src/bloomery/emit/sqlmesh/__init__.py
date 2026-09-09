@@ -508,13 +508,24 @@ def _rollup_kind_clause(rollup: RollupIR, parent: MartIR) -> str:
     ``INCREMENTAL_BY_KEY`` takes the columns identifying a row, which for a
     rollup is ``keep`` — the grouping is the key, by construction, since one
     row comes out per distinct combination.
+
+    The partition column's type comes from the parent, because a rollup
+    declares no column of its own — but only for the columns it **keeps**. The
+    parent's other columns are exactly the ones the rollup dropped, and typing
+    a partition column against one of them accepted a ``time_column`` naming a
+    column the built table does not have: a model that compiles and fails on
+    its first run, which is the degradation RFC 0008 D3 refuses. A measure is
+    not a candidate either and is absent for the same reason — the check asks
+    which kept column the table is partitioned along, and a measure is never
+    one (logs/T-0034.md).
     """
 
     if rollup.materialization is Materialization.INCREMENTAL_BY_KEY:
         return f"INCREMENTAL_BY_UNIQUE_KEY (\n    unique_key ({', '.join(rollup.keep)})\n  )"
 
     if rollup.materialization is Materialization.INCREMENTAL_BY_PARTITION:
-        declared = {column.name: column.type for column in parent.columns}
+        kept = set(rollup.keep)
+        declared = {column.name: column.type for column in parent.columns if column.name in kept}
         return _time_range_kind(f"rollup {rollup.name!r}", rollup.partition_by, declared)
 
     return "FULL"
