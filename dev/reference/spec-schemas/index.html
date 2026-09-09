@@ -1696,6 +1696,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#rollup" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Rollup
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#flatten-steps-two-forms" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2356,6 +2367,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Mart
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rollup" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Rollup
       </span>
     </span>
   </a>
@@ -3914,6 +3936,12 @@ quotes it.</p>
 <td>yes</td>
 <td>The gold layer</td>
 </tr>
+<tr>
+<td><code>rollups</code></td>
+<td>map name → Rollup</td>
+<td>no (<code>{}</code>)</td>
+<td>Aggregates of the marts above; a name a mart already uses is refused</td>
+</tr>
 </tbody>
 </table>
 <h3 id="mart">Mart<a class="headerlink" href="#mart" title="Permanent link">&para;</a></h3>
@@ -3971,6 +3999,73 @@ quotes it.</p>
 </tr>
 </tbody>
 </table>
+<h3 id="rollup">Rollup<a class="headerlink" href="#rollup" title="Permanent link">&para;</a></h3>
+<p>A mart at a coarser grain than one above it: <code>SELECT keep…, agg(measure) … FROM
+&lt;parent&gt; GROUP BY keep…</code>, built once instead of computed per query. It names what
+it <strong>keeps</strong>; what it drops is every other column of the parent, derived rather
+than listed, because two statements of one fact will disagree.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">rollups</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">order_items_monthly</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">of</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_items</span>
+<span class="w">    </span><span class="nt">keep</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">order_customer_id</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">ordered_month</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">measures</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">gross_revenue</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>of</code></td>
+<td>mart name</td>
+<td>yes</td>
+<td>The mart this aggregates; must be a mart of this document, never another rollup</td>
+</tr>
+<tr>
+<td><code>keep</code></td>
+<td>list of parent columns</td>
+<td>yes, non-empty</td>
+<td>The grouping; each named once, and not every column of the parent</td>
+</tr>
+<tr>
+<td><code>measures</code></td>
+<td>list of metric names</td>
+<td>yes, non-empty</td>
+<td>Metrics this rollup carries; each named once, and each one the parent stores</td>
+</tr>
+<tr>
+<td><code>partition_by</code></td>
+<td>list of partition specs</td>
+<td>no (<code>[]</code>)</td>
+<td>Physical partitioning</td>
+</tr>
+<tr>
+<td><code>materialization</code></td>
+<td>as Entity</td>
+<td>no</td>
+<td>Materialization override</td>
+</tr>
+</tbody>
+</table>
+<p>There is no <code>grain</code>, no <code>base</code> and no <code>cost_hint</code>. The first two name an entity
+and a rollup's rows are identified by <code>keep</code>; the third breaks ties between marts
+that can serve a metric, and a rollup is never one of them.</p>
+<p><strong>A rollup is never chosen for you.</strong> No request is answered from it and no query
+is redirected to it — reading a rollup instead of the detail is a decision
+bloomery does not yet make, so the table is there for whatever reads it directly.</p>
+<p><strong>An unprovable rollup is refused, not warned about</strong> (<code>UnprovableRollup</code>). A
+rollup is read <em>instead of</em> the detail table, so a wrong one does not fail — it
+answers, quickly and plausibly. Refused: a measure that may not be re-aggregated
+over what the rollup drops (<code>distinct_count</code>, <code>semi_additive</code>, <code>non_additive</code>,
+<code>snapshot</code>), one the parent does not store, one whose <code>filter:</code> or <code>cumulative:</code>
+the single aggregate would drop, and a rollup that keeps every column and so
+drops nothing. A <code>ratio</code> measure is carried as its operands and recomputed, which
+is what it is on every other target too.</p>
 <h3 id="flatten-steps-two-forms">Flatten steps — two forms<a class="headerlink" href="#flatten-steps-two-forms" title="Permanent link">&para;</a></h3>
 <p>Discriminated on <code>via</code> vs <code>date</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="nt">flatten</span><span class="p">:</span>

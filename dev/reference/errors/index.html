@@ -1799,6 +1799,7 @@ pulling in any pipeline stage.</p>
 │   ├── InvalidMetricShape
 │   ├── MetricFilterInvalid
 │   ├── MartMissingTimeDimension
+│   ├── UnprovableRollup
 │   ├── ReservedEntityName
 │   ├── QuarantineRetentionMissing
 │   ├── DedupeTieBreakMissing
@@ -1972,6 +1973,11 @@ pulling in any pipeline stage.</p>
 <td><code>MartMissingTimeDimension</code></td>
 <td>guardrails</td>
 <td>A measure-carrying mart that declares no date role</td>
+</tr>
+<tr>
+<td><code>UnprovableRollup</code></td>
+<td>guardrails</td>
+<td>A declared rollup carrying a measure that may not be re-aggregated over the dimensions it drops — a non-additive or distinct-count measure, one the parent mart does not store, or one whose <code>filter:</code>/<code>cumulative:</code> the rollup's aggregate would drop</td>
 </tr>
 <tr>
 <td><code>ReservedEntityName</code></td>
