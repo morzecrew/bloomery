@@ -13,7 +13,11 @@ from bloomery.ir import (
     Additivity,
     Cardinality,
     ColumnIR,
+    DimensionRef,
     EntityIR,
+    MartColumnIR,
+    MartDimensionIR,
+    MartIR,
     Materialization,
     MetricIR,
     ProjectIR,
@@ -129,6 +133,53 @@ def project(
         entities=tuple(sorted(entities, key=lambda e: e.name)),
         relationships=tuple(sorted(relationships, key=lambda r: r.name)),
         metrics=tuple(sorted(metrics, key=lambda m: m.name)),
+    )
+
+
+# ....................... #
+
+
+def mart(
+    name: str,
+    grain_name: str,
+    *,
+    measures: tuple[str, ...] = (),
+    dimensions: tuple[str, ...] = (),
+) -> MartIR:
+    """One flattened mart, as little of it as the rollup obligation needs.
+
+    ``measures`` is sorted the way :func:`bloomery.marts.flatten` sorts it, and
+    ``dimensions`` becomes one requestable dimension per column — which is what
+    the mart builder does, since every flattened column is requestable and a
+    bucket column's qualified name is its column name (RFC 0010 §10).
+
+    The fields the obligation never reads — joins, partitioning, assertions —
+    stay empty rather than plausible, for the reason :func:`metric` gives.
+    """
+
+    columns = tuple(
+        MartColumnIR(
+            name=column,
+            type=StringType(),
+            source_entity=grain_name,
+            source_column=column,
+        )
+        for column in sorted(dimensions)
+    )
+
+    return MartIR(
+        name=name,
+        grain=grain_name,
+        base=grain_name,
+        columns=columns,
+        measures=tuple(sorted(measures)),
+        dimensions=tuple(
+            MartDimensionIR(ref=DimensionRef(dimension=column.name), column=column.name)
+            for column in columns
+        ),
+        joins=(),
+        partition_by=(),
+        materialization=Materialization.FULL,
     )
 
 

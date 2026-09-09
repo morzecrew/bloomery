@@ -59,6 +59,7 @@ from bloomery.semantic.proof import (
     SemanticFact,
     SemanticJudgement,
 )
+from bloomery.semantic.rollup import prove_mart_rollup, prove_measure_rollup
 
 # ----------------------- #
 
@@ -76,6 +77,8 @@ __all__ = [
     "prove_rollup",
     "prove_conversion",
     "prove_additive_rollup",
+    "prove_mart_rollup",
+    "prove_measure_rollup",
     "prove_ratio_reconstruction",
     "Conversion",
     "DenominationRefusal",

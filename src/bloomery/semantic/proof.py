@@ -287,6 +287,16 @@ class Rule:
 #: pre-joined mart, so that contract is the whole of what authorizes its
 #: aggregate, and citing it is what keeps P1 a re-expression rather than a new
 #: claim (RFC 0040 D5).
+#:
+#: R013 is the rollup mart's obligation (RFC 0058 §5.2, D12). It stands beside
+#: R011 rather than under it: R011 asks whether an additive measure may be
+#: summed across a rollup *its grain proof permits*, and a rollup mart has no
+#: such proof to permit it — R006's vocabulary cannot state the target, because
+#: a mart's dimensions are not entity key columns. What stands in for the grain
+#: proof is R008, which is stronger here and already discharged: a mart carries
+#: measures only at its own grain, so grouping its rows on a subset of its
+#: columns partitions a relation the mart has already proved. So R013 premises
+#: on R008 and asks only the class question, which is the one thing left.
 RULES: Final[dict[str, Rule]] = {
     rule.id: rule
     for rule in (
@@ -304,6 +314,10 @@ RULES: Final[dict[str, Rule]] = {
         Rule("R010", "a branch's rows are unique at the result grain by its own aggregate"),
         Rule("R011", "an additive measure may be summed across a rollup its grain proof permits"),
         Rule("R012", "a ratio is recomputed from operands that each roll up, never summed"),
+        Rule(
+            "R013",
+            "a mart's measure is re-aggregable over the dimensions a rollup of it drops",
+        ),
     )
 }
 
