@@ -1207,10 +1207,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-seven-commands" class="md-nav__link">
+  <a href="#the-eight-commands" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The seven commands
+        The eight commands
       </span>
     </span>
   </a>
@@ -1266,6 +1266,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Emitting the schemas
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-in-ci" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Checking in CI
       </span>
     </span>
   </a>
@@ -1608,10 +1619,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-seven-commands" class="md-nav__link">
+  <a href="#the-eight-commands" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The seven commands
+        The eight commands
       </span>
     </span>
   </a>
@@ -1667,6 +1678,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Emitting the schemas
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-in-ci" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Checking in CI
       </span>
     </span>
   </a>
@@ -1779,7 +1801,7 @@
 
 <h1 id="use-the-cli">Use the CLI<a class="headerlink" href="#use-the-cli" title="Permanent link">&para;</a></h1>
 <p>You want to compile a spec directory, or find out which metrics it can actually answer,
-without writing a Python script. <code>bloomery</code> is that: six commands, each a thin argument
+without writing a Python script. <code>bloomery</code> is that: eight commands, each a thin argument
 shell over one public function.</p>
 <div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>resolve<span class="w"> </span>specs/
 </code></pre></div>
@@ -1825,10 +1847,11 @@ than "nothing unreachable".</p>
 <p>A project that wires a <code>steps:</code> document reports the unwired step here, because the CLI
 passes no registry — see <a href="#compiling">Steps are the one thing the CLI cannot wire</a> below.
 <code>bloomery compile</code> on the same project refuses for the same reason.</p>
-<h2 id="the-seven-commands">The seven commands<a class="headerlink" href="#the-seven-commands" title="Permanent link">&para;</a></h2>
+<h2 id="the-eight-commands">The eight commands<a class="headerlink" href="#the-eight-commands" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>bloomery compile     &lt;dir&gt; [--target sqlmesh] [--dialect duckdb] [--catalog F] [--out DIR]
 bloomery plan        &lt;old-dir&gt; &lt;new-dir&gt; [--catalog F] [--format table|json]
 bloomery resolve     &lt;dir&gt; [--catalog F] [--format table|json]
+bloomery check       &lt;dir&gt; [--catalog F] [--format table|json]
 bloomery lineage     &lt;dir&gt; --node ID [--direction upstream|downstream|both] [--max-depth N]
                            [--catalog F] [--format table|json]
 bloomery explain     &lt;dir&gt; --metrics a,b [--by x,y] [--where JSON] [--grain month]
@@ -1926,6 +1949,45 @@ bloomery<span class="w"> </span>schema<span class="w"> </span>--kind<span class=
 </code></pre></div>
 <p>See the <a href="../../reference/json-schema/">JSON Schema reference</a> for what the documents
 contain and how to point an editor at them.</p>
+<h2 id="checking-in-ci">Checking in CI<a class="headerlink" href="#checking-in-ci" title="Permanent link">&para;</a></h2>
+<p><code>resolve</code> answers "what can I compute, and what is missing for the rest". <code>check</code> answers
+"is what this project declares sound" — the same analysis, summarised as a gate:</p>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>check<span class="w"> </span>specs/
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>Stage: complete
+Fingerprint: blm1:46f0d4f549273b5e43db9b6961ce4ef35919611d2987e1dc0f841c355840087c
+
+  2  entities        resolved
+  1  relationships   checked
+  4  measures        type-check
+  1  marts           checked
+  0  conversions     proven
+  0  temporal joins  anchored
+
+0 refusal(s)
+</code></pre></div>
+<p>It needs no warehouse, no credentials, no network and no target — it reads files and calls
+<a href="../evaluate-a-spec/"><code>evaluate()</code></a>, the same function <code>resolve</code> calls — so it runs in
+pre-commit and on a runner with no secrets:</p>
+<div class="highlight"><pre><span></span><code><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bloomery semantic check</span>
+<span class="w">  </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bloomery check .</span>
+</code></pre></div>
+<p><strong>Each number is a surface that was checked, and there is no total.</strong> A sum would imply a
+coverage nobody proved: a green <code>check</code> says the project's own declarations hold, not that
+every future query against it is safe.</p>
+<p><strong>What fails it is a refusal, and only a refusal.</strong> An unreachable metric and an open
+decision are both reported by <code>resolve</code> and neither fails <code>check</code> — they say the mappings
+are incomplete, which is the state a draft passes through, not that what is written is
+wrong. Where analysis stopped before an IR existed, <code>check</code> says the counts are
+<strong>unavailable</strong> rather than printing six zeros: a zero reads as a surface that was checked
+and held nothing, and "nothing was checked" is false too — the stages that ran checked
+plenty, and what is missing is the arithmetic over an IR nobody built.</p>
+<p>Each verb names the process the count came from, not a verdict. Marts are <code>checked</code> and
+not <em>safe</em>: a guardrail refusal is reported over the draft it was handed, so a project
+refused for a reason unrelated to its marts prints its mart count beside that refusal,
+and the stage never finished ruling on them. The quality mart is not counted at all — it
+is bloomery-owned and attaches after the guardrails, so nothing checked it and nobody
+wrote it.</p>
 <h2 id="exit-codes">Exit codes<a class="headerlink" href="#exit-codes" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
@@ -1978,8 +2040,9 @@ job — so a pipeline that retries on it will retry forever. Branch on the code:
 <div class="highlight"><pre><span></span><code>entity_model: entities.order.fields.total.type: String should match pattern '^(?:string|int|…
 </code></pre></div>
 <h2 id="scripting-with-format-json">Scripting with <code>--format json</code><a class="headerlink" href="#scripting-with-format-json" title="Permanent link">&para;</a></h2>
-<p><code>plan</code>, <code>resolve</code> and <code>explain</code> take <code>--format json</code>, and it emits the <strong>same values the
-Python API returns</strong> — not a summary of them. <code>bloomery resolve --format json</code> carries
+<p><code>plan</code>, <code>resolve</code>, <code>check</code> and <code>explain</code> take <code>--format json</code>, and it emits the <strong>same
+values the Python API returns</strong> — not a summary of them. <code>bloomery resolve --format json</code>
+carries
 each mart's measures and dimensions and the full text of every refusal even though the
 table prints neither, because a script should not have to drop into Python for a field
 the function already returned.</p>
@@ -1992,6 +2055,13 @@ writes it as, <code>decimal(12, 4)</code>. And a refusal — which is an excepti
 becomes its <code>type</code>, its <code>message</code>, and every attribute it carries, so <code>source_path</code> and
 the <a href="../../reference/errors/">structured fix suggestions</a> arrive as fields rather than as
 prose to re-parse.</p>
+<p><strong>There is no <code>status</code> field, and <code>check</code> does not add one.</strong> The verdict is the exit
+code, and a key repeating it would be a second answer that can disagree with the first.
+A consumer reading a stored artifact rather than an exit code reads the stage, which says
+more than a verdict would — <em>where</em> analysis stopped, not just that it did:</p>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>check<span class="w"> </span>specs/<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-e<span class="w"> </span><span class="s1">'.stage_reached == "complete"'</span>
+bloomery<span class="w"> </span>check<span class="w"> </span>specs/<span class="w"> </span>--format<span class="w"> </span>json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">'.checked // "stopped before an IR was built"'</span>
+</code></pre></div>
 <h2 id="what-the-cli-will-never-grow">What the CLI will never grow<a class="headerlink" href="#what-the-cli-will-never-grow" title="Permanent link">&para;</a></h2>
 <p>No <code>run</code> and no engine connection. No config file, profile, or credentials. No
 <code>bloomery init</code> or <code>bloomery new entity</code> — templates encode opinions about project layout
