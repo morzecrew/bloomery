@@ -4,6 +4,7 @@ defense, and dialect independence."""
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from typing import cast
 
@@ -27,6 +28,7 @@ from bloomery.ir import (
     MetricIR,
     ProjectIR,
     Ratio,
+    RollupIR,
     SCDKind,
     SourceColumnIR,
     SourceIR,
@@ -522,3 +524,174 @@ def test_a_view_names_exactly_one_cube() -> None:
         (view,) = yaml.safe_load(artifact.content)["views"]
         assert len(view["cubes"]) == 1
         assert view["cubes"][0]["includes"] == "*"
+
+
+# ....................... #
+# Rollups → pre_aggregations (RFC 0058 §5.3, P3)
+
+
+def _bucketed_mart(*buckets: str) -> MartIR:
+    """The harness mart plus one date-role bucket column per name.
+
+    Buckets rather than plain date columns, because the count that decides
+    `time_dimension:` is of buckets: only a bucket carries the granularity
+    Cube requires beside it.
+    """
+
+    base = _mart(("revenue",))
+    extra = tuple(
+        MartColumnIR(name=name, type=DateType(), source_entity="order",
+                     source_column="order_date",
+                     ref=DimensionRef(dimension=name.removeprefix("ordered_"), role="ordered"))
+        for name in buckets
+    )  # fmt: skip
+    columns = tuple(sorted((*base.columns, *extra), key=lambda c: c.name))
+    return dataclasses.replace(
+        base,
+        columns=columns,
+        dimensions=tuple(
+            MartDimensionIR(
+                ref=c.ref if c.ref is not None else DimensionRef(dimension=c.name), column=c.name
+            )
+            for c in columns
+        ),
+    )
+
+
+def _rolled(
+    *rollups: RollupIR,
+    mart: MartIR | None = None,
+    metrics: tuple[MetricIR, ...] = (),
+) -> ProjectIR:
+    return ProjectIR(
+        entities=(_entity(),),
+        metrics=metrics or (_metric("revenue"),),
+        marts=(mart if mart is not None else _mart(("revenue",)),),
+        rollups=rollups,
+    )
+
+
+def _rollup(name: str = "orders_monthly", *, keep: tuple[str, ...] = ("ordered_day",),
+            measures: tuple[str, ...] = ("revenue",), of: str = "orders") -> RollupIR:
+    return RollupIR(name=name, of=of, keep=keep, measures=measures)  # fmt: skip
+
+
+def _pre_aggs(project: ProjectIR, mart_name: str = "orders") -> list[dict[str, object]]:
+    cube = _cube_yaml(CubeEmitter().emit(project, _ctx()), mart_name)
+    return cast("list[dict[str, object]]", cube.get("pre_aggregations", []))
+
+
+def test_a_rollup_becomes_a_pre_aggregation_on_its_parent() -> None:
+    """The payoff (§5.3): the block names what the rollup carries and keeps,
+    and nothing else — what Cube may serve from it is bounded by what is in
+    it."""
+
+    (block,) = _pre_aggs(_rolled(_rollup(keep=("order_id", "ordered_day"))))
+
+    assert block == {
+        "name": "orders_monthly",
+        "type": "rollup",
+        "measures": ["CUBE.revenue"],
+        "dimensions": ["CUBE.order_id"],
+        "time_dimension": "CUBE.ordered_day",
+        "granularity": "day",
+    }
+
+
+def test_a_mart_nothing_rolls_up_has_no_pre_aggregations_key() -> None:
+    """Absent rather than empty: every project before RFC 0058 has no rollups,
+    and an empty key on every cube would move every existing golden to say
+    nothing new."""
+
+    cube = _cube_yaml(CubeEmitter().emit(_project((_metric("revenue"),), ("revenue",)), _ctx()),
+                      "orders")  # fmt: skip
+
+    assert "pre_aggregations" not in cube
+
+
+def test_a_rollup_of_another_mart_does_not_reach_this_cube() -> None:
+    """`of:` decides which cube carries the block, and a rollup naming a mart
+    this project does not build reaches none."""
+
+    assert _pre_aggs(_rolled(_rollup(of="somewhere_else"))) == []
+
+
+def test_a_rollup_keeping_one_bucket_and_nothing_else_omits_dimensions() -> None:
+    """An empty `dimensions:` is noise rather than information."""
+
+    (block,) = _pre_aggs(_rolled(_rollup(keep=("ordered_day",))))
+
+    assert "dimensions" not in block
+    assert block["time_dimension"] == "CUBE.ordered_day"
+
+
+def test_a_rollup_keeping_no_bucket_names_no_time_dimension() -> None:
+    """`granularity:` must accompany `time_dimension:`, and only a bucket
+    carries one — so a rollup keeping none names neither."""
+
+    (block,) = _pre_aggs(_rolled(_rollup(keep=("order_id",))))
+
+    assert "time_dimension" not in block
+    assert "granularity" not in block
+    assert block["dimensions"] == ["CUBE.order_id"]
+
+
+def test_a_rollup_keeping_two_buckets_names_neither_as_the_time_dimension() -> None:
+    """Cube allows one `time_dimension` per pre-aggregation, and picking one of
+    two would be arbitrary. Both stay ordinary dimensions: the pre-aggregation
+    is semantically identical and only less partitionable (logs/T-0035.md)."""
+
+    project = _rolled(
+        _rollup(keep=("ordered_day", "ordered_month")), mart=_bucketed_mart("ordered_month")
+    )
+    (block,) = _pre_aggs(project)
+
+    assert "time_dimension" not in block
+    assert block["dimensions"] == ["CUBE.ordered_day", "CUBE.ordered_month"]
+
+
+def test_two_rollups_of_one_parent_are_two_blocks_in_name_order() -> None:
+    project = _rolled(
+        _rollup("orders_by_day", keep=("ordered_day",)),
+        _rollup("orders_by_id", keep=("order_id",)),
+    )
+
+    assert [block["name"] for block in _pre_aggs(project)] == ["orders_by_day", "orders_by_id"]
+
+
+def test_a_ratio_is_absent_and_its_operands_are_present() -> None:
+    """Cube may only pre-aggregate a stored number. The quotient is calculated
+    from the operands R013 required the rollup to carry, so listing it would
+    ask Cube to pre-aggregate something the relation never holds."""
+
+    metrics = (
+        _metric("orders", agg="count", expr="order_id"),
+        _metric("revenue"),
+        _metric("aov", additivity=Additivity.RATIO, agg=None, expr=None,
+                ratio=Ratio(numerator="revenue", denominator="orders")),
+    )  # fmt: skip
+    project = _rolled(
+        _rollup(measures=("aov", "orders", "revenue")),
+        mart=dataclasses.replace(_mart(("aov", "orders", "revenue")), measures=("aov", "orders", "revenue")),
+        metrics=metrics,
+    )
+    (block,) = _pre_aggs(project)
+
+    assert block["measures"] == ["CUBE.orders", "CUBE.revenue"]
+
+
+def test_a_rollup_is_no_cube_no_view_and_no_member() -> None:
+    """Row 14 (`LOCKED`) from the emitter side: a rollup adds a key inside the
+    parent's document and nothing else. If it ever became a cube of its own it
+    would be a second surface serving the same measures."""
+
+    artifacts = CubeEmitter().emit(_rolled(_rollup()), _ctx())
+    cube = _cube_yaml(artifacts, "orders")
+
+    assert [a.path for a in artifacts] == [
+        "model/cubes/orders.yml",
+        "model/views/orders_view.yml",
+    ]
+    assert [m["name"] for m in cast("list[dict[str, object]]", cube["measures"])] == ["revenue"]
+    assert all("orders_monthly" not in str(d["name"])
+               for d in cast("list[dict[str, object]]", cube["dimensions"]))  # fmt: skip

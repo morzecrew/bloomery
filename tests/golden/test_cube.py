@@ -34,6 +34,14 @@ EXPECTED_PATHS = {
         "model/cubes/orders.yml",
         "model/views/orders_view.yml",
     ],
+    # The pre-aggregation (RFC 0058 §5.3): a rollup is a key inside its
+    # parent's document and produces no cube and no view of its own, which is
+    # row 14 read from the emitter side. The golden is what shows that — the
+    # path list below is the same two a mart without a rollup produces.
+    "rollup_mart": [
+        "model/cubes/order_items.yml",
+        "model/views/order_items_view.yml",
+    ],
     "role_playing_dates": [
         "model/cubes/orders.yml",
         "model/views/orders_view.yml",

@@ -69,7 +69,12 @@ from bloomery.emit.base import (
     EmitContext,
     EmittedArtifact,
 )
-from bloomery.emit.lower import mart_column_type, measure_owners, metric_filter_sql
+from bloomery.emit.lower import (
+    mart_column_type,
+    measure_owners,
+    metric_filter_sql,
+    rollup_measures,
+)
 from bloomery.errors import UnsupportedByTarget
 from bloomery.ir import (
     COMPUTED,
@@ -292,20 +297,116 @@ def _measures(mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR]) -> list[ob
 # ....................... #
 
 
+def _pre_aggregations(mart: MartIR, ir: ProjectIR) -> list[object]:
+    """The ``pre_aggregations`` block for every rollup of this mart
+    (RFC 0058 §5.3, P3) — the payoff the feature is worth its cost for.
+
+    **This is the whole of P3, and deliberately.** §12 sends §9's third risk —
+    whether Cube's own query-time matching agrees with the obligation bloomery
+    discharged — to RFC 0043's capability matrix to be *measured*, rather than
+    asserted here. So this function states what a rollup is and lets Cube
+    decide when to use it; what it must never do is state more than R013
+    proved.
+
+    It states less, in fact, and that is the safety argument. A pre-aggregation
+    Cube may serve a query from is bounded by what it contains, so the only
+    measures listed are the ones the rollup carries and the only dimensions are
+    the ones it keeps. A query naming a measure R013 refused, or a dimension
+    the rollup dropped, cannot match — Cube falls back to the mart, which is
+    the correct answer arrived at by Cube's own rules rather than by trusting
+    them.
+
+    **Row 14 (`LOCKED`) needs no filter here.** The block is a key inside the
+    parent mart's own document, so :meth:`CubeEmitter.emit` still walks
+    ``ir.marts`` alone: a rollup becomes no cube, no view and no member, and
+    ``measure_owners`` is never asked about one because a rollup is never among
+    its candidates. That is the same argument P2 made about ``ProjectIR.marts``,
+    reaching the same place from the emitter side.
+
+    Three shapes are decided here that §5.3 does not settle (logs/T-0035.md):
+
+    - ``time_dimension`` is named only when the rollup keeps exactly **one**
+      date-role bucket. Cube allows one per pre-aggregation, and a bucket is
+      the only kind of kept column carrying the ``granularity`` that must
+      accompany it — a plain ``date`` column would need one invented. With
+      zero or several, every kept column is an ordinary dimension: the
+      pre-aggregation is semantically identical and only less partitionable,
+      which is a performance property rather than a wrong number.
+    - No ``refresh_key``. How often Cube rebuilds its own copy is a deployment
+      fact bloomery is not a source for, and RFC 0017 D52 already says nothing
+      about how a relation is built is Cube's to refuse.
+    - ``type: rollup`` is written even though it is Cube's default. This file
+      is read by people auditing what bloomery generated, ``rollup`` is the
+      word the design uses for the thing, and a default that moves in a future
+      Cube release would otherwise change what an unchanged artifact means.
+
+    A ratio is absent for the reason it is absent from the gold model:
+    :func:`~bloomery.emit.lower.rollup_measures` skips a
+    :data:`~bloomery.ir.COMPUTED` metric, and Cube recomputes the quotient from
+    the operands R013 required the rollup to carry. Listing the calculated
+    measure instead would ask Cube to pre-aggregate a number that is never
+    stored.
+    """
+
+    granularities = {
+        dimension.column: dimension.ref.dimension
+        for dimension in mart.dimensions
+        if dimension.ref.role is not None
+    }
+    blocks: list[object] = []
+
+    for rollup in ir.rollups:  # sorted by name on ProjectIR
+        if rollup.of != mart.name:
+            continue
+
+        buckets = [column for column in rollup.keep if column in granularities]
+        timed = buckets[0] if len(buckets) == 1 else None
+        grouped = [column for column in rollup.keep if column != timed]
+        entry: dict[str, object] = {
+            "name": rollup.name,
+            "type": "rollup",
+            # `rollup.measures` names what the author declared; this names what
+            # the relation stores, which is the same list minus the computed
+            # ones. Cube may only pre-aggregate a stored number.
+            "measures": [f"CUBE.{metric.name}" for metric in rollup_measures(rollup, ir)],
+        }
+
+        if grouped:
+            # A rollup keeping only its time bucket groups by nothing else, and
+            # an empty `dimensions:` is noise rather than information.
+            entry["dimensions"] = [f"CUBE.{column}" for column in grouped]
+
+        if timed is not None:
+            entry["time_dimension"] = f"CUBE.{timed}"
+            entry["granularity"] = granularities[timed]
+
+        blocks.append(entry)
+
+    return blocks
+
+
+# ....................... #
+
+
 def _cube_artifact(
     mart: MartIR, ir: ProjectIR, owners: dict[str, MartIR], ctx: EmitContext
 ) -> EmittedArtifact:
     namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
-    document: dict[str, object] = {
-        "cubes": [
-            {
-                "name": mart.name,
-                "sql_table": f"{namespace}.{relation}",
-                "dimensions": _dimensions(mart),
-                "measures": _measures(mart, ir, owners),
-            }
-        ]
+    cube: dict[str, object] = {
+        "name": mart.name,
+        "sql_table": f"{namespace}.{relation}",
+        "dimensions": _dimensions(mart),
+        "measures": _measures(mart, ir, owners),
     }
+    pre_aggregations = _pre_aggregations(mart, ir)
+
+    if pre_aggregations:
+        # Absent rather than empty on a mart nothing rolls up: every project
+        # before RFC 0058 has no rollups at all, and an empty key on every cube
+        # would move every existing golden to say nothing new.
+        cube["pre_aggregations"] = pre_aggregations
+
+    document: dict[str, object] = {"cubes": [cube]}
     return EmittedArtifact.create(
         path=f"model/cubes/{mart.name}.yml",
         content=_header(ctx) + _yaml(document),
