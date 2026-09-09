@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`bloomery check` — a semantic gate for CI.** Load, resolve, type-check,
+  prove the static invariants, report; no target emission, no warehouse, no
+  credentials and no network, because compilation was already pure and this
+  exposes it rather than establishing it. It prints one line per semantic
+  surface it checked — entities, relationships, measures, marts, conversions,
+  temporal joins — and the refusals, and exits `1` on a refusal like every
+  other command.
+
+  It is a separate command from `resolve` rather than an exit contract grown
+  onto it, and the two cannot disagree about that exit code: both read one
+  `SpecEvidence`. What differs is the question. `resolve` is an author's
+  worklist — which metrics are computable, what is missing for the rest;
+  `check` is a gate's summary of whether what the project declares holds.
+
+  **No total and no percentage**, which would imply a coverage nobody proved,
+  and no count at all where analysis stopped before an IR existed — a zero
+  there would read as a surface checked and found empty. `SpecEvidence` gains
+  `checked`, a `CheckedSurfaces` or `None`, so a Python caller reads the same
+  numbers.
+
+  An unreachable metric and an open decision are reported and do not fail the
+  gate: they say the mappings are incomplete, not that what is written is
+  wrong.
+
 - **A rollup now has to answer two questions, and they are asked separately.**
   `can_roll_up` says whether values may travel from one grain to another; it
   has never said anything about what may be done with them on arrival, and

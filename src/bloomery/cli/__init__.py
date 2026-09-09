@@ -257,6 +257,43 @@ def _resolve(arguments: argparse.Namespace) -> int:
 # ....................... #
 
 
+def _check(arguments: argparse.Namespace) -> int:
+    """``bloomery check`` — the CI gate (RFC 0044 P1).
+
+    Load, resolve, semantic type-check, prove the static invariants, report.
+    **No emission, no warehouse, no credentials, no network** (D1) — which is
+    not a property this command establishes but one it inherits: compilation is
+    already pure under RFC 0003, and :func:`~bloomery.evaluate` runs the same
+    stages ``resolve`` does and stops before any target is asked for anything.
+
+    A separate command from ``resolve`` rather than an exit contract grown onto
+    it (D7, settled in ``logs/T-0030.md``). The exit behaviour is identical **by
+    construction** — both read ``stage_reached`` off one ``SpecEvidence``, so
+    there is no second contract that can drift from the first — and what differs
+    is the question each answers and therefore what each prints.
+
+    **What does not fail this command**: an unreachable metric, and an open
+    decision. Neither is a refusal — the pipeline reported them and carried on
+    to ``COMPLETE`` — and a gate that failed on either would refuse every
+    project mid-build, which is the state a draft is supposed to pass through.
+    Both are logged as unlisted decisions in the same log, because §3 settles
+    the exit code against refusals and says nothing about these.
+    """
+
+    project, catalog = _load(arguments.directory, arguments.catalog)
+    evidence = evaluate(project, catalog=catalog)
+
+    if arguments.format == "json":
+        _emit(evidence, as_json=True)
+    else:
+        _emit(render.render_check(evidence), as_json=False)
+
+    return EXIT_OK if evidence.stage_reached is Stage.COMPLETE else EXIT_REFUSED
+
+
+# ....................... #
+
+
 def _lineage(arguments: argparse.Namespace) -> int:
     """``bloomery lineage`` — where a node comes from, or what it feeds.
 
@@ -618,6 +655,13 @@ def build_parser() -> argparse.ArgumentParser:
     _add_spec_directory(resolve_parser)
     _add_format(resolve_parser)
     resolve_parser.set_defaults(run=_resolve)
+
+    check_parser = commands.add_parser(
+        "check", help="semantic gate for CI: what was checked, and what refused"
+    )
+    _add_spec_directory(check_parser)
+    _add_format(check_parser)
+    check_parser.set_defaults(run=_check)
 
     lineage_parser = commands.add_parser(
         "lineage", help="where a node comes from, or what a change to it would reach"

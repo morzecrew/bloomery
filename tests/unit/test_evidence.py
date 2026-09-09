@@ -29,6 +29,7 @@ from support.steps import registry_for
 
 from bloomery import (
     Catalog,
+    CheckedSurfaces,
     MartSummary,
     Provenance,
     SpecEvidence,
@@ -418,6 +419,7 @@ def test_a_field_added_to_the_value_does_not_rebind_a_positional_caller() -> Non
     assert evidence.fingerprint == "blm1:deadbeef"
     assert evidence.unresolved == ()
     assert evidence.provenance == ()
+    assert evidence.checked is None
 
 
 def test_a_merged_entitys_field_reports_one_entry_per_mapping() -> None:
@@ -482,3 +484,114 @@ def test_the_fixture_corpus_is_actually_being_walked() -> None:
     assert len(LOADABLE) > 10
     assert "dirty" not in LOADABLE  # CSV specimens, not a spec project
     assert Path(FIXTURES / "minimal").is_dir()
+
+
+# ....................... #
+# RFC 0044 §3, D5 — the surfaces `check` counts
+
+
+@pytest.mark.parametrize(
+    ("name", "surface", "count"),
+    [
+        ("ecom_basic", "entities", 2),
+        ("ecom_basic", "relationships", 1),
+        ("ecom_basic", "marts", 1),
+        ("currency_convert", "conversions", 1),
+        ("currency_convert_refusal", "conversions", 1),
+        ("scd2_as_of", "temporal_joins", 1),
+        ("minimal", "relationships", 0),
+    ],
+)
+def test_each_counted_surface_has_a_fixture_that_makes_it_non_zero(
+    name: str, surface: str, count: int
+) -> None:
+    """One fixture per surface where the count is not zero (RFC 0044 §3).
+
+    A count read from the wrong place is green against a corpus where every
+    project happens to hold none of that surface, which is what a table of
+    zeros cannot distinguish from a working counter. ``minimal`` is the
+    control: it carries no relationships and must say so.
+
+    ``currency_convert_refusal`` is here for a narrower reason. A conversion is
+    counted from the mapping chain rather than from the IR, and this fixture is
+    one whose conversion the compiler refuses to *lower* — so a count that had
+    quietly become "conversions that lowered" would read zero here and stay
+    green on ``currency_convert``.
+    """
+
+    project, catalog = load_fixture(name)
+    checked = evaluate(project, catalog=catalog).checked
+
+    assert checked is not None
+    assert getattr(checked, surface) == count
+
+
+def test_measures_counts_what_was_authored_not_what_the_ir_holds() -> None:
+    """``dirty_corpus`` authors no metric and its IR holds five.
+
+    They are the quality mart's bloomery-owned measures (RFC 0016 §5.8), which
+    nobody wrote and ``resolve()`` has never heard of. Counting ``ir.metrics``
+    would report five type-checked measures to an author whose spec declares
+    none — the same population mistake :func:`~bloomery.evidence._from_ir`
+    avoids for reachability, made one field later.
+    """
+
+    project, catalog = load_fixture("dirty_corpus")
+    evidence = evaluate(project, catalog=catalog)
+    ir = build_project_ir(project, catalog=catalog)
+
+    assert evidence.checked is not None
+    assert len(ir.metrics) == 5
+    assert evidence.checked.measures == 0
+    assert evidence.checked.measures == len(evidence.reachable) + len(evidence.unreachable)
+
+
+def test_measures_counts_an_unreachable_metric_as_checked() -> None:
+    """Reachability is an answer about a measure, not a reason to skip it.
+
+    ``ecom_basic`` authors four and one is unreachable; a count of three would
+    report the surface as smaller because the project has a *gap*, which is the
+    opposite of what a checked-surface count means.
+    """
+
+    project, catalog = load_fixture("ecom_basic")
+    evidence = evaluate(project, catalog=catalog)
+
+    assert evidence.checked is not None
+    assert len(evidence.unreachable) == 1
+    assert evidence.checked.measures == 4
+
+
+@pytest.mark.parametrize("name", ["step_resolution", "identity_resolution"])
+def test_nothing_is_counted_before_an_ir_exists(name: str) -> None:
+    """``None``, never a zeroed count (RFC 0044 §3; ``logs/T-0030.md``).
+
+    Both fixtures refuse at the lower stage, so no IR was built and no surface
+    was checked. A ``CheckedSurfaces`` of zeros would say six surfaces were
+    checked and found empty, which is a different claim and a false one.
+    """
+
+    project, catalog = load_fixture(name)
+    evidence = evaluate(project, catalog=catalog)
+
+    assert evidence.stage_reached is not Stage.COMPLETE
+    assert evidence.checked is None
+
+
+def test_a_draft_ir_is_counted_and_the_stage_says_it_is_a_prefix() -> None:
+    """``fanout_trap`` refuses at the guardrail stage over a draft IR.
+
+    The counts are real — those entities and that relationship were resolved —
+    and they are not totals. Both halves are asserted here because dropping
+    either is a plausible simplification: withholding them loses the prefix
+    RFC 0022 D3 exists to preserve, and presenting them without the stage lets
+    them read as a finished answer.
+    """
+
+    project, catalog = load_fixture("fanout_trap")
+    evidence = evaluate(project, catalog=catalog)
+
+    assert evidence.stage_reached is Stage.GUARDRAILS
+    assert evidence.checked == CheckedSurfaces(
+        entities=2, relationships=1, measures=2, marts=0, conversions=0, temporal_joins=0
+    )

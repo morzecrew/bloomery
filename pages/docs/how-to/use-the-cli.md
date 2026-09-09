@@ -1,7 +1,7 @@
 # Use the CLI
 
 You want to compile a spec directory, or find out which metrics it can actually answer,
-without writing a Python script. `bloomery` is that: six commands, each a thin argument
+without writing a Python script. `bloomery` is that: eight commands, each a thin argument
 shell over one public function.
 
 ```bash
@@ -58,12 +58,13 @@ A project that wires a `steps:` document reports the unwired step here, because 
 passes no registry — see [Steps are the one thing the CLI cannot wire](#compiling) below.
 `bloomery compile` on the same project refuses for the same reason.
 
-## The seven commands
+## The eight commands
 
 ```text
 bloomery compile     <dir> [--target sqlmesh] [--dialect duckdb] [--catalog F] [--out DIR]
 bloomery plan        <old-dir> <new-dir> [--catalog F] [--format table|json]
 bloomery resolve     <dir> [--catalog F] [--format table|json]
+bloomery check       <dir> [--catalog F] [--format table|json]
 bloomery lineage     <dir> --node ID [--direction upstream|downstream|both] [--max-depth N]
                            [--catalog F] [--format table|json]
 bloomery explain     <dir> --metrics a,b [--by x,y] [--where JSON] [--grain month]
@@ -194,6 +195,49 @@ bloomery schema --kind entity_model | jq .
 
 See the [JSON Schema reference](../reference/json-schema.md) for what the documents
 contain and how to point an editor at them.
+
+## Checking in CI
+
+`resolve` answers "what can I compute, and what is missing for the rest". `check` answers
+"is what this project declares sound" — the same analysis, summarised as a gate:
+
+```bash
+bloomery check specs/
+```
+
+```text
+Stage: complete
+Fingerprint: blm1:46f0d4f549273b5e43db9b6961ce4ef35919611d2987e1dc0f841c355840087c
+
+  2  entities        resolved
+  1  relationships   checked
+  4  measures        type-check
+  1  marts           safe
+  0  conversions     proven
+  0  temporal joins  anchored
+
+0 refusal(s)
+```
+
+It needs no warehouse, no credentials, no network and no target — it reads files and calls
+[`evaluate()`](evaluate-a-spec.md), the same function `resolve` calls — so it runs in
+pre-commit and on a runner with no secrets:
+
+```yaml
+- name: bloomery semantic check
+  run: bloomery check .
+```
+
+**Each number is a surface that was checked, and there is no total.** A sum would imply a
+coverage nobody proved: a green `check` says the project's own declarations hold, not that
+every future query against it is safe.
+
+**What fails it is a refusal, and only a refusal.** An unreachable metric and an open
+decision are both reported by `resolve` and neither fails `check` — they say the mappings
+are incomplete, which is the state a draft passes through, not that what is written is
+wrong. Where analysis stopped before an IR existed, `check` says `No surfaces checked`
+rather than printing six zeros, because a zero would read as a surface that was checked
+and held nothing.
 
 ## Exit codes
 

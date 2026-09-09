@@ -58,7 +58,7 @@ from bloomery import (
 )
 from bloomery.cli import EXIT_INTERNAL, EXIT_OK, EXIT_REFUSED, EXIT_USAGE, build_parser, main
 from bloomery.cli.io import CliIoError, read_spec_directory, write_files
-from bloomery.cli.render import render_evidence, render_plan
+from bloomery.cli.render import render_check, render_evidence, render_plan
 from bloomery.cli.serialize import SpecEncoder
 from bloomery.errors import BloomeryError
 from bloomery.naming import DefaultNaming
@@ -109,6 +109,8 @@ def _json(capsys: pytest.CaptureFixture[str], *argv: str) -> object:
     [
         ("resolve", ECOM),
         ("resolve", ECOM, "--format", "json"),
+        ("check", ECOM),
+        ("check", ECOM, "--format", "json"),
         ("fingerprint", ECOM),
         ("schema",),
         ("schema", "--kind", "metrics"),
@@ -890,6 +892,7 @@ def test_there_is_no_execution_command() -> None:
         "compile",
         "plan",
         "resolve",
+        "check",
         "lineage",
         "explain",
         "schema",
@@ -1493,3 +1496,140 @@ def test_a_command_body_os_error_is_still_an_internal_error(
     assert code == EXIT_INTERNAL
     assert "internal error" in err
     assert "stdout:" not in err
+
+
+# ....................... #
+# RFC 0044 P1 — `bloomery check`, the CI gate
+
+
+def test_check_json_matches_the_python_call(capsys: pytest.CaptureFixture[str]) -> None:
+    """The machine surface is the value, not a summary of it (RFC 0044 D6).
+
+    ``check`` and ``resolve`` dump the same ``SpecEvidence`` through the same
+    encoder, which is what keeps one refusal vocabulary across both rather than
+    a second one written for the gate.
+    """
+
+    project, catalog = load_fixture("ecom_basic")
+    assert _json(capsys, "check", ECOM, "--format", "json") == as_json_value(
+        evaluate(project, catalog=catalog)
+    )
+
+
+def test_check_and_resolve_cannot_disagree_about_the_exit_code(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """D7's separate command, and the reason it costs no second contract.
+
+    Both read ``stage_reached`` off one value, so the codes agree by
+    construction. Asserted over a passing project *and* a refused one, because
+    agreement on only the green path is what a divergent second contract looks
+    like right up until CI meets a bad spec.
+    """
+
+    for directory in (ECOM, FANOUT):
+        checked, _out, _err = run(capsys, "check", directory)
+        resolved, _out, _err = run(capsys, "resolve", directory)
+        assert checked == resolved
+
+    assert run(capsys, "check", ECOM)[0] == EXIT_OK
+    assert run(capsys, "check", FANOUT)[0] == EXIT_REFUSED
+
+
+def test_check_passes_a_project_with_an_unreachable_metric_and_an_open_decision(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Neither is a refusal, so neither fails the gate (``logs/T-0030.md``).
+
+    ``ecom_basic`` carries one of each and reaches ``COMPLETE``. A gate that
+    failed on them would refuse every project mid-build — the state a draft is
+    supposed to pass through — and the pipeline reported both and carried on.
+    """
+
+    project, catalog = load_fixture("ecom_basic")
+    evidence = evaluate(project, catalog=catalog)
+
+    assert evidence.unreachable
+    assert evidence.unresolved
+    assert not evidence.refusals
+
+    code, out, _err = run(capsys, "check", ECOM)
+    assert code == EXIT_OK
+    assert "0 refusal(s)" in out
+
+
+def test_check_prints_a_line_per_surface_and_no_total(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """One line per surface, and nothing that sums them (RFC 0044 D5).
+
+    A total or a percentage is what makes a green gate read as "every future
+    query is safe". The absence is asserted rather than trusted, because a
+    summary line is exactly the addition that looks like an improvement.
+    """
+
+    code, out, _err = run(capsys, "check", ECOM)
+    assert code == EXIT_OK
+
+    for surface in ("entities", "relationships", "measures", "marts", "conversions"):
+        assert surface in out
+
+    assert "temporal joins" in out
+    assert "total" not in out.lower()
+    assert "%" not in out
+
+
+def test_check_prints_no_obligations_line(capsys: pytest.CaptureFixture[str]) -> None:
+    """D8, settled by omission (``logs/T-0030.md``).
+
+    §3's sample output has a fifth line — "64 requested semantic obligations
+    proven" — and nothing in a project declares a request to count against, so
+    the line would be the vanity total D5 refuses. It returns when there is a
+    denominator.
+    """
+
+    _code, out, _err = run(capsys, "check", ECOM)
+    assert "obligation" not in out.lower()
+
+
+def test_check_says_nothing_was_checked_rather_than_printing_zeros(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A refusal before an IR prints a sentence, not six zeros.
+
+    ``step_resolution`` refuses at the lower stage. Six zeros would say six
+    surfaces were checked and found empty; the renderer says what actually
+    happened instead.
+    """
+
+    code, out, _err = run(capsys, "check", str(FIXTURES / "step_resolution"))
+
+    assert code == EXIT_REFUSED
+    assert "No surfaces checked" in out
+    assert "  0  " not in out
+
+
+def test_check_labels_a_stopped_stages_counts_as_a_prefix(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``fanout_trap`` refuses over a draft IR, so its counts are real and partial.
+
+    The banner is the same one ``resolve`` prints, and for the same reason
+    (RFC 0022 D5): every count below it is empty in two situations that mean
+    opposite things.
+    """
+
+    code, out, _err = run(capsys, "check", FANOUT)
+
+    assert code == EXIT_REFUSED
+    assert "prefix, not a total" in out
+    assert "3 refusal(s)" in out
+
+
+def test_check_renders_the_value_it_was_given(capsys: pytest.CaptureFixture[str]) -> None:
+    """The command formats and decides nothing (``cli.render``'s contract)."""
+
+    project, catalog = load_fixture("ecom_basic")
+    _code, out, _err = run(capsys, "check", ECOM)
+
+    assert out.strip() == render_check(evaluate(project, catalog=catalog)).strip()

@@ -30,6 +30,7 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 __all__ = [
+    "render_check",
     "render_evidence",
     "render_lineage",
     "render_plan",
@@ -54,6 +55,76 @@ def _table(rows: Sequence[tuple[str, ...]], *, indent: str = "  ") -> list[str]:
         lines.append((indent + "  ".join([*cells, row[-1]])).rstrip())
 
     return lines
+
+
+# ....................... #
+
+
+#: The surfaces ``bloomery check`` reports, in the order §3 lists them and with
+#: the sentence each line makes. A tuple rather than a chain of ``lines.append``
+#: so the set is one readable thing: D5 calls the *set* the adjustable half of
+#: the decision, and a category added or dropped should be a one-line diff here
+#: rather than an edit spread through a renderer.
+CHECKED_SURFACES: tuple[tuple[str, str], ...] = (
+    ("entities", "resolved"),
+    ("relationships", "checked"),
+    ("measures", "type-check"),
+    ("marts", "safe"),
+    ("conversions", "proven"),
+    ("temporal_joins", "anchored"),
+)
+
+
+def render_check(evidence: SpecEvidence) -> str:
+    """``bloomery check``'s human output: what was checked, and what refused.
+
+    A summary, where :func:`render_evidence` is a worklist. The two read the
+    same value and answer different questions — "is what this project declares
+    sound" against "which metrics can I compute and what is missing for the
+    rest" — which is why the counts here are surfaces and the counts there are
+    metric names (RFC 0044 D7, settled in ``logs/T-0030.md``).
+
+    **A refused project prints no counts at all.** Where the pipeline stopped
+    before building an IR there is nothing honest to print: a zero would read
+    as a checked surface holding nothing, which is the misreading
+    :attr:`~bloomery.SpecEvidence.checked` is ``None`` rather than zeroed to
+    prevent. Where it stopped *after* one — a draft IR refused two stages
+    later — the counts are real and are labelled as the prefix they are.
+
+    **No total, no percentage, and no "obligations proven" line.** The first
+    two would imply coverage nobody proved (D5); the third has no denominator,
+    because nothing in a project declares a request to prove one against
+    (D8, settled in the same log).
+    """
+
+    lines = [f"Stage: {evidence.stage_reached.value}"]
+
+    if evidence.stage_reached is not Stage.COMPLETE:
+        lines.append("  analysis stopped here — every count below is a prefix, not a total")
+
+    if evidence.fingerprint is not None:
+        lines.append(f"Fingerprint: {evidence.fingerprint}")
+
+    lines.append("")
+
+    if evidence.checked is None:
+        lines.append("No surfaces checked — the pipeline stopped before an IR was built.")
+    else:
+        lines.extend(
+            _table(
+                [
+                    (str(getattr(evidence.checked, field)), field.replace("_", " "), verb)
+                    for field, verb in CHECKED_SURFACES
+                ]
+            )
+        )
+
+    lines.extend(("", f"{len(evidence.refusals)} refusal(s)"))
+
+    for refusal in evidence.refusals:
+        lines.extend(_refusal(refusal))
+
+    return "\n".join(lines)
 
 
 # ....................... #

@@ -38,6 +38,7 @@ from bloomery.compile import Target, compile_project
 from bloomery.emit import ArtifactKind, EmittedArtifact, TargetEmitter, register_emitter
 from bloomery.errors import BloomeryError, MartCoverage, MeasureRef
 from bloomery.evidence import (
+    CheckedSurfaces,
     Gap,
     MartSummary,
     OpenDecision,
@@ -128,6 +129,7 @@ __all__ = [
     "Catalog",
     "Change",
     "ChangeClass",
+    "CheckedSurfaces",
     "Clause",
     "ColumnDescriptor",
     "ColumnRole",
