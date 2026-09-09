@@ -1,0 +1,8 @@
+marts_version: 1
+marts:
+  shipments:
+    grain: shipment
+    base: shipment
+    measures: [carrier_cost, parcels]
+    flatten:
+      - {date: shipped_on, role: shipped}

@@ -1,0 +1,23 @@
+# The same ratio whose operands say which rows they are about. A shipment that
+# moved nothing has no cost *per parcel* to contribute, and the restriction is
+# what says so — declared on the operands, where the rows are chosen.
+metrics_version: 1
+metrics:
+  carrier_cost:
+    grain: shipment
+    additivity: additive
+    agg: sum
+    expr: "carrier_cost"
+    filter:
+      - {dimension: parcels, op: gt, values: [0]}
+  parcels:
+    grain: shipment
+    additivity: additive
+    agg: sum
+    expr: "parcels"
+    filter:
+      - {dimension: parcels, op: gt, values: [0]}
+  cost_per_parcel:
+    grain: shipment
+    additivity: ratio
+    ratio: {numerator: carrier_cost, denominator: parcels}

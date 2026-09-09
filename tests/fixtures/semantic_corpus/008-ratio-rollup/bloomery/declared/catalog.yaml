@@ -1,0 +1,10 @@
+catalog_version: 1
+vertical: ecom_retail
+# The planner needs a declared time spine for `metric_time` (RFC 0013 R1), so
+# every spec the corpus asks a *number* of carries one.
+date_dimension:
+  name: dim_date
+  grain: day
+  start_year: 2025
+  end_year: 2025
+canonical_fields: {}

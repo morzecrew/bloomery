@@ -1,0 +1,8 @@
+mapping_version: 1
+source: corpus__order_promos
+target: order_promo
+key:
+  order_id: {from: "$.order_id", transform: [to_string]}
+  promo_id: {from: "$.promo_id", transform: [to_string]}
+fields:
+  applied_on: {from: "$.applied_on", transform: [{parse_date: ISO8601}]}

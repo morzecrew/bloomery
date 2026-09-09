@@ -1,0 +1,8 @@
+marts_version: 1
+marts:
+  orders:
+    grain: order
+    base: order
+    measures: [february_revenue]
+    flatten:
+      - {date: placed_at, role: placed}

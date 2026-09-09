@@ -1,0 +1,4 @@
+{
+  "naive": {"cost_per_parcel": "4.00"},
+  "correct": {"cost_per_parcel": "3.00"}
+}

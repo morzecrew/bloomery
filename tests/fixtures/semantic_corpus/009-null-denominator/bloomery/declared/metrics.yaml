@@ -1,0 +1,20 @@
+# A correctly declared ratio over correctly declared operands. R012 is
+# satisfied — each operand rolls up — and the answer is still wrong, because
+# the rule is about *how* the ratio is rebuilt and not about which rows belong
+# in it. This arm is the corpus's `unguarded` word doing its job.
+metrics_version: 1
+metrics:
+  carrier_cost:
+    grain: shipment
+    additivity: additive
+    agg: sum
+    expr: "carrier_cost"
+  parcels:
+    grain: shipment
+    additivity: additive
+    agg: sum
+    expr: "parcels"
+  cost_per_parcel:
+    grain: shipment
+    additivity: ratio
+    ratio: {numerator: carrier_cost, denominator: parcels}

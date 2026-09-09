@@ -1,0 +1,11 @@
+mapping_version: 1
+source: corpus__orders
+target: order
+key:
+  order_id: {from: "$.order_id", transform: [to_string]}
+fields:
+  revenue: {from: "$.revenue"}
+  # `to_utc` is the only door into the always-UTC `timestamp` type: it names
+  # the zone the wall clock was written in, which is the fact the source
+  # system has and its data does not carry.
+  placed_at: {from: "$.placed_at", transform: [{parse_ts: ISO8601}, {to_utc: America/New_York}]}

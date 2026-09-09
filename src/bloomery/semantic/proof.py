@@ -201,6 +201,14 @@ class Rule:
 #: because its inputs "obviously" cannot fan out — is how the fan-out returns
 #: the first time a branch stops ending in an aggregate.
 #:
+#: R011 and R012 are the second question a rollup asks. R006 answers whether
+#: values may travel from one grain to another and says nothing about what to
+#: do with them on arrival; R011 adds the one fact that answer never reads, and
+#: R012 says a ratio is rebuilt from operands that each satisfy R011 rather
+#: than summed like one. They compose rather than nest, because a measure whose
+#: grain proof is perfect can still be wrong to add up — which is corpus case
+#: 002, and would be unsayable if one rule answered both (logs/T-0029.md).
+#:
 #: R008 is not a grain rule at all: it is the *mart contract* — a measure may
 #: be embedded in a mart only at that mart's grain (RFC 0010 D2), checked by
 #: `check_grain` when the project compiles. RFC 0040's P1 plans within one
@@ -222,6 +230,8 @@ RULES: Final[dict[str, Rule]] = {
             "R009", "a conversion's input currency is declared, or produced by the step before it"
         ),
         Rule("R010", "a branch's rows are unique at the result grain by its own aggregate"),
+        Rule("R011", "an additive measure may be summed across a rollup its grain proof permits"),
+        Rule("R012", "a ratio is recomputed from operands that each roll up, never summed"),
     )
 }
 

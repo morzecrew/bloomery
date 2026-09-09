@@ -1,0 +1,9 @@
+spec_version: 1
+entities:
+  order:
+    grain: one row per order
+    key: [order_id]
+    fields:
+      order_id: {type: string, required: true}
+      revenue: {type: "decimal(12,2)", required: true}
+      placed_at: {type: timestamp, required: true}

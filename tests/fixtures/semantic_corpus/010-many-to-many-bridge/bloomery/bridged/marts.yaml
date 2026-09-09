@@ -1,0 +1,16 @@
+# The tempting wide table: one row per promotion-on-an-order, carrying the
+# order's revenue so a promotion can be grouped by. Every row of the bridge is
+# one row of *its own* grain, and each hop out of it is `many_to_one` — which
+# is exactly why nothing about the two joins looks unsafe. The mart's grain is
+# the bridge and `revenue` originates at the order, so a SUM over it counts
+# o1's revenue once per promotion.
+marts_version: 1
+marts:
+  order_promos_wide:
+    grain: order_promo
+    base: order_promo
+    measures: [revenue]
+    flatten:
+      - {via: bridge_of_order, prefix: order_}
+      - {via: bridge_of_promo, prefix: promo_}
+      - {date: applied_on, role: applied}

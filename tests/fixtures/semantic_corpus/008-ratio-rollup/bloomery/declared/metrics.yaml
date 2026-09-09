@@ -1,0 +1,19 @@
+# The class the measure actually has: a ratio, kept as its two operands so the
+# planner rebuilds it at whatever grain is asked for instead of summing a
+# quotient (RFC 0038 D2, and R012's premise).
+metrics_version: 1
+metrics:
+  revenue:
+    grain: order
+    additivity: additive
+    agg: sum
+    expr: "revenue"
+  item_count:
+    grain: order
+    additivity: additive
+    agg: sum
+    expr: "item_count"
+  revenue_per_item:
+    grain: order
+    additivity: ratio
+    ratio: {numerator: revenue, denominator: item_count}

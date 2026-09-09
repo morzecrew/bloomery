@@ -1,0 +1,10 @@
+spec_version: 1
+entities:
+  shipment:
+    grain: one row per shipment
+    key: [shipment_id]
+    fields:
+      shipment_id: {type: string, required: true}
+      carrier_cost: {type: "decimal(12,2)", required: true}
+      parcels: {type: int, required: true}
+      shipped_on: {type: date, required: true}
