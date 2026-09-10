@@ -36,6 +36,7 @@ if TYPE_CHECKING:
 from bloomery.errors import InsufficientEvidence
 from bloomery.semantic import (
     BASIS_PROVENANCE,
+    MAX_DERIVATIONS,
     EvidenceGrade,
     closure,
     dependencies,
@@ -71,7 +72,9 @@ def weak_bases(routes: Iterable[AbstractSet[str]]) -> tuple[str, ...]:
     stricter reading of the first. It is asked directly instead.
 
     A column with **no** route is not weak: it is a determinant of the origin
-    grain, which is the grain itself and is argued for by nothing.
+    grain, which is the grain itself and is argued for by nothing. Neither is
+    one whose route list is at :data:`~bloomery.semantic.MAX_DERIVATIONS`,
+    where the list is not known to be complete — see the branch below.
     """
 
     routes = list(routes)
@@ -80,6 +83,17 @@ def weak_bases(routes: Iterable[AbstractSet[str]]) -> tuple[str, ...]:
         all(BASIS_PROVENANCE[basis].grade is EvidenceGrade.LOCKED for basis in route)
         for route in routes
     ):
+        return ()
+
+    if len(routes) >= MAX_DERIVATIONS:
+        # `closure` keeps at most `MAX_DERIVATIONS` routes per member and drops
+        # the rest by signature order, so a member holding that many may have
+        # had a stronger one discarded. Refusing here would be a refusal the
+        # author cannot act on — the route they declared might be the one that
+        # was dropped — and a requirement that refuses without a remedy is the
+        # failure this whole design was regraded to avoid (#102). Abstaining
+        # costs a refusal that is not certain; refusing costs one that is
+        # wrong.
         return ()
 
     return tuple(

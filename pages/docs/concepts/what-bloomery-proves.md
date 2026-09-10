@@ -139,8 +139,13 @@ Evidence (2 locked, 2 assumed)
   ASSUMED branch:order_items
           order_items is aggregated to the requested grain before the join, so it holds
           one row per key
+  ASSUMED branch:orders
+          orders is aggregated to the requested grain before the join, so it holds one
+          row per key
   LOCKED  mart:order_items.line_discount
           line_discount is a measure of order_items, whose grain is order_item
+  LOCKED  mart:orders.shipping_count
+          shipping_count is a measure of orders, whose grain is order
 ```
 
 Three grades, and they answer one question — **did a human here write this down?**

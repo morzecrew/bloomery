@@ -10,8 +10,9 @@
   [`logs/T-0040.md`](../logs/T-0040.md)); **P3 (exposures, transitivity) is unscheduled** and is
   what holds this document open. Execution's findings and the rows it proposes are
   in the same log; nothing below has been amended to agree with what was built. **§§5.2,
-  5.3 and 7 describe the annotation, its refusal and its worked example** — all P2's, none
-  built here. **Rows 9-13 record accepted execution decisions** — 9 supersedes 8, and the rest
+  5.3 and 7 describe the annotation, its refusal and its worked example** — P2's, and
+  §5.3's example in particular describes a refusal the compiler cannot produce, which
+  row 15 records and supersedes rather than editing the prose away. **Rows 9-13 record accepted execution decisions** — 9 supersedes 8, and the rest
   record what P1 had to decide that §12 did not settle.
 - **Scope:** A minimum evidence grade a mart or an exposure may require of the facts its
   measures rest on, refused at compile time. The `LOCKED` / `ASSUMED` / `OPEN` vocabulary the

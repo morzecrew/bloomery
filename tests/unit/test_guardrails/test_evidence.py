@@ -19,7 +19,12 @@ import pytest
 from bloomery import build_project_ir, load_catalog, load_project
 from bloomery.errors import GuardrailError, InsufficientEvidence
 from bloomery.guardrails import evidence as guard
-from bloomery.semantic import BASIS_PROVENANCE, EvidenceGrade, Provenance
+from bloomery.semantic import (
+    BASIS_PROVENANCE,
+    MAX_DERIVATIONS,
+    EvidenceGrade,
+    Provenance,
+)
 from bloomery.spec.marts import Mart
 from support.compiling import fixture_sources, load_fixture
 
@@ -243,12 +248,37 @@ def test_the_rule_reports_every_weak_basis_when_no_route_is_strong(
     monkeypatch.setitem(guard.BASIS_PROVENANCE, "transitive", Provenance.DERIVED)
 
     assert guard.weak_bases([{"entity_key"}]) == ("entity_key",)
-    assert guard.weak_bases([{"entity_key"}, {"transitive"}]) == ("entity_key", "transitive")
     # A route mixing a declared hop with a derived one is still weak: the
     # column was not reached without the derived step.
     assert guard.weak_bases([{"many_to_one", "entity_key"}]) == ("entity_key",)
     # And one strong route still acquits.
     assert guard.weak_bases([{"many_to_one"}, {"entity_key"}]) == ()
+
+
+def test_a_route_list_at_the_cap_is_not_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`closure` keeps at most `MAX_DERIVATIONS` routes per member and drops
+    the rest by signature order, so a member holding that many may have had a
+    stronger route discarded.
+
+    Refusing there would be a refusal the author cannot act on: the route they
+    declared might be the one that was dropped, and telling them to declare a
+    relationship they already declared is the remedy-free refusal this design
+    was regraded to avoid. Abstaining costs a refusal that is not certain;
+    refusing costs one that is wrong.
+
+    Asserted against the constant rather than the literal 2, so raising the cap
+    moves this test with it instead of silently changing what it means.
+    """
+
+    monkeypatch.setitem(guard.BASIS_PROVENANCE, "entity_key", Provenance.DERIVED)
+    monkeypatch.setitem(guard.BASIS_PROVENANCE, "transitive", Provenance.DERIVED)
+
+    weak = [{"entity_key"}, {"transitive"}][:MAX_DERIVATIONS]
+    assert len(weak) == MAX_DERIVATIONS
+    assert guard.weak_bases(weak) == ()
+    # One route below the cap still reports, so the abstention above is the
+    # cap and not a guard that stopped refusing anything.
+    assert guard.weak_bases(weak[: MAX_DERIVATIONS - 1]) != ()
 
 
 def test_a_column_reached_by_nothing_is_not_weak() -> None:
