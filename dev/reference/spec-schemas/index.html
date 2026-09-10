@@ -4130,6 +4130,12 @@ quotes it.</p>
 <td>no (<code>1</code>)</td>
 <td>Tie-breaker when several marts can serve a metric — cheapest wins</td>
 </tr>
+<tr>
+<td><code>requires_evidence</code></td>
+<td><code>locked</code> / <code>assumed</code></td>
+<td>no (<code>assumed</code>)</td>
+<td>The weakest premise this mart accepts under its measures. <code>assumed</code> accepts every grade a compiling project produces, so omitting the key is byte-identical to writing it; there is no <code>open</code></td>
+</tr>
 </tbody>
 </table>
 <h3 id="rollup">Rollup<a class="headerlink" href="#rollup" title="Permanent link">&para;</a></h3>

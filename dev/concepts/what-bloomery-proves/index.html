@@ -816,6 +816,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#how-a-fact-was-obtained-and-asking-for-better" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How a fact was obtained, and asking for better
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How a fact was obtained, and asking for better">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#requiring-the-stronger-kind" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Requiring the stronger kind
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reading-a-correctness-claim" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1662,6 +1690,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#how-a-fact-was-obtained-and-asking-for-better" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        How a fact was obtained, and asking for better
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How a fact was obtained, and asking for better">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#requiring-the-stronger-kind" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Requiring the stronger kind
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reading-a-correctness-claim" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1851,6 +1907,82 @@ past them:</p>
 and orchestration: it runs no SQL, schedules nothing, reads no warehouse. This one is
 about evidence: things bloomery runs no check for, and will not be able to, because the
 facts they need never arrive in a spec.</p>
+<h2 id="how-a-fact-was-obtained-and-asking-for-better">How a fact was obtained, and asking for better<a class="headerlink" href="#how-a-fact-was-obtained-and-asking-for-better" title="Permanent link">&para;</a></h2>
+<p>Every fact under a proof carries where it came from, and <code>bloomery explain</code> prints the
+grade beside it:</p>
+<div class="highlight"><pre><span></span><code><span class="gp">$ </span>bloomery<span class="w"> </span>explain<span class="w"> </span>specs/<span class="w"> </span>--metrics<span class="w"> </span>line_discount,shipping_count
+<span class="go">Evidence (2 locked, 2 assumed)</span>
+<span class="go">  ASSUMED branch:order_items</span>
+<span class="go">          order_items is aggregated to the requested grain before the join, so it holds</span>
+<span class="go">          one row per key</span>
+<span class="go">  ASSUMED branch:orders</span>
+<span class="go">          orders is aggregated to the requested grain before the join, so it holds one</span>
+<span class="go">          row per key</span>
+<span class="go">  LOCKED  mart:order_items.line_discount</span>
+<span class="go">          line_discount is a measure of order_items, whose grain is order_item</span>
+<span class="go">  LOCKED  mart:orders.shipping_count</span>
+<span class="go">          shipping_count is a measure of orders, whose grain is order</span>
+</code></pre></div>
+<p>Three grades, and they answer one question — <strong>did a human here write this down?</strong></p>
+<table>
+<thead>
+<tr>
+<th>Grade</th>
+<th>Means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LOCKED</code></td>
+<td>Somebody declared it in a spec, or it follows necessarily from something they did.</td>
+</tr>
+<tr>
+<td><code>ASSUMED</code></td>
+<td>The compiler obtained it soundly on its own — a proof rule, a propagation, an exact read of an external artifact.</td>
+</tr>
+<tr>
+<td><code>OPEN</code></td>
+<td>Closes nothing. A project resting on one does not compile at all, so you will not be handed one.</td>
+</tr>
+</tbody>
+</table>
+<p><code>ASSUMED</code> is <strong>not</strong> a criticism. A derived fact is sound; the grade records where it came
+from, not whether it is right. Treating it as doubt pushes you to declare things you have
+not thought about, and a <code>LOCKED</code> fact nobody considered is worse than the default it
+replaced.</p>
+<h3 id="requiring-the-stronger-kind">Requiring the stronger kind<a class="headerlink" href="#requiring-the-stronger-kind" title="Permanent link">&para;</a></h3>
+<p>A mart can say it will not rest on anything the compiler worked out for itself:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">marts</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">statutory_revenue</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">grain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order</span>
+<span class="w">    </span><span class="nt">base</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order</span>
+<span class="w">    </span><span class="nt">measures</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">net_revenue</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">requires_evidence</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">locked</span><span class="w">    </span><span class="c1"># declared premises only</span>
+</code></pre></div>
+<p>The default is <code>assumed</code>, which is what every project does today — leaving the key out is
+byte-for-byte the same as writing it. There is no <code>open</code>: that would mean "accept
+anything", which is the absence of the annotation rather than a third setting.</p>
+<p>When a premise is weaker than the mart asked for, the refusal names the consumer, the
+measure, the fact, and how the compiler got it:</p>
+<div class="highlight"><pre><span></span><code>mart 'statutory_revenue' requires 'locked'; measure 'net_revenue' rests on column
+'customer_tier', whose derivation is derived — the compiler reached it by 'transitive'
+rather than from anything an author wrote (RFC 0065 §5.1). Fix: declare the relationship
+that carries 'customer_tier', or set 'requires_evidence: assumed' on this mart
+</code></pre></div>
+<p><strong>Use it on few marts.</strong> A finance mart feeding a statutory report is the case it exists
+for: someone signs that number, and "the compiler worked it out" is not an answer they can
+give a regulator. An exploration mart is the counter-example — it wants whatever compiles,
+and annotating it strictly buys a wall of declarations whose cheapest fix is deleting the
+requirement, which loses the guarantee everywhere at once.</p>
+<p>Two notes worth having before you adopt it:</p>
+<ul>
+<li><strong>This sits above the proof floor and never below it.</strong> Every fact a strict mart refuses
+  is one that already closed its obligation — the project is sound and would compile
+  without the annotation. You are asking a different question, not a harder version of the
+  same one.</li>
+<li><strong><code>LOCKED</code> here and <code>LOCKED</code> on an RFC decision are analogous, not the same.</strong> One grades
+  a design decision, the other grades a fact about your project.</li>
+</ul>
 <h2 id="reading-a-correctness-claim">Reading a correctness claim<a class="headerlink" href="#reading-a-correctness-claim" title="Permanent link">&para;</a></h2>
 <p>Any sentence in this documentation asserting that bloomery is correct about something
 answers four questions, or it gets rewritten:</p>

@@ -2040,6 +2040,11 @@ pulling in any pipeline stage.</p>
 <td>An entity named <code>canonical</code>, <code>exposure</code>, <code>mart</code>, <code>metric</code>, <code>source</code> or <code>step</code> — every lineage node id but an entity field's is <code>&lt;prefix&gt;.&lt;rest&gt;</code>, so such an entity mints ids in another kind's namespace</td>
 </tr>
 <tr>
+<td><code>InsufficientEvidence</code></td>
+<td>guardrails</td>
+<td>A mart declaring <code>requires_evidence: locked</code> reads a measure resting on a fact nobody wrote down — sound under the proof floor, but not authored here, which is the different question the consumer asked</td>
+</tr>
+<tr>
 <td><code>DanglingExposure</code></td>
 <td>guardrails</td>
 <td>An exposure whose <code>depends_on</code> names a metric or mart the project does not declare — the dependency would match no change, so the impact report would name nobody and still read clean</td>
