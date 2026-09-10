@@ -161,24 +161,22 @@ class QueryPlan:
     #: that phase would cost §8's parity suite its only reference point
     #: (logs/T-0021.md, D-118).
     #:
-    #: Present for every request but one shape (RFC 0066 P1-P3). It was absent
-    #: for four — a computed metric, a semi-additive measure, a cumulative one,
-    #: and metrics restricted differently — and those now carry a plan.
+    #: **Always present** (RFC 0066 D1). It was optional while the node
+    #: vocabulary could not state five request shapes — a computed metric, a
+    #: semi-additive measure, a cumulative one, metrics restricted differently,
+    #: and a `derived:` input read at an offset — each of which was answered
+    #: with no plan at all.
     #:
-    #: **Still optional, and RFC 0066 D1 wanted it required.** What blocks it is
-    #: a `derived:` input carrying an `offset_window` or `offset_to_grain`:
-    #: §5.2 says that shape composes from two same-mart branches differing in a
-    #: filter, and it does not. MetricFlow builds it by joining to the *time
-    #: spine* — `gold.dim_date` — at a shifted date, with a `FULL OUTER JOIN`,
-    #: and neither the spine nor a shifted join key is anything this plan's
-    #: nodes can state (logs/T-0037.md). Refusing the shape instead would
-    #: breach D2, which is why the field stayed as it is rather than the phase
-    #: being finished a cheaper way.
+    #: Required rather than defaulted is the point of that phase, not a
+    #: consequence of it. While `None` was legal no test could assert a request
+    #: *has* a plan, so the gap was invisible from every direction that
+    #: mattered: the suite was green, because absence was a value; the docs were
+    #: accurate, because they never promised one.
     #:
-    #: The second reason it was once optional — that a caller constructing a
-    #: `QueryPlan` directly need not build one — had already stopped being
-    #: true: the only two construction sites are in the planner itself.
-    semantic: SemanticPlan | None = None
+    #: The other reason it was once optional — that a caller constructing a
+    #: `QueryPlan` directly need not build one — had already stopped being true
+    #: before this: the only two construction sites are in the planner itself.
+    semantic: SemanticPlan
     #: Every mart this plan reads, sorted — one name for the single-mart case
     #: and one per branch for a composed one (RFC 0041 D15). ``mart`` keeps
     #: its meaning as the first of these, so a caller reading it gets a mart

@@ -392,6 +392,47 @@ class MetricFlowPlanner:
         )
         warnings += self._composed_warnings(request, branches)
 
+        composed = semantic_plan.compose(
+            [
+                (
+                    semantic_plan.build(
+                        resolved,
+                        branch_request(resolved),
+                        metrics_by_name,
+                        filters=explain.applied_predicates(
+                            branch,
+                            branch_request(resolved),
+                            resolved,
+                            metrics_by_name,
+                            policy=policy,
+                        ),
+                    ),
+                    tuple(dimension.name for dimension in resolved.dimensions),
+                )
+                for resolved, branch in zip(branches, per_branch, strict=True)
+            ],
+            keys,
+            request.metrics,
+            # A metric computed above the join is stated by a `Compute`
+            # node (RFC 0066 §5.2). It used to withhold the plan: the
+            # vocabulary had no arithmetic, so the alternative was a plan
+            # claiming the join produced a column it does not
+            # (logs/T-0027.md, D-178).
+            computed=tuple(
+                (measure.name, semantic_plan.expression(metrics_by_name[measure.name]))
+                for measure in measures
+                if measure.expr is not None
+            ),
+            computed_inputs=tuple(
+                dict.fromkeys(
+                    column
+                    for measure in measures
+                    if measure.expr is not None
+                    for _alias, _branch, column in measure.inputs
+                )
+            ),
+        )
+
         return QueryPlan(
             sql=sql,
             columns=columns,
@@ -400,44 +441,13 @@ class MetricFlowPlanner:
             warnings=warnings,
             explanation=explanation,
             fingerprint=hashlib.sha256(sql.encode("utf-8")).hexdigest(),
-            semantic=semantic_plan.compose(
-                [
-                    (
-                        semantic_plan.build(
-                            resolved,
-                            branch_request(resolved),
-                            metrics_by_name,
-                            filters=explain.applied_predicates(
-                                branch,
-                                branch_request(resolved),
-                                resolved,
-                                metrics_by_name,
-                                policy=policy,
-                            ),
-                        ),
-                        tuple(dimension.name for dimension in resolved.dimensions),
-                    )
-                    for resolved, branch in zip(branches, per_branch, strict=True)
-                ],
-                keys,
-                request.metrics,
-                # A metric computed above the join is stated by a `Compute`
-                # node (RFC 0066 §5.2). It used to withhold the plan: the
-                # vocabulary had no arithmetic, so the alternative was a plan
-                # claiming the join produced a column it does not
-                # (logs/T-0027.md, D-178).
-                computed=tuple(
-                    (measure.name, semantic_plan.expression(metrics_by_name[measure.name]))
-                    for measure in measures
-                    if measure.expr is not None
-                ),
-                computed_inputs=tuple(
-                    dict.fromkeys(
-                        column
-                        for measure in measures
-                        if measure.expr is not None
-                        for _alias, _branch, column in measure.inputs
-                    )
+            semantic=guaranteed(
+                (plan for plan in (composed,) if plan is not None),
+                expected="a semantic plan for every composed request this planner answers",
+                by=(
+                    "`compose`, which withholds only where a branch could not be stated, and "
+                    "every branch is the same `build` that is total for a request "
+                    "`coverage.resolve_request` accepted"
                 ),
             ),
         )
@@ -566,6 +576,15 @@ class MetricFlowPlanner:
             naming=self._naming,
             policy_applied=policy is not None,
         )
+        single = semantic_plan.build(
+            resolved,
+            request,
+            metrics_by_name,
+            filters=explain.applied_predicates(
+                explanation, request, resolved, metrics_by_name, policy=policy
+            ),
+        )
+
         return QueryPlan(
             sql=sql,
             columns=names.columns_from(
@@ -579,12 +598,13 @@ class MetricFlowPlanner:
             # explanation reads, so the two are one account of the request
             # rather than two (RFC 0039 §7) — over every predicate the query
             # applies, not only the ones the explanation lists as `filters`.
-            semantic=semantic_plan.build(
-                resolved,
-                request,
-                metrics_by_name,
-                filters=explain.applied_predicates(
-                    explanation, request, resolved, metrics_by_name, policy=policy
+            semantic=guaranteed(
+                (plan for plan in (single,) if plan is not None),
+                expected="a semantic plan for every request this planner answers",
+                by=(
+                    "`coverage.resolve_request`, which refuses a measure no mart carries, "
+                    "and the additivity guardrail, which refuses a non-additive metric with "
+                    "no decomposition — the only two states `_measures_are_embedded` rejects"
                 ),
             ),
         )

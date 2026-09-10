@@ -537,14 +537,17 @@ def _explain(arguments: argparse.Namespace) -> int:
         # `columns` and `explanation` for that reason, and RFC 0065 P1 renders
         # from where it was put (logs/T-0031.md).
         #
-        # ``semantic`` is optional on a `QueryPlan` — an emitter test may build
-        # one directly — so its absence prints nothing rather than an empty
-        # heading claiming a plan rests on no facts.
-        rendered = query.sql + "\n\n" + query.explanation.render()
-        plan = query.semantic
-
-        if plan is not None:
-            rendered += "\n\n" + render.render_evidence_grades(plan)
+        # ``semantic`` is present on every `QueryPlan` since RFC 0066 D1, so
+        # there is no absence to branch on. It was optional while four request
+        # shapes had no plan, and the branch that printed nothing for them was
+        # the only thing standing between a reader and a heading over no facts.
+        rendered = (
+            query.sql
+            + "\n\n"
+            + query.explanation.render()
+            + "\n\n"
+            + render.render_evidence_grades(query.semantic)
+        )
 
         _emit(rendered, as_json=False)
 

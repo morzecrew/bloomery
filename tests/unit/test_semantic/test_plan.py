@@ -22,6 +22,7 @@ from bloomery.planner.request import Op, Predicate
 from bloomery.semantic import (
     Aggregate,
     Compute,
+    Offset,
     Reduce,
     Window,
     Filter,
@@ -35,7 +36,7 @@ from bloomery.semantic import (
     SemanticJudgement,
     SemanticPlan,
 )
-from bloomery.planner.semantic_plan import _plannable, _restriction, _semi_additive
+from bloomery.planner.semantic_plan import _measures_are_embedded, _restriction, _semi_additive
 from support.planning import fixture_ir, make_planner
 
 pytestmark = pytest.mark.unit
@@ -140,7 +141,7 @@ def test_restrictions_compare_as_sets_not_as_written() -> None:
     widened = dataclasses.replace(mart, measures=(*mart.measures, "reordered"))
     request = MetricRequest(metrics=(original.name, "reordered"))
 
-    assert _plannable(request, widened, {**metrics, "reordered": reversed_clauses})
+    assert _measures_are_embedded(request, widened, {**metrics, "reordered": reversed_clauses})
 
 
 def _restricted(ir: object, name: str, values: tuple[object, ...]) -> object:
@@ -163,7 +164,7 @@ def _plannable_pair(ir: object, left: object, right: object) -> bool:
     ]
     widened = dataclasses.replace(mart, measures=(*mart.measures, "left", "right"))
 
-    return _plannable(
+    return _measures_are_embedded(
         MetricRequest(metrics=("left", "right")),
         widened,
         {**metrics, "left": left, "right": right},
@@ -193,7 +194,7 @@ def test_a_literal_of_another_type_is_another_restriction() -> None:
     ir = fixture_ir("period_over_period")
     left, right = _restricted(ir, "left", (1,)), _restricted(ir, "right", ("1",))
 
-    # `_plannable` no longer decides this — both are statable, each on its own
+    # `_measures_are_embedded` no longer decides this — both are statable, each on its own
     # scoped `Filter` (RFC 0066 §5.5). What the comparison still decides is
     # whether they are *one* restriction, and they are not.
     assert _plannable_pair(ir, left, right)
@@ -400,9 +401,14 @@ def test_a_semi_additive_metric_is_reduced_then_aggregated() -> None:
     assert proof.rule == "R015"
 
 
-def test_two_measures_reduced_along_different_dimensions_get_no_plan() -> None:
-    """One `Reduce` names one dimension, so two measures semi-additive over
-    different ones are two reductions — statable, and not by this phase.
+def test_two_measures_reduced_along_different_dimensions_get_a_node_each() -> None:
+    """One `Reduce` states one dimension and one rule, so measures declared
+    over different ones are *several* reductions — a longer plan, not an
+    unstatable request.
+
+    This returned `None` for the whole request while `Reduce` was first built,
+    which is exactly the shape D1 exists to remove: a plan withheld because the
+    vocabulary was asked to say two things with one node.
 
     Asserted on `_semi_additive` rather than through a fixture, because no
     fixture carries two semi-additive measures over different dimensions and
@@ -424,8 +430,13 @@ def test_two_measures_reduced_along_different_dimensions_get_no_plan() -> None:
     )
     metrics[elsewhere.name] = elsewhere
 
-    assert _semi_additive([declared.name], metrics) == (declared,)
-    assert _semi_additive([declared.name, elsewhere.name], metrics) is None
+    assert _semi_additive([declared.name], metrics) == (
+        ("stock_date", "last", ("stock_on_hand",)),
+    )
+    assert _semi_additive([declared.name, elsewhere.name], metrics) == (
+        ("stock_date", "last", ("stock_on_hand",)),
+        ("warehouse", "last", ("stock_by_warehouse",)),
+    )
 
 
 def test_metrics_restricted_differently_get_a_filter_each() -> None:
@@ -458,7 +469,7 @@ def test_a_measure_the_mart_does_not_carry_gets_no_plan() -> None:
     condition refused it — deleting the mart-measure check left the suite
     green. An additive metric absent from the mart is the case only this
     condition catches; no fixture reaches it through `plan`, so it is asked of
-    `_plannable` directly.
+    `_measures_are_embedded` directly.
     """
     ir = fixture_ir("ecom_basic")
     metrics = {metric.name: metric for metric in ir.metrics}
@@ -468,8 +479,8 @@ def test_a_measure_the_mart_does_not_carry_gets_no_plan() -> None:
     )
     assert metrics["gross_revenue"].additivity is Additivity.ADDITIVE
 
-    assert not _plannable(MetricRequest(metrics=("gross_revenue",)), stripped, metrics)
-    assert _plannable(MetricRequest(metrics=("gross_revenue",)), mart, metrics)
+    assert not _measures_are_embedded(MetricRequest(metrics=("gross_revenue",)), stripped, metrics)
+    assert _measures_are_embedded(MetricRequest(metrics=("gross_revenue",)), mart, metrics)
 
 
 def test_a_ratio_is_aggregated_then_computed() -> None:
@@ -1134,3 +1145,56 @@ rollups:
         build_project_ir(load_project(sources))
 
     assert "cumulative" in str(excinfo.value)
+
+
+def test_an_offset_input_is_read_at_a_shifted_range() -> None:
+    """`revenue_yoy` reads `revenue` now and `revenue` a year earlier and
+    subtracts. The second read is not a column of the relation the expression
+    runs over, which is why `Compute` alone could not state it and the request
+    had no plan at all — the last shape D1 was waiting on.
+
+    What the node states is the *declared shift*, not the join that renders it.
+    MetricFlow lowers this by joining the measure to the time spine at a
+    shifted date under a full outer join; a plan naming that would be stating
+    how the SQL is spelled rather than what is computed (RFC 0040 D4).
+    """
+
+    planner = make_planner()
+    query = planner.plan(
+        fixture_ir("period_over_period"),
+        MetricRequest(metrics=("revenue_yoy",), dimensions=("day",)),
+        dialect="duckdb",
+    )
+
+    assert query.semantic is not None
+    assert query.semantic.shape == ("scan", "filter", "aggregate", "offset", "compute", "project")
+
+    (offset,) = [node for node in query.semantic.nodes if isinstance(node, Offset)]
+    assert offset.reads == (("prior", "revenue", "1 year earlier"),)
+    assert (proof := offset.proof) is not None
+    assert proof.rule == "R017"
+
+    # R017 closes on `absent`, never zero: a missing prior period and one that
+    # really summed to nothing are different answers.
+    assert ("gaps", "absent") in proof.conclusion.operands
+
+
+def test_every_metric_of_a_fixture_carries_a_plan() -> None:
+    """D1's criterion, asserted rather than typed.
+
+    `QueryPlan.semantic` is non-optional, so this cannot fail by returning
+    `None` — a dataclass does not enforce its annotations, and the guard at the
+    call site raises instead. What this pins is that the guard never fires:
+    every metric of the fixture that exercises all five shapes is answered
+    *and* stated.
+    """
+
+    ir = fixture_ir("period_over_period")
+    planner = make_planner()
+
+    for metric in ir.metrics:
+        query = planner.plan(
+            ir, MetricRequest(metrics=(metric.name,), dimensions=("day",)), dialect="duckdb"
+        )
+        assert query.semantic is not None, metric.name
+        assert query.semantic.proofs, f"{metric.name} rests on no facts"

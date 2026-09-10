@@ -288,6 +288,15 @@ class Rule:
 #: aggregate, and citing it is what keeps P1 a re-expression rather than a new
 #: claim (RFC 0040 D5).
 #:
+#: R017 is the offset obligation (RFC 0066 §5.6). Its content is the second
+#: clause rather than the first: that a shifted read is the *same measure* is
+#: the declaration restating itself, and what needs proving is what happens
+#: where the shifted range has no rows. A missing prior period and a prior
+#: period that really summed to nothing are different answers, and only one of
+#: them is a defensible denominator — so the rule closes on `absent`, and a
+#: target that renders the shift as an inner join has silently chosen the
+#: other.
+#:
 #: R016 is the window obligation (RFC 0066 §5.4), and it is the one rule here
 #: whose conclusion is *terminal*: a cumulative metric's result may not be
 #: rolled further, because a trailing 7-day total summed across weeks counts
@@ -356,6 +365,10 @@ RULES: Final[dict[str, Rule]] = {
         Rule(
             "R016",
             "a cumulative metric accumulates over its declared frame and is not rolled further",
+        ),
+        Rule(
+            "R017",
+            "a declared offset reads the same measure at a shifted range, absent where it has no rows",
         ),
     )
 }

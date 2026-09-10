@@ -50,6 +50,7 @@ __all__ = [
     "Filter",
     "JoinAggregates",
     "JoinBranch",
+    "Offset",
     "PlanNode",
     "Project",
     "Reduce",
@@ -526,6 +527,83 @@ class Window:
 
 
 @dataclass(frozen=True, slots=True)
+class Offset:
+    """The same measure read at a shifted range (RFC 0066 §5.6).
+
+    A ``derived:`` input may carry an ``offset_window`` or ``offset_to_grain``,
+    so ``revenue_yoy`` reads `revenue` now and `revenue` a year earlier and
+    subtracts. The second read is not a column of the relation the expression
+    runs over, which is why :class:`Compute` alone could not state it and the
+    request had no plan at all.
+
+    **What this node states is the declared shift, not the join that renders
+    it.** MetricFlow lowers an offset by joining the measure to the time spine
+    at a shifted date under a full outer join; a plan naming that would be
+    stating how the SQL is spelled rather than what is computed, which RFC 0040
+    D4 refuses. The target chooses the mechanism; the plan says which measure
+    is read, over which ordering, and how far back.
+
+    **The gap question is the whole of R017.** A shifted read is sound when the
+    shifted range aggregates the same way the current one does — and a period
+    with no rows must read as *absent* rather than as zero, because a missing
+    prior period and a prior period that really summed to nothing are different
+    answers and only one of them is a defensible denominator.
+    """
+
+    #: ``(alias, measure, shift)`` — the alias the expression references, the
+    #: measure it reads, and how far back, as prose. Sorted by alias.
+    reads: tuple[tuple[str, str, str], ...]
+    #: The ordering the shift runs along.
+    over: str
+    proof: Proof | None = None
+
+    # ....................... #
+
+    def __post_init__(self) -> None:
+        canonical = tuple(sorted(self.reads))
+        if canonical != self.reads:
+            object.__setattr__(self, "reads", canonical)
+
+        if not self.reads:
+            msg = (
+                "an offset node with no reads shifts nothing, and `check` would report it "
+                "authorized — the same shape as a proof resting on no facts (RFC 0066 §5.6)"
+            )
+            raise ValueError(msg)
+
+    # ....................... #
+
+    @property
+    def multiplies(self) -> bool:
+        return False
+
+    # ....................... #
+
+    @property
+    def claims(self) -> bool:
+        return True
+
+    # ....................... #
+
+    def document(self) -> dict[str, object]:
+        return {
+            "node": "offset",
+            "reads": [[alias, measure, shift] for alias, measure, shift in self.reads],
+            "over": self.over,
+            "proof": self.proof.document() if self.proof is not None else None,
+        }
+
+    # ....................... #
+
+    def render(self) -> str:
+        shifted = ", ".join(f"{alias} = {measure} {shift}" for alias, measure, shift in self.reads)
+        return f"Offset({shifted} over {self.over})"
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
 class JoinBranch:
     """One branch of a join, and what *it* calls the join keys.
 
@@ -681,9 +759,9 @@ class JoinAggregates:
 #: `ConvertUnit`; neither exists yet — the first would join *unaggregated*
 #: rows, which RFC 0041 D10 keeps refused, and the second has no owner since
 #: RFC 0038 retired without it (RFC 0066 §8). :class:`Compute` is the sixth
-#: kind, :class:`Reduce` the seventh and :class:`Window` the eighth
-#: (RFC 0066 §5.2-§5.4).
-PlanNode = Scan | Filter | Aggregate | Project | JoinAggregates | Compute | Reduce | Window
+#: kind, :class:`Reduce` the seventh, :class:`Window` the eighth and
+#: :class:`Offset` the ninth (RFC 0066 §5.2-§5.6).
+PlanNode = Scan | Filter | Aggregate | Project | JoinAggregates | Compute | Reduce | Window | Offset
 
 
 @dataclass(frozen=True, slots=True)
@@ -755,12 +833,13 @@ class SemanticPlan:
         for node in self.nodes:
             if isinstance(node, Aggregate | JoinAggregates):
                 reduced = True
-            elif isinstance(node, Compute | Window) and not reduced:
+            elif isinstance(node, Compute | Window | Offset) and not reduced:
                 msg = (
                     f"{node.render()} runs before anything is aggregated, so the ordering "
                     "it is authorized for did not happen — a row-level expression or "
-                    "window aggregated afterwards is a different number "
-                    "(RFC 0066 §5.2, §5.4)"
+                    "window aggregated afterwards is a different number, and a shifted "
+                    "read of unaggregated rows is not the measure it names "
+                    "(RFC 0066 §5.2, §5.4, §5.6)"
                 )
                 raise ValueError(msg)
 
