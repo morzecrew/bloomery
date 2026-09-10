@@ -29,6 +29,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from collections.abc import Set as AbstractSet
+
 from bloomery.errors import InsufficientEvidence
 from bloomery.semantic import (
     BASIS_PROVENANCE,
@@ -47,6 +51,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "check_evidence",
+    "weak_bases",
 ]
 
 #: The requirement that asks for anything. ``assumed`` is the default and
@@ -56,66 +61,81 @@ __all__ = [
 _STRICT = "locked"
 
 
-def _weakest(mart_name: str, draft: ProjectIR) -> list[tuple[str, str, str]]:
-    """Every carried column whose cheapest derivation is not fully `LOCKED`,
-    as ``(column, basis, how)`` triples sorted for a deterministic message.
+def weak_bases(routes: Iterable[AbstractSet[str]]) -> tuple[str, ...]:
+    """The sub-`LOCKED` bases of a column, or empty if it is strong enough.
 
-    **Cheapest, not first.** A column reachable two ways is as strong as its
-    strongest route: an author who declared a relationship should not be
-    refused because the compiler could also have got there through a key. The
-    minimum is taken over routes, and only then compared against the
-    requirement.
+    Split out because it is the whole of the rule and the corpus cannot
+    exercise it: no column in any fixture is reached two ways, so a suite built
+    from fixtures alone cannot tell "as strong as its strongest route" from
+    "every route must be strong" — and the second is a different rule, not a
+    stricter reading of the first. It is asked directly instead.
+
+    A column with **no** route is not weak: it is a determinant of the origin
+    grain, which is the grain itself and is argued for by nothing.
+    """
+
+    routes = list(routes)
+
+    if any(
+        all(BASIS_PROVENANCE[basis].grade is EvidenceGrade.LOCKED for basis in route)
+        for route in routes
+    ):
+        return ()
+
+    return tuple(
+        sorted(
+            {
+                basis
+                for route in routes
+                for basis in route
+                if BASIS_PROVENANCE[basis].grade is not EvidenceGrade.LOCKED
+            }
+        )
+    )
+
+
+# ....................... #
+
+
+def _weak_columns(mart_name: str, draft: ProjectIR) -> list[tuple[str, str]]:
+    """Every carried column no route reaches under `LOCKED`, as ``(column,
+    bases)`` pairs sorted for a message that does not move between runs.
+
+    **A column is as strong as its strongest route.** An author who declared a
+    relationship is not refused because the compiler could also have got there
+    through a key, so one fully-`LOCKED` route acquits the column. Only where
+    *every* route is weak does it report, and then it names the weak bases of
+    all of them — which route the compiler would have taken changes the
+    sentence and not the verdict, and picking one would be a choice no test
+    could observe.
     """
 
     mart = next((m for m in draft.marts if m.name == mart_name), None)
-    if mart is None:
-        # Absent from the draft means it failed to flatten, and that violation
-        # is already in this batch. Reporting a second leaf about its evidence
-        # would name a mart the author is already being told about.
-        return []
+    base = next((e for e in draft.entities if e.name == mart.base), None) if mart else None
 
-    base = next((e for e in draft.entities if e.name == mart.base), None)
-    if base is None:
+    if mart is None or base is None:
+        # Absent from the draft means the mart failed to flatten, and that
+        # violation is already in this batch. A second leaf about its evidence
+        # would name a mart the author is being told about anyway.
         return []
 
     reached = {
-        member.ref: member for member in closure(grain_of(base.name, base.key), dependencies(draft))
+        (member.ref.entity, member.ref.column): member
+        for member in closure(grain_of(base.name, base.key), dependencies(draft))
     }
-    weak: list[tuple[str, str, str]] = []
+    weak: list[tuple[str, str]] = []
 
     for column in mart.columns:
-        if not column.source_entity or not column.source_column:
-            continue
-        member = next(
-            (
-                value
-                for ref, value in reached.items()
-                if ref.entity == column.source_entity and ref.column == column.source_column
-            ),
-            None,
-        )
+        member = reached.get((column.source_entity, column.source_column))
         if member is None:
             continue
-        routes = [
+        bases = weak_bases(
             {step.basis.value for step in derivation.steps} for derivation in member.derivations
-        ]
-        if not routes or any(
-            all(BASIS_PROVENANCE[basis].grade is EvidenceGrade.LOCKED for basis in route)
-            for route in routes
-        ):
-            continue
-        cheapest = min(
-            routes,
-            key=lambda route: sum(
-                BASIS_PROVENANCE[basis].grade is not EvidenceGrade.LOCKED for basis in route
-            ),
         )
-        for basis in sorted(cheapest):
-            if BASIS_PROVENANCE[basis].grade is EvidenceGrade.LOCKED:
-                continue
-            weak.append((column.name, basis, BASIS_PROVENANCE[basis].value))
+        if bases:
+            weak.append((column.name, ", ".join(repr(basis) for basis in bases)))
 
-    return sorted(set(weak))
+    return sorted(weak)
 
 
 # ....................... #
@@ -142,17 +162,21 @@ def check_evidence(project: Project, draft: ProjectIR) -> list[GuardrailError]:
     for name, mart in sorted(project.marts.marts.items()):
         if mart.requires_evidence != _STRICT:
             continue
-        for column, basis, provenance in _weakest(name, draft):
-            for measure in sorted(mart.measures):
-                msg = (
-                    f"mart {name!r} requires 'locked'; measure {measure!r} rests on column "
-                    f"{column!r}, whose derivation is {provenance} — the compiler reached it "
-                    f"by {basis!r} rather than from anything an author wrote (RFC 0065 §5.1). "
-                    f"Fix: declare the relationship that carries {column!r}, or set "
-                    f"'requires_evidence: assumed' on this mart"
-                )
-                errors.append(
-                    InsufficientEvidence(msg, source_path=f"marts: marts.{name}.requires_evidence")
-                )
+        measures = ", ".join(repr(measure) for measure in sorted(mart.measures)) or "(none)"
+        for column, bases in _weak_columns(name, draft):
+            # One leaf per weak column, naming the measures it carries, rather
+            # than one per (measure, column) pair. The fact is about the column;
+            # repeating it per measure makes a three-measure mart print the same
+            # sentence three times, and a refusal a reader skims is one they
+            # work around.
+            msg = (
+                f"mart {name!r} requires 'locked'; its measures ({measures}) rest on column "
+                f"{column!r}, which the compiler reached by {bases} rather than from anything "
+                f"an author wrote (RFC 0065 §5.1). Fix: declare the relationship that carries "
+                f"{column!r}, or set 'requires_evidence: assumed' on this mart"
+            )
+            errors.append(
+                InsufficientEvidence(msg, source_path=f"marts: marts.{name}.requires_evidence")
+            )
 
     return errors

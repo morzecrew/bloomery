@@ -12,6 +12,8 @@ goes red.
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
 from bloomery import build_project_ir, load_catalog, load_project
@@ -49,15 +51,25 @@ def test_absence_is_the_default_and_the_default_asks_nothing() -> None:
     assert project.marts.marts["order_items"].requires_evidence == "assumed"
 
 
-def test_a_mart_that_asks_nothing_is_never_walked() -> None:
+def test_a_mart_that_asks_nothing_is_never_walked(monkeypatch: pytest.MonkeyPatch) -> None:
     """`assumed` accepts every grade a compiling project can produce, so the
-    guard returns before reading a single fact. Asserted on the guard rather
-    than on a compile, because a compile passing proves only that nothing was
-    found — not that nothing was looked for."""
+    guard returns before reading a single fact.
+
+    Asserted **in the pre-regrade world**, which is the only one where the
+    difference is observable: with every basis grading `LOCKED`, a guard that
+    ignored the requirement and walked every mart would find nothing and look
+    identical to one that respected it.
+    """
 
     project, catalog = _project("assumed")
     draft = build_project_ir(project, catalog)
+    monkeypatch.setitem(guard.BASIS_PROVENANCE, "entity_key", Provenance.DERIVED)
+
     assert guard.check_evidence(project, draft) == []
+    # …and the same project asking for `locked` does find something, so the
+    # emptiness above is the requirement being honoured and not a dead walk.
+    strict, _ = _project("locked")
+    assert guard.check_evidence(strict, draft) != []
 
 
 @pytest.mark.parametrize("requirement", ["assumed", "locked"])
@@ -98,8 +110,8 @@ def test_a_weaker_basis_is_refused_and_the_message_names_the_way_out(
     message = str(leaves[0])
     # D4's four parts: the consumer, the measure, the fact, and how it was got.
     assert "mart 'order_items' requires 'locked'" in message
-    assert "measure 'gross_revenue'" in message
-    assert "rests on column" in message
+    assert "'gross_revenue'" in message
+    assert "rest on column" in message
     assert "'entity_key'" in message
     # …and the clause without which a team deletes the requirement instead.
     assert "Fix: declare the relationship" in message
@@ -120,8 +132,9 @@ def test_every_violation_is_collected(monkeypatch: pytest.MonkeyPatch) -> None:
 
     leaves = [e for e in caught.value.collected if isinstance(e, InsufficientEvidence)]
     assert len(leaves) > 1
-    columns = {m.split("rests on column ")[1].split(",")[0] for m in map(str, leaves)}
-    assert len(columns) == len(leaves), "one leaf per column, not one per fact"
+    columns = [str(e).split("rest on column ")[1].split(",")[0] for e in leaves]
+    assert len(set(columns)) == len(leaves), "one leaf per column, not one per (measure, column)"
+    assert columns == sorted(columns), "the batch is ordered, so two runs read the same"
 
 
 def test_a_declared_relationship_is_never_the_weak_link(
@@ -141,6 +154,109 @@ def test_a_declared_relationship_is_never_the_weak_link(
         build_project_ir(project, catalog)
 
     assert not [e for e in caught.value.collected if "'many_to_one'" in str(e)]
+
+
+def test_a_mart_that_failed_to_flatten_gets_no_second_leaf(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A mart absent from the draft failed its own check, and that violation is
+    already in this batch. Reporting its evidence too would name a mart the
+    author is being told about anyway — and would do it from a draft that never
+    resolved the mart's columns.
+
+    Exercised against a draft the mart is genuinely missing from, rather than
+    trusting the `is None` branch by reading it.
+    """
+
+    lenient, catalog = _project("assumed")
+    draft = build_project_ir(lenient, catalog)
+    monkeypatch.setitem(guard.BASIS_PROVENANCE, "entity_key", Provenance.DERIVED)
+
+    strict, _ = _project("locked")
+    assert guard.check_evidence(strict, draft) != [], "the control: this draft does refuse"
+
+    without = dataclasses.replace(draft, marts=())
+    assert guard.check_evidence(strict, without) == []
+
+
+def test_a_column_outside_the_closure_is_passed_over() -> None:
+    """A mart may carry a column the closure does not reach.
+
+    `scd2_as_of` flattens a historical entity through an `as_of` anchor, and
+    its three `customer_*` columns are not members of the base grain's closure
+    — the anchor qualifies the hop at flatten time, not as a functional
+    dependency of `order`. There is no derivation to grade, so the guard steps
+    over them rather than treating an absent member as a missing premise.
+
+    Both halves matter. Reporting them would refuse a mart for columns it
+    carries legitimately; asserting only the pass would not distinguish this
+    branch from one that never ran, so the columns are named.
+    """
+
+    sources = fixture_sources("scd2_as_of")
+    sources["marts"] = sources["marts"].replace(
+        "    measures: [revenue]",
+        "    measures: [revenue]\n    requires_evidence: locked",
+        1,
+    )
+    _, catalog = load_fixture("scd2_as_of")
+    project = load_project(sources)
+    draft = build_project_ir(project, catalog)
+
+    carried = {column.name for mart in draft.marts for column in mart.columns}
+    assert {"customer_segment", "customer_signed_up_at"} <= carried
+
+    assert guard.check_evidence(project, draft) == []
+
+
+# ....................... #
+# The rule itself, asked directly
+
+
+def test_a_column_is_as_strong_as_its_strongest_route() -> None:
+    """The acquittal no fixture can exercise.
+
+    No column in any fixture is reached two ways, so the corpus cannot tell
+    "as strong as its strongest route" from "every route must be strong" —
+    and the second is a different rule, not a stricter reading of the first.
+    An author who declared a relationship must not be refused because the
+    compiler could also have got there through a key.
+    """
+
+    declared = {"many_to_one"}
+    derived = {"entity_key"}
+
+    # One strong route acquits, whichever order the routes arrive in.
+    assert guard.weak_bases([declared, derived]) == ()
+    assert guard.weak_bases([derived, declared]) == ()
+    # …and with no strong route it reports the weak bases of all of them.
+    assert guard.weak_bases([derived]) == ()  # entity_key grades LOCKED today
+
+
+def test_the_rule_reports_every_weak_basis_when_no_route_is_strong(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The other side of the same rule, in the pre-regrade world where a weak
+    basis exists at all."""
+
+    monkeypatch.setitem(guard.BASIS_PROVENANCE, "entity_key", Provenance.DERIVED)
+    monkeypatch.setitem(guard.BASIS_PROVENANCE, "transitive", Provenance.DERIVED)
+
+    assert guard.weak_bases([{"entity_key"}]) == ("entity_key",)
+    assert guard.weak_bases([{"entity_key"}, {"transitive"}]) == ("entity_key", "transitive")
+    # A route mixing a declared hop with a derived one is still weak: the
+    # column was not reached without the derived step.
+    assert guard.weak_bases([{"many_to_one", "entity_key"}]) == ("entity_key",)
+    # And one strong route still acquits.
+    assert guard.weak_bases([{"many_to_one"}, {"entity_key"}]) == ()
+
+
+def test_a_column_reached_by_nothing_is_not_weak() -> None:
+    """A determinant of the origin grain is the grain, and a grain is argued
+    for by nothing — so an empty route list is not a missing premise."""
+
+    assert guard.weak_bases([]) == ()
+    assert guard.weak_bases([set()]) == ()
 
 
 # ....................... #
