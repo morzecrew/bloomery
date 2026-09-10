@@ -52,6 +52,7 @@ __all__ = [
     "DimensionRef",
     "FxRatesIR",
     "EntityIR",
+    "ExposureIR",
     "Layer",
     "MartAssertIR",
     "MartColumnIR",
@@ -119,18 +120,19 @@ OK_COLUMN = "_quality_ok"
 REPAIRS_COLUMN = "_quality_repairs"
 #: One ``<entity>__reject`` per entity, never per mapping (D10).
 REJECT_SUFFIX = "__reject"
-#: The four lineage node-id prefixes (RFC 0031 §5.3, RFC 0051 §5.2). Every
-#: node id but an entity field's is ``<prefix>.<rest>``; an entity field is
-#: ``<entity>.<field>`` bare, so an entity named after one of these mints ids
-#: in another kind's namespace. Reserved as entity names for that reason.
+#: The lineage node-id prefixes (RFC 0031 §5.3, RFC 0051 §5.2; ``exposure``
+#: added by RFC 0056 §5.2). Every node id but an entity field's is
+#: ``<prefix>.<rest>``; an entity field is ``<entity>.<field>`` bare, so an
+#: entity named after one of these mints ids in another kind's namespace.
+#: Reserved as entity names for that reason.
 #:
 #: Here rather than beside the node builders in ``resolve.graph`` because the
 #: guardrail that refuses them sits *below* ``resolve`` in the layer contract
 #: and cannot import it. ``tests/unit/test_resolve/test_graph.py`` pins the
 #: two together: every builder's id must start with a member of this tuple,
-#: so a node kind added with a fifth prefix fails there rather than silently
+#: so a node kind added with a new prefix fails there rather than silently
 #: escaping the reservation.
-NODE_ID_PREFIXES: Final = ("canonical", "metric", "source", "step")
+NODE_ID_PREFIXES: Final = ("canonical", "exposure", "metric", "source", "step")
 #: The provenance column a **merged** entity carries: which source relation a
 #: row came from (RFC 0024 D7). Load-bearing rather than diagnostic — the
 #: collision audit reports *which* sources shared a key, and without it the
@@ -1159,6 +1161,38 @@ class RollupIR:
 
 
 @dataclass(frozen=True, slots=True)
+class ExposureIR:
+    """A declared consumer of what this project builds (RFC 0056 §5.1).
+
+    The one IR node with no artifact of its own on most targets and no
+    contribution to any SELECT anywhere: an exposure is *read* — by the lineage
+    graph, by ``plan()``'s impact report, and by the dbt emitter — and never
+    built. That is what makes it a leaf rather than a stage.
+
+    ``metrics`` and ``marts`` stay separate collections, as they are in the
+    document. They are separate namespaces — one project may hold a metric and
+    a mart of the same name — so a single list would be a list of names whose
+    kind has to be guessed by looking each one up, and a name present in both
+    would resolve to whichever lookup ran first.
+
+    ``owner`` and ``url`` are carried verbatim and interpreted by nothing
+    (RFC 0056 D6). The URL in particular is never fetched: an exposure is a
+    claim about a world this compiler cannot see, and validating it would need
+    the network RFC 0003 forbids.
+    """
+
+    name: str
+    kind: str
+    owner: str
+    metrics: tuple[str, ...]
+    marts: tuple[str, ...]
+    url: str | None = None
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
 class DateDimensionIR:
     """The vertical-owned date dimension (RFC 0008 D13, RFC 0013 R1 rule 4):
     one catalog definition emits both the gold ``dim_date`` model and, at M6,
@@ -1348,7 +1382,11 @@ class ProjectIR:
     Version 11 (RFC 0024 D32) adds ``sources``, ``enum_values`` and
     ``enum_spellings`` to every :class:`SourceColumnIR`: a merged entity's
     rules are evaluated once over the union, so the per-mapping facts they read
-    move onto the per-mapping node.
+    move onto the per-mapping node. Version 13 (RFC 0056 §5.1) adds
+    ``exposures`` — a node that changes no SELECT and moves every fingerprint
+    anyway, which is the encoder working as §5.4 intends: the *shape* is
+    covered, so two compilers that disagree about what an IR holds can never
+    agree on a fingerprint.
     The bump is
     the point — every artifact's fingerprint header moves, and ``plan()``
     refuses to diff across versions rather than misreading one as the other.
@@ -1371,7 +1409,7 @@ class ProjectIR:
     supposed to be loud.
     """
 
-    bloomery_ir_version: int = 12
+    bloomery_ir_version: int = 13
     entities: tuple[EntityIR, ...] = ()
     metrics: tuple[MetricIR, ...] = ()
     unreachable: tuple[UnreachableMetric, ...] = ()
@@ -1380,6 +1418,10 @@ class ProjectIR:
     #: Rollup marts, sorted by name (RFC 0058 §5.2). Deliberately *not* folded
     #: into ``marts``: see :class:`RollupIR`.
     rollups: tuple[RollupIR, ...] = ()
+    #: Declared downstream consumers, sorted by name (RFC 0056 §5.1). A leaf
+    #: of the lineage graph and an input to ``plan()``'s impact report; nothing
+    #: is built for one.
+    exposures: tuple[ExposureIR, ...] = ()
     date_dimension: DateDimensionIR | None = None
     fx_rates: FxRatesIR | None = None
     reconcile: tuple[ReconcileIR, ...] = ()

@@ -57,6 +57,7 @@ from bloomery.ir import (
     DerivedIR,
     DimensionRef,
     EntityIR,
+    ExposureIR,
     FxRatesIR,
     Materialization,
     MetricFilterIR,
@@ -2047,6 +2048,45 @@ def _build_relationships(project: Project) -> tuple[RelationshipIR, ...]:
 # ....................... #
 
 
+def _build_exposures(project: Project) -> tuple[ExposureIR, ...]:
+    """Lower the exposures document, sorted by name (RFC 0056 §5.1).
+
+    A transcription and nothing more: an exposure names things by name, and
+    every name it can hold belongs to another document. Whether those names
+    resolve is :func:`~bloomery.guardrails.exposures.check_exposure_targets`'s
+    question, asked over the finished draft where both the metric and the mart
+    collections exist — here neither is built yet.
+
+    ``depends_on`` is sorted on the way in, unlike a mart's authored-order
+    flatten chain (RFC 0003 D4): the order of a dependency list carries no
+    meaning, so leaving it authored would let two spellings of one exposure
+    produce two fingerprints.
+    """
+
+    if project.exposures is None:
+        return ()
+
+    return tuple(
+        sorted(
+            (
+                ExposureIR(
+                    name=name,
+                    kind=exposure.kind,
+                    owner=exposure.owner,
+                    metrics=tuple(sorted(exposure.depends_on.metrics)),
+                    marts=tuple(sorted(exposure.depends_on.marts)),
+                    url=exposure.url,
+                )
+                for name, exposure in project.exposures.exposures.items()
+            ),
+            key=lambda exposure: exposure.name,
+        )
+    )
+
+
+# ....................... #
+
+
 def _build_date_dimension(catalog: Catalog | None) -> DateDimensionIR | None:
     """Lower the catalog's date dimension (RFC 0008 D13): one definition
     drives the gold ``dim_date`` model and, at M6, the MetricFlow time spine."""
@@ -2157,6 +2197,7 @@ def _lower_draft(
         metrics=_build_metrics(project, catalog, resolution.reachable_metrics),
         unreachable=resolution.unreachable_metrics,
         relationships=_build_relationships(project),
+        exposures=_build_exposures(project),
         marts=(),  # attached below, once the flattener has the entity draft
         date_dimension=_build_date_dimension(catalog),
         fx_rates=_build_fx_rates(catalog),

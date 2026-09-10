@@ -14,6 +14,7 @@ from bloomery.resolve.graph import (
     build_graph,
     canonical_field_node,
     entity_field_node,
+    exposure_node,
     metric_node,
     source_column_node,
     step_node,
@@ -99,6 +100,41 @@ def test_node_kinds_cover_the_step_free_vocabulary() -> None:
     project, catalog = load_fixture("ecom_basic")
     graph = build_graph(project, catalog, effective_metrics(project, catalog))
     assert {n.kind for n in graph.nodes} == set(NodeKind) - {NodeKind.STEP}
+
+
+def test_an_exposure_is_the_graph_s_only_sink() -> None:
+    """RFC 0056 §5.2. Both halves matter: the edges point *into* the exposure,
+    and nothing points out of one — the downstream question stops there, which
+    is the answer `--direction downstream` had no way to give before."""
+
+    project, catalog = load_fixture("ecom_basic")
+    graph = build_graph(project, catalog, effective_metrics(project, catalog))
+    review = exposure_node("weekly_revenue_review")
+
+    incoming = {(e.src.name, e.label) for e in graph.edges if e.dst == review}
+    assert incoming == {
+        ("metric.gross_revenue", "depends_on"),
+        ("metric.order_count", "depends_on"),
+    }
+    assert not [e for e in graph.edges if e.src.kind is NodeKind.EXPOSURE]
+
+
+def test_a_mart_only_exposure_is_a_node_with_no_edge() -> None:
+    """`depends_on.marts` draws no edge — a mart is not a node of this graph
+    (logs/T-0038.md) — so an exposure naming only marts would exist nowhere at
+    all: absent from `topo_order`, and refused by `bloomery lineage` as an
+    unknown node, for a consumer the spec declares.
+
+    Named for the shape rather than for the fixture, because the shape is what
+    a future `depends_on` kind would break.
+    """
+
+    project, catalog = load_fixture("ecom_basic")
+    graph = build_graph(project, catalog, effective_metrics(project, catalog))
+    extract = exposure_node("finance_extract")
+
+    assert extract in graph.nodes
+    assert not [e for e in graph.edges if extract in (e.src, e.dst)]
 
 
 def test_a_wired_step_is_a_first_class_node(step_project: Project) -> None:
@@ -244,9 +280,9 @@ def test_node_order_is_identical_across_hash_seeds() -> None:
 
 
 def test_every_prefixed_builder_uses_a_reserved_name() -> None:
-    """The guardrail that reserves the four names sits below ``resolve`` and
+    """The guardrail that reserves the names sits below ``resolve`` and
     cannot import this module, so the two lists are pinned together here
-    rather than by an import. A fifth node kind with a new prefix fails this
+    rather than by an import. A node kind added with a new prefix fails this
     test instead of quietly escaping the reservation.
 
     ``entity_field_node`` is deliberately absent: it is the one builder that
@@ -257,6 +293,7 @@ def test_every_prefixed_builder_uses_a_reserved_name() -> None:
         canonical_field_node("unit_price").name,
         metric_node("gross_revenue").name,
         step_node("resolve_customers").name,
+        exposure_node("weekly_revenue_review").name,
     )
     assert {node_id.split(".", 1)[0] for node_id in ids} == set(NODE_ID_PREFIXES)
     assert entity_field_node("order_item", "unit_price").name == "order_item.unit_price"
@@ -338,6 +375,15 @@ def test_a_rename_moves_the_label_and_not_the_node() -> None:
     sources["metrics"] = sources["metrics"].replace(
         "requires_metrics: [gross_revenue, order_count]",
         "requires_metrics: [revenue_gross, order_count]",
+        1,
+    )
+    # An exposure names a metric from a third document, so a rename reaches
+    # here too — and that is the half of RFC 0062 §5.2 the edge into an
+    # exposure exercises: the id belongs to the definition, so this reference
+    # spells the *new* name and still resolves to the same node.
+    sources["exposures"] = sources["exposures"].replace(
+        "metrics: [gross_revenue, order_count]",
+        "metrics: [revenue_gross, order_count]",
         1,
     )
     renamed = load_project(sources)

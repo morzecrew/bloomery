@@ -4,8 +4,8 @@
 pass strings, never paths — I/O belongs to the control plane (hard invariant).
 Each project document self-identifies its kind via its version key
 (``spec_version`` / ``mapping_version`` / ``metrics_version`` /
-``marts_version``). Exactly one ``EntityModel``, at most one ``MetricSet``, at
-most one ``MartSet`` per project; the catalog is deliberately *not* part of
+``marts_version`` / ``steps_version`` / ``exposures_version``). Exactly one
+``EntityModel``; at most one of every other kind per project; the catalog is deliberately *not* part of
 ``Project`` (RFC 0002 D8). All parse failures across all documents are batched
 into one :class:`~bloomery.errors.SpecParseError` (RFC 0002 D6).
 """
@@ -19,6 +19,7 @@ from bloomery.errors import BloomeryError, SpecParseError
 from bloomery.spec.catalog import Catalog
 from bloomery.spec.common import SpecModel, flatten_collected, load_yaml_mapping, validate_document
 from bloomery.spec.entity import EntityModel
+from bloomery.spec.exposures import ExposureSet
 from bloomery.spec.mapping import Mapping
 from bloomery.spec.marts import MartSet
 from bloomery.spec.metrics import MetricSet
@@ -38,6 +39,7 @@ _KIND_KEYS: dict[str, type[SpecModel]] = {
     "metrics_version": MetricSet,
     "marts_version": MartSet,
     "steps_version": StepSet,
+    "exposures_version": ExposureSet,
 }
 
 
@@ -52,6 +54,7 @@ class Project:
     metric_set: MetricSet | None = None
     marts: MartSet | None = None
     steps: StepSet | None = None
+    exposures: ExposureSet | None = None
 
 
 # ....................... #
@@ -90,8 +93,7 @@ def _detect_kind(data: dict[str, object], *, document: str) -> type[SpecModel]:
 
     if not present:
         raise SpecParseError(
-            "unknown spec kind: expected exactly one of spec_version / "
-            "mapping_version / metrics_version / marts_version / steps_version",
+            "unknown spec kind: expected exactly one of " + " / ".join(_KIND_KEYS),
             source_path=document,
         )
 
@@ -112,6 +114,7 @@ def _check_document_counts(
     metric_sets: list[tuple[str, MetricSet]],
     mart_sets: list[tuple[str, MartSet]],
     step_sets: list[tuple[str, StepSet]],
+    exposure_sets: list[tuple[str, ExposureSet]],
 ) -> list[BloomeryError]:
     errors: list[BloomeryError] = []
 
@@ -131,6 +134,7 @@ def _check_document_counts(
         ("MetricSet", metric_sets),
         ("MartSet", mart_sets),
         ("StepSet", step_sets),
+        ("ExposureSet", exposure_sets),
     ):
         if len(sets) > 1:
             names = [name for name, _ in sets]
@@ -160,6 +164,7 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
     metric_sets: list[tuple[str, MetricSet]] = []
     mart_sets: list[tuple[str, MartSet]] = []
     step_sets: list[tuple[str, StepSet]] = []
+    exposure_sets: list[tuple[str, ExposureSet]] = []
 
     for name in sorted(sources):
         try:
@@ -178,8 +183,10 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
             mart_sets.append((name, model))
         elif isinstance(model, StepSet):
             step_sets.append((name, model))
+        elif isinstance(model, ExposureSet):
+            exposure_sets.append((name, model))
         else:  # pragma: no cover — _KIND_KEYS is closed
-            # Not a `cast` on the closed table: the cast made a seventh kind
+            # Not a `cast` on the closed table: the cast made an unhandled kind
             # silently *become* a StepSet, and hid the mismatch from pyright
             # too. The table stays closed; this makes it verifiable.
             msg = f"unhandled spec kind {type(model).__name__}"
@@ -189,7 +196,9 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
         # Cardinality complaints on top of per-document failures would be
         # misleading (a failed document still *was* its kind) — report the
         # parse errors first; counts are checked once every document parses.
-        errors.extend(_check_document_counts(entity_models, metric_sets, mart_sets, step_sets))
+        errors.extend(
+            _check_document_counts(entity_models, metric_sets, mart_sets, step_sets, exposure_sets)
+        )
 
     if errors:
         flat = flatten_collected(errors)
@@ -203,6 +212,7 @@ def load_project(sources: AbcMapping[str, str]) -> Project:
         metric_set=metric_sets[0][1] if metric_sets else None,
         marts=mart_sets[0][1] if mart_sets else None,
         steps=step_sets[0][1] if step_sets else None,
+        exposures=exposure_sets[0][1] if exposure_sets else None,
     )
 
 

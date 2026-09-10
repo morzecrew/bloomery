@@ -51,20 +51,30 @@ CONSTRUCTOR_KINDS = {
     "canonical_field_node": NodeKind.CANONICAL_FIELD,
     "metric_node": NodeKind.METRIC,
     "step_node": NodeKind.STEP,
+    "exposure_node": NodeKind.EXPOSURE,
 }
 
 
 def test_every_named_constructor_exists_and_returns_its_kind() -> None:
-    """The map above is a claim about the module, so it is checked.
+    """The map above is a claim about the module, so it is checked — in both
+    directions.
 
-    Without this the source guard could quietly stop resolving a renamed
-    constructor and report a smaller, still-passing set.
+    Without the first half the source guard could quietly stop resolving a
+    renamed constructor and report a smaller, still-passing set. Without the
+    second, a **new** constructor is simply invisible to it: every ``Edge(...)``
+    built from one reads as unresolvable, and this file's own guards would then
+    be measuring a vocabulary that no longer matches the module. Read off
+    ``__all__`` rather than off a second hand-kept list, which is the thing
+    that goes stale.
     """
     for name, kind in CONSTRUCTOR_KINDS.items():
         builder = getattr(graph_module, name)
         signature = inspect.signature(builder)
         arguments = ["x"] * len(signature.parameters)
         assert builder(*arguments).kind is kind
+
+    exported = {name for name in graph_module.__all__ if name.endswith("_node")}
+    assert exported == set(CONSTRUCTOR_KINDS)
 
 
 # ....................... #

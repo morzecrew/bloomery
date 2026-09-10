@@ -17,7 +17,7 @@ from __future__ import annotations
 import pytest
 
 from bloomery import JsonDict, SpecKind, all_spec_schemas, spec_json_schema
-from bloomery.schema import JSON_SCHEMA_DIALECT
+from bloomery.schema import JSON_SCHEMA_DIALECT, VERSION_KEYS
 from bloomery.transforms import registry
 
 pytestmark = pytest.mark.unit
@@ -28,14 +28,6 @@ SCHEMAS = all_spec_schemas()
 #: ``bloomery.spec.project._KIND_KEYS`` plus the separately-loaded catalog.
 #: Written out rather than imported so a rename in the private table is a
 #: failure here instead of a silent agreement with itself.
-VERSION_KEYS = {
-    SpecKind.CATALOG: "catalog_version",
-    SpecKind.ENTITY_MODEL: "spec_version",
-    SpecKind.MAPPING: "mapping_version",
-    SpecKind.MARTS: "marts_version",
-    SpecKind.METRICS: "metrics_version",
-    SpecKind.STEPS: "steps_version",
-}
 
 
 def _nodes(value: object) -> list[JsonDict]:

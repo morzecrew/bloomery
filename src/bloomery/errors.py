@@ -66,6 +66,7 @@ __all__ = [
     "NonAdditiveWithoutComponents",
     "FalseAdditivityClaim",
     "MartMissingTimeDimension",
+    "DanglingExposure",
     "ReservedEntityName",
     "QuarantineRetentionMissing",
     "DedupeTieBreakMissing",
@@ -516,9 +517,24 @@ class UnprovableRollup(GuardrailError):
 
 class ReservedEntityName(GuardrailError):
     """Guardrail stage (RFC 0051 §5.2, D6/D7): an entity named after one of the
-    four lineage node-id prefixes. Every node id but an entity field's carries
+    lineage node-id prefixes. Every node id but an entity field's carries
     a kind prefix, so an entity named ``metric`` makes ``<entity>.<field>``
     indistinguishable from ``metric.<name>`` — and the ids are published."""
+
+
+# ....................... #
+
+
+class DanglingExposure(GuardrailError):
+    """Guardrail stage (RFC 0056 D2, `LOCKED`): an exposure naming a metric or
+    a mart the project does not declare.
+
+    Refused rather than dropped, and that is the whole point of the check. An
+    exposure exists to answer "who does this change reach", so one whose
+    dependency resolves to nothing answers *nobody* — it does not fail, it
+    reports clean, which is the failure mode this feature was added to remove.
+    A dropped dependency would do the same thing more quietly.
+    """
 
 
 # ....................... #
