@@ -70,14 +70,17 @@ but one carries its kind as a prefix:
 | Entity field | `<entity>.<field>` — **no prefix** |
 
 Entity fields are the exception, so `order_item.unit_price` is a whole id rather than a
-suffix. Exposures are the other kind worth a note: they are the graph's sink, they carry
-no SQL, and only dbt gets an artifact for one — Cube and SQLMesh have no such concept and
-emit nothing, without refusing anything. Mistype one and the refusal suggests the spelling it thinks you meant:
+suffix. Mistype one and the refusal suggests the spelling it thinks you meant:
 
 ```console
 $ bloomery lineage specs/ --node metric.gross_revenu
 no node named 'metric.gross_revenu' in this project's dependency graph. did you mean: metric.gross_revenue
 ```
+
+An exposure is the odd one out for a different reason: it is the graph's sink, it carries
+no SQL, and only dbt gets an artifact for one. Cube and SQLMesh have no such concept and
+emit nothing — without refusing anything, so declaring a dashboard never restricts what
+you can compile.
 
 ### Identity, when the name is not it
 

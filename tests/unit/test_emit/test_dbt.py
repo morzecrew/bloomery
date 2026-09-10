@@ -14,7 +14,7 @@ import pytest
 import yaml
 from sqlglot import exp, parse_one
 
-from bloomery import Target
+from bloomery import Target, compile_project, load_catalog, load_project
 from bloomery.dialects import get_dialect
 from bloomery.emit import ArtifactKind, EmitContext, EmittedArtifact
 from bloomery.emit.dbt import DbtEmitter
@@ -46,6 +46,7 @@ from bloomery.ir import (
 from bloomery.naming import DefaultNaming, PrefixNaming
 from bloomery.typing import DecimalType, IntType, LogicalType, StringType
 from support.compiling import (
+    FIXTURES,
     compile_fixture,
     extract_select,
     fixture_sources,
@@ -939,9 +940,6 @@ def test_a_mart_only_exposure_carries_no_meta() -> None:
 
 def _exposures_from(body: str) -> list[dict[str, object]]:
     """``ecom_basic``'s exposures replaced by ``body``, compiled to dbt."""
-
-    from bloomery import compile_project, load_catalog, load_project
-    from support.compiling import FIXTURES
 
     sources = fixture_sources("ecom_basic")
     sources["exposures"] = body
