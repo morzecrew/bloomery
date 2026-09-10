@@ -178,15 +178,22 @@ The default is `assumed`, which is what every project does today — leaving the
 byte-for-byte the same as writing it. There is no `open`: that would mean "accept
 anything", which is the absence of the annotation rather than a third setting.
 
-When a premise is weaker than the mart asked for, the refusal names the consumer, the
-measure, the fact, and how the compiler got it:
+When a premise is weaker than the mart asked for, the refusal names the consumer, its
+measures, the column, and how the compiler reached it:
 
 ```
-mart 'statutory_revenue' requires 'locked'; measure 'net_revenue' rests on column
-'customer_tier', whose derivation is derived — the compiler reached it by 'transitive'
-rather than from anything an author wrote (RFC 0065 §5.1). Fix: declare the relationship
-that carries 'customer_tier', or set 'requires_evidence: assumed' on this mart
+mart 'statutory_revenue' requires 'locked'; its measures ('net_revenue') rest on column
+'customer_tier', which the compiler reached by '<basis>' rather than from anything an
+author wrote (RFC 0065 §5.1). Fix: declare the relationship that carries
+'customer_tier', or set 'requires_evidence: assumed' on this mart
 ```
+
+**No project reaches that refusal today**, which is why the basis above is a placeholder
+rather than a name you could grep for. Every way the compiler currently believes a
+dependency is something an author declared, or follows necessarily from one — an entity's
+key determining its own columns is the second kind. A weaker premise arrives when facts
+start coming from *another* project's artifacts, and the requirement is here first so a
+mart can be strict before there is anything to be strict about.
 
 **Use it on few marts.** A finance mart feeding a statutory report is the case it exists
 for: someone signs that number, and "the compiler worked it out" is not an answer they can

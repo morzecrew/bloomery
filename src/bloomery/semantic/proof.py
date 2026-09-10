@@ -253,9 +253,11 @@ class Rule:
 #: that a test can assert an id never leaves it — the half of "append-only" a
 #: convention cannot enforce on its own.
 #:
-#: R001-R005 are the five bases RFC 0037 already closed — nothing here invents
-#: a way to believe a dependency, it names the ones that existed. R006 is the
-#: rollup those compose into, and R007 the axiom they start from.
+#: R001-R004 are the four bases RFC 0037 closed — nothing here invents a way to
+#: believe a dependency, it names the ones that existed. R005 is their
+#: composition and is the one rule no basis names: a composition is recognised
+#: by a derivation having more than one step (T-0041). R006 is the rollup those
+#: compose into, and R007 the axiom they start from.
 #:
 #: R009 is not a grain rule either: it is the *denomination* contract. A
 #: conversion asserts what currency its input holds, and RFC 0061 gives that
@@ -683,7 +685,6 @@ BASIS_RULES: Final[dict[str, str]] = {
     "many_to_one": "R002",
     "one_to_one": "R003",
     "as_of": "R004",
-    "transitive": "R005",
 }
 
 #: What a dependency of each basis *rests on*. A relationship and an as-of
@@ -701,15 +702,14 @@ BASIS_RULES: Final[dict[str, str]] = {
 #: declared key: a consumer requirement that refused it would be a refusal with
 #: no remedy, which is the one thing RFC 0065 D4 forbids (logs/T-0040.md).
 #:
-#: ``transitive`` stays `DERIVED` and is never minted — composition is carried
-#: as several :attr:`Derivation.steps`, each with its own basis, so no step
-#: ever claims it. The row is kept because the member is public vocabulary
-#: (RFC 0037 D3) and a table missing one would `KeyError` at whichever fact
-#: first carried it.
+#: There is no ``transitive`` row, because there is no such basis to key it by
+#: (T-0041). Composition is carried as several :attr:`Derivation.steps`, each
+#: with its own basis, so the provenance of a composed dependency is the
+#: provenance of the hops it composed — which is the right answer and the one
+#: a table row would have had to duplicate.
 BASIS_PROVENANCE: Final[dict[str, Provenance]] = {
     "entity_key": Provenance.DECLARED,
     "many_to_one": Provenance.DECLARED,
     "one_to_one": Provenance.DECLARED,
     "as_of": Provenance.DECLARED,
-    "transitive": Provenance.DERIVED,
 }

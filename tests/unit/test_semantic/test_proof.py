@@ -519,6 +519,25 @@ def test_every_rule_a_basis_maps_to_exists() -> None:
         assert identifier in RULES
 
 
+def test_r005_is_registered_and_named_by_no_basis() -> None:
+    """The one asymmetry between the two tables, asserted so it reads as the
+    design rather than as a leftover.
+
+    Every basis names a registered rule — the test above holds that direction —
+    but the converse does not: R005 is the rule for a *composition*, and a
+    composition is recognised by a derivation carrying more than one step, not
+    by a basis claiming to be one. `transitive` was such a basis until T-0041
+    and could never be minted, which is why it left.
+
+    Without this, a reader diffing `RULES` against `BASIS_RULES` finds R005 in
+    one and not the other and deletes it as stale — and `_reaches` builds it.
+    """
+
+    assert "R005" in RULES
+    assert "R005" not in set(BASIS_RULES.values())
+    assert "transitive" not in {basis.value for basis in DependencyBasis}
+
+
 def test_no_basis_is_admitted_on_a_fact_that_cannot_close() -> None:
     """RFC 0037 D3 closed the basis vocabulary so that no heuristic contributes
     a member. This asserts the two documents agree: every way of believing a

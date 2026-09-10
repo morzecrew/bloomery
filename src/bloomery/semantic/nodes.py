@@ -131,9 +131,13 @@ class DependencyBasis(StrEnum):
     #: because it determines strictly more: the anchor picks one version, so
     #: the whole of the target row is determined, not only the joined key.
     AS_OF = "as_of"
-    #: Composition of the above. Never a step of its own — the derivation
-    #: carries the steps it composed.
-    TRANSITIVE = "transitive"
+
+    # Composition is deliberately **not** a member. A derivation carries the
+    # steps it composed, each with its own basis, so nothing was ever left for
+    # a `transitive` step to claim — and the rule that names a composition,
+    # R005, is reached from a derivation having more than one step rather than
+    # from any basis. It was a member until T-0041, where a closed list naming
+    # a value with no producer had cost a guard that could never fire.
 
 
 # ....................... #
