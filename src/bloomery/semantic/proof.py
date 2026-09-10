@@ -288,6 +288,18 @@ class Rule:
 #: aggregate, and citing it is what keeps P1 a re-expression rather than a new
 #: claim (RFC 0040 D5).
 #:
+#: R014 is the ordering obligation on a computed metric (RFC 0066 §5.2). It
+#: reaches the same conclusion R012 does and could not borrow its premise: R012
+#: asks whether each operand may be rolled between *entity* grains, and a metric
+#: computed over one mart rolls nothing — its inputs are aggregated inside the
+#: mart and the expression is evaluated over the result, so `prove_ratio_
+#: reconstruction`'s `GrainRef` source and target have nothing to name. This is
+#: R013's shape one level up: where the natural rule cannot state the target,
+#: because a mart's columns are not entity key columns, the obligation premises
+#: on R008 instead (logs/T-0037.md). What is left to prove is the *ordering* —
+#: that evaluating the expression after the aggregate is the declared number
+#: rather than a row-level one aggregated afterwards.
+#:
 #: R013 is the rollup mart's obligation (RFC 0058 §5.2, D12). It stands beside
 #: R011 rather than under it: R011 asks whether an additive measure may be
 #: summed across a rollup *its grain proof permits*, and a rollup mart has no
@@ -317,6 +329,10 @@ RULES: Final[dict[str, Rule]] = {
         Rule(
             "R013",
             "a mart's measure is re-aggregable over the dimensions a rollup of it drops",
+        ),
+        Rule(
+            "R014",
+            "a metric with no measure of its own is computed after its inputs are aggregated",
         ),
     )
 }

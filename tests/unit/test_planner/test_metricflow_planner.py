@@ -17,6 +17,7 @@ from metricflow_semantics.errors.error_classes import (
 )
 
 from bloomery import AnyOf, MetricRequest, Op, OrderSpec, Predicate, RowPolicy
+from bloomery.semantic import Compute
 from bloomery.errors import (
     AmbiguousDimension,
     InvalidRequest,
@@ -639,17 +640,28 @@ def test_a_computed_metric_is_described_though_no_branch_produced_it() -> None:
     assert "line_discount = SUM" not in rendered, "the components are not what was asked for"
 
 
-def test_a_computed_metric_withholds_the_semantic_plan() -> None:
-    """RFC 0041 D3 says where the arithmetic happens; §4's node vocabulary has
-    nowhere to say it. A plan naming `discount_per_order` in `Project.columns`
-    would claim the join produced a column the join does not produce, so it is
-    withheld — the rule `build` has followed for a derived metric since
-    RFC 0040 P1, one level up (logs/T-0027.md, D-178).
+def test_a_computed_metric_is_stated_above_the_join() -> None:
+    """RFC 0041 D3 says where the arithmetic happens, and §4's node vocabulary
+    had nowhere to say it — so the plan was withheld rather than claim the join
+    produced a column it does not (logs/T-0027.md, D-178).
+
+    `Compute` is that node (RFC 0066 §5.2), and it sits above the join for the
+    same reason it sits above an aggregate: the operands are reduced first and
+    the expression is evaluated over the result.
 
     Paired with the stored-measure request so the assertion cannot pass because
     composed plans are never stated at all.
     """
-    assert _computed("discount_per_order").semantic is None
+    plan = _computed("discount_per_order").semantic
+
+    assert plan is not None
+    assert plan.shape == ("join_aggregates", "compute", "project")
+
+    (compute,) = [node for node in plan.nodes if isinstance(node, Compute)]
+    assert [name for name, _expr in compute.outputs] == ["discount_per_order"]
+    assert (proof := compute.proof) is not None
+    assert proof.rule == "R014"
+
     assert (
         make_planner()
         .plan(

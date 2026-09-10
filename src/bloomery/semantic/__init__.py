@@ -37,6 +37,7 @@ from bloomery.semantic.nodes import (
 )
 from bloomery.semantic.plan import (
     Aggregate,
+    Compute,
     Filter,
     JoinAggregates,
     JoinBranch,
@@ -72,6 +73,7 @@ __all__ = [
     "JoinAggregates",
     "JoinBranch",
     "Aggregate",
+    "Compute",
     "BASIS_PROVENANCE",
     "BASIS_RULES",
     "prove_rollup",

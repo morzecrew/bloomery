@@ -46,6 +46,7 @@ from bloomery.semantic.proof import Proof
 
 __all__ = [
     "Aggregate",
+    "Compute",
     "Filter",
     "JoinAggregates",
     "JoinBranch",
@@ -252,6 +253,82 @@ class Project:
 
 
 @dataclass(frozen=True, slots=True)
+class Compute:
+    """A column computed from other columns of the same relation, **after**
+    they were aggregated (RFC 0066 §5.2).
+
+    The node RFC 0040 §4 never had and `compose` names by its absence: "none of
+    them states arithmetic, so naming the metric in ``Project.columns`` would
+    claim the join produced a column the join does not produce". A ratio and an
+    RFC 0034 ``derived:`` expression are both this shape — a metric with no
+    measure of its own, rebuilt from measures that have one.
+
+    **The claim is the ordering, not the arithmetic.** Division needs no
+    authorization. What needs it is computing the expression *here* rather than
+    per row before the aggregate: ``SUM(a)/SUM(b)`` and a row-level ``a/b``
+    aggregated afterwards are different numbers, and only one of them is what
+    the metric declares. R014 is that rule, and it premises on the aggregate
+    beneath — which is why an unaggregated `Compute` cannot construct.
+    """
+
+    #: Output column → the expression producing it, as prose. Sorted by output
+    #: name: a plan states what is computed, and two orders of one set of
+    #: definitions are one plan.
+    outputs: tuple[tuple[str, str], ...]
+    #: What the expressions reference, so a reader can check them against
+    #: columns the plan actually produces. Sorted for the same reason.
+    inputs: tuple[str, ...] = ()
+    proof: Proof | None = None
+
+    # ....................... #
+
+    def __post_init__(self) -> None:
+        for name in ("outputs", "inputs"):
+            canonical = tuple(sorted(getattr(self, name)))
+            if canonical != getattr(self, name):
+                object.__setattr__(self, name, canonical)
+
+        if not self.outputs:
+            msg = (
+                "a compute node with no outputs computes nothing, and `check` would "
+                "report it authorized — the same shape as a proof resting on no facts "
+                "(RFC 0066 §5.2)"
+            )
+            raise ValueError(msg)
+
+    # ....................... #
+
+    @property
+    def multiplies(self) -> bool:
+        return False
+
+    # ....................... #
+
+    @property
+    def claims(self) -> bool:
+        return True
+
+    # ....................... #
+
+    def document(self) -> dict[str, object]:
+        return {
+            "node": "compute",
+            "outputs": [[name, expr] for name, expr in self.outputs],
+            "inputs": list(self.inputs),
+            "proof": self.proof.document() if self.proof is not None else None,
+        }
+
+    # ....................... #
+
+    def render(self) -> str:
+        computed = ", ".join(f"{name} = {expr}" for name, expr in self.outputs)
+        return f"Compute({computed})"
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
 class JoinBranch:
     """One branch of a join, and what *it* calls the join keys.
 
@@ -405,10 +482,10 @@ class JoinAggregates:
 
 #: The node vocabulary, closed. RFC 0040 §4 also lists `PreservingJoin` and
 #: `ConvertUnit`; neither exists yet — the first would join *unaggregated*
-#: rows, which RFC 0041 D10 keeps refused, and the second arrives with
-#: RFC 0038's unit work. :class:`JoinAggregates` is the fifth kind, and the
-#: only one RFC 0041 P1 adds (D15).
-PlanNode = Scan | Filter | Aggregate | Project | JoinAggregates
+#: rows, which RFC 0041 D10 keeps refused, and the second has no owner since
+#: RFC 0038 retired without it (RFC 0066 §8). :class:`Compute` is the sixth
+#: kind (RFC 0066 §5.2).
+PlanNode = Scan | Filter | Aggregate | Project | JoinAggregates | Compute
 
 
 @dataclass(frozen=True, slots=True)
@@ -470,6 +547,23 @@ class SemanticPlan:
                 "on no facts (RFC 0040 D2)"
             )
             raise ValueError(msg)
+
+        # R014 premises on the aggregate beneath, so a `Compute` with nothing
+        # aggregated above it is claiming an ordering that did not happen —
+        # the same reason `JoinAggregates` requires its branches to end in an
+        # aggregate rather than trusting the proof beside it (RFC 0041 D2).
+        reduced = False
+
+        for node in self.nodes:
+            if isinstance(node, Aggregate | JoinAggregates):
+                reduced = True
+            elif isinstance(node, Compute) and not reduced:
+                msg = (
+                    f"{node.render()} computes before anything is aggregated, so the "
+                    "ordering R014 authorizes did not happen — a row-level expression "
+                    "aggregated afterwards is a different number (RFC 0066 §5.2)"
+                )
+                raise ValueError(msg)
 
         unauthorized = [
             node.render()

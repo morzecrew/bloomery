@@ -1,0 +1,23 @@
+{
+  "id": "T-0037",
+  "spec": "rfcs/0066-completing-the-semantic-plan.md",
+  "phase": "All four phases: Compute, Reduce and Window with their rules, per-measure restriction, and QueryPlan.semantic losing its default.",
+  "decisions": [
+    {"id": "RFC 0066 D1", "grade": "LOCKED",
+     "paths": ["src/bloomery/planner/result.py", "src/bloomery/planner/semantic_plan.py"]},
+    {"id": "RFC 0066 D2", "grade": "LOCKED",
+     "paths": ["src/bloomery/planner/**"]},
+    {"id": "RFC 0066 D3", "grade": "LOCKED",
+     "paths": ["src/bloomery/semantic/plan.py", "src/bloomery/semantic/proof.py"]},
+    {"id": "RFC 0066 D4", "grade": "ASSUMED",
+     "paths": ["src/bloomery/semantic/plan.py"]},
+    {"id": "RFC 0066 D5", "grade": "ASSUMED",
+     "paths": ["src/bloomery/semantic/proof.py", "tests/fixtures/semantic_corpus/**"]},
+    {"id": "RFC 0066 D6", "grade": "ASSUMED",
+     "paths": ["src/bloomery/semantic/plan.py"]},
+    {"id": "RFC 0066 D7", "grade": "OPEN",
+     "paths": ["src/bloomery/semantic/plan.py", "src/bloomery/planner/semantic_plan.py"]},
+    {"id": "RFC 0066 D8", "grade": "OPEN",
+     "paths": ["src/bloomery/planner/semantic_plan.py"]}
+  ]
+}

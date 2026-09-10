@@ -21,6 +21,7 @@ from bloomery.planner.policy import RowPolicy
 from bloomery.planner.request import Op, Predicate
 from bloomery.semantic import (
     Aggregate,
+    Compute,
     Filter,
     JoinAggregates,
     JoinBranch,
@@ -365,21 +366,63 @@ def test_a_measure_the_mart_does_not_carry_gets_no_plan() -> None:
     assert _plannable(MetricRequest(metrics=("gross_revenue",)), mart, metrics)
 
 
-def test_a_derived_metric_gets_no_plan() -> None:
+def test_a_ratio_is_aggregated_then_computed() -> None:
     """`average_order_value` is a ratio over `order_count` and `revenue`, so
-    the requested name is not a mart measure at all. P1's vocabulary has no
-    node for the division, and a plan projecting a column no node produces —
-    resting on a fact claiming the ratio is stored — would be a plan that lies
-    twice. `QueryPlan.semantic` being optional is for exactly this.
+    the requested name is not a mart measure at all.
+
+    RFC 0040 P1 had no node for the division and returned no plan, on the
+    argument that projecting a column no node produces — resting on a fact
+    claiming the ratio is stored — would be a plan that lies twice. Both halves
+    stay true; `Compute` is what makes neither necessary (RFC 0066 §5.2).
+
+    The order is the whole content: the operands are aggregated, and the
+    quotient is taken over the result. A row-level `revenue / order_count`
+    summed afterwards is a different number.
     """
     planner = make_planner()
     ir = fixture_ir("non_additive_aov")
     query = planner.plan(ir, MetricRequest(metrics=("average_order_value",)), dialect="duckdb")
 
-    assert query.semantic is None
+    assert query.semantic is not None
+    assert query.semantic.shape == ("scan", "filter", "aggregate", "compute", "project")
     assert "average_order_value" not in {
         measure for mart in ir.marts for measure in mart.measures
     }
+
+    (aggregate,) = [n for n in query.semantic.nodes if isinstance(n, Aggregate)]
+    (compute,) = [n for n in query.semantic.nodes if isinstance(n, Compute)]
+
+    # The aggregate carries the operands, never the quotient.
+    assert aggregate.measures == ("order_count", "revenue")
+    assert compute.outputs == (("average_order_value", "revenue / order_count"),)
+    # Sorted on the node, like every other IR collection (RFC 0003) — the
+    # expression names them, so their order here carries nothing.
+    assert compute.inputs == ("order_count", "revenue")
+
+
+def test_a_compute_before_any_aggregate_is_refused() -> None:
+    """R014 premises on the aggregate beneath, so a `Compute` with nothing
+    aggregated above it claims an ordering that did not happen — the same
+    reason `JoinAggregates` requires its branches to end in an aggregate
+    rather than trusting the proof beside it (RFC 0041 D2)."""
+
+    with pytest.raises(ValueError, match="computes before anything is aggregated"):
+        SemanticPlan(
+            (
+                Scan(relation="orders", grain="order"),
+                Compute(outputs=(("aov", "revenue / orders"),), inputs=("orders", "revenue")),
+                Project(columns=("aov",)),
+            )
+        )
+
+
+def test_a_compute_with_no_outputs_is_refused() -> None:
+    """The empty case decided rather than inherited: `check` would report a
+    node computing nothing as authorized, which is the shape of a proof
+    resting on no facts."""
+
+    with pytest.raises(ValueError, match="computes nothing"):
+        Compute(outputs=())
 
 
 def test_the_plan_renders_as_a_pipeline() -> None:

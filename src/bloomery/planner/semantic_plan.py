@@ -53,9 +53,11 @@ from bloomery.ir import Additivity
 from bloomery.semantic import Proof, Provenance, SemanticFact, SemanticJudgement
 from bloomery.semantic.plan import (
     Aggregate,
+    Compute,
     Filter,
     JoinAggregates,
     JoinBranch,
+    PlanNode,
     Project,
     Scan,
     SemanticPlan,
@@ -141,6 +143,130 @@ def _restriction(metric: MetricIR) -> frozenset[tuple[str, str, frozenset[object
 _PLAIN_AGGREGATE: Final = (Additivity.ADDITIVE, Additivity.DISTINCT_COUNT)
 
 
+def _inputs_of(metric: MetricIR) -> tuple[str, ...] | None:
+    """The stored measures ``metric`` is computed from, or ``None`` where this
+    phase cannot state the computation (RFC 0066 §5.2).
+
+    ``None`` for three different reasons, kept one answer because the caller
+    has one response to all of them — the metric is not statable here:
+
+    * it has a measure of its own, so nothing is computed and this is the
+      wrong question to ask about it;
+    * it is a ``derived:`` metric one of whose inputs carries an offset. That
+      input is not a column of the relation the expression runs over; it is a
+      second read of the same relation at a shifted range, which composes from
+      branches rather than from arithmetic (RFC 0066 §5.2, §12 P4);
+    * it declares neither a ratio nor a derivation, so there is nothing to
+      compute it from.
+    """
+
+    if metric.ratio is not None:
+        return (metric.ratio.numerator, metric.ratio.denominator)
+
+    if metric.derived is not None:
+        if any(
+            item.offset_window is not None or item.offset_to_grain is not None
+            for item in metric.derived.inputs
+        ):
+            return None
+
+        return tuple(item.metric for item in metric.derived.inputs)
+
+    return None
+
+
+# ....................... #
+
+
+def expression(metric: MetricIR) -> str:
+    """One computed metric's expression, as prose rather than SQL.
+
+    A ratio renders as the division it is: the ``NULLIF`` a target wraps the
+    denominator in is a rendering decision about division by zero, and a plan
+    that carried it would be stating how the SQL is spelled rather than what is
+    computed (RFC 0040 D4).
+    """
+
+    if metric.ratio is not None:
+        return f"{metric.ratio.numerator} / {metric.ratio.denominator}"
+
+    derived = metric.derived
+    assert derived is not None  # noqa: S101 — `_inputs_of` returned a tuple
+    aliased = ", ".join(f"{item.alias} = {item.metric}" for item in derived.inputs)
+
+    return f"{derived.expr.sql} where {aliased}"
+
+
+# ....................... #
+
+
+def _computed_after_aggregate(names: Sequence[str], *, over: str) -> Proof:
+    """R014: each of these is computed from inputs already reduced beneath it,
+    so the expression is evaluated at the requested grain and not per row.
+
+    The premise is the mart contract rather than a rollup proof, which is
+    R013's shape one level up: R012 asks whether an operand may be rolled
+    between entity grains, and a metric computed over one mart rolls nothing —
+    its inputs are aggregated inside the mart (logs/T-0037.md).
+
+    ``over`` names what was reduced beneath — one mart for a single-mart plan,
+    the join for a composed one. The rule is the same in both, and so is the
+    thing that makes it true: the node cannot sit above nothing, because
+    :meth:`SemanticPlan.check` refuses a `Compute` with no aggregate before it.
+    """
+
+    return Proof(
+        rule="R014",
+        conclusion=SemanticJudgement("ComputedAfterAggregate", (("over", over),)),
+        facts=tuple(
+            SemanticFact(
+                source=f"metric:{name}",
+                provenance=Provenance.DECLARED,
+                statement=f"{name} has no measure of its own and is computed from ones that do",
+            )
+            for name in sorted(names)
+        ),
+    )
+
+
+# ....................... #
+
+
+def _partition(
+    requested: Sequence[str], mart: MartIR, metrics: Mapping[str, MetricIR]
+) -> tuple[tuple[str, ...], tuple[tuple[tuple[str, str], ...], tuple[str, ...]] | None]:
+    """Split a request into the measures the mart stores and the metrics
+    computed from them.
+
+    Returns the stored names, and either the computed pair — output definitions
+    and the input names they reference — or ``None`` where any requested metric
+    is neither stored nor statable by :func:`_inputs_of`. ``None`` rather than
+    an empty pair, because "nothing is computed" and "something is computed and
+    this phase cannot say it" are opposite answers.
+    """
+
+    stored = tuple(name for name in requested if name in mart.measures)
+    outputs: list[tuple[str, str]] = []
+    inputs: list[str] = []
+
+    for name in requested:
+        if name in mart.measures or name not in metrics:
+            continue
+
+        needed = _inputs_of(metrics[name])
+
+        if needed is None:
+            return stored, None
+
+        outputs.append((name, expression(metrics[name])))
+        inputs.extend(needed)
+
+    return stored, (tuple(outputs), tuple(dict.fromkeys(inputs)))
+
+
+# ....................... #
+
+
 def _plannable(request: MetricRequest, mart: MartIR, metrics: Mapping[str, MetricIR]) -> bool:
     """Whether P1's four nodes can state what this request computes.
 
@@ -166,12 +292,20 @@ def _plannable(request: MetricRequest, mart: MartIR, metrics: Mapping[str, Metri
     """
 
     requested = tuple(metrics[name] for name in request.metrics if name in metrics)
+    stored, computed = _partition(request.metrics, mart, metrics)
+
+    if computed is None:
+        return False
+
+    #: The stored measures the aggregate must carry: what was asked for
+    #: directly, plus what the computed ones are built from.
+    beneath = tuple(metrics[name] for name in (*stored, *computed[1]) if name in metrics)
 
     return (
-        all(name in mart.measures for name in request.metrics)
-        and all(metric.additivity in _PLAIN_AGGREGATE for metric in requested)
+        all(name in mart.measures for name in (*stored, *computed[1]))
+        and all(metric.additivity in _PLAIN_AGGREGATE for metric in beneath)
         and not any(metric.cumulative is not None for metric in requested)
-        and len({_restriction(metric) for metric in requested}) <= 1
+        and len({_restriction(metric) for metric in beneath}) <= 1
     )
 
 
@@ -202,18 +336,39 @@ def build(
         return None
 
     dimensions = tuple(dimension.name for dimension in coverage.dimensions)
+    stored, computed = _partition(request.metrics, mart, metrics)
+    assert computed is not None  # noqa: S101 — `_plannable` returned False otherwise
+    outputs, inputs = computed
+    # What the aggregate carries: the measures asked for, plus the ones a
+    # computed metric is built from. A ratio's operands are aggregated and the
+    # quotient is taken over the result, which is the whole of what R014 says.
+    aggregated = (*stored, *inputs)
+
+    nodes: tuple[PlanNode, ...] = (
+        Scan(relation=mart.name, grain=mart.grain),
+        Filter(predicates=filters),
+        Aggregate(
+            input_grain=mart.grain,
+            output_grain=mart.grain,
+            measures=aggregated,
+            dimensions=dimensions,
+            proof=_served_at_grain(mart.name, mart.grain, aggregated),
+        ),
+    )
+
+    if outputs:
+        nodes = (
+            *nodes,
+            Compute(
+                outputs=outputs,
+                inputs=inputs,
+                proof=_computed_after_aggregate([name for name, _expr in outputs], over=mart.name),
+            ),
+        )
 
     return SemanticPlan(
         (
-            Scan(relation=mart.name, grain=mart.grain),
-            Filter(predicates=filters),
-            Aggregate(
-                input_grain=mart.grain,
-                output_grain=mart.grain,
-                measures=request.metrics,
-                dimensions=dimensions,
-                proof=_served_at_grain(mart.name, mart.grain, request.metrics),
-            ),
+            *nodes,
             # Request order, not sorted: a result's column order is part of the
             # answer. Dimensions before measures, which is the order the
             # emitted SELECT already uses.
@@ -286,7 +441,8 @@ def compose(
     keys: Sequence[str],
     measures: Sequence[str],
     *,
-    computed: bool = False,
+    computed: Sequence[tuple[str, str]] = (),
+    computed_inputs: Sequence[str] = (),
 ) -> SemanticPlan | None:
     """The composed plan for a cross-mart request (RFC 0041 D9, D15), or
     ``None`` where any branch could not be stated.
@@ -296,33 +452,51 @@ def compose(
     branch aggregated to the keys rather than to something else of the same
     width (logs/T-0026.md, D-174).
 
-    ``computed`` says a requested metric is produced by an expression *above*
-    the join (RFC 0041 D3), and the answer is then ``None`` as well. §4's
-    vocabulary is a scan, a filter, an aggregate, a projection and a join, and
-    none of them states arithmetic — so naming the metric in ``Project.columns``
-    would claim the join produced a column the join does not produce. This is
-    the rule :func:`build` has followed for a derived metric since RFC 0040 P1,
-    applied one level up (logs/T-0027.md, D-178).
+    ``computed`` carries the metrics produced by an expression *above* the join
+    (RFC 0041 D3), as the pairs :class:`~bloomery.semantic.Compute` takes. It
+    used to be a boolean, and a true one made the answer ``None``: §4's
+    vocabulary stated no arithmetic, so naming such a metric in
+    ``Project.columns`` would have claimed the join produced a column the join
+    does not produce. `Compute` is the node that was missing (RFC 0066 §5.2),
+    and it sits above the join for the same reason it sits above an aggregate —
+    the operands are reduced first, and the expression is evaluated over the
+    result.
 
-    ``None`` propagates rather than being worked around: a join whose branches
-    are only partly expressible would document one half of what the query
-    computes, and half a plan reads as a whole one.
+    ``None`` still propagates from a branch that could not be stated: a join
+    whose branches are only partly expressible would document one half of what
+    the query computes, and half a plan reads as a whole one.
     """
 
-    if computed or any(plan is None for plan, _keys in branches):
+    if any(plan is None for plan, _keys in branches):
         return None
 
     stated = tuple(
         JoinBranch(plan=plan, keys=names) for plan, names in branches if plan is not None
     )
 
+    joined: tuple[PlanNode, ...] = (
+        JoinAggregates(
+            keys=tuple(keys),
+            branches=stated,
+            proof=_unique_at_result_grain(stated, keys),
+        ),
+    )
+
+    if computed:
+        joined = (
+            *joined,
+            Compute(
+                outputs=tuple(computed),
+                inputs=tuple(computed_inputs),
+                proof=_computed_after_aggregate(
+                    [name for name, _expr in computed], over="the branch join"
+                ),
+            ),
+        )
+
     return SemanticPlan(
         (
-            JoinAggregates(
-                keys=tuple(keys),
-                branches=stated,
-                proof=_unique_at_result_grain(stated, keys),
-            ),
+            *joined,
             # Dimensions before measures, in request order — the same rule the
             # single-mart plan follows, and the order the composed SELECT
             # projects (RFC 0041 D9).

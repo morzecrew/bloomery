@@ -421,12 +421,24 @@ class MetricFlowPlanner:
                 ],
                 keys,
                 request.metrics,
-                # A metric computed above the join has no node saying so: the
-                # plan's vocabulary states a scan, a filter, an aggregate, a
-                # projection and a join, and none of them is an arithmetic
-                # expression. So the plan is withheld rather than stated
-                # incompletely (logs/T-0027.md, D-178).
-                computed=any(measure.expr is not None for measure in measures),
+                # A metric computed above the join is stated by a `Compute`
+                # node (RFC 0066 §5.2). It used to withhold the plan: the
+                # vocabulary had no arithmetic, so the alternative was a plan
+                # claiming the join produced a column it does not
+                # (logs/T-0027.md, D-178).
+                computed=tuple(
+                    (measure.name, semantic_plan.expression(metrics_by_name[measure.name]))
+                    for measure in measures
+                    if measure.expr is not None
+                ),
+                computed_inputs=tuple(
+                    dict.fromkeys(
+                        column
+                        for measure in measures
+                        if measure.expr is not None
+                        for _alias, _branch, column in measure.inputs
+                    )
+                ),
             ),
         )
 
