@@ -1,0 +1,21 @@
+{
+  "id": "T-0036",
+  "spec": "rfcs/0045-soundness-positioning.md",
+  "phase": "§11's first half — §1, §3, §4, §5 and §6 written, plus §7's README lead. §2 and §7's second sentence wait on the capability, held back by D2.",
+  "decisions": [
+    {"id": "RFC 0045 D1", "grade": "LOCKED",
+     "paths": ["README.md", "pages/docs/**"]},
+    {"id": "RFC 0045 D2", "grade": "LOCKED",
+     "paths": ["README.md", "pages/docs/**"]},
+    {"id": "RFC 0045 D3", "grade": "LOCKED",
+     "paths": ["pages/docs/**"]},
+    {"id": "RFC 0045 D4", "grade": "LOCKED",
+     "paths": ["README.md"]},
+    {"id": "RFC 0045 D5", "grade": "ASSUMED",
+     "paths": ["README.md", "pages/docs/**"]},
+    {"id": "RFC 0045 D6", "grade": "OPEN",
+     "paths": ["README.md"]},
+    {"id": "RFC 0045 D7", "grade": "OPEN",
+     "paths": ["pages/docs/**", "tests/unit/test_docs_floor.py"]}
+  ]
+}

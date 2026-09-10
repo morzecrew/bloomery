@@ -24,6 +24,15 @@ Those specs carry what SQL cannot: **grains, units, tax bases and additivity cla
 That is the whole trick — the compiler refuses what a hand-written model would happily
 run, because it knows what the columns *mean* and not just what type they are.
 
+What that buys is one claim, stated precisely because both ways of getting it wrong are
+easy: **bloomery does not prove truth. It proves preservation of declared semantics.** It
+refuses to emit a representation it cannot show preserves the grain, unit, tax basis and
+additivity you declared, and it refuses a query it has no documented rule to answer
+safely. Whether the declarations are *right* about your business is a question it has no
+access to — [what bloomery
+proves](https://morzecrew.github.io/bloomery/latest/concepts/what-bloomery-proves/) draws
+the whole boundary, including the six things it explicitly cannot establish.
+
 ## The number that looks right
 
 Shipping is charged once per order. Someone flattens it into a mart at line grain, and

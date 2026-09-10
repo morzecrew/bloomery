@@ -6,6 +6,10 @@ arithmetic guardrails run as a pure stage over the draft IR after typechecking; 
 raise, one deliberately does not. They target the bug class where the formula is right,
 the data is right, and the answer is 3× wrong.
 
+What a guardrail establishes, and what it pointedly does not, is stated in full in [what
+bloomery proves](what-bloomery-proves.md): these checks preserve the semantics you
+declared, and say nothing about whether the declarations are true.
+
 A second family joined the same stage with data quality: refusals of `quality:`,
 `dedupe:`, `quarantine:` and `reconcile:` declarations that cannot mean anything
 (below). Both families share the definition — **a guardrail says the model is wrong**,

@@ -31,6 +31,7 @@ nav = [
         "concepts/compile-pipeline.md",
         "concepts/determinism.md",
         "concepts/guardrails.md",
+        "concepts/what-bloomery-proves.md",
         "concepts/data-quality.md",
         "concepts/wide-marts.md",
         "concepts/step-registry.md",

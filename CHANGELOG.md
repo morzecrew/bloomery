@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The correctness claim, stated precisely.** A new concepts page, *What bloomery
+  proves*, and a paragraph in the README saying the same thing in one line:
+
+  > bloomery does not prove truth. It proves preservation of declared semantics.
+
+  The page draws the boundary the claim needs to be checkable — representation
+  safety against query answerability, why unknown is not treated as safe, why a
+  target running your SQL is not evidence of anything, and the six things
+  bloomery explicitly cannot establish, starting with whether your declarations
+  are true.
+
+  It also writes down the test every correctness sentence in these docs now has
+  to pass: what property is proven, from which declared facts, at compile or run
+  time, and what stays outside.
+
 - **A rollup becomes a Cube `pre_aggregations` block.** The rollups a marts
   document declares land on the cube of the mart they name, listing the measures
   each carries and the dimensions it keeps:

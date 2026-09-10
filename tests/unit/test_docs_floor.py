@@ -39,6 +39,7 @@ reader treats as binding.
 
 from __future__ import annotations
 
+import itertools
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -436,3 +437,39 @@ def test_every_embedded_diagram_has_a_d2_source() -> None:
         if name not in sources
     )
     assert missing == [], "embedded diagrams with no `pages/diagrams/<name>.d2` source"
+
+
+# ....................... #
+# 5. The target-boundary list is the shipped target list
+
+
+def test_the_documented_target_boundary_names_every_shipped_target() -> None:
+    """RFC 0045 §5 draws the boundary between what bloomery proves and what a
+    target merely runs, and it does that by *naming* the targets. §5 says the
+    list "is adjusted to the actual supported integrations at publication
+    time", which is a rule with no owner — so D7 asked for one, and the honest
+    answer is a gate rather than a person.
+
+    A stale list here is not a cosmetic docs bug. It is a wrong claim about
+    what is and is not a correctness proof: a target missing from the sentence
+    reads as one whose acceptance *does* count as evidence.
+
+    The dialects are deliberately not checked. §5 names them as a class ("the
+    SQL dialects") rather than one by one, because the boundary is the same for
+    every one of them and enumerating them would be a second dialect registry
+    that drifts from the first.
+
+    Scoped to the admonition rather than the section, and measured rather than
+    assumed: over the whole section, dropping Cube from the boundary sentence
+    still passed, because the prose below happens to mention Cube while making
+    a different point. The claim is the block (D11), so the block is what is
+    checked.
+    """
+
+    page = (DOCS / "concepts" / "what-bloomery-proves.md").read_text()
+    after = page[page.index('!!! quote "The target boundary"') :].splitlines()[1:]
+    body = itertools.takewhile(lambda line: not line.strip() or line.startswith("    "), after)
+    boundary = "\n".join(body).lower()
+    missing = sorted(target.value for target in Target if target.value.lower() not in boundary)
+
+    assert missing == [], f"targets shipped but absent from the boundary statement: {missing}"

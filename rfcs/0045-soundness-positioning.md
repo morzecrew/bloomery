@@ -1,7 +1,17 @@
 # RFC 0045 — Soundness positioning and the claims the docs may make
 
-- **Status:** 📝 Draft — proposed. A **documentation** decision, not a code change; it
-  binds what README and the reference pages may assert once proof-producing semantics land.
+- **Status:** 🚧 In progress — §11's first half has landed. §1, §3, §4, §5 and §6 are
+  written, on `pages/docs/concepts/what-bloomery-proves.md`, with §1's short form and the
+  positioning sentence in the README; D7 is answered by a gate rather than an owner, and
+  D6 is decided for now and stays live. **§2 and §7's second sentence are not published**,
+  which is D2 doing its job: `planner/semantic_plan.py` returns `None` for a derived,
+  cumulative, semi-additive or mixed-restriction request and `QueryPlan.semantic` is
+  optional, so bloomery answers requests it constructs no derivation for and §2's second
+  sentence is false today. The document stays whole until they land (`INDEX.md` — retire
+  whole, never in part). Execution's findings and the rows it proposes are in
+  [`logs/T-0036.md`](../logs/T-0036.md); nothing below has been amended to agree with what
+  was built. A **documentation** decision, not a code change; it binds what README and the
+  reference pages may assert once proof-producing semantics land.
   [RFC 0039](0039-semantic-proof-ir.md) is recommended first, since the strong form of the
   claim is only true once proofs exist.
 - **Scope:** The precise correctness claim bloomery makes, the representation-versus-
