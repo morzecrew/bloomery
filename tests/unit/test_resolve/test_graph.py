@@ -255,8 +255,9 @@ def test_a_mart_with_no_measure_and_no_rollup_still_exists() -> None:
     )
     graph = build_graph(stripped, catalog, effective_metrics(stripped, catalog))
 
-    assert mart_node("order_items") in graph.nodes
-    assert not [e for e in graph.edges if e.src.kind is NodeKind.MART]
+    node = mart_node("order_items")
+    assert node in graph.nodes
+    assert not [e for e in graph.edges if node in (e.src, e.dst)]
 
 
 def test_a_dangling_mart_dependency_still_draws_its_edge() -> None:

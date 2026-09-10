@@ -40,9 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reports it. `mart` also joins the reserved entity names, alongside `canonical`,
   `exposure`, `metric`, `source` and `step`.
 
-- **The lineage graph has a sink.** `bloomery lineage --node metric:… --direction
-  downstream` used to answer with the marts that can serve the metric and stop,
-  because everything that consumes a bloomery project lives outside it.
+- **The lineage graph has a sink.** `bloomery lineage --node metric.<name>
+  --direction downstream` used to stop at the metrics composed from the one you
+  named, because everything that *consumes* a bloomery project lives outside it.
 
   An `exposures:` document declares those consumers — a dashboard, a notebook, a
   reverse-ETL sync — with a kind, an owner, and the metrics and marts it reads.

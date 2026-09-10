@@ -1,7 +1,9 @@
 """The single dependency DAG (RFC 0005 §5.1): one graph over source columns,
-mapped entity fields, catalog canonical fields, and metrics — reachability,
-cycles, topo order, and (later) guardrail traversal all read the same
-structure, so they cannot disagree about what depends on what (RFC 0005 D1).
+mapped entity fields, catalog canonical fields, metrics, the gold relations
+that carry them (RFC 0067 §5.1) and the consumers that read those
+(RFC 0056 §5.2) — reachability, cycles, topo order, and (later) guardrail
+traversal all read the same structure, so they cannot disagree about what
+depends on what (RFC 0005 D1).
 
 Node ids are kind-prefixed dotted names, pinned by tests because they reach
 ``CircularDerivation`` messages and topo output (RFC 0005 §9).
@@ -84,8 +86,9 @@ class Edge:
 # ....................... #
 
 
-#: Every ``(label family, src kind, dst kind)`` the two builders below can
-#: emit (RFC 0031 §5.3, D6). The label family is the part before any ``:``, so
+#: Every ``(label family, src kind, dst kind)`` this module can emit
+#: (RFC 0031 §5.3, D6) — from the three ``_*_edges`` builders below and from
+#: :func:`build_graph`'s own constructions. The label family is the part before any ``:``, so
 #: the parameterised ``recipe:<id>`` and ``step:<ref@version>`` contribute
 #: ``recipe`` and ``step``.
 #:
@@ -94,9 +97,9 @@ class Edge:
 #: RFC 0031's first draft two entries: ``identity_resolution`` is the only
 #: project wiring a step and wires exactly one, so neither ``step → step`` form
 #: occurs; and no fixture declares a ``sql_macro`` field, so ``step:`` occurs
-#: nowhere at all. ``tests/unit/test_resolve/test_graph.py`` guards this from
-#: both sides — the corpus is a subset of it, and so is an AST walk over every
-#: ``Edge(...)`` construction in this module.
+#: nowhere at all. ``tests/unit/test_resolve/test_edge_vocabulary.py`` guards
+#: this from both sides — the corpus is a subset of it, and so is an AST walk
+#: over every ``Edge(...)`` construction in this module.
 _EDGE_SHAPES: Final[frozenset[tuple[str, NodeKind, NodeKind]]] = frozenset(
     {
         # A mapped field: straight from a source column, via a catalog recipe,
@@ -512,14 +515,17 @@ def build_graph(
         for field_name in (*mapping.key, *mapping.fields)
     )
 
-    # A mart with no `measures:` and no rollup of it, once more for the same
-    # reason. A dimensional mart is a legitimate shape — RFC 0010 D9 requires a
-    # date role only of a *measure-carrying* mart — so such a relation draws no
-    # edge at all and would exist nowhere in the graph. A rollup always has its
-    # parent edge, and is listed anyway rather than relying on that.
+    # A mart with no `measures:`, once more for the same reason. A dimensional
+    # mart is a legitimate shape — RFC 0010 D9 asks a date role only of a
+    # *measure-carrying* mart — so such a relation draws no edge at all and
+    # would exist nowhere in the graph.
+    #
+    # Rollups are deliberately **not** listed beside it. `MartSet` refuses a
+    # rollup whose `of:` is not a mart of the same document (RFC 0058 D10), so
+    # every rollup has an incoming `rollup` edge by the time this runs and a
+    # second source for the same node would be a line no test could reach.
     if project.marts is not None:
         nodes.update(mart_node(name) for name in project.marts.marts)
-        nodes.update(mart_node(name) for name in project.marts.rollups)
 
     # An exposure that depends on nothing this project declares, for the same
     # reason a third time. Its mart leg now draws an edge (RFC 0067 §5.2), so
@@ -547,9 +553,8 @@ def build_graph(
     # `revenue`, against a metric named `revenue` — is now refused outright
     # (`guardrails.lineage`, RFC 0051 D6): every member of `NODE_ID_PREFIXES`
     # is a reserved entity name, so no two nodes here can share a name. The
-    # tiebreak stays,
-    # because a sort key that depends on a guardrail holding is a sort key that
-    # breaks when someone reorders the stages.
+    # tiebreak stays, because a sort key that depends on a guardrail holding is
+    # a sort key that breaks when someone reorders the stages.
     return Graph(
         nodes=tuple(sorted(nodes, key=lambda n: (n.name, n.kind.value))),
         edges=tuple(
