@@ -7,13 +7,13 @@ answer is right is that no precheck objected, and the reasoning is spread
 across a coverage function and an embedded engine. §6 asks for the other shape
 — bloomery decides, targets lower — and this is the value it decides *into*.
 
-**Nothing lowers from it yet, and that is P1.** The plan is built beside the
-SQL and consumed by no target: MetricFlow still plans from the request exactly
-as it did, so a reader should not take a plan's presence as evidence that it
-produced the query beside it. §11 makes P1 the IR alone, and D5 makes it a
-re-expression with no capability change — wiring a target to the plan would
-change what the SQL is generated from, which is the one thing this phase must
-not do if §8's parity suite is to mean anything.
+**Nothing lowers from it yet, and that is still true.** The plan is built
+beside the SQL and consumed by no target: MetricFlow still plans from the
+request exactly as it did, so a reader should not take a plan's presence as
+evidence that it produced the query beside it. Wiring a target to the plan
+would change what the SQL is generated from, which is the one thing every
+phase here has had to avoid if the parity suite is to mean anything — and
+RFC 0066 §4 keeps it a non-goal for the same reason.
 
 **A plan is not a rendering.** It names logical operators over grains, and a
 target may choose any syntax for them, but it may not introduce a
@@ -22,13 +22,20 @@ semantic claim it references the proof that authorizes it, and a plan whose
 such nodes do not is **invalid IR rather than merely unexplained** (D2) —
 :meth:`SemanticPlan.check` is where that distinction stops being a sentence.
 
-D2's own sentence names the multiplicity-changing node, and at P1 there is no
-such node: the mart is already flattened, so the plan is a scan, a filter and
-an aggregate that only ever reduces. Read literally, the rule would hold over
-an empty set for this whole phase. It does not, because the aggregate is
-itself a claim — that these measures may be rolled to this grain — and the
-check reaches it too (logs/T-0021.md, D-124). The first
-:class:`PreservingJoin` arrives with P2 and adds the other half.
+D2's own sentence names the multiplicity-changing node, and **there is still
+no such node**: the mart is already flattened, so every kind here reduces, adds
+a column, or names one. Read literally, the rule would hold over an empty set.
+It does not, because a node that *claims* is checked too — the aggregate claims
+these measures may be rolled to this grain, and five more have joined it since
+(logs/T-0021.md, D-124).
+
+`PreservingJoin` was once expected to arrive and bring the other half. It has
+not, and RFC 0041 D10 keeps it refused rather than deferred: joining
+unaggregated rows is the fan-out the wide-mart design removes, so the half of
+D2 about multiplication stays vacuous **by construction** rather than by phase.
+That is a stronger position than the one this paragraph originally described,
+and it is why the check asks a node whether it claims rather than whether it
+multiplies (RFC 0041 D14).
 
 Here rather than under ``planner`` because §6 hands this to target adapters,
 and the emitters sit below the planner in the layer contract — a plan they
@@ -782,8 +789,9 @@ PlanNode = Scan | Filter | Aggregate | Project | JoinAggregates | Compute | Redu
 class SemanticPlan:
     """A validated plan: what to compute, and on what authority.
 
-    Constructed only after every obligation is proven — which at P1 is a short
-    list, since a pre-joined mart introduces no multiplicity. :meth:`check`
+    Constructed only after every obligation is proven — a list that grew from
+    one node to six as the vocabulary did, and that still contains nothing
+    multiplicity-changing, since a pre-joined mart introduces none. :meth:`check`
     runs on construction rather than being offered to callers, because D2 makes
     an unauthorized plan *invalid* rather than undocumented, and a validity
     rule a caller has to remember to invoke is one that gets skipped exactly

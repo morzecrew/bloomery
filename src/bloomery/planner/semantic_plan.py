@@ -1,47 +1,49 @@
 """Building a :class:`~bloomery.semantic.SemanticPlan` from a resolved request
-(RFC 0040 P1).
+(RFC 0040, completed by RFC 0066).
 
 The plan says what bloomery decided to compute, before MetricFlow is handed
-anything. At P1 it decides nothing new: the covering mart, the dimensions and
-the filters all come from :func:`~bloomery.planner.coverage.resolve_request`,
-which is the same precheck that ran before this existed. That is the point —
-D5 makes P1 a re-expression with no capability change, so that §8's parity
-suite has a fixed reference to measure P2 against.
+anything. It decides nothing new: the covering mart, the dimensions and the
+filters all come from :func:`~bloomery.planner.coverage.resolve_request`, which
+is the same precheck that ran before this existed. Nothing here widens what is
+answerable — every shape below was answered correctly before it could be
+*stated*, and RFC 0066 D2 keeps it that way.
 
-**What authorizes the aggregate is the mart contract, not a rollup.** A P1 plan
-never leaves its mart, and a mart may embed a measure only at its own grain
-(RFC 0010 D2, checked by `check_grain` when the project compiles). So the
-aggregate's input and output grain are the same, its proof cites R008, and no
-cross-entity claim is made. Rolling a measure from its origin to a coarser
-requested grain is P2, and citing a grain proof here would assert something
-this phase did not check.
+**What authorizes the aggregate is the mart contract, not a rollup.** A plan
+built here never leaves its mart, and a mart may embed a measure only at its
+own grain (RFC 0010 D2, checked by `check_grain` when the project compiles). So
+the aggregate's input and output grain are the same, its proof cites R008, and
+no cross-entity claim is made.
 
-**P1 plans a plain measure, and says nothing about the rest.** §4's node
-vocabulary is a scan, a filter, an aggregate that reduces, and a projection —
-so a plan can state a request whose metrics are stored measures of the
-covering mart, restricted alike, and nothing else. Three request shapes fall
-outside it, and each produced a plan that read as an ordinary aggregate while
-the query did something else (logs/T-0021.md, D-123, D-128, D-129):
+**Every request this planner answers now carries a plan**, which is why
+:attr:`~bloomery.planner.QueryPlan.semantic` has no default (RFC 0066 D1). It
+did not, for four phases of one RFC, and the shapes it could not state are
+worth keeping because each produced a plan that read as an ordinary aggregate
+while the query did something else (logs/T-0021.md, D-123, D-128, D-129):
 
 * a **derived** metric — `average_order_value` is a ratio over `order_count`
-  and `revenue`, so the requested name is not a mart measure at all; there is
-  no node for the division, and the fact claiming the ratio was stored was
-  simply false;
+  and `revenue`, so the requested name is not a mart measure at all, and the
+  fact claiming the ratio was stored was simply false. :class:`Compute` states
+  the division, above the aggregate that reduced its operands (R014);
 * a **cumulative** metric — `revenue_trailing_7d` *is* a mart measure, so the
-  first guard let it through, and its window and `period_agg` appear nowhere
-  in a plan that reads as a plain sum per day;
+  first guard let it through, and its window and `period_agg` appeared nowhere
+  in a plan that read as a plain sum per day. :class:`Window` carries both, and
+  R016 makes its result terminal;
 * a **semi-additive** metric — `stock_on_hand` is lowered as a last-per-day
-  pick joined back and then summed, and the plan said `Aggregate`, which is
-  the operation it is not;
-* **mixed restrictions** — a metric's own filter narrows that measure alone,
-  and `Filter` is a node over the scan, so a request pairing `paid_revenue`
-  with `revenue` produced a plan restricting *both* to `status = 'paid'`.
+  pick joined back and then summed, and the plan said `Aggregate`, which is the
+  operation it is not. :class:`Reduce` collapses the declared dimension first
+  (R015);
+* **mixed restrictions** — a metric's own filter narrows that measure alone, so
+  a request pairing `paid_revenue` with `revenue` produced one `Filter` saying
+  both were restricted. A filter now names the measures it narrows;
+* an **offset** input — a `derived:` input read at a shifted range is a second
+  read rather than a column of the relation the expression runs over.
+  :class:`Offset` states the declared shift, and R017 settles what a period
+  with no rows reads as.
 
-`build` returns ``None`` for all three, which is what `QueryPlan.semantic`
-being optional is for. Stated as one positive rule rather than three
-exclusions: the shapes P1 cannot express outnumber the one it can, and a guard
-written per counterexample is a guard that misses the next one — as the first
-version of it did.
+What is left of the guard that declined all five is
+:func:`_measures_are_embedded`, and its shrinking is the point: each of its
+conditions became a node, and what remains is the precondition of one fact
+rather than a list of exclusions a sixth entry could join (RFC 0066 D8).
 """
 
 from __future__ import annotations
@@ -146,7 +148,7 @@ def _restriction(metric: MetricIR) -> frozenset[tuple[str, str, frozenset[object
 #: up rather than computed (logs/T-0028.md).
 _PLAIN_AGGREGATE: Final = (Additivity.ADDITIVE, Additivity.DISTINCT_COUNT)
 
-#: What this phase can state at all: the plain aggregates, plus a semi-additive
+#: What an aggregate may sit over: the plain aggregates, plus a semi-additive
 #: measure, which needs a :class:`~bloomery.semantic.Reduce` above the scan
 #: before the aggregate means anything (RFC 0066 §5.3). Separate from
 #: `_PLAIN_AGGREGATE` rather than replacing it: the first names what one
@@ -503,8 +505,8 @@ def _partition(
     Returns the stored names, and either the computed pair — output definitions
     and the input names they reference — or ``None`` where any requested metric
     is neither stored nor statable by :func:`_inputs_of`. ``None`` rather than
-    an empty pair, because "nothing is computed" and "something is computed and
-    this phase cannot say it" are opposite answers.
+    an empty pair, because "nothing is computed" and "something is computed from
+    a metric that declares nothing to compute it from" are opposite answers.
     """
 
     stored = tuple(name for name in requested if name in mart.measures)
@@ -579,8 +581,13 @@ def build(
     *,
     filters: tuple[str, ...],
 ) -> SemanticPlan | None:
-    """The plan for one resolved request, or ``None`` where P1's vocabulary
-    cannot state what the query computes.
+    """The plan for one resolved request, or ``None`` where the aggregate's
+    R008 fact would not be true.
+
+    ``None`` survives as a return type and not as an outcome: the two callers
+    read it through :func:`~bloomery.errors.guaranteed`, because the states
+    :func:`_measures_are_embedded` rejects are ones an earlier stage already
+    refuses (RFC 0066 D1).
 
     ``filters`` arrives already rendered, from
     :func:`~bloomery.planner.explain.applied_predicates` — the same renderers
