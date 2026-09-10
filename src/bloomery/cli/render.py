@@ -380,6 +380,13 @@ def render_plan(plan: Plan) -> str:
         lines.append("Downstream metrics")
         lines.extend(_table([(name,) for name in plan.downstream_impact]))
 
+    # Last, because it is the section a reader acts on rather than reads:
+    # everything above says what changes, and this says who to tell.
+    if plan.affected_exposures:
+        lines.append("")
+        lines.append("Affected exposures")
+        lines.extend(_table([(name,) for name in plan.affected_exposures]))
+
     return "\n".join(lines)
 
 

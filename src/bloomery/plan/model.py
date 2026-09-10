@@ -121,14 +121,20 @@ class ReplayScope:
 class Plan:
     """The product of :func:`bloomery.plan.plan` (RFC 0007 D6): classified
     changes sorted by ``(entity, subject, class, detail)``, the backfill
-    scope, the quarantine replay scope (RFC 0016 §5.7), and the affected
+    scope, the quarantine replay scope (RFC 0016 §5.7), the affected
     metric names computed from the IR's own ``depends_on`` edges — no
-    external lineage."""
+    external lineage — and the exposures those changes reach (RFC 0056 §5.4)."""
 
     changes: tuple[Change, ...]
     backfill_scope: BackfillScope
     downstream_impact: tuple[str, ...]
     replay_scope: ReplayScope = ReplayScope(entities=())
+    #: The declared consumers this plan reaches, sorted by name (RFC 0056
+    #: §5.4). Computed from the downstream metrics **and** the changed marts,
+    #: never from the metric walk alone: an exposure may depend only on a mart,
+    #: and that is exactly the one a metric-only walk omits — from a report
+    #: whose entire purpose is to be complete (D2a).
+    affected_exposures: tuple[str, ...] = ()
 
     # ....................... #
 

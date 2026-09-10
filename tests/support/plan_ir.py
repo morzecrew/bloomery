@@ -16,6 +16,7 @@ from bloomery.ir import (
     DateDimensionIR,
     DedupeIR,
     EntityIR,
+    ExposureIR,
     MartColumnIR,
     MartDimensionIR,
     MartIR,
@@ -221,6 +222,25 @@ def mart_column(
     )
 
 
+def exposure(
+    name: str = "weekly_revenue_review",
+    *,
+    kind: str = "dashboard",
+    owner: str = "analytics@example.com",
+    metrics: tuple[str, ...] = (),
+    marts: tuple[str, ...] = (),
+    url: str | None = None,
+) -> ExposureIR:
+    return ExposureIR(
+        name=name,
+        kind=kind,
+        owner=owner,
+        metrics=tuple(sorted(metrics)),
+        marts=tuple(sorted(marts)),
+        url=url,
+    )
+
+
 def project(
     *,
     entities: tuple[EntityIR, ...] = (),
@@ -229,6 +249,7 @@ def project(
     relationships: tuple[RelationshipIR, ...] = (),
     marts: tuple[MartIR, ...] = (),
     rollups: tuple[RollupIR, ...] = (),
+    exposures: tuple[ExposureIR, ...] = (),
     date_dimension: DateDimensionIR | None = None,
     reconcile: tuple[ReconcileIR, ...] = (),
     steps: tuple[StepIR, ...] = (),
@@ -241,6 +262,7 @@ def project(
         relationships=tuple(sorted(relationships, key=lambda r: r.name)),
         marts=tuple(sorted(marts, key=lambda m: m.name)),
         rollups=tuple(sorted(rollups, key=lambda r: r.name)),
+        exposures=tuple(sorted(exposures, key=lambda e: e.name)),
         date_dimension=date_dimension,
         reconcile=tuple(sorted(reconcile, key=lambda check: check.name)),
         steps=tuple(sorted(steps, key=step_sort_key)),

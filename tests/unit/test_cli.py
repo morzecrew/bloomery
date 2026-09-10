@@ -659,8 +659,8 @@ def test_an_empty_plan_says_so_rather_than_printing_a_header() -> None:
 
 
 def test_the_plan_table_carries_replay_and_downstream_sections() -> None:
-    """Two sections nothing in the fixture corpus produces together. Both are
-    conditional, so both are a branch that can silently stop rendering."""
+    """Three sections nothing in the fixture corpus produces together. Each is
+    conditional, so each is a branch that can silently stop rendering."""
     rendered = render_plan(
         Plan(
             changes=(
@@ -674,12 +674,18 @@ def test_the_plan_table_carries_replay_and_downstream_sections() -> None:
             backfill_scope=BackfillScope(entities=("order",), restates_history=True),
             downstream_impact=("gross_revenue",),
             replay_scope=ReplayScope(entities=("order",)),
+            affected_exposures=("weekly_revenue_review",),
         )
     )
     assert "1 breaking" not in rendered
     assert "Quarantine replay scope" in rendered
     assert "Downstream metrics" in rendered
     assert "gross_revenue" in rendered
+    # Last section, because it is the one a reader acts on: everything above
+    # says what changed, and this says who to tell (RFC 0056 §5.4).
+    assert "Affected exposures" in rendered
+    assert rendered.index("Affected exposures") > rendered.index("Downstream metrics")
+    assert "weekly_revenue_review" in rendered
     # Padded to the widest cell per column, and never with trailing whitespace:
     # invisible in a terminal, very visible in a diff of captured output.
     assert not any(line != line.rstrip() for line in rendered.splitlines())
