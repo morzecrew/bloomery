@@ -117,7 +117,7 @@ def mart_node(name: str) -> Node:
 ```
 
 `mart` joins `NODE_ID_PREFIXES` and gets a `_MINTS` row, so an entity named `mart` is
-refused exactly as one named `metric` is — an exposure id is `mart.<name>` and an entity
+refused exactly as one named `metric` is — a mart id is `mart.<name>` and an entity
 field is `<entity>.<field>`, so the two collide identically.
 
 **Named for the relation, not for the authored key.** The mart's name is what
