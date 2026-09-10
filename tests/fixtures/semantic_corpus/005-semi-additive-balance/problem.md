@@ -50,7 +50,7 @@ numeric column, and the axis it is being summed over is not visible in the query
 | Expectation | Spec | Outcome | Owner |
 | --- | --- | --- | --- |
 | **naive** | `additivity: additive` on a snapshot | **refused** — `FalseAdditivityClaim` | RFC 0038 D1 |
-| **declared** | `semi_additive: {over: as_of_day, rule: last}` | accepted | RFC 0006 D6 |
+| **declared** | `semi_additive: {over: as_of_day, rule: last}` | accepted | R015 |
 
 Bloomery already enforced the *shape* of a semi-additive declaration: declare
 `semi_additive` without a policy and `AdditivityViolation` refuses it. What nothing checked
@@ -63,3 +63,11 @@ and this row converted `unguarded → refused` when it landed (RFC 0042 §8). Th
 reads the origin grain rather than the word: `balance` is keyed on `account_id, as_of_day`,
 `as_of_day` is a date, so each row is a point-in-time snapshot and the fix it names is the
 **declared** row beside it.
+
+The **declared** row cited `RFC 0006 D6` until RFC 0066 P2, and the change of citation is
+the point rather than a tidy-up. A guardrail row said the declaration was *well formed*;
+R015 says what the declaration licenses — reduce along `as_of_day` by `last`, then
+aggregate across every dimension that is not `as_of_day`. Nothing about the number moves,
+because nothing about the number was wrong. What moves is that the planner now carries a
+`Reduce` node stating the operation, and the acceptance can say why it is right instead of
+reporting that no check objected.

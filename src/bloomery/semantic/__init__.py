@@ -37,13 +37,17 @@ from bloomery.semantic.nodes import (
 )
 from bloomery.semantic.plan import (
     Aggregate,
+    Compute,
     Filter,
     JoinAggregates,
     JoinBranch,
+    Offset,
     PlanNode,
     Project,
+    Reduce,
     Scan,
     SemanticPlan,
+    Window,
 )
 from bloomery.semantic.proof import (
     BASIS_PROVENANCE,
@@ -67,11 +71,15 @@ __all__ = [
     "SemanticPlan",
     "Scan",
     "Project",
+    "Reduce",
     "PlanNode",
     "Filter",
     "JoinAggregates",
     "JoinBranch",
+    "Offset",
     "Aggregate",
+    "Compute",
+    "Window",
     "BASIS_PROVENANCE",
     "BASIS_RULES",
     "prove_rollup",

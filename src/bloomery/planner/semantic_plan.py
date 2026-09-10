@@ -1,47 +1,49 @@
 """Building a :class:`~bloomery.semantic.SemanticPlan` from a resolved request
-(RFC 0040 P1).
+(RFC 0040, completed by RFC 0066).
 
 The plan says what bloomery decided to compute, before MetricFlow is handed
-anything. At P1 it decides nothing new: the covering mart, the dimensions and
-the filters all come from :func:`~bloomery.planner.coverage.resolve_request`,
-which is the same precheck that ran before this existed. That is the point —
-D5 makes P1 a re-expression with no capability change, so that §8's parity
-suite has a fixed reference to measure P2 against.
+anything. It decides nothing new: the covering mart, the dimensions and the
+filters all come from :func:`~bloomery.planner.coverage.resolve_request`, which
+is the same precheck that ran before this existed. Nothing here widens what is
+answerable — every shape below was answered correctly before it could be
+*stated*, and RFC 0066 D2 keeps it that way.
 
-**What authorizes the aggregate is the mart contract, not a rollup.** A P1 plan
-never leaves its mart, and a mart may embed a measure only at its own grain
-(RFC 0010 D2, checked by `check_grain` when the project compiles). So the
-aggregate's input and output grain are the same, its proof cites R008, and no
-cross-entity claim is made. Rolling a measure from its origin to a coarser
-requested grain is P2, and citing a grain proof here would assert something
-this phase did not check.
+**What authorizes the aggregate is the mart contract, not a rollup.** A plan
+built here never leaves its mart, and a mart may embed a measure only at its
+own grain (RFC 0010 D2, checked by `check_grain` when the project compiles). So
+the aggregate's input and output grain are the same, its proof cites R008, and
+no cross-entity claim is made.
 
-**P1 plans a plain measure, and says nothing about the rest.** §4's node
-vocabulary is a scan, a filter, an aggregate that reduces, and a projection —
-so a plan can state a request whose metrics are stored measures of the
-covering mart, restricted alike, and nothing else. Three request shapes fall
-outside it, and each produced a plan that read as an ordinary aggregate while
-the query did something else (logs/T-0021.md, D-123, D-128, D-129):
+**Every request this planner answers now carries a plan**, which is why
+:attr:`~bloomery.planner.QueryPlan.semantic` has no default (RFC 0066 D1). It
+did not, for four phases of one RFC, and the shapes it could not state are
+worth keeping because each produced a plan that read as an ordinary aggregate
+while the query did something else (logs/T-0021.md, D-123, D-128, D-129):
 
 * a **derived** metric — `average_order_value` is a ratio over `order_count`
-  and `revenue`, so the requested name is not a mart measure at all; there is
-  no node for the division, and the fact claiming the ratio was stored was
-  simply false;
+  and `revenue`, so the requested name is not a mart measure at all, and the
+  fact claiming the ratio was stored was simply false. :class:`Compute` states
+  the division, above the aggregate that reduced its operands (R014);
 * a **cumulative** metric — `revenue_trailing_7d` *is* a mart measure, so the
-  first guard let it through, and its window and `period_agg` appear nowhere
-  in a plan that reads as a plain sum per day;
+  first guard let it through, and its window and `period_agg` appeared nowhere
+  in a plan that read as a plain sum per day. :class:`Window` carries both, and
+  R016 makes its result terminal;
 * a **semi-additive** metric — `stock_on_hand` is lowered as a last-per-day
-  pick joined back and then summed, and the plan said `Aggregate`, which is
-  the operation it is not;
-* **mixed restrictions** — a metric's own filter narrows that measure alone,
-  and `Filter` is a node over the scan, so a request pairing `paid_revenue`
-  with `revenue` produced a plan restricting *both* to `status = 'paid'`.
+  pick joined back and then summed, and the plan said `Aggregate`, which is the
+  operation it is not. :class:`Reduce` collapses the declared dimension first
+  (R015);
+* **mixed restrictions** — a metric's own filter narrows that measure alone, so
+  a request pairing `paid_revenue` with `revenue` produced one `Filter` saying
+  both were restricted. A filter now names the measures it narrows;
+* an **offset** input — a `derived:` input read at a shifted range is a second
+  read rather than a column of the relation the expression runs over.
+  :class:`Offset` states the declared shift, and R017 settles what a period
+  with no rows reads as.
 
-`build` returns ``None`` for all three, which is what `QueryPlan.semantic`
-being optional is for. Stated as one positive rule rather than three
-exclusions: the shapes P1 cannot express outnumber the one it can, and a guard
-written per counterexample is a guard that misses the next one — as the first
-version of it did.
+What is left of the guard that declined all five is
+:func:`_measures_are_embedded`, and its shrinking is the point: each of its
+conditions became a node, and what remains is the precondition of one fact
+rather than a list of exclusions a sixth entry could join (RFC 0066 D8).
 """
 
 from __future__ import annotations
@@ -50,21 +52,27 @@ from typing import TYPE_CHECKING, Final
 
 from bloomery.errors import PlannerError
 from bloomery.ir import Additivity
+from bloomery.planner import explain
 from bloomery.semantic import Proof, Provenance, SemanticFact, SemanticJudgement
 from bloomery.semantic.plan import (
     Aggregate,
+    Compute,
     Filter,
     JoinAggregates,
     JoinBranch,
+    Offset,
+    PlanNode,
     Project,
+    Reduce,
     Scan,
     SemanticPlan,
+    Window,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from bloomery.ir import MartIR, MetricIR
+    from bloomery.ir import CumulativeIR, MartIR, MetricInputIR, MetricIR
     from bloomery.planner.coverage import Coverage
     from bloomery.planner.request import MetricRequest
 
@@ -140,38 +148,545 @@ def _restriction(metric: MetricIR) -> frozenset[tuple[str, str, frozenset[object
 #: up rather than computed (logs/T-0028.md).
 _PLAIN_AGGREGATE: Final = (Additivity.ADDITIVE, Additivity.DISTINCT_COUNT)
 
+#: What an aggregate may sit over: the plain aggregates, plus a semi-additive
+#: measure, which needs a :class:`~bloomery.semantic.Reduce` above the scan
+#: before the aggregate means anything (RFC 0066 §5.3). Separate from
+#: `_PLAIN_AGGREGATE` rather than replacing it: the first names what one
+#: `Aggregate` says whole, which is still the narrower and still true fact.
+_STATABLE: Final = (*_PLAIN_AGGREGATE, Additivity.SEMI_ADDITIVE)
 
-def _plannable(request: MetricRequest, mart: MartIR, metrics: Mapping[str, MetricIR]) -> bool:
-    """Whether P1's four nodes can state what this request computes.
 
-    `Aggregate` names a rollup and no aggregation with it, so it is faithful
-    only where rolling up *is* the whole operation. Four conditions, each
-    naming a property rather than a metric shape that was observed to break —
-    the enumerating version of this guard missed two shapes in a row:
+def _inputs_of(metric: MetricIR) -> tuple[str, ...] | None:
+    """The stored measures ``metric`` is computed from, or ``None`` where this
+    phase cannot state the computation (RFC 0066 §5.2).
 
-    * every requested metric is a **stored measure of the covering mart**, so
-      the R008 fact beneath the aggregate is true and no node is needed for a
-      derivation;
-    * every one is **a plain aggregate over the scan** — additive, or a
-      distinct count computed from the mart's own rows. A semi-additive
-      measure is lowered as a first/last pick over its own dimension and then
-      summed, which one `Aggregate` cannot say (logs/T-0028.md);
-    * none is **cumulative**, since a window and a `period_agg` are not a
-      rollup at all;
-    * all are **restricted alike** — a single `Filter` over the scan says one
-      thing about every measure beneath it, so metrics with different
-      restrictions cannot share one. Compared through :func:`_restriction`,
-      which is authored order thrown away in the two places it carries no
-      meaning.
+    ``None`` for three different reasons, kept one answer because the caller
+    has one response to all of them — the metric is not statable here:
+
+    * it has a measure of its own, so nothing is computed and this is the
+      wrong question to ask about it;
+    An offset-bearing input used to return ``None`` here, on the reading that a
+    shifted read is not a column of the relation the expression runs over. It
+    is not, and :class:`~bloomery.semantic.Offset` is the node that says so
+    (RFC 0066 §5.6) — the measure is the same one, and what the node adds is
+    how far back it is read.
+
+    * it declares neither a ratio nor a derivation, so there is nothing to
+      compute it from.
     """
 
-    requested = tuple(metrics[name] for name in request.metrics if name in metrics)
+    if metric.ratio is not None:
+        return (metric.ratio.numerator, metric.ratio.denominator)
 
-    return (
-        all(name in mart.measures for name in request.metrics)
-        and all(metric.additivity in _PLAIN_AGGREGATE for metric in requested)
-        and not any(metric.cumulative is not None for metric in requested)
-        and len({_restriction(metric) for metric in requested}) <= 1
+    if metric.derived is not None:
+        return tuple(item.metric for item in metric.derived.inputs)
+
+    return None
+
+
+# ....................... #
+
+
+def _leaves(
+    name: str, metrics: Mapping[str, MetricIR], seen: frozenset[str] = frozenset()
+) -> tuple[str, ...] | None:
+    """The **stored** measures ``name`` is ultimately computed from, following
+    decompositions the way :func:`~bloomery.planner.coverage._measures_of`
+    does.
+
+    Transitive, because coverage is: it accepts ``outer -> inner -> revenue``
+    when `revenue` belongs to one mart, and a non-recursive answer here kept
+    `inner` as an input. `inner` is not a stored measure, so the R008
+    precondition failed, and — since `build`'s callers read its answer through
+    :func:`~bloomery.errors.guaranteed` — the planner raised
+    :class:`~bloomery.errors.InvariantViolated` on a project it had just
+    accepted. Two functions answering "what measures does this metric need"
+    with different quantifiers is the shape that produced it.
+
+    ``seen`` bounds the walk for the reason coverage's does: the resolution DAG
+    is acyclic, so it can only be re-entered by a diamond, but a cycle that
+    somehow arrived would hang, and a planner that hangs is worse than one that
+    is wrong.
+    """
+
+    if name in seen:
+        return ()
+
+    metric = metrics.get(name)
+
+    if metric is None:
+        return None
+
+    inputs = _inputs_of(metric)
+
+    if inputs is None:
+        return None
+
+    resolved: list[str] = []
+
+    for item in inputs:
+        # ``None`` from the recursion *is* the leaf answer: it means the input
+        # decomposes no further, which is what a stored measure does. Asking
+        # first whether it decomposes and only then recurring read better and
+        # left a `deeper is None` branch that nothing could reach, because the
+        # question and the recursion tested the same two things.
+        deeper = _leaves(item, metrics, seen | {name})
+        resolved.extend(deeper if deeper is not None else (item,))
+
+    return tuple(dict.fromkeys(resolved))
+
+
+# ....................... #
+
+
+def _ordering(coverage: Coverage, mart: MartIR) -> str:
+    """The axis a window accumulates along, or a shifted read is measured back
+    from: the request's first **date-role** dimension.
+
+    Not the first dimension. `ResolvedDimension.role` is set for a date-role
+    bucket and ``None`` for a categorical one, and a request may list them in
+    any order — so `dimensions[0]` recorded `status` as the ordering of a
+    seven-day window whenever a caller asked for the category first, which is
+    an axis nothing accumulates along.
+
+    Falls back to the mart's grain where the request names no date at all. A
+    cumulative metric requested without one is a single total over the whole
+    frame, and the grain is the honest thing to say about what it ran over.
+    """
+
+    return next(
+        (dimension.name for dimension in coverage.dimensions if dimension.role is not None),
+        mart.grain,
+    )
+
+
+# ....................... #
+
+
+def _shift(item: MetricInputIR) -> str | None:
+    """One derived input's offset as prose, or ``None`` where it reads the
+    current period.
+
+    The two forms a metric may declare, spelled the way
+    :func:`~bloomery.planner.explain._offset_note` spells them for a reader —
+    one vocabulary for one fact, so the plan and the explanation cannot
+    disagree about how far back an input reads.
+    """
+
+    if item.offset_window is not None:
+        plural = "" if item.offset_window.count == 1 else "s"
+        return f"{item.offset_window.count} {item.offset_window.grain}{plural} earlier"
+
+    if item.offset_to_grain is not None:
+        return f"at the start of its {item.offset_to_grain}"
+
+    return None
+
+
+# ....................... #
+
+
+def _shifted_reads(
+    names: Sequence[str], metrics: Mapping[str, MetricIR]
+) -> tuple[tuple[str, str, str, str], ...]:
+    """Every ``(metric, alias, measure, shift)`` the requested metrics read at
+    an offset, sorted.
+
+    The metric is carried because an alias identifies a read only *within* the
+    metric that declared it (RFC 0034 D1) — two metrics may both call their
+    offset input ``prior`` and mean different measures, and a node keyed on the
+    alias alone would name one of them twice.
+    """
+
+    return tuple(
+        sorted(
+            (name, item.alias, item.metric, shift)
+            for name in names
+            if (metric := metrics.get(name)) is not None and metric.derived is not None
+            for item in metric.derived.inputs
+            if (shift := _shift(item)) is not None
+        )
+    )
+
+
+# ....................... #
+
+
+def _read_at_a_shifted_range(reads: Sequence[tuple[str, str, str, str]], over: str) -> Proof:
+    """R017: each of these reads a declared measure at a declared shift.
+
+    The conclusion carries ``absent`` deliberately. That a shifted read is the
+    same measure is the declaration restating itself; what is proved is what
+    happens where the shifted range holds no rows — absent, never zero, because
+    a missing prior period and one that really summed to nothing are different
+    answers and a target rendering the shift as an inner join has quietly
+    chosen the second.
+    """
+
+    return Proof(
+        rule="R017",
+        conclusion=SemanticJudgement("ReadAtShiftedRange", (("over", over), ("gaps", "absent"))),
+        facts=tuple(
+            SemanticFact(
+                # One source per *read*, not per metric. `Proof` keeps one
+                # fact per source, so a metric with two shifted inputs would
+                # have had one of them silently dropped from its own proof.
+                source=f"metric:{metric}.{alias}",
+                provenance=Provenance.DECLARED,
+                statement=f"{metric} reads {measure} as {alias}, {shift}",
+            )
+            for metric, alias, measure, shift in reads
+        ),
+    )
+
+
+# ....................... #
+
+
+def expression(metric: MetricIR) -> str:
+    """One computed metric's expression, as prose rather than SQL.
+
+    A ratio renders as the division it is: the ``NULLIF`` a target wraps the
+    denominator in is a rendering decision about division by zero, and a plan
+    that carried it would be stating how the SQL is spelled rather than what is
+    computed (RFC 0040 D4).
+    """
+
+    if metric.ratio is not None:
+        return f"{metric.ratio.numerator} / {metric.ratio.denominator}"
+
+    derived = metric.derived
+    assert derived is not None  # noqa: S101 — `_inputs_of` returned a tuple
+    aliased = ", ".join(f"{item.alias} = {item.metric}" for item in derived.inputs)
+
+    return f"{derived.expr.sql} where {aliased}"
+
+
+# ....................... #
+
+
+def _computed_after_aggregate(names: Sequence[str], *, over: str) -> Proof:
+    """R014: each of these is computed from inputs already reduced beneath it,
+    so the expression is evaluated at the requested grain and not per row.
+
+    The premise is the mart contract rather than a rollup proof, which is
+    R013's shape one level up: R012 asks whether an operand may be rolled
+    between entity grains, and a metric computed over one mart rolls nothing —
+    its inputs are aggregated inside the mart (logs/T-0037.md).
+
+    ``over`` names what was reduced beneath — one mart for a single-mart plan,
+    the join for a composed one. The rule is the same in both, and so is the
+    thing that makes it true: the node cannot sit above nothing, because
+    :meth:`SemanticPlan.check` refuses a `Compute` with no aggregate before it.
+    """
+
+    return Proof(
+        rule="R014",
+        conclusion=SemanticJudgement("ComputedAfterAggregate", (("over", over),)),
+        facts=tuple(
+            SemanticFact(
+                source=f"metric:{name}",
+                provenance=Provenance.DECLARED,
+                statement=f"{name} has no measure of its own and is computed from ones that do",
+            )
+            for name in sorted(names)
+        ),
+    )
+
+
+# ....................... #
+
+
+def _reduced_along_its_own_dimension(metrics: Sequence[MetricIR], over: str) -> Proof:
+    """R015: each of these is declared semi-additive over ``over``, so reducing
+    along it by the declared rule is what the declaration says to do.
+
+    It authorizes the reduction and nothing after it. Aggregating across the
+    *other* dimensions is the `Aggregate` beneath's business, licensed by R008;
+    aggregating along ``over`` itself stays refused, which is the whole content
+    of `semi_additive` and the reason this rule is separate from that one.
+    """
+
+    return Proof(
+        rule="R015",
+        conclusion=SemanticJudgement("ReducedAlongDimension", (("over", over),)),
+        facts=tuple(
+            SemanticFact(
+                source=f"metric:{metric.name}",
+                provenance=Provenance.DECLARED,
+                statement=(
+                    f"{metric.name} is semi_additive over {over} with rule "
+                    f"{metric.semi_additive.rule.value if metric.semi_additive else '?'}"
+                ),
+            )
+            for metric in sorted(metrics, key=lambda m: m.name)
+        ),
+    )
+
+
+# ....................... #
+
+
+def _semi_additive(
+    names: Sequence[str], metrics: Mapping[str, MetricIR]
+) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
+    """The requested semi-additive measures, grouped into ``(over, rule,
+    measures)`` — one entry per :class:`~bloomery.semantic.Reduce` node.
+
+    Grouped rather than refused when they disagree. One node names one
+    dimension and one rule, so measures reduced along different dimensions are
+    *several* reductions — which is a longer plan, not an unstatable one. An
+    earlier version returned ``None`` here and made the whole request
+    unplannable, which is the shape D1 exists to remove.
+    """
+
+    groups: dict[tuple[str, str], list[str]] = {}
+
+    for name in names:
+        metric = metrics.get(name)
+
+        if metric is None or metric.semi_additive is None:
+            continue
+
+        key = (metric.semi_additive.over.qualified, metric.semi_additive.rule.value)
+        groups.setdefault(key, []).append(name)
+
+    return tuple(
+        (over, rule, tuple(sorted(measures))) for (over, rule), measures in sorted(groups.items())
+    )
+
+
+# ....................... #
+
+
+def _frame(cumulative: CumulativeIR) -> str:
+    """A cumulative metric's frame as prose — the two forms it may declare.
+
+    Exactly one is set (RFC 0034 D5), so the fallback is unreachable and is
+    still written: a node reading the wrong field would otherwise render an
+    empty frame and a plan would claim an accumulation over nothing.
+    """
+
+    if cumulative.window is not None:
+        plural = "" if cumulative.window.count == 1 else "s"
+        return f"trailing {cumulative.window.count} {cumulative.window.grain}{plural}"
+
+    if cumulative.grain_to_date is not None:
+        return f"{cumulative.grain_to_date}_to_date"
+
+    msg = "a cumulative metric declares exactly one of window / grain_to_date (RFC 0034 D5)"
+    raise PlannerError(msg)
+
+
+# ....................... #
+
+
+def _accumulates_over_its_frame(metrics: Sequence[MetricIR], over: str) -> Proof:
+    """R016: each of these declares how it accumulates, so the window is what
+    the metric means rather than a shape imposed on it.
+
+    The conclusion is terminal, and that is the half worth having: the result
+    may not be rolled further. A trailing 7-day total summed across weeks counts
+    each day up to seven times, and nothing in a column of numbers says so.
+    """
+
+    return Proof(
+        rule="R016",
+        conclusion=SemanticJudgement("AccumulatesOverFrame", (("over", over),)),
+        facts=tuple(
+            SemanticFact(
+                source=f"metric:{metric.name}",
+                provenance=Provenance.DECLARED,
+                statement=(
+                    f"{metric.name} accumulates {_frame(metric.cumulative)} and a coarser "
+                    f"request takes {metric.cumulative.period_agg}"
+                    if metric.cumulative is not None
+                    else f"{metric.name} declares no accumulation"
+                ),
+            )
+            for metric in sorted(metrics, key=lambda m: m.name)
+        ),
+    )
+
+
+# ....................... #
+
+
+def _cumulative(
+    names: Sequence[str], metrics: Mapping[str, MetricIR]
+) -> tuple[tuple[str, str, tuple[str, ...]], ...]:
+    """The requested metrics that accumulate, grouped into ``(frame,
+    period_agg, measures)`` — one entry per :class:`~bloomery.semantic.Window`
+    node.
+
+    Grouped for the reason :func:`_semi_additive` groups: two metrics
+    accumulating over different frames are two windows, which is a longer plan
+    rather than an unstatable request.
+    """
+
+    groups: dict[tuple[str, str], list[str]] = {}
+
+    for name in names:
+        metric = metrics.get(name)
+
+        if metric is None or metric.cumulative is None:
+            continue
+
+        members = groups.setdefault((_frame(metric.cumulative), metric.cumulative.period_agg), [])
+
+        # A requested metric the mart also stores arrives twice, and neither
+        # the group nor `Window` deduplicates — the node would name it twice.
+        if name not in members:
+            members.append(name)
+
+    return tuple(
+        (frame, period_agg, tuple(sorted(measures)))
+        for (frame, period_agg), measures in sorted(groups.items())
+    )
+
+
+# ....................... #
+
+
+def _scoped_filters(names: Sequence[str], metrics: Mapping[str, MetricIR]) -> tuple[Filter, ...]:
+    """One :class:`~bloomery.semantic.Filter` per group of measures narrowed
+    alike by their own ``filter:`` (RFC 0066 §5.5).
+
+    Grouped rather than one node per measure: two measures carrying the same
+    restriction are restricted by one predicate in the query, and two nodes
+    would read as two. Grouped on the rendered predicates, which is what the
+    node carries — :func:`_restriction` compares admitted rows and is the right
+    identity for "are these the same restriction", but a plan states the prose,
+    and grouping on one while rendering the other would let two groups print
+    identically.
+    """
+
+    groups: dict[tuple[str, ...], list[str]] = {}
+
+    for name in names:
+        rendered = explain.metric_restrictions(name, metrics)
+
+        if rendered:
+            groups.setdefault(rendered, []).append(name)
+
+    return tuple(
+        Filter(predicates=predicates, measures=tuple(sorted(measures)))
+        for predicates, measures in sorted(groups.items())
+    )
+
+
+# ....................... #
+
+
+def _levels(
+    name: str, metrics: Mapping[str, MetricIR], seen: frozenset[str] = frozenset()
+) -> tuple[str, ...]:
+    """``name`` and every computed metric beneath it, **inputs first**.
+
+    Order is the whole point. A nested ``derived:`` references a metric no
+    relation produces, so `outer = b + 1 where b = inner` needs `inner`
+    computed first — and :class:`~bloomery.semantic.Compute` sorts its outputs
+    by name, so the ordering cannot live inside one node. It lives in the node
+    list instead: one `Compute` per level, in this order.
+    """
+
+    if name in seen or (metric := metrics.get(name)) is None:
+        return ()
+
+    inputs = _inputs_of(metric)
+
+    if inputs is None:
+        return ()
+
+    below: list[str] = []
+
+    for item in inputs:
+        below.extend(_levels(item, metrics, seen | {name}))
+
+    return (*dict.fromkeys(below), name)
+
+
+# ....................... #
+
+
+def _partition(
+    requested: Sequence[str], mart: MartIR, metrics: Mapping[str, MetricIR]
+) -> tuple[tuple[str, ...], tuple[tuple[tuple[str, str], ...], tuple[str, ...]] | None]:
+    """Split a request into the measures the mart stores and the metrics
+    computed from them.
+
+    Returns the stored names, and either the computed pair — output definitions
+    and the input names they reference — or ``None`` where any requested metric
+    is neither stored nor statable by :func:`_inputs_of`. ``None`` rather than
+    an empty pair, because "nothing is computed" and "something is computed from
+    a metric that declares nothing to compute it from" are opposite answers.
+    """
+
+    stored = tuple(name for name in requested if name in mart.measures)
+    outputs: list[tuple[str, str]] = []
+    inputs: list[str] = []
+
+    for name in requested:
+        if name in mart.measures or name not in metrics:
+            continue
+
+        needed = _leaves(name, metrics)
+
+        if needed is None:
+            return stored, None
+
+        # Every metric between this one and its stored measures gets an output
+        # of its own: a nested `derived:` references a name no relation
+        # produces, so the plan has to compute the inner one before the outer.
+        for level in _levels(name, metrics):
+            if level not in {output for output, _expr in outputs}:
+                outputs.append((level, expression(metrics[level])))
+
+        inputs.extend(needed)
+
+    return stored, (tuple(outputs), tuple(dict.fromkeys(inputs)))
+
+
+# ....................... #
+
+
+def _measures_are_embedded(
+    request: MetricRequest, mart: MartIR, metrics: Mapping[str, MetricIR]
+) -> bool:
+    """Whether the R008 fact beneath the aggregate is true: every number the
+    plan reduces is a measure this mart embeds at this mart's grain.
+
+    **This is what is left of `_plannable`, and the shrinking is the point**
+    (RFC 0066 D8). It began as four conditions naming shapes the vocabulary
+    could not state — a metric that is not a stored measure, one that is not a
+    plain aggregate, a cumulative one, and metrics restricted differently — and
+    each of those is now a node instead. What did not move is this: an
+    aggregate cites R008, and R008 is only true of measures the mart carries.
+
+    So the guard stopped being a list of exclusions and became the precondition
+    of one fact, which is the shape that cannot silently regrow. A list invites
+    a fifth entry; a precondition either holds or names what is missing. It is
+    renamed for the same reason — `_plannable` described the caller's decision,
+    and this describes the thing being checked.
+
+    Both conditions are reachable only where an earlier stage would already
+    have refused: a measure no mart carries is `UnreachableAtGrain` from the
+    coverage precheck, and a non-additive metric with no decomposition is an
+    `AdditivityViolation` from the guardrail stage. They are checked anyway,
+    because a plan resting on a false R008 is worse than a plan withheld.
+    """
+
+    stored, computed = _partition(request.metrics, mart, metrics)
+
+    if computed is None:
+        return False
+
+    #: The stored measures the aggregate must carry: what was asked for
+    #: directly, plus what the computed ones are built from.
+    beneath = tuple(metrics[name] for name in (*stored, *computed[1]) if name in metrics)
+
+    return all(name in mart.measures for name in (*stored, *computed[1])) and all(
+        metric.additivity in _STATABLE for metric in beneath
     )
 
 
@@ -185,11 +700,16 @@ def build(
     *,
     filters: tuple[str, ...],
 ) -> SemanticPlan | None:
-    """The plan for one resolved request, or ``None`` where P1's vocabulary
-    cannot state what the query computes.
+    """The plan for one resolved request, or ``None`` where the aggregate's
+    R008 fact would not be true.
+
+    ``None`` survives as a return type and not as an outcome: the two callers
+    read it through :func:`~bloomery.errors.guaranteed`, because the states
+    :func:`_measures_are_embedded` rejects are ones an earlier stage already
+    refuses (RFC 0066 D1).
 
     ``filters`` arrives already rendered, from
-    :func:`~bloomery.planner.explain.applied_predicates` — the same renderers
+    :func:`~bloomery.planner.explain.shared_predicates` — the same renderers
     the :class:`~bloomery.planner.Explanation` uses, so the plan and the
     explanation are one account of one request rather than two, which is the
     thing RFC 0039 §7 refuses. It carries every predicate the query applies,
@@ -198,22 +718,115 @@ def build(
 
     mart = coverage.mart
 
-    if not _plannable(request, mart, metrics):
+    if not _measures_are_embedded(request, mart, metrics):
         return None
 
     dimensions = tuple(dimension.name for dimension in coverage.dimensions)
+    stored, computed = _partition(request.metrics, mart, metrics)
+    assert computed is not None  # noqa: S101 — `_measures_are_embedded` returned False
+    outputs, inputs = computed
+    # What the aggregate carries: the measures asked for, plus the ones a
+    # computed metric is built from. A ratio's operands are aggregated and the
+    # quotient is taken over the result, which is the whole of what R014 says.
+    aggregated = (*stored, *inputs)
+
+    # The shared restriction, then one node per group of measures narrowed
+    # alike (RFC 0066 §5.5). `filters` carries the policy and the request's own
+    # filters — the ones that restrict every measure — and the scoped nodes
+    # carry each metric's own.
+    #
+    # Built from two sources rather than by subtracting one from the other: a
+    # request filter and a metric's filter can render to the same text, and
+    # removing the per-metric ones by text then dropped a predicate that really
+    # does restrict everything.
+    nodes: tuple[PlanNode, ...] = (
+        Scan(relation=mart.name, grain=mart.grain),
+        Filter(predicates=tuple(filters)),
+        *_scoped_filters(aggregated, metrics),
+    )
+    # Before the aggregate, not after: the declaration says one row per group
+    # along `over:` *is* the measure, and aggregating across the other
+    # dimensions is what happens to it next (RFC 0066 §5.3). One node per
+    # (dimension, rule), because one node states one of each.
+    nodes = (
+        *nodes,
+        *(
+            Reduce(
+                output_grain=mart.grain,
+                over=over,
+                rule=rule,
+                measures=measures,
+                proof=_reduced_along_its_own_dimension(
+                    [metrics[name] for name in measures if name in metrics], over
+                ),
+            )
+            for over, rule, measures in _semi_additive(aggregated, metrics)
+        ),
+    )
+
+    nodes = (
+        *nodes,
+        Aggregate(
+            input_grain=mart.grain,
+            output_grain=mart.grain,
+            measures=aggregated,
+            dimensions=dimensions,
+            proof=_served_at_grain(mart.name, mart.grain, aggregated),
+        ),
+    )
+
+    # After the aggregate: the measure is reduced per period first, and the
+    # window runs along the ordering over those totals (RFC 0066 §5.4). One
+    # node per (frame, period_agg), for the same reason `Reduce` groups.
+    ordering = _ordering(coverage, mart)
+    nodes = (
+        *nodes,
+        *(
+            Window(
+                measures=measures,
+                over=ordering,
+                frame=frame,
+                period_agg=period_agg,
+                proof=_accumulates_over_its_frame(
+                    [metrics[name] for name in measures if name in metrics], ordering
+                ),
+            )
+            for frame, period_agg, measures in _cumulative((*request.metrics, *aggregated), metrics)
+        ),
+    )
+
+    shifted = _shifted_reads(request.metrics, metrics)
+
+    if shifted:
+        # Between the aggregate and the compute: the measure is reduced per
+        # period first, the shifted read picks the period, and the expression
+        # combines them (RFC 0066 §5.6).
+        nodes = (
+            *nodes,
+            Offset(
+                reads=shifted,
+                over=_ordering(coverage, mart),
+                proof=_read_at_a_shifted_range(shifted, _ordering(coverage, mart)),
+            ),
+        )
+
+    if outputs:
+        nodes = (
+            *nodes,
+            *(
+                Compute(
+                    outputs=(output,),
+                    inputs=tuple(_inputs_of(metrics[name]) or ()),
+                    proof=_computed_after_aggregate([name], over=mart.name),
+                )
+                for output in outputs
+                for name in (output[0],)
+            ),
+        )
 
     return SemanticPlan(
         (
-            Scan(relation=mart.name, grain=mart.grain),
-            Filter(predicates=filters),
-            Aggregate(
-                input_grain=mart.grain,
-                output_grain=mart.grain,
-                measures=request.metrics,
-                dimensions=dimensions,
-                proof=_served_at_grain(mart.name, mart.grain, request.metrics),
-            ),
+            *nodes,
             # Request order, not sorted: a result's column order is part of the
             # answer. Dimensions before measures, which is the order the
             # emitted SELECT already uses.
@@ -286,7 +899,8 @@ def compose(
     keys: Sequence[str],
     measures: Sequence[str],
     *,
-    computed: bool = False,
+    computed: Sequence[tuple[str, str]] = (),
+    computed_inputs: Sequence[str] = (),
 ) -> SemanticPlan | None:
     """The composed plan for a cross-mart request (RFC 0041 D9, D15), or
     ``None`` where any branch could not be stated.
@@ -296,33 +910,51 @@ def compose(
     branch aggregated to the keys rather than to something else of the same
     width (logs/T-0026.md, D-174).
 
-    ``computed`` says a requested metric is produced by an expression *above*
-    the join (RFC 0041 D3), and the answer is then ``None`` as well. §4's
-    vocabulary is a scan, a filter, an aggregate, a projection and a join, and
-    none of them states arithmetic — so naming the metric in ``Project.columns``
-    would claim the join produced a column the join does not produce. This is
-    the rule :func:`build` has followed for a derived metric since RFC 0040 P1,
-    applied one level up (logs/T-0027.md, D-178).
+    ``computed`` carries the metrics produced by an expression *above* the join
+    (RFC 0041 D3), as the pairs :class:`~bloomery.semantic.Compute` takes. It
+    used to be a boolean, and a true one made the answer ``None``: §4's
+    vocabulary stated no arithmetic, so naming such a metric in
+    ``Project.columns`` would have claimed the join produced a column the join
+    does not produce. `Compute` is the node that was missing (RFC 0066 §5.2),
+    and it sits above the join for the same reason it sits above an aggregate —
+    the operands are reduced first, and the expression is evaluated over the
+    result.
 
-    ``None`` propagates rather than being worked around: a join whose branches
-    are only partly expressible would document one half of what the query
-    computes, and half a plan reads as a whole one.
+    ``None`` still propagates from a branch that could not be stated: a join
+    whose branches are only partly expressible would document one half of what
+    the query computes, and half a plan reads as a whole one.
     """
 
-    if computed or any(plan is None for plan, _keys in branches):
+    if any(plan is None for plan, _keys in branches):
         return None
 
     stated = tuple(
         JoinBranch(plan=plan, keys=names) for plan, names in branches if plan is not None
     )
 
+    joined: tuple[PlanNode, ...] = (
+        JoinAggregates(
+            keys=tuple(keys),
+            branches=stated,
+            proof=_unique_at_result_grain(stated, keys),
+        ),
+    )
+
+    if computed:
+        joined = (
+            *joined,
+            Compute(
+                outputs=tuple(computed),
+                inputs=tuple(computed_inputs),
+                proof=_computed_after_aggregate(
+                    [name for name, _expr in computed], over="the branch join"
+                ),
+            ),
+        )
+
     return SemanticPlan(
         (
-            JoinAggregates(
-                keys=tuple(keys),
-                branches=stated,
-                proof=_unique_at_result_grain(stated, keys),
-            ),
+            *joined,
             # Dimensions before measures, in request order — the same rule the
             # single-mart plan follows, and the order the composed SELECT
             # projects (RFC 0041 D9).

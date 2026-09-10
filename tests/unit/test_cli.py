@@ -1740,34 +1740,6 @@ def test_the_evidence_section_changes_nothing_above_it(
     assert above.strip() == (query.sql + "\n\n" + query.explanation.render()).strip()
 
 
-def test_a_plan_without_a_semantic_half_prints_no_evidence_heading(
-    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """``QueryPlan.semantic`` is optional, and absent is not empty.
-
-    A caller may build a `QueryPlan` directly and never fill it in — the
-    emitter tests do — and a heading over nothing would say the plan rests on
-    no facts, which is a claim about the plan rather than about what the caller
-    supplied. The planner always fills it in, so the branch is unreachable
-    through the CLI without taking the field away deliberately.
-    """
-
-    planned = MetricFlowPlanner.plan
-
-    def without_semantic(self: MetricFlowPlanner, *args: object, **kwargs: object) -> QueryPlan:
-        return dataclasses.replace(planned(self, *args, **kwargs), semantic=None)  # type: ignore[arg-type]
-
-    monkeypatch.setattr(MetricFlowPlanner, "plan", without_semantic)
-
-    code, out, err = run(
-        capsys, "explain", ECOM, "--metrics", "gross_revenue", "--by", "ordered_month"
-    )
-
-    assert code == EXIT_OK, err
-    assert out.strip(), "the SQL and explanation are still printed"
-    assert "Evidence" not in out
-
-
 def test_the_evidence_section_walks_every_proof_in_a_composed_plan(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

@@ -161,9 +161,22 @@ class QueryPlan:
     #: that phase would cost §8's parity suite its only reference point
     #: (logs/T-0021.md, D-118).
     #:
-    #: Optional so a caller constructing a `QueryPlan` directly — the emitter
-    #: tests do — is not obliged to build a plan it does not examine.
-    semantic: SemanticPlan | None = None
+    #: **Always present** (RFC 0066 D1). It was optional while the node
+    #: vocabulary could not state five request shapes — a computed metric, a
+    #: semi-additive measure, a cumulative one, metrics restricted differently,
+    #: and a `derived:` input read at an offset — each of which was answered
+    #: with no plan at all.
+    #:
+    #: Required rather than defaulted is the point of that phase, not a
+    #: consequence of it. While `None` was legal no test could assert a request
+    #: *has* a plan, so the gap was invisible from every direction that
+    #: mattered: the suite was green, because absence was a value; the docs were
+    #: accurate, because they never promised one.
+    #:
+    #: The other reason it was once optional — that a caller constructing a
+    #: `QueryPlan` directly need not build one — had already stopped being true
+    #: before this: the only two construction sites are in the planner itself.
+    semantic: SemanticPlan
     #: Every mart this plan reads, sorted — one name for the single-mart case
     #: and one per branch for a composed one (RFC 0041 D15). ``mart`` keeps
     #: its meaning as the first of these, so a caller reading it gets a mart

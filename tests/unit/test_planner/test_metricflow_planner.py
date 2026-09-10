@@ -7,6 +7,9 @@ from __future__ import annotations
 
 import hashlib
 
+import pathlib
+
+import bloomery
 import pytest
 import sqlglot
 from metricflow_semantics.errors.error_classes import (
@@ -17,6 +20,7 @@ from metricflow_semantics.errors.error_classes import (
 )
 
 from bloomery import AnyOf, MetricRequest, Op, OrderSpec, Predicate, RowPolicy
+from bloomery.semantic import Compute
 from bloomery.errors import (
     AmbiguousDimension,
     InvalidRequest,
@@ -639,17 +643,28 @@ def test_a_computed_metric_is_described_though_no_branch_produced_it() -> None:
     assert "line_discount = SUM" not in rendered, "the components are not what was asked for"
 
 
-def test_a_computed_metric_withholds_the_semantic_plan() -> None:
-    """RFC 0041 D3 says where the arithmetic happens; §4's node vocabulary has
-    nowhere to say it. A plan naming `discount_per_order` in `Project.columns`
-    would claim the join produced a column the join does not produce, so it is
-    withheld — the rule `build` has followed for a derived metric since
-    RFC 0040 P1, one level up (logs/T-0027.md, D-178).
+def test_a_computed_metric_is_stated_above_the_join() -> None:
+    """RFC 0041 D3 says where the arithmetic happens, and §4's node vocabulary
+    had nowhere to say it — so the plan was withheld rather than claim the join
+    produced a column it does not (logs/T-0027.md, D-178).
+
+    `Compute` is that node (RFC 0066 §5.2), and it sits above the join for the
+    same reason it sits above an aggregate: the operands are reduced first and
+    the expression is evaluated over the result.
 
     Paired with the stored-measure request so the assertion cannot pass because
     composed plans are never stated at all.
     """
-    assert _computed("discount_per_order").semantic is None
+    plan = _computed("discount_per_order").semantic
+
+    assert plan is not None
+    assert plan.shape == ("join_aggregates", "compute", "project")
+
+    (compute,) = [node for node in plan.nodes if isinstance(node, Compute)]
+    assert [name for name, _expr in compute.outputs] == ["discount_per_order"]
+    assert (proof := compute.proof) is not None
+    assert proof.rule == "R014"
+
     assert (
         make_planner()
         .plan(
@@ -724,3 +739,102 @@ def test_each_branch_plan_names_the_column_that_branch_restricts() -> None:
     # which is the whole reason the plan may not speak one spelling for both.
     assert "order_item__order_region = 'EU'" in plan.sql
     assert "order__region = 'EU'" in plan.sql
+
+
+def test_a_frame_needs_one_of_the_two_declared_forms() -> None:
+    """`CumulativeIR` carries exactly one of `window` / `grain_to_date`
+    (RFC 0034 D5), so this raise is unreachable through the spec layer — and
+    "unreachable" is a claim, not an excuse for leaving it unrun.
+
+    What it guards is worth the line: a node reading the wrong field would
+    render an empty frame, and a plan would claim an accumulation over nothing.
+    """
+
+    from bloomery.errors import PlannerError
+    from bloomery.ir import CumulativeIR
+    from bloomery.planner.semantic_plan import _frame
+
+    assert _frame(CumulativeIR(period_agg="last", grain_to_date="month")) == "month_to_date"
+
+    with pytest.raises(PlannerError, match="exactly one of window / grain_to_date"):
+        _frame(CumulativeIR(period_agg="last"))
+
+
+def test_a_restriction_for_an_unknown_metric_is_empty() -> None:
+    """`metric_restrictions` is a lookup, and a lookup that raised on a missing
+    key would turn a renderer into a second guardrail — the planner has already
+    refused an unknown metric by the time a plan is built."""
+
+    from bloomery.planner.explain import metric_restrictions
+
+    assert metric_restrictions("no_such_metric", {}) == ()
+
+
+def test_a_derived_metric_over_another_derived_metric_plans() -> None:
+    """Coverage resolves a derived metric's inputs *transitively* — it accepts
+    `outer -> inner -> revenue` when `revenue` belongs to one mart — and the
+    plan builder did not, keeping `inner` as an input name.
+
+    `inner` is not a stored measure, so the R008 precondition failed, and
+    because `build`'s callers read its answer through `guaranteed` the planner
+    raised `InvariantViolated` on a project it had just accepted. Two functions
+    answering "what measures does this metric need" with different quantifiers
+    is the shape that produced it.
+
+    The nesting reaches the plan as one `Compute` per level, inputs first: a
+    nested expression references a metric no relation produces, so the inner
+    one has to be computed before the outer, and `Compute` sorts its outputs by
+    name — so the order lives in the node list.
+    """
+
+    from bloomery import build_project_ir, load_catalog, load_project
+    from bloomery.semantic import Compute
+
+    root = pathlib.Path(bloomery.__file__).parent.parent.parent
+    fixture = root / "tests" / "fixtures" / "period_over_period"
+    sources = {
+        name: (fixture / f"{name}.yaml").read_text() for name in ("entity_model", "mapping")
+    }
+    sources["marts"] = """\
+marts_version: 1
+marts:
+  sales:
+    grain: sale
+    base: sale
+    flatten:
+      - {date: sold_at, role: sold}
+    measures: [revenue]
+"""
+    sources["metrics"] = """\
+metrics_version: 1
+metrics:
+  revenue: {grain: sale, additivity: additive, agg: sum, expr: "amount"}
+  inner:
+    grain: sale
+    additivity: non_additive
+    derived:
+      expr: "a * 2"
+      inputs:
+        a: {metric: revenue}
+  outer:
+    grain: sale
+    additivity: non_additive
+    derived:
+      expr: "b + 1"
+      inputs:
+        b: {metric: inner}
+"""
+    ir = build_project_ir(
+        load_project(sources), catalog=load_catalog((fixture / "catalog.yaml").read_text())
+    )
+
+    query = make_planner().plan(
+        ir, MetricRequest(metrics=("outer",), dimensions=("day",)), dialect="duckdb"
+    )
+
+    assert query.semantic is not None
+    computed = [n for n in query.semantic.nodes if isinstance(n, Compute)]
+
+    assert [name for node in computed for name, _expr in node.outputs] == ["inner", "outer"]
+    # The aggregate carries the stored measure, never an intermediate name.
+    assert query.semantic.nodes[2].measures == ("revenue",)  # type: ignore[union-attr]

@@ -7,13 +7,13 @@ answer is right is that no precheck objected, and the reasoning is spread
 across a coverage function and an embedded engine. §6 asks for the other shape
 — bloomery decides, targets lower — and this is the value it decides *into*.
 
-**Nothing lowers from it yet, and that is P1.** The plan is built beside the
-SQL and consumed by no target: MetricFlow still plans from the request exactly
-as it did, so a reader should not take a plan's presence as evidence that it
-produced the query beside it. §11 makes P1 the IR alone, and D5 makes it a
-re-expression with no capability change — wiring a target to the plan would
-change what the SQL is generated from, which is the one thing this phase must
-not do if §8's parity suite is to mean anything.
+**Nothing lowers from it yet, and that is still true.** The plan is built
+beside the SQL and consumed by no target: MetricFlow still plans from the
+request exactly as it did, so a reader should not take a plan's presence as
+evidence that it produced the query beside it. Wiring a target to the plan
+would change what the SQL is generated from, which is the one thing every
+phase here has had to avoid if the parity suite is to mean anything — and
+RFC 0066 §4 keeps it a non-goal for the same reason.
 
 **A plan is not a rendering.** It names logical operators over grains, and a
 target may choose any syntax for them, but it may not introduce a
@@ -22,13 +22,20 @@ semantic claim it references the proof that authorizes it, and a plan whose
 such nodes do not is **invalid IR rather than merely unexplained** (D2) —
 :meth:`SemanticPlan.check` is where that distinction stops being a sentence.
 
-D2's own sentence names the multiplicity-changing node, and at P1 there is no
-such node: the mart is already flattened, so the plan is a scan, a filter and
-an aggregate that only ever reduces. Read literally, the rule would hold over
-an empty set for this whole phase. It does not, because the aggregate is
-itself a claim — that these measures may be rolled to this grain — and the
-check reaches it too (logs/T-0021.md, D-124). The first
-:class:`PreservingJoin` arrives with P2 and adds the other half.
+D2's own sentence names the multiplicity-changing node, and **there is still
+no such node**: the mart is already flattened, so every kind here reduces, adds
+a column, or names one. Read literally, the rule would hold over an empty set.
+It does not, because a node that *claims* is checked too — the aggregate claims
+these measures may be rolled to this grain, and five more have joined it since
+(logs/T-0021.md, D-124).
+
+`PreservingJoin` was once expected to arrive and bring the other half. It has
+not, and RFC 0041 D10 keeps it refused rather than deferred: joining
+unaggregated rows is the fan-out the wide-mart design removes, so the half of
+D2 about multiplication stays vacuous **by construction** rather than by phase.
+That is a stronger position than the one this paragraph originally described,
+and it is why the check asks a node whether it claims rather than whether it
+multiplies (RFC 0041 D14).
 
 Here rather than under ``planner`` because §6 hands this to target adapters,
 and the emitters sit below the planner in the layer contract — a plan they
@@ -46,13 +53,17 @@ from bloomery.semantic.proof import Proof
 
 __all__ = [
     "Aggregate",
+    "Compute",
     "Filter",
     "JoinAggregates",
     "JoinBranch",
+    "Offset",
     "PlanNode",
     "Project",
+    "Reduce",
     "Scan",
     "SemanticPlan",
+    "Window",
 ]
 
 
@@ -115,6 +126,16 @@ class Filter:
     #: explanation beside it about the order of the same predicates — an
     #: invariant the no-filter case could never catch.
     predicates: tuple[str, ...] = ()
+    #: The measures these predicates restrict; empty means **every** measure
+    #: beneath (RFC 0066 §5.5).
+    #:
+    #: A metric's own `filter:` narrows that measure alone, so a request pairing
+    #: `paid_revenue` with `revenue` restricts one and not the other. One
+    #: unscoped node covering both would say each predicate restricts every
+    #: measure beneath it — a broader claim than the query makes, and the reason
+    #: such a request had no plan at all before this. Scoped here rather than on
+    #: :class:`Aggregate` because this is the node that makes the claim.
+    measures: tuple[str, ...] = ()
 
     # ....................... #
 
@@ -130,13 +151,33 @@ class Filter:
 
     # ....................... #
 
+    def __post_init__(self) -> None:
+        canonical = tuple(sorted(self.measures))
+        if canonical != self.measures:
+            object.__setattr__(self, "measures", canonical)
+
+        if self.measures and not self.predicates:
+            msg = (
+                "a filter scoped to measures with no predicates restricts nothing while "
+                "naming what it restricts, which reads as a narrowed measure and is not "
+                "one (RFC 0066 §5.5)"
+            )
+            raise ValueError(msg)
+
+    # ....................... #
+
     def document(self) -> dict[str, object]:
-        return {"node": "filter", "predicates": list(self.predicates)}
+        return {
+            "node": "filter",
+            "predicates": list(self.predicates),
+            "measures": list(self.measures),
+        }
 
     # ....................... #
 
     def render(self) -> str:
-        return f"Filter({'; '.join(self.predicates) or 'none'})"
+        scope = f" on {', '.join(self.measures)}" if self.measures else ""
+        return f"Filter({'; '.join(self.predicates) or 'none'}{scope})"
 
 
 # ....................... #
@@ -246,6 +287,338 @@ class Project:
 
     def render(self) -> str:
         return f"Project({', '.join(self.columns) or 'none'})"
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
+class Compute:
+    """A column computed from other columns of the same relation, **after**
+    they were aggregated (RFC 0066 §5.2).
+
+    The node RFC 0040 §4 never had and `compose` names by its absence: "none of
+    them states arithmetic, so naming the metric in ``Project.columns`` would
+    claim the join produced a column the join does not produce". A ratio and an
+    RFC 0034 ``derived:`` expression are both this shape — a metric with no
+    measure of its own, rebuilt from measures that have one.
+
+    **The claim is the ordering, not the arithmetic.** Division needs no
+    authorization. What needs it is computing the expression *here* rather than
+    per row before the aggregate: ``SUM(a)/SUM(b)`` and a row-level ``a/b``
+    aggregated afterwards are different numbers, and only one of them is what
+    the metric declares. R014 is that rule, and it premises on the aggregate
+    beneath — which is why an unaggregated `Compute` cannot construct.
+    """
+
+    #: Output column → the expression producing it, as prose. Sorted by output
+    #: name: a plan states what is computed, and two orders of one set of
+    #: definitions are one plan.
+    outputs: tuple[tuple[str, str], ...]
+    #: What the expressions reference, so a reader can check them against
+    #: columns the plan actually produces. Sorted for the same reason.
+    inputs: tuple[str, ...] = ()
+    proof: Proof | None = None
+
+    # ....................... #
+
+    def __post_init__(self) -> None:
+        for name in ("outputs", "inputs"):
+            canonical = tuple(sorted(getattr(self, name)))
+            if canonical != getattr(self, name):
+                object.__setattr__(self, name, canonical)
+
+        if not self.outputs:
+            msg = (
+                "a compute node with no outputs computes nothing, and `check` would "
+                "report it authorized — the same shape as a proof resting on no facts "
+                "(RFC 0066 §5.2)"
+            )
+            raise ValueError(msg)
+
+    # ....................... #
+
+    @property
+    def multiplies(self) -> bool:
+        return False
+
+    # ....................... #
+
+    @property
+    def claims(self) -> bool:
+        return True
+
+    # ....................... #
+
+    def document(self) -> dict[str, object]:
+        return {
+            "node": "compute",
+            "outputs": [[name, expr] for name, expr in self.outputs],
+            "inputs": list(self.inputs),
+            "proof": self.proof.document() if self.proof is not None else None,
+        }
+
+    # ....................... #
+
+    def render(self) -> str:
+        # Semicolons, not commas: each output carries its own alias list, and
+        # comma-joining two of them reads as one expression with four aliases.
+        computed = "; ".join(f"{name} = {expr}" for name, expr in self.outputs)
+        return f"Compute({computed})"
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
+class Reduce:
+    """One named dimension collapsed by a declared rule (RFC 0066 §5.3).
+
+    What a semi-additive measure is lowered as before anything else touches it:
+    the ``over:`` dimension reduced away, leaving one value per group, so that
+    aggregating across the *other* dimensions is legitimate afterwards. RFC 0040
+    P1 declined these because "one ``Aggregate`` cannot say" it, and a plan that
+    said `Aggregate` would have named the operation it is not.
+
+    **`Reduce` rather than `Pick`, and the whole vocabulary rather than two of
+    it.** ``SemiAdditiveRule`` is ``last``, ``first``, ``avg``, ``min``,
+    ``max`` — three of which select no row at all, so a node named for picking
+    would have been right about two members of five and would have needed a
+    comment arguing its own name away.
+
+    It differs from :class:`Aggregate` in what licenses it rather than in what
+    it does to rows. An `Aggregate` reduces by the metric's own declared
+    aggregation and is licensed by the mart contract; a `Reduce` collapses one
+    *named* dimension by the semi-additive rule, and is licensed by that
+    declaration. Two nodes because two different facts authorize them.
+    """
+
+    #: The grain a row is identified by once ``over`` is gone.
+    output_grain: str
+    #: The dimension reduced away — the metric's declared ``over:``.
+    over: str
+    #: The declared rule along it, as its own word.
+    rule: str
+    measures: tuple[str, ...] = ()
+    proof: Proof | None = None
+
+    # ....................... #
+
+    def __post_init__(self) -> None:
+        canonical = tuple(sorted(self.measures))
+        if canonical != self.measures:
+            object.__setattr__(self, "measures", canonical)
+
+        if not self.measures:
+            msg = (
+                "a reduce node with no measures reduces nothing, and `check` would report "
+                "it authorized — the same shape as a proof resting on no facts "
+                "(RFC 0066 §5.3)"
+            )
+            raise ValueError(msg)
+
+    # ....................... #
+
+    @property
+    def multiplies(self) -> bool:
+        return False
+
+    # ....................... #
+
+    @property
+    def claims(self) -> bool:
+        return True
+
+    # ....................... #
+
+    def document(self) -> dict[str, object]:
+        return {
+            "node": "reduce",
+            "output_grain": self.output_grain,
+            "over": self.over,
+            "rule": self.rule,
+            "measures": list(self.measures),
+            "proof": self.proof.document() if self.proof is not None else None,
+        }
+
+    # ....................... #
+
+    def render(self) -> str:
+        return (
+            f"Reduce({', '.join(self.measures)} : {self.rule} over {self.over} "
+            f"-> {self.output_grain})"
+        )
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
+class Window:
+    """Accumulation across rows at query time (RFC 0066 §5.4).
+
+    A ``cumulative:`` metric keeps its own measure and its own additivity —
+    those describe the measure, this describes the accumulation. RFC 0040 P1
+    declined these because "a window and a ``period_agg`` are not a rollup at
+    all", and a plan reading as a plain sum per day would have been the
+    operation this is not.
+
+    **Its output is not re-aggregable, and that is the part worth stating.** A
+    reader seeing an :class:`Aggregate` beneath must not conclude the window's
+    result can be rolled further: a trailing 7-day total summed across weeks
+    counts each day up to seven times. R016 records the frame so that any later
+    transformation has something to refuse against, rather than a column that
+    looks like every other measure.
+    """
+
+    measures: tuple[str, ...]
+    #: The ordering the window runs along.
+    over: str
+    #: ``trailing <n> <grain>`` or ``grain_to_date <grain>`` — the two forms a
+    #: metric may declare, rendered as prose because a plan is not SQL.
+    frame: str
+    #: What a request *coarser* than the accumulation collapses the series
+    #: with. Declared on the metric and applied by the engine, so it is stated
+    #: here for the same reason the frame is: it decides the number, and a plan
+    #: silent about it would be silent about a collapse that changes the answer.
+    period_agg: str
+    proof: Proof | None = None
+
+    # ....................... #
+
+    def __post_init__(self) -> None:
+        canonical = tuple(sorted(self.measures))
+        if canonical != self.measures:
+            object.__setattr__(self, "measures", canonical)
+
+        if not self.measures:
+            msg = (
+                "a window node with no measures accumulates nothing, and `check` would "
+                "report it authorized — the same shape as a proof resting on no facts "
+                "(RFC 0066 §5.4)"
+            )
+            raise ValueError(msg)
+
+    # ....................... #
+
+    @property
+    def multiplies(self) -> bool:
+        return False
+
+    # ....................... #
+
+    @property
+    def claims(self) -> bool:
+        return True
+
+    # ....................... #
+
+    def document(self) -> dict[str, object]:
+        return {
+            "node": "window",
+            "measures": list(self.measures),
+            "over": self.over,
+            "frame": self.frame,
+            "period_agg": self.period_agg,
+            "proof": self.proof.document() if self.proof is not None else None,
+        }
+
+    # ....................... #
+
+    def render(self) -> str:
+        return (
+            f"Window({', '.join(self.measures)} : {self.frame} over {self.over}, "
+            f"coarser requests take {self.period_agg})"
+        )
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
+class Offset:
+    """The same measure read at a shifted range (RFC 0066 §5.6).
+
+    A ``derived:`` input may carry an ``offset_window`` or ``offset_to_grain``,
+    so ``revenue_yoy`` reads `revenue` now and `revenue` a year earlier and
+    subtracts. The second read is not a column of the relation the expression
+    runs over, which is why :class:`Compute` alone could not state it and the
+    request had no plan at all.
+
+    **What this node states is the declared shift, not the join that renders
+    it.** MetricFlow lowers an offset by joining the measure to the time spine
+    at a shifted date under a full outer join; a plan naming that would be
+    stating how the SQL is spelled rather than what is computed, which RFC 0040
+    D4 refuses. The target chooses the mechanism; the plan says which measure
+    is read, over which ordering, and how far back.
+
+    **The gap question is the whole of R017.** A shifted read is sound when the
+    shifted range aggregates the same way the current one does — and a period
+    with no rows must read as *absent* rather than as zero, because a missing
+    prior period and a prior period that really summed to nothing are different
+    answers and only one of them is a defensible denominator.
+    """
+
+    #: ``(metric, alias, measure, shift)`` — whose expression references the
+    #: alias, the alias itself, the measure it reads, and how far back, as
+    #: prose. Sorted.
+    #:
+    #: The metric is not decoration. An alias is scoped to the metric that
+    #: declares it (RFC 0034 D1), so two ``derived:`` metrics may both call
+    #: their offset input ``prior`` and mean different measures; flattening
+    #: them into one namespace produced a plan naming one alias twice, which no
+    #: target can lower because the expressions above reference ``prior`` and
+    #: there is no longer one answer to which.
+    reads: tuple[tuple[str, str, str, str], ...]
+    #: The ordering the shift runs along.
+    over: str
+    proof: Proof | None = None
+
+    # ....................... #
+
+    def __post_init__(self) -> None:
+        canonical = tuple(sorted(self.reads))
+        if canonical != self.reads:
+            object.__setattr__(self, "reads", canonical)
+
+        if not self.reads:
+            msg = (
+                "an offset node with no reads shifts nothing, and `check` would report it "
+                "authorized — the same shape as a proof resting on no facts (RFC 0066 §5.6)"
+            )
+            raise ValueError(msg)
+
+    # ....................... #
+
+    @property
+    def multiplies(self) -> bool:
+        return False
+
+    # ....................... #
+
+    @property
+    def claims(self) -> bool:
+        return True
+
+    # ....................... #
+
+    def document(self) -> dict[str, object]:
+        return {
+            "node": "offset",
+            "reads": [
+                [metric, alias, measure, shift] for metric, alias, measure, shift in self.reads
+            ],
+            "over": self.over,
+            "proof": self.proof.document() if self.proof is not None else None,
+        }
+
+    # ....................... #
+
+    def render(self) -> str:
+        shifted = "; ".join(
+            f"{metric}.{alias} = {measure} {shift}" for metric, alias, measure, shift in self.reads
+        )
+        return f"Offset({shifted} over {self.over})"
 
 
 # ....................... #
@@ -405,18 +778,20 @@ class JoinAggregates:
 
 #: The node vocabulary, closed. RFC 0040 §4 also lists `PreservingJoin` and
 #: `ConvertUnit`; neither exists yet — the first would join *unaggregated*
-#: rows, which RFC 0041 D10 keeps refused, and the second arrives with
-#: RFC 0038's unit work. :class:`JoinAggregates` is the fifth kind, and the
-#: only one RFC 0041 P1 adds (D15).
-PlanNode = Scan | Filter | Aggregate | Project | JoinAggregates
+#: rows, which RFC 0041 D10 keeps refused, and the second has no owner since
+#: RFC 0038 retired without it (RFC 0066 §8). :class:`Compute` is the sixth
+#: kind, :class:`Reduce` the seventh, :class:`Window` the eighth and
+#: :class:`Offset` the ninth (RFC 0066 §5.2-§5.6).
+PlanNode = Scan | Filter | Aggregate | Project | JoinAggregates | Compute | Reduce | Window | Offset
 
 
 @dataclass(frozen=True, slots=True)
 class SemanticPlan:
     """A validated plan: what to compute, and on what authority.
 
-    Constructed only after every obligation is proven — which at P1 is a short
-    list, since a pre-joined mart introduces no multiplicity. :meth:`check`
+    Constructed only after every obligation is proven — a list that grew from
+    one node to six as the vocabulary did, and that still contains nothing
+    multiplicity-changing, since a pre-joined mart introduces none. :meth:`check`
     runs on construction rather than being offered to callers, because D2 makes
     an unauthorized plan *invalid* rather than undocumented, and a validity
     rule a caller has to remember to invoke is one that gets skipped exactly
@@ -470,6 +845,25 @@ class SemanticPlan:
                 "on no facts (RFC 0040 D2)"
             )
             raise ValueError(msg)
+
+        # R014 premises on the aggregate beneath, so a `Compute` with nothing
+        # aggregated above it is claiming an ordering that did not happen —
+        # the same reason `JoinAggregates` requires its branches to end in an
+        # aggregate rather than trusting the proof beside it (RFC 0041 D2).
+        reduced = False
+
+        for node in self.nodes:
+            if isinstance(node, Aggregate | JoinAggregates):
+                reduced = True
+            elif isinstance(node, Compute | Window | Offset) and not reduced:
+                msg = (
+                    f"{node.render()} runs before anything is aggregated, so the ordering "
+                    "it is authorized for did not happen — a row-level expression or "
+                    "window aggregated afterwards is a different number, and a shifted "
+                    "read of unaggregated rows is not the measure it names "
+                    "(RFC 0066 §5.2, §5.4, §5.6)"
+                )
+                raise ValueError(msg)
 
         unauthorized = [
             node.render()

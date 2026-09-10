@@ -11,16 +11,30 @@ from __future__ import annotations
 import ast
 import dataclasses
 import pathlib
+from typing import Final, get_args
 from dataclasses import dataclass
 
 import bloomery
 import pytest
-from bloomery.ir import Additivity, MetricFilterIR
+from bloomery.ir import (
+    Additivity,
+    DerivedIR,
+    MetricFilterIR,
+    MetricInputIR,
+    MetricIR,
+    SqlExpr,
+    TimeWindow,
+)
 from bloomery import MetricRequest
 from bloomery.planner.policy import RowPolicy
 from bloomery.planner.request import Op, Predicate
 from bloomery.semantic import (
     Aggregate,
+    PlanNode,
+    Compute,
+    Offset,
+    Reduce,
+    Window,
     Filter,
     JoinAggregates,
     JoinBranch,
@@ -32,7 +46,15 @@ from bloomery.semantic import (
     SemanticJudgement,
     SemanticPlan,
 )
-from bloomery.planner.semantic_plan import _plannable
+from bloomery.planner.semantic_plan import (
+    _cumulative,
+    _leaves,
+    _measures_are_embedded,
+    _read_at_a_shifted_range,
+    _restriction,
+    _semi_additive,
+    _shifted_reads,
+)
 from support.planning import fixture_ir, make_planner
 
 pytestmark = pytest.mark.unit
@@ -137,7 +159,7 @@ def test_restrictions_compare_as_sets_not_as_written() -> None:
     widened = dataclasses.replace(mart, measures=(*mart.measures, "reordered"))
     request = MetricRequest(metrics=(original.name, "reordered"))
 
-    assert _plannable(request, widened, {**metrics, "reordered": reversed_clauses})
+    assert _measures_are_embedded(request, widened, {**metrics, "reordered": reversed_clauses})
 
 
 def _restricted(ir: object, name: str, values: tuple[object, ...]) -> object:
@@ -160,7 +182,7 @@ def _plannable_pair(ir: object, left: object, right: object) -> bool:
     ]
     widened = dataclasses.replace(mart, measures=(*mart.measures, "left", "right"))
 
-    return _plannable(
+    return _measures_are_embedded(
         MetricRequest(metrics=("left", "right")),
         widened,
         {**metrics, "left": left, "right": right},
@@ -188,10 +210,13 @@ def test_a_literal_of_another_type_is_another_restriction() -> None:
     away to keep them apart, which is not this function's to assume.
     """
     ir = fixture_ir("period_over_period")
+    left, right = _restricted(ir, "left", (1,)), _restricted(ir, "right", ("1",))
 
-    assert not _plannable_pair(
-        ir, _restricted(ir, "left", (1,)), _restricted(ir, "right", ("1",))
-    )
+    # `_measures_are_embedded` no longer decides this — both are statable, each on its own
+    # scoped `Filter` (RFC 0066 §5.5). What the comparison still decides is
+    # whether they are *one* restriction, and they are not.
+    assert _plannable_pair(ir, left, right)
+    assert _restriction(left) != _restriction(right)
 
 
 def test_a_measureless_request_still_projects_its_dimensions() -> None:
@@ -214,9 +239,30 @@ def test_the_projection_keeps_request_order_not_sorted_order() -> None:
 
 
 def _filters(query: object) -> tuple[str, ...]:
-    (node,) = [n for n in query.semantic.nodes if isinstance(n, Filter)]  # type: ignore[attr-defined]
+    """The predicates restricting *every* measure — the unscoped node.
+
+    There is exactly one, always: a plan states the shared restriction even when
+    it is empty, and a metric's own `filter:` rides a scoped node beside it
+    (RFC 0066 §5.5).
+    """
+
+    (node,) = [
+        n
+        for n in query.semantic.nodes  # type: ignore[attr-defined]
+        if isinstance(n, Filter) and not n.measures
+    ]
 
     return node.predicates
+
+
+def _scoped(query: object) -> dict[tuple[str, ...], tuple[str, ...]]:
+    """Every scoped filter, as measures → predicates."""
+
+    return {
+        node.measures: node.predicates
+        for node in query.semantic.nodes  # type: ignore[attr-defined]
+        if isinstance(node, Filter) and node.measures
+    }
 
 
 def test_the_plans_filters_are_the_explanations_filters_in_request_order() -> None:
@@ -285,15 +331,20 @@ def test_the_plan_names_a_metrics_own_restriction() -> None:
     )
     assert query.semantic is not None
 
-    assert _filters(query) == ("status = 'paid'",)
+    # On a scoped node, because it narrows `paid_revenue` and nothing else.
+    assert _filters(query) == ()
+    assert _scoped(query) == {("paid_revenue",): ("status = 'paid'",)}
 
 
-def test_a_cumulative_metric_gets_no_plan() -> None:
+def test_a_cumulative_metric_states_its_window() -> None:
     """`revenue_trailing_7d` *is* a mart measure, so the guard written for the
-    derived case let it through — and the plan read as a plain sum per day
-    with the seven-day window and `period_agg` nowhere in it. The shapes P1
-    cannot express outnumber the one it can, which is why the rule is stated
-    positively rather than as a list of exclusions.
+    derived case let it through — and the plan read as a plain sum per day with
+    the seven-day window and `period_agg` nowhere in it. That is why it was
+    withheld until there was a node carrying both.
+
+    `Window` is that node (RFC 0066 §5.4), and it sits after the aggregate: the
+    measure is reduced per period first, and the accumulation runs along the
+    ordering over those totals.
     """
     planner = make_planner()
     ir = fixture_ir("period_over_period")
@@ -303,18 +354,53 @@ def test_a_cumulative_metric_gets_no_plan() -> None:
         dialect="duckdb",
     )
 
-    assert query.semantic is None
+    assert query.semantic is not None
+    assert query.semantic.shape == ("scan", "filter", "aggregate", "window", "project")
     assert "revenue_trailing_7d" in {
         measure for mart in ir.marts for measure in mart.measures
     }
 
+    (window,) = [node for node in query.semantic.nodes if isinstance(node, Window)]
+    assert window.frame == "trailing 7 days"
+    assert window.period_agg
+    assert (proof := window.proof) is not None
+    assert proof.rule == "R016"
 
-def test_a_semi_additive_metric_gets_no_plan() -> None:
+
+def test_a_window_before_any_aggregate_is_refused() -> None:
+    """The same guard `Compute` meets, for the same reason: accumulating over
+    rows that were never reduced per period is not the operation R016
+    authorizes."""
+
+    with pytest.raises(ValueError, match="runs before anything is aggregated"):
+        SemanticPlan(
+            (
+                Scan(relation="orders", grain="order"),
+                Window(
+                    measures=("revenue_trailing_7d",),
+                    over="ordered_day",
+                    frame="trailing 7 days",
+                    period_agg="last",
+                ),
+                Project(columns=("revenue_trailing_7d",)),
+            )
+        )
+
+
+def test_a_window_with_no_measures_is_refused() -> None:
+    with pytest.raises(ValueError, match="accumulates nothing"):
+        Window(measures=(), over="ordered_day", frame="trailing 7 days", period_agg="last")
+
+
+def test_a_semi_additive_metric_is_reduced_then_aggregated() -> None:
     """`stock_on_hand` is lowered as a last-per-day pick joined back and then
-    summed. `Aggregate` names a rollup and no aggregation with it, so the plan
-    said the one operation this measure is not — the third shape a guard
-    written per counterexample let through, and the reason the rule now names
-    a property (additivity) instead.
+    summed. `Aggregate` names a rollup and no aggregation with it, so a plan
+    with only that node said the one operation this measure is not — which is
+    why the plan was withheld until there was a node for the other half.
+
+    `Reduce` is that node (RFC 0066 §5.3), and its position carries the
+    meaning: the declaration says one row per group along `over:` *is* the
+    measure, so the reduction happens before the aggregate rather than after.
     """
     planner = make_planner()
     ir = fixture_ir("semi_additive_inventory")
@@ -322,16 +408,64 @@ def test_a_semi_additive_metric_gets_no_plan() -> None:
         ir, MetricRequest(metrics=("stock_on_hand",), dimensions=("day",)), dialect="duckdb"
     )
 
-    assert query.semantic is None
+    assert query.semantic is not None
+    assert query.semantic.shape == ("scan", "filter", "reduce", "aggregate", "project")
     assert "stock_on_hand" in {measure for mart in ir.marts for measure in mart.measures}
 
+    (reduce,) = [node for node in query.semantic.nodes if isinstance(node, Reduce)]
+    assert reduce.measures == ("stock_on_hand",)
+    assert reduce.rule == "last"
+    assert (proof := reduce.proof) is not None
+    assert proof.rule == "R015"
 
-def test_metrics_with_different_restrictions_get_no_plan() -> None:
-    """`Filter` is a node over the scan, so it says one thing about every
+
+def test_two_measures_reduced_along_different_dimensions_get_a_node_each() -> None:
+    """One `Reduce` states one dimension and one rule, so measures declared
+    over different ones are *several* reductions — a longer plan, not an
+    unstatable request.
+
+    This returned `None` for the whole request while `Reduce` was first built,
+    which is exactly the shape D1 exists to remove: a plan withheld because the
+    vocabulary was asked to say two things with one node.
+
+    Asserted on `_semi_additive` rather than through a fixture, because no
+    fixture carries two semi-additive measures over different dimensions and
+    inventing one would test the fixture.
+    """
+
+    ir = fixture_ir("semi_additive_inventory")
+    metrics = {metric.name: metric for metric in ir.metrics}
+    (declared,) = [m for m in ir.metrics if m.semi_additive is not None]
+    assert declared.semi_additive is not None
+
+    elsewhere = dataclasses.replace(
+        declared,
+        name="stock_by_warehouse",
+        semi_additive=dataclasses.replace(
+            declared.semi_additive,
+            over=dataclasses.replace(declared.semi_additive.over, dimension="warehouse"),
+        ),
+    )
+    metrics[elsewhere.name] = elsewhere
+
+    assert _semi_additive([declared.name], metrics) == (
+        ("stock_date", "last", ("stock_on_hand",)),
+    )
+    assert _semi_additive([declared.name, elsewhere.name], metrics) == (
+        ("stock_date", "last", ("stock_on_hand",)),
+        ("warehouse", "last", ("stock_by_warehouse",)),
+    )
+
+
+def test_metrics_restricted_differently_get_a_filter_each() -> None:
+    """`Filter` used to be a node over the scan saying one thing about every
     measure beneath it. A metric's own filter narrows that measure alone —
     pairing `paid_revenue` with `revenue` produced a plan restricting both to
-    `status = 'paid'`, which is the previous defect's mirror image: a plan
-    claiming a narrower answer than the query computes.
+    `status = 'paid'`, a plan claiming a narrower answer than the query
+    computes, so the plan was withheld instead.
+
+    Scoping is what makes neither necessary (RFC 0066 §5.5): the restriction
+    names the measure it narrows, and `revenue` is on no scoped node at all.
     """
     planner = make_planner()
     query = planner.plan(
@@ -340,7 +474,9 @@ def test_metrics_with_different_restrictions_get_no_plan() -> None:
         dialect="duckdb",
     )
 
-    assert query.semantic is None
+    assert query.semantic is not None
+    assert _filters(query) == ()
+    assert _scoped(query) == {("paid_revenue",): ("status = 'paid'",)}
 
 
 def test_a_measure_the_mart_does_not_carry_gets_no_plan() -> None:
@@ -351,7 +487,7 @@ def test_a_measure_the_mart_does_not_carry_gets_no_plan() -> None:
     condition refused it — deleting the mart-measure check left the suite
     green. An additive metric absent from the mart is the case only this
     condition catches; no fixture reaches it through `plan`, so it is asked of
-    `_plannable` directly.
+    `_measures_are_embedded` directly.
     """
     ir = fixture_ir("ecom_basic")
     metrics = {metric.name: metric for metric in ir.metrics}
@@ -361,25 +497,67 @@ def test_a_measure_the_mart_does_not_carry_gets_no_plan() -> None:
     )
     assert metrics["gross_revenue"].additivity is Additivity.ADDITIVE
 
-    assert not _plannable(MetricRequest(metrics=("gross_revenue",)), stripped, metrics)
-    assert _plannable(MetricRequest(metrics=("gross_revenue",)), mart, metrics)
+    assert not _measures_are_embedded(MetricRequest(metrics=("gross_revenue",)), stripped, metrics)
+    assert _measures_are_embedded(MetricRequest(metrics=("gross_revenue",)), mart, metrics)
 
 
-def test_a_derived_metric_gets_no_plan() -> None:
+def test_a_ratio_is_aggregated_then_computed() -> None:
     """`average_order_value` is a ratio over `order_count` and `revenue`, so
-    the requested name is not a mart measure at all. P1's vocabulary has no
-    node for the division, and a plan projecting a column no node produces —
-    resting on a fact claiming the ratio is stored — would be a plan that lies
-    twice. `QueryPlan.semantic` being optional is for exactly this.
+    the requested name is not a mart measure at all.
+
+    RFC 0040 P1 had no node for the division and returned no plan, on the
+    argument that projecting a column no node produces — resting on a fact
+    claiming the ratio is stored — would be a plan that lies twice. Both halves
+    stay true; `Compute` is what makes neither necessary (RFC 0066 §5.2).
+
+    The order is the whole content: the operands are aggregated, and the
+    quotient is taken over the result. A row-level `revenue / order_count`
+    summed afterwards is a different number.
     """
     planner = make_planner()
     ir = fixture_ir("non_additive_aov")
     query = planner.plan(ir, MetricRequest(metrics=("average_order_value",)), dialect="duckdb")
 
-    assert query.semantic is None
+    assert query.semantic is not None
+    assert query.semantic.shape == ("scan", "filter", "aggregate", "compute", "project")
     assert "average_order_value" not in {
         measure for mart in ir.marts for measure in mart.measures
     }
+
+    (aggregate,) = [n for n in query.semantic.nodes if isinstance(n, Aggregate)]
+    (compute,) = [n for n in query.semantic.nodes if isinstance(n, Compute)]
+
+    # The aggregate carries the operands, never the quotient.
+    assert aggregate.measures == ("order_count", "revenue")
+    assert compute.outputs == (("average_order_value", "revenue / order_count"),)
+    # Sorted on the node, like every other IR collection (RFC 0003) — the
+    # expression names them, so their order here carries nothing.
+    assert compute.inputs == ("order_count", "revenue")
+
+
+def test_a_compute_before_any_aggregate_is_refused() -> None:
+    """R014 premises on the aggregate beneath, so a `Compute` with nothing
+    aggregated above it claims an ordering that did not happen — the same
+    reason `JoinAggregates` requires its branches to end in an aggregate
+    rather than trusting the proof beside it (RFC 0041 D2)."""
+
+    with pytest.raises(ValueError, match="runs before anything is aggregated"):
+        SemanticPlan(
+            (
+                Scan(relation="orders", grain="order"),
+                Compute(outputs=(("aov", "revenue / orders"),), inputs=("orders", "revenue")),
+                Project(columns=("aov",)),
+            )
+        )
+
+
+def test_a_compute_with_no_outputs_is_refused() -> None:
+    """The empty case decided rather than inherited: `check` would report a
+    node computing nothing as authorized, which is the shape of a proof
+    resting on no facts."""
+
+    with pytest.raises(ValueError, match="computes nothing"):
+        Compute(outputs=())
 
 
 def test_the_plan_renders_as_a_pipeline() -> None:
@@ -789,22 +967,116 @@ def test_the_join_keys_are_canonicalized() -> None:
     assert node.keys == ("day", "region")
 
 
+def _bare(kind: str) -> object:
+    """One node of each kind, with no proof, otherwise minimally valid."""
+
+    branches = (_joined("orders", "ship"), _joined("order_items", "disc"))
+    made: dict[str, object] = {
+        "Aggregate": Aggregate(input_grain="order", output_grain="order", measures=("ship",)),
+        "Compute": Compute(outputs=(("aov", "revenue / orders"),), inputs=("orders", "revenue")),
+        "Filter": Filter(predicates=()),
+        "JoinAggregates": JoinAggregates(keys=("region",), branches=branches),
+        "Offset": Offset(
+            reads=(("revenue_yoy", "prior", "revenue", "1 year earlier"),), over="sold_day"
+        ),
+        "Project": Project(columns=()),
+        "Reduce": Reduce(
+            output_grain="order", over="as_of_day", rule="last", measures=("stock",)
+        ),
+        "Scan": Scan(relation="m", grain="order"),
+        "Window": Window(
+            measures=("rolling",), over="sold_day", frame="trailing 7 days", period_agg="last"
+        ),
+    }
+
+    return made[kind]
+
+
+def _plan_around(node: object) -> tuple[object, ...]:
+    """`node` in the smallest plan that reaches `check` for it.
+
+    A `JoinAggregates` stands alone; everything else that claims sits after an
+    aggregate, because `check` refuses a compute, window or offset that runs
+    before anything is reduced — and that refusal would mask the one under
+    test.
+    """
+
+    if isinstance(node, JoinAggregates):
+        return (node, Project(columns=("region",)))
+
+    if isinstance(node, Aggregate):
+        return (Scan(relation="m", grain="order"), node, Project(columns=()))
+
+    return (
+        Scan(relation="m", grain="order"),
+        Aggregate(
+            input_grain="order",
+            output_grain="order",
+            measures=("ship",),
+            proof=_CLOSED,
+        ),
+        node,
+        Project(columns=()),
+    )
+
+
+#: Every node kind, and whether it claims. Written out so that adding one to
+#: `PlanNode` without deciding its authorization fails the test below.
+_CLAIMS: Final = {
+    "Aggregate": True,
+    "Compute": True,
+    "Filter": False,
+    "JoinAggregates": True,
+    "Offset": True,
+    "Project": False,
+    "Reduce": True,
+    "Scan": False,
+    "Window": True,
+}
+
+
 def test_every_node_answers_whether_it_claims() -> None:
     """The authorization rule reads a property of the node rather than a list
     of node types kept in step by hand. A membership test over a closed
     vocabulary is right until the vocabulary gains a member, and the member it
     silently exempts is the one nobody remembered to add.
-    """
-    branches = (_joined("orders", "ship"), _joined("order_items", "disc"))
-    nodes = (
-        Scan(relation="m", grain="order"),
-        Filter(predicates=()),
-        Project(columns=()),
-        Aggregate(input_grain="order", output_grain="order", measures=("ship",)),
-        JoinAggregates(keys=("region",), branches=branches),
-    )
 
-    assert [node.claims for node in nodes] == [False, False, False, True, True]
+    **This test was that list.** It named the original five and went on passing
+    while four more nodes landed, so a node shipping with `claims = False`
+    would have been exempt from proof permanently and invisibly — which is what
+    RFC 0066 D3 is `LOCKED` about and what §9 says review should look for
+    first. It is now read off `PlanNode` itself: a tenth member fails here
+    until somebody decides what it claims.
+    """
+
+    members = {member.__name__ for member in get_args(PlanNode)}
+
+    assert members == set(_CLAIMS), "a node kind was added or removed without deciding its claim"
+
+
+@pytest.mark.parametrize("kind", sorted(_CLAIMS))
+def test_a_claiming_node_needs_a_closed_proof(kind: str) -> None:
+    """`claims` is not a label — it is what `check` reads, so a node that
+    claims and carries no closed proof must not construct inside a plan.
+
+    Parametrized over the vocabulary rather than over the ones that were
+    remembered: the previous version of this file asserted it for `Aggregate`
+    alone, which is why four nodes could have declared `claims = False` with
+    nothing to notice.
+    """
+
+    node = _bare(kind)
+
+    # Against the table, not against the node. Gating the check on
+    # `node.claims` would let a node that lies about it skip its own test —
+    # rebuilding, one level down, the hole this test exists to close.
+    assert node.claims is _CLAIMS[kind], f"{kind} disagrees with the decided vocabulary"
+
+    if not _CLAIMS[kind]:
+        return
+
+    with pytest.raises(ValueError, match="without a closed proof"):
+        SemanticPlan(_plan_around(node))
 
 
 def test_a_composed_plan_serializes_its_branches() -> None:
@@ -901,3 +1173,459 @@ def test_a_composed_plan_is_not_stated_when_a_branch_cannot_be() -> None:
 
     assert compose([(None, ("d0",)), (_branch("orders", "ship"), ("d0",))], ("region",), ("ship",)) is None
 
+
+
+def test_the_window_rule_and_the_rollup_refusal_agree() -> None:
+    """R016's terminal half, checked against the place that already enforces it.
+
+    The rule says a cumulative metric's result may not be rolled further — a
+    trailing 7-day total summed across weeks counts each day up to seven times.
+    That is not an assertion this module can make true; what makes it true is
+    the rollup lowering, which refuses a rollup carrying a `cumulative:` measure
+    (RFC 0058 D5). Two parts of the system have to agree about one fact, and
+    this is the test that notices when they stop.
+
+    Driven rather than read: an earlier version of this asserted that the
+    string "cumulative" appeared in the lowering's source, which would have
+    passed against a comment.
+
+    It is here rather than in the corpus deliberately. The semantic corpus
+    admits cases where the SQL is valid and the *number* is wrong; a cumulative
+    metric is answered correctly today, so a case written for it would be
+    admitted for the wrong reason and dilute what the corpus proves
+    (logs/T-0037.md).
+    """
+
+    from bloomery import build_project_ir, load_project
+    from bloomery.errors import GuardrailError
+    from bloomery.semantic import RULES
+
+    assert "not rolled further" in RULES["R016"].summary
+
+    sources = {
+        "entity_model": """\
+spec_version: 1
+entities:
+  order_item:
+    grain: one row per line
+    key: [order_id, line_no]
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      amount: {type: "decimal(12,2)"}
+      order_date: {type: date}
+""",
+        "mapping_items": """\
+mapping_version: 1
+source: src__items
+target: order_item
+key:
+  order_id: {from: "$.oid", transform: [to_string]}
+  line_no: {from: "$.line", transform: [to_int]}
+fields:
+  amount: {from: "$.amount"}
+  order_date: {from: "$.od", transform: [{parse_date: ISO8601}]}
+""",
+        "metrics": """\
+metrics_version: 1
+metrics:
+  rolling_revenue:
+    grain: order_item
+    additivity: additive
+    agg: sum
+    expr: "amount"
+    cumulative: {window: 7 days}
+""",
+        "marts": """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {date: order_date, role: ordered}
+    measures: [rolling_revenue]
+rollups:
+  monthly:
+    of: items
+    keep: [ordered_month]
+    measures: [rolling_revenue]
+""",
+    }
+
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(load_project(sources))
+
+    assert "cumulative" in str(excinfo.value)
+
+
+def test_an_offset_input_is_read_at_a_shifted_range() -> None:
+    """`revenue_yoy` reads `revenue` now and `revenue` a year earlier and
+    subtracts. The second read is not a column of the relation the expression
+    runs over, which is why `Compute` alone could not state it and the request
+    had no plan at all — the last shape D1 was waiting on.
+
+    What the node states is the *declared shift*, not the join that renders it.
+    MetricFlow lowers this by joining the measure to the time spine at a
+    shifted date under a full outer join; a plan naming that would be stating
+    how the SQL is spelled rather than what is computed (RFC 0040 D4).
+    """
+
+    planner = make_planner()
+    query = planner.plan(
+        fixture_ir("period_over_period"),
+        MetricRequest(metrics=("revenue_yoy",), dimensions=("day",)),
+        dialect="duckdb",
+    )
+
+    assert query.semantic is not None
+    assert query.semantic.shape == ("scan", "filter", "aggregate", "offset", "compute", "project")
+
+    (offset,) = [node for node in query.semantic.nodes if isinstance(node, Offset)]
+    assert offset.reads == (("revenue_yoy", "prior", "revenue", "1 year earlier"),)
+    assert (proof := offset.proof) is not None
+    assert proof.rule == "R017"
+
+    # R017 closes on `absent`, never zero: a missing prior period and one that
+    # really summed to nothing are different answers.
+    assert ("gaps", "absent") in proof.conclusion.operands
+
+
+def test_every_metric_of_a_fixture_carries_a_plan() -> None:
+    """D1's criterion, asserted rather than typed.
+
+    `QueryPlan.semantic` is non-optional, so this cannot fail by returning
+    `None` — a dataclass does not enforce its annotations, and the guard at the
+    call site raises instead. What this pins is that the guard never fires:
+    every metric of the fixture that exercises all five shapes is answered
+    *and* stated.
+    """
+
+    ir = fixture_ir("period_over_period")
+    planner = make_planner()
+
+    for metric in ir.metrics:
+        query = planner.plan(
+            ir, MetricRequest(metrics=(metric.name,), dimensions=("day",)), dialect="duckdb"
+        )
+        assert query.semantic is not None, metric.name
+        assert query.semantic.proofs, f"{metric.name} rests on no facts"
+
+
+def test_two_metrics_may_use_one_alias_for_different_measures() -> None:
+    """An alias is scoped to the metric that declares it (RFC 0034 D1), so two
+    `derived:` metrics may both call their offset input `prior` and mean
+    different measures.
+
+    Flattening them into one namespace produced `Offset(prior = orders …,
+    prior = revenue …)` — a plan naming one alias twice, which a target cannot
+    lower because the `Compute` expressions above reference `prior` and there
+    is no longer one answer to which. The read carries its owning metric for
+    that reason.
+    """
+
+    def yearly(name: str, measure: str) -> MetricIR:
+        return MetricIR(
+            name=name,
+            grain="sale",
+            additivity=Additivity.NON_ADDITIVE,
+            agg=None,
+            expr=None,
+            ratio=None,
+            semi_additive=None,
+            derived=DerivedIR(
+                expr=SqlExpr("current - prior"),
+                inputs=(
+                    MetricInputIR(alias="current", metric=measure),
+                    MetricInputIR(
+                        alias="prior",
+                        metric=measure,
+                        offset_window=TimeWindow(count=1, grain="year"),
+                    ),
+                ),
+            ),
+        )
+
+    metrics = {m.name: m for m in (yearly("revenue_yoy", "revenue"), yearly("orders_yoy", "orders"))}
+    reads = _shifted_reads(("revenue_yoy", "orders_yoy"), metrics)
+
+    assert reads == (
+        ("orders_yoy", "prior", "orders", "1 year earlier"),
+        ("revenue_yoy", "prior", "revenue", "1 year earlier"),
+    )
+
+    # The pair that identifies a read is (metric, alias) — one alias alone does
+    # not, which is the whole finding.
+    assert len({(metric, alias) for metric, alias, _m, _s in reads}) == 2
+
+
+def test_both_offset_forms_reach_the_plan() -> None:
+    """`offset_window` and `offset_to_grain` are the two forms a derived input
+    may declare (RFC 0034 D2), and only the first was ever asserted.
+
+    A sabotage that ignored `offset_to_grain` left every suite green: the
+    metric still planned, because dropping the read simply produced no `Offset`
+    node, and the aggregate beneath still carried its proof. A plan silently
+    missing the shift is exactly the shape this node exists to prevent.
+    """
+
+    planner = make_planner()
+    query = planner.plan(
+        fixture_ir("period_over_period"),
+        MetricRequest(
+            metrics=("revenue_yoy", "revenue_vs_month_start"), dimensions=("day",)
+        ),
+        dialect="duckdb",
+    )
+
+    assert query.semantic is not None
+    (offset,) = [node for node in query.semantic.nodes if isinstance(node, Offset)]
+
+    assert offset.reads == (
+        ("revenue_vs_month_start", "month_start", "revenue", "at the start of its month"),
+        ("revenue_yoy", "prior", "revenue", "1 year earlier"),
+    )
+
+
+def test_an_offset_node_sorts_its_reads() -> None:
+    """Sorted like every other IR collection (RFC 0003), and asserted on the
+    node rather than trusted from its caller: `_shifted_reads` already sorts,
+    so the node's own ordering is only reachable — and only observable —
+    through a direct construction.
+    """
+
+    unsorted = Offset(
+        reads=(
+            ("revenue_yoy", "prior", "revenue", "1 year earlier"),
+            ("orders_yoy", "prior", "orders", "1 year earlier"),
+        ),
+        over="sold_day",
+    )
+
+    assert unsorted.reads == (
+        ("orders_yoy", "prior", "orders", "1 year earlier"),
+        ("revenue_yoy", "prior", "revenue", "1 year earlier"),
+    )
+
+
+def test_a_scoped_filter_carries_at_least_one_predicate() -> None:
+    """Naming the measures it narrows while narrowing nothing reads as a
+    restricted measure and is not one — a plan a target lowers into the same
+    answer while saying it did something else."""
+
+    with pytest.raises(ValueError, match="restricts nothing while naming"):
+        Filter(predicates=(), measures=("paid_revenue",))
+
+
+def test_a_non_additive_metric_without_a_decomposition_is_not_statable() -> None:
+    """The second condition `_measures_are_embedded` still checks, and the one
+    its docstring claims is reachable only where the guardrail stage already
+    refused — asserted rather than assumed, because `guaranteed` at the call
+    site rests on it.
+
+    A sabotage widening `_STATABLE` to every class left the suite green: no
+    fixture carries such a metric on a mart, which is consistent with the claim
+    and is not evidence for it.
+    """
+
+    ir = fixture_ir("period_over_period")
+    metrics = {metric.name: metric for metric in ir.metrics}
+    (mart,) = [m for m in ir.marts if "revenue" in m.measures]
+
+    opaque = dataclasses.replace(
+        metrics["revenue"],
+        name="revenue",
+        additivity=Additivity.NON_ADDITIVE,
+        ratio=None,
+        derived=None,
+    )
+
+    assert _measures_are_embedded(MetricRequest(metrics=("revenue",)), mart, metrics)
+    assert not _measures_are_embedded(
+        MetricRequest(metrics=("revenue",)), mart, {**metrics, "revenue": opaque}
+    )
+
+
+@pytest.mark.parametrize(
+    ("node", "expected"),
+    [
+        (
+            Filter(predicates=("status = 'paid'",), measures=("revenue", "orders")),
+            ("orders", "revenue"),
+        ),
+        (
+            Reduce(
+                output_grain="order", over="as_of_day", rule="last", measures=("b", "a")
+            ),
+            ("a", "b"),
+        ),
+        (
+            Window(
+                measures=("b", "a"),
+                over="sold_day",
+                frame="trailing 7 days",
+                period_agg="last",
+            ),
+            ("a", "b"),
+        ),
+    ],
+)  # fmt: skip
+def test_every_node_sorts_the_measures_it_names(node: object, expected: tuple[str, ...]) -> None:
+    """Sorted like every other IR collection (RFC 0003).
+
+    Each of these canonicalizes in `__post_init__` and none was covered: the
+    builders happen to hand them sorted input, so the lines only run through a
+    direct construction — which is how a library caller reaches them, and how a
+    plan's bytes would otherwise depend on a dict's iteration order.
+    """
+
+    assert node.measures == expected  # type: ignore[attr-defined]
+
+
+def test_a_reduce_with_no_measures_is_refused() -> None:
+    """Decided rather than inherited, and tested for the same reason the
+    `Compute` and `Window` cases are: `check` reports a node reducing nothing
+    as authorized, which is the shape of a proof resting on no facts."""
+
+    with pytest.raises(ValueError, match="reduces nothing"):
+        Reduce(output_grain="order", over="as_of_day", rule="last", measures=())
+
+
+def test_an_offset_with_no_reads_is_refused() -> None:
+    with pytest.raises(ValueError, match="shifts nothing"):
+        Offset(reads=(), over="sold_day")
+
+
+def test_a_windows_axis_is_a_date_role_not_the_first_dimension() -> None:
+    """`ResolvedDimension.role` is set for a date-role bucket and `None` for a
+    categorical one, and a request may list them in any order.
+
+    Taking `dimensions[0]` recorded `status` as the ordering of a seven-day
+    window whenever a caller asked for the category first — an axis nothing
+    accumulates along, on a node whose whole job is to say what it accumulates
+    along.
+    """
+
+    planner = make_planner()
+    ir = fixture_ir("period_over_period")
+
+    for dimensions in (("status", "day"), ("day", "status")):
+        query = planner.plan(
+            ir, MetricRequest(metrics=("revenue_trailing_7d",), dimensions=dimensions), dialect="duckdb"
+        )
+        assert query.semantic is not None
+        (window,) = [n for n in query.semantic.nodes if isinstance(n, Window)]
+        assert window.over == "sold_day", f"asked for {dimensions}"
+
+
+def test_a_metric_with_two_shifted_inputs_keeps_both_facts() -> None:
+    """`Proof` keeps one fact per `source`, so sourcing every read of one
+    metric at `metric:{name}` collapsed them — and R017's proof then omitted a
+    shifted read while still closing.
+
+    The source is the read, not the metric.
+    """
+
+    reads = (
+        ("revenue_swing", "prior", "revenue", "1 year earlier"),
+        ("revenue_swing", "month_start", "revenue", "at the start of its month"),
+    )
+    proof = _read_at_a_shifted_range(reads, "sold_day")
+
+    assert len(proof.facts) == 2
+    assert {fact.source for fact in proof.facts} == {
+        "metric:revenue_swing.prior",
+        "metric:revenue_swing.month_start",
+    }
+
+
+def test_a_cumulative_metric_the_mart_stores_is_named_once() -> None:
+    """The request's own metrics and the aggregate's measures overlap wherever
+    a cumulative metric is itself stored, and neither the group nor `Window`
+    deduplicates — so the node named it twice and `render()` and `serialize()`
+    said so."""
+
+    metrics = {metric.name: metric for metric in fixture_ir("period_over_period").metrics}
+
+    assert _cumulative(("revenue_trailing_7d", "revenue_trailing_7d"), metrics) == (
+        ("trailing 7 days", "last", ("revenue_trailing_7d",)),
+    )
+
+
+def test_a_request_filter_matching_a_metric_filter_stays_shared() -> None:
+    """A request filter and a metric's own filter can render to the same text.
+
+    The shared node was built by subtracting the per-metric predicates from the
+    flat list, so an identical request filter was removed from it — leaving a
+    plan saying `paid_revenue` alone was narrowed while the SQL narrowed every
+    measure. Built from two sources now rather than by subtraction.
+    """
+
+    planner = make_planner()
+    query = planner.plan(
+        fixture_ir("period_over_period"),
+        MetricRequest(
+            metrics=("revenue", "paid_revenue"),
+            dimensions=("day",),
+            filters=(Predicate(dimension="status", op=Op.EQ, values=("paid",)),),
+        ),
+        dialect="duckdb",
+    )
+
+    assert query.semantic is not None
+    assert _filters(query) == ("status = 'paid'",)
+    assert _scoped(query) == {("paid_revenue",): ("status = 'paid'",)}
+
+
+def test_resolving_leaves_answers_the_three_ways_it_can_fail() -> None:
+    """`_leaves` walks a decomposition, and three of its exits only run on
+    input the pipeline refuses before it gets here — so they are executed
+    deliberately rather than called dead.
+
+    * a **cycle**: `resolve` raises `CircularDerivation`, so the DAG that
+      reaches a planner is acyclic. The guard bounds the walk anyway, for the
+      reason coverage's does — a planner that hangs is worse than one that is
+      wrong;
+    * an **unknown** name: coverage refuses a metric no mart carries first;
+    * a nested metric that **decomposes into nothing statable**: the additivity
+      guardrail refuses a non-additive metric with no decomposition.
+    """
+
+    def stored(name: str) -> MetricIR:
+        return MetricIR(
+            name=name,
+            grain="sale",
+            additivity=Additivity.ADDITIVE,
+            agg="sum",
+            expr=SqlExpr("amount"),
+            ratio=None,
+            semi_additive=None,
+        )
+
+    def over(name: str, inner: str) -> MetricIR:
+        return dataclasses.replace(
+            stored(name),
+            additivity=Additivity.NON_ADDITIVE,
+            agg=None,
+            expr=None,
+            derived=DerivedIR(
+                expr=SqlExpr("x + 1"), inputs=(MetricInputIR(alias="x", metric=inner),)
+            ),
+        )
+
+    # A cycle: the walk stops rather than recurring forever.
+    loop = {m.name: m for m in (over("a", "b"), over("b", "a"))}
+    assert _leaves("a", loop) == ()
+
+    # An unknown name, reached through a decomposition and asked for directly.
+    assert _leaves("nope", {}) is None
+    assert _leaves("a", {m.name: m for m in (over("a", "gone"),)}) == ("gone",)
+
+    # A nested metric that decomposes into nothing statable.
+    opaque = dataclasses.replace(stored("opaque"), additivity=Additivity.NON_ADDITIVE, agg=None, expr=None)
+    nested = {m.name: m for m in (over("a", "mid"), over("mid", "opaque"), opaque)}
+    assert _leaves("a", nested) == ("opaque",)
+
+    # And the shape it exists for: two levels resolving to the stored measure.
+    good = {m.name: m for m in (over("a", "mid"), over("mid", "revenue"), stored("revenue"))}
+    assert _leaves("a", good) == ("revenue",)

@@ -28,7 +28,7 @@ from bloomery.planner.request import Op, Predicate, clause_predicates
 from bloomery.planner.result import BranchSource, Explanation, MeasureExplanation
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from metricflow.engine.metricflow_engine import MetricFlowExplainResult
 
@@ -333,19 +333,73 @@ def applied_predicates(
 
     restrictions = tuple(
         dict.fromkeys(
-            _human_predicate(
-                Predicate(
-                    dimension=clause.dimension, op=Op(clause.op), values=tuple(clause.values)
-                ),
-                clause.dimension,
-            )
+            predicate
             for name in request.metrics
-            if (metric := metrics_by_name.get(name)) is not None
-            for clause in metric.filter
+            for predicate in metric_restrictions(name, metrics_by_name)
         )
     )
 
     return (*policy_predicate, *explanation.filters, *restrictions)
+
+
+# ....................... #
+
+
+def shared_predicates(
+    explanation: Explanation,
+    coverage: Coverage,
+    *,
+    policy: RowPolicy | None,
+) -> tuple[str, ...]:
+    """The predicates that restrict **every** measure: the row policy, then the
+    request's own filters.
+
+    The complement of :func:`metric_restrictions`, and separate from
+    :func:`applied_predicates` rather than derived from it. Subtracting the
+    per-metric ones from the flat list looked equivalent and is not: a request
+    filter and a metric's own filter can render to the same text, and the
+    subtraction then removed a predicate that really does restrict everything —
+    leaving a plan saying one measure was narrowed while the SQL narrowed all
+    of them (RFC 0066 §5.5).
+    """
+
+    policy_predicate: tuple[str, ...] = ()
+
+    if policy is not None:
+        resolved = guaranteed(
+            (dimension for dimension in (coverage.policy_dimension,) if dimension is not None),
+            expected="the policy's dimension resolved against the covering mart",
+            by="`coverage.resolve_request`, which resolves it or refuses the request",
+        )
+        policy_predicate = (_human_clause(policy.as_clause(), (resolved,)),)
+
+    return (*policy_predicate, *explanation.filters)
+
+
+# ....................... #
+
+
+def metric_restrictions(name: str, metrics_by_name: Mapping[str, MetricIR]) -> tuple[str, ...]:
+    """One metric's own ``filter:`` as prose, in authored order.
+
+    Named separately because a metric's restriction narrows *that measure*, and
+    :func:`applied_predicates` flattens every metric's into one list — correct
+    for the query, which applies them all, and lossy for a plan, which has to
+    say which measure each one narrows (RFC 0066 §5.5).
+    """
+
+    metric = metrics_by_name.get(name)
+
+    if metric is None:
+        return ()
+
+    return tuple(
+        _human_predicate(
+            Predicate(dimension=clause.dimension, op=Op(clause.op), values=tuple(clause.values)),
+            clause.dimension,
+        )
+        for clause in metric.filter
+    )
 
 
 # ....................... #

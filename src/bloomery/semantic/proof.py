@@ -288,6 +288,42 @@ class Rule:
 #: aggregate, and citing it is what keeps P1 a re-expression rather than a new
 #: claim (RFC 0040 D5).
 #:
+#: R017 is the offset obligation (RFC 0066 §5.6). Its content is the second
+#: clause rather than the first: that a shifted read is the *same measure* is
+#: the declaration restating itself, and what needs proving is what happens
+#: where the shifted range has no rows. A missing prior period and a prior
+#: period that really summed to nothing are different answers, and only one of
+#: them is a defensible denominator — so the rule closes on `absent`, and a
+#: target that renders the shift as an inner join has silently chosen the
+#: other.
+#:
+#: R016 is the window obligation (RFC 0066 §5.4), and it is the one rule here
+#: whose conclusion is *terminal*: a cumulative metric's result may not be
+#: rolled further, because a trailing 7-day total summed across weeks counts
+#: each day up to seven times. It authorizes the accumulation and forbids what
+#: comes after, which is why the frame is recorded on the node rather than left
+#: to the metric definition — a later transformation needs something to refuse
+#: against.
+#:
+#: R015 is the semi-additive obligation (RFC 0066 §5.3). It authorizes exactly
+#: one thing and is worth reading for what it does *not* say: a measure declared
+#: `semi_additive` with `over: d` may be reduced along `d` by the declared rule,
+#: and the result aggregated across dimensions other than `d`. Aggregating along
+#: `d` itself stays refused — that is the whole content of the declaration, and
+#: a rule that granted it would make `semi_additive` mean `additive`.
+#:
+#: R014 is the ordering obligation on a computed metric (RFC 0066 §5.2). It
+#: reaches the same conclusion R012 does and could not borrow its premise: R012
+#: asks whether each operand may be rolled between *entity* grains, and a metric
+#: computed over one mart rolls nothing — its inputs are aggregated inside the
+#: mart and the expression is evaluated over the result, so `prove_ratio_
+#: reconstruction`'s `GrainRef` source and target have nothing to name. This is
+#: R013's shape one level up: where the natural rule cannot state the target,
+#: because a mart's columns are not entity key columns, the obligation premises
+#: on R008 instead (logs/T-0037.md). What is left to prove is the *ordering* —
+#: that evaluating the expression after the aggregate is the declared number
+#: rather than a row-level one aggregated afterwards.
+#:
 #: R013 is the rollup mart's obligation (RFC 0058 §5.2, D12). It stands beside
 #: R011 rather than under it: R011 asks whether an additive measure may be
 #: summed across a rollup *its grain proof permits*, and a rollup mart has no
@@ -317,6 +353,22 @@ RULES: Final[dict[str, Rule]] = {
         Rule(
             "R013",
             "a mart's measure is re-aggregable over the dimensions a rollup of it drops",
+        ),
+        Rule(
+            "R014",
+            "a metric with no measure of its own is computed after its inputs are aggregated",
+        ),
+        Rule(
+            "R015",
+            "a semi-additive measure is reduced along its own dimension by the declared rule",
+        ),
+        Rule(
+            "R016",
+            "a cumulative metric accumulates over its declared frame and is not rolled further",
+        ),
+        Rule(
+            "R017",
+            "a declared offset reads the same measure at a shifted range, absent where it has no rows",
         ),
     )
 }

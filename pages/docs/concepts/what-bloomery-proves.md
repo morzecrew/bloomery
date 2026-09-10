@@ -72,18 +72,24 @@ set of accepted requests only ever grows deliberately.
 The practical consequence is that a refusal can mean "this is unsafe" *or* "no rule covers
 this yet", and both come out as a refusal rather than a guess.
 
-!!! note "Where the proof obligation has reached, and where it has not"
+!!! quote "The planner claim"
 
-    This is a direction of travel with real ground already taken, not a finished state,
-    and the difference is worth knowing. Some acceptances are backed by a positive
-    derivation — a rollup's re-aggregability, a ratio rebuilt from its operands, a
-    cross-grain request aggregated before it is joined. Others are backed by a documented
-    check that found nothing wrong, which is a weaker thing: it rules out the failures
-    somebody thought of.
+    If bloomery returns a semantic query plan, every multiplicity-changing operation in
+    that plan is justified by declared or mechanically derived semantic facts and a
+    documented inference rule. If bloomery cannot construct that derivation, it refuses
+    the request.
 
-    Both refuse rather than guess, so neither answers you wrongly in silence. But only the
-    first can say *why* it is safe, and converting the second into the first, one rule at
-    a time, is ongoing work.
+This is stronger and more testable than "correct analytics", and it was **false until
+recently** — which is why it is worth knowing what changed. Every request the planner
+answers now carries a derivation. Four request shapes used to be answered without one: a
+metric computed from others, a semi-additive measure, a cumulative one, and two metrics
+restricted differently. They were answered *correctly* — the number was never the problem
+— but nothing could say why, and while that was so the claim above could not honestly be
+made about the whole system.
+
+What it does not claim is that the SQL is generated from the plan. bloomery decides what
+to compute and states it; the query is still produced alongside. The derivation is
+evidence about the answer, not the machinery that produces it.
 
 ## Targets are not the proof
 

@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Every request the planner answers carries its derivation.** `QueryPlan.semantic`
+  is no longer optional: four request shapes used to come back with no plan at
+  all — a metric computed from others, a semi-additive measure, a cumulative
+  one, and two metrics restricted differently — plus a fifth, a `derived:` input
+  read at an offset. They were answered *correctly*; nothing could say why.
+
+  Five node kinds close that: `Compute` states arithmetic above an aggregate,
+  `Reduce` collapses a semi-additive measure's own dimension, `Window` carries
+  a cumulative frame and its `period_agg`, `Offset` states a declared shift, and
+  `Filter` now names the measures it narrows. Four new proof rules authorize
+  them (R014–R017).
+
+  ```text
+  Scan(sales @ sale)
+    -> Filter(none)
+      -> Aggregate(revenue : sale -> sale by sold_day)
+        -> Offset(revenue_yoy.prior = revenue 1 year earlier over sold_day)
+          -> Compute(revenue_yoy = current - prior where current = revenue, prior = revenue)
+            -> Project(sold_day, revenue_yoy)
+  ```
+
+  `plan.semantic.render()` prints it; `.proofs` walks the rules; `.serialize()`
+  gives canonical JSON. It is evidence about the answer, not the machinery that
+  produced it — the SQL is still built alongside rather than lowered from the
+  plan.
+
+  With it, the planner claim the docs were holding back is published: *if
+  bloomery returns a semantic query plan, every multiplicity-changing operation
+  in it is justified by a documented inference rule, and a request whose
+  derivation it cannot construct is refused.*
+
 - **The correctness claim, stated precisely.** A new concepts page, *What bloomery
   proves*, and a paragraph in the README saying the same thing in one line:
 
