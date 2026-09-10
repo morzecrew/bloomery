@@ -67,6 +67,7 @@ __all__ = [
     "FalseAdditivityClaim",
     "MartMissingTimeDimension",
     "DanglingExposure",
+    "InsufficientEvidence",
     "ReservedEntityName",
     "QuarantineRetentionMissing",
     "DedupeTieBreakMissing",
@@ -534,6 +535,24 @@ class DanglingExposure(GuardrailError):
     dependency resolves to nothing answers *nobody* — it does not fail, it
     reports clean, which is the failure mode this feature was added to remove.
     A dropped dependency would do the same thing more quietly.
+    """
+
+
+class InsufficientEvidence(GuardrailError):
+    """Guardrail stage (RFC 0065 D4, `LOCKED`): a consumer declaring
+    ``requires_evidence: locked`` reads a measure resting on a fact nobody
+    wrote down.
+
+    Strictly above RFC 0039's floor (D2): every fact named here already
+    *closes* its obligation, so the project is sound and would compile without
+    the annotation. What the consumer asked is a different question — whether a
+    human here wrote the premise, rather than whether the compiler reached it
+    soundly — and this is the only place the two answers are allowed to differ.
+
+    The message names four things, because a refusal that only says
+    "insufficient evidence" is one a team works around by deleting the
+    requirement: the consumer, the measure, the fact, and how the fact was
+    obtained.
     """
 
 

@@ -686,12 +686,28 @@ BASIS_RULES: Final[dict[str, str]] = {
     "transitive": "R005",
 }
 
-#: What a dependency of each basis *rests on*. An entity key and a transitive
-#: composition are `DERIVED` — nobody wrote them down, they follow from what
-#: was written. A relationship and an as-of anchor are `DECLARED`, because an
-#: author put them in a spec and owns them.
+#: What a dependency of each basis *rests on*. A relationship and an as-of
+#: anchor are `DECLARED`, because an author put them in a spec and owns them.
+#:
+#: **So is an entity key**, and that is the placement worth arguing about.
+#: :class:`Provenance` draws two lines through these members and they are not
+#: the same line: :attr:`~Provenance.closes` asks whether a fact is *sound*,
+#: and :attr:`~Provenance.grade` asks whether a human *here* wrote it down. An
+#: entity's key determining its own columns is reached mechanically, which is
+#: what `DERIVED` means to the first question — and it is entailed by a key the
+#: author declared, which is what `DECLARED` means to the second. It was
+#: `DERIVED` until RFC 0065 P2 needed the second answer, and the deciding
+#: argument is that there is nothing an author could write *instead* of a
+#: declared key: a consumer requirement that refused it would be a refusal with
+#: no remedy, which is the one thing RFC 0065 D4 forbids (logs/T-0040.md).
+#:
+#: ``transitive`` stays `DERIVED` and is never minted — composition is carried
+#: as several :attr:`Derivation.steps`, each with its own basis, so no step
+#: ever claims it. The row is kept because the member is public vocabulary
+#: (RFC 0037 D3) and a table missing one would `KeyError` at whichever fact
+#: first carried it.
 BASIS_PROVENANCE: Final[dict[str, Provenance]] = {
-    "entity_key": Provenance.DERIVED,
+    "entity_key": Provenance.DECLARED,
     "many_to_one": Provenance.DECLARED,
     "one_to_one": Provenance.DECLARED,
     "as_of": Provenance.DECLARED,

@@ -94,6 +94,15 @@
           },
           "title": "Partition By",
           "type": "array"
+        },
+        "requires_evidence": {
+          "default": "assumed",
+          "enum": [
+            "locked",
+            "assumed"
+          ],
+          "title": "Requires Evidence",
+          "type": "string"
         }
       },
       "required": [

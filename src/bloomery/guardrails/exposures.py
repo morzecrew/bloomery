@@ -84,11 +84,16 @@ def check_exposure_targets(project: Project) -> list[GuardrailError]:
     if project.exposures is None:
         return []
 
+    # The empty branches are spelled `frozenset[str]()`: a bare `frozenset()`
+    # infers `frozenset[Unknown]`, which unions with the populated branch and
+    # makes every downstream use of these three partially unknown.
     metrics = (
-        frozenset(project.metric_set.metrics) if project.metric_set is not None else frozenset()
+        frozenset(project.metric_set.metrics)
+        if project.metric_set is not None
+        else frozenset[str]()
     )
-    marts = frozenset(project.marts.marts) if project.marts is not None else frozenset()
-    rollups = frozenset(project.marts.rollups) if project.marts is not None else frozenset()
+    marts = frozenset(project.marts.marts) if project.marts is not None else frozenset[str]()
+    rollups = frozenset(project.marts.rollups) if project.marts is not None else frozenset[str]()
 
     errors: list[GuardrailError] = []
 

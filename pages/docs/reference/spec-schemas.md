@@ -571,6 +571,7 @@ At most one per project; a project without marts compiles silver only.
 | `partition_by` | list of partition specs | no (`[]`) | Physical partitioning |
 | `materialization` | as Entity | no | Materialization override |
 | `cost_hint` | int ≥ 1 | no (`1`) | Tie-breaker when several marts can serve a metric — cheapest wins |
+| `requires_evidence` | `locked` / `assumed` | no (`assumed`) | The weakest premise this mart accepts under its measures. `assumed` accepts every grade a compiling project produces, so omitting the key is byte-identical to writing it; there is no `open` |
 
 ### Rollup
 

@@ -16,7 +16,13 @@ this docstring promising.
 """
 
 from bloomery.semantic.additivity import prove_additive_rollup, prove_ratio_reconstruction
-from bloomery.semantic.closure import can_roll_up, closure, dependencies, prove_rollup
+from bloomery.semantic.closure import (
+    MAX_DERIVATIONS,
+    can_roll_up,
+    closure,
+    dependencies,
+    prove_rollup,
+)
 from bloomery.semantic.denomination import Conversion, DenominationRefusal, prove_conversion
 from bloomery.semantic.historical import AsOfState, qualify_as_of
 from bloomery.semantic.nodes import (
@@ -81,6 +87,7 @@ __all__ = [
     "Compute",
     "Window",
     "BASIS_PROVENANCE",
+    "MAX_DERIVATIONS",
     "BASIS_RULES",
     "prove_rollup",
     "prove_conversion",

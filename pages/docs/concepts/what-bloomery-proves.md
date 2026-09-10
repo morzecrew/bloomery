@@ -128,6 +128,81 @@ and orchestration: it runs no SQL, schedules nothing, reads no warehouse. This o
 about evidence: things bloomery runs no check for, and will not be able to, because the
 facts they need never arrive in a spec.
 
+## How a fact was obtained, and asking for better
+
+Every fact under a proof carries where it came from, and `bloomery explain` prints the
+grade beside it:
+
+```console
+$ bloomery explain specs/ --metrics line_discount,shipping_count
+Evidence (2 locked, 2 assumed)
+  ASSUMED branch:order_items
+          order_items is aggregated to the requested grain before the join, so it holds
+          one row per key
+  ASSUMED branch:orders
+          orders is aggregated to the requested grain before the join, so it holds one
+          row per key
+  LOCKED  mart:order_items.line_discount
+          line_discount is a measure of order_items, whose grain is order_item
+  LOCKED  mart:orders.shipping_count
+          shipping_count is a measure of orders, whose grain is order
+```
+
+Three grades, and they answer one question — **did a human here write this down?**
+
+| Grade | Means |
+| --- | --- |
+| `LOCKED` | Somebody declared it in a spec, or it follows necessarily from something they did. |
+| `ASSUMED` | The compiler obtained it soundly on its own — a proof rule, a propagation, an exact read of an external artifact. |
+| `OPEN` | Closes nothing. A project resting on one does not compile at all, so you will not be handed one. |
+
+`ASSUMED` is **not** a criticism. A derived fact is sound; the grade records where it came
+from, not whether it is right. Treating it as doubt pushes you to declare things you have
+not thought about, and a `LOCKED` fact nobody considered is worse than the default it
+replaced.
+
+### Requiring the stronger kind
+
+A mart can say it will not rest on anything the compiler worked out for itself:
+
+```yaml
+marts:
+  statutory_revenue:
+    grain: order
+    base: order
+    measures: [net_revenue]
+    requires_evidence: locked    # declared premises only
+```
+
+The default is `assumed`, which is what every project does today — leaving the key out is
+byte-for-byte the same as writing it. There is no `open`: that would mean "accept
+anything", which is the absence of the annotation rather than a third setting.
+
+When a premise is weaker than the mart asked for, the refusal names the consumer, the
+measure, the fact, and how the compiler got it:
+
+```
+mart 'statutory_revenue' requires 'locked'; measure 'net_revenue' rests on column
+'customer_tier', whose derivation is derived — the compiler reached it by 'transitive'
+rather than from anything an author wrote (RFC 0065 §5.1). Fix: declare the relationship
+that carries 'customer_tier', or set 'requires_evidence: assumed' on this mart
+```
+
+**Use it on few marts.** A finance mart feeding a statutory report is the case it exists
+for: someone signs that number, and "the compiler worked it out" is not an answer they can
+give a regulator. An exploration mart is the counter-example — it wants whatever compiles,
+and annotating it strictly buys a wall of declarations whose cheapest fix is deleting the
+requirement, which loses the guarantee everywhere at once.
+
+Two notes worth having before you adopt it:
+
+- **This sits above the proof floor and never below it.** Every fact a strict mart refuses
+  is one that already closed its obligation — the project is sound and would compile
+  without the annotation. You are asking a different question, not a harder version of the
+  same one.
+- **`LOCKED` here and `LOCKED` on an RFC decision are analogous, not the same.** One grades
+  a design decision, the other grades a fact about your project.
+
 ## Reading a correctness claim
 
 Any sentence in this documentation asserting that bloomery is correct about something

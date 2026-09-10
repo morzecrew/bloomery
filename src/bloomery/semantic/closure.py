@@ -70,8 +70,14 @@ __all__ = [
 #: distinguish; enumerating every route is a proof-tree question and belongs
 #: to RFC 0039.
 #:
+#: **Public because a consumer has to reason about the truncation**, not only
+#: about the routes that survive it. A member holding this many derivations may
+#: have had more, and one of the dropped ones may have been the strongest —
+#: :func:`bloomery.guardrails.evidence.weak_bases` abstains at the cap for
+#: exactly that reason (#102).
+#:
 # ponytail: capped alternatives, lift when a consumer needs to enumerate routes
-_MAX_DERIVATIONS = 2
+MAX_DERIVATIONS = 2
 
 
 def _entity_grain(entity: EntityIR) -> GrainRef | None:
@@ -326,7 +332,7 @@ def _merge(existing: tuple[Derivation, ...], candidate: Derivation) -> tuple[Der
 
     merged = sorted([*existing, candidate], key=lambda d: d.signature)
 
-    return tuple(merged[:_MAX_DERIVATIONS])
+    return tuple(merged[:MAX_DERIVATIONS])
 
 
 # ....................... #
@@ -373,7 +379,7 @@ def closure(grain: GrainRef, deps: DependencySet) -> tuple[Determined, ...]:
 
             # One candidate from each determinant's first route, plus a second
             # taken from the first determinant that has one. Bounded by
-            # `_MAX_DERIVATIONS` at the member, so this terminates.
+            # `MAX_DERIVATIONS` at the member, so this terminates.
             primary = tuple(part[0] for part in parts if part is not None)
             candidates = [_compose(primary, dep)]
             for index, part in enumerate(parts):

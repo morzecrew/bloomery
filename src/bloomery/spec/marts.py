@@ -174,6 +174,18 @@ class Mart(SpecModel):
     base: str
     flatten: tuple[FlattenStep, ...] = ()
     measures: tuple[str, ...] = ()
+    #: The weakest evidence this consumer accepts under its measures
+    #: (RFC 0065 §5.2). ``assumed`` is the default and is what every project
+    #: does today, so absence is byte-identical to not having the key (D3).
+    #:
+    #: There is no ``open``: it would mean "accept anything", which is the
+    #: absence of the annotation rather than a third setting.
+    #:
+    #: A plain literal rather than :class:`~bloomery.semantic.EvidenceGrade`,
+    #: because the spec layer sits below ``semantic`` in the import contract.
+    #: The guardrail maps the string; the two are pinned equal by a test, the
+    #: way every other spelled-out vocabulary in this package is.
+    requires_evidence: Literal["locked", "assumed"] = "assumed"
     partition_by: tuple[PartitionSpecString, ...] = ()
     materialization: MaterializationName | None = None
     assert_: tuple[MartAssert, ...] = Field(default=(), alias="assert")

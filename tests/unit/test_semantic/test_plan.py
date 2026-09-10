@@ -26,6 +26,7 @@ from bloomery.ir import (
     TimeWindow,
 )
 from bloomery import MetricRequest
+from bloomery.planner.explain import metric_restrictions
 from bloomery.planner.policy import RowPolicy
 from bloomery.planner.request import Op, Predicate
 from bloomery.semantic import (
@@ -51,7 +52,6 @@ from bloomery.planner.semantic_plan import (
     _leaves,
     _measures_are_embedded,
     _read_at_a_shifted_range,
-    _restriction,
     _semi_additive,
     _shifted_reads,
 )
@@ -212,11 +212,14 @@ def test_a_literal_of_another_type_is_another_restriction() -> None:
     ir = fixture_ir("period_over_period")
     left, right = _restricted(ir, "left", (1,)), _restricted(ir, "right", ("1",))
 
-    # `_measures_are_embedded` no longer decides this — both are statable, each on its own
-    # scoped `Filter` (RFC 0066 §5.5). What the comparison still decides is
-    # whether they are *one* restriction, and they are not.
+    # `_measures_are_embedded` no longer decides this — both are statable, each
+    # on its own scoped `Filter` (RFC 0066 §5.5). What still decides whether
+    # they are *one* restriction is the rendered predicate the node carries,
+    # and it keeps them apart: a helper comparing admitted rows used to answer
+    # this and was deleted with its last caller.
     assert _plannable_pair(ir, left, right)
-    assert _restriction(left) != _restriction(right)
+    by_name = {metric.name: metric for metric in (left, right)}
+    assert metric_restrictions("left", by_name) != metric_restrictions("right", by_name)
 
 
 def test_a_measureless_request_still_projects_its_dimensions() -> None:
