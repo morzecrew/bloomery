@@ -530,7 +530,8 @@ def test_r005_is_registered_and_named_by_no_basis() -> None:
     and could never be minted, which is why it left.
 
     Without this, a reader diffing `RULES` against `BASIS_RULES` finds R005 in
-    one and not the other and deletes it as stale — and `_reaches` builds it.
+    one and not the other and deletes it as stale — and `_determined_proof`
+    builds it.
     """
 
     assert "R005" in RULES

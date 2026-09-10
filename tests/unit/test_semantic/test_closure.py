@@ -18,6 +18,7 @@ from bloomery import semantic
 from bloomery.errors import InvariantViolated
 from bloomery.ir import Cardinality, ProjectIR, SCDKind
 from bloomery.semantic import (
+    BASIS_RULES,
     AsOfState,
     ColumnRef,
     DependencyBasis,
@@ -664,3 +665,76 @@ def test_the_mart_took_the_as_of_fact_and_nothing_else() -> None:
     borrowed = {name for name in dir(flatten) if name in set(semantic.__all__)}
 
     assert borrowed == {"AsOfState", "qualify_as_of"}
+
+
+# ....................... #
+# Composition is a shape, not a basis (RFC 0037 D20)
+
+
+def test_a_composed_derivation_is_proved_by_r005() -> None:
+    """The claim D20 rests on, asserted against the compiler rather than read.
+
+    `TRANSITIVE` left `DependencyBasis` because nothing minted it: a
+    composition is recognised by a derivation carrying more than one step, and
+    the rule that names it is R005. Nothing checked that `_determined_proof`
+    actually returns R005 there — swapping it for R007 killed no test — so the
+    argument for the removal was resting on a read.
+
+    `coverage_check` reaches `customer.name` from the `order` grain in two
+    hops, `many_to_one` then `entity_key`, which is the shape this covers.
+    """
+    from bloomery.semantic.closure import (  # noqa: PLC0415
+        _determined_proof,  # pyright: ignore[reportPrivateUsage]
+    )
+    from support.planning import fixture_ir  # noqa: PLC0415
+
+    ir = fixture_ir("coverage_check")
+    order = next(e for e in ir.entities if e.name == "order")
+    reached = {
+        member.ref: member
+        for member in closure(grain_of(order.name, order.key), dependencies(ir))
+    }
+    composed = next(
+        member
+        for member in reached.values()
+        if any(len(derivation.steps) > 1 for derivation in member.derivations)
+    )
+
+    proof = _determined_proof(composed)
+    steps = composed.derivations[0].steps
+
+    assert len(steps) > 1, "the fixture stopped composing — this test proves nothing"
+    assert proof.rule == "R005"
+    # One premise per hop, each named by its own basis. A composition that
+    # flattened its hops would still be R005 and would have lost the argument.
+    #
+    # Compared as a sorted multiset rather than in step order: `Proof` sorts
+    # its premises on `sort_key` at construction (D6, `LOCKED`), so the tuple
+    # is canonical and not chronological. Asserting the sequence would be
+    # asserting the sort.
+    assert len(proof.premises) == len(steps)
+    assert sorted(premise.rule for premise in proof.premises) == sorted(
+        BASIS_RULES[step.basis.value] for step in steps
+    )
+    # And no step claims to *be* the composition.
+    assert "transitive" not in {step.basis.value for step in steps}
+
+
+def test_a_single_hop_is_not_wrapped_in_a_composition() -> None:
+    """The other half: wrapping one hop would repeat its own rule a line higher
+    and claim a composition that composed nothing."""
+    from bloomery.semantic.closure import (  # noqa: PLC0415
+        _determined_proof,  # pyright: ignore[reportPrivateUsage]
+    )
+    from support.planning import fixture_ir  # noqa: PLC0415
+
+    ir = fixture_ir("coverage_check")
+    order = next(e for e in ir.entities if e.name == "order")
+    members = closure(grain_of(order.name, order.key), dependencies(ir))
+    single = next(m for m in members if len(m.derivations[0].steps) == 1)
+
+    proof = _determined_proof(single)
+
+    assert proof.rule == BASIS_RULES[single.derivations[0].steps[0].basis.value]
+    assert proof.rule != "R005"
+
