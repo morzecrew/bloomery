@@ -1441,3 +1441,53 @@ def test_a_non_additive_metric_without_a_decomposition_is_not_statable() -> None
     assert not _measures_are_embedded(
         MetricRequest(metrics=("revenue",)), mart, {**metrics, "revenue": opaque}
     )
+
+
+@pytest.mark.parametrize(
+    ("node", "expected"),
+    [
+        (
+            Filter(predicates=("status = 'paid'",), measures=("revenue", "orders")),
+            ("orders", "revenue"),
+        ),
+        (
+            Reduce(
+                output_grain="order", over="as_of_day", rule="last", measures=("b", "a")
+            ),
+            ("a", "b"),
+        ),
+        (
+            Window(
+                measures=("b", "a"),
+                over="sold_day",
+                frame="trailing 7 days",
+                period_agg="last",
+            ),
+            ("a", "b"),
+        ),
+    ],
+)  # fmt: skip
+def test_every_node_sorts_the_measures_it_names(node: object, expected: tuple[str, ...]) -> None:
+    """Sorted like every other IR collection (RFC 0003).
+
+    Each of these canonicalizes in `__post_init__` and none was covered: the
+    builders happen to hand them sorted input, so the lines only run through a
+    direct construction — which is how a library caller reaches them, and how a
+    plan's bytes would otherwise depend on a dict's iteration order.
+    """
+
+    assert node.measures == expected  # type: ignore[attr-defined]
+
+
+def test_a_reduce_with_no_measures_is_refused() -> None:
+    """Decided rather than inherited, and tested for the same reason the
+    `Compute` and `Window` cases are: `check` reports a node reducing nothing
+    as authorized, which is the shape of a proof resting on no facts."""
+
+    with pytest.raises(ValueError, match="reduces nothing"):
+        Reduce(output_grain="order", over="as_of_day", rule="last", measures=())
+
+
+def test_an_offset_with_no_reads_is_refused() -> None:
+    with pytest.raises(ValueError, match="shifts nothing"):
+        Offset(reads=(), over="sold_day")

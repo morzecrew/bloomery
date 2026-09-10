@@ -736,3 +736,32 @@ def test_each_branch_plan_names_the_column_that_branch_restricts() -> None:
     # which is the whole reason the plan may not speak one spelling for both.
     assert "order_item__order_region = 'EU'" in plan.sql
     assert "order__region = 'EU'" in plan.sql
+
+
+def test_a_frame_needs_one_of_the_two_declared_forms() -> None:
+    """`CumulativeIR` carries exactly one of `window` / `grain_to_date`
+    (RFC 0034 D5), so this raise is unreachable through the spec layer — and
+    "unreachable" is a claim, not an excuse for leaving it unrun.
+
+    What it guards is worth the line: a node reading the wrong field would
+    render an empty frame, and a plan would claim an accumulation over nothing.
+    """
+
+    from bloomery.errors import PlannerError
+    from bloomery.ir import CumulativeIR
+    from bloomery.planner.semantic_plan import _frame
+
+    assert _frame(CumulativeIR(period_agg="last", grain_to_date="month")) == "month_to_date"
+
+    with pytest.raises(PlannerError, match="exactly one of window / grain_to_date"):
+        _frame(CumulativeIR(period_agg="last"))
+
+
+def test_a_restriction_for_an_unknown_metric_is_empty() -> None:
+    """`metric_restrictions` is a lookup, and a lookup that raised on a missing
+    key would turn a renderer into a second guardrail — the planner has already
+    refused an unknown metric by the time a plan is built."""
+
+    from bloomery.planner.explain import metric_restrictions
+
+    assert metric_restrictions("no_such_metric", {}) == ()
