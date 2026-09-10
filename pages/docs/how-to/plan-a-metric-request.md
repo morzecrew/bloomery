@@ -138,6 +138,7 @@ malformed `nulls`, `limit`, or `offset` value is `InvalidRequest`).
 | `warnings` | Non-fatal notices: a clamped `limit`, a `time_grain` with nothing to apply to |
 | `explanation` | Deterministic provenance — `explanation.render()` gives the human-readable block |
 | `fingerprint` | `sha256(sql)` — your result-cache key |
+| `semantic` | The derivation: what bloomery decided to compute, and the rule authorizing each step |
 
 The explanation is generated from the plan, never from a model — every number ships
 with how it was computed:
@@ -150,6 +151,29 @@ revenue
   filters:  country in ('FR', 'DE')
   policy:   not applied
 ```
+
+### Reading the derivation back
+
+`plan.semantic` is always there. It is a short pipeline of nodes, and
+`render()` prints it in execution order:
+
+```text
+Scan(sales @ sale)
+  -> Filter(none)
+    -> Aggregate(revenue : sale -> sale by sold_day)
+      -> Offset(revenue_yoy.prior = revenue 1 year earlier over sold_day)
+        -> Compute(revenue_yoy = current - prior where current = revenue, prior = revenue)
+          -> Project(sold_day, revenue_yoy)
+```
+
+Each node that makes a semantic claim carries a proof, and a plan whose claiming nodes do
+not is invalid rather than merely unexplained — so a plan you can read is one whose every
+claim closed. `plan.semantic.proofs` walks them, branches included, and
+`plan.semantic.serialize()` gives canonical JSON if you want to keep one.
+
+**It is not what produced the SQL.** bloomery decides what to compute and states it; the
+query is rendered alongside. Read the plan as evidence about the answer, not as the
+machinery that generated it.
 
 ## Refusals
 

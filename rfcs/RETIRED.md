@@ -84,10 +84,12 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0038 | Measure semantic types and additivity algebra | `efba2b6` |
 | 0040 | Safe rollup planner and SemanticPlan IR | `efba2b6` |
 | 0041 | Multi-grain aggregate-then-join planning | `654d93e` |
+| 0045 | Soundness positioning and the claims the docs may make | `9ad7ac2` |
 | 0051 | Loose ends inside shipped subsystems | `588e1e6` |
 | 0052 | dbt as a complete quality target | `588e1e6` |
 | 0054 | The SQLMesh project file | `588e1e6` |
 | 0058 | Rollup marts and pre-aggregations | `efba2b6` |
+| 0066 | Completing the semantic plan | `9ad7ac2` |
 
 ## Not in the table
 

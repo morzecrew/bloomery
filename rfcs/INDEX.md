@@ -84,7 +84,6 @@ know it has a companion recording where it turned out to be wrong.
 | [0042](0042-semantic-bug-corpus.md) | Production-style semantic bug corpus | 🚧 In progress | Cases where the SQL is valid, every cast succeeds and the number is wrong anyway — the opposite question to the dirty corpus. Startable immediately; the acceptance evidence for the rest. |
 | [0043](0043-semantic-capability-matrix.md) | Evidence-based semantic capability matrix | 📝 Draft | Comparing represented semantic properties across engines, one tested configuration at a time, with bloomery scored by the same standard including where it loses. |
 | [0044](0044-check-command-and-imported-provenance.md) | `bloomery check` and imported semantic provenance | 🚧 In progress | A CI command that resolves, type-checks and proves without emitting or executing, and the provenance rules deciding which imported facts may close a proof obligation. |
-| [0045](0045-soundness-positioning.md) | Soundness positioning and the claims the docs may make | 🚧 In progress | What bloomery may claim to prove — preservation of declared semantics, never truth — and the rule that the planner claim is not published before the capability exists. |
 | [0046](0046-validating-a-dialect-port.md) | Validating a dialect port against an engine we cannot run | 📝 Draft | The tier ladder for a hosted engine with no container: what an emulator proves, why the engine's own compile-only check is the oracle, and the naming and credential rules that keep the two apart. |
 | [0047](0047-snowflake-dialect.md) | Snowflake dialect port | 📝 Draft | Two credible local emulators and `EXPLAIN USING JSON` for authority; the risk is semantic, chiefly three timestamp types where bloomery has one zoneless UTC. |
 | [0048](0048-bigquery-dialect.md) | BigQuery dialect port | 📝 Draft | A dry run is a full parse, bind and type check that scans nothing — the cheapest authoritative layer of the four. `DATETIME` versus `TIMESTAMP` carries most of the risk. |
@@ -101,7 +100,6 @@ know it has a companion recording where it turned out to be wrong.
 | [0063](0063-as-of-compile.md) | As-of compile over spec history | 📝 Draft | Compiling a project as its specs stood at a past instant, so an artifact set can be reconstructed for a date and a number's movement traced to a definition. |
 | [0064](0064-definition-supersession.md) | Definition supersession and change attribution | 📝 Draft | An edge between two versions of one node carrying what changed in spec vocabulary, so "why did this number move" is answered above the level of a text diff. |
 | [0065](0065-consumer-evidence-strictness.md) | Consumer-declared evidence strictness | 🚧 In progress | A minimum evidence grade a mart or exposure requires of the facts beneath it, projected from RFC 0039's provenance and refused at compile time. |
-| [0066](0066-completing-the-semantic-plan.md) | Completing the semantic plan | 📝 Draft | Four request shapes are answered with no derivation, because the plan's nodes state no arithmetic, reduction or window; the nodes and rules that close them, so a plan stops being optional. |
 
 ## Status legend
 

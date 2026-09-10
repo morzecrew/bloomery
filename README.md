@@ -27,11 +27,16 @@ run, because it knows what the columns *mean* and not just what type they are.
 What that buys is one claim, stated precisely because both ways of getting it wrong are
 easy: **bloomery does not prove truth. It proves preservation of declared semantics.** It
 refuses to emit a representation it cannot show preserves the grain, unit, tax basis and
-additivity you declared, and it refuses a query it has no documented rule to answer
-safely. Whether the declarations are *right* about your business is a question it has no
-access to — [what bloomery
+additivity you declared, and it refuses a query whose derivation it cannot construct.
+Whether the declarations are *right* about your business is a question it has no access
+to — [what bloomery
 proves](https://morzecrew.github.io/bloomery/latest/concepts/what-bloomery-proves/) draws
 the whole boundary, including the six things it explicitly cannot establish.
+
+Every request the planner answers comes back with that derivation attached: a
+target-independent semantic plan naming what was computed and the rule authorizing each
+step. It is evidence about the answer rather than the machinery producing it — the SQL is
+built alongside, not from it.
 
 ## The number that looks right
 
