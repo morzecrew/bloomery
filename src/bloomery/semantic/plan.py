@@ -354,7 +354,9 @@ class Compute:
     # ....................... #
 
     def render(self) -> str:
-        computed = ", ".join(f"{name} = {expr}" for name, expr in self.outputs)
+        # Semicolons, not commas: each output carries its own alias list, and
+        # comma-joining two of them reads as one expression with four aliases.
+        computed = "; ".join(f"{name} = {expr}" for name, expr in self.outputs)
         return f"Compute({computed})"
 
 
@@ -550,9 +552,17 @@ class Offset:
     answers and only one of them is a defensible denominator.
     """
 
-    #: ``(alias, measure, shift)`` — the alias the expression references, the
-    #: measure it reads, and how far back, as prose. Sorted by alias.
-    reads: tuple[tuple[str, str, str], ...]
+    #: ``(metric, alias, measure, shift)`` — whose expression references the
+    #: alias, the alias itself, the measure it reads, and how far back, as
+    #: prose. Sorted.
+    #:
+    #: The metric is not decoration. An alias is scoped to the metric that
+    #: declares it (RFC 0034 D1), so two ``derived:`` metrics may both call
+    #: their offset input ``prior`` and mean different measures; flattening
+    #: them into one namespace produced a plan naming one alias twice, which no
+    #: target can lower because the expressions above reference ``prior`` and
+    #: there is no longer one answer to which.
+    reads: tuple[tuple[str, str, str, str], ...]
     #: The ordering the shift runs along.
     over: str
     proof: Proof | None = None
@@ -588,7 +598,9 @@ class Offset:
     def document(self) -> dict[str, object]:
         return {
             "node": "offset",
-            "reads": [[alias, measure, shift] for alias, measure, shift in self.reads],
+            "reads": [
+                [metric, alias, measure, shift] for metric, alias, measure, shift in self.reads
+            ],
             "over": self.over,
             "proof": self.proof.document() if self.proof is not None else None,
         }
@@ -596,7 +608,9 @@ class Offset:
     # ....................... #
 
     def render(self) -> str:
-        shifted = ", ".join(f"{alias} = {measure} {shift}" for alias, measure, shift in self.reads)
+        shifted = "; ".join(
+            f"{metric}.{alias} = {measure} {shift}" for metric, alias, measure, shift in self.reads
+        )
         return f"Offset({shifted} over {self.over})"
 
 

@@ -210,13 +210,19 @@ def _shift(item: MetricInputIR) -> str | None:
 
 def _shifted_reads(
     names: Sequence[str], metrics: Mapping[str, MetricIR]
-) -> tuple[tuple[str, str, str], ...]:
-    """Every ``(alias, measure, shift)`` the requested metrics read at an
-    offset, in alias order."""
+) -> tuple[tuple[str, str, str, str], ...]:
+    """Every ``(metric, alias, measure, shift)`` the requested metrics read at
+    an offset, sorted.
+
+    The metric is carried because an alias identifies a read only *within* the
+    metric that declared it (RFC 0034 D1) — two metrics may both call their
+    offset input ``prior`` and mean different measures, and a node keyed on the
+    alias alone would name one of them twice.
+    """
 
     return tuple(
         sorted(
-            (item.alias, item.metric, shift)
+            (name, item.alias, item.metric, shift)
             for name in names
             if (metric := metrics.get(name)) is not None and metric.derived is not None
             for item in metric.derived.inputs
@@ -228,7 +234,7 @@ def _shifted_reads(
 # ....................... #
 
 
-def _read_at_a_shifted_range(reads: Sequence[tuple[str, str, str]], over: str) -> Proof:
+def _read_at_a_shifted_range(reads: Sequence[tuple[str, str, str, str]], over: str) -> Proof:
     """R017: each of these reads a declared measure at a declared shift.
 
     The conclusion carries ``absent`` deliberately. That a shifted read is the
@@ -244,11 +250,11 @@ def _read_at_a_shifted_range(reads: Sequence[tuple[str, str, str]], over: str) -
         conclusion=SemanticJudgement("ReadAtShiftedRange", (("over", over), ("gaps", "absent"))),
         facts=tuple(
             SemanticFact(
-                source=f"metric:{measure}",
+                source=f"metric:{metric}",
                 provenance=Provenance.DECLARED,
-                statement=f"{alias} reads {measure} {shift}",
+                statement=f"{metric} reads {measure} as {alias}, {shift}",
             )
-            for alias, measure, shift in reads
+            for metric, alias, measure, shift in reads
         ),
     )
 

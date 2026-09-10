@@ -11,16 +11,26 @@ from __future__ import annotations
 import ast
 import dataclasses
 import pathlib
+from typing import Final, get_args
 from dataclasses import dataclass
 
 import bloomery
 import pytest
-from bloomery.ir import Additivity, MetricFilterIR
+from bloomery.ir import (
+    Additivity,
+    DerivedIR,
+    MetricFilterIR,
+    MetricInputIR,
+    MetricIR,
+    SqlExpr,
+    TimeWindow,
+)
 from bloomery import MetricRequest
 from bloomery.planner.policy import RowPolicy
 from bloomery.planner.request import Op, Predicate
 from bloomery.semantic import (
     Aggregate,
+    PlanNode,
     Compute,
     Offset,
     Reduce,
@@ -36,7 +46,12 @@ from bloomery.semantic import (
     SemanticJudgement,
     SemanticPlan,
 )
-from bloomery.planner.semantic_plan import _measures_are_embedded, _restriction, _semi_additive
+from bloomery.planner.semantic_plan import (
+    _measures_are_embedded,
+    _restriction,
+    _semi_additive,
+    _shifted_reads,
+)
 from support.planning import fixture_ir, make_planner
 
 pytestmark = pytest.mark.unit
@@ -949,22 +964,116 @@ def test_the_join_keys_are_canonicalized() -> None:
     assert node.keys == ("day", "region")
 
 
+def _bare(kind: str) -> object:
+    """One node of each kind, with no proof, otherwise minimally valid."""
+
+    branches = (_joined("orders", "ship"), _joined("order_items", "disc"))
+    made: dict[str, object] = {
+        "Aggregate": Aggregate(input_grain="order", output_grain="order", measures=("ship",)),
+        "Compute": Compute(outputs=(("aov", "revenue / orders"),), inputs=("orders", "revenue")),
+        "Filter": Filter(predicates=()),
+        "JoinAggregates": JoinAggregates(keys=("region",), branches=branches),
+        "Offset": Offset(
+            reads=(("revenue_yoy", "prior", "revenue", "1 year earlier"),), over="sold_day"
+        ),
+        "Project": Project(columns=()),
+        "Reduce": Reduce(
+            output_grain="order", over="as_of_day", rule="last", measures=("stock",)
+        ),
+        "Scan": Scan(relation="m", grain="order"),
+        "Window": Window(
+            measures=("rolling",), over="sold_day", frame="trailing 7 days", period_agg="last"
+        ),
+    }
+
+    return made[kind]
+
+
+def _plan_around(node: object) -> tuple[object, ...]:
+    """`node` in the smallest plan that reaches `check` for it.
+
+    A `JoinAggregates` stands alone; everything else that claims sits after an
+    aggregate, because `check` refuses a compute, window or offset that runs
+    before anything is reduced — and that refusal would mask the one under
+    test.
+    """
+
+    if isinstance(node, JoinAggregates):
+        return (node, Project(columns=("region",)))
+
+    if isinstance(node, Aggregate):
+        return (Scan(relation="m", grain="order"), node, Project(columns=()))
+
+    return (
+        Scan(relation="m", grain="order"),
+        Aggregate(
+            input_grain="order",
+            output_grain="order",
+            measures=("ship",),
+            proof=_CLOSED,
+        ),
+        node,
+        Project(columns=()),
+    )
+
+
+#: Every node kind, and whether it claims. Written out so that adding one to
+#: `PlanNode` without deciding its authorization fails the test below.
+_CLAIMS: Final = {
+    "Aggregate": True,
+    "Compute": True,
+    "Filter": False,
+    "JoinAggregates": True,
+    "Offset": True,
+    "Project": False,
+    "Reduce": True,
+    "Scan": False,
+    "Window": True,
+}
+
+
 def test_every_node_answers_whether_it_claims() -> None:
     """The authorization rule reads a property of the node rather than a list
     of node types kept in step by hand. A membership test over a closed
     vocabulary is right until the vocabulary gains a member, and the member it
     silently exempts is the one nobody remembered to add.
-    """
-    branches = (_joined("orders", "ship"), _joined("order_items", "disc"))
-    nodes = (
-        Scan(relation="m", grain="order"),
-        Filter(predicates=()),
-        Project(columns=()),
-        Aggregate(input_grain="order", output_grain="order", measures=("ship",)),
-        JoinAggregates(keys=("region",), branches=branches),
-    )
 
-    assert [node.claims for node in nodes] == [False, False, False, True, True]
+    **This test was that list.** It named the original five and went on passing
+    while four more nodes landed, so a node shipping with `claims = False`
+    would have been exempt from proof permanently and invisibly — which is what
+    RFC 0066 D3 is `LOCKED` about and what §9 says review should look for
+    first. It is now read off `PlanNode` itself: a tenth member fails here
+    until somebody decides what it claims.
+    """
+
+    members = {member.__name__ for member in get_args(PlanNode)}
+
+    assert members == set(_CLAIMS), "a node kind was added or removed without deciding its claim"
+
+
+@pytest.mark.parametrize("kind", sorted(_CLAIMS))
+def test_a_claiming_node_needs_a_closed_proof(kind: str) -> None:
+    """`claims` is not a label — it is what `check` reads, so a node that
+    claims and carries no closed proof must not construct inside a plan.
+
+    Parametrized over the vocabulary rather than over the ones that were
+    remembered: the previous version of this file asserted it for `Aggregate`
+    alone, which is why four nodes could have declared `claims = False` with
+    nothing to notice.
+    """
+
+    node = _bare(kind)
+
+    # Against the table, not against the node. Gating the check on
+    # `node.claims` would let a node that lies about it skip its own test —
+    # rebuilding, one level down, the hole this test exists to close.
+    assert node.claims is _CLAIMS[kind], f"{kind} disagrees with the decided vocabulary"
+
+    if not _CLAIMS[kind]:
+        return
+
+    with pytest.raises(ValueError, match="without a closed proof"):
+        SemanticPlan(_plan_around(node))
 
 
 def test_a_composed_plan_serializes_its_branches() -> None:
@@ -1170,7 +1279,7 @@ def test_an_offset_input_is_read_at_a_shifted_range() -> None:
     assert query.semantic.shape == ("scan", "filter", "aggregate", "offset", "compute", "project")
 
     (offset,) = [node for node in query.semantic.nodes if isinstance(node, Offset)]
-    assert offset.reads == (("prior", "revenue", "1 year earlier"),)
+    assert offset.reads == (("revenue_yoy", "prior", "revenue", "1 year earlier"),)
     assert (proof := offset.proof) is not None
     assert proof.rule == "R017"
 
@@ -1198,3 +1307,137 @@ def test_every_metric_of_a_fixture_carries_a_plan() -> None:
         )
         assert query.semantic is not None, metric.name
         assert query.semantic.proofs, f"{metric.name} rests on no facts"
+
+
+def test_two_metrics_may_use_one_alias_for_different_measures() -> None:
+    """An alias is scoped to the metric that declares it (RFC 0034 D1), so two
+    `derived:` metrics may both call their offset input `prior` and mean
+    different measures.
+
+    Flattening them into one namespace produced `Offset(prior = orders …,
+    prior = revenue …)` — a plan naming one alias twice, which a target cannot
+    lower because the `Compute` expressions above reference `prior` and there
+    is no longer one answer to which. The read carries its owning metric for
+    that reason.
+    """
+
+    def yearly(name: str, measure: str) -> MetricIR:
+        return MetricIR(
+            name=name,
+            grain="sale",
+            additivity=Additivity.NON_ADDITIVE,
+            agg=None,
+            expr=None,
+            ratio=None,
+            semi_additive=None,
+            derived=DerivedIR(
+                expr=SqlExpr("current - prior"),
+                inputs=(
+                    MetricInputIR(alias="current", metric=measure),
+                    MetricInputIR(
+                        alias="prior",
+                        metric=measure,
+                        offset_window=TimeWindow(count=1, grain="year"),
+                    ),
+                ),
+            ),
+        )
+
+    metrics = {m.name: m for m in (yearly("revenue_yoy", "revenue"), yearly("orders_yoy", "orders"))}
+    reads = _shifted_reads(("revenue_yoy", "orders_yoy"), metrics)
+
+    assert reads == (
+        ("orders_yoy", "prior", "orders", "1 year earlier"),
+        ("revenue_yoy", "prior", "revenue", "1 year earlier"),
+    )
+
+    # The pair that identifies a read is (metric, alias) — one alias alone does
+    # not, which is the whole finding.
+    assert len({(metric, alias) for metric, alias, _m, _s in reads}) == 2
+
+
+def test_both_offset_forms_reach_the_plan() -> None:
+    """`offset_window` and `offset_to_grain` are the two forms a derived input
+    may declare (RFC 0034 D2), and only the first was ever asserted.
+
+    A sabotage that ignored `offset_to_grain` left every suite green: the
+    metric still planned, because dropping the read simply produced no `Offset`
+    node, and the aggregate beneath still carried its proof. A plan silently
+    missing the shift is exactly the shape this node exists to prevent.
+    """
+
+    planner = make_planner()
+    query = planner.plan(
+        fixture_ir("period_over_period"),
+        MetricRequest(
+            metrics=("revenue_yoy", "revenue_vs_month_start"), dimensions=("day",)
+        ),
+        dialect="duckdb",
+    )
+
+    assert query.semantic is not None
+    (offset,) = [node for node in query.semantic.nodes if isinstance(node, Offset)]
+
+    assert offset.reads == (
+        ("revenue_vs_month_start", "month_start", "revenue", "at the start of its month"),
+        ("revenue_yoy", "prior", "revenue", "1 year earlier"),
+    )
+
+
+def test_an_offset_node_sorts_its_reads() -> None:
+    """Sorted like every other IR collection (RFC 0003), and asserted on the
+    node rather than trusted from its caller: `_shifted_reads` already sorts,
+    so the node's own ordering is only reachable — and only observable —
+    through a direct construction.
+    """
+
+    unsorted = Offset(
+        reads=(
+            ("revenue_yoy", "prior", "revenue", "1 year earlier"),
+            ("orders_yoy", "prior", "orders", "1 year earlier"),
+        ),
+        over="sold_day",
+    )
+
+    assert unsorted.reads == (
+        ("orders_yoy", "prior", "orders", "1 year earlier"),
+        ("revenue_yoy", "prior", "revenue", "1 year earlier"),
+    )
+
+
+def test_a_scoped_filter_carries_at_least_one_predicate() -> None:
+    """Naming the measures it narrows while narrowing nothing reads as a
+    restricted measure and is not one — a plan a target lowers into the same
+    answer while saying it did something else."""
+
+    with pytest.raises(ValueError, match="restricts nothing while naming"):
+        Filter(predicates=(), measures=("paid_revenue",))
+
+
+def test_a_non_additive_metric_without_a_decomposition_is_not_statable() -> None:
+    """The second condition `_measures_are_embedded` still checks, and the one
+    its docstring claims is reachable only where the guardrail stage already
+    refused — asserted rather than assumed, because `guaranteed` at the call
+    site rests on it.
+
+    A sabotage widening `_STATABLE` to every class left the suite green: no
+    fixture carries such a metric on a mart, which is consistent with the claim
+    and is not evidence for it.
+    """
+
+    ir = fixture_ir("period_over_period")
+    metrics = {metric.name: metric for metric in ir.metrics}
+    (mart,) = [m for m in ir.marts if "revenue" in m.measures]
+
+    opaque = dataclasses.replace(
+        metrics["revenue"],
+        name="revenue",
+        additivity=Additivity.NON_ADDITIVE,
+        ratio=None,
+        derived=None,
+    )
+
+    assert _measures_are_embedded(MetricRequest(metrics=("revenue",)), mart, metrics)
+    assert not _measures_are_embedded(
+        MetricRequest(metrics=("revenue",)), mart, {**metrics, "revenue": opaque}
+    )
