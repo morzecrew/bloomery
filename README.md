@@ -65,28 +65,46 @@ Python 3.12–3.14. No orchestrator, no cloud SDK, no database driver.
 
 ```python
 from bloomery import (
-    LruManifestHydrator, MetricFlowPlanner, MetricRequest, Target,
-    build_project_ir, compile_project, load_catalog, load_project,
+    LruManifestHydrator, 
+    MetricFlowPlanner, 
+    MetricRequest, 
+    Target,
+    build_project_ir, 
+    compile_project, 
+    load_catalog, 
+    load_project,
 )
 from bloomery.naming import DefaultNaming
 
 # The loaders take YAML *strings*, never paths: reading files is the caller's job.
 catalog = load_catalog(catalog_yaml)
-project = load_project({"entity_model.yaml": entities, "mapping_orders.yaml": mapping,
-                        "metrics.yaml": metrics, "marts.yaml": marts})
+project = load_project({
+    "entity_model.yaml": entities, 
+    "mapping_orders.yaml": mapping,
+    "metrics.yaml": metrics, 
+    "marts.yaml": marts,
+})
 
 # Compile: specs in, a tuple of file-shaped artifacts out. Writing them is yours too.
-for artifact in compile_project(project, target=Target.SQLMESH, dialect="duckdb",
-                                catalog=catalog):
-    print(artifact.path)          # artifact.content is the model, audit or manifest
+for artifact in compile_project(
+    project, 
+    target=Target.SQLMESH, 
+    dialect="duckdb",
+    catalog=catalog,
+):
+    print(artifact.path)  # artifact.content is the model, audit or manifest
 
 # The same specs serve queries. A request becomes SQL over a wide, pre-joined mart,
 # planned by an embedded render-only MetricFlow and executed by nothing.
 naming = DefaultNaming()
 planner = MetricFlowPlanner(LruManifestHydrator(naming), naming=naming)
-plan = planner.plan(build_project_ir(project, catalog=catalog),
-                    MetricRequest(metrics=("revenue",), dimensions=("ordered_month",)),
-                    dialect="duckdb")
+
+plan = planner.plan(
+    build_project_ir(project, catalog=catalog),
+    MetricRequest(metrics=("revenue",), dimensions=("ordered_month",)),
+    dialect="duckdb",
+)
+
 print(plan.sql, plan.explanation.render())
 ```
 
