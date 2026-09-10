@@ -2042,6 +2042,25 @@ def _downstream_impact(new: ProjectIR, seeds: set[str]) -> tuple[str, ...]:
 # ....................... #
 
 
+def _changed(changes: tuple[Change, ...], kind: str) -> set[str]:
+    """The names of ``kind`` this plan changes in a way that moves something.
+
+    One definition for both halves of :func:`_affected_exposures`. Written
+    twice, the two would be free to disagree about what ADDITIVE means — and
+    the whole argument for reading the change table rather than a seed set is
+    that one rule decides both.
+    """
+
+    return {
+        change.subject.partition(":")[2]
+        for change in changes
+        if change.subject.startswith(f"{kind}:") and change.change_class is not ChangeClass.ADDITIVE
+    }
+
+
+# ....................... #
+
+
 def _affected_exposures(
     new: ProjectIR, metrics: tuple[str, ...], changes: tuple[Change, ...]
 ) -> tuple[str, ...]:
@@ -2053,20 +2072,25 @@ def _affected_exposures(
     so an exposure depending only on a mart, which §5.1's grammar permits, would
     be silently absent from a report whose whole purpose is to be complete.
 
-    A mart is reached by any change to it **but an ADDITIVE one**, which is the
-    rule the metric side already applies to itself: ADDITIVE means nothing
-    existing moves, so a mart added, or one whose partitioning changed, reaches
-    nobody. Read off the classified changes rather than from a second seed set,
-    because those are the rows the plan itself reports — a consumer named here
-    can always be traced to a line in the same table.
+    **And the changed nodes themselves, not only what is downstream of them.**
+    :func:`_downstream_impact` walks ``new.metrics``, so a metric that *left*
+    that collection cannot appear in it — a metric removed, or one that became
+    unreachable because a leaf it needs went away. Both are BREAKING changes an
+    exposure may legitimately still declare (the exposure guardrail asks the
+    authored documents, where an unreachable metric is declared like any other),
+    and both would otherwise reach nobody. That is the same hole as the
+    mart-only one, one dimension over.
+
+    A node is reached by any change to it **but an ADDITIVE one**: ADDITIVE
+    means nothing existing moves, so a mart added, a metric added, or a
+    description edited reaches nobody. Read off the classified changes rather
+    than from a second seed set, because those are the rows the plan itself
+    reports — a consumer named here can always be traced to a line in the same
+    table.
     """
 
-    reached = set(metrics)
-    marts = {
-        change.subject.partition(":")[2]
-        for change in changes
-        if change.subject.startswith("mart:") and change.change_class is not ChangeClass.ADDITIVE
-    }
+    reached = set(metrics) | _changed(changes, "metric")
+    marts = _changed(changes, "mart")
 
     if not reached and not marts:
         return ()
