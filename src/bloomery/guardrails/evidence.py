@@ -51,9 +51,31 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 __all__ = [
+    "MESSAGE",
     "check_evidence",
     "weak_bases",
 ]
+
+#: The refusal, as a template rather than an f-string at the raise site.
+#:
+#: **A constant because the docs quote it.** `pages/docs/concepts/` shows this
+#: message rendered, and a documented message is a hand-copy of a string that
+#: lives here — the two drifted twice inside one PR series (T-0041), once when
+#: the message was restructured in review and once when a basis it named was
+#: deleted. `test_the_documented_evidence_refusal_quotes_the_template` reads
+#: the literal segments out of this value and asserts the page still contains
+#: them, so the copy cannot silently stop being one.
+#:
+#: The placeholders are named rather than positional so the segments between
+#: them are what a reader of the page sees, and `{column}` appearing twice is
+#: deliberate: the refusal names the column again in the fix, because a reader
+#: who has scrolled past the first mention is the reader who needs it.
+MESSAGE = (
+    "mart {mart} requires 'locked'; its measures ({measures}) rest on column "
+    "{column}, which the compiler reached by {bases} rather than from anything "
+    "an author wrote (RFC 0065 §5.1). Fix: declare the relationship that carries "
+    "{column}, or set 'requires_evidence: assumed' on this mart"
+)
 
 #: The requirement that asks for anything. ``assumed`` is the default and
 #: accepts every grade a compiling project can produce, so a mart carrying it
@@ -183,11 +205,8 @@ def check_evidence(project: Project, draft: ProjectIR) -> list[GuardrailError]:
             # repeating it per measure makes a three-measure mart print the same
             # sentence three times, and a refusal a reader skims is one they
             # work around.
-            msg = (
-                f"mart {name!r} requires 'locked'; its measures ({measures}) rest on column "
-                f"{column!r}, which the compiler reached by {bases} rather than from anything "
-                f"an author wrote (RFC 0065 §5.1). Fix: declare the relationship that carries "
-                f"{column!r}, or set 'requires_evidence: assumed' on this mart"
+            msg = MESSAGE.format(
+                mart=repr(name), measures=measures, column=repr(column), bases=bases
             )
             errors.append(
                 InsufficientEvidence(msg, source_path=f"marts: marts.{name}.requires_evidence")
