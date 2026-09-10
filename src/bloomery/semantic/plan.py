@@ -52,6 +52,7 @@ __all__ = [
     "JoinBranch",
     "PlanNode",
     "Project",
+    "Reduce",
     "Scan",
     "SemanticPlan",
 ]
@@ -329,6 +330,89 @@ class Compute:
 
 
 @dataclass(frozen=True, slots=True)
+class Reduce:
+    """One named dimension collapsed by a declared rule (RFC 0066 §5.3).
+
+    What a semi-additive measure is lowered as before anything else touches it:
+    the ``over:`` dimension reduced away, leaving one value per group, so that
+    aggregating across the *other* dimensions is legitimate afterwards. RFC 0040
+    P1 declined these because "one ``Aggregate`` cannot say" it, and a plan that
+    said `Aggregate` would have named the operation it is not.
+
+    **`Reduce` rather than `Pick`, and the whole vocabulary rather than two of
+    it.** ``SemiAdditiveRule`` is ``last``, ``first``, ``avg``, ``min``,
+    ``max`` — three of which select no row at all, so a node named for picking
+    would have been right about two members of five and would have needed a
+    comment arguing its own name away.
+
+    It differs from :class:`Aggregate` in what licenses it rather than in what
+    it does to rows. An `Aggregate` reduces by the metric's own declared
+    aggregation and is licensed by the mart contract; a `Reduce` collapses one
+    *named* dimension by the semi-additive rule, and is licensed by that
+    declaration. Two nodes because two different facts authorize them.
+    """
+
+    #: The grain a row is identified by once ``over`` is gone.
+    output_grain: str
+    #: The dimension reduced away — the metric's declared ``over:``.
+    over: str
+    #: The declared rule along it, as its own word.
+    rule: str
+    measures: tuple[str, ...] = ()
+    proof: Proof | None = None
+
+    # ....................... #
+
+    def __post_init__(self) -> None:
+        canonical = tuple(sorted(self.measures))
+        if canonical != self.measures:
+            object.__setattr__(self, "measures", canonical)
+
+        if not self.measures:
+            msg = (
+                "a reduce node with no measures reduces nothing, and `check` would report "
+                "it authorized — the same shape as a proof resting on no facts "
+                "(RFC 0066 §5.3)"
+            )
+            raise ValueError(msg)
+
+    # ....................... #
+
+    @property
+    def multiplies(self) -> bool:
+        return False
+
+    # ....................... #
+
+    @property
+    def claims(self) -> bool:
+        return True
+
+    # ....................... #
+
+    def document(self) -> dict[str, object]:
+        return {
+            "node": "reduce",
+            "output_grain": self.output_grain,
+            "over": self.over,
+            "rule": self.rule,
+            "measures": list(self.measures),
+            "proof": self.proof.document() if self.proof is not None else None,
+        }
+
+    # ....................... #
+
+    def render(self) -> str:
+        return (
+            f"Reduce({', '.join(self.measures)} : {self.rule} over {self.over} "
+            f"-> {self.output_grain})"
+        )
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
 class JoinBranch:
     """One branch of a join, and what *it* calls the join keys.
 
@@ -484,8 +568,8 @@ class JoinAggregates:
 #: `ConvertUnit`; neither exists yet — the first would join *unaggregated*
 #: rows, which RFC 0041 D10 keeps refused, and the second has no owner since
 #: RFC 0038 retired without it (RFC 0066 §8). :class:`Compute` is the sixth
-#: kind (RFC 0066 §5.2).
-PlanNode = Scan | Filter | Aggregate | Project | JoinAggregates | Compute
+#: kind and :class:`Reduce` the seventh (RFC 0066 §5.2, §5.3).
+PlanNode = Scan | Filter | Aggregate | Project | JoinAggregates | Compute | Reduce
 
 
 @dataclass(frozen=True, slots=True)

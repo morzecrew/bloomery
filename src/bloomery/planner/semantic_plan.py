@@ -59,6 +59,7 @@ from bloomery.semantic.plan import (
     JoinBranch,
     PlanNode,
     Project,
+    Reduce,
     Scan,
     SemanticPlan,
 )
@@ -141,6 +142,13 @@ def _restriction(metric: MetricIR) -> frozenset[tuple[str, str, frozenset[object
 #: plan — RFC 0041 D8 holds it out of branch planning, where it would be rolled
 #: up rather than computed (logs/T-0028.md).
 _PLAIN_AGGREGATE: Final = (Additivity.ADDITIVE, Additivity.DISTINCT_COUNT)
+
+#: What this phase can state at all: the plain aggregates, plus a semi-additive
+#: measure, which needs a :class:`~bloomery.semantic.Reduce` above the scan
+#: before the aggregate means anything (RFC 0066 §5.3). Separate from
+#: `_PLAIN_AGGREGATE` rather than replacing it: the first names what one
+#: `Aggregate` says whole, which is still the narrower and still true fact.
+_STATABLE: Final = (*_PLAIN_AGGREGATE, Additivity.SEMI_ADDITIVE)
 
 
 def _inputs_of(metric: MetricIR) -> tuple[str, ...] | None:
@@ -232,6 +240,68 @@ def _computed_after_aggregate(names: Sequence[str], *, over: str) -> Proof:
 # ....................... #
 
 
+def _reduced_along_its_own_dimension(metrics: Sequence[MetricIR], over: str) -> Proof:
+    """R015: each of these is declared semi-additive over ``over``, so reducing
+    along it by the declared rule is what the declaration says to do.
+
+    It authorizes the reduction and nothing after it. Aggregating across the
+    *other* dimensions is the `Aggregate` beneath's business, licensed by R008;
+    aggregating along ``over`` itself stays refused, which is the whole content
+    of `semi_additive` and the reason this rule is separate from that one.
+    """
+
+    return Proof(
+        rule="R015",
+        conclusion=SemanticJudgement("ReducedAlongDimension", (("over", over),)),
+        facts=tuple(
+            SemanticFact(
+                source=f"metric:{metric.name}",
+                provenance=Provenance.DECLARED,
+                statement=(
+                    f"{metric.name} is semi_additive over {over} with rule "
+                    f"{metric.semi_additive.rule.value if metric.semi_additive else '?'}"
+                ),
+            )
+            for metric in sorted(metrics, key=lambda m: m.name)
+        ),
+    )
+
+
+# ....................... #
+
+
+def _semi_additive(
+    names: Sequence[str], metrics: Mapping[str, MetricIR]
+) -> tuple[MetricIR, ...] | None:
+    """The requested metrics declared semi-additive, or ``None`` where they do
+    not share one ``over:`` dimension.
+
+    One :class:`~bloomery.semantic.Reduce` node names one dimension, so two
+    measures reduced along different ones are two reductions — statable, and
+    not by this phase. ``None`` rather than a partial answer for the reason
+    :func:`_partition` returns one: "nothing to reduce" and "something to
+    reduce that cannot be said here" are opposite answers.
+    """
+
+    declared = tuple(
+        metrics[name]
+        for name in names
+        if name in metrics and metrics[name].semi_additive is not None
+    )
+
+    if not declared:
+        return ()
+
+    dimensions = {
+        metric.semi_additive.over.qualified for metric in declared if metric.semi_additive
+    }
+
+    return declared if len(dimensions) == 1 else None
+
+
+# ....................... #
+
+
 def _partition(
     requested: Sequence[str], mart: MartIR, metrics: Mapping[str, MetricIR]
 ) -> tuple[tuple[str, ...], tuple[tuple[tuple[str, str], ...], tuple[str, ...]] | None]:
@@ -303,7 +373,8 @@ def _plannable(request: MetricRequest, mart: MartIR, metrics: Mapping[str, Metri
 
     return (
         all(name in mart.measures for name in (*stored, *computed[1]))
-        and all(metric.additivity in _PLAIN_AGGREGATE for metric in beneath)
+        and all(metric.additivity in _STATABLE for metric in beneath)
+        and _semi_additive([metric.name for metric in beneath], metrics) is not None
         and not any(metric.cumulative is not None for metric in requested)
         and len({_restriction(metric) for metric in beneath}) <= 1
     )
@@ -347,6 +418,29 @@ def build(
     nodes: tuple[PlanNode, ...] = (
         Scan(relation=mart.name, grain=mart.grain),
         Filter(predicates=filters),
+    )
+    reduced = _semi_additive(aggregated, metrics)
+    assert reduced is not None  # noqa: S101 — `_plannable` returned False otherwise
+
+    if reduced:
+        # Before the aggregate, not after: the declaration says one row per
+        # group along `over:` *is* the measure, and aggregating across the other
+        # dimensions is what happens to it next (RFC 0066 §5.3).
+        policy = reduced[0].semi_additive
+        assert policy is not None  # noqa: S101 — `_semi_additive` selected on it
+        nodes = (
+            *nodes,
+            Reduce(
+                output_grain=mart.grain,
+                over=policy.over.qualified,
+                rule=policy.rule.value,
+                measures=tuple(metric.name for metric in reduced),
+                proof=_reduced_along_its_own_dimension(reduced, policy.over.qualified),
+            ),
+        )
+
+    nodes = (
+        *nodes,
         Aggregate(
             input_grain=mart.grain,
             output_grain=mart.grain,

@@ -288,6 +288,13 @@ class Rule:
 #: aggregate, and citing it is what keeps P1 a re-expression rather than a new
 #: claim (RFC 0040 D5).
 #:
+#: R015 is the semi-additive obligation (RFC 0066 §5.3). It authorizes exactly
+#: one thing and is worth reading for what it does *not* say: a measure declared
+#: `semi_additive` with `over: d` may be reduced along `d` by the declared rule,
+#: and the result aggregated across dimensions other than `d`. Aggregating along
+#: `d` itself stays refused — that is the whole content of the declaration, and
+#: a rule that granted it would make `semi_additive` mean `additive`.
+#:
 #: R014 is the ordering obligation on a computed metric (RFC 0066 §5.2). It
 #: reaches the same conclusion R012 does and could not borrow its premise: R012
 #: asks whether each operand may be rolled between *entity* grains, and a metric
@@ -333,6 +340,10 @@ RULES: Final[dict[str, Rule]] = {
         Rule(
             "R014",
             "a metric with no measure of its own is computed after its inputs are aggregated",
+        ),
+        Rule(
+            "R015",
+            "a semi-additive measure is reduced along its own dimension by the declared rule",
         ),
     )
 }

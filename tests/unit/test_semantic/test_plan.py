@@ -22,6 +22,7 @@ from bloomery.planner.request import Op, Predicate
 from bloomery.semantic import (
     Aggregate,
     Compute,
+    Reduce,
     Filter,
     JoinAggregates,
     JoinBranch,
@@ -33,7 +34,7 @@ from bloomery.semantic import (
     SemanticJudgement,
     SemanticPlan,
 )
-from bloomery.planner.semantic_plan import _plannable
+from bloomery.planner.semantic_plan import _plannable, _semi_additive
 from support.planning import fixture_ir, make_planner
 
 pytestmark = pytest.mark.unit
@@ -310,12 +311,15 @@ def test_a_cumulative_metric_gets_no_plan() -> None:
     }
 
 
-def test_a_semi_additive_metric_gets_no_plan() -> None:
+def test_a_semi_additive_metric_is_reduced_then_aggregated() -> None:
     """`stock_on_hand` is lowered as a last-per-day pick joined back and then
-    summed. `Aggregate` names a rollup and no aggregation with it, so the plan
-    said the one operation this measure is not — the third shape a guard
-    written per counterexample let through, and the reason the rule now names
-    a property (additivity) instead.
+    summed. `Aggregate` names a rollup and no aggregation with it, so a plan
+    with only that node said the one operation this measure is not — which is
+    why the plan was withheld until there was a node for the other half.
+
+    `Reduce` is that node (RFC 0066 §5.3), and its position carries the
+    meaning: the declaration says one row per group along `over:` *is* the
+    measure, so the reduction happens before the aggregate rather than after.
     """
     planner = make_planner()
     ir = fixture_ir("semi_additive_inventory")
@@ -323,8 +327,43 @@ def test_a_semi_additive_metric_gets_no_plan() -> None:
         ir, MetricRequest(metrics=("stock_on_hand",), dimensions=("day",)), dialect="duckdb"
     )
 
-    assert query.semantic is None
+    assert query.semantic is not None
+    assert query.semantic.shape == ("scan", "filter", "reduce", "aggregate", "project")
     assert "stock_on_hand" in {measure for mart in ir.marts for measure in mart.measures}
+
+    (reduce,) = [node for node in query.semantic.nodes if isinstance(node, Reduce)]
+    assert reduce.measures == ("stock_on_hand",)
+    assert reduce.rule == "last"
+    assert (proof := reduce.proof) is not None
+    assert proof.rule == "R015"
+
+
+def test_two_measures_reduced_along_different_dimensions_get_no_plan() -> None:
+    """One `Reduce` names one dimension, so two measures semi-additive over
+    different ones are two reductions — statable, and not by this phase.
+
+    Asserted on `_semi_additive` rather than through a fixture, because no
+    fixture carries two semi-additive measures over different dimensions and
+    inventing one would test the fixture.
+    """
+
+    ir = fixture_ir("semi_additive_inventory")
+    metrics = {metric.name: metric for metric in ir.metrics}
+    (declared,) = [m for m in ir.metrics if m.semi_additive is not None]
+    assert declared.semi_additive is not None
+
+    elsewhere = dataclasses.replace(
+        declared,
+        name="stock_by_warehouse",
+        semi_additive=dataclasses.replace(
+            declared.semi_additive,
+            over=dataclasses.replace(declared.semi_additive.over, dimension="warehouse"),
+        ),
+    )
+    metrics[elsewhere.name] = elsewhere
+
+    assert _semi_additive([declared.name], metrics) == (declared,)
+    assert _semi_additive([declared.name, elsewhere.name], metrics) is None
 
 
 def test_metrics_with_different_restrictions_get_no_plan() -> None:
