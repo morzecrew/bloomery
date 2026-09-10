@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A mart can require declared premises.** Every semantic fact carries a grade
+  saying how bloomery obtained it — `LOCKED` if somebody wrote it down or it
+  follows necessarily from something they did, `ASSUMED` if the compiler worked
+  it out soundly on its own. A mart can now refuse to rest on the second kind:
+
+  ```yaml
+  marts:
+    statutory_revenue:
+      measures: [net_revenue]
+      requires_evidence: locked    # declared premises only
+  ```
+
+  The default is `assumed`, and leaving the key out is byte-for-byte what you
+  get today. There is no `open` — that is the absence of the annotation, not a
+  third setting. A violation is refused at compile time (`InsufficientEvidence`)
+  and names the consumer, the measure, the fact and how the compiler got it,
+  because a refusal that only says "insufficient evidence" is one a team works
+  around by deleting the requirement.
+
+  This sits strictly above the proof floor: every fact a strict mart refuses had
+  already closed its obligation, so the project was sound either way. The
+  question is authorship, not correctness.
+
+  An entity's key determining its own columns now grades `LOCKED` rather than
+  `ASSUMED`. It is reached mechanically, which is what `derived` means to the
+  soundness question — and it is entailed by a key the author declared, which is
+  what the authorship question asks. Left as it was, a strict mart would have
+  refused every project with no remedy available, since there is nothing an
+  author can write instead of a declared key.
+
 - **The gold layer is in the lineage graph.** A mart is a node — `mart.<name>`,
   a rollup under the same prefix — so `bloomery lineage --node
   metric.gross_revenue --direction downstream` now names `order_items`, the
