@@ -122,9 +122,10 @@ REPAIRS_COLUMN = "_quality_repairs"
 #: One ``<entity>__reject`` per entity, never per mapping (D10).
 REJECT_SUFFIX = "__reject"
 #: The lineage node-id prefixes (RFC 0031 §5.3, RFC 0051 §5.2; ``exposure``
-#: added by RFC 0056 §5.2). Every node id but an entity field's is
-#: ``<prefix>.<rest>``; an entity field is ``<entity>.<field>`` bare, so an
-#: entity named after one of these mints ids in another kind's namespace.
+#: added by RFC 0056 §5.2, ``mart`` by RFC 0067 §5.1). Every node id but an
+#: entity field's is ``<prefix>.<rest>``; an entity field is
+#: ``<entity>.<field>`` bare, so an entity named after one of these mints
+#: ids in another kind's namespace.
 #: Reserved as entity names for that reason.
 #:
 #: Here rather than beside the node builders in ``resolve.graph`` because the
@@ -133,7 +134,7 @@ REJECT_SUFFIX = "__reject"
 #: two together: every builder's id must start with a member of this tuple,
 #: so a node kind added with a new prefix fails there rather than silently
 #: escaping the reservation.
-NODE_ID_PREFIXES: Final = ("canonical", "exposure", "metric", "source", "step")
+NODE_ID_PREFIXES: Final = ("canonical", "exposure", "mart", "metric", "source", "step")
 #: The provenance column a **merged** entity carries: which source relation a
 #: row came from (RFC 0024 D7). Load-bearing rather than diagnostic — the
 #: collision audit reports *which* sources shared a key, and without it the

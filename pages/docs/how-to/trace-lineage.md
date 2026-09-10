@@ -66,6 +66,7 @@ but one carries its kind as a prefix:
 | Canonical field | `canonical.<field>` |
 | Metric | `metric.<name>` |
 | Step | `step.<ref>` |
+| Mart | `mart.<name>` — a rollup too, under the same prefix |
 | Exposure | `exposure.<name>` |
 | Entity field | `<entity>.<field>` — **no prefix** |
 
@@ -76,6 +77,13 @@ suffix. Mistype one and the refusal suggests the spelling it thinks you meant:
 $ bloomery lineage specs/ --node metric.gross_revenu
 no node named 'metric.gross_revenu' in this project's dependency graph. did you mean: metric.gross_revenue
 ```
+
+A mart's **columns** are not edges. A metric the mart carries as a measure draws one, and
+so does a rollup of it, but the entity columns a mart flattens do not — those come from
+the flattener, which runs a stage after the graph is built, and waiting for it would cost
+the walk its ability to answer on a project that does not yet compile. So a change to a
+mart *dimension* that no metric reads — `order.status`, flattened and grouped by — reaches
+the mart in fact and not in this graph. `plan()` still reports it as a mart change.
 
 An exposure is the odd one out for a different reason: it is the graph's sink, it carries
 no SQL, and only dbt gets an artifact for one. Cube and SQLMesh have no such concept and

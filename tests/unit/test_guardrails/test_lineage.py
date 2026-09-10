@@ -9,12 +9,15 @@ its wiring binds.
 
 from __future__ import annotations
 
+import inspect
+
 import pytest
 
 from bloomery import build_project_ir, load_project
 from bloomery.errors import GuardrailError, ReservedEntityName
 from bloomery.guardrails.lineage import _MINTS
 from bloomery.ir import NODE_ID_PREFIXES
+from bloomery.resolve import graph
 from bloomery.steps import StepManifest, StepRegistry
 
 pytestmark = pytest.mark.unit
@@ -84,6 +87,34 @@ def test_every_prefix_is_described() -> None:
     """
 
     assert set(_MINTS) == set(NODE_ID_PREFIXES)
+
+
+def test_collides_is_the_id_s_own_arity() -> None:
+    """``_MINTS``'s second field is a claim about how many segments a node id
+    has, and that is derivable rather than a matter of opinion.
+
+    An entity field is ``<entity>.<field>`` — two segments — so a prefix whose
+    ids are also two segments can produce the same string, and one carrying a
+    third (``source.<relation>.<path>``) never can. Hand-written, the flag can
+    be given wrongly to a new prefix with nothing noticing: the refusal still
+    fires and only its *sentence* is wrong, which is the half the reader acts
+    on. Derived from the constructors, a sixth prefix cannot get it wrong
+    quietly.
+    """
+    derived: dict[str, bool] = {}
+    for name in graph.__all__:
+        if not name.endswith("_node"):
+            continue
+        builder = getattr(graph, name)
+        arity = len(inspect.signature(builder).parameters)
+        prefix, _, rest = builder(*(["x"] * arity)).name.partition(".")
+        if prefix not in _MINTS:
+            # ``entity_field_node`` — the one builder that mints no prefix,
+            # which is why the others' are reserved at all.
+            continue
+        derived[prefix] = "." not in rest
+
+    assert derived == {prefix: collides for prefix, (_spelling, collides) in _MINTS.items()}
 
 
 # ....................... #

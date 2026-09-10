@@ -1,0 +1,25 @@
+{
+  "id": "T-0039",
+  "spec": "rfcs/0067-marts-in-the-lineage-graph.md",
+  "phase": "One phase: the mart node, three edge shapes, the sixth reservation, tests and docs.",
+  "decisions": [
+    {"id": "RFC 0067 D1", "grade": "LOCKED",
+     "paths": ["src/bloomery/resolve/graph.py"]},
+    {"id": "RFC 0067 D2", "grade": "LOCKED",
+     "paths": ["src/bloomery/resolve/graph.py", "src/bloomery/resolve/build.py"]},
+    {"id": "RFC 0067 D3", "grade": "LOCKED",
+     "paths": ["src/bloomery/resolve/graph.py"]},
+    {"id": "RFC 0067 D4", "grade": "LOCKED",
+     "paths": ["src/bloomery/ir/nodes.py", "src/bloomery/guardrails/lineage.py"]},
+    {"id": "RFC 0067 D5", "grade": "ASSUMED",
+     "paths": ["src/bloomery/resolve/graph.py"]},
+    {"id": "RFC 0067 D6", "grade": "ASSUMED",
+     "paths": ["src/bloomery/resolve/graph.py"]},
+    {"id": "RFC 0067 D7", "grade": "ASSUMED",
+     "paths": ["src/bloomery/plan/**"]},
+    {"id": "RFC 0067 D8", "grade": "OPEN",
+     "paths": ["src/bloomery/resolve/graph.py"]},
+    {"id": "RFC 0067 D9", "grade": "OPEN",
+     "paths": ["src/bloomery/guardrails/exposures.py"]}
+  ]
+}

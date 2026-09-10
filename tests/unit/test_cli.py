@@ -102,6 +102,7 @@ pytestmark = pytest.mark.unit
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 ECOM = str(FIXTURES / "ecom_basic")
 ROLE_PLAYING = str(FIXTURES / "role_playing_dates")
+EVOLUTION_V1 = str(FIXTURES / "evolution_v1")
 
 
 def run(
@@ -1082,6 +1083,48 @@ def test_lineage_json_downstream_carries_the_exposure(
     } in walk["edges"]
 
 
+def test_lineage_json_carries_a_mart_node(capsys: pytest.CaptureFixture[str]) -> None:
+    """RFC 0067 §6: the JSON is what a script reads, so the sixth kind has to
+    reach it under its own `kind` string and not only the rendered edge list.
+
+    Downstream from a metric, which is the walk §1 opens on — it named the
+    dashboards a change reached and never named the relation that would
+    actually be rebuilt.
+    """
+
+    walk = _json(
+        capsys,
+        "lineage",
+        ECOM,
+        "--node",
+        "metric.gross_revenue",
+        "--direction",
+        "downstream",
+        "--format",
+        "json",
+    )
+
+    assert {"kind": "mart", "name": "mart.order_items"} in walk["nodes"]
+    assert {
+        "src": {"kind": "metric", "name": "metric.gross_revenue"},
+        "dst": {"kind": "mart", "name": "mart.order_items"},
+        "label": "measure",
+    } in walk["edges"]
+
+
+def test_lineage_upstream_from_a_mart_answers(capsys: pytest.CaptureFixture[str]) -> None:
+    """The `--node mart.<name>` invocation the docs now advertise, end to end:
+    the id resolves, and the walk goes past the metric into the columns."""
+
+    code, out, err = run(
+        capsys, "lineage", ECOM, "--node", "mart.order_items", "--direction", "upstream"
+    )
+
+    assert code == EXIT_OK, err
+    assert "metric.gross_revenue" in out
+    assert "source.shopify__order_lines.$.total" in out
+
+
 def test_lineage_of_a_leaf_says_so_rather_than_printing_nothing(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -1272,11 +1315,16 @@ def test_both_never_describes_itself_as_a_direction(
     Interpolated, they read "no both lineage" and "this node has both
     lineage" — ungrammatical, and the leaf line is also *false*: a merged walk
     has two directions, so there is no "that direction" to be a leaf in.
-    `role_playing_dates` carries a metric nothing feeds and nothing composes,
-    which is the only shape that reaches the first sentence under `both`.
+
+    Reaching that sentence needs a node with no edge in either direction, and
+    the corpus holds exactly one: `evolution_v1`'s `canonical.discount`, a
+    catalog field no mapping links and no metric requires. It used to be a
+    metric — `role_playing_dates`'s `revenue` — until RFC 0067 gave every
+    measure of every mart an incoming edge, which is the kind of shift that
+    makes an isolated node worth naming here rather than looking up again.
     """
     code, isolated, err = run(
-        capsys, "lineage", ROLE_PLAYING, "--node", "metric.revenue", "--direction", "both"
+        capsys, "lineage", EVOLUTION_V1, "--node", "canonical.discount", "--direction", "both"
     )
     assert code == EXIT_OK, err
     assert "no lineage in either direction" in isolated

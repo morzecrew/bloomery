@@ -9,9 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **The lineage graph has a sink.** `bloomery lineage --node metric:… --direction
-  downstream` used to answer with the marts that can serve the metric and stop,
-  because everything that consumes a bloomery project lives outside it.
+- **The gold layer is in the lineage graph.** A mart is a node — `mart.<name>`,
+  a rollup under the same prefix — so `bloomery lineage --node
+  metric.gross_revenue --direction downstream` now names `order_items`, the
+  relation that will actually be rebuilt, and not only the metrics and
+  dashboards above it. Upstream from a mart walks back through the metrics it
+  carries into the source columns behind them.
+
+  ```console
+  $ bloomery lineage specs/ --node exposure.finance_extract --direction upstream
+  exposure.finance_extract  (upstream)
+    canonical.quantity                   --requires-->           metric.gross_revenue
+    canonical.unit_price                 --requires-->           metric.gross_revenue
+    mart.order_items                     --depends_on-->         exposure.finance_extract
+    metric.gross_revenue                 --measure-->            mart.order_items
+    order_item.quantity                  --canonical-->          canonical.quantity
+    order_item.unit_price                --canonical-->          canonical.unit_price
+    source.shopify__order_lines.$.qty    --direct-->             order_item.quantity
+    source.shopify__order_lines.$.qty    --recipe:from_total-->  order_item.unit_price
+    source.shopify__order_lines.$.total  --recipe:from_total-->  order_item.unit_price
+  ```
+
+  This is what an exposure's `marts:` entry always meant: a mart-only consumer
+  used to come back from an upstream walk with nothing above it.
+
+  A mart's **columns** are not edges — the entity columns it flattens come from
+  a later compile stage, and waiting for that would cost the walk its ability to
+  answer on a project that does not compile. So a change to a mart dimension no
+  metric reads reaches the mart in fact and not in the graph; `plan()` still
+  reports it. `mart` also joins the reserved entity names, alongside `canonical`,
+  `exposure`, `metric`, `source` and `step`.
+
+- **The lineage graph has a sink.** `bloomery lineage --node metric.<name>
+  --direction downstream` used to stop at the metrics composed from the one you
+  named, because everything that *consumes* a bloomery project lives outside it.
 
   An `exposures:` document declares those consumers — a dashboard, a notebook, a
   reverse-ETL sync — with a kind, an owner, and the metrics and marts it reads.
