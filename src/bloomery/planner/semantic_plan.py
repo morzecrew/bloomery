@@ -50,6 +50,7 @@ from typing import TYPE_CHECKING, Final
 
 from bloomery.errors import PlannerError
 from bloomery.ir import Additivity
+from bloomery.planner import explain
 from bloomery.semantic import Proof, Provenance, SemanticFact, SemanticJudgement
 from bloomery.semantic.plan import (
     Aggregate,
@@ -387,6 +388,36 @@ def _cumulative(
 # ....................... #
 
 
+def _scoped_filters(names: Sequence[str], metrics: Mapping[str, MetricIR]) -> tuple[Filter, ...]:
+    """One :class:`~bloomery.semantic.Filter` per group of measures narrowed
+    alike by their own ``filter:`` (RFC 0066 §5.5).
+
+    Grouped rather than one node per measure: two measures carrying the same
+    restriction are restricted by one predicate in the query, and two nodes
+    would read as two. Grouped on the rendered predicates, which is what the
+    node carries — :func:`_restriction` compares admitted rows and is the right
+    identity for "are these the same restriction", but a plan states the prose,
+    and grouping on one while rendering the other would let two groups print
+    identically.
+    """
+
+    groups: dict[tuple[str, ...], list[str]] = {}
+
+    for name in names:
+        rendered = explain.metric_restrictions(name, metrics)
+
+        if rendered:
+            groups.setdefault(rendered, []).append(name)
+
+    return tuple(
+        Filter(predicates=predicates, measures=tuple(sorted(measures)))
+        for predicates, measures in sorted(groups.items())
+    )
+
+
+# ....................... #
+
+
 def _partition(
     requested: Sequence[str], mart: MartIR, metrics: Mapping[str, MetricIR]
 ) -> tuple[tuple[str, ...], tuple[tuple[tuple[str, str], ...], tuple[str, ...]] | None]:
@@ -439,11 +470,10 @@ def _plannable(request: MetricRequest, mart: MartIR, metrics: Mapping[str, Metri
       summed, which one `Aggregate` cannot say (logs/T-0028.md);
     * none is **cumulative**, since a window and a `period_agg` are not a
       rollup at all;
-    * all are **restricted alike** — a single `Filter` over the scan says one
-      thing about every measure beneath it, so metrics with different
-      restrictions cannot share one. Compared through :func:`_restriction`,
-      which is authored order thrown away in the two places it carries no
-      meaning.
+    Differently-restricted metrics were a fourth condition and are not one any
+    more: a `Filter` scopes to the measures it narrows (RFC 0066 §5.5), so a
+    request pairing `paid_revenue` with `revenue` is two filter nodes rather
+    than one node claiming both restrictions apply to both measures.
     """
 
     stored, computed = _partition(request.metrics, mart, metrics)
@@ -463,7 +493,6 @@ def _plannable(request: MetricRequest, mart: MartIR, metrics: Mapping[str, Metri
         # metric is not in `beneath`, and asking only there would miss one that
         # declared its own accumulation.
         and _cumulative((*request.metrics, *(m.name for m in beneath)), metrics) is not None
-        and len({_restriction(metric) for metric in beneath}) <= 1
     )
 
 
@@ -502,9 +531,17 @@ def build(
     # quotient is taken over the result, which is the whole of what R014 says.
     aggregated = (*stored, *inputs)
 
+    # The shared restriction, then one node per group of measures narrowed
+    # alike. `filters` carries every predicate the query applies, the
+    # per-metric ones included, so the scoped nodes name what the shared node
+    # would otherwise claim about every measure beneath it (RFC 0066 §5.5).
+    scoped = _scoped_filters(aggregated, metrics)
+    narrowed = {predicate for node in scoped for predicate in node.predicates}
+
     nodes: tuple[PlanNode, ...] = (
         Scan(relation=mart.name, grain=mart.grain),
-        Filter(predicates=filters),
+        Filter(predicates=tuple(p for p in filters if p not in narrowed)),
+        *scoped,
     )
     reduced = _semi_additive(aggregated, metrics)
     assert reduced is not None  # noqa: S101 — `_plannable` returned False otherwise

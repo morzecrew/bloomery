@@ -118,6 +118,16 @@ class Filter:
     #: explanation beside it about the order of the same predicates — an
     #: invariant the no-filter case could never catch.
     predicates: tuple[str, ...] = ()
+    #: The measures these predicates restrict; empty means **every** measure
+    #: beneath (RFC 0066 §5.5).
+    #:
+    #: A metric's own `filter:` narrows that measure alone, so a request pairing
+    #: `paid_revenue` with `revenue` restricts one and not the other. One
+    #: unscoped node covering both would say each predicate restricts every
+    #: measure beneath it — a broader claim than the query makes, and the reason
+    #: such a request had no plan at all before this. Scoped here rather than on
+    #: :class:`Aggregate` because this is the node that makes the claim.
+    measures: tuple[str, ...] = ()
 
     # ....................... #
 
@@ -133,13 +143,33 @@ class Filter:
 
     # ....................... #
 
+    def __post_init__(self) -> None:
+        canonical = tuple(sorted(self.measures))
+        if canonical != self.measures:
+            object.__setattr__(self, "measures", canonical)
+
+        if self.measures and not self.predicates:
+            msg = (
+                "a filter scoped to measures with no predicates restricts nothing while "
+                "naming what it restricts, which reads as a narrowed measure and is not "
+                "one (RFC 0066 §5.5)"
+            )
+            raise ValueError(msg)
+
+    # ....................... #
+
     def document(self) -> dict[str, object]:
-        return {"node": "filter", "predicates": list(self.predicates)}
+        return {
+            "node": "filter",
+            "predicates": list(self.predicates),
+            "measures": list(self.measures),
+        }
 
     # ....................... #
 
     def render(self) -> str:
-        return f"Filter({'; '.join(self.predicates) or 'none'})"
+        scope = f" on {', '.join(self.measures)}" if self.measures else ""
+        return f"Filter({'; '.join(self.predicates) or 'none'}{scope})"
 
 
 # ....................... #

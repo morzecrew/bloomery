@@ -28,7 +28,7 @@ from bloomery.planner.request import Op, Predicate, clause_predicates
 from bloomery.planner.result import BranchSource, Explanation, MeasureExplanation
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from metricflow.engine.metricflow_engine import MetricFlowExplainResult
 
@@ -333,19 +333,39 @@ def applied_predicates(
 
     restrictions = tuple(
         dict.fromkeys(
-            _human_predicate(
-                Predicate(
-                    dimension=clause.dimension, op=Op(clause.op), values=tuple(clause.values)
-                ),
-                clause.dimension,
-            )
+            predicate
             for name in request.metrics
-            if (metric := metrics_by_name.get(name)) is not None
-            for clause in metric.filter
+            for predicate in metric_restrictions(name, metrics_by_name)
         )
     )
 
     return (*policy_predicate, *explanation.filters, *restrictions)
+
+
+# ....................... #
+
+
+def metric_restrictions(name: str, metrics_by_name: Mapping[str, MetricIR]) -> tuple[str, ...]:
+    """One metric's own ``filter:`` as prose, in authored order.
+
+    Named separately because a metric's restriction narrows *that measure*, and
+    :func:`applied_predicates` flattens every metric's into one list — correct
+    for the query, which applies them all, and lossy for a plan, which has to
+    say which measure each one narrows (RFC 0066 §5.5).
+    """
+
+    metric = metrics_by_name.get(name)
+
+    if metric is None:
+        return ()
+
+    return tuple(
+        _human_predicate(
+            Predicate(dimension=clause.dimension, op=Op(clause.op), values=tuple(clause.values)),
+            clause.dimension,
+        )
+        for clause in metric.filter
+    )
 
 
 # ....................... #

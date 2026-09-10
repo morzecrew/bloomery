@@ -35,7 +35,7 @@ from bloomery.semantic import (
     SemanticJudgement,
     SemanticPlan,
 )
-from bloomery.planner.semantic_plan import _plannable, _semi_additive
+from bloomery.planner.semantic_plan import _plannable, _restriction, _semi_additive
 from support.planning import fixture_ir, make_planner
 
 pytestmark = pytest.mark.unit
@@ -191,10 +191,13 @@ def test_a_literal_of_another_type_is_another_restriction() -> None:
     away to keep them apart, which is not this function's to assume.
     """
     ir = fixture_ir("period_over_period")
+    left, right = _restricted(ir, "left", (1,)), _restricted(ir, "right", ("1",))
 
-    assert not _plannable_pair(
-        ir, _restricted(ir, "left", (1,)), _restricted(ir, "right", ("1",))
-    )
+    # `_plannable` no longer decides this — both are statable, each on its own
+    # scoped `Filter` (RFC 0066 §5.5). What the comparison still decides is
+    # whether they are *one* restriction, and they are not.
+    assert _plannable_pair(ir, left, right)
+    assert _restriction(left) != _restriction(right)
 
 
 def test_a_measureless_request_still_projects_its_dimensions() -> None:
@@ -217,9 +220,30 @@ def test_the_projection_keeps_request_order_not_sorted_order() -> None:
 
 
 def _filters(query: object) -> tuple[str, ...]:
-    (node,) = [n for n in query.semantic.nodes if isinstance(n, Filter)]  # type: ignore[attr-defined]
+    """The predicates restricting *every* measure — the unscoped node.
+
+    There is exactly one, always: a plan states the shared restriction even when
+    it is empty, and a metric's own `filter:` rides a scoped node beside it
+    (RFC 0066 §5.5).
+    """
+
+    (node,) = [
+        n
+        for n in query.semantic.nodes  # type: ignore[attr-defined]
+        if isinstance(n, Filter) and not n.measures
+    ]
 
     return node.predicates
+
+
+def _scoped(query: object) -> dict[tuple[str, ...], tuple[str, ...]]:
+    """Every scoped filter, as measures → predicates."""
+
+    return {
+        node.measures: node.predicates
+        for node in query.semantic.nodes  # type: ignore[attr-defined]
+        if isinstance(node, Filter) and node.measures
+    }
 
 
 def test_the_plans_filters_are_the_explanations_filters_in_request_order() -> None:
@@ -288,7 +312,9 @@ def test_the_plan_names_a_metrics_own_restriction() -> None:
     )
     assert query.semantic is not None
 
-    assert _filters(query) == ("status = 'paid'",)
+    # On a scoped node, because it narrows `paid_revenue` and nothing else.
+    assert _filters(query) == ()
+    assert _scoped(query) == {("paid_revenue",): ("status = 'paid'",)}
 
 
 def test_a_cumulative_metric_states_its_window() -> None:
@@ -402,12 +428,15 @@ def test_two_measures_reduced_along_different_dimensions_get_no_plan() -> None:
     assert _semi_additive([declared.name, elsewhere.name], metrics) is None
 
 
-def test_metrics_with_different_restrictions_get_no_plan() -> None:
-    """`Filter` is a node over the scan, so it says one thing about every
+def test_metrics_restricted_differently_get_a_filter_each() -> None:
+    """`Filter` used to be a node over the scan saying one thing about every
     measure beneath it. A metric's own filter narrows that measure alone —
     pairing `paid_revenue` with `revenue` produced a plan restricting both to
-    `status = 'paid'`, which is the previous defect's mirror image: a plan
-    claiming a narrower answer than the query computes.
+    `status = 'paid'`, a plan claiming a narrower answer than the query
+    computes, so the plan was withheld instead.
+
+    Scoping is what makes neither necessary (RFC 0066 §5.5): the restriction
+    names the measure it narrows, and `revenue` is on no scoped node at all.
     """
     planner = make_planner()
     query = planner.plan(
@@ -416,7 +445,9 @@ def test_metrics_with_different_restrictions_get_no_plan() -> None:
         dialect="duckdb",
     )
 
-    assert query.semantic is None
+    assert query.semantic is not None
+    assert _filters(query) == ()
+    assert _scoped(query) == {("paid_revenue",): ("status = 'paid'",)}
 
 
 def test_a_measure_the_mart_does_not_carry_gets_no_plan() -> None:
