@@ -846,3 +846,105 @@ def test_empty_project_emits_only_the_scaffold() -> None:
         "dbt_project.yml",
         "macros/generate_schema_name.sql",
     ]
+
+
+# ....................... #
+# Exposures — RFC 0056 §5.3
+
+
+def _exposures_document(fixture: str = "ecom_basic") -> dict[str, object] | None:
+    for artifact in compile_fixture(fixture, target=Target.DBT, dialect="postgres"):
+        if artifact.path == "models/exposures.yml":
+            return cast("dict[str, object]", yaml.safe_load(artifact.content))
+    return None
+
+
+def test_a_project_that_declares_no_consumer_emits_no_exposures_file() -> None:
+    """The artifact is conditional, like ``schema.yml`` and ``sources.yml``.
+
+    An empty ``exposures:`` block would be a file dbt reads and learns nothing
+    from, in every project that has never heard of the feature.
+    """
+
+    assert _exposures_document("rollup_mart") is None
+
+
+def test_an_exposure_is_lowered_to_dbts_own_shape() -> None:
+    """§5.1: the bloomery document groups its dependencies by kind and spells
+    ``kind``/``owner`` as scalars; dbt's schema wants ``type``, an owner object
+    and a flat list. Both shapes are stated in the RFC so this is a
+    transcription rather than a decision made here."""
+
+    document = _exposures_document()
+    assert document is not None
+    exposures = cast("list[dict[str, object]]", document["exposures"])
+    review = next(e for e in exposures if e["name"] == "weekly_revenue_review")
+
+    assert review["type"] == "dashboard"
+    assert review["owner"] == {"email": "analytics@example.com"}
+    assert review["url"] == "https://bi.example.com/dash/17"
+
+
+def test_a_metric_dependency_becomes_the_marts_that_serve_it() -> None:
+    """The departure from §5.1's emitted block, guarded (logs/T-0038.md).
+
+    A ``metric('…')`` entry fails ``dbt parse`` outright — this emitter
+    declares no metrics — so a metric dependency names the models its numbers
+    actually come from, and the declared names are kept in ``meta`` so the
+    artifact still records what was authored.
+    """
+
+    document = _exposures_document()
+    assert document is not None
+    exposures = cast("list[dict[str, object]]", document["exposures"])
+    review = next(e for e in exposures if e["name"] == "weekly_revenue_review")
+
+    assert review["depends_on"] == ["ref('mart_order_items')"]
+    assert review["meta"] == {"bloomery_metrics": ["gross_revenue", "order_count"]}
+    # `order_count` is declared and served by no mart, so it reaches `meta` and
+    # nothing else — the case that would otherwise emit a `ref()` to a model
+    # this project does not build.
+    assert "order_count" not in str(review["depends_on"])
+
+
+def test_no_metric_reference_reaches_the_artifact() -> None:
+    """The stronger form of the test above, and the one that would fail if
+    §5.1's block were ever restored: ``metric(`` anywhere in this file makes
+    ``dbt parse`` fail on every project that declares an exposure."""
+
+    for artifact in compile_fixture("ecom_basic", target=Target.DBT, dialect="postgres"):
+        if artifact.path == "models/exposures.yml":
+            assert "metric(" not in artifact.content
+
+
+def test_a_mart_only_exposure_carries_no_meta() -> None:
+    """``meta`` records what a metric dependency lowered away, so an exposure
+    with no metric dependency has nothing to record — and an empty ``meta`` key
+    would say there was something and it was empty."""
+
+    document = _exposures_document()
+    assert document is not None
+    exposures = cast("list[dict[str, object]]", document["exposures"])
+    extract = next(e for e in exposures if e["name"] == "finance_extract")
+
+    assert "meta" not in extract
+    assert "url" not in extract
+    assert extract["depends_on"] == ["ref('mart_order_items')"]
+
+
+@pytest.mark.parametrize("target", [Target.SQLMESH, Target.CUBE])
+def test_the_other_targets_emit_nothing_and_refuse_nothing(target: Target) -> None:
+    """D4 (`LOCKED`), and the second half is the point: neither framework has
+    the concept, so there is nothing to degrade — refusing a Cube compile
+    because the project declares a dashboard would turn an annotation into a
+    target restriction.
+
+    ``ecom_basic`` is the fixture that declares exposures, so a compile that
+    came back clean *and* empty is the whole claim.
+    """
+
+    artifacts = compile_fixture("ecom_basic", target=target, dialect="postgres")
+
+    assert artifacts
+    assert not [a for a in artifacts if "exposure" in a.path]
+    assert not [a for a in artifacts if "weekly_revenue_review" in a.content]
