@@ -98,7 +98,7 @@ BloomeryError
 | `MetricFilterInvalid` | guardrails | A metric `filter:` naming a dimension the carrying mart does not flatten, a date-role dimension, or a value that does not fit the column's declared type |
 | `MartMissingTimeDimension` | guardrails | A measure-carrying mart that declares no date role |
 | `UnprovableRollup` | guardrails | A declared rollup carrying a measure that may not be re-aggregated over the dimensions it drops — a non-additive or distinct-count measure, one the parent mart does not store, or one whose `filter:`/`cumulative:` the rollup's aggregate would drop |
-| `ReservedEntityName` | guardrails | An entity named `canonical`, `exposure`, `metric`, `source` or `step` — every lineage node id but an entity field's is `<prefix>.<rest>`, so such an entity mints ids in another kind's namespace |
+| `ReservedEntityName` | guardrails | An entity named `canonical`, `exposure`, `mart`, `metric`, `source` or `step` — every lineage node id but an entity field's is `<prefix>.<rest>`, so such an entity mints ids in another kind's namespace |
 | `DanglingExposure` | guardrails | An exposure whose `depends_on` names a metric or mart the project does not declare — the dependency would match no change, so the impact report would name nobody and still read clean |
 | `QuarantineRetentionMissing` | guardrails | An entity with a `quarantine` disposition and no `quarantine:` block — reject rows hold raw payloads, so retention is required and never defaulted |
 | `DedupeTieBreakMissing` | guardrails | `dedupe: {keep: latest_by}` without `tie_break` — rows sharing a timestamp would make the winner arbitrary |

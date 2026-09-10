@@ -48,10 +48,10 @@ metric.gross_revenue  (downstream)
 
 Nothing is downstream of an exposure. It is the graph's only sink.
 
-A **mart** dependency draws no lineage edge, so an exposure that names only marts comes
-back from an upstream walk as a node with nothing above it. A mart is not a node of this
-graph; the dependency is real everywhere else — `plan()` reports it and the dbt exposure
-carries it — and only the walk cannot see it.
+A **mart** dependency draws an edge too, so an exposure that names only marts still has
+an upstream — and the walk carries on past the mart into the metrics it measures and the
+columns behind those. What it does not carry is the mart's own dimension columns; see
+[Trace where a metric comes from](trace-lineage.md#naming-a-node) for why.
 
 ## Ask who a change reaches
 

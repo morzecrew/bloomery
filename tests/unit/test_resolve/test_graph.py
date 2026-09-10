@@ -3,18 +3,23 @@ reaches CircularDerivation messages and topo output), edge labels, sorting."""
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 
-from bloomery import load_catalog, load_project
+from bloomery import Direction, build_project_ir, lineage, load_catalog, load_project
 from bloomery.errors import BloomeryError
 from bloomery.ir import NODE_ID_PREFIXES
+from bloomery.quality import QUALITY_MART
 from bloomery.spec import Project
 from bloomery.resolve.graph import (
+    Edge,
     NodeKind,
     build_graph,
     canonical_field_node,
     entity_field_node,
     exposure_node,
+    mart_node,
     metric_node,
     source_column_node,
     step_node,
@@ -115,18 +120,23 @@ def test_an_exposure_is_the_graph_s_only_sink() -> None:
     assert incoming == {
         ("metric.gross_revenue", "depends_on"),
         ("metric.order_count", "depends_on"),
+        # RFC 0067 §5.2: the mart leg shares the label, because it is the same
+        # relation declared in the same `depends_on:` block.
+        ("mart.order_items", "depends_on"),
     }
     assert not [e for e in graph.edges if e.src.kind is NodeKind.EXPOSURE]
 
 
-def test_a_mart_only_exposure_is_a_node_with_no_edge() -> None:
-    """`depends_on.marts` draws no edge — a mart is not a node of this graph
-    (logs/T-0038.md) — so an exposure naming only marts would exist nowhere at
-    all: absent from `topo_order`, and refused by `bloomery lineage` as an
-    unknown node, for a consumer the spec declares.
+def test_a_mart_only_exposure_now_has_an_upstream() -> None:
+    """RFC 0067 §6, and the case RFC 0056 could not answer: `finance_extract`
+    names no metric, so before the `mart` node it came back from an upstream
+    walk as a node with nothing above it — a consumer whose whole declaration
+    is what it reads, and the walk could see none of it.
 
-    Named for the shape rather than for the fixture, because the shape is what
-    a future `depends_on` kind would break.
+    The second assertion is what makes the first worth having. The mart is not
+    a leaf: the walk carries on through the metric it measures and into the
+    source columns behind it, which is the reachability a `depends_on.marts`
+    entry always implied and never had.
     """
 
     project, catalog = load_fixture("ecom_basic")
@@ -134,7 +144,159 @@ def test_a_mart_only_exposure_is_a_node_with_no_edge() -> None:
     extract = exposure_node("finance_extract")
 
     assert extract in graph.nodes
-    assert not [e for e in graph.edges if extract in (e.src, e.dst)]
+    incoming = {(e.src.name, e.label) for e in graph.edges if e.dst == extract}
+    assert incoming == {("mart.order_items", "depends_on")}
+
+    walk = lineage(graph, extract, Direction.UPSTREAM)
+    reached = {n.name for n in walk.nodes}
+    assert "mart.order_items" in reached
+    assert "metric.gross_revenue" in reached
+    assert "source.shopify__order_lines.$.total" in reached
+
+    # And a project with no marts document at all builds no mart node, rather
+    # than an empty one — the `is None` branch of the builder.
+    bare_project, bare_catalog = load_fixture("minimal")
+    bare = build_graph(bare_project, bare_catalog, effective_metrics(bare_project, bare_catalog))
+    assert not [n for n in bare.nodes if n.kind is NodeKind.MART]
+
+
+def test_a_metric_reaches_the_marts_that_carry_it() -> None:
+    """The downstream half of RFC 0067 §1: `--direction downstream` from a
+    metric now names the relation that will actually be rebuilt, not only the
+    definitions and dashboards above it."""
+
+    project, catalog = load_fixture("ecom_basic")
+    graph = build_graph(project, catalog, effective_metrics(project, catalog))
+
+    walk = lineage(graph, metric_node("gross_revenue"), Direction.DOWNSTREAM)
+    assert mart_node("order_items") in walk.nodes
+    assert (
+        Edge(src=metric_node("gross_revenue"), dst=mart_node("order_items"), label="measure")
+        in walk.edges
+    )
+
+
+def test_a_mart_reaches_its_measures_upstream() -> None:
+    """The direction §6 calls the one that makes the node worth having: from a
+    relation, back to the definitions and the columns underneath it."""
+
+    project, catalog = load_fixture("ecom_basic")
+    graph = build_graph(project, catalog, effective_metrics(project, catalog))
+
+    walk = lineage(graph, mart_node("order_items"), Direction.UPSTREAM)
+    reached = {n.name for n in walk.nodes}
+    assert "metric.gross_revenue" in reached
+    assert "canonical.unit_price" in reached
+    assert "order_item.unit_price" in reached
+
+
+def test_a_rollup_hangs_off_its_parent() -> None:
+    """RFC 0067 §5.4, D5: one kind and one prefix for both, and the rollup's
+    own measures draw no edge of their own — they are a subset of the parent's
+    (`marts/rollup.py`), so a metric reaches the rollup through the parent.
+
+    A reader asking what reads `order_items` wants `order_items_monthly` in
+    the answer, which is the whole of why a rollup is a node.
+    """
+
+    project, catalog = load_fixture("rollup_mart")
+    graph = build_graph(project, catalog, effective_metrics(project, catalog))
+    monthly = mart_node("order_items_monthly")
+
+    incoming = {(e.src.name, e.label) for e in graph.edges if e.dst == monthly}
+    assert incoming == {("mart.order_items", "rollup")}
+
+    walk = lineage(graph, metric_node("gross_revenue"), Direction.DOWNSTREAM)
+    assert monthly in walk.nodes
+
+
+def test_the_quality_mart_is_not_a_node() -> None:
+    """RFC 0067 D2 over D6, and the departure `logs/T-0039.md` records.
+
+    `gold.mart_data_quality` is synthesized from the finished IR by
+    `attach_quality_mart`, three stages after the graph is built, so no
+    document this builder reads names it. It is absent by the ordinary rule —
+    the builder reads `marts:` and it is not there — rather than by a filter,
+    which is why nothing here names it but this test.
+    """
+
+    project, catalog = load_fixture("multi_source_quality")
+    graph = build_graph(project, catalog, effective_metrics(project, catalog))
+
+    assert mart_node(QUALITY_MART) not in graph.nodes
+    assert not [n for n in graph.nodes if n.name.startswith(f"mart.{QUALITY_MART}")]
+
+    # The mart is absent; its metrics are declared and present, which is the
+    # half §3 measured and the half that stays true.
+    ir = build_project_ir(project, catalog)
+    assert any(mart.name == QUALITY_MART for mart in ir.marts)
+
+
+def test_a_mart_with_no_measure_and_no_rollup_still_exists() -> None:
+    """A dimensional mart draws no edge at all — RFC 0010 D9 asks a date role
+    only of a *measure-carrying* mart — so without the unconditional node it
+    would be absent from `topo_order` and refused by `bloomery lineage`, for a
+    relation the emitters write a model for."""
+
+    project, catalog = load_fixture("ecom_basic")
+    marts = project.marts
+    assert marts is not None
+    stripped = dataclasses.replace(
+        project,
+        marts=marts.model_copy(
+            update={
+                "marts": {
+                    name: mart.model_copy(update={"measures": ()})
+                    for name, mart in marts.marts.items()
+                }
+            }
+        ),
+        exposures=None,
+    )
+    graph = build_graph(stripped, catalog, effective_metrics(stripped, catalog))
+
+    assert mart_node("order_items") in graph.nodes
+    assert not [e for e in graph.edges if e.src.kind is NodeKind.MART]
+
+
+def test_a_dangling_mart_dependency_still_draws_its_edge() -> None:
+    """The graph is built at RESOLVE and `check_exposure_targets` refuses at
+    GUARDRAILS, so a name that resolves to nothing reaches this builder. It
+    draws the edge, exactly as the metric leg beside it does — filtering here
+    would make the graph disagree with the document in the one window where
+    `bloomery lineage` answers and a compile does not (logs/T-0039.md).
+    """
+
+    project, catalog = load_fixture("ecom_basic")
+    exposures = project.exposures
+    assert exposures is not None
+    extract = exposures.exposures["finance_extract"]
+    bogus = dataclasses.replace(
+        project,
+        exposures=exposures.model_copy(
+            update={
+                "exposures": {
+                    "finance_extract": extract.model_copy(
+                        update={
+                            "depends_on": extract.depends_on.model_copy(
+                                update={"marts": ("order_itmes",)}
+                            )
+                        }
+                    )
+                }
+            }
+        ),
+    )
+    graph = build_graph(bogus, catalog, effective_metrics(bogus, catalog))
+
+    assert (
+        Edge(
+            src=mart_node("order_itmes"),
+            dst=exposure_node("finance_extract"),
+            label="depends_on",
+        )
+        in graph.edges
+    )
 
 
 def test_a_wired_step_is_a_first_class_node(step_project: Project) -> None:
@@ -293,6 +455,7 @@ def test_every_prefixed_builder_uses_a_reserved_name() -> None:
         canonical_field_node("unit_price").name,
         metric_node("gross_revenue").name,
         step_node("resolve_customers").name,
+        mart_node("order_items").name,
         exposure_node("weekly_revenue_review").name,
     )
     assert {node_id.split(".", 1)[0] for node_id in ids} == set(NODE_ID_PREFIXES)
@@ -361,6 +524,11 @@ def test_a_reference_by_name_reaches_the_node_its_id_renamed() -> None:
     assert "metric.mtr_7f3a9c" in into_aov
     assert "metric.gross_revenue" not in into_aov
 
+    # And the mart's `measures:` entry, which names the metric from a fourth
+    # document and is the reference RFC 0067 §5.2 added.
+    into_mart = {edge.src.name for edge in graph.edges if edge.dst.name == "mart.order_items"}
+    assert into_mart == {"metric.mtr_7f3a9c"}
+
 
 def test_a_rename_moves_the_label_and_not_the_node() -> None:
     """§6's traversal test: the same id, a different name, the same edges."""
@@ -385,6 +553,13 @@ def test_a_rename_moves_the_label_and_not_the_node() -> None:
         "metrics: [gross_revenue, order_count]",
         "metrics: [revenue_gross, order_count]",
         1,
+    )
+    # A mart's `measures:` is a fourth document naming the same metric, and the
+    # `measure` edge RFC 0067 §5.2 draws from it is a *reference* for exactly
+    # the reason the two above are. Renaming everywhere but here would leave
+    # this edge sourced at a vertex nothing built.
+    sources["marts"] = sources["marts"].replace(
+        "measures: [gross_revenue]", "measures: [revenue_gross]", 1
     )
     renamed = load_project(sources)
     after = build_graph(renamed, catalog, effective_metrics(renamed, catalog))

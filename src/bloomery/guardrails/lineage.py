@@ -4,7 +4,7 @@ mint node ids in another kind's namespace.
 Every id on :class:`~bloomery.resolve.graph.Graph` but an entity field's is
 kind-prefixed — ``metric.gross_revenue``, ``canonical.unit_price``,
 ``step.resolve_customers``, ``source.<relation>.<path>``,
-``exposure.weekly_revenue_review``. An entity field is
+``mart.order_items``, ``exposure.weekly_revenue_review``. An entity field is
 ``<entity>.<field>`` bare, so an entity named ``metric`` with a field
 ``revenue`` produces exactly the id a metric named ``revenue`` produces.
 
@@ -50,6 +50,7 @@ __all__ = [
 _MINTS = {
     "canonical": ("a catalog canonical field is spelled 'canonical.<name>'", True),
     "exposure": ("a declared consumer is spelled 'exposure.<name>'", True),
+    "mart": ("a gold relation is spelled 'mart.<name>'", True),
     "metric": ("a metric is spelled 'metric.<name>'", True),
     "source": ("a bronze extraction is spelled 'source.<relation>.<path>'", False),
     "step": ("a referenced implementation is spelled 'step.<ref>'", True),

@@ -70,6 +70,15 @@ def check_exposure_targets(project: Project) -> list[GuardrailError]:
     declared" would be a refusal an author could disprove by opening the marts
     document; what is true is narrower — this list names marts, and RFC 0056
     §5.1 scopes it that way (logs/T-0038.md).
+
+    That refusal was first argued from a rollup not being a node of the lineage
+    graph, and RFC 0067 made it one — so it is restated here on the ground that
+    survives (D9, logs/T-0039.md). Admitting a rollup is a **grammar** change
+    with two legs beyond this guard: the dbt emitter lowers a mart dependency
+    to a ``ref()`` on that mart's relation, and `plan()` matches the dependency
+    against a ``mart:`` change subject. Widening one of the three and not the
+    others is how a declared dependency comes to report clean, which is the
+    failure this whole guard exists to refuse.
     """
 
     if project.exposures is None:

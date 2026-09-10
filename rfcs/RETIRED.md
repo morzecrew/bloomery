@@ -91,6 +91,7 @@ it would arrive here first. Three columns describe no behaviour and so cannot be
 | 0056 | Exposures and downstream consumers | `38dd7a6` |
 | 0058 | Rollup marts and pre-aggregations | `efba2b6` |
 | 0066 | Completing the semantic plan | `9ad7ac2` |
+| 0067 | Marts in the lineage graph | `0a6f9a8` |
 
 ## Not in the table
 

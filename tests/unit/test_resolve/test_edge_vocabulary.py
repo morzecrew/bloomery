@@ -51,6 +51,7 @@ CONSTRUCTOR_KINDS = {
     "canonical_field_node": NodeKind.CANONICAL_FIELD,
     "metric_node": NodeKind.METRIC,
     "step_node": NodeKind.STEP,
+    "mart_node": NodeKind.MART,
     "exposure_node": NodeKind.EXPOSURE,
 }
 
