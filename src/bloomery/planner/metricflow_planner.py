@@ -580,9 +580,7 @@ class MetricFlowPlanner:
             resolved,
             request,
             metrics_by_name,
-            filters=explain.applied_predicates(
-                explanation, request, resolved, metrics_by_name, policy=policy
-            ),
+            filters=explain.shared_predicates(explanation, resolved, policy=policy),
         )
 
         return QueryPlan(

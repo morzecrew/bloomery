@@ -7,6 +7,9 @@ from __future__ import annotations
 
 import hashlib
 
+import pathlib
+
+import bloomery
 import pytest
 import sqlglot
 from metricflow_semantics.errors.error_classes import (
@@ -765,3 +768,73 @@ def test_a_restriction_for_an_unknown_metric_is_empty() -> None:
     from bloomery.planner.explain import metric_restrictions
 
     assert metric_restrictions("no_such_metric", {}) == ()
+
+
+def test_a_derived_metric_over_another_derived_metric_plans() -> None:
+    """Coverage resolves a derived metric's inputs *transitively* — it accepts
+    `outer -> inner -> revenue` when `revenue` belongs to one mart — and the
+    plan builder did not, keeping `inner` as an input name.
+
+    `inner` is not a stored measure, so the R008 precondition failed, and
+    because `build`'s callers read its answer through `guaranteed` the planner
+    raised `InvariantViolated` on a project it had just accepted. Two functions
+    answering "what measures does this metric need" with different quantifiers
+    is the shape that produced it.
+
+    The nesting reaches the plan as one `Compute` per level, inputs first: a
+    nested expression references a metric no relation produces, so the inner
+    one has to be computed before the outer, and `Compute` sorts its outputs by
+    name — so the order lives in the node list.
+    """
+
+    from bloomery import build_project_ir, load_catalog, load_project
+    from bloomery.semantic import Compute
+
+    root = pathlib.Path(bloomery.__file__).parent.parent.parent
+    fixture = root / "tests" / "fixtures" / "period_over_period"
+    sources = {
+        name: (fixture / f"{name}.yaml").read_text() for name in ("entity_model", "mapping")
+    }
+    sources["marts"] = """\
+marts_version: 1
+marts:
+  sales:
+    grain: sale
+    base: sale
+    flatten:
+      - {date: sold_at, role: sold}
+    measures: [revenue]
+"""
+    sources["metrics"] = """\
+metrics_version: 1
+metrics:
+  revenue: {grain: sale, additivity: additive, agg: sum, expr: "amount"}
+  inner:
+    grain: sale
+    additivity: non_additive
+    derived:
+      expr: "a * 2"
+      inputs:
+        a: {metric: revenue}
+  outer:
+    grain: sale
+    additivity: non_additive
+    derived:
+      expr: "b + 1"
+      inputs:
+        b: {metric: inner}
+"""
+    ir = build_project_ir(
+        load_project(sources), catalog=load_catalog((fixture / "catalog.yaml").read_text())
+    )
+
+    query = make_planner().plan(
+        ir, MetricRequest(metrics=("outer",), dimensions=("day",)), dialect="duckdb"
+    )
+
+    assert query.semantic is not None
+    computed = [n for n in query.semantic.nodes if isinstance(n, Compute)]
+
+    assert [name for node in computed for name, _expr in node.outputs] == ["inner", "outer"]
+    # The aggregate carries the stored measure, never an intermediate name.
+    assert query.semantic.nodes[2].measures == ("revenue",)  # type: ignore[union-attr]

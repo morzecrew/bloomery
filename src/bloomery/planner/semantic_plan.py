@@ -187,6 +187,82 @@ def _inputs_of(metric: MetricIR) -> tuple[str, ...] | None:
 # ....................... #
 
 
+def _leaves(
+    name: str, metrics: Mapping[str, MetricIR], seen: frozenset[str] = frozenset()
+) -> tuple[str, ...] | None:
+    """The **stored** measures ``name`` is ultimately computed from, following
+    decompositions the way :func:`~bloomery.planner.coverage._measures_of`
+    does.
+
+    Transitive, because coverage is: it accepts ``outer -> inner -> revenue``
+    when `revenue` belongs to one mart, and a non-recursive answer here kept
+    `inner` as an input. `inner` is not a stored measure, so the R008
+    precondition failed, and — since `build`'s callers read its answer through
+    :func:`~bloomery.errors.guaranteed` — the planner raised
+    :class:`~bloomery.errors.InvariantViolated` on a project it had just
+    accepted. Two functions answering "what measures does this metric need"
+    with different quantifiers is the shape that produced it.
+
+    ``seen`` bounds the walk for the reason coverage's does: the resolution DAG
+    is acyclic, so it can only be re-entered by a diamond, but a cycle that
+    somehow arrived would hang, and a planner that hangs is worse than one that
+    is wrong.
+    """
+
+    if name in seen:
+        return ()
+
+    metric = metrics.get(name)
+
+    if metric is None:
+        return None
+
+    inputs = _inputs_of(metric)
+
+    if inputs is None:
+        return None
+
+    resolved: list[str] = []
+
+    for item in inputs:
+        # ``None`` from the recursion *is* the leaf answer: it means the input
+        # decomposes no further, which is what a stored measure does. Asking
+        # first whether it decomposes and only then recurring read better and
+        # left a `deeper is None` branch that nothing could reach, because the
+        # question and the recursion tested the same two things.
+        deeper = _leaves(item, metrics, seen | {name})
+        resolved.extend(deeper if deeper is not None else (item,))
+
+    return tuple(dict.fromkeys(resolved))
+
+
+# ....................... #
+
+
+def _ordering(coverage: Coverage, mart: MartIR) -> str:
+    """The axis a window accumulates along, or a shifted read is measured back
+    from: the request's first **date-role** dimension.
+
+    Not the first dimension. `ResolvedDimension.role` is set for a date-role
+    bucket and ``None`` for a categorical one, and a request may list them in
+    any order — so `dimensions[0]` recorded `status` as the ordering of a
+    seven-day window whenever a caller asked for the category first, which is
+    an axis nothing accumulates along.
+
+    Falls back to the mart's grain where the request names no date at all. A
+    cumulative metric requested without one is a single total over the whole
+    frame, and the grain is the honest thing to say about what it ran over.
+    """
+
+    return next(
+        (dimension.name for dimension in coverage.dimensions if dimension.role is not None),
+        mart.grain,
+    )
+
+
+# ....................... #
+
+
 def _shift(item: MetricInputIR) -> str | None:
     """One derived input's offset as prose, or ``None`` where it reads the
     current period.
@@ -252,7 +328,10 @@ def _read_at_a_shifted_range(reads: Sequence[tuple[str, str, str, str]], over: s
         conclusion=SemanticJudgement("ReadAtShiftedRange", (("over", over), ("gaps", "absent"))),
         facts=tuple(
             SemanticFact(
-                source=f"metric:{metric}",
+                # One source per *read*, not per metric. `Proof` keeps one
+                # fact per source, so a metric with two shifted inputs would
+                # have had one of them silently dropped from its own proof.
+                source=f"metric:{metric}.{alias}",
                 provenance=Provenance.DECLARED,
                 statement=f"{metric} reads {measure} as {alias}, {shift}",
             )
@@ -453,9 +532,12 @@ def _cumulative(
         if metric is None or metric.cumulative is None:
             continue
 
-        groups.setdefault((_frame(metric.cumulative), metric.cumulative.period_agg), []).append(
-            name
-        )
+        members = groups.setdefault((_frame(metric.cumulative), metric.cumulative.period_agg), [])
+
+        # A requested metric the mart also stores arrives twice, and neither
+        # the group nor `Window` deduplicates — the node would name it twice.
+        if name not in members:
+            members.append(name)
 
     return tuple(
         (frame, period_agg, tuple(sorted(measures)))
@@ -496,6 +578,37 @@ def _scoped_filters(names: Sequence[str], metrics: Mapping[str, MetricIR]) -> tu
 # ....................... #
 
 
+def _levels(
+    name: str, metrics: Mapping[str, MetricIR], seen: frozenset[str] = frozenset()
+) -> tuple[str, ...]:
+    """``name`` and every computed metric beneath it, **inputs first**.
+
+    Order is the whole point. A nested ``derived:`` references a metric no
+    relation produces, so `outer = b + 1 where b = inner` needs `inner`
+    computed first — and :class:`~bloomery.semantic.Compute` sorts its outputs
+    by name, so the ordering cannot live inside one node. It lives in the node
+    list instead: one `Compute` per level, in this order.
+    """
+
+    if name in seen or (metric := metrics.get(name)) is None:
+        return ()
+
+    inputs = _inputs_of(metric)
+
+    if inputs is None:
+        return ()
+
+    below: list[str] = []
+
+    for item in inputs:
+        below.extend(_levels(item, metrics, seen | {name}))
+
+    return (*dict.fromkeys(below), name)
+
+
+# ....................... #
+
+
 def _partition(
     requested: Sequence[str], mart: MartIR, metrics: Mapping[str, MetricIR]
 ) -> tuple[tuple[str, ...], tuple[tuple[tuple[str, str], ...], tuple[str, ...]] | None]:
@@ -517,12 +630,18 @@ def _partition(
         if name in mart.measures or name not in metrics:
             continue
 
-        needed = _inputs_of(metrics[name])
+        needed = _leaves(name, metrics)
 
         if needed is None:
             return stored, None
 
-        outputs.append((name, expression(metrics[name])))
+        # Every metric between this one and its stored measures gets an output
+        # of its own: a nested `derived:` references a name no relation
+        # produces, so the plan has to compute the inner one before the outer.
+        for level in _levels(name, metrics):
+            if level not in {output for output, _expr in outputs}:
+                outputs.append((level, expression(metrics[level])))
+
         inputs.extend(needed)
 
     return stored, (tuple(outputs), tuple(dict.fromkeys(inputs)))
@@ -590,7 +709,7 @@ def build(
     refuses (RFC 0066 D1).
 
     ``filters`` arrives already rendered, from
-    :func:`~bloomery.planner.explain.applied_predicates` — the same renderers
+    :func:`~bloomery.planner.explain.shared_predicates` — the same renderers
     the :class:`~bloomery.planner.Explanation` uses, so the plan and the
     explanation are one account of one request rather than two, which is the
     thing RFC 0039 §7 refuses. It carries every predicate the query applies,
@@ -612,16 +731,18 @@ def build(
     aggregated = (*stored, *inputs)
 
     # The shared restriction, then one node per group of measures narrowed
-    # alike. `filters` carries every predicate the query applies, the
-    # per-metric ones included, so the scoped nodes name what the shared node
-    # would otherwise claim about every measure beneath it (RFC 0066 §5.5).
-    scoped = _scoped_filters(aggregated, metrics)
-    narrowed = {predicate for node in scoped for predicate in node.predicates}
-
+    # alike (RFC 0066 §5.5). `filters` carries the policy and the request's own
+    # filters — the ones that restrict every measure — and the scoped nodes
+    # carry each metric's own.
+    #
+    # Built from two sources rather than by subtracting one from the other: a
+    # request filter and a metric's filter can render to the same text, and
+    # removing the per-metric ones by text then dropped a predicate that really
+    # does restrict everything.
     nodes: tuple[PlanNode, ...] = (
         Scan(relation=mart.name, grain=mart.grain),
-        Filter(predicates=tuple(p for p in filters if p not in narrowed)),
-        *scoped,
+        Filter(predicates=tuple(filters)),
+        *_scoped_filters(aggregated, metrics),
     )
     # Before the aggregate, not after: the declaration says one row per group
     # along `over:` *is* the measure, and aggregating across the other
@@ -657,7 +778,7 @@ def build(
     # After the aggregate: the measure is reduced per period first, and the
     # window runs along the ordering over those totals (RFC 0066 §5.4). One
     # node per (frame, period_agg), for the same reason `Reduce` groups.
-    ordering = dimensions[0] if dimensions else mart.grain
+    ordering = _ordering(coverage, mart)
     nodes = (
         *nodes,
         *(
@@ -684,20 +805,22 @@ def build(
             *nodes,
             Offset(
                 reads=shifted,
-                over=dimensions[0] if dimensions else mart.grain,
-                proof=_read_at_a_shifted_range(
-                    shifted, dimensions[0] if dimensions else mart.grain
-                ),
+                over=_ordering(coverage, mart),
+                proof=_read_at_a_shifted_range(shifted, _ordering(coverage, mart)),
             ),
         )
 
     if outputs:
         nodes = (
             *nodes,
-            Compute(
-                outputs=outputs,
-                inputs=inputs,
-                proof=_computed_after_aggregate([name for name, _expr in outputs], over=mart.name),
+            *(
+                Compute(
+                    outputs=(output,),
+                    inputs=tuple(_inputs_of(metrics[name]) or ()),
+                    proof=_computed_after_aggregate([name], over=mart.name),
+                )
+                for output in outputs
+                for name in (output[0],)
             ),
         )
 

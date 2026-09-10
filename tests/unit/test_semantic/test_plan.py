@@ -47,7 +47,10 @@ from bloomery.semantic import (
     SemanticPlan,
 )
 from bloomery.planner.semantic_plan import (
+    _cumulative,
+    _leaves,
     _measures_are_embedded,
+    _read_at_a_shifted_range,
     _restriction,
     _semi_additive,
     _shifted_reads,
@@ -1491,3 +1494,138 @@ def test_a_reduce_with_no_measures_is_refused() -> None:
 def test_an_offset_with_no_reads_is_refused() -> None:
     with pytest.raises(ValueError, match="shifts nothing"):
         Offset(reads=(), over="sold_day")
+
+
+def test_a_windows_axis_is_a_date_role_not_the_first_dimension() -> None:
+    """`ResolvedDimension.role` is set for a date-role bucket and `None` for a
+    categorical one, and a request may list them in any order.
+
+    Taking `dimensions[0]` recorded `status` as the ordering of a seven-day
+    window whenever a caller asked for the category first — an axis nothing
+    accumulates along, on a node whose whole job is to say what it accumulates
+    along.
+    """
+
+    planner = make_planner()
+    ir = fixture_ir("period_over_period")
+
+    for dimensions in (("status", "day"), ("day", "status")):
+        query = planner.plan(
+            ir, MetricRequest(metrics=("revenue_trailing_7d",), dimensions=dimensions), dialect="duckdb"
+        )
+        assert query.semantic is not None
+        (window,) = [n for n in query.semantic.nodes if isinstance(n, Window)]
+        assert window.over == "sold_day", f"asked for {dimensions}"
+
+
+def test_a_metric_with_two_shifted_inputs_keeps_both_facts() -> None:
+    """`Proof` keeps one fact per `source`, so sourcing every read of one
+    metric at `metric:{name}` collapsed them — and R017's proof then omitted a
+    shifted read while still closing.
+
+    The source is the read, not the metric.
+    """
+
+    reads = (
+        ("revenue_swing", "prior", "revenue", "1 year earlier"),
+        ("revenue_swing", "month_start", "revenue", "at the start of its month"),
+    )
+    proof = _read_at_a_shifted_range(reads, "sold_day")
+
+    assert len(proof.facts) == 2
+    assert {fact.source for fact in proof.facts} == {
+        "metric:revenue_swing.prior",
+        "metric:revenue_swing.month_start",
+    }
+
+
+def test_a_cumulative_metric_the_mart_stores_is_named_once() -> None:
+    """The request's own metrics and the aggregate's measures overlap wherever
+    a cumulative metric is itself stored, and neither the group nor `Window`
+    deduplicates — so the node named it twice and `render()` and `serialize()`
+    said so."""
+
+    metrics = {metric.name: metric for metric in fixture_ir("period_over_period").metrics}
+
+    assert _cumulative(("revenue_trailing_7d", "revenue_trailing_7d"), metrics) == (
+        ("trailing 7 days", "last", ("revenue_trailing_7d",)),
+    )
+
+
+def test_a_request_filter_matching_a_metric_filter_stays_shared() -> None:
+    """A request filter and a metric's own filter can render to the same text.
+
+    The shared node was built by subtracting the per-metric predicates from the
+    flat list, so an identical request filter was removed from it — leaving a
+    plan saying `paid_revenue` alone was narrowed while the SQL narrowed every
+    measure. Built from two sources now rather than by subtraction.
+    """
+
+    planner = make_planner()
+    query = planner.plan(
+        fixture_ir("period_over_period"),
+        MetricRequest(
+            metrics=("revenue", "paid_revenue"),
+            dimensions=("day",),
+            filters=(Predicate(dimension="status", op=Op.EQ, values=("paid",)),),
+        ),
+        dialect="duckdb",
+    )
+
+    assert query.semantic is not None
+    assert _filters(query) == ("status = 'paid'",)
+    assert _scoped(query) == {("paid_revenue",): ("status = 'paid'",)}
+
+
+def test_resolving_leaves_answers_the_three_ways_it_can_fail() -> None:
+    """`_leaves` walks a decomposition, and three of its exits only run on
+    input the pipeline refuses before it gets here — so they are executed
+    deliberately rather than called dead.
+
+    * a **cycle**: `resolve` raises `CircularDerivation`, so the DAG that
+      reaches a planner is acyclic. The guard bounds the walk anyway, for the
+      reason coverage's does — a planner that hangs is worse than one that is
+      wrong;
+    * an **unknown** name: coverage refuses a metric no mart carries first;
+    * a nested metric that **decomposes into nothing statable**: the additivity
+      guardrail refuses a non-additive metric with no decomposition.
+    """
+
+    def stored(name: str) -> MetricIR:
+        return MetricIR(
+            name=name,
+            grain="sale",
+            additivity=Additivity.ADDITIVE,
+            agg="sum",
+            expr=SqlExpr("amount"),
+            ratio=None,
+            semi_additive=None,
+        )
+
+    def over(name: str, inner: str) -> MetricIR:
+        return dataclasses.replace(
+            stored(name),
+            additivity=Additivity.NON_ADDITIVE,
+            agg=None,
+            expr=None,
+            derived=DerivedIR(
+                expr=SqlExpr("x + 1"), inputs=(MetricInputIR(alias="x", metric=inner),)
+            ),
+        )
+
+    # A cycle: the walk stops rather than recurring forever.
+    loop = {m.name: m for m in (over("a", "b"), over("b", "a"))}
+    assert _leaves("a", loop) == ()
+
+    # An unknown name, reached through a decomposition and asked for directly.
+    assert _leaves("nope", {}) is None
+    assert _leaves("a", {m.name: m for m in (over("a", "gone"),)}) == ("gone",)
+
+    # A nested metric that decomposes into nothing statable.
+    opaque = dataclasses.replace(stored("opaque"), additivity=Additivity.NON_ADDITIVE, agg=None, expr=None)
+    nested = {m.name: m for m in (over("a", "mid"), over("mid", "opaque"), opaque)}
+    assert _leaves("a", nested) == ("opaque",)
+
+    # And the shape it exists for: two levels resolving to the stored measure.
+    good = {m.name: m for m in (over("a", "mid"), over("mid", "revenue"), stored("revenue"))}
+    assert _leaves("a", good) == ("revenue",)
