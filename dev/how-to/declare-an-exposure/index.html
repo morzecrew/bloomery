@@ -1781,10 +1781,10 @@ about lineage was actually asking:</p>
 <span class="go">  metric.gross_revenue  --requires_metrics--&gt;  metric.average_order_value</span>
 </code></pre></div>
 <p>Nothing is downstream of an exposure. It is the graph's only sink.</p>
-<p>A <strong>mart</strong> dependency draws no lineage edge, so an exposure that names only marts comes
-back from an upstream walk as a node with nothing above it. A mart is not a node of this
-graph; the dependency is real everywhere else — <code>plan()</code> reports it and the dbt exposure
-carries it — and only the walk cannot see it.</p>
+<p>A <strong>mart</strong> dependency draws an edge too, so an exposure that names only marts still has
+an upstream — and the walk carries on past the mart into the metrics it measures and the
+columns behind those. What it does not carry is the mart's own dimension columns; see
+<a href="../trace-lineage/#naming-a-node">Trace where a metric comes from</a> for why.</p>
 <h2 id="ask-who-a-change-reaches">Ask who a change reaches<a class="headerlink" href="#ask-who-a-change-reaches" title="Permanent link">&para;</a></h2>
 <p><code>Plan.affected_exposures</code> names the consumers a diff touches, and <code>bloomery plan</code> prints
 them last — everything above the section says what changed, and this says who to tell.</p>

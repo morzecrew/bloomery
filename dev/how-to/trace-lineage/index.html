@@ -1893,6 +1893,10 @@ but one carries its kind as a prefix:</p>
 <td><code>step.&lt;ref&gt;</code></td>
 </tr>
 <tr>
+<td>Mart</td>
+<td><code>mart.&lt;name&gt;</code> — a rollup too, under the same prefix</td>
+</tr>
+<tr>
 <td>Exposure</td>
 <td><code>exposure.&lt;name&gt;</code></td>
 </tr>
@@ -1907,6 +1911,12 @@ suffix. Mistype one and the refusal suggests the spelling it thinks you meant:</
 <div class="highlight"><pre><span></span><code><span class="gp">$ </span>bloomery<span class="w"> </span>lineage<span class="w"> </span>specs/<span class="w"> </span>--node<span class="w"> </span>metric.gross_revenu
 <span class="go">no node named 'metric.gross_revenu' in this project's dependency graph. did you mean: metric.gross_revenue</span>
 </code></pre></div>
+<p>A mart's <strong>columns</strong> are not edges. A metric the mart carries as a measure draws one, and
+so does a rollup of it, but the entity columns a mart flattens do not — those come from
+the flattener, which runs a stage after the graph is built, and waiting for it would cost
+the walk its ability to answer on a project that does not yet compile. So a change to a
+mart <em>dimension</em> that no metric reads — <code>order.status</code>, flattened and grouped by — reaches
+the mart in fact and not in this graph. <code>plan()</code> still reports it as a mart change.</p>
 <p>An exposure is the odd one out for a different reason: it is the graph's sink, it carries
 no SQL, and only dbt gets an artifact for one. Cube and SQLMesh have no such concept and
 emit nothing — without refusing anything, so declaring a dashboard never restricts what
