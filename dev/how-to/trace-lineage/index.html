@@ -1094,6 +1094,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../declare-an-exposure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Declare what reads your project
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../merge-sources/" class="md-nav__link">
         
   
@@ -1818,7 +1845,9 @@ back to the source columns, with the label on each edge saying <em>how</em> — 
 catalog recipe by id, a macro by ref and version.</p>
 <p><strong>What breaks if I change this column?</strong> Walk <code>DOWNSTREAM</code> from a source column before a
 migration and you have the blast radius. <code>plan()</code> tells you what changed <em>after</em> an edit;
-this tells you what an edit would reach.</p>
+this tells you what an edit would reach. Where the project declares
+<a href="../declare-an-exposure/">exposures</a>, the walk carries on past the metrics into the
+dashboards and syncs that read them.</p>
 <p><strong>Why is this metric unreachable, in full?</strong> <code>SpecEvidence.unreachable</code> names the missing
 leaves. The upstream walk shows the whole structure they sit in.</p>
 <h2 id="from-the-command-line">From the command line<a class="headerlink" href="#from-the-command-line" title="Permanent link">&para;</a></h2>
@@ -1837,8 +1866,8 @@ leaves. The upstream walk shows the whole structure they sit in.</p>
 <p><code>--direction downstream</code> walks the other way, <code>--direction both</code> merges the two, and
 <code>--format json</code> emits the same value the Python call returns.</p>
 <h2 id="naming-a-node">Naming a node<a class="headerlink" href="#naming-a-node" title="Permanent link">&para;</a></h2>
-<p>A node id is the name you have already seen in a <code>CircularDerivation</code> message. Four of the
-five kinds carry their kind as a prefix:</p>
+<p>A node id is the name you have already seen in a <code>CircularDerivation</code> message. Every kind
+but one carries its kind as a prefix:</p>
 <table>
 <thead>
 <tr>
@@ -1864,6 +1893,10 @@ five kinds carry their kind as a prefix:</p>
 <td><code>step.&lt;ref&gt;</code></td>
 </tr>
 <tr>
+<td>Exposure</td>
+<td><code>exposure.&lt;name&gt;</code></td>
+</tr>
+<tr>
 <td>Entity field</td>
 <td><code>&lt;entity&gt;.&lt;field&gt;</code> — <strong>no prefix</strong></td>
 </tr>
@@ -1874,6 +1907,10 @@ suffix. Mistype one and the refusal suggests the spelling it thinks you meant:</
 <div class="highlight"><pre><span></span><code><span class="gp">$ </span>bloomery<span class="w"> </span>lineage<span class="w"> </span>specs/<span class="w"> </span>--node<span class="w"> </span>metric.gross_revenu
 <span class="go">no node named 'metric.gross_revenu' in this project's dependency graph. did you mean: metric.gross_revenue</span>
 </code></pre></div>
+<p>An exposure is the odd one out for a different reason: it is the graph's sink, it carries
+no SQL, and only dbt gets an artifact for one. Cube and SQLMesh have no such concept and
+emit nothing — without refusing anything, so declaring a dashboard never restricts what
+you can compile.</p>
 <h3 id="identity-when-the-name-is-not-it">Identity, when the name is not it<a class="headerlink" href="#identity-when-the-name-is-not-it" title="Permanent link">&para;</a></h3>
 <p><code>metric.&lt;name&gt;</code> makes the name the identity, so renaming a metric deletes one node and
 adds another: the history stops, and every citation of the old id points at nothing.</p>

@@ -1089,6 +1089,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/declare-an-exposure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Declare what reads your project
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/merge-sources/" class="md-nav__link">
         
   
@@ -1738,6 +1765,45 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Flatten steps — two forms
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exposureset-exposures_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        ExposureSet (<code>exposures_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ExposureSet (exposures_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exposure" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Exposure
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dependson" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        DependsOn
       </span>
     </span>
   </a>
@@ -2428,6 +2494,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#exposureset-exposures_version" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        ExposureSet (<code>exposures_version</code>)
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ExposureSet (exposures_version)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#exposure" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Exposure
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dependson" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        DependsOn
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#stepset-steps_version" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2527,14 +2632,14 @@
 
 
 <h1 id="spec-schemas">Spec schemas<a class="headerlink" href="#spec-schemas" title="Permanent link">&para;</a></h1>
-<p>Field-by-field reference for the six spec kinds. Parsing is strict: unknown keys,
+<p>Field-by-field reference for the seven spec kinds. Parsing is strict: unknown keys,
 duplicate YAML keys, and grammar violations are hard <code>SpecParseError</code>s, batched per
 document with a source path per failure. Parse validates shape and grammar only —
 whether references exist is checked at resolution.</p>
 <p>Each project document self-identifies by its version key: <code>spec_version</code> (EntityModel),
 <code>mapping_version</code> (Mapping), <code>metrics_version</code> (MetricSet), <code>marts_version</code> (MartSet),
-<code>steps_version</code> (StepSet). A project holds exactly one EntityModel, any number of
-Mappings, and at most one MetricSet, MartSet and StepSet. The Catalog
+<code>steps_version</code> (StepSet), <code>exposures_version</code> (ExposureSet). A project holds exactly one
+EntityModel, any number of Mappings, and at most one of every other kind. The Catalog
 (<code>catalog_version</code>) is not part of a project — load it with <code>load_catalog</code> and pass it
 separately.</p>
 <p>A version key is required, and it is also how bloomery tells one kind of document from
@@ -4148,6 +4253,115 @@ is what it is on every other target too.</p>
 </tr>
 </tbody>
 </table>
+<h2 id="exposureset-exposures_version">ExposureSet (<code>exposures_version</code>)<a class="headerlink" href="#exposureset-exposures_version" title="Permanent link">&para;</a></h2>
+<p>At most one per project, and optional. An exposure is something outside the project that
+<em>reads</em> it — a dashboard, a notebook, a reverse-ETL sync — declared so the lineage graph
+has a sink and <code>plan()</code> can name the consumers a change reaches. Nothing is built for one,
+and nothing about one is discovered: see
+<a href="../../how-to/declare-an-exposure/">Declare what reads your project</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>exposures_version</code></td>
+<td><code>1</code></td>
+<td>yes</td>
+<td>Document version key</td>
+</tr>
+<tr>
+<td><code>exposures</code></td>
+<td>map name → Exposure</td>
+<td>yes</td>
+<td>One entry per consumer; the name is a bare identifier and mints <code>exposure.&lt;name&gt;</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="exposure">Exposure<a class="headerlink" href="#exposure" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kind</code></td>
+<td><code>dashboard</code> / <code>notebook</code> / <code>analysis</code> / <code>ml</code> / <code>application</code></td>
+<td>yes</td>
+<td>dbt's vocabulary verbatim, so the emitted exposure needs no translation</td>
+</tr>
+<tr>
+<td><code>owner</code></td>
+<td>string</td>
+<td>yes</td>
+<td>Who to tell. Emitted as dbt's <code>owner: {email: …}</code></td>
+</tr>
+<tr>
+<td><code>depends_on</code></td>
+<td>DependsOn</td>
+<td>yes</td>
+<td>What this consumer reads</td>
+</tr>
+<tr>
+<td><code>url</code></td>
+<td>string</td>
+<td>no</td>
+<td>Text. Never fetched, never validated — a compiler that checked it would be making a network request to decide whether a spec parses</td>
+</tr>
+</tbody>
+</table>
+<h3 id="dependson">DependsOn<a class="headerlink" href="#dependson" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>metrics</code></td>
+<td>list of metric names</td>
+<td>no (<code>[]</code>)</td>
+<td>Metrics this consumer reads</td>
+</tr>
+<tr>
+<td><code>marts</code></td>
+<td>list of mart names</td>
+<td>no (<code>[]</code>)</td>
+<td>Marts it reads directly. Names a mart, never a rollup</td>
+</tr>
+</tbody>
+</table>
+<p>At least one entry across the two: an exposure that names nothing answers neither "what
+does this read" nor "who does this change reach", while still reporting clean. A name
+repeated within a list is refused for the same reason — it would build one graph edge
+twice and report one consumer twice against a single change.</p>
+<p><strong>Shape versus resolution.</strong> Parse checks the grammar above. Whether a named metric or
+mart exists is a guardrail question, and a name that resolves to nothing is refused there
+(<code>DanglingExposure</code>).</p>
+<div class="highlight"><pre><span></span><code><span class="nt">exposures_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="nt">exposures</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">weekly_revenue_review</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dashboard</span>
+<span class="w">    </span><span class="nt">owner</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">analytics@example.com</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://bi.example.com/dash/17</span>
+<span class="w">    </span><span class="nt">depends_on</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">metrics</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">gross_revenue</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">order_count</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">marts</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">order_items</span><span class="p p-Indicator">]</span>
+</code></pre></div>
 <h2 id="stepset-steps_version">StepSet (<code>steps_version</code>)<a class="headerlink" href="#stepset-steps_version" title="Permanent link">&para;</a></h2>
 <p>At most one per project, and optional — most projects wire no steps. A step is a
 <em>referenced implementation</em>: the document names platform-owned code by <code>ref@version</code> and

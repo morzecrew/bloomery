@@ -1089,6 +1089,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/declare-an-exposure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Declare what reads your project
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/merge-sources/" class="md-nav__link">
         
   
@@ -3148,8 +3175,10 @@ other change, breaking included, is classified and returned. See
 <a href="../../how-to/evolve-a-spec/">Evolve a spec safely</a>.</p>
 <h3 id="plan"><code>Plan</code><a class="headerlink" href="#plan" title="Permanent link">&para;</a></h3>
 <p><code>changes</code> (sorted <code>Change</code> tuple), <code>backfill_scope</code> (<code>BackfillScope</code>), <code>replay_scope</code>
-(<code>ReplayScope</code>), and <code>downstream_impact</code> (affected metric names). Properties:
-<code>has_changes</code>, <code>breaking</code>.</p>
+(<code>ReplayScope</code>), <code>downstream_impact</code> (affected metric names), and <code>affected_exposures</code>
+(the declared consumers those changes reach — computed from the changed marts as well as
+the downstream metrics, so an exposure that depends only on a mart is not omitted).
+Properties: <code>has_changes</code>, <code>breaking</code>.</p>
 <h3 id="change"><code>Change</code><a class="headerlink" href="#change" title="Permanent link">&para;</a></h3>
 <p>One classified difference: <code>entity</code>, <code>subject</code> (<code>&lt;kind&gt;:&lt;name&gt;</code>), <code>change_class</code>,
 human-readable <code>detail</code>, and compact <code>old</code>/<code>new</code> value reprs.</p>

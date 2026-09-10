@@ -1089,6 +1089,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../../how-to/declare-an-exposure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Declare what reads your project
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../how-to/merge-sources/" class="md-nav__link">
         
   
@@ -1828,6 +1855,7 @@ pulling in any pipeline stage.</p>
 │   ├── MartMissingTimeDimension
 │   ├── UnprovableRollup
 │   ├── ReservedEntityName
+│   ├── DanglingExposure
 │   ├── QuarantineRetentionMissing
 │   ├── DedupeTieBreakMissing
 │   ├── DedupeDispositionConflict
@@ -2009,7 +2037,12 @@ pulling in any pipeline stage.</p>
 <tr>
 <td><code>ReservedEntityName</code></td>
 <td>guardrails</td>
-<td>An entity named <code>canonical</code>, <code>metric</code>, <code>source</code> or <code>step</code> — every lineage node id but an entity field's is <code>&lt;prefix&gt;.&lt;rest&gt;</code>, so such an entity mints ids in another kind's namespace</td>
+<td>An entity named <code>canonical</code>, <code>exposure</code>, <code>metric</code>, <code>source</code> or <code>step</code> — every lineage node id but an entity field's is <code>&lt;prefix&gt;.&lt;rest&gt;</code>, so such an entity mints ids in another kind's namespace</td>
+</tr>
+<tr>
+<td><code>DanglingExposure</code></td>
+<td>guardrails</td>
+<td>An exposure whose <code>depends_on</code> names a metric or mart the project does not declare — the dependency would match no change, so the impact report would name nobody and still read clean</td>
 </tr>
 <tr>
 <td><code>QuarantineRetentionMissing</code></td>
