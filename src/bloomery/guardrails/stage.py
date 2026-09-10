@@ -26,6 +26,7 @@ from bloomery.guardrails.additivity import check_additivity
 from bloomery.guardrails.arithmetic import check_arithmetic
 from bloomery.guardrails.asserts import lower_asserts
 from bloomery.guardrails.conflict import Shadow, path_conflict_amendments
+from bloomery.guardrails.exposures import check_exposure_targets
 from bloomery.guardrails.grain import check_grain
 from bloomery.guardrails.lineage import check_lineage_names
 from bloomery.guardrails.metrics import check_metrics
@@ -119,9 +120,9 @@ def _amended_entity(
 
 
 def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | None) -> ProjectIR:
-    """Run all eight guardrails plus the data-quality leaves and the
-    lineage-namespace guard over the draft IR (RFC 0006 D9; RFC 0016 §5.9;
-    RFC 0051 §5.2).
+    """Run all eight guardrails plus the data-quality leaves, the
+    lineage-namespace guard and the dangling-exposure guard over the draft IR
+    (RFC 0006 D9; RFC 0016 §5.9; RFC 0051 §5.2; RFC 0056 D2).
 
     Raises one aggregated :class:`GuardrailError` if any violation exists;
     otherwise returns the draft amended only by path-conflict handling and
@@ -134,6 +135,10 @@ def check_guardrails(draft: ProjectIR, *, project: Project, catalog: Catalog | N
     violations.extend(check_additivity(draft))
     violations.extend(check_metrics(draft))
     violations.extend(check_lineage_names(draft))
+    # Exposure references (RFC 0056 D2, `LOCKED`), asked of the authored
+    # documents rather than the draft — see the module docstring for why the
+    # draft is the wrong side of the flattener to ask.
+    violations.extend(check_exposure_targets(project))
     # Mart-level checks (RFC 0006 D10): the flattener re-runs here as a pure
     # sibling stage; its leaves batch into the same aggregate as the rest.
     violations.extend(lower_marts(project.marts, draft).violations)

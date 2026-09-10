@@ -37,6 +37,7 @@ from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
 from bloomery import SpecKind, all_spec_schemas, load_catalog, load_project
+from bloomery.schema import VERSION_KEYS
 from bloomery.spec import Mapping
 from bloomery.errors import SpecParseError
 
@@ -47,16 +48,16 @@ pytestmark = pytest.mark.property
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
-#: Version key → the kind it identifies. The catalog is loaded separately
-#: (RFC 0002 D8) but is a spec kind like any other for schema purposes.
-KIND_BY_VERSION_KEY = {
-    "catalog_version": SpecKind.CATALOG,
-    "spec_version": SpecKind.ENTITY_MODEL,
-    "mapping_version": SpecKind.MAPPING,
-    "marts_version": SpecKind.MARTS,
-    "metrics_version": SpecKind.METRICS,
-    "steps_version": SpecKind.STEPS,
-}
+#: Version key → the kind it identifies, inverted from the compiler's own map.
+#: The catalog is loaded separately (RFC 0002 D8) but is a spec kind like any
+#: other for schema purposes.
+#:
+#: Inverted rather than written out, because a kind missing from a hand-kept
+#: copy reads, one function down, as a fixture that "names 0 spec kinds" — a
+#: document whose version key nothing recognises is indistinguishable from one
+#: with no version key at all, and the failure then points at the fixture
+#: rather than at the map.
+KIND_BY_VERSION_KEY = {version_key: kind for kind, version_key in VERSION_KEYS.items()}
 
 VALIDATORS = {kind: Draft202012Validator(schema) for kind, schema in all_spec_schemas().items()}
 

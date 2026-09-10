@@ -1,0 +1,21 @@
+# Declared downstream consumers (RFC 0056 §5.1). Nothing is built for these:
+# they are the graph's only sink, and the names `plan()` puts to a breaking
+# change.
+exposures_version: 1
+exposures:
+  # The ordinary shape — a dashboard reading metrics, which is what gives the
+  # lineage graph edges into an exposure at all.
+  weekly_revenue_review:
+    kind: dashboard
+    owner: analytics@example.com
+    url: https://bi.example.com/dash/17
+    depends_on:
+      metrics: [gross_revenue, order_count]
+      marts: [order_items]
+  # Mart-only, and here on purpose (RFC 0056 §5.4): it is the exposure a
+  # metric-only downstream walk omits, and the one with no incoming graph edge.
+  finance_extract:
+    kind: application
+    owner: finance@example.com
+    depends_on:
+      marts: [order_items]

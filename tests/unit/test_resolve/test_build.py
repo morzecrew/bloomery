@@ -13,6 +13,7 @@ from bloomery.errors import (
     TypeCheckError,
 )
 from bloomery.ir import (
+    ExposureKind,
     DateDimensionIR,
     DimensionRef,
     MartJoinIR,
@@ -24,7 +25,7 @@ from bloomery.ir import (
 from bloomery.quality import dedupe_sort_columns
 from bloomery.resolve.build import DIRECT_SUFFIX
 from bloomery.typing import DecimalType, StringType, TimestampType
-from support.compiling import load_fixture
+from support.compiling import FIXTURES, fixture_sources, load_fixture
 
 pytestmark = pytest.mark.unit
 
@@ -1427,3 +1428,51 @@ def test_a_rule_on_a_column_only_one_mapping_produces_reaches_the_entity() -> No
     # the marker is inert there rather than reporting every one of its rows.
     src_a = next(source for source in entity.sources if source.relation == "src_a")
     assert next(c.sources for c in src_a.columns if c.name == "note") == ()
+
+
+# ....................... #
+# Exposures — RFC 0056 §5.1
+
+
+def _with_exposures(body: str) -> tuple[str, ...]:
+    """``ecom_basic``'s exposures replaced by ``body``, lowered, dependencies
+    of the first exposure returned."""
+
+    sources = fixture_sources("ecom_basic")
+    sources["exposures"] = body
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    ir = build_project_ir(load_project(sources), catalog=catalog)
+    return ir.exposures[0].metrics
+
+
+def test_a_dependency_list_is_sorted_on_the_way_in() -> None:
+    """Authored order carries no meaning here, unlike a mart's flatten chain
+    (RFC 0003 D4) — so two spellings of one exposure must not produce two
+    fingerprints, and the fixture's own list is already sorted, which would
+    let an unsorted lowering pass unnoticed.
+    """
+
+    assert _with_exposures("""
+exposures_version: 1
+exposures:
+  weekly_revenue_review:
+    kind: dashboard
+    owner: analytics@example.com
+    depends_on:
+      metrics: [order_count, gross_revenue]
+""") == ("gross_revenue", "order_count")
+
+
+def test_the_kind_is_lowered_to_the_closed_vocabulary() -> None:
+    """A closed vocabulary is an enum in this IR, like every sibling: the
+    builder is the validator (RFC 0003 D1), so a hand-built node cannot carry a
+    type the dbt emitter would write out and dbt would refuse."""
+
+    sources = fixture_sources("ecom_basic")
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    ir = build_project_ir(load_project(sources), catalog=catalog)
+
+    assert [exposure.kind for exposure in ir.exposures] == [
+        ExposureKind.APPLICATION,
+        ExposureKind.DASHBOARD,
+    ]

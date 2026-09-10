@@ -3,7 +3,8 @@ mint node ids in another kind's namespace.
 
 Every id on :class:`~bloomery.resolve.graph.Graph` but an entity field's is
 kind-prefixed — ``metric.gross_revenue``, ``canonical.unit_price``,
-``step.resolve_customers``, ``source.<relation>.<path>``. An entity field is
+``step.resolve_customers``, ``source.<relation>.<path>``,
+``exposure.weekly_revenue_review``. An entity field is
 ``<entity>.<field>`` bare, so an entity named ``metric`` with a field
 ``revenue`` produces exactly the id a metric named ``revenue`` produces.
 
@@ -34,15 +35,21 @@ __all__ = [
 
 #: The id each prefix mints, and whether an entity field can *equal* one.
 #:
-#: Three can. ``source`` cannot, and saying otherwise in the message would be a
-#: refusal that describes a collision the author can check and find is not
-#: there: a bronze extraction's id carries a third segment
+#: All but one can. ``source`` cannot, and saying otherwise in the message
+#: would be a refusal that describes a collision the author can check and find
+#: is not there: a bronze extraction's id carries a third segment
 #: (``source.<relation>.<path>``) and a field name is a single identifier, so no
 #: entity field ever reaches it. It is reserved anyway, because the rule an
 #: author has to remember is "an entity is never named after a node-id prefix"
-#: — a rule that held for three of four would be learned as four exceptions.
+#: — a rule that held for all but one would be learned as a list of exceptions.
+#:
+#: Every member of :data:`~bloomery.ir.NODE_ID_PREFIXES` has an entry, and
+#: ``test_every_prefix_is_described`` pins that: a prefix added without one
+#: would raise :class:`KeyError` inside a guardrail, on a spec whose only
+#: offence is an entity name.
 _MINTS = {
     "canonical": ("a catalog canonical field is spelled 'canonical.<name>'", True),
+    "exposure": ("a declared consumer is spelled 'exposure.<name>'", True),
     "metric": ("a metric is spelled 'metric.<name>'", True),
     "source": ("a bronze extraction is spelled 'source.<relation>.<path>'", False),
     "step": ("a referenced implementation is spelled 'step.<ref>'", True),
@@ -70,7 +77,7 @@ def _source_path(entity: EntityIR) -> str:
 
 
 def check_lineage_names(draft: ProjectIR) -> list[GuardrailError]:
-    """Refuse an entity named after one of the four node-id prefixes.
+    """Refuse an entity named after one of the node-id prefixes.
 
     Over ``draft.entities`` rather than over the authored entity model: a step
     output is an entity too, named after the last segment of the relation its
@@ -99,8 +106,8 @@ def check_lineage_names(draft: ProjectIR) -> list[GuardrailError]:
             f"entity {entity.name!r} collides with the lineage node-id namespace: an entity "
             f"field is spelled '<entity>.<field>', and {spelling} — {detail} "
             f"(RFC 0031 §5.3). Fix: rename the entity — "
-            f"{', '.join(repr(name) for name in NODE_ID_PREFIXES)} are reserved as the four "
-            f"node-id prefixes"
+            f"{', '.join(repr(name) for name in NODE_ID_PREFIXES)} are reserved as node-id "
+            f"prefixes"
         )
         errors.append(ReservedEntityName(msg, source_path=_source_path(entity)))
 

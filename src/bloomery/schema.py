@@ -35,9 +35,17 @@ from __future__ import annotations
 # ``bloomery.spec.Mapping`` — a spec kind — owns the plain name here.
 from collections.abc import Mapping as AbcMapping
 from enum import StrEnum
-from typing import TYPE_CHECKING, cast, get_args
+from typing import TYPE_CHECKING, Final, cast, get_args
 
-from bloomery.spec import Catalog, EntityModel, Mapping, MartSet, MetricSet, StepSet
+from bloomery.spec import (
+    Catalog,
+    EntityModel,
+    ExposureSet,
+    Mapping,
+    MartSet,
+    MetricSet,
+    StepSet,
+)
 from bloomery.transforms import registry
 
 if TYPE_CHECKING:
@@ -68,9 +76,10 @@ _BASE_URI = "https://morzecrew.github.io/bloomery/schemas"
 
 
 class SpecKind(StrEnum):
-    """The six loadable spec kinds (RFC 0020 §5.1).
+    """The seven loadable spec kinds (RFC 0020 §5.1; ``EXPOSURES`` added by
+    RFC 0056 §5.1).
 
-    Five are project documents :func:`~bloomery.load_project` dispatches on by
+    Six are project documents :func:`~bloomery.load_project` dispatches on by
     version key; :attr:`CATALOG` is loaded separately by
     :func:`~bloomery.load_catalog` because a catalog is not part of a project
     (RFC 0002 D8). Each member's value is the kind's name in a ``$id`` and on
@@ -79,6 +88,7 @@ class SpecKind(StrEnum):
 
     CATALOG = "catalog"
     ENTITY_MODEL = "entity_model"
+    EXPOSURES = "exposures"
     MAPPING = "mapping"
     MARTS = "marts"
     METRICS = "metrics"
@@ -95,11 +105,21 @@ class SpecKind(StrEnum):
 _KINDS: dict[SpecKind, tuple[type[SpecModel], str]] = {
     SpecKind.CATALOG: (Catalog, "catalog_version"),
     SpecKind.ENTITY_MODEL: (EntityModel, "spec_version"),
+    SpecKind.EXPOSURES: (ExposureSet, "exposures_version"),
     SpecKind.MAPPING: (Mapping, "mapping_version"),
     SpecKind.MARTS: (MartSet, "marts_version"),
     SpecKind.METRICS: (MetricSet, "metrics_version"),
     SpecKind.STEPS: (StepSet, "steps_version"),
 }
+
+
+#: Kind → the version key that identifies its documents, read off the table
+#: above. Module-level rather than re-typed by each consumer: this fact was
+#: written down in three places at once — here, and in a map in each of the two
+#: test modules that check the schemas — and a kind added to one of them and not
+#: the others fails as a document that "names 0 spec kinds", which points at
+#: neither.
+VERSION_KEYS: Final = {kind: version_key for kind, (_model, version_key) in _KINDS.items()}
 
 
 def _document_version(kind: SpecKind) -> int:
@@ -112,7 +132,7 @@ def _document_version(kind: SpecKind) -> int:
     model, version_key = _KINDS[kind]
     (version,) = get_args(model.model_fields[version_key].annotation)
 
-    if not isinstance(version, int):  # pragma: no cover — RFC 0018 D7 pins all five
+    if not isinstance(version, int):  # pragma: no cover — RFC 0018 D7 pins every one
         msg = f"{kind.value} version key is not a pinned integer literal: {version!r}"
         raise TypeError(msg)
 

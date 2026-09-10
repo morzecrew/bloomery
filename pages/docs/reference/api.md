@@ -199,8 +199,10 @@ other change, breaking included, is classified and returned. See
 ### `Plan`
 
 `changes` (sorted `Change` tuple), `backfill_scope` (`BackfillScope`), `replay_scope`
-(`ReplayScope`), and `downstream_impact` (affected metric names). Properties:
-`has_changes`, `breaking`.
+(`ReplayScope`), `downstream_impact` (affected metric names), and `affected_exposures`
+(the declared consumers those changes reach — computed from the changed marts as well as
+the downstream metrics, so an exposure that depends only on a mart is not omitted).
+Properties: `has_changes`, `breaking`.
 
 ### `Change`
 

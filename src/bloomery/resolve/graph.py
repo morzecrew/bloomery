@@ -32,6 +32,7 @@ __all__ = [
     "build_graph",
     "canonical_field_node",
     "entity_field_node",
+    "exposure_node",
     "metric_node",
     "source_column_node",
     "step_node",
@@ -40,13 +41,14 @@ __all__ = [
 
 class NodeKind(StrEnum):
     """The node kinds of the dependency DAG (RFC 0005 §5.1; ``STEP`` added by
-    RFC 0017 §5.6, D11)."""
+    RFC 0017 §5.6, D11; ``EXPOSURE`` by RFC 0056 §5.2)."""
 
     SOURCE_COLUMN = "source_column"
     ENTITY_FIELD = "entity_field"
     CANONICAL_FIELD = "canonical_field"
     METRIC = "metric"
     STEP = "step"
+    EXPOSURE = "exposure"
 
 
 # ....................... #
@@ -111,6 +113,14 @@ _EDGE_SHAPES: Final[frozenset[tuple[str, NodeKind, NodeKind]]] = frozenset(
         ("step_input", NodeKind.ENTITY_FIELD, NodeKind.STEP),
         ("step_input", NodeKind.STEP, NodeKind.STEP),
         ("step_output", NodeKind.STEP, NodeKind.ENTITY_FIELD),
+        # A declared consumer reads a metric (RFC 0056 §5.2). There is no
+        # mart-shaped counterpart, and the absence is the design rather than an
+        # omission: a mart is not a node of this graph and never has been, so a
+        # `depends_on.marts` entry has nothing to point at. It is carried on
+        # `ExposureIR`, where `plan()` and the dbt emitter read it, and the
+        # alternative — a sixth node kind — would need mart-to-metric and
+        # mart-to-entity edge shapes no RFC has decided (logs/T-0038.md).
+        ("depends_on", NodeKind.METRIC, NodeKind.EXPOSURE),
     }
 )
 
@@ -176,6 +186,22 @@ def step_node(ref: str) -> Node:
     """
 
     return Node(kind=NodeKind.STEP, name=f"step.{ref}")
+
+
+# ....................... #
+
+
+def exposure_node(name: str) -> Node:
+    """A declared consumer, e.g. ``exposure.weekly_revenue_review``
+    (RFC 0056 §5.2).
+
+    The one node kind nothing is ever downstream of. Every other kind is
+    something this project builds, and so can feed something else; an exposure
+    is outside the project, reading what was built — which is exactly the
+    answer ``--direction downstream`` had no way to give before.
+    """
+
+    return Node(kind=NodeKind.EXPOSURE, name=f"exposure.{name}")
 
 
 # ....................... #
@@ -345,6 +371,22 @@ def build_graph(
             for required in metric.requires_metrics
         )
 
+    if project.exposures is not None:
+        # The metric name goes through `ids["metric"]` like every other
+        # *reference* does: an exposure names a metric from a document that is
+        # not the one carrying its `id:`, so substituting only at the
+        # definition would leave this edge pointing at a vertex nothing built
+        # (RFC 0062 §5.2).
+        edges.extend(
+            Edge(
+                src=metric_node(key(metric, ids["metric"])),
+                dst=exposure_node(name),
+                label="depends_on",
+            )
+            for name, exposure in sorted(project.exposures.exposures.items())
+            for metric in sorted(exposure.depends_on.metrics)
+        )
+
     nodes: set[Node] = set()
 
     if catalog is not None:
@@ -376,6 +418,15 @@ def build_graph(
         for mapping in project.mappings
         for field_name in (*mapping.key, *mapping.fields)
     )
+
+    # An exposure that depends only on marts, for the reason above one more
+    # time: `depends_on.marts` draws no edge, so such an exposure would exist
+    # nowhere in the graph — absent from `topo_order` and refused by
+    # `bloomery lineage`, for a consumer the spec declares and the dbt emitter
+    # writes a block for. Every metric-bearing exposure is already here via its
+    # incoming edge (RFC 0056 §5.2).
+    if project.exposures is not None:
+        nodes.update(exposure_node(name) for name in project.exposures.exposures)
 
     for edge in edges:
         nodes.add(edge.src)

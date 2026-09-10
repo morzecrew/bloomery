@@ -1,7 +1,7 @@
 """The lineage-namespace guard (RFC 0051 §5.2, D6–D8).
 
 Every node id but an entity field's is kind-prefixed, so an entity named after
-one of those four prefixes mints ids in another kind's namespace. The
+one of those prefixes mints ids in another kind's namespace. The
 reservation is unconditional, and it has to hold on both paths that name an
 entity: the authored entity model, and a step output named after the relation
 its wiring binds.
@@ -13,6 +13,7 @@ import pytest
 
 from bloomery import build_project_ir, load_project
 from bloomery.errors import GuardrailError, ReservedEntityName
+from bloomery.guardrails.lineage import _MINTS
 from bloomery.ir import NODE_ID_PREFIXES
 from bloomery.steps import StepManifest, StepRegistry
 
@@ -58,7 +59,7 @@ def test_each_reserved_name_is_refused_for_an_authored_entity(name: str) -> None
 
 
 def test_the_refusal_names_the_collision_and_the_way_out() -> None:
-    with pytest.raises(GuardrailError, match="reserved as the four node-id prefixes") as caught:
+    with pytest.raises(GuardrailError, match="reserved as node-id prefixes") as caught:
         _compile("metric")
     message = str(caught.value)
     assert "a metric is spelled 'metric.<name>'" in message
@@ -68,8 +69,21 @@ def test_the_refusal_names_the_collision_and_the_way_out() -> None:
 
 
 def test_an_unreserved_entity_name_compiles() -> None:
-    """The reservation is four names, not a naming policy."""
+    """The reservation is a closed list of names, not a naming policy."""
     _compile("thing")
+
+
+def test_every_prefix_is_described() -> None:
+    """``_MINTS`` is keyed by prefix and read without a default, so a prefix
+    added to :data:`NODE_ID_PREFIXES` and not to it raises ``KeyError`` inside
+    a guardrail — on a spec whose only offence is an entity name, and with a
+    traceback that names neither.
+
+    The parametrized refusal above would catch it too, and this says which of
+    the two lists is behind it.
+    """
+
+    assert set(_MINTS) == set(NODE_ID_PREFIXES)
 
 
 # ....................... #

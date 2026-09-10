@@ -1,0 +1,98 @@
+{
+  "$defs": {
+    "Exposure": {
+      "additionalProperties": false,
+      "description": "One declared consumer (RFC 0056 \u00a75.1).",
+      "properties": {
+        "depends_on": {
+          "$ref": "#/$defs/ExposureDependsOn"
+        },
+        "kind": {
+          "enum": [
+            "dashboard",
+            "notebook",
+            "analysis",
+            "ml",
+            "application"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "owner": {
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        }
+      },
+      "required": [
+        "depends_on",
+        "kind",
+        "owner"
+      ],
+      "title": "Exposure",
+      "type": "object"
+    },
+    "ExposureDependsOn": {
+      "additionalProperties": false,
+      "description": "What an exposure reads, grouped by kind.\n\nGrouped here and **flat** in the emitted dbt document, which is not an\ninconsistency: a spec reader needs to know which name is a metric and which\nis a mart \u2014 the two namespaces are separate and a bare list would make\n``revenue`` ambiguous \u2014 while dbt's schema takes one list of ``ref()`` and\n``metric()`` calls that carry the kind in the call itself (\u00a75.1).",
+      "properties": {
+        "marts": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Marts",
+          "type": "array"
+        },
+        "metrics": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Metrics",
+          "type": "array"
+        }
+      },
+      "title": "ExposureDependsOn",
+      "type": "object"
+    }
+  },
+  "$id": "https://morzecrew.github.io/bloomery/schemas/v1/exposures.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The per-project exposures document (``exposures_version``), at most one\nper project (RFC 0002 \u00a75.5).",
+  "properties": {
+    "exposures": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "$ref": "#/$defs/Exposure"
+        }
+      },
+      "title": "Exposures",
+      "type": "object"
+    },
+    "exposures_version": {
+      "const": 1,
+      "title": "Exposures Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "exposures",
+    "exposures_version"
+  ],
+  "title": "ExposureSet",
+  "type": "object"
+}

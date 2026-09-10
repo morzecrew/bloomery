@@ -222,6 +222,37 @@ def test_dbt_builds_the_emitted_project(fixture: str, tmp_path: pathlib.Path) ->
     assert result.success, getattr(result, "exception", None)
 
 
+def test_dbt_resolves_an_exposure_to_the_models_it_reads(tmp_path: pathlib.Path) -> None:
+    """RFC 0056 §6: the leg a golden cannot make.
+
+    A well-formed ``exposures.yml`` naming a model that does not exist parses
+    fine and fails at selection, so this asks dbt the question the feature
+    exists to answer — ``dbt ls --select +exposure:*``, the graph operator that
+    walks *upstream* from every exposure — and checks that the models come back.
+    That is the whole of what "the lineage graph has a sink" means on this
+    target.
+
+    It is also the assertion that keeps §5.1's emitted block from coming back:
+    a ``metric('…')`` entry fails ``dbt parse`` outright, because this emitter
+    declares no metrics (logs/T-0038.md). Both exposures in ``ecom_basic``
+    resolve here — one through the mart it names, one through the mart serving
+    the metrics it names.
+    """
+
+    _write_project(tmp_path, "ecom_basic")
+    result = _run(tmp_path, "ls", "--select", "+exposure:*", "--resource-type", "all")
+    assert result.success, getattr(result, "exception", None)
+
+    listed = set(result.result)  # type: ignore[attr-defined]
+    assert {"bloomery.finance_extract", "bloomery.weekly_revenue_review"} <= {
+        name.removeprefix("exposure:") for name in listed
+    }
+    # The upstream walk reached past the exposure itself: the mart it reads,
+    # and the silver models that mart reads.
+    assert "bloomery.gold.mart_order_items" in listed
+    assert "bloomery.silver.order_item" in listed
+
+
 def test_the_build_would_notice_a_model_that_lands_in_the_wrong_schema(
     tmp_path: pathlib.Path,
 ) -> None:

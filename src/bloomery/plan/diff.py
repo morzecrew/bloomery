@@ -2042,6 +2042,69 @@ def _downstream_impact(new: ProjectIR, seeds: set[str]) -> tuple[str, ...]:
 # ....................... #
 
 
+def _changed(changes: tuple[Change, ...], kind: str) -> set[str]:
+    """The names of ``kind`` this plan changes in a way that moves something.
+
+    One definition for both halves of :func:`_affected_exposures`. Written
+    twice, the two would be free to disagree about what ADDITIVE means — and
+    the whole argument for reading the change table rather than a seed set is
+    that one rule decides both.
+    """
+
+    return {
+        change.subject.partition(":")[2]
+        for change in changes
+        if change.subject.startswith(f"{kind}:") and change.change_class is not ChangeClass.ADDITIVE
+    }
+
+
+# ....................... #
+
+
+def _affected_exposures(
+    new: ProjectIR, metrics: tuple[str, ...], changes: tuple[Change, ...]
+) -> tuple[str, ...]:
+    """The declared consumers this plan reaches (RFC 0056 §5.4, D2a).
+
+    **Marts as well as metrics**, and the shortcut that omits them is the
+    obvious one: :func:`_downstream_impact` returns metric names and follows
+    ``MetricIR.depends_on``, and :func:`_diff_marts` adds no mart to that walk —
+    so an exposure depending only on a mart, which §5.1's grammar permits, would
+    be silently absent from a report whose whole purpose is to be complete.
+
+    **And the changed nodes themselves, not only what is downstream of them.**
+    :func:`_downstream_impact` walks ``new.metrics``, so a metric that *left*
+    that collection cannot appear in it — a metric removed, or one that became
+    unreachable because a leaf it needs went away. Both are BREAKING changes an
+    exposure may legitimately still declare (the exposure guardrail asks the
+    authored documents, where an unreachable metric is declared like any other),
+    and both would otherwise reach nobody. That is the same hole as the
+    mart-only one, one dimension over.
+
+    A node is reached by any change to it **but an ADDITIVE one**: ADDITIVE
+    means nothing existing moves, so a mart added, a metric added, or a
+    description edited reaches nobody. Read off the classified changes rather
+    than from a second seed set, because those are the rows the plan itself
+    reports — a consumer named here can always be traced to a line in the same
+    table.
+    """
+
+    reached = set(metrics) | _changed(changes, "metric")
+    marts = _changed(changes, "mart")
+
+    if not reached and not marts:
+        return ()
+
+    return tuple(
+        exposure.name
+        for exposure in new.exposures  # already sorted by name (RFC 0056 §5.1)
+        if reached.intersection(exposure.metrics) or marts.intersection(exposure.marts)
+    )
+
+
+# ....................... #
+
+
 def _enforce_contract(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     """RFC 0007 D5 — the stage's only refusal: a dropped or narrowed field
     still referenced by a metric reachable in ``new``, or by an old-reachable
@@ -2142,6 +2205,7 @@ def plan(old: ProjectIR | None, new: ProjectIR) -> Plan:
     _diff_steps(old, new, acc)
     _enforce_contract(old, new, acc)
     changes = tuple(sorted(acc.changes, key=_sort_key))
+    downstream = _downstream_impact(new, acc.seeds)
     return Plan(
         changes=changes,
         backfill_scope=BackfillScope(
@@ -2150,6 +2214,7 @@ def plan(old: ProjectIR | None, new: ProjectIR) -> Plan:
                 change.change_class is ChangeClass.RESTATING for change in changes
             ),
         ),
-        downstream_impact=_downstream_impact(new, acc.seeds),
+        downstream_impact=downstream,
         replay_scope=ReplayScope(entities=tuple(sorted(acc.replay))),
+        affected_exposures=_affected_exposures(new, downstream, changes),
     )

@@ -20,9 +20,14 @@ pytestmark = pytest.mark.golden
 GOLDEN = Path(__file__).resolve().parent
 
 EXPECTED_PATHS = {
+    # RFC 0056 §6: `models/exposures.yml` is here and nowhere else in this
+    # table, which is the assertion that matters — a project declaring no
+    # consumer emits no exposures file, and every other fixture's golden is
+    # unchanged by the feature.
     "ecom_basic": [
         "dbt_project.yml",
         "macros/generate_schema_name.sql",
+        "models/exposures.yml",
         "models/gold/dim_date.sql",
         "models/gold/mart_order_items.sql",
         "models/schema.yml",

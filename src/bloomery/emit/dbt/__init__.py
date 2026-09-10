@@ -1128,6 +1128,93 @@ def _sources_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None
 # ....................... #
 
 
+def _exposures_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
+    """``models/exposures.yml`` — the declared consumers, as dbt exposures
+    (RFC 0056 §5.3).
+
+    The one target that gets anything for an exposure, and not because the
+    others degrade: Cube's consumers *are* the API's callers, and SQLMesh's
+    nearest thing is a model tag, which is a label rather than an edge. Neither
+    has the concept, so there is nothing there to fail to build (RFC 0056 D4).
+
+    **A metric dependency lowers to the marts that serve it**, and this is a
+    departure from §5.1's emitted block, measured rather than argued: a
+    ``metric('…')`` entry makes ``dbt parse`` fail outright — *depends on a
+    metric named 'gross_revenue' which was not found* — because this emitter
+    declares no metrics at all. dbt's metrics come from semantic models, which
+    are MetricFlow's surface and not this one's. Lowering to the serving marts
+    keeps the artifact buildable and says something true: the models this
+    dashboard's numbers come from. Where several marts serve one measure they
+    are all named, which overstates rather than omits — the safe direction for
+    a question asked as ``dbt ls --select +exposure:*``.
+
+    The declared metric names are carried in ``meta`` so the artifact still
+    records what was authored, which the mart refs alone would lose
+    (logs/T-0038.md).
+    """
+
+    if not ir.exposures:
+        return None
+
+    serving: dict[str, list[str]] = {}
+
+    for mart in ir.marts:
+        _namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+        for measure in mart.measures:
+            serving.setdefault(measure, []).append(relation)
+
+    declared = {mart.name for mart in ir.marts}
+    documents: list[dict[str, object]] = []
+
+    for exposure in ir.exposures:  # sorted by name on ProjectIR
+        # `guaranteed` rather than a filter: D2 refuses an exposure naming a
+        # mart the project does not declare, and the guardrail stage raises
+        # before an emitter runs — so a name that is not here means that
+        # refusal stopped working, and dropping it silently would emit an
+        # exposure short one `ref()` with nothing to say so.
+        relations = {
+            ctx.naming.relation(
+                guaranteed(
+                    (name for name in declared if name == mart),
+                    expected=f"mart {mart!r}, named by exposure {exposure.name!r}",
+                    by="the dangling-exposure guardrail (RFC 0056 D2)",
+                ),
+                Layer.GOLD,
+            )[1]
+            for mart in exposure.marts
+        }
+        # A metric, unlike a mart, may legitimately be served by no mart at
+        # all — an unreachable one, or one no gold relation stores — and then
+        # it reaches `meta` and nothing else.
+        relations.update(
+            relation for metric in exposure.metrics for relation in serving.get(metric, ())
+        )
+
+        document: dict[str, object] = {
+            "name": exposure.name,
+            "type": exposure.kind.value,
+            "owner": {"email": exposure.owner},
+        }
+
+        if exposure.url is not None:
+            document["url"] = exposure.url
+
+        if exposure.metrics:
+            document["meta"] = {"bloomery_metrics": list(exposure.metrics)}
+
+        document["depends_on"] = [f"ref('{relation}')" for relation in sorted(relations)]
+        documents.append(document)
+
+    return EmittedArtifact.create(
+        path="models/exposures.yml",
+        content=_header(ctx) + _yaml({"version": 2, "exposures": documents}),
+        kind=ArtifactKind.CONFIG,
+    )
+
+
+# ....................... #
+
+
 def _reference_map(ir: ProjectIR, ctx: EmitContext) -> dict[tuple[str, str], str]:
     """``(namespace, relation)`` → the dbt reference that resolves to it
     (RFC 0008 D20).
@@ -1421,7 +1508,7 @@ class DbtEmitter:
 
         schema = _schema_artifact(ir, ctx)
 
-        for optional in (schema, _sources_artifact(ir, ctx)):
+        for optional in (schema, _sources_artifact(ir, ctx), _exposures_artifact(ir, ctx)):
             if optional is not None:
                 artifacts.append(optional)
 

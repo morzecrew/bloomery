@@ -1,0 +1,21 @@
+{
+  "id": "T-0038",
+  "spec": "rfcs/0056-exposures-and-downstream-consumers.md",
+  "phase": "All three phases: the spec kind and the graph node, the dbt artifact, and plan()'s affected exposures.",
+  "decisions": [
+    {"id": "RFC 0056 D1", "grade": "LOCKED",
+     "paths": ["src/bloomery/spec/exposures.py", "src/bloomery/ir/nodes.py"]},
+    {"id": "RFC 0056 D2", "grade": "LOCKED",
+     "paths": ["src/bloomery/guardrails/exposures.py", "src/bloomery/errors.py"]},
+    {"id": "RFC 0056 D2a", "grade": "LOCKED",
+     "paths": ["src/bloomery/plan/diff.py", "src/bloomery/plan/model.py"]},
+    {"id": "RFC 0056 D3", "grade": "ASSUMED",
+     "paths": ["src/bloomery/spec/exposures.py", "src/bloomery/emit/dbt/__init__.py"]},
+    {"id": "RFC 0056 D4", "grade": "LOCKED",
+     "paths": ["src/bloomery/emit/**"]},
+    {"id": "RFC 0056 D5", "grade": "ASSUMED",
+     "paths": ["src/bloomery/resolve/**"]},
+    {"id": "RFC 0056 D6", "grade": "ASSUMED",
+     "paths": ["src/bloomery/spec/exposures.py"]}
+  ]
+}

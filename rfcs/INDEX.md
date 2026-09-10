@@ -49,7 +49,7 @@ Two consequences worth knowing:
 
 ## Allocating a number
 
-The next free number is **0067**. Before creating an RFC, read the number above — do not
+The next free number is **0068**. Before creating an RFC, read the number above — do not
 compute it from `ls`, which no longer sees retired documents. **Numbers are never reused**:
 0001–0022 are retired and permanently spent. Update this section in the same change that
 mints a number.
@@ -91,7 +91,6 @@ know it has a companion recording where it turned out to be wrong.
 | [0050](0050-databricks-dialect.md) | Databricks SQL dialect port | 📝 Draft | No local Databricks exists, so Spark is a labelled surrogate and `DESCRIBE QUERY` checks result types against the real analyzer. PySpark stays test-only; bloomery never executes Spark. |
 | [0053](0053-retrieval-semantics.md) | Retrieval semantics | 📝 Draft | Semantic spaces, vector-field annotations and retrieval profiles as their own spec kind, so an embedding corpus is refused when its dimensions, space or grain disagree. |
 | [0055](0055-ownership-classification-and-grants.md) | Ownership, classification and grants | 📝 Draft | Who owns a thing, what class of data it holds and who may read it — three annotations reaching metadata slots every target already has, plus the seeds refusal. |
-| [0056](0056-exposures-and-downstream-consumers.md) | Exposures and downstream consumers | 📝 Draft | The lineage graph stops at gold; a declared consumer gives it a sink, so `plan()` can name the dashboards a breaking change reaches. |
 | [0057](0057-declared-source-freshness.md) | Declared source freshness | 📝 Draft | A staleness threshold on a bronze source, emitted for the framework to measure — the declaring half of freshness, which needs no evidence intake. |
 | [0059](0059-multi-project-composition.md) | Multi-project composition | 📝 Draft | One project reading another's published surface: what may cross the boundary, and what a fingerprint means once something does. |
 | [0060](0060-replay-on-a-historical-entity.md) | Replay on a historical entity | 📝 Draft | Replay writes past the framework that owns a type 2 relation's versions, so a recovered row lands invisible; the pair is refused until a route through the framework exists. |
@@ -100,6 +99,7 @@ know it has a companion recording where it turned out to be wrong.
 | [0063](0063-as-of-compile.md) | As-of compile over spec history | 📝 Draft | Compiling a project as its specs stood at a past instant, so an artifact set can be reconstructed for a date and a number's movement traced to a definition. |
 | [0064](0064-definition-supersession.md) | Definition supersession and change attribution | 📝 Draft | An edge between two versions of one node carrying what changed in spec vocabulary, so "why did this number move" is answered above the level of a text diff. |
 | [0065](0065-consumer-evidence-strictness.md) | Consumer-declared evidence strictness | 🚧 In progress | A minimum evidence grade a mart or exposure requires of the facts beneath it, projected from RFC 0039's provenance and refused at compile time. |
+| [0067](0067-marts-in-the-lineage-graph.md) | Marts in the lineage graph | 📝 Draft | The graph has no gold layer, so a metric change never names the mart it lands in and an exposure's mart dependency points at nothing; marts become nodes. |
 
 ## Status legend
 
