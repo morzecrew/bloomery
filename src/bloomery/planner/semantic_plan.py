@@ -110,37 +110,6 @@ def _served_at_grain(mart_name: str, grain: str, measures: tuple[str, ...]) -> P
 # ....................... #
 
 
-def _restriction(metric: MetricIR) -> frozenset[tuple[str, str, frozenset[object]]]:
-    """One metric's row restriction, as the set of rows it admits rather than
-    as the text that was written for it.
-
-    `resolve.build._metric_filters` keeps the authored order of both the
-    clauses and each clause's values, deliberately — cosmetic in SQL, and
-    load-bearing in the artifact bytes. Here it carries nothing: the clauses
-    are ANDed, no operator in RFC 0015's closed vocabulary reads its values
-    positionally, and a repeated member admits no extra row. So
-    ``status in ('paid', 'refunded')``, ``status in ('refunded', 'paid')`` and
-    ``status in ('paid', 'paid', 'refunded')`` are one restriction, and
-    comparing what was written refuses plans these four nodes can state
-    (logs/T-0021.md, D-130, D-131).
-
-    Sets, and not a sorted tuple of the values' text. Text was a canonical
-    *order*, and using it as the compared identity made it a canonical
-    *value* too, which it is not: it flattens ``1`` and ``"1"`` onto one key
-    and leaves this comparison depending on the type guardrail two layers away
-    to keep them apart. A set hashes the values themselves, so distinct
-    literals stay distinct and no order has to be invented for a mixture of
-    `Decimal`, `str` and `bool`.
-    """
-
-    return frozenset(
-        (clause.dimension, clause.op, frozenset(clause.values)) for clause in metric.filter
-    )
-
-
-# ....................... #
-
-
 #: The classes one ``Aggregate`` node states whole: the engine applies the
 #: declared aggregation to the scan's rows and nothing is picked, joined back
 #: or recomputed first. A distinct count belongs here and *not* in a composed
@@ -554,11 +523,15 @@ def _scoped_filters(names: Sequence[str], metrics: Mapping[str, MetricIR]) -> tu
 
     Grouped rather than one node per measure: two measures carrying the same
     restriction are restricted by one predicate in the query, and two nodes
-    would read as two. Grouped on the rendered predicates, which is what the
-    node carries — :func:`_restriction` compares admitted rows and is the right
-    identity for "are these the same restriction", but a plan states the prose,
-    and grouping on one while rendering the other would let two groups print
-    identically.
+    would read as two.
+
+    **Grouped on the rendered predicates**, which is what the node carries. The
+    finer identity is what rows a clause *admits* — ``status in ('paid',
+    'refunded')`` and ``status in ('refunded', 'paid')`` admit the same ones —
+    and grouping on that while rendering the prose would let two groups print
+    identically, which is worse in a plan than an extra node. RFC 0040 phase 1
+    grouped on admitted rows and RFC 0066 §5.5 moved it here deliberately
+    (logs/T-0021.md, D-130).
     """
 
     groups: dict[tuple[str, ...], list[str]] = {}
