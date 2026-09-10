@@ -8,7 +8,7 @@ import dataclasses
 import pytest
 
 from bloomery import Direction, build_project_ir, lineage, load_catalog, load_project
-from bloomery.errors import BloomeryError
+from bloomery.errors import BloomeryError, GuardrailError
 from bloomery.ir import NODE_ID_PREFIXES
 from bloomery.quality import QUALITY_MART
 from bloomery.spec import Project
@@ -258,6 +258,43 @@ def test_a_mart_with_no_measure_and_no_rollup_still_exists() -> None:
     node = mart_node("order_items")
     assert node in graph.nodes
     assert not [e for e in graph.edges if node in (e.src, e.dst)]
+
+
+def test_a_measure_naming_no_metric_is_a_node_here_and_a_refusal_later() -> None:
+    """The `measure` leg draws its edge unconditionally, like the two legs into
+    an exposure — and both halves of that have to be asserted together.
+
+    The first half alone reads as a bug: `resolve()` succeeds and the walk
+    shows `metric.<typo>`, a metric the project does not declare. What makes it
+    the design rather than a hole is the second half — `_check_measures`
+    refuses the same spec at LOWER, so no artifact is ever emitted from a name
+    that resolves to nothing. The phantom is reachable only on a project that
+    does not compile, which is exactly the case `bloomery lineage` exists to
+    answer for (RFC 0031 D2, RFC 0067 D2).
+
+    Filtering it here would instead hide a name the marts document plainly
+    declares, and would make this leg disagree with the two beside it.
+    """
+
+    sources = fixture_sources("ecom_basic")
+    sources["marts"] = sources["marts"].replace(
+        "measures: [gross_revenue]", "measures: [revenue_gross]", 1
+    )
+    project = load_project(sources)
+    _, catalog = load_fixture("ecom_basic")
+
+    graph = build_graph(project, catalog, effective_metrics(project, catalog))
+    assert (
+        Edge(
+            src=metric_node("revenue_gross"),
+            dst=mart_node("order_items"),
+            label="measure",
+        )
+        in graph.edges
+    )
+
+    with pytest.raises(GuardrailError, match="measure names no declared metric"):
+        build_project_ir(project, catalog)
 
 
 def test_a_dangling_mart_dependency_still_draws_its_edge() -> None:
