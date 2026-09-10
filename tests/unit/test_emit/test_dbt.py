@@ -45,7 +45,12 @@ from bloomery.ir import (
 )
 from bloomery.naming import DefaultNaming, PrefixNaming
 from bloomery.typing import DecimalType, IntType, LogicalType, StringType
-from support.compiling import compile_fixture, extract_select, resolve_dbt_references
+from support.compiling import (
+    compile_fixture,
+    extract_select,
+    fixture_sources,
+    resolve_dbt_references,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -930,6 +935,69 @@ def test_a_mart_only_exposure_carries_no_meta() -> None:
     assert "meta" not in extract
     assert "url" not in extract
     assert extract["depends_on"] == ["ref('mart_order_items')"]
+
+
+def _exposures_from(body: str) -> list[dict[str, object]]:
+    """``ecom_basic``'s exposures replaced by ``body``, compiled to dbt."""
+
+    from bloomery import compile_project, load_catalog, load_project
+    from support.compiling import FIXTURES
+
+    sources = fixture_sources("ecom_basic")
+    sources["exposures"] = body
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    artifacts = compile_project(
+        load_project(sources), target=Target.DBT, dialect="postgres", catalog=catalog
+    )
+    document = next(a for a in artifacts if a.path == "models/exposures.yml")
+    return cast("list[dict[str, object]]", yaml.safe_load(document.content)["exposures"])
+
+
+def test_a_metric_only_exposure_still_reaches_its_marts() -> None:
+    """The departure's own mechanism, on the shape that isolates it.
+
+    ``ecom_basic``'s declared exposures each name the serving mart directly
+    too, so deleting the metric-to-mart resolution changes neither of their
+    artifacts — the sabotage that removed it survived the whole suite. This
+    exposure names no mart at all, so the only route to a ``ref()`` is through
+    ``gross_revenue``'s serving mart.
+    """
+
+    exposures = _exposures_from("""
+exposures_version: 1
+exposures:
+  weekly_revenue_review:
+    kind: dashboard
+    owner: analytics@example.com
+    depends_on:
+      metrics: [gross_revenue]
+""")
+
+    assert exposures[0]["depends_on"] == ["ref('mart_order_items')"]
+
+
+def test_a_metric_no_mart_serves_reaches_meta_and_nothing_else() -> None:
+    """The empty case of that resolution, and the one that could break a
+    ``dbt parse``: ``margin`` is declared and unreachable, so no gold relation
+    stores it and there is no honest ``ref()`` to write.
+
+    An empty ``depends_on`` is what dbt gets, and dbt accepts it — an exposure
+    that reads nothing dbt builds is a true statement about this project, and
+    inventing a reference to make the list non-empty would be a false one.
+    """
+
+    exposures = _exposures_from("""
+exposures_version: 1
+exposures:
+  margin_watch:
+    kind: analysis
+    owner: analytics@example.com
+    depends_on:
+      metrics: [margin]
+""")
+
+    assert exposures[0]["depends_on"] == []
+    assert exposures[0]["meta"] == {"bloomery_metrics": ["margin"]}
 
 
 @pytest.mark.parametrize("target", [Target.SQLMESH, Target.CUBE])

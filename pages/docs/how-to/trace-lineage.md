@@ -70,7 +70,9 @@ but one carries its kind as a prefix:
 | Entity field | `<entity>.<field>` — **no prefix** |
 
 Entity fields are the exception, so `order_item.unit_price` is a whole id rather than a
-suffix. Mistype one and the refusal suggests the spelling it thinks you meant:
+suffix. Exposures are the other kind worth a note: they are the graph's sink, they carry
+no SQL, and only dbt gets an artifact for one — Cube and SQLMesh have no such concept and
+emit nothing, without refusing anything. Mistype one and the refusal suggests the spelling it thinks you meant:
 
 ```console
 $ bloomery lineage specs/ --node metric.gross_revenu

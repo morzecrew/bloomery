@@ -56,7 +56,6 @@ if TYPE_CHECKING:
 __all__ = [
     "JsonDict",
     "SpecKind",
-    "VERSION_KEYS",
     "all_spec_schemas",
     "spec_json_schema",
 ]

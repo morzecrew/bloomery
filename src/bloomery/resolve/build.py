@@ -58,6 +58,7 @@ from bloomery.ir import (
     DimensionRef,
     EntityIR,
     ExposureIR,
+    ExposureKind,
     FxRatesIR,
     Materialization,
     MetricFilterIR,
@@ -2054,8 +2055,9 @@ def _build_exposures(project: Project) -> tuple[ExposureIR, ...]:
     A transcription and nothing more: an exposure names things by name, and
     every name it can hold belongs to another document. Whether those names
     resolve is :func:`~bloomery.guardrails.exposures.check_exposure_targets`'s
-    question, asked over the finished draft where both the metric and the mart
-    collections exist — here neither is built yet.
+    question, and it asks the **authored** documents rather than this draft —
+    for the reason its own docstring gives, which is that a mart absent from
+    the draft may have failed to flatten rather than failed to exist.
 
     ``depends_on`` is sorted on the way in, unlike a mart's authored-order
     flatten chain (RFC 0003 D4): the order of a dependency list carries no
@@ -2071,7 +2073,7 @@ def _build_exposures(project: Project) -> tuple[ExposureIR, ...]:
             (
                 ExposureIR(
                     name=name,
-                    kind=exposure.kind,
+                    kind=ExposureKind(exposure.kind),
                     owner=exposure.owner,
                     metrics=tuple(sorted(exposure.depends_on.metrics)),
                     marts=tuple(sorted(exposure.depends_on.marts)),

@@ -195,10 +195,10 @@ def exposure_node(name: str) -> Node:
     """A declared consumer, e.g. ``exposure.weekly_revenue_review``
     (RFC 0056 §5.2).
 
-    The graph's only sink. Every other node kind is something this project
-    builds; an exposure is something outside it that reads what was built, so
-    nothing is ever downstream of one — which is exactly the answer
-    ``--direction downstream`` had no way to give before.
+    The one node kind nothing is ever downstream of. Every other kind is
+    something this project builds, and so can feed something else; an exposure
+    is outside the project, reading what was built — which is exactly the
+    answer ``--direction downstream`` had no way to give before.
     """
 
     return Node(kind=NodeKind.EXPOSURE, name=f"exposure.{name}")

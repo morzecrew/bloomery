@@ -53,6 +53,7 @@ __all__ = [
     "FxRatesIR",
     "EntityIR",
     "ExposureIR",
+    "ExposureKind",
     "Layer",
     "MartAssertIR",
     "MartColumnIR",
@@ -1160,6 +1161,31 @@ class RollupIR:
 # ....................... #
 
 
+class ExposureKind(StrEnum):
+    """What a declared consumer *is* (RFC 0056 D3).
+
+    dbt's five exposure types verbatim, because dbt is the only framework with
+    a consumer for these words and a bloomery-specific set would have to be
+    mapped onto it anyway. ``report`` is not among them and ``analysis`` is,
+    which is measurable rather than memorable — dbt's own schema was handed each
+    one to find out.
+
+    An enum rather than the ``str`` this first carried, for the reason every
+    other closed vocabulary in this module is one: the IR's builder is its
+    validator (RFC 0003 D1), and a plain string leaves a hand-built node free to
+    hold a type the dbt emitter would write out and dbt would refuse.
+    """
+
+    DASHBOARD = "dashboard"
+    NOTEBOOK = "notebook"
+    ANALYSIS = "analysis"
+    ML = "ml"
+    APPLICATION = "application"
+
+
+# ....................... #
+
+
 @dataclass(frozen=True, slots=True)
 class ExposureIR:
     """A declared consumer of what this project builds (RFC 0056 §5.1).
@@ -1182,7 +1208,7 @@ class ExposureIR:
     """
 
     name: str
-    kind: str
+    kind: ExposureKind
     owner: str
     metrics: tuple[str, ...]
     marts: tuple[str, ...]

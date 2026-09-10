@@ -1051,6 +1051,37 @@ def test_lineage_json_matches_the_python_call(capsys: pytest.CaptureFixture[str]
     )
 
 
+def test_lineage_json_downstream_carries_the_exposure(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """RFC 0056 §6: the JSON is the surface a script reads, so the sink has to
+    reach it and not only the aligned edge list a person reads.
+
+    Downstream from a metric, because that is the walk the feature exists for —
+    it used to stop at the metrics a change reached and had nothing to say
+    about who reads them.
+    """
+
+    walk = _json(
+        capsys,
+        "lineage",
+        ECOM,
+        "--node",
+        "metric.gross_revenue",
+        "--direction",
+        "downstream",
+        "--format",
+        "json",
+    )
+
+    assert {"kind": "exposure", "name": "exposure.weekly_revenue_review"} in walk["nodes"]
+    assert {
+        "src": {"kind": "metric", "name": "metric.gross_revenue"},
+        "dst": {"kind": "exposure", "name": "exposure.weekly_revenue_review"},
+        "label": "depends_on",
+    } in walk["edges"]
+
+
 def test_lineage_of_a_leaf_says_so_rather_than_printing_nothing(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

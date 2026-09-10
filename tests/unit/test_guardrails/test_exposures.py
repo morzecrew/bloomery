@@ -111,6 +111,27 @@ def test_every_dangling_name_is_reported_not_only_the_first() -> None:
     assert all(isinstance(leaf, DanglingExposure) for leaf in caught.value.collected)
 
 
+def test_a_project_that_declares_nothing_says_so_rather_than_trailing_off() -> None:
+    """The empty case of the "declared metrics:" list, decided rather than
+    inherited: a project may carry an exposures document and no metrics
+    document at all, and a refusal ending on a bare colon reads as a message
+    that was cut off.
+    """
+
+    sources = fixture_sources("ecom_basic")
+    del sources["metrics"]
+    del sources["marts"]
+    sources["exposures"] = _exposure(metrics="[gross_revenue]")
+
+    with pytest.raises(GuardrailError) as caught:
+        build_project_ir(
+            load_project(sources),
+            catalog=load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text()),
+        )
+
+    assert "Declared metrics: (none)" in str(caught.value)
+
+
 def test_a_project_with_no_exposures_document_is_not_refused() -> None:
     """The guard's own abstention, pinned: every fixture but one declares no
     exposures, and a guard that raised on their absence would be found by every

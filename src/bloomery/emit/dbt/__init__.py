@@ -1163,22 +1163,36 @@ def _exposures_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | No
         for measure in mart.measures:
             serving.setdefault(measure, []).append(relation)
 
-    by_name = {mart.name: mart for mart in ir.marts}
+    declared = {mart.name for mart in ir.marts}
     documents: list[dict[str, object]] = []
 
     for exposure in ir.exposures:  # sorted by name on ProjectIR
+        # `guaranteed` rather than a filter: D2 refuses an exposure naming a
+        # mart the project does not declare, and the guardrail stage raises
+        # before an emitter runs — so a name that is not here means that
+        # refusal stopped working, and dropping it silently would emit an
+        # exposure short one `ref()` with nothing to say so.
         relations = {
-            ctx.naming.relation(by_name[mart].name, Layer.GOLD)[1]
+            ctx.naming.relation(
+                guaranteed(
+                    (name for name in declared if name == mart),
+                    expected=f"mart {mart!r}, named by exposure {exposure.name!r}",
+                    by="the dangling-exposure guardrail (RFC 0056 D2)",
+                ),
+                Layer.GOLD,
+            )[1]
             for mart in exposure.marts
-            if mart in by_name
         }
+        # A metric, unlike a mart, may legitimately be served by no mart at
+        # all — an unreachable one, or one no gold relation stores — and then
+        # it reaches `meta` and nothing else.
         relations.update(
             relation for metric in exposure.metrics for relation in serving.get(metric, ())
         )
 
         document: dict[str, object] = {
             "name": exposure.name,
-            "type": exposure.kind,
+            "type": exposure.kind.value,
             "owner": {"email": exposure.owner},
         }
 
