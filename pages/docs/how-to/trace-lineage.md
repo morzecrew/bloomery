@@ -29,7 +29,9 @@ catalog recipe by id, a macro by ref and version.
 
 **What breaks if I change this column?** Walk `DOWNSTREAM` from a source column before a
 migration and you have the blast radius. `plan()` tells you what changed *after* an edit;
-this tells you what an edit would reach.
+this tells you what an edit would reach. Where the project declares
+[exposures](declare-an-exposure.md), the walk carries on past the metrics into the
+dashboards and syncs that read them.
 
 **Why is this metric unreachable, in full?** `SpecEvidence.unreachable` names the missing
 leaves. The upstream walk shows the whole structure they sit in.
@@ -55,8 +57,8 @@ metric.average_order_value  (upstream)
 
 ## Naming a node
 
-A node id is the name you have already seen in a `CircularDerivation` message. Four of the
-five kinds carry their kind as a prefix:
+A node id is the name you have already seen in a `CircularDerivation` message. Every kind
+but one carries its kind as a prefix:
 
 | Kind | Spelled |
 | --- | --- |
@@ -64,6 +66,7 @@ five kinds carry their kind as a prefix:
 | Canonical field | `canonical.<field>` |
 | Metric | `metric.<name>` |
 | Step | `step.<ref>` |
+| Exposure | `exposure.<name>` |
 | Entity field | `<entity>.<field>` — **no prefix** |
 
 Entity fields are the exception, so `order_item.unit_price` is a whole id rather than a

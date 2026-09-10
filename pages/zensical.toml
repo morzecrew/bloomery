@@ -45,6 +45,7 @@ nav = [
         "how-to/evolve-a-spec.md",
         "how-to/evaluate-a-spec.md",
         "how-to/close-an-open-decision.md",
+        "how-to/declare-an-exposure.md",
         "how-to/merge-sources.md",
         "how-to/resolve-identities.md",
         "how-to/trace-lineage.md",

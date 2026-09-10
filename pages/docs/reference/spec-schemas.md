@@ -1,14 +1,14 @@
 # Spec schemas
 
-Field-by-field reference for the six spec kinds. Parsing is strict: unknown keys,
+Field-by-field reference for the seven spec kinds. Parsing is strict: unknown keys,
 duplicate YAML keys, and grammar violations are hard `SpecParseError`s, batched per
 document with a source path per failure. Parse validates shape and grammar only —
 whether references exist is checked at resolution.
 
 Each project document self-identifies by its version key: `spec_version` (EntityModel),
 `mapping_version` (Mapping), `metrics_version` (MetricSet), `marts_version` (MartSet),
-`steps_version` (StepSet). A project holds exactly one EntityModel, any number of
-Mappings, and at most one MetricSet, MartSet and StepSet. The Catalog
+`steps_version` (StepSet), `exposures_version` (ExposureSet). A project holds exactly one
+EntityModel, any number of Mappings, and at most one of every other kind. The Catalog
 (`catalog_version`) is not part of a project — load it with `load_catalog` and pass it
 separately.
 
@@ -629,6 +629,56 @@ flatten:
 | via | `as_of` | base date/timestamp column | on `scd: type2` | The anchor: the instant the joined entity is read as of. Required to flatten a historical dimension, refused on any other |
 | date | `date` | field name | yes | A date/timestamp column of the base entity |
 | date | `role` | member name | yes | Expands to `<role>_day` … `<role>_year` bucket columns (`metric_time` reserved) |
+
+## ExposureSet (`exposures_version`)
+
+At most one per project, and optional. An exposure is something outside the project that
+*reads* it — a dashboard, a notebook, a reverse-ETL sync — declared so the lineage graph
+has a sink and `plan()` can name the consumers a change reaches. Nothing is built for one,
+and nothing about one is discovered: see
+[Declare what reads your project](../how-to/declare-an-exposure.md).
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `exposures_version` | `1` | yes | Document version key |
+| `exposures` | map name → Exposure | yes | One entry per consumer; the name is a bare identifier and mints `exposure.<name>` |
+
+### Exposure
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `kind` | `dashboard` / `notebook` / `analysis` / `ml` / `application` | yes | dbt's vocabulary verbatim, so the emitted exposure needs no translation |
+| `owner` | string | yes | Who to tell. Emitted as dbt's `owner: {email: …}` |
+| `depends_on` | DependsOn | yes | What this consumer reads |
+| `url` | string | no | Text. Never fetched, never validated — a compiler that checked it would be making a network request to decide whether a spec parses |
+
+### DependsOn
+
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `metrics` | list of metric names | no (`[]`) | Metrics this consumer reads |
+| `marts` | list of mart names | no (`[]`) | Marts it reads directly. Names a mart, never a rollup |
+
+At least one entry across the two: an exposure that names nothing answers neither "what
+does this read" nor "who does this change reach", while still reporting clean. A name
+repeated within a list is refused for the same reason — it would build one graph edge
+twice and report one consumer twice against a single change.
+
+**Shape versus resolution.** Parse checks the grammar above. Whether a named metric or
+mart exists is a guardrail question, and a name that resolves to nothing is refused there
+(`DanglingExposure`).
+
+```yaml
+exposures_version: 1
+exposures:
+  weekly_revenue_review:
+    kind: dashboard
+    owner: analytics@example.com
+    url: https://bi.example.com/dash/17
+    depends_on:
+      metrics: [gross_revenue, order_count]
+      marts: [order_items]
+```
 
 ## StepSet (`steps_version`)
 

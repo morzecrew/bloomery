@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The lineage graph has a sink.** `bloomery lineage --node metric:… --direction
+  downstream` used to answer with the marts that can serve the metric and stop,
+  because everything that consumes a bloomery project lives outside it.
+
+  An `exposures:` document declares those consumers — a dashboard, a notebook, a
+  reverse-ETL sync — with a kind, an owner, and the metrics and marts it reads.
+  Each becomes `exposure.<name>` in the graph, so downstream from a metric now
+  reaches the dashboards that read it and upstream from a dashboard reaches the
+  source columns behind it.
+
+  ```yaml
+  exposures_version: 1
+  exposures:
+    weekly_revenue_review:
+      kind: dashboard
+      owner: analytics@example.com
+      depends_on:
+        metrics: [gross_revenue, order_count]
+        marts: [order_items]
+  ```
+
+  `Plan.affected_exposures` names the consumers a diff reaches, computed from the
+  changed marts as well as the downstream metrics — that is the difference
+  between "this is breaking" and "this is breaking, and here is who to tell".
+  dbt gets `models/exposures.yml`; Cube and SQLMesh have no such concept and get
+  nothing, with nothing refused. An exposure naming a metric or mart the project
+  does not declare is refused (`DanglingExposure`): a dangling dependency
+  matches no change, so the impact report would come back naming nobody.
+
 - **Every request the planner answers carries its derivation.** `QueryPlan.semantic`
   is no longer optional: four request shapes used to come back with no plan at
   all — a metric computed from others, a semi-additive measure, a cumulative
