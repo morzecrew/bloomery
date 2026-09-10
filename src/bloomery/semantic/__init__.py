@@ -46,6 +46,7 @@ from bloomery.semantic.plan import (
     Reduce,
     Scan,
     SemanticPlan,
+    Window,
 )
 from bloomery.semantic.proof import (
     BASIS_PROVENANCE,
@@ -76,6 +77,7 @@ __all__ = [
     "JoinBranch",
     "Aggregate",
     "Compute",
+    "Window",
     "BASIS_PROVENANCE",
     "BASIS_RULES",
     "prove_rollup",

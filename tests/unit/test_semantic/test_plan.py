@@ -23,6 +23,7 @@ from bloomery.semantic import (
     Aggregate,
     Compute,
     Reduce,
+    Window,
     Filter,
     JoinAggregates,
     JoinBranch,
@@ -290,12 +291,15 @@ def test_the_plan_names_a_metrics_own_restriction() -> None:
     assert _filters(query) == ("status = 'paid'",)
 
 
-def test_a_cumulative_metric_gets_no_plan() -> None:
+def test_a_cumulative_metric_states_its_window() -> None:
     """`revenue_trailing_7d` *is* a mart measure, so the guard written for the
-    derived case let it through — and the plan read as a plain sum per day
-    with the seven-day window and `period_agg` nowhere in it. The shapes P1
-    cannot express outnumber the one it can, which is why the rule is stated
-    positively rather than as a list of exclusions.
+    derived case let it through — and the plan read as a plain sum per day with
+    the seven-day window and `period_agg` nowhere in it. That is why it was
+    withheld until there was a node carrying both.
+
+    `Window` is that node (RFC 0066 §5.4), and it sits after the aggregate: the
+    measure is reduced per period first, and the accumulation runs along the
+    ordering over those totals.
     """
     planner = make_planner()
     ir = fixture_ir("period_over_period")
@@ -305,10 +309,42 @@ def test_a_cumulative_metric_gets_no_plan() -> None:
         dialect="duckdb",
     )
 
-    assert query.semantic is None
+    assert query.semantic is not None
+    assert query.semantic.shape == ("scan", "filter", "aggregate", "window", "project")
     assert "revenue_trailing_7d" in {
         measure for mart in ir.marts for measure in mart.measures
     }
+
+    (window,) = [node for node in query.semantic.nodes if isinstance(node, Window)]
+    assert window.frame == "trailing 7 days"
+    assert window.period_agg
+    assert (proof := window.proof) is not None
+    assert proof.rule == "R016"
+
+
+def test_a_window_before_any_aggregate_is_refused() -> None:
+    """The same guard `Compute` meets, for the same reason: accumulating over
+    rows that were never reduced per period is not the operation R016
+    authorizes."""
+
+    with pytest.raises(ValueError, match="runs before anything is aggregated"):
+        SemanticPlan(
+            (
+                Scan(relation="orders", grain="order"),
+                Window(
+                    measures=("revenue_trailing_7d",),
+                    over="ordered_day",
+                    frame="trailing 7 days",
+                    period_agg="last",
+                ),
+                Project(columns=("revenue_trailing_7d",)),
+            )
+        )
+
+
+def test_a_window_with_no_measures_is_refused() -> None:
+    with pytest.raises(ValueError, match="accumulates nothing"):
+        Window(measures=(), over="ordered_day", frame="trailing 7 days", period_agg="last")
 
 
 def test_a_semi_additive_metric_is_reduced_then_aggregated() -> None:
@@ -445,7 +481,7 @@ def test_a_compute_before_any_aggregate_is_refused() -> None:
     reason `JoinAggregates` requires its branches to end in an aggregate
     rather than trusting the proof beside it (RFC 0041 D2)."""
 
-    with pytest.raises(ValueError, match="computes before anything is aggregated"):
+    with pytest.raises(ValueError, match="runs before anything is aggregated"):
         SemanticPlan(
             (
                 Scan(relation="orders", grain="order"),
@@ -983,3 +1019,87 @@ def test_a_composed_plan_is_not_stated_when_a_branch_cannot_be() -> None:
 
     assert compose([(None, ("d0",)), (_branch("orders", "ship"), ("d0",))], ("region",), ("ship",)) is None
 
+
+
+def test_the_window_rule_and_the_rollup_refusal_agree() -> None:
+    """R016's terminal half, checked against the place that already enforces it.
+
+    The rule says a cumulative metric's result may not be rolled further — a
+    trailing 7-day total summed across weeks counts each day up to seven times.
+    That is not an assertion this module can make true; what makes it true is
+    the rollup lowering, which refuses a rollup carrying a `cumulative:` measure
+    (RFC 0058 D5). Two parts of the system have to agree about one fact, and
+    this is the test that notices when they stop.
+
+    Driven rather than read: an earlier version of this asserted that the
+    string "cumulative" appeared in the lowering's source, which would have
+    passed against a comment.
+
+    It is here rather than in the corpus deliberately. The semantic corpus
+    admits cases where the SQL is valid and the *number* is wrong; a cumulative
+    metric is answered correctly today, so a case written for it would be
+    admitted for the wrong reason and dilute what the corpus proves
+    (logs/T-0037.md).
+    """
+
+    from bloomery import build_project_ir, load_project
+    from bloomery.errors import GuardrailError
+    from bloomery.semantic import RULES
+
+    assert "not rolled further" in RULES["R016"].summary
+
+    sources = {
+        "entity_model": """\
+spec_version: 1
+entities:
+  order_item:
+    grain: one row per line
+    key: [order_id, line_no]
+    fields:
+      order_id: {type: string, required: true}
+      line_no: {type: int, required: true}
+      amount: {type: "decimal(12,2)"}
+      order_date: {type: date}
+""",
+        "mapping_items": """\
+mapping_version: 1
+source: src__items
+target: order_item
+key:
+  order_id: {from: "$.oid", transform: [to_string]}
+  line_no: {from: "$.line", transform: [to_int]}
+fields:
+  amount: {from: "$.amount"}
+  order_date: {from: "$.od", transform: [{parse_date: ISO8601}]}
+""",
+        "metrics": """\
+metrics_version: 1
+metrics:
+  rolling_revenue:
+    grain: order_item
+    additivity: additive
+    agg: sum
+    expr: "amount"
+    cumulative: {window: 7 days}
+""",
+        "marts": """\
+marts_version: 1
+marts:
+  items:
+    grain: order_item
+    base: order_item
+    flatten:
+      - {date: order_date, role: ordered}
+    measures: [rolling_revenue]
+rollups:
+  monthly:
+    of: items
+    keep: [ordered_month]
+    measures: [rolling_revenue]
+""",
+    }
+
+    with pytest.raises(GuardrailError) as excinfo:
+        build_project_ir(load_project(sources))
+
+    assert "cumulative" in str(excinfo.value)

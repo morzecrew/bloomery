@@ -62,12 +62,13 @@ from bloomery.semantic.plan import (
     Reduce,
     Scan,
     SemanticPlan,
+    Window,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from bloomery.ir import MartIR, MetricIR
+    from bloomery.ir import CumulativeIR, MartIR, MetricIR
     from bloomery.planner.coverage import Coverage
     from bloomery.planner.request import MetricRequest
 
@@ -302,6 +303,90 @@ def _semi_additive(
 # ....................... #
 
 
+def _frame(cumulative: CumulativeIR) -> str:
+    """A cumulative metric's frame as prose — the two forms it may declare.
+
+    Exactly one is set (RFC 0034 D5), so the fallback is unreachable and is
+    still written: a node reading the wrong field would otherwise render an
+    empty frame and a plan would claim an accumulation over nothing.
+    """
+
+    if cumulative.window is not None:
+        plural = "" if cumulative.window.count == 1 else "s"
+        return f"trailing {cumulative.window.count} {cumulative.window.grain}{plural}"
+
+    if cumulative.grain_to_date is not None:
+        return f"{cumulative.grain_to_date}_to_date"
+
+    msg = "a cumulative metric declares exactly one of window / grain_to_date (RFC 0034 D5)"
+    raise PlannerError(msg)
+
+
+# ....................... #
+
+
+def _accumulates_over_its_frame(metrics: Sequence[MetricIR], over: str) -> Proof:
+    """R016: each of these declares how it accumulates, so the window is what
+    the metric means rather than a shape imposed on it.
+
+    The conclusion is terminal, and that is the half worth having: the result
+    may not be rolled further. A trailing 7-day total summed across weeks counts
+    each day up to seven times, and nothing in a column of numbers says so.
+    """
+
+    return Proof(
+        rule="R016",
+        conclusion=SemanticJudgement("AccumulatesOverFrame", (("over", over),)),
+        facts=tuple(
+            SemanticFact(
+                source=f"metric:{metric.name}",
+                provenance=Provenance.DECLARED,
+                statement=(
+                    f"{metric.name} accumulates {_frame(metric.cumulative)} and a coarser "
+                    f"request takes {metric.cumulative.period_agg}"
+                    if metric.cumulative is not None
+                    else f"{metric.name} declares no accumulation"
+                ),
+            )
+            for metric in sorted(metrics, key=lambda m: m.name)
+        ),
+    )
+
+
+# ....................... #
+
+
+def _cumulative(
+    names: Sequence[str], metrics: Mapping[str, MetricIR]
+) -> tuple[MetricIR, ...] | None:
+    """The requested metrics that accumulate, or ``None`` where they do not
+    share one frame.
+
+    One :class:`~bloomery.semantic.Window` node states one frame, so two
+    metrics accumulating over different ones are two windows — statable, and
+    not by this phase. Same shape as :func:`_semi_additive`, and the same
+    reason for ``None``.
+    """
+
+    declared = tuple(
+        metrics[name] for name in names if name in metrics and metrics[name].cumulative is not None
+    )
+
+    if not declared:
+        return ()
+
+    frames = {
+        (_frame(metric.cumulative), metric.cumulative.period_agg)
+        for metric in declared
+        if metric.cumulative is not None
+    }
+
+    return declared if len(frames) == 1 else None
+
+
+# ....................... #
+
+
 def _partition(
     requested: Sequence[str], mart: MartIR, metrics: Mapping[str, MetricIR]
 ) -> tuple[tuple[str, ...], tuple[tuple[tuple[str, str], ...], tuple[str, ...]] | None]:
@@ -361,7 +446,6 @@ def _plannable(request: MetricRequest, mart: MartIR, metrics: Mapping[str, Metri
       meaning.
     """
 
-    requested = tuple(metrics[name] for name in request.metrics if name in metrics)
     stored, computed = _partition(request.metrics, mart, metrics)
 
     if computed is None:
@@ -375,7 +459,10 @@ def _plannable(request: MetricRequest, mart: MartIR, metrics: Mapping[str, Metri
         all(name in mart.measures for name in (*stored, *computed[1]))
         and all(metric.additivity in _STATABLE for metric in beneath)
         and _semi_additive([metric.name for metric in beneath], metrics) is not None
-        and not any(metric.cumulative is not None for metric in requested)
+        # Over what was *asked for* as well as what sits beneath: a computed
+        # metric is not in `beneath`, and asking only there would miss one that
+        # declared its own accumulation.
+        and _cumulative((*request.metrics, *(m.name for m in beneath)), metrics) is not None
         and len({_restriction(metric) for metric in beneath}) <= 1
     )
 
@@ -449,6 +536,26 @@ def build(
             proof=_served_at_grain(mart.name, mart.grain, aggregated),
         ),
     )
+
+    accumulating = _cumulative((*request.metrics, *aggregated), metrics)
+    assert accumulating is not None  # noqa: S101 — `_plannable` returned False otherwise
+
+    if accumulating:
+        # After the aggregate: the measure is reduced per period first, and the
+        # window runs along the ordering over those totals (RFC 0066 §5.4).
+        window = accumulating[0].cumulative
+        assert window is not None  # noqa: S101 — `_cumulative` selected on it
+        ordering = dimensions[0] if dimensions else mart.grain
+        nodes = (
+            *nodes,
+            Window(
+                measures=tuple(metric.name for metric in accumulating),
+                over=ordering,
+                frame=_frame(window),
+                period_agg=window.period_agg,
+                proof=_accumulates_over_its_frame(accumulating, ordering),
+            ),
+        )
 
     if outputs:
         nodes = (

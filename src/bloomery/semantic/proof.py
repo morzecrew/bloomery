@@ -288,6 +288,14 @@ class Rule:
 #: aggregate, and citing it is what keeps P1 a re-expression rather than a new
 #: claim (RFC 0040 D5).
 #:
+#: R016 is the window obligation (RFC 0066 §5.4), and it is the one rule here
+#: whose conclusion is *terminal*: a cumulative metric's result may not be
+#: rolled further, because a trailing 7-day total summed across weeks counts
+#: each day up to seven times. It authorizes the accumulation and forbids what
+#: comes after, which is why the frame is recorded on the node rather than left
+#: to the metric definition — a later transformation needs something to refuse
+#: against.
+#:
 #: R015 is the semi-additive obligation (RFC 0066 §5.3). It authorizes exactly
 #: one thing and is worth reading for what it does *not* say: a measure declared
 #: `semi_additive` with `over: d` may be reduced along `d` by the declared rule,
@@ -344,6 +352,10 @@ RULES: Final[dict[str, Rule]] = {
         Rule(
             "R015",
             "a semi-additive measure is reduced along its own dimension by the declared rule",
+        ),
+        Rule(
+            "R016",
+            "a cumulative metric accumulates over its declared frame and is not rolled further",
         ),
     )
 }

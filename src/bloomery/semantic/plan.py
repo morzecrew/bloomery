@@ -55,6 +55,7 @@ __all__ = [
     "Reduce",
     "Scan",
     "SemanticPlan",
+    "Window",
 ]
 
 
@@ -413,6 +414,88 @@ class Reduce:
 
 
 @dataclass(frozen=True, slots=True)
+class Window:
+    """Accumulation across rows at query time (RFC 0066 §5.4).
+
+    A ``cumulative:`` metric keeps its own measure and its own additivity —
+    those describe the measure, this describes the accumulation. RFC 0040 P1
+    declined these because "a window and a ``period_agg`` are not a rollup at
+    all", and a plan reading as a plain sum per day would have been the
+    operation this is not.
+
+    **Its output is not re-aggregable, and that is the part worth stating.** A
+    reader seeing an :class:`Aggregate` beneath must not conclude the window's
+    result can be rolled further: a trailing 7-day total summed across weeks
+    counts each day up to seven times. R016 records the frame so that any later
+    transformation has something to refuse against, rather than a column that
+    looks like every other measure.
+    """
+
+    measures: tuple[str, ...]
+    #: The ordering the window runs along.
+    over: str
+    #: ``trailing <n> <grain>`` or ``grain_to_date <grain>`` — the two forms a
+    #: metric may declare, rendered as prose because a plan is not SQL.
+    frame: str
+    #: What a request *coarser* than the accumulation collapses the series
+    #: with. Declared on the metric and applied by the engine, so it is stated
+    #: here for the same reason the frame is: it decides the number, and a plan
+    #: silent about it would be silent about a collapse that changes the answer.
+    period_agg: str
+    proof: Proof | None = None
+
+    # ....................... #
+
+    def __post_init__(self) -> None:
+        canonical = tuple(sorted(self.measures))
+        if canonical != self.measures:
+            object.__setattr__(self, "measures", canonical)
+
+        if not self.measures:
+            msg = (
+                "a window node with no measures accumulates nothing, and `check` would "
+                "report it authorized — the same shape as a proof resting on no facts "
+                "(RFC 0066 §5.4)"
+            )
+            raise ValueError(msg)
+
+    # ....................... #
+
+    @property
+    def multiplies(self) -> bool:
+        return False
+
+    # ....................... #
+
+    @property
+    def claims(self) -> bool:
+        return True
+
+    # ....................... #
+
+    def document(self) -> dict[str, object]:
+        return {
+            "node": "window",
+            "measures": list(self.measures),
+            "over": self.over,
+            "frame": self.frame,
+            "period_agg": self.period_agg,
+            "proof": self.proof.document() if self.proof is not None else None,
+        }
+
+    # ....................... #
+
+    def render(self) -> str:
+        return (
+            f"Window({', '.join(self.measures)} : {self.frame} over {self.over}, "
+            f"coarser requests take {self.period_agg})"
+        )
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
 class JoinBranch:
     """One branch of a join, and what *it* calls the join keys.
 
@@ -568,8 +651,9 @@ class JoinAggregates:
 #: `ConvertUnit`; neither exists yet — the first would join *unaggregated*
 #: rows, which RFC 0041 D10 keeps refused, and the second has no owner since
 #: RFC 0038 retired without it (RFC 0066 §8). :class:`Compute` is the sixth
-#: kind and :class:`Reduce` the seventh (RFC 0066 §5.2, §5.3).
-PlanNode = Scan | Filter | Aggregate | Project | JoinAggregates | Compute | Reduce
+#: kind, :class:`Reduce` the seventh and :class:`Window` the eighth
+#: (RFC 0066 §5.2-§5.4).
+PlanNode = Scan | Filter | Aggregate | Project | JoinAggregates | Compute | Reduce | Window
 
 
 @dataclass(frozen=True, slots=True)
@@ -641,11 +725,12 @@ class SemanticPlan:
         for node in self.nodes:
             if isinstance(node, Aggregate | JoinAggregates):
                 reduced = True
-            elif isinstance(node, Compute) and not reduced:
+            elif isinstance(node, Compute | Window) and not reduced:
                 msg = (
-                    f"{node.render()} computes before anything is aggregated, so the "
-                    "ordering R014 authorizes did not happen — a row-level expression "
-                    "aggregated afterwards is a different number (RFC 0066 §5.2)"
+                    f"{node.render()} runs before anything is aggregated, so the ordering "
+                    "it is authorized for did not happen — a row-level expression or "
+                    "window aggregated afterwards is a different number "
+                    "(RFC 0066 §5.2, §5.4)"
                 )
                 raise ValueError(msg)
 
