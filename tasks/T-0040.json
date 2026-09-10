@@ -1,0 +1,21 @@
+{
+  "id": "T-0040",
+  "spec": "rfcs/0065-consumer-evidence-strictness.md",
+  "phase": "P2 — `requires_evidence` on marts, the refusal, and the aggregate message.",
+  "decisions": [
+    {"id": "RFC 0065 D1", "grade": "LOCKED",
+     "paths": ["src/bloomery/semantic/proof.py"]},
+    {"id": "RFC 0065 D2", "grade": "LOCKED",
+     "paths": ["src/bloomery/guardrails/**"]},
+    {"id": "RFC 0065 D3", "grade": "LOCKED",
+     "paths": ["src/bloomery/spec/marts.py", "src/bloomery/ir/nodes.py"]},
+    {"id": "RFC 0065 D4", "grade": "LOCKED",
+     "paths": ["src/bloomery/guardrails/**", "src/bloomery/errors.py"]},
+    {"id": "RFC 0065 D5", "grade": "ASSUMED",
+     "paths": ["src/bloomery/semantic/proof.py"]},
+    {"id": "RFC 0065 D6", "grade": "OPEN",
+     "paths": ["src/bloomery/spec/marts.py"]},
+    {"id": "RFC 0065 D7", "grade": "LOCKED",
+     "paths": ["src/bloomery/semantic/proof.py"]}
+  ]
+}
