@@ -1103,6 +1103,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What comes back">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reading-the-derivation-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Reading the derivation back
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1699,6 +1716,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="What comes back">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reading-the-derivation-back" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Reading the derivation back
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1960,6 +1994,10 @@ malformed <code>nulls</code>, <code>limit</code>, or <code>offset</code> value i
 <td><code>fingerprint</code></td>
 <td><code>sha256(sql)</code> — your result-cache key</td>
 </tr>
+<tr>
+<td><code>semantic</code></td>
+<td>The derivation: what bloomery decided to compute, and the rule authorizing each step</td>
+</tr>
 </tbody>
 </table>
 <p>The explanation is generated from the plan, never from a model — every number ships
@@ -1971,6 +2009,23 @@ with how it was computed:</p>
   filters:  country in ('FR', 'DE')
   policy:   not applied
 </code></pre></div>
+<h3 id="reading-the-derivation-back">Reading the derivation back<a class="headerlink" href="#reading-the-derivation-back" title="Permanent link">&para;</a></h3>
+<p><code>plan.semantic</code> is always there. It is a short pipeline of nodes, and
+<code>render()</code> prints it in execution order:</p>
+<div class="highlight"><pre><span></span><code>Scan(sales @ sale)
+  -&gt; Filter(none)
+    -&gt; Aggregate(revenue : sale -&gt; sale by sold_day)
+      -&gt; Offset(revenue_yoy.prior = revenue 1 year earlier over sold_day)
+        -&gt; Compute(revenue_yoy = current - prior where current = revenue, prior = revenue)
+          -&gt; Project(sold_day, revenue_yoy)
+</code></pre></div>
+<p>Each node that makes a semantic claim carries a proof, and a plan whose claiming nodes do
+not is invalid rather than merely unexplained — so a plan you can read is one whose every
+claim closed. <code>plan.semantic.proofs</code> walks them, branches included, and
+<code>plan.semantic.serialize()</code> gives canonical JSON if you want to keep one.</p>
+<p><strong>It is not what produced the SQL.</strong> bloomery decides what to compute and states it; the
+query is rendered alongside. Read the plan as evidence about the answer, not as the
+machinery that generated it.</p>
 <h2 id="refusals">Refusals<a class="headerlink" href="#refusals" title="Permanent link">&para;</a></h2>
 <p>The planner answers correctly or refuses with a typed error — never guesses. All
 planner errors subclass <code>PlannerError</code>; the first failure wins (they are not batched).
