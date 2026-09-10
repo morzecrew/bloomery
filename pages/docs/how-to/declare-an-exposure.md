@@ -48,6 +48,11 @@ metric.gross_revenue  (downstream)
 
 Nothing is downstream of an exposure. It is the graph's only sink.
 
+A **mart** dependency draws no lineage edge, so an exposure that names only marts comes
+back from an upstream walk as a node with nothing above it. A mart is not a node of this
+graph; the dependency is real everywhere else — `plan()` reports it and the dbt exposure
+carries it — and only the walk cannot see it.
+
 ## Ask who a change reaches
 
 `Plan.affected_exposures` names the consumers a diff touches, and `bloomery plan` prints

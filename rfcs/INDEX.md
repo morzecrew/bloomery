@@ -49,7 +49,7 @@ Two consequences worth knowing:
 
 ## Allocating a number
 
-The next free number is **0067**. Before creating an RFC, read the number above — do not
+The next free number is **0068**. Before creating an RFC, read the number above — do not
 compute it from `ls`, which no longer sees retired documents. **Numbers are never reused**:
 0001–0022 are retired and permanently spent. Update this section in the same change that
 mints a number.
@@ -99,6 +99,7 @@ know it has a companion recording where it turned out to be wrong.
 | [0063](0063-as-of-compile.md) | As-of compile over spec history | 📝 Draft | Compiling a project as its specs stood at a past instant, so an artifact set can be reconstructed for a date and a number's movement traced to a definition. |
 | [0064](0064-definition-supersession.md) | Definition supersession and change attribution | 📝 Draft | An edge between two versions of one node carrying what changed in spec vocabulary, so "why did this number move" is answered above the level of a text diff. |
 | [0065](0065-consumer-evidence-strictness.md) | Consumer-declared evidence strictness | 🚧 In progress | A minimum evidence grade a mart or exposure requires of the facts beneath it, projected from RFC 0039's provenance and refused at compile time. |
+| [0067](0067-marts-in-the-lineage-graph.md) | Marts in the lineage graph | 📝 Draft | The graph has no gold layer, so a metric change never names the mart it lands in and an exposure's mart dependency points at nothing; marts become nodes. |
 
 ## Status legend
 
