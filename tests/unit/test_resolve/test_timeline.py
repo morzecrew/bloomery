@@ -23,19 +23,29 @@ from collections.abc import Iterator
 import pytest
 
 from bloomery import (
+    EMPTY_REGISTRY,
+    Catalog,
     MatchedBy,
+    Project,
+    StepRegistry,
     SpecVersion,
     Timeline,
     load_catalog,
     load_project,
     timeline,
 )
+from bloomery.errors import GuardrailError, UnknownStep
 from bloomery.ir import NODE_ID_PREFIXES
-from bloomery.resolve.graph import NodeKind
+from bloomery.resolve.graph import Node, NodeKind
+from bloomery.spec.project import node_keys
 from bloomery.resolve.timeline import (
+    _ID_NAMESPACE,  # pyright: ignore[reportPrivateUsage]
     _KIND_BY_PREFIX,  # pyright: ignore[reportPrivateUsage]
+    _compile,  # pyright: ignore[reportPrivateUsage]
+    _definition,  # pyright: ignore[reportPrivateUsage]
+    _kind_and_spelling,  # pyright: ignore[reportPrivateUsage]
 )
-from support.compiling import FIXTURES, load_fixture
+from support.compiling import FIXTURES, fixture_sources, load_fixture, spec_fixture_names
 from support.steps import registry_for
 
 pytestmark = pytest.mark.unit
@@ -63,14 +73,24 @@ fields:
 """
 
 
-def sources(*, metric: str = "gross_revenue", node_id: str | None = None, agg: str = "sum") -> dict[str, str]:
-    """One project, varied along the three axes a history moves on: the
-    metric's name, whether it has adopted an RFC 0062 ``id:``, and its
-    definition."""
+def sources(
+    *,
+    metric: str = "gross_revenue",
+    node_id: str | None = None,
+    agg: str = "sum",
+    required: bool = False,
+) -> dict[str, str]:
+    """One project, varied along the axes a history moves on: the metric's
+    name, whether it has adopted an RFC 0062 ``id:``, its definition — and one
+    entity-field axis that moves a column's *schema* without touching the
+    expression that produces it."""
 
     minted = f"\n    id: {node_id}" if node_id is not None else ""
     return {
-        "entity_model": ENTITY_MODEL,
+        "entity_model": ENTITY_MODEL.replace(
+            'amount: {type: "decimal(12, 2)"}',
+            f'amount: {{type: "decimal(12, 2)", required: {str(required).lower()}}}',
+        ),
         "mapping": MAPPING,
         "metrics": f"""
 metrics_version: 1
@@ -86,6 +106,22 @@ metrics:
 
 def version(label: str, **kwargs: object) -> SpecVersion:
     return SpecVersion(label=label, project=load_project(sources(**kwargs)))  # type: ignore[arg-type]
+
+
+def twice(
+    project: Project, catalog: Catalog | None = None, steps: StepRegistry = EMPTY_REGISTRY
+) -> list[SpecVersion]:
+    """The same version, labelled `a` and `b`.
+
+    The shape every "this kind is found at all" assertion needs, where the
+    claim is that the lookup found a record rather than that a definition
+    moved — so every such answer reads "present, present, no change".
+    """
+
+    return [
+        SpecVersion(label=label, project=project, catalog=catalog, steps=steps)
+        for label in ("a", "b")
+    ]
 
 
 def shape(walk: Timeline) -> tuple[tuple[tuple[str, bool], ...], tuple[tuple[str, str, str], ...]]:
@@ -180,6 +216,29 @@ def test_minting_an_id_alone_is_not_a_definition_change() -> None:
     assert shape(timeline(history, "metric.gross_revenue")) == ((("a", True), ("b", True)), ())
 
 
+def test_minting_a_catalog_id_alone_is_not_a_definition_change_either() -> None:
+    """The claim above, on the one kind it could fail for.
+
+    A canonical field is compared by the catalog's own model and that model
+    *does* carry `id` — so without `_definition` blanking it, adopting an id
+    would read as a redefinition for this kind and for no other. Asserted
+    rather than argued, because the blanking is one keyword and invisible.
+    """
+    project, _ = load_fixture("ecom_basic")
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    minted = text.replace("  unit_price:\n", "  unit_price:\n    id: cf_9b2e14\n", 1)
+    assert minted != text, "the edit the rest of this test rests on"
+
+    history = [
+        SpecVersion(label="a", project=project, catalog=load_catalog(text)),
+        SpecVersion(label="b", project=project, catalog=load_catalog(minted)),
+    ]
+
+    # The node is renamed by the mint — `canonical.unit_price` becomes
+    # `canonical.cf_9b2e14` — and is matched across the boundary by name.
+    assert shape(timeline(history, "canonical.unit_price")) == ((("a", True), ("b", True)), ())
+
+
 def test_an_id_adopted_partway_through_matches_that_boundary_by_name() -> None:
     """D12: a pair matches by id only when **both** sides carry one, so the
     boundary where adoption happens is a name match and every boundary after it
@@ -225,6 +284,61 @@ def test_a_gap_is_an_absence_and_no_change_spans_it() -> None:
     assert shape(timeline(history, "metric.gross_revenue")) == (
         (("a", True), ("b", False), ("c", True)),
         (),
+    )
+
+
+def test_identity_survives_a_gap_even_though_a_change_does_not() -> None:
+    """The two halves of a gap pull in opposite directions, and both matter.
+
+    A change must **not** cross a gap — the node was deleted and re-added. But
+    identity must, or the node cannot be found again on the far side: here the
+    metric is renamed while it is away, and only the id carried across the
+    absence connects the two. Clearing the carried identity on an absence gives
+    the same answer as this test's first half and the wrong one for its second,
+    which is why one test asserts both.
+    """
+    history = [
+        version("a"),
+        version("b", node_id="mtr_7f3a9c", agg="max"),
+        version("c", metric="something_else"),
+        version("d", metric="revenue_gross", node_id="mtr_7f3a9c", agg="max"),
+    ]
+
+    # Asked by the name it had in `a`, which is not what `d` spells it: only
+    # the id picked up in `b` and carried across `c` reaches the last entry.
+    assert shape(timeline(history, "metric.gross_revenue")) == (
+        (("a", True), ("b", True), ("c", False), ("d", True)),
+        (("a", "b", "name"),),
+    )
+
+
+def test_a_columns_schema_moves_even_when_its_lowering_does_not() -> None:
+    """The half of `_entity_field` the corpus cannot separate.
+
+    In `evolution_v1`..`v2` the retype moves the `ColumnIR` *and* the
+    `SourceColumnIR` — the cast is in the lowered expression — so that history
+    cannot show which half of the pair is carrying the answer. `required:`
+    moves the schema alone, and the lowering is asserted identical here so the
+    premise is the test's rather than the reader's.
+    """
+    history = [version("a"), version("b", required=True)]
+    lowerings = []
+    for entry in history:
+        _graph, ir = _compile(entry)
+        entity = next(one for one in ir.entities if one.name == "order")
+        lowerings.append(
+            tuple(
+                (source.relation, lowered)
+                for source in entity.sources
+                for lowered in source.columns
+                if lowered.name == "amount"
+            )
+        )
+
+    assert lowerings[0] == lowerings[1], "the premise: the expression does not move"
+    assert shape(timeline(history, "order.amount")) == (
+        (("a", True), ("b", True)),
+        (("a", "b", "name"),),
     )
 
 
@@ -324,13 +438,10 @@ def test_a_history_entry_may_wire_steps() -> None:
     steps = registry_for("identity_resolution")
     node = "step.resolve_customers"
 
-    wired = [
-        SpecVersion(label="a", project=project, catalog=catalog, steps=steps),
-        SpecVersion(label="b", project=project, catalog=catalog, steps=steps),
-    ]
+    wired = twice(project, catalog, steps)
     assert shape(timeline(wired, node)) == ((("a", True), ("b", True)), ())
 
-    with pytest.raises(Exception, match="resolve_customers"):
+    with pytest.raises(UnknownStep, match="resolve_customers"):
         timeline([SpecVersion(label="a", project=project, catalog=catalog)], node)
 
 
@@ -411,15 +522,8 @@ def test_every_kind_the_graph_mints_has_a_timeline() -> None:
     change tests above then exercise for the kinds a fixture can move.
     """
     project, catalog = load_fixture("ecom_basic")
-    history = [
-        SpecVersion(label="a", project=project, catalog=catalog),
-        SpecVersion(label="b", project=project, catalog=catalog),
-    ]
-    rollup_project, rollup_catalog = load_fixture("rollup_mart")
-    rollups = [
-        SpecVersion(label="a", project=rollup_project, catalog=rollup_catalog),
-        SpecVersion(label="b", project=rollup_project, catalog=rollup_catalog),
-    ]
+    history = twice(project, catalog)
+    rollups = twice(*load_fixture("rollup_mart"))
 
     for walk, node in (
         (timeline(history, "metric.gross_revenue"), NodeKind.METRIC),
@@ -439,21 +543,82 @@ def test_every_kind_the_graph_mints_has_a_timeline() -> None:
         assert shape(walk) == ((("a", True), ("b", True)), ()), node
 
 
+def test_an_unreachable_metric_is_compared_coarsely_and_that_is_stated() -> None:
+    """The one place this walk is knowingly lossy, pinned rather than left in a
+    docstring.
+
+    `ir.metrics` holds only reachable metrics; an unreachable one survives as an
+    `UnreachableMetric`, which records the name, the missing leaves and the
+    chain — not the definition. So an edit that leaves the metric unreachable
+    *for the same reason* is invisible here, and the change a reader is actually
+    waiting for — it becoming reachable — is not.
+    """
+    project, catalog = load_fixture("ecom_basic")
+    text = (FIXTURES / "ecom_basic" / "metrics.yaml").read_text()
+    edited = text.replace('expr: "unit_price - cogs"', 'expr: "unit_price - cogs - 1"', 1)
+    assert edited != text, "the edit the rest of this test rests on"
+    moved = load_project({**fixture_sources("ecom_basic"), "metrics": edited})
+
+    invisible = [
+        SpecVersion(label="a", project=project, catalog=catalog),
+        SpecVersion(label="b", project=moved, catalog=catalog),
+    ]
+    assert shape(timeline(invisible, "metric.margin")) == ((("a", True), ("b", True)), ())
+
+
+def test_a_template_moving_moves_every_metric_built_from_it() -> None:
+    """Why the comparison is over the IR and not over the documents.
+
+    `gross_revenue` in this fixture is one line — `template: gross_revenue` —
+    and its definition lives in the catalog. Editing the template moves the
+    metric while `metrics.yaml` stays byte-identical, and a walk that diffed
+    the authored spec would report nothing at all.
+    """
+    project, _ = load_fixture("ecom_basic")
+    text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text()
+    edited = text.replace('expr: "unit_price * quantity"', 'expr: "unit_price * quantity * 2"', 1)
+    assert edited != text, "the edit the rest of this test rests on"
+
+    history = [
+        SpecVersion(label="a", project=project, catalog=load_catalog(text)),
+        SpecVersion(label="b", project=project, catalog=load_catalog(edited)),
+    ]
+
+    assert shape(timeline(history, "metric.gross_revenue")) == (
+        (("a", True), ("b", True)),
+        (("a", "b", "name"),),
+    )
+
+
 def test_a_step_is_compared_by_its_manifest() -> None:
     """The kind `ecom_basic` has no instance of. A version bump moves the
     `StepIR` and the node stays put — `step_node` is keyed by `ref` alone,
     because a version bump does not move where a step sits in the lineage."""
     project, catalog = load_fixture("identity_resolution")
     steps = registry_for("identity_resolution")
-    history = [
-        SpecVersion(label="a", project=project, catalog=catalog, steps=steps),
-        SpecVersion(label="b", project=project, catalog=catalog, steps=steps),
-    ]
-
-    assert shape(timeline(history, "step.resolve_customers")) == (
+    assert shape(timeline(twice(project, catalog, steps), "step.resolve_customers")) == (
         (("a", True), ("b", True)),
         (),
     )
+
+
+def test_a_step_output_is_the_relation_it_produces() -> None:
+    """`<relation>.<output name>` is an entity-field *node* and not a field.
+
+    `_step_edges` mints one per `outputs:` entry, so `customer.customer` is the
+    whole relation `resolve_customers` produces — and `customer` has no column
+    called `customer`. Before this was handled, the lookup found nothing and
+    the walk reported every step output as present in every version and changed
+    in none, which is a wrong answer shaped exactly like a right one.
+    """
+    project, catalog = load_fixture("identity_resolution")
+    steps = registry_for("identity_resolution")
+    graph, ir = _compile(SpecVersion(label="x", project=project, catalog=catalog, steps=steps))
+
+    assert Node(kind=NodeKind.ENTITY_FIELD, name="customer.customer") in graph.nodes
+    entity = next(one for one in ir.entities if one.name == "customer")
+    assert "customer" not in {column.name for column in entity.columns}
+    assert _definition(*_kind_and_spelling("customer.customer"), ir, catalog) is entity
 
 
 def test_a_catalog_node_asked_of_a_project_with_no_catalog_is_absent() -> None:
@@ -479,6 +644,61 @@ def test_the_prefix_table_is_the_reserved_one() -> None:
     would resolve here as an *entity field* named after it — a node that exists
     nowhere, reported absent in every version, with nothing saying why."""
     assert tuple(sorted(_KIND_BY_PREFIX)) == NODE_ID_PREFIXES
+
+
+def test_the_id_namespaces_are_node_keys_own() -> None:
+    """`_ID_NAMESPACE` names which kinds can carry an `id:` and under which key
+    `node_keys` files them. A kind added *there* and not here would keep
+    matching by name with nothing saying so — the id would be minted, the graph
+    would use it, and this walk alone would ignore it.
+
+    The wrong-key direction fails loudly already (a `KeyError` on the next
+    call); this is the silent one.
+    """
+    project, catalog = load_fixture("ecom_basic")
+
+    assert set(_ID_NAMESPACE.values()) == set(node_keys(project, catalog))
+
+
+#: The two fixtures that exist to be refused, so they reach no IR and cannot be
+#: swept below. Named rather than caught: a `try/except` around the sweep would
+#: pass just as green on the day a fixture that used to compile stopped, which
+#: is the failure this list makes visible.
+REFUSED_AT_GUARDRAILS = frozenset({"fanout_trap", "scd2_mart_refusal"})
+
+
+@pytest.mark.parametrize("fixture", spec_fixture_names())
+def test_every_node_the_graph_carries_has_a_definition(fixture: str) -> None:
+    """`_definition`'s remaining "not found" path is marked unreachable, and
+    this is the measurement behind that claim rather than the argument for it.
+
+    Every node of every fixture is looked up, and every kind but a source
+    column must find a record. A kind that quietly stopped finding one would
+    not raise: it would report the node present in every version and changed in
+    none, which is the failure mode this whole walk has to avoid — and it is
+    exactly what this sweep caught for step outputs, which live in the
+    entity-field namespace as `<relation>.<output name>` and are relations
+    rather than fields (`logs/T-0043.md`).
+    """
+    if fixture in REFUSED_AT_GUARDRAILS:
+        with pytest.raises(GuardrailError):
+            project, catalog = load_fixture(fixture)
+            _compile(SpecVersion(label="x", project=project, catalog=catalog))
+        return
+
+    project, catalog = load_fixture(fixture)
+    graph, ir = _compile(
+        SpecVersion(label="x", project=project, catalog=catalog, steps=registry_for(fixture))
+    )
+
+    missing = [
+        node.name
+        for node in graph.nodes
+        if node.kind is not NodeKind.SOURCE_COLUMN
+        and _definition(*_kind_and_spelling(node.name), ir, catalog) is None
+    ]
+
+    assert missing == []
 
 
 def test_every_node_kind_has_a_definition_rule() -> None:

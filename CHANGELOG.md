@@ -30,7 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   into chronological order — and it is a convention enforced nowhere.
 
   This phase reports *that* a definition moved. Naming the facet that moved is
-  the next one. See [trace a definition over time](pages/docs/how-to/trace-a-definition-over-time.md).
+  the next one. See
+  [Trace a definition over time](https://morzecrew.github.io/bloomery/how-to/trace-a-definition-over-time/).
 
 - **Composition is no longer a dependency basis.** `DependencyBasis` had five
   members and one of them, `transitive`, could never be produced: a derivation

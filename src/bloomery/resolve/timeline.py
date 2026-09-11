@@ -282,11 +282,23 @@ def _entity_field(ir: ProjectIR, spelling: str) -> object | None:
 
     entity_name, _, field = spelling.partition(".")
     entity = next((one for one in ir.entities if one.name == entity_name), None)
-    column = (
-        None if entity is None else next((one for one in entity.columns if one.name == field), None)
-    )
-    if entity is None or column is None:  # pragma: no cover — see :func:`_definition`
+    if entity is None:  # pragma: no cover — see :func:`_definition`
         return None
+
+    column = next((one for one in entity.columns if one.name == field), None)
+    if column is None:
+        # **A step output is a relation, not a field**, and it lives in this
+        # namespace anyway: `_step_edges` mints `<produced relation>.<output
+        # name>` for each `outputs:` entry, so `customer.customer` is the whole
+        # `customer` relation that `resolve_customers` produces. Its definition
+        # is the entity, and comparing nothing instead would report every step
+        # output as present in every version and changed in none — a silent
+        # wrong answer, which is the one failure this walk must not produce.
+        #
+        # The ambiguity is the graph's rather than this table's: an output
+        # named after a real column of the same relation mints the id a field
+        # would, and nothing downstream can separate the two.
+        return entity
     return (
         column,
         tuple(
@@ -318,7 +330,9 @@ def _definition(kind: NodeKind, spelling: str, ir: ProjectIR, catalog: Catalog |
       that takes a mart's name, so the one lookup cannot be ambiguous.
     - **exposure** — the ``ExposureIR``.
     - **step** — the ``StepIR``, keyed by ``ref`` as its node is.
-    - **entity field** — see :func:`_entity_field`.
+    - **entity field** — the `ColumnIR` with its per-source lowerings, or
+      the whole `EntityIR` where the node is a step output rather than a
+      field. See :func:`_entity_field`.
     - **canonical field** — the catalog's own ``CanonicalField``. There is no
       canonical-field record anywhere in ``ProjectIR``; the field survives
       lowering only as ``ColumnIR.canonical``, a string reference. The spec
@@ -330,13 +344,17 @@ def _definition(kind: NodeKind, spelling: str, ir: ProjectIR, catalog: Catalog |
       no definition beyond its existence, and presence is the whole of what can
       change about it. Forced rather than chosen.
 
-    **Every "not found" path here is defensive and unreachable**, which is why
-    they are marked rather than tested: this is called only for a node the
-    version's *graph* carried, and both the graph and the IR are built from one
-    pipeline pass over one project. A node present in one and absent from the
-    other is a pipeline invariant violated, not a project anyone can write —
-    and a caller cannot reach it either, because a node nothing carries is
-    reported absent before this runs.
+    The two remaining "not found" paths — an entity-field node whose entity the
+    IR has none of, and a canonical node asked of a project with no catalog —
+    are unreachable, because this is called only for a node the version's
+    *graph* carried and the graph and the IR are built from one pipeline pass
+    over one project. **That is measured rather than argued**:
+    ``test_every_node_the_graph_carries_has_a_definition`` sweeps every node of
+    every fixture and requires a record for every kind but a source column. The
+    sweep is there because it found one — step outputs, which live in this
+    namespace and are relations rather than fields, were reported present in
+    every version and changed in none, which is the one failure shape this walk
+    must never produce (``logs/T-0043.md``).
     """
 
     match kind:
@@ -431,7 +449,11 @@ def _locate(
         name = by_id.get(spelling, spelling)
         return name, ids.get(name)
 
-    if held.node_id is not None and held.node_id in by_id and held.node_id in present:
+    # `by_id` is this version's own adoption map and the graph built its node
+    # ids from the same one, so an id it names is an id the graph carried —
+    # membership in `present` was asserted here too and no test could tell the
+    # two apart, because `node_keys` and `build_graph` read one source.
+    if held.node_id is not None and held.node_id in by_id:
         return by_id[held.node_id], held.node_id
 
     if ids.get(held.name, held.name) in present:
