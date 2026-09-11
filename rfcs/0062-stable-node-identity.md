@@ -1,20 +1,21 @@
 # RFC 0062 — Stable node identity across renames
 
-- **Status:** 🚧 In progress — §12's P1 has landed: the optional `id:` on every spec kind
-  that mints a node, node-id construction reading it, the duplicate refusal, and the
-  byte-exact opt-out ([`logs/T-0032.md`](../logs/T-0032.md)). D6 is settled there — a
-  write-once `id:`, because RFC 0063 reads history backwards and an annotation only exists
-  in the current spec — and D4 too: partial adoption is allowed and only a collision is
-  refused. **P2 and P3 have landed** ([`logs/T-0044.md`](../logs/T-0044.md)): a metric or
-  step whose id is on both sides under different names is one `RENAME` carrying the list of
-  what cited the old name, and `lineage` prints the name while `--format json` carries both.
-  **The `explain` half of §5.4 is struck** — `Explanation` holds no node id and is built
-  from the IR, which holds none either — and P2 reaches **metric and step renames only**,
-  because `plan()` has no canonical-field pass and cannot have one. What holds this
-  document open now is the four rows execution proposes in that log, which are the author's
-  to accept. Execution's findings are in both logs; nothing below has been amended to agree
-  with what was built — §9's "until `check` lands" reads as written, and the log records
-  that `check` turned out not to be a place checks live.
+- **Status:** ✅ Complete — all three phases have landed, and **retained rather than
+  retired**: RFC 0064 and RFC 0069 argue from this document's vocabulary rather than merely
+  citing a decision it made, and deleting it would leave both arguing from a premise no
+  longer in the tree. This line names the live dependants, so it is what says when 0062 may
+  go.
+
+  P1 shipped the optional `id:`, node-id construction reading it, the duplicate refusal and
+  the byte-exact opt-out ([`logs/T-0032.md`](../logs/T-0032.md)); D6 and D4 are settled
+  there — a write-once `id:`, and partial adoption allowed with only a collision refused.
+  P2 and P3 shipped `plan()`'s second `RENAME` producer with its citation list, and
+  `lineage` printing the name while `--format json` carries both
+  ([`logs/T-0044.md`](../logs/T-0044.md)). Rows 8–16 are execution's, accepted; **the
+  `explain` half of §5.4 is struck** by row 10 and P2 reaches **metric and step renames
+  only** by row 11. Nothing above the decision table has been amended to agree with what was
+  built — §9's "until `check` lands" reads as written, and T-0032 records that `check`
+  turned out not to be a place checks live.
 - **Scope:** A stable identifier on every node kind in `NODE_ID_PREFIXES`, minted once and
   never derived from the name, with the name demoted to a display label. One optional spec
   field, one change to node-id construction, one widened classification in `plan()`. No
@@ -236,6 +237,15 @@ for it is not.
 | 5 | `ASSUMED` | Emitted relation names stay derived from `name`. Decoupling them is a warehouse-migration feature wearing this document's clothes. |
 | 6 | `OPEN` | Whether node identity is a write-once `id:` or a one-shot `renamed_from:` in RFC 0007 D3's shape (§10). Recorded rather than assumed: the codebase already chose the second answer for fields, and a document that does not say why nodes differ is one that looks like it did not know. |
 | 7 | `ASSUMED` | Existing node-id spellings do not move — the dot separator, the four prefixes, and `source.<relation>.<path>`'s three segments. `lineage --node metric.gross_revenue` is documented surface and the ecosystem stores those strings. |
+| 8 | `ASSUMED` | **`plan()` takes a node-id-to-name map per side rather than reading an `id:` from the IR.** §5.3 assumes the ids are reachable and they are not: neither `MetricIR` nor `StepIR` carries one, because P1 substitutes the id into node ids and lowers nothing — and putting it in the IR is what D3 forbids, since the canonical encoder writes each dataclass's field count and every field name, so a defaulted `id=None` moves the bytes of every project with a metric. `node_labels(project, catalog)` produces the map and both parameters default to empty, so every existing caller keeps today's report. Not `LOCKED`: handing `plan` the two `Project`s reads more naturally and re-admits the spec layer into a diff whose whole design is that it consumes IR, and a later document may prefer that trade. Added by execution 2026-09-11 — see [`logs/T-0044.md`](../logs/T-0044.md). |
+| 9 | `ASSUMED` | **The citation list is `Change.citations`, populated only for a node rename.** §5.3 and §12 name it and no section designs one; nothing under `plan/` carried citations. It names what the compiler can see — the metrics whose definition reads the old name, the marts carrying it as a measure, the exposures declaring it — in `Change`'s own `<kind>:<name>` grammar. A dashboard or a decision row cites a node too and is outside the project, which is why the list is what it is rather than everything §2 imagines. Added by execution 2026-09-11 — see [`logs/T-0044.md`](../logs/T-0044.md). |
+| 10 | `ASSUMED` | **P3 is `lineage` alone; the `explain` half of §5.4 is struck.** `Explanation` carries `mart`, `grain`, `measures`, `filters`, `policy_applied` and `branches` — no node id in any of them — and is built from the IR, which carries none either. There is nothing there to print as a name or to carry as an id. If `explain` is to carry node identity, what it would carry has to be designed first: its subject is a metric *request*, not a graph node. Added by execution 2026-09-11 — see [`logs/T-0044.md`](../logs/T-0044.md). |
+| 11 | `ASSUMED` | **P2 reports metric and step renames only.** `node_keys` mints ids for three kinds and `plan()` diffs two of them: there is no canonical-field pass and there cannot be one, because `ProjectIR` holds no canonical record at all — the field survives lowering only as `ColumnIR.canonical`, a string reference. A renamed canonical field is unreachable here whatever else changes, and making it reportable means changing what the IR *is* rather than what `plan()` reads. Added by execution 2026-09-11 — see [`logs/T-0044.md`](../logs/T-0044.md). |
+| 12 | `ASSUMED` | **A label is the node spelled with its name, not the bare name — supersedes nothing, narrows §5.4.** `metric.mtr_7f3a9c` maps to `metric.gross_revenue`. A bare name leaves an adopted node as the only one in a lineage walk without a kind prefix, so the edge list reads `canonical.quantity --requires--> gross_revenue`: two spellings in one column, harder to read than either. The label is what the id would have been had the project adopted nothing, which is also what makes it substitutable wherever an id appears. Added by execution 2026-09-11 — see [`logs/T-0044.md`](../logs/T-0044.md). |
+| 13 | `ASSUMED` | **The walk is rendered in names and a suggestion is answered in ids.** §5.4 settles the first; the second is what a reader *types*, so `_find_node`'s did-you-mean and its collision refusal keep node ids. Offering a name `--node` does not accept would be worse than the mistype it answers. Added by execution 2026-09-11 — see [`logs/T-0044.md`](../logs/T-0044.md). |
+| 14 | `ASSUMED` | **A rename that lands on a name the old version already used is refused.** Relabelling `a` to `b` in the version that deletes `b` leaves two nodes called `b`, and every pass below keys by name — so one silently wins and which one is an artefact of tuple order. §4 already refuses the shape in prose ("two metrics becoming one is a different change with a different report"); this is the refusal in code, checked *after* the substitution so a legitimate chain — `a` to `b` while `b` becomes `c` — still lands in one version. Reporting a merge properly means keying the whole diff by identity rather than by name, which is a change to what `plan()` is. Added by execution 2026-09-11 — see [`logs/T-0044.md`](../logs/T-0044.md). |
+| 15 | `ASSUMED` | **Each side of a rename diff carries its own catalog.** A metric defined by a `template:` lives in the catalog, so a rename moves text there too and one catalog read for both versions describes neither. A *version* is its documents and its catalog — which the CLI already had right, each spec directory carrying its own — and the how-to did not. Added by execution 2026-09-11 — see [`logs/T-0044.md`](../logs/T-0044.md). |
+| 16 | `ASSUMED` | **The identity material sits with the lineage how-to rather than in `pages/docs/concepts/`.** §7 asks for siting "with the lineage material rather than with the spec reference", and the lineage material is `how-to/trace-lineage.md`, where P1 already put the `id:` section; the rename half lands in `evolve-a-spec.md` beside `renamed_from`'s. §7's reason is honoured and its directory is not: a concepts page is worth minting when there is a concept to explain rather than a surface to use. Added by execution 2026-09-11 — see [`logs/T-0044.md`](../logs/T-0044.md). |
 
 ## 12. Phasing
 
