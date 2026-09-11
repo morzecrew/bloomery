@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`timeline()` — one node across a series of spec sets.** `lineage()` answers
+  what a node depends on at one instant; nothing answered how it has changed.
+  `timeline(history, node)` takes an ordered sequence of `SpecVersion` entries
+  the caller assembled — from git revisions, from a table of versioned YAML,
+  from directories — and reports which versions carried the node and which
+  adjacent pairs its definition moved between.
+
+  Identity is RFC 0062's `id:` where a project adopted one and the node name
+  otherwise, decided **per pair** and recorded on the change: minting an id
+  partway through a history leaves the boundary before it matched by name and
+  every boundary after it matched by id. A rename with no id reads as a delete
+  and an add, deliberately — matching two definitions by their shape is a guess,
+  and a confidently wrong history is worse than an honest gap.
+
+  bloomery never reads a label. Order is positional, nothing is sorted or
+  validated, and a reversed history produces a reversed timeline with no
+  refusal. The recommended label is `YYYY-MM-DDTHH:MM:SSZ` — UTC, no offset, no
+  fractional part, because that form and only that form sorts lexicographically
+  into chronological order — and it is a convention enforced nowhere.
+
+  This phase reports *that* a definition moved. Naming the facet that moved is
+  the next one. See
+  [Trace a definition over time](https://morzecrew.github.io/bloomery/how-to/trace-a-definition-over-time/).
+
 - **Composition is no longer a dependency basis.** `DependencyBasis` had five
   members and one of them, `transitive`, could never be produced: a derivation
   carries the steps it composed, each with its own basis, so nothing was left

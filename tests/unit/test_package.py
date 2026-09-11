@@ -51,6 +51,7 @@ def test_public_api_surface() -> None:
         "LruManifestHydrator",
         "MartCoverage",
         "MartSummary",
+        "MatchedBy",
         "Materialization",
         "MeasureExplanation",
         "MeasureRef",
@@ -82,12 +83,16 @@ def test_public_api_surface() -> None:
         "SemanticPlan",
         "SpecEvidence",
         "SpecKind",
+        "SpecVersion",
         "Stage",
         "StepManifest",
         "StepRegistry",
         "Target",
         "TargetEmitter",
         "TimeGrain",
+        "Timeline",
+        "TimelineChange",
+        "TimelineEntry",
         "TransformSpec",
         "UnreachableMetric",
         "all_spec_schemas",
@@ -103,6 +108,7 @@ def test_public_api_surface() -> None:
         "register_transform",
         "resolve",
         "spec_json_schema",
+        "timeline",
     ]
 
 

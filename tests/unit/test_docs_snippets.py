@@ -166,6 +166,30 @@ def test_the_reproduce_recipe_actually_runs() -> None:
     assert artifacts, "the page's recipe compiled nothing"
 
 
+def test_the_timeline_recipe_actually_runs() -> None:
+    """The timeline how-to's block is executed too, for the same reason and on
+    the same seam (RFC 0069 §7).
+
+    The history it walks is the corpus's own five-version project, handed in as
+    `versions` — the shape step 1 of the page says it returns. A reader who
+    copies this block is mid-incident and has no attention left to debug a
+    recipe that drifted.
+    """
+    from bloomery.cli import io  # noqa: PLC0415 — the CLI's door, standing in for the caller's store
+
+    versions = []
+    for step in range(1, 6):
+        sources, catalog_text = io.read_spec_directory(str(FIXTURES / f"evolution_v{step}"))
+        versions.append((f"v{step}", sources, catalog_text))
+
+    block = _fenced(DOCS / "how-to" / "trace-a-definition-over-time.md", "timeline.py")
+    scope: dict[str, object] = {"versions": versions}
+    exec(compile(block, "timeline.py", "exec"), scope)  # noqa: S102 — the page's own text is the fixture
+
+    walk = scope["walk"]
+    assert [entry.label for entry in walk.entries] == [f"v{step}" for step in range(1, 6)]
+
+
 def test_the_recipe_check_can_actually_fail() -> None:
     """The control for the test above, in the shape this file already uses.
 

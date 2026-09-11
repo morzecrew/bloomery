@@ -21,6 +21,10 @@ for edge in walk.edges:
 It reads no data, opens no connection, and touches no warehouse. This is lineage of the
 **spec** — what your documents connect to what.
 
+It answers one instant. For the other question a reader has about a node — how its
+definition has moved across a series of spec sets — see
+[trace a definition over time](trace-a-definition-over-time.md).
+
 ## The three questions it answers
 
 **Where does this number come from?** Walk `UPSTREAM` from a metric and you get the chain

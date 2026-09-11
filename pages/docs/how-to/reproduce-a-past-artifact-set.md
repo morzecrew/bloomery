@@ -95,11 +95,16 @@ needs nothing beyond step 1 run twice.
 
 ## Labels, if you keep several
 
-When you hold more than two of these, name them so they sort: **ISO-8601**, `2026-03-01`,
-not `march` or `old`. bloomery does not read your labels and will not sort them for you —
-that is deliberate, because sorting them means owning time zones, resolution and clock skew
-over data it did not produce. Lexicographic ISO dates give you the order for free, in
-whatever renders them.
+When you hold more than two of these, name them so they sort: `2026-03-01T00:00:00Z` —
+UTC, no offset, no fractional part — not `march` or `old`. bloomery does not read your
+labels and will not sort them for you; that is deliberate, because sorting them means owning
+time zones, resolution and clock skew over data it did not produce.
+
+Exactly that spelling, rather than "ISO-8601" at large: only the narrow form sorts
+lexicographically into chronological order, because `2026-03-01T00:00:00-01:00` sorts
+*before* `2026-03-01T00:00:00Z` and is an hour *later*. Holding several of these is also
+what [trace a definition over time](trace-a-definition-over-time.md) is for, and it reads
+the same labels.
 
 ## What this is not
 

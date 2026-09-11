@@ -99,7 +99,7 @@ know it has a companion recording where it turned out to be wrong.
 | [0064](0064-definition-supersession.md) | Definition supersession and change attribution | 📝 Draft | An edge between two versions of one node carrying what changed in spec vocabulary, so "why did this number move" is answered above the level of a text diff. |
 | [0065](0065-consumer-evidence-strictness.md) | Consumer-declared evidence strictness | 🚧 In progress | A minimum evidence grade a mart or exposure requires of the facts beneath it, projected from RFC 0039's provenance and refused at compile time. |
 | [0068](0068-caller-assembled-spec-history.md) | Caller-assembled spec history | 📝 Draft | Compiling a past spec set needs no feature — the caller hands bloomery the text and the compiler has no notion of time; why there is no `--as-of`, and what ships instead. |
-| [0069](0069-spec-timeline.md) | Spec timeline | 📝 Draft | Lineage answers what a node depends on and nothing answers how it has changed; one node across N caller-supplied spec sets, with bloomery never parsing an instant. |
+| [0069](0069-spec-timeline.md) | Spec timeline | 🚧 In progress | Lineage answers what a node depends on and nothing answers how it has changed; one node across N caller-supplied spec sets, with bloomery never parsing an instant. |
 
 ## Status legend
 

@@ -1,9 +1,15 @@
 # RFC 0069 — Spec timeline
 
-- **Status:** 📝 Draft — depends on [RFC 0062](0062-stable-node-identity.md) P1 for identity
-  (landed) and on [RFC 0064](0064-definition-supersession.md) for the pairwise delta between
-  two versions, which this walks N of. Assumes [RFC 0068](0068-caller-assembled-spec-history.md)'s
-  answer to where history comes from.
+- **Status:** 🚧 In progress — §12's P1 has landed: `SpecVersion`, `Timeline`,
+  `timeline()`, identity matching per adjacent pair and absence with a position, with
+  `facets` present and empty. **P2 (the facets) is unscheduled** and cannot start before
+  [RFC 0064](0064-definition-supersession.md), which is unstarted; **P3 (the CLI command and
+  `--format json`) is unscheduled** and depends on nothing. Execution's findings and the two
+  rows it proposes are in [`logs/T-0043.md`](../logs/T-0043.md) — §5.1's dataclass could not
+  build an IR, and §12's "IR equality per node" is undefined for two of the seven node
+  kinds; nothing below has been amended to agree with what was built. Depends on
+  [RFC 0062](0062-stable-node-identity.md) P1 for identity (landed); assumes
+  [RFC 0068](0068-caller-assembled-spec-history.md)'s answer to where history comes from.
 - **Scope:** A second walk over a project, beside lineage. `lineage()` answers "what does
   this depend on"; `timeline()` answers "how has this changed". One value type, one pure
   function, one N-ary CLI command, and a rule that bloomery never parses an instant. No
