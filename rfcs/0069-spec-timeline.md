@@ -154,6 +154,13 @@ The cost is stated: a caller who supplies entries out of order gets a timeline t
 of order, and nothing refuses it. That is the same trust the corpus already places in
 `plan(old, new)`, where nothing checks that `old` is older.
 
+**Opaque is not the same as arbitrary, and the docs say so.** ISO-8601 is the recommended
+label: it sorts lexicographically, it is unambiguous across readers, and it is what every
+store hands over anyway. `--format json` carries labels verbatim, so a consumer that wants
+to sort can — and sorting is a rendering decision made by the layer that knows what the
+labels mean. The recommendation is a convention, enforced nowhere; a label of `"before"`
+and `"after"` is a legitimate history of two entries.
+
 ### 5.4 The surface
 
 ```console
@@ -185,6 +192,26 @@ extend it, and the pairwise delta is worth having on its own.
 order the caller already knows and costs a timezone semantics nobody asked this project to
 own.
 
+**A timestamp on the spec — `effective_from:` or similar.** This is RFC 0063 §5.1's
+Candidate B, argued down there for being a second place to be wrong, and it has a second
+problem that argument did not name: `project_fingerprint` is a content hash of `ProjectIR`.
+If the field enters the IR, an identical definition that someone re-dated produces a
+different fingerprint — the fingerprint becomes a function of *when* rather than of *what*,
+which is the one thing it exists not to be. If it stays out of the IR, it is a spec field
+the compiler ignores, present for exactly one feature and silently wrong whenever an author
+forgets it.
+
+It also fails the rule the corpus's existing history annotations follow. `renamed_from:` and
+RFC 0062's `id:` carry what the compiler **cannot derive**; a timestamp is what the caller's
+store already knows, and a second copy of a fact is a fact that can disagree with itself.
+RFC 0062 D6 states the sharp version while arguing that an `id:` is write-once: *an
+annotation only exists in the current spec*. A date in the March file records what March's
+author believed, which is not the same as when March happened.
+
+**Auto-stamping at compile.** Not a design choice — `datetime.datetime.now` is on the
+banned-import list under `src/bloomery/` ("no ambient clock", RFC 0003 §5.5). A compiler
+that stamped the time would stop being a function of its inputs.
+
 **Storing the timeline.** A derived value recomputed from inputs is the corpus's shape for
 everything else, and a stored history is a second source of truth that can disagree with
 the specs.
@@ -210,7 +237,9 @@ the specs.
 `pages/docs/how-to/trace-a-definition-over-time.md`, sited beside
 [`trace-lineage.md`](../pages/docs/how-to/trace-lineage.md) — the two are the pair this
 document argues they are, and a reader who found one should see the other. It must state
-§5.3's cost plainly: bloomery reports the order it was given.
+§5.3's cost plainly: bloomery reports the order it was given, and the ISO-8601
+recommendation is where a reader meets it — a page that shows `"q1"`, `"q2"` labels and
+says nothing about ordering teaches the wrong habit by example.
 
 ## 8. Out of scope
 
@@ -256,6 +285,7 @@ document argues they are, and a reader who found one should see the other. It mu
 | 6 | `ASSUMED` | The CLI command takes spec directories positionally, like `plan`. It resolves nothing, so RFC 0068 D2 is untouched. |
 | 7 | `OPEN` | Whether an unknown node is an empty timeline or a refusal (§10), and whether `lineage()`'s answer should change to match. |
 | 8 | `OPEN` | Whether the command accepts a manifest file for long histories (§10). |
+| 9 | `ASSUMED` | ISO-8601 labels are a documented **convention**, enforced nowhere. It sorts lexicographically and is what a store hands over anyway, so a consumer that wants an order has one — but the recommendation lives in the docs rather than in a check, because row 1 says bloomery does not read the labels and a validator would be reading them. Timestamping the spec itself is refused for a different reason, in §5.1's alternatives: it would put a fact the caller's store already holds into the fingerprint. |
 
 ## 12. Phasing
 
