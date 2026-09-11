@@ -50,6 +50,7 @@ nav = [
         "how-to/merge-sources.md",
         "how-to/resolve-identities.md",
         "how-to/trace-lineage.md",
+        "how-to/trace-a-definition-over-time.md",
         "how-to/use-the-cli.md",
     ] },
     { "Reference" = [

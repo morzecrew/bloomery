@@ -278,11 +278,15 @@ def test_every_docs_page_is_in_the_nav() -> None:
     writer looks. Found by sabotage while landing RFC 0068's how-to — dropping
     it from `zensical.toml` killed no test and no build (logs/T-0042.md).
 
-    Both directions, and neither needs an allowlist: the tree has 34 pages and
-    34 entries with nothing deliberately unlisted, so an exception here would
-    be a decision someone made rather than a shape the tree already has. If one
-    is ever wanted, it belongs in this test with its reason, not in a pattern
-    that quietly grows.
+    Both directions, and neither needs an allowlist: every page in the tree is
+    listed and every listing is on disk, with nothing deliberately unlisted, so
+    an exception here would be a decision someone made rather than a shape the
+    tree already has. If one is ever wanted, it belongs in this test with its
+    reason, not in a pattern that quietly grows.
+
+    The counts themselves are deliberately not asserted: a page added with its
+    nav entry would fail a pinned total for no reason, and the assertions below
+    are what the test is actually about.
     """
     nav = (ROOT / "pages" / "zensical.toml").read_text()
     listed = set(re.findall(r'"([^"]+\.md)"', nav))
