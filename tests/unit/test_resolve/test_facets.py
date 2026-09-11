@@ -346,6 +346,26 @@ def test_a_columns_schema_and_its_lowering_are_both_compared() -> None:
     ]
 
 
+def test_a_column_no_source_lowers_compares_on_its_schema_alone() -> None:
+    """A column with no lowering anywhere has only a schema half.
+
+    No fixture produces one — the corpus sweep never reached this — so it is
+    pinned directly: the answer is the `ColumnIR`'s own fields and no expression
+    facet, rather than a crash on a tuple with nothing to read the field names
+    off (`logs/T-0045.md`).
+    """
+    assert [(one.facet.value, one.field) for one in facets((column(), ()), (column(unit=Unit.COUNT), ()))] == [
+        ("unit", "unit")
+    ]
+
+    # And against a side that *does* lower it: the expression arrives from
+    # nowhere, which is a change and not a comparison against nothing.
+    moved = facets((column(), ()), (column(), (lowering("shop", "price"),)))
+    assert [(one.field, one.old, one.new) for one in moved if one.field == "expr"] == [
+        ("expr", None, "shop: price")
+    ]
+
+
 def test_a_lowering_is_reported_under_the_source_it_belongs_to() -> None:
     """A merged entity lowers one column once per source (D28), and a rendering
     that dropped the relation would show two expressions and no way to tell
