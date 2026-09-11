@@ -1793,7 +1793,12 @@ def _citations(ir: ProjectIR, metric: str) -> tuple[str, ...]:
 
     cited = {f"metric:{one.name}" for one in ir.metrics if metric in one.depends_on}
     cited |= {f"mart:{one.name}" for one in ir.marts if metric in one.measures}
-    cited |= {f"mart:{one.name}" for one in ir.rollups if metric in one.measures}
+    # `rollup:`, not `mart:` — a rollup's *node* id is `mart.<name>` because
+    # both are gold relations under one prefix (RFC 0067 §5.1), but this list
+    # is in `Change`'s grammar, and `_diff_rollups` reports one as
+    # `rollup:<name>`. Taking the node spelling would hand a reader a citation
+    # matching no subject in the same report.
+    cited |= {f"rollup:{one.name}" for one in ir.rollups if metric in one.measures}
     cited |= {f"exposure:{one.name}" for one in ir.exposures if metric in one.metrics}
 
     return tuple(sorted(cited))
@@ -1802,9 +1807,49 @@ def _citations(ir: ProjectIR, metric: str) -> tuple[str, ...]:
 # ....................... #
 
 
-def _relabel_metric(metric: MetricIR, renames: Mapping[str, str]) -> MetricIR:
+def _canonical_names(ir: ProjectIR) -> frozenset[str]:
+    """Every canonical field this project links, read off the columns that
+    link to one.
+
+    `ProjectIR` holds no canonical-field record — the field survives lowering
+    only as `ColumnIR.canonical` — so this is the whole of what the IR knows
+    about the catalog's vocabulary, and it is enough for the one question
+    :func:`_relabel_metric` asks: is this `depends_on` entry a canonical leaf
+    rather than a composed metric?
+    """
+
+    return frozenset(
+        column.canonical
+        for entity in ir.entities
+        for column in entity.columns
+        if column.canonical is not None
+    )
+
+
+# ....................... #
+
+
+def _relabel_metric(
+    metric: MetricIR, renames: Mapping[str, str], canonical: frozenset[str]
+) -> MetricIR:
     """One metric with every reference to a renamed metric reading its new
-    name — including its own."""
+    name — including its own.
+
+    ``depends_on`` is ``sorted({*requires, *requires_metrics})``: the canonical
+    leaves and the composed metrics, with the kinds collapsed. So a metric
+    sharing a canonical field's name would drag every *unrelated* metric's
+    canonical dependency through the rename map — renaming a metric `quantity`
+    rewrote `gross_revenue`'s canonical `quantity` too, and reported it as
+    restating, which is a backfill scheduled for a metric the rename never
+    touched.
+
+    ``canonical`` is the set of canonical names the project links, recovered
+    from the entity columns that name them, and an entry in it is left alone.
+    What that cannot recover is an entry that is **both** — a canonical field
+    and a metric of one name, both depended on by one metric — because the IR
+    collapsed them into a single string. That metric still reports a change it
+    did not have; nothing after the collapse can tell the two apart.
+    """
 
     ratio = metric.ratio
     derived = metric.derived
@@ -1812,7 +1857,9 @@ def _relabel_metric(metric: MetricIR, renames: Mapping[str, str]) -> MetricIR:
     return replace(
         metric,
         name=renames.get(metric.name, metric.name),
-        depends_on=tuple(sorted(renames.get(one, one) for one in metric.depends_on)),
+        depends_on=tuple(
+            sorted(one if one in canonical else renames.get(one, one) for one in metric.depends_on)
+        ),
         ratio=(
             ratio
             if ratio is None
@@ -1876,7 +1923,7 @@ def _relabel(ir: ProjectIR, metrics: Mapping[str, str], steps: Mapping[str, str]
         ir,
         metrics=tuple(
             sorted(
-                (_relabel_metric(one, metrics) for one in ir.metrics),
+                (_relabel_metric(one, metrics, _canonical_names(ir)) for one in ir.metrics),
                 key=lambda one: one.name,
             )
         ),

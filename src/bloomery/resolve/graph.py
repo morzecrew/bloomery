@@ -439,9 +439,12 @@ def node_labels(project: Project, catalog: Catalog | None) -> dict[str, str]:
     inverting it anywhere else is a second spelling that can drift from the
     first. A kind whose constructor moves takes this with it.
 
-    Only adopted nodes appear. A project that mints no id gets an empty map,
-    and every caller reads it as ``labels.get(node_id, node_id)`` — so the
-    unadopted case costs a lookup and no branch (D3).
+    Only adopted nodes appear, and only where the label is unambiguous — a
+    label that is itself a node id of the same kind is dropped, because a
+    reader shown it would be shown a string naming a different node. A project
+    that mints no id gets an empty map, and every caller reads it as
+    ``labels.get(node_id, node_id)`` — so the unadopted case costs a lookup and
+    no branch (D3), and a dropped label costs the same.
 
     Names rather than ids are what a person reads: `metric.mtr_7f3a9c` is a
     key, and printing it where `metric.gross_revenue` belongs trades the
@@ -450,8 +453,11 @@ def node_labels(project: Project, catalog: Catalog | None) -> dict[str, str]:
     """
 
     ids = node_keys(project, catalog)
+    metrics = {} if project.metric_set is None else project.metric_set.metrics
+    canonical = {} if catalog is None else catalog.canonical_fields
+    steps = () if project.steps is None else project.steps.steps
 
-    return {
+    labels = {
         **{
             metric_node(adopted).name: metric_node(name).name
             for name, adopted in ids["metric"].items()
@@ -462,6 +468,22 @@ def node_labels(project: Project, catalog: Catalog | None) -> dict[str, str]:
         },
         **{step_node(adopted).name: step_node(ref).name for ref, adopted in ids["step"].items()},
     }
+
+    # A label that is itself a node id names two things, and the one a reader
+    # would act on is the wrong one. Two metrics can legally swap — `alpha`
+    # minting `id: mtr_beta` while `gamma` mints `id: alpha` — because the
+    # *node ids* do not collide and the per-document guard compares `id or
+    # name`. `alpha`'s label is then `gamma`'s node id, and `--node` resolves
+    # that string to `gamma`. Such a label is dropped and the node renders as
+    # its id: saying nothing about the name is recoverable, and a name that
+    # reads as a different node is not.
+    minted = {
+        *(metric_node(key(name, ids["metric"])).name for name in metrics),
+        *(canonical_field_node(key(name, ids["canonical"])).name for name in canonical),
+        *(step_node(key(wiring.ref, ids["step"])).name for wiring in steps),
+    }
+
+    return {node_id: label for node_id, label in labels.items() if label not in minted}
 
 
 # ....................... #

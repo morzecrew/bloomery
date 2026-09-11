@@ -255,6 +255,63 @@ def test_the_rename_carries_what_cited_the_old_name() -> None:
     )
 
 
+def test_a_rollup_is_cited_in_the_grammar_plan_reports_it_in() -> None:
+    """Citations are in `Change`'s own `<kind>:<name>` grammar, and `plan()`
+    reports a rollup as `rollup:<name>` — `_diff_rollups`' own subject.
+
+    A rollup's *node* id is `mart.<name>` (RFC 0067 §5.1: both are gold
+    relations under one prefix), and taking that spelling here would give a
+    reader a citation that matches no subject in the same report.
+    """
+    old, new, old_labels, new_labels = sides("rollup_mart", "gross_revenue", "revenue_gross")
+    result = plan(old, new, old_labels=old_labels, new_labels=new_labels)
+
+    assert "rollup:order_items_monthly" in result.changes[0].citations
+    assert "mart:order_items" in result.changes[0].citations
+
+
+def test_a_canonical_dependency_is_not_relabelled_as_a_metric() -> None:
+    """`MetricIR.depends_on` is `sorted({*requires, *requires_metrics})` — the
+    canonical leaves and the composed metrics, kinds collapsed.
+
+    So a metric sharing a canonical field's name drags every *unrelated*
+    metric's canonical dependency through the rename map: renaming the metric
+    `quantity` rewrote `gross_revenue`'s canonical `quantity` too, and reported
+    it as restating — a backfill scheduled for a metric the rename never
+    touched.
+    """
+    sources = fixture_sources("ecom_basic")
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+    shadowing = (
+        sources["metrics"]
+        + """
+  quantity:
+    id: mtr_qty
+    grain: order_item
+    additivity: additive
+    agg: sum
+    expr: "quantity"
+"""
+    )
+    old_project = load_project({**sources, "metrics": shadowing})
+    new_project = load_project(
+        {
+            **sources,
+            "metrics": shadowing.replace("  quantity:\n    id: mtr_qty", "  qty_metric:\n    id: mtr_qty"),
+        }
+    )
+
+    result = plan(
+        build_project_ir(old_project, catalog=catalog),
+        build_project_ir(new_project, catalog=catalog),
+        old_labels=node_labels(old_project, catalog),
+        new_labels=node_labels(new_project, catalog),
+    )
+
+    assert classes(result) == [("rename", "metric:qty_metric")]
+    assert result.backfill_scope.restates_history is False
+
+
 def test_every_other_change_carries_no_citations() -> None:
     """The field is a rename's, and a defaulted field that quietly filled for
     other classes would make the section under it meaningless."""

@@ -599,6 +599,43 @@ def test_a_step_ref_is_labelled_by_its_ref() -> None:
     }
 
 
+def test_a_label_that_is_another_nodes_id_is_not_a_label() -> None:
+    """A label has to be unambiguous or it is worse than the id it replaces.
+
+    Two metrics can legally swap: `alpha` minting `id: mtr_beta` and `gamma`
+    minting `id: alpha`. Nothing refuses it — the *node ids* are `metric.beta`
+    and `metric.alpha`, which do not collide, and the per-document guard
+    compares `id or name`. But `alpha`'s **label** is then `metric.alpha`,
+    which is `gamma`'s node id: a reader shown `metric.alpha` cannot tell which
+    node it means, and `--node metric.alpha` resolves to the other one.
+
+    So the label is dropped and that node renders as its id. Silence about the
+    name is recoverable; a name that reads as a different node is not.
+    """
+    sources = fixture_sources("ecom_basic")
+    sources["metrics"] = """
+metrics_version: 1
+metrics:
+  alpha:
+    id: mtr_beta
+    grain: order_item
+    additivity: additive
+    agg: sum
+    expr: "quantity"
+  gamma:
+    id: alpha
+    grain: order_item
+    additivity: additive
+    agg: sum
+    expr: "quantity"
+"""
+    project = load_project(sources)
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+
+    # `gamma` keeps its label: `metric.gamma` names no node.
+    assert node_labels(project, catalog) == {"metric.alpha": "metric.gamma"}
+
+
 def test_an_adopted_id_replaces_the_name_in_the_node_id() -> None:
     project, catalog = _with_metric_ids(gross_revenue="mtr_7f3a9c")
     metrics = effective_metrics(project, catalog)
