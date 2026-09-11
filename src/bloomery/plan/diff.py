@@ -1853,33 +1853,30 @@ def _relabel(ir: ProjectIR, metrics: Mapping[str, str], steps: Mapping[str, str]
     unequal to the new side's ordered one and report a change that is the sort
     rather than the spec.
 
-    ``_relabel_metric`` is the deep half; ``measures``, ``metrics`` and ``via``
-    are flat name lists, and `test_a_rename_is_the_only_change_it_reports`
-    sweeps the whole fixture corpus so a reference field added later fails
-    there rather than quietly reporting a rename as a restatement.
+    ``_relabel_metric`` is the deep half and ``measures`` is a flat name list,
+    and `test_a_rename_is_the_only_change_it_reports` sweeps the whole fixture
+    corpus so a reference field added later fails there rather than quietly
+    reporting a rename as a restatement.
+
+    **Exposures and unreachable metrics are deliberately not relabelled**, and
+    the omission is stated here rather than left as two dead arms. Nothing reads
+    the *old* IR's copies of either: :func:`_citations` reads the exposures
+    before this runs, which is why it is called there, and both
+    :func:`_affected_exposures` and :func:`_diff_metrics`'s unreachable lookup
+    read the new IR. Arms for them were written and survived a sabotage sweep
+    because they changed no answer at all — this list was drawn from the IR's
+    fields rather than from what the diff reads. A pass that ever diffs either
+    needs them, and this paragraph is what says so.
     """
 
     if not metrics and not steps:
         return ir
 
-    return replace(
+    relabelled = replace(
         ir,
         metrics=tuple(
             sorted(
                 (_relabel_metric(one, metrics) for one in ir.metrics),
-                key=lambda one: one.name,
-            )
-        ),
-        unreachable=tuple(
-            sorted(
-                (
-                    replace(
-                        one,
-                        name=metrics.get(one.name, one.name),
-                        via=tuple(sorted(metrics.get(step, step) for step in one.via)),
-                    )
-                    for one in ir.unreachable
-                ),
                 key=lambda one: one.name,
             )
         ),
@@ -1891,10 +1888,6 @@ def _relabel(ir: ProjectIR, metrics: Mapping[str, str], steps: Mapping[str, str]
             replace(one, measures=tuple(sorted(metrics.get(m, m) for m in one.measures)))
             for one in ir.rollups
         ),
-        exposures=tuple(
-            replace(one, metrics=tuple(sorted(metrics.get(m, m) for m in one.metrics)))
-            for one in ir.exposures
-        ),
         steps=tuple(
             sorted(
                 (replace(one, ref=steps.get(one.ref, one.ref)) for one in ir.steps),
@@ -1902,6 +1895,47 @@ def _relabel(ir: ProjectIR, metrics: Mapping[str, str], steps: Mapping[str, str]
             )
         ),
     )
+    _refuse_collisions(relabelled)
+
+    return relabelled
+
+
+# ....................... #
+
+
+def _refuse_collisions(relabelled: ProjectIR) -> None:
+    """Refuse a rename that lands on a name the old project already used.
+
+    Renaming `a` to `b` while `b` is deleted in the same version leaves two
+    nodes called `b` in the relabelled IR, and every pass below keys by name —
+    so one silently wins, and *which* one is an artefact of tuple order. §4
+    names the shape: "Two metrics becoming one is a different change with a
+    different report, and conflating it with a rename is how a real semantic
+    change gets classified as cosmetic."
+
+    Checked after the substitution rather than against the rename map, so a
+    legitimate chain — `a` to `b` while `b` becomes `c` — passes, and every
+    shape that actually collides is caught whatever produced it.
+
+    Reporting this properly means keying the whole diff by identity rather than
+    by name, which is a change to what `plan()` *is*. Refusing is the honest
+    answer until someone wants that (``logs/T-0044.md``).
+    """
+
+    for label, names in (
+        ("metric", [one.name for one in relabelled.metrics]),
+        ("step", [one.ref for one in relabelled.steps]),
+    ):
+        collided = sorted({name for name in names if names.count(name) > 1})
+        if collided:
+            msg = (
+                f"a rename lands on a name this version already used: {label} "
+                f"{', '.join(repr(name) for name in collided)} names two nodes once the "
+                "rename is applied. That is a merge, not a rename (RFC 0062 §4) — and the "
+                "two have different histories, so reporting either as the other is wrong. "
+                "Fix: land the rename and the deletion in separate versions"
+            )
+            raise PlanError(msg)
 
 
 # ....................... #

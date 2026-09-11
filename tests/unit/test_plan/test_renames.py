@@ -38,7 +38,7 @@ from bloomery.ir import (
     StepOutputIR,
 )
 from bloomery.typing import StringType
-from bloomery.errors import GuardrailError
+from bloomery.errors import GuardrailError, PlanError
 from support.compiling import (
     FIXTURES,
     fixture_sources,
@@ -177,6 +177,63 @@ def test_a_rename_without_an_id_on_both_sides_is_a_delete_and_an_add() -> None:
     assert ("additive", "metric:revenue_gross") in classes(result)
 
 
+def test_a_rename_onto_a_used_name_is_refused() -> None:
+    """§4's non-goal, which the relabelling would otherwise swallow.
+
+    Renaming `a` to `b` while `b` is deleted in the same version leaves two
+    nodes called `b` in the relabelled IR, and every pass below keys by name —
+    so one wins and which one is an artefact of tuple order. A merge reported
+    as a rename is the case §4 calls out by name: a real semantic change
+    classified as cosmetic.
+    """
+    old_step = StepIR(
+        ref="alpha",
+        version=1,
+        kind=StepKind.PYTHON_MODEL,
+        determinism=Determinism.PURE,
+        runtime_lock="sha256:a91f",
+        lineage=Lineage.COARSE,
+        entrypoint="platform_steps.alpha:run",
+        outputs=(),
+    )
+    old = ProjectIR(steps=(old_step, replace(old_step, ref="beta")))
+    new = ProjectIR(steps=(replace(old_step, ref="beta"),))
+
+    with pytest.raises(PlanError, match="a merge, not a rename"):
+        plan(
+            old,
+            new,
+            old_labels={"step.stp_1": "step.alpha"},
+            new_labels={"step.stp_1": "step.beta"},
+        )
+
+
+def test_a_chain_of_renames_is_not_a_collision() -> None:
+    """The guard is checked after the substitution rather than against the
+    rename map, so `alpha` becoming `beta` while `beta` becomes `gamma` passes —
+    nothing collides once both are applied, and refusing it would make a legal
+    two-node rename impossible to land in one version."""
+
+    base = StepIR(
+        ref="alpha",
+        version=1,
+        kind=StepKind.PYTHON_MODEL,
+        determinism=Determinism.PURE,
+        runtime_lock="sha256:a91f",
+        lineage=Lineage.COARSE,
+        entrypoint="platform_steps.alpha:run",
+        outputs=(),
+    )
+    old = ProjectIR(steps=(base, replace(base, ref="beta")))
+    new = ProjectIR(steps=(replace(base, ref="beta"), replace(base, ref="gamma")))
+    labels_old = {"step.stp_1": "step.alpha", "step.stp_2": "step.beta"}
+    labels_new = {"step.stp_1": "step.beta", "step.stp_2": "step.gamma"}
+
+    result = plan(old, new, old_labels=labels_old, new_labels=labels_new)
+
+    assert classes(result) == [("rename", "step:beta"), ("rename", "step:gamma")]
+
+
 # ....................... #
 # The citation list (§5.3)
 
@@ -207,6 +264,24 @@ def test_every_other_change_carries_no_citations() -> None:
 
     assert plain.changes, "the unlabelled report is the one with several changes"
     assert all(change.citations == () for change in plain.changes)
+
+
+def test_an_unreachable_metric_can_be_renamed_too() -> None:
+    """`ecom_basic`'s `margin` requires a canonical field nothing maps, so the
+    IR keeps an `UnreachableMetric` for it and no `MetricIR` at all.
+
+    The rename is minted from the label maps rather than from the IR, so it
+    lands anyway — and the metric diff sees neither name on either side, so it
+    is the only change. Pinned because the shape is the one where the report
+    could plausibly have come out empty.
+    """
+    old, new, old_labels, new_labels = sides(
+        "ecom_basic", "margin", "margin_x", mint="mtr_mrg"
+    )
+    result = plan(old, new, old_labels=old_labels, new_labels=new_labels)
+
+    assert classes(result) == [("rename", "metric:margin_x")]
+    assert result.changes[0].citations == ()
 
 
 # ....................... #

@@ -1986,6 +1986,16 @@ def test_lineage_prints_the_name_where_the_project_adopted_an_id(
     assert "metric.gross_revenue" in out
     assert "mtr_7f3a9c" not in out
 
+    # From `average_order_value`, which composes it, so the adopted node is a
+    # *source* rather than the root or a destination. An upstream walk from the
+    # node itself never puts it in the left-hand column, so rendering only one
+    # side of an edge reads identically there — and did, until this second walk.
+    code, out, err = run(capsys, "lineage", directory, "--node", "metric.average_order_value")
+
+    assert code == EXIT_OK, err
+    assert "metric.gross_revenue" in out
+    assert "mtr_7f3a9c" not in out
+
 
 def test_lineage_json_carries_the_labels(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
