@@ -1,0 +1,31 @@
+{
+  "id": "T-0043",
+  "spec": "rfcs/0069-spec-timeline.md",
+  "phase": "P1 — the value type, timeline(), identity matching and absence handling. facets present and empty; no delta, no CLI.",
+  "decisions": [
+    {"id": "RFC 0069 D1", "grade": "LOCKED",
+     "paths": ["src/bloomery/resolve/timeline.py"]},
+    {"id": "RFC 0069 D2", "grade": "LOCKED",
+     "paths": ["src/bloomery/resolve/timeline.py"]},
+    {"id": "RFC 0069 D3", "grade": "LOCKED",
+     "paths": ["src/bloomery/resolve/timeline.py"]},
+    {"id": "RFC 0069 D4", "grade": "ASSUMED",
+     "paths": ["src/bloomery/resolve/timeline.py"]},
+    {"id": "RFC 0069 D5", "grade": "ASSUMED",
+     "paths": ["src/bloomery/resolve/timeline.py"]},
+    {"id": "RFC 0069 D6", "grade": "ASSUMED",
+     "paths": ["src/bloomery/cli/__init__.py"]},
+    {"id": "RFC 0069 D7", "grade": "OPEN",
+     "paths": ["src/bloomery/resolve/timeline.py"]},
+    {"id": "RFC 0069 D8", "grade": "OPEN",
+     "paths": ["src/bloomery/cli/__init__.py"]},
+    {"id": "RFC 0069 D10", "grade": "ASSUMED",
+     "paths": ["pages/docs/how-to/**"]},
+    {"id": "RFC 0069 D11", "grade": "LOCKED",
+     "paths": ["src/bloomery/resolve/timeline.py"]},
+    {"id": "RFC 0069 D12", "grade": "ASSUMED",
+     "paths": ["src/bloomery/resolve/timeline.py"]},
+    {"id": "RFC 0069 D13", "grade": "ASSUMED",
+     "paths": ["src/bloomery/resolve/timeline.py"]}
+  ]
+}

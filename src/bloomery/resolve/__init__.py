@@ -7,6 +7,14 @@ from bloomery.resolve.build import Stage, StageProgress, build_project_ir, pipel
 from bloomery.resolve.graph import Edge, Graph, Node, NodeKind, step_node
 from bloomery.resolve.lineage import Direction, Lineage, lineage
 from bloomery.resolve.resolution import FieldProvenance, Provenance, Resolution, resolve
+from bloomery.resolve.timeline import (
+    MatchedBy,
+    SpecVersion,
+    Timeline,
+    TimelineChange,
+    TimelineEntry,
+    timeline,
+)
 
 # ----------------------- #
 
@@ -16,15 +24,21 @@ __all__ = [
     "FieldProvenance",
     "Graph",
     "Lineage",
+    "MatchedBy",
     "Node",
     "NodeKind",
     "step_node",
     "Provenance",
     "Resolution",
+    "SpecVersion",
     "Stage",
     "StageProgress",
+    "Timeline",
+    "TimelineChange",
+    "TimelineEntry",
     "build_project_ir",
     "lineage",
     "pipeline",
     "resolve",
+    "timeline",
 ]
