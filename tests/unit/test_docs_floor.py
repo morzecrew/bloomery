@@ -270,6 +270,28 @@ def test_the_dialect_refusal_still_exists_for_a_dialect_without_the_capability()
     assert "NULL-on-failure cast" in str(excinfo.value)
 
 
+def test_every_docs_page_is_in_the_nav() -> None:
+    """A page absent from the nav is a page nobody can reach.
+
+    `just build-docs` does not notice: an unlisted page compiles clean and is
+    simply never published, so the failure is invisible in the one place a
+    writer looks. Found by sabotage while landing RFC 0068's how-to — dropping
+    it from `zensical.toml` killed no test and no build (logs/T-0042.md).
+
+    Both directions, and neither needs an allowlist: the tree has 34 pages and
+    34 entries with nothing deliberately unlisted, so an exception here would
+    be a decision someone made rather than a shape the tree already has. If one
+    is ever wanted, it belongs in this test with its reason, not in a pattern
+    that quietly grows.
+    """
+    nav = (ROOT / "pages" / "zensical.toml").read_text()
+    listed = set(re.findall(r'"([^"]+\.md)"', nav))
+    present = {page.relative_to(DOCS).as_posix() for page in DOCS.rglob("*.md")}
+
+    assert present - listed == set(), "written but unreachable — add to the nav in zensical.toml"
+    assert listed - present == set(), "listed in the nav but not on disk"
+
+
 def test_the_documented_evidence_refusal_quotes_the_template() -> None:
     """A documented message is a hand-copy of a string that lives in `src`, and
     nothing tied the two together.
