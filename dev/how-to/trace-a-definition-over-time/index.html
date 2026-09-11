@@ -1321,6 +1321,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#what-moved-and-where" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What moved, and where
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What moved, and where">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-answer-covers-what-the-node-is-built-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The answer covers what the node is built from
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-facets" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The facets
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#renames-and-why-an-id-pays-here" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1733,6 +1772,45 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#what-moved-and-where" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What moved, and where
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What moved, and where">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-answer-covers-what-the-node-is-built-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The answer covers what the node is built from
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-facets" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        The facets
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#renames-and-why-an-id-pays-here" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1858,8 +1936,8 @@
 its filter moved three weeks ago — and that is the other half of "why is this number
 different", asked about as often.</p>
 <p><code>timeline()</code> answers it. You hand it the spec sets as they stood, oldest first, and it
-reports which versions carried the node and which pairs of versions its definition moved
-between.</p>
+reports which versions carried the node, which pairs of versions something moved between,
+and what moved — named in the vocabulary your specs are written in.</p>
 <div class="highlight"><pre><span></span><code><span class="n">timeline</span><span class="p">(</span><span class="n">history</span><span class="p">,</span> <span class="s2">"metric.gross_revenue"</span><span class="p">)</span>
 </code></pre></div>
 <p>Like <code>lineage()</code>, it reads no data, opens no connection and touches no warehouse. This is
@@ -1895,8 +1973,27 @@ before you hand it over.</p>
     <span class="nb">print</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">label</span><span class="p">,</span> <span class="s2">"present"</span> <span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">present</span> <span class="k">else</span> <span class="s2">"absent"</span><span class="p">)</span>
 
 <span class="k">for</span> <span class="n">change</span> <span class="ow">in</span> <span class="n">walk</span><span class="o">.</span><span class="n">changes</span><span class="p">:</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">change</span><span class="o">.</span><span class="n">before</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">change</span><span class="o">.</span><span class="n">after</span><span class="si">}</span><span class="s2">  (matched by </span><span class="si">{</span><span class="n">change</span><span class="o">.</span><span class="n">matched_by</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">change</span><span class="o">.</span><span class="n">before</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">change</span><span class="o">.</span><span class="n">after</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">change</span><span class="o">.</span><span class="n">node</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">delta</span> <span class="ow">in</span> <span class="n">change</span><span class="o">.</span><span class="n">facets</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"    </span><span class="si">{</span><span class="n">delta</span><span class="o">.</span><span class="n">facet</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">delta</span><span class="o">.</span><span class="n">field</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">delta</span><span class="o">.</span><span class="n">old</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">delta</span><span class="o">.</span><span class="n">new</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </code></pre></div>
+<p>which prints, in full, over the five-version project this documentation is built from:</p>
+<div class="highlight"><span class="filename">what it prints</span><pre><span></span><code>v1 present
+v2 present
+v3 present
+v4 present
+v5 present
+v1 -&gt; v2  order_item.unit_price
+    body: expr  shop__order_lines: CAST(price AS DECIMAL(10, 2)) -&gt; shop__order_lines: CAST(price AS DECIMAL(12, 4))
+    unit: type  decimal(10,2) -&gt; decimal(12,4)
+v3 -&gt; v4  order_item.qty
+    metadata: renamed_from  quantity -&gt; None
+v3 -&gt; v4  order_item.unit_price
+    body: expr  shop__order_lines: CAST(price AS DECIMAL(12, 4)) -&gt; shop__order_lines: CAST(total / qty AS DECIMAL(12, 4))
+    body: recipe_id  shop__order_lines: direct -&gt; shop__order_lines: from_total
+</code></pre></div>
+<p><code>gross_revenue</code> is what was asked for and it appears nowhere: its own definition is
+identical in all five versions, and every line above is a node beneath it.</p>
 <p>Every version is compiled, so a quarter of daily history is ninety compiles. The cost is
 yours and so is the choice: start coarse — one entry a month — and narrow only around the
 boundary you find.</p>
@@ -1912,8 +2009,85 @@ that never moved gets an empty <code>changes</code> and a full <code>entries</co
 March" is the answer, not a miss. A gap produces no change across it: the node was deleted
 and then added, and calling that a change would claim a definition moved across a version it
 was not in.</p>
-<p>Today a change says <em>that</em> the definition moved, not how. Naming the facet that moved — the
-grain, the filter, the unit — is the next phase of this work.</p>
+<p><strong>Every change names the node it is about</strong>, and it is often not the one you asked for —
+see <a href="#what-moved-and-where">What moved, and where</a> below.</p>
+<h2 id="what-moved-and-where">What moved, and where<a class="headerlink" href="#what-moved-and-where" title="Permanent link">&para;</a></h2>
+<h3 id="the-answer-covers-what-the-node-is-built-from">The answer covers what the node is built from<a class="headerlink" href="#the-answer-covers-what-the-node-is-built-from" title="Permanent link">&para;</a></h3>
+<p>A metric whose own definition never moved still reports a different number when a dimension
+beneath it is redefined. So the walk covers the node's <strong>upstream closure</strong> — everything
+<code>lineage(..., direction="upstream")</code> reaches from it — and each change names the node it is
+about:</p>
+<div class="highlight"><pre><span></span><code>v3 -&gt; v4  order_item.unit_price
+    body: expr       shop__order_lines: CAST(price AS ...) -&gt; shop__order_lines: CAST(total / qty AS ...)
+    body: recipe_id  shop__order_lines: direct -&gt; shop__order_lines: from_total
+</code></pre></div>
+<p><code>metric.gross_revenue</code> is what was asked for and its own record is identical in every
+version; the answer is two hops beneath it. Reporting only the node you named would be the
+narrow answer <code>git log</code> already gives.</p>
+<p>Upstream only, never downstream. A mart that carries your metric as a measure is not part of
+what the metric <em>is</em>, so a change to it is not an answer to why the metric moved — ask about
+the mart.</p>
+<h3 id="the-facets">The facets<a class="headerlink" href="#the-facets" title="Permanent link">&para;</a></h3>
+<p><code>facets</code> is never empty: a change with nothing to report is not a change. Each entry names
+the facet, the field, and both values where a value has a short spelling.</p>
+<table>
+<thead>
+<tr>
+<th>Facet</th>
+<th>What moved</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>grain</code></td>
+<td>which rows the definition describes — the grain, the key, the dimensions a rollup keeps</td>
+</tr>
+<tr>
+<td><code>filter</code></td>
+<td>a metric's declared filter</td>
+</tr>
+<tr>
+<td><code>unit</code></td>
+<td>what a value is expressed in — its type, unit, tax basis, currency</td>
+</tr>
+<tr>
+<td><code>inputs</code></td>
+<td>what it is wired to — the fields it reads, a mart's measures, a step's relations</td>
+</tr>
+<tr>
+<td><code>body</code></td>
+<td>an expression or a recipe changed</td>
+</tr>
+<tr>
+<td><code>additivity</code></td>
+<td>how values combine — the aggregate, the additivity class, the window, the ratio</td>
+</tr>
+<tr>
+<td><code>quality</code></td>
+<td>which rows survive a rule — quality, dedupe, quarantine, asserts, <code>required</code></td>
+</tr>
+<tr>
+<td><code>storage</code></td>
+<td>materialization, partitioning</td>
+</tr>
+<tr>
+<td><code>runtime</code></td>
+<td>what runs a step — its version, determinism, runtime lock, seed</td>
+</tr>
+<tr>
+<td><code>metadata</code></td>
+<td>something a reader reads and no number depends on</td>
+</tr>
+</tbody>
+</table>
+<p><code>old</code> and <code>new</code> are <code>None</code> where the value has no short spelling — a mart's whole column
+list, say. The field name is the answer there; rendering a record list into a string would
+be the text diff this deliberately is not.</p>
+<p><strong>A rename is not a definition change.</strong> A node whose only difference is what it is called
+crosses its boundary with nothing reported, because identity belongs to no facet. Renaming a
+metric <em>another</em> metric reads does move that other metric's <code>inputs</code>, though — what it reads
+is now spelled differently, and the walk reports what it sees rather than guessing that the
+two spellings are one thing.</p>
 <h2 id="renames-and-why-an-id-pays-here">Renames, and why an <code>id:</code> pays here<a class="headerlink" href="#renames-and-why-an-id-pays-here" title="Permanent link">&para;</a></h2>
 <p>The node id is the name unless the node has adopted an <a href="../trace-lineage/#identity-when-the-name-is-not-it"><code>id:</code></a>.
 Across a history that difference is the whole feature:</p>
@@ -1996,9 +2170,12 @@ these two", never "it changed in April". If you need the day, supply the days.</
 <p><strong>It does not attribute a change to the data.</strong> A definition that moved is a definition that
 moved; whether the number moved <em>because</em> of it is a question about rows, and this reads no
 rows.</p>
-<p><strong>It is one node, not a query over the graph.</strong> "Every metric that changed in Q1" is a
-different question with a different cost. A loop over this function is the honest way to ask
-it today.</p>
+<p><strong>It is one node's closure, not a query over the graph.</strong> "Every metric that changed in Q1"
+is a different question with a different cost. A loop over this function is the honest way to
+ask it today.</p>
+<p><strong>It does not say what a change means.</strong> <code>additivity: additive -&gt; semi_additive</code> says a
+property the compiler tracks moved. Whether that made a number wrong is a judgement about
+your business, and the facet is deliberately not worded as a verdict.</p>
 
 
 
