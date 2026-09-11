@@ -456,6 +456,15 @@ def _locate(
     if held.node_id is not None and held.node_id in by_id:
         return by_id[held.node_id], held.node_id
 
+    # §5.2 licenses the name fallback only where **one** side lacks an id. Two
+    # different ids on one name is RFC 0062 D6's write-once rule broken, and
+    # that document calls it a delete and an add — so the name must not carry
+    # the two across. Reaching the fallback here would report them as one node
+    # *and* as a node that never moved, because the id is the only thing that
+    # differs and the IR does not carry it.
+    if held.node_id is not None and held.name in ids:
+        return None
+
     if ids.get(held.name, held.name) in present:
         return held.name, ids.get(held.name)
 

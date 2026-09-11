@@ -313,6 +313,61 @@ metrics:
     )
 
 
+def test_a_node_is_found_at_the_first_entry_that_carries_the_spelling_asked() -> None:
+    """Resolution is forward-only, and that is not symmetric between the two
+    spellings — so it is pinned rather than described.
+
+    The walk reads the history once and in order (D2), so it cannot know at the
+    first entry that a spelling appearing three entries later belongs to the
+    node in front of it. A **name** query therefore spans a later adoption, the
+    name being carried and translated per version; an **id** query reports the
+    versions before that id existed as absent; and a name query against a
+    project that adopted the id before the window reads absent throughout,
+    because `metric.gross_revenue` is then a node id no version has.
+    """
+    adoption = [version("a"), version("b", node_id="mtr_7f3a9c")]
+
+    assert shape(timeline(adoption, "metric.gross_revenue")) == ((("a", True), ("b", True)), ())
+    assert shape(timeline(adoption, "metric.mtr_7f3a9c")) == ((("a", False), ("b", True)), ())
+
+    adopted_before = [version(label, node_id="mtr_7f3a9c") for label in ("a", "b")]
+    assert shape(timeline(adopted_before, "metric.gross_revenue")) == (
+        (("a", False), ("b", False)),
+        (),
+    )
+
+
+def test_one_name_with_two_different_ids_is_two_nodes() -> None:
+    """§5.2 licenses the name fallback only where **one** side lacks an id.
+
+    An `id:` is write-once (RFC 0062 D6): editing one is a delete and an add,
+    and nothing can tell that apart from an actual delete and an add — which is
+    the distinction the id was carrying. Falling through to the name here
+    reported the two as one node, and reported it as a node that never moved,
+    because the only thing that differs is the id and the IR does not carry it.
+    """
+    history = [version("a", node_id="mtr_7f3a9c"), version("b", node_id="mtr_0041aa")]
+
+    assert shape(timeline(history, "metric.mtr_7f3a9c")) == ((("a", True), ("b", False)), ())
+    assert shape(timeline(history, "metric.mtr_0041aa")) == ((("a", False), ("b", True)), ())
+
+
+def test_dropping_an_id_falls_back_to_the_name() -> None:
+    """The direction §5.2 licenses, and the one the rule above must not eat.
+
+    "An id present on one side and absent on the other falls back to the name"
+    covers a version that drops an `id:` as much as one that has not adopted it
+    yet — so the guard against two *different* ids has to ask whether this
+    version adopted one at all, not merely whether the carried side has one.
+    """
+    history = [version("a", node_id="mtr_7f3a9c"), version("b", agg="max")]
+
+    assert shape(timeline(history, "metric.mtr_7f3a9c")) == (
+        (("a", True), ("b", True)),
+        (("a", "b", "name"),),
+    )
+
+
 def test_adopting_an_id_and_renaming_at_once_is_a_delete_and_an_add() -> None:
     """The case the rule cannot recover, asserted because a reader should find
     it written down rather than discover it. Nothing connects the two
