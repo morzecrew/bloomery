@@ -967,3 +967,24 @@ def test_the_same_history_walked_twice_answers_identically() -> None:
 
     assert once == again
     assert attributed(once) == attributed(again)
+
+def test_a_change_is_named_for_the_node_a_reader_knows() -> None:
+    """A node that adopted an `id:` is reported under its **name**.
+
+    The id is what makes the node trackable and the name is what makes the
+    answer readable — RFC 0062 P3 settled the same question for `lineage`, and
+    a timeline has the sharper version of it: a node that adopts an id partway
+    through a history would otherwise change its spelling mid-answer.
+
+    Pinned because nothing else could tell the two apart: no fixture in the
+    corpus adopts an id, so a walk naming the id passed every other test here
+    (`logs/T-0045.md`).
+    """
+    history = [
+        version("a", node_id="mtr_7f3a9c"),
+        version("b", node_id="mtr_7f3a9c", agg="max"),
+    ]
+
+    assert attributed(timeline(history, "metric.mtr_7f3a9c")) == (
+        ("a", "b", "metric.gross_revenue", ("additivity:agg",)),
+    )

@@ -573,6 +573,15 @@ def _advance(
 
     carried: dict[tuple[NodeKind, str], _Held] = {}
     changes: list[TimelineChange] = []
+
+    # What the first pass matched, spelled as this version's graph spells it,
+    # so the second pass does not look a node up twice. **A cost guard, not a
+    # correctness one** — dropping it is behaviour-neutral, because the second
+    # pass would build an identical hold under the identical key and emits no
+    # change of its own. It is kept because the lookup it saves is
+    # `_definition`, which scans the IR once per node per version, and the
+    # sweep that diagnosed the mutant equivalent is the reason that is written
+    # here rather than discovered by the next reader (`logs/T-0045.md`).
     claimed: set[tuple[NodeKind, str]] = set()
 
     for (kind, _was_named), previous in held.items():

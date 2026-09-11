@@ -276,13 +276,20 @@ def test_a_filter_moving_is_the_filter_facet_and_carries_no_values() -> None:
 def test_several_facets_moving_come_back_sorted() -> None:
     """Deterministic in the way everything else is (RFC 0003 §5.3) — sorted by
     facet and then field, never in the order the fields happen to be declared
-    in."""
-    moved = facets(metric(), metric(grain="order_item", agg="max", expr=SqlExpr(sql="net")))
+    in.
+
+    The pair is `depends_on` and `expr`, and it is chosen rather than
+    convenient: sorted by **field** they come back in that order, and sorted by
+    **facet** the expression comes first. Every other combination of this
+    record's fields agrees with alphabetical field order, so a walk that
+    returned its input order unsorted passed a three-facet version of this test
+    (`logs/T-0045.md`).
+    """
+    moved = facets(metric(), metric(depends_on=("order.tax",), expr=SqlExpr(sql="net")))
 
     assert [(one.facet.value, one.field) for one in moved] == [
-        ("additivity", "agg"),
         ("body", "expr"),
-        ("grain", "grain"),
+        ("inputs", "depends_on"),
     ]
 
 
