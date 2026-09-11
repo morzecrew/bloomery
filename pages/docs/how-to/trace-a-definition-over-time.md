@@ -57,13 +57,26 @@ for change in walk.changes:
         print(f"    {delta.facet}: {delta.field}  {delta.old} -> {delta.new}")
 ```
 
-which reads, over the five-version project this documentation is built from:
+which prints, in full, over the five-version project this documentation is built from:
 
 ```text title="what it prints"
+v1 present
+v2 present
+v3 present
+v4 present
+v5 present
 v1 -> v2  order_item.unit_price
     body: expr  shop__order_lines: CAST(price AS DECIMAL(10, 2)) -> shop__order_lines: CAST(price AS DECIMAL(12, 4))
     unit: type  decimal(10,2) -> decimal(12,4)
+v3 -> v4  order_item.qty
+    metadata: renamed_from  quantity -> None
+v3 -> v4  order_item.unit_price
+    body: expr  shop__order_lines: CAST(price AS DECIMAL(12, 4)) -> shop__order_lines: CAST(total / qty AS DECIMAL(12, 4))
+    body: recipe_id  shop__order_lines: direct -> shop__order_lines: from_total
 ```
+
+`gross_revenue` is what was asked for and it appears nowhere: its own definition is
+identical in all five versions, and every line above is a node beneath it.
 
 Every version is compiled, so a quarter of daily history is ninety compiles. The cost is
 yours and so is the choice: start coarse — one entry a month — and narrow only around the

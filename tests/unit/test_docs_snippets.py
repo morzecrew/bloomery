@@ -199,8 +199,15 @@ def test_the_timeline_recipe_actually_runs() -> None:
     # directly beneath it. Asserting the claim against the run is the only
     # thing that keeps the two together: a reader mid-incident reads the
     # sample, not the code.
+    #
+    # **Equality, not containment.** The page quoted the first of three changes
+    # while reading as though it quoted all of them, and a substring check over
+    # an excerpt is blind to every line the excerpt leaves out: reclassifying
+    # `SourceColumnIR.recipe_id`, which only the third change reports, left this
+    # test green. The page shows the whole output now, and this compares the
+    # whole of it.
     claimed = _fenced(page, "what it prints")
-    assert claimed.strip() in printed.getvalue()
+    assert printed.getvalue().strip() == claimed.strip()
 
 
 def test_the_rename_recipe_actually_runs() -> None:
