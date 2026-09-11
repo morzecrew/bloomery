@@ -1,6 +1,14 @@
 # RFC 0064 — Definition supersession and change attribution
 
-- **Status:** 📝 Draft — depends on [RFC 0062](0062-stable-node-identity.md) for identity,
+- **Status:** 🚧 In progress — §12's P1 and P2 have landed together, as that section asks:
+  the facet vocabulary and the dependency closure, over the walk
+  [RFC 0069](0069-spec-timeline.md) P1 built. The `supersedes` edge §5.1 designs is that
+  walk's `TimelineChange` rather than a new edge kind in the IR, the additivity facet ships
+  plain rather than waiting for P3's provenance wording, and D6 is answered by a totality
+  test over the IR models. Execution's findings and the rows it proposes are in
+  [`logs/T-0045.md`](../logs/T-0045.md); nothing below has been amended to agree with what
+  was built. **P3 — the exposure sinks and RFC 0039's provenance vocabulary — is
+  unscheduled.** Depends on [RFC 0062](0062-stable-node-identity.md) for identity,
   and on having two spec sets to compare. RFC 0063 was where those were to come from; it
   was rejected and retired at `074a571`, and [RFC 0068](0068-caller-assembled-spec-history.md)
   puts the caller in charge of assembling them instead — which changes where the pair comes

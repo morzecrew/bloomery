@@ -4,6 +4,7 @@ deterministic topological emission order — and the IR builder that lowers a
 resolved, typechecked project into :class:`~bloomery.ir.ProjectIR`."""
 
 from bloomery.resolve.build import Stage, StageProgress, build_project_ir, pipeline
+from bloomery.resolve.facets import Facet, FacetDelta, facets
 from bloomery.resolve.graph import Edge, Graph, Node, NodeKind, node_labels, step_node
 from bloomery.resolve.lineage import Direction, Lineage, lineage
 from bloomery.resolve.resolution import FieldProvenance, Provenance, Resolution, resolve
@@ -21,6 +22,8 @@ from bloomery.resolve.timeline import (
 __all__ = [
     "Direction",
     "Edge",
+    "Facet",
+    "FacetDelta",
     "FieldProvenance",
     "Graph",
     "Lineage",
@@ -37,6 +40,7 @@ __all__ = [
     "TimelineChange",
     "TimelineEntry",
     "build_project_ir",
+    "facets",
     "lineage",
     "node_labels",
     "pipeline",

@@ -35,6 +35,7 @@ from bloomery import (
     timeline,
 )
 from bloomery.errors import GuardrailError, UnknownStep
+from bloomery.resolve.facets import Facet, facets
 from bloomery.ir import NODE_ID_PREFIXES
 from bloomery.resolve.graph import Node, NodeKind
 from bloomery.spec.project import node_keys
@@ -166,13 +167,25 @@ def test_a_changed_definition_is_one_change_between_the_two_labels() -> None:
     )
 
 
-def test_facets_is_empty_in_p1_and_is_a_tuple() -> None:
-    """D3 and D13. The field is present from P1 so a consumer's JSON grows a
-    value in P2 rather than changing shape — and it is empty, because the
-    delta vocabulary is RFC 0064's and is not restated here."""
+def test_a_change_carries_the_facet_that_moved() -> None:
+    """D3: the vocabulary is RFC 0064's, asserted against that module's own
+    members rather than restated here, so the two cannot fork."""
     walk = timeline([version("a"), version("b", agg="max")], "metric.gross_revenue")
 
-    assert [change.facets for change in walk.changes] == [()]
+    assert [
+        (delta.facet, delta.field, delta.old, delta.new)
+        for change in walk.changes
+        for delta in change.facets
+    ] == [(Facet.ADDITIVITY, "agg", "sum", "max")]
+
+
+def test_a_change_is_never_empty() -> None:
+    """The facets decide what a change *is*, so one with nothing to report is
+    not a change at all — which is what makes RFC 0064 §6's first test true."""
+    walk = timeline([version("a"), version("b", agg="max")], "metric.gross_revenue")
+
+    assert walk.changes
+    assert all(change.facets for change in walk.changes)
 
 
 # ....................... #
@@ -197,9 +210,13 @@ def test_the_same_rename_with_an_id_is_one_node_across_the_boundary() -> None:
         version("b", metric="revenue_gross", node_id="mtr_7f3a9c"),
     ]
 
+    # RFC 0064 §6's first test: the node crossed the boundary and **nothing**
+    # is attributed to it. Identity belongs to no facet, so a rename moves no
+    # definition — which is the whole claim, and is why the delete-and-add
+    # above is told from this by `entries` rather than by `changes`.
     assert shape(timeline(history, "metric.mtr_7f3a9c")) == (
         (("a", True), ("b", True)),
-        (("a", "b", "id"),),
+        (),
     )
 
 
@@ -262,13 +279,13 @@ def test_an_id_adopted_partway_through_matches_that_boundary_by_name() -> None:
 
 def test_an_id_match_picks_up_the_new_name_it_found() -> None:
     """After crossing a rename by id, the *name* carried forward has to be the
-    new one — every later lookup reads it.
+    new one — every later lookup reads the definition under it.
 
-    Two entries cannot show this: a stale name finds no metric, which reads as
-    a definition that moved, which is the answer a rename gives anyway. It
-    takes a third entry and a project where the old name has been reused, which
-    is exactly when a stale name stops finding nothing and starts finding
-    somebody else's definition.
+    It takes a third entry and a project where the old name has been reused,
+    which is exactly when a stale name stops finding nothing and starts finding
+    somebody else's definition. The id-carrying metric never moves here, so the
+    correct answer is no change at all; carrying `alpha` forward would read
+    *that* metric's aggregate instead and report two.
     """
 
     def metrics(renamed: str, reused_agg: str | None) -> dict[str, str]:
@@ -309,7 +326,7 @@ metrics:
     # move between `b` and `c`, whatever `alpha` does.
     assert shape(timeline(history, "metric.mtr_7f3a9c")) == (
         (("a", True), ("b", True), ("c", True)),
-        (("a", "b", "id"),),
+        (),
     )
 
 
@@ -837,3 +854,99 @@ def test_every_node_kind_has_a_definition_rule() -> None:
     }
 
     assert matched == {kind.name for kind in NodeKind}
+
+
+# ....................... #
+# The closure (RFC 0064 D4)
+
+
+def attributed(walk: Timeline) -> tuple[tuple[str, str, str, tuple[str, ...]], ...]:
+    """Each change as ``(before, after, node, the facets it names)`` — the
+    shape every closure claim is about, where `shape` deliberately drops the
+    node because every change it describes is about the root."""
+
+    return tuple(
+        (
+            change.before,
+            change.after,
+            change.node,
+            tuple(f"{delta.facet.value}:{delta.field}" for delta in change.facets),
+        )
+        for change in walk.changes
+    )
+
+
+def test_a_metric_that_never_moved_reports_what_moved_beneath_it() -> None:
+    """RFC 0064 D4, and §12's reason for shipping P1 and P2 together.
+
+    `gross_revenue` is defined identically in all five versions of the corpus's
+    own history. P1 answered "this has not changed", which is true about the
+    metric's own record and false about the number it reports: `unit_price`
+    is retyped under it between v1 and v2 and re-derived between v3 and v4.
+    The single-node answer is the one `git log` already gives badly.
+    """
+    history = evolution()
+    first, last = _compile(history[0])[1], _compile(history[-1])[1]
+    assert (
+        facets(
+            _definition(NodeKind.METRIC, "gross_revenue", first, history[0].catalog),
+            _definition(NodeKind.METRIC, "gross_revenue", last, history[-1].catalog),
+        )
+        == ()
+    ), "the premise: the metric's own record is identical in v1 and v5"
+
+    walk = timeline(history, "metric.gross_revenue")
+
+    # Two hops down, through the catalog: nothing here is adjacent to the root.
+    assert walk.node == "metric.gross_revenue"
+    assert attributed(walk) == (
+        ("v1", "v2", "order_item.unit_price", ("body:expr", "unit:type")),
+        ("v3", "v4", "order_item.qty", ("metadata:renamed_from",)),
+        (
+            "v3",
+            "v4",
+            "order_item.unit_price",
+            ("body:expr", "body:recipe_id"),
+        ),
+    )
+
+
+def test_the_closure_is_upstream_only() -> None:
+    """What the root is built *from*, never what is built from it.
+
+    `$.price` is a bronze path that `unit_price` reads, so the two are one edge
+    apart and the change is on the far side of it. Asked about the source
+    column, the answer is nothing — and the same history asked about the metric
+    above it names that very change. A closure walked in the wrong direction
+    would report a definition moving under a node that has nothing under it.
+    """
+    walk = timeline(evolution(), "source.shop__order_lines.$.price")
+
+    assert [entry.present for entry in walk.entries] == [True, True, True, False, False]
+    assert walk.changes == ()
+
+
+def test_one_boundary_carrying_several_nodes_is_sorted_by_node() -> None:
+    """Deterministic within a boundary as well as across them. The holds carry
+    across versions in the order nodes entered the closure, which is a fact
+    about a version several entries back — so the report is sorted here rather
+    than inheriting it."""
+    walk = timeline(evolution(), "metric.gross_revenue")
+    boundary = [change.node for change in walk.changes if (change.before, change.after) == ("v3", "v4")]
+
+    assert boundary == sorted(boundary)
+    assert len(boundary) > 1, "the assertion above is vacuous on one node"
+
+
+def test_a_node_that_left_the_closure_carries_no_change_across_the_gap() -> None:
+    """The root's own gap rule, applied per node.
+
+    `net_revenue` is absent from v1, v2 and v5 of the corpus history, so its
+    closure is undefined in those versions — and the change it does report sits
+    between the two adjacent versions that both carried it, never spanning one
+    that did not.
+    """
+    walk = timeline(evolution(), "metric.net_revenue")
+
+    assert [entry.present for entry in walk.entries] == [False, False, True, True, False]
+    assert {(change.before, change.after) for change in walk.changes} == {("v3", "v4")}

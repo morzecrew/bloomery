@@ -39,6 +39,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   spelling. A did-you-mean still answers in ids, because a suggestion exists to
   be retyped.
 
+- **A timeline says what moved, and where.** A change between two versions now
+  carries the facets that moved — `grain`, `filter`, `unit`, `inputs`, `body`,
+  `additivity`, `quality`, `storage`, `runtime`, `metadata` — each naming the
+  field and, where a value has a short spelling, both values. `facets()` is
+  public and takes two definitions; `Facet` and `FacetDelta` are the vocabulary.
+
+  **The answer covers the node's upstream closure, not the node.** A metric
+  whose own record never moved still reports a different number when a field
+  two hops beneath it is retyped, and that is now what comes back: each change
+  names the node it is about. Asking about the node alone was the narrow answer
+  `git log` already gives.
+
+  **A rename is no longer a definition change.** Identity — `name`, `ref`,
+  `id` — belongs to no facet, so a metric that was only renamed crosses its
+  boundary with nothing reported. Renaming a metric that *another* metric reads
+  still moves that metric's `inputs`: what it reads is spelled differently, and
+  nothing guesses that two spellings are one thing.
+
+  A field the facet table does not cover is refused rather than reported as
+  unchanged, and a test enumerates every field of every record the walk can
+  compare so that refusal is unreachable. See
+  [Trace a definition over time](https://morzecrew.github.io/bloomery/how-to/trace-a-definition-over-time/).
+
 - **`timeline()` — one node across a series of spec sets.** `lineage()` answers
   what a node depends on at one instant; nothing answered how it has changed.
   `timeline(history, node)` takes an ordered sequence of `SpecVersion` entries

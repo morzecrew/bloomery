@@ -20,7 +20,9 @@ spec, and a check people work around is worse than none.
 
 from __future__ import annotations
 
+import io as io_module
 import re
+from contextlib import redirect_stdout
 from pathlib import Path
 
 import pytest
@@ -182,12 +184,23 @@ def test_the_timeline_recipe_actually_runs() -> None:
         sources, catalog_text = io.read_spec_directory(str(FIXTURES / f"evolution_v{step}"))
         versions.append((f"v{step}", sources, catalog_text))
 
-    block = _fenced(DOCS / "how-to" / "trace-a-definition-over-time.md", "timeline.py")
+    page = DOCS / "how-to" / "trace-a-definition-over-time.md"
+    block = _fenced(page, "timeline.py")
     scope: dict[str, object] = {"versions": versions}
-    exec(compile(block, "timeline.py", "exec"), scope)  # noqa: S102 — the page's own text is the fixture
+    printed = io_module.StringIO()
+
+    with redirect_stdout(printed):
+        exec(compile(block, "timeline.py", "exec"), scope)  # noqa: S102 — the page's own text is the fixture
 
     walk = scope["walk"]
     assert [entry.label for entry in walk.entries] == [f"v{step}" for step in range(1, 6)]
+
+    # The page prints what the block produces, and says so in a `text` block
+    # directly beneath it. Asserting the claim against the run is the only
+    # thing that keeps the two together: a reader mid-incident reads the
+    # sample, not the code.
+    claimed = _fenced(page, "what it prints")
+    assert claimed.strip() in printed.getvalue()
 
 
 def test_the_rename_recipe_actually_runs() -> None:
