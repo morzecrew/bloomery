@@ -1,15 +1,18 @@
 # RFC 0069 — Spec timeline
 
-- **Status:** 🚧 In progress — §12's P1 has landed: `SpecVersion`, `Timeline`,
-  `timeline()`, identity matching per adjacent pair and absence with a position, with
-  `facets` present and empty. **P2 (the facets) is unscheduled** and cannot start before
-  [RFC 0064](0064-definition-supersession.md), which is unstarted; **P3 (the CLI command and
-  `--format json`) is unscheduled** and depends on nothing. Execution's findings and the two
-  rows it proposes are in [`logs/T-0043.md`](../logs/T-0043.md) — §5.1's dataclass could not
-  build an IR, and §12's "IR equality per node" is undefined for two of the seven node
-  kinds; nothing below has been amended to agree with what was built. Depends on
-  [RFC 0062](0062-stable-node-identity.md) P1 for identity (landed); assumes
-  [RFC 0068](0068-caller-assembled-spec-history.md)'s answer to where history comes from.
+- **Status:** ✅ Complete — all three phases have landed. P1 the value and the walk; P2
+  the facets, with [RFC 0064](0064-definition-supersession.md) P1+P2, which is the document
+  that owns them; P3 `bloomery timeline`, positional directories and `--format json`.
+  **Retained rather than retired, at the author's instruction**, and it is a root of a live
+  sequence in the sense [`INDEX.md`](INDEX.md) describes: RFC 0064 is still in progress and
+  argues in this document's vocabulary — its rows 9 and 13 say the `supersedes` edge *is*
+  `TimelineChange` and that the command surface is this one. Execution's findings and the
+  rows it proposed are in [`logs/T-0043.md`](../logs/T-0043.md),
+  [`logs/T-0045.md`](../logs/T-0045.md) and [`logs/T-0046.md`](../logs/T-0046.md); rows 14
+  and 9's neighbours were appended from them, and nothing below has been amended to agree
+  with what was built. Depends on [RFC 0062](0062-stable-node-identity.md) P1 for identity;
+  assumes [RFC 0068](0068-caller-assembled-spec-history.md)'s answer to where history comes
+  from.
 - **Scope:** A second walk over a project, beside lineage. `lineage()` answers "what does
   this depend on"; `timeline()` answers "how has this changed". One value type, one pure
   function, one N-ary CLI command, and a rule that bloomery never parses an instant. No
