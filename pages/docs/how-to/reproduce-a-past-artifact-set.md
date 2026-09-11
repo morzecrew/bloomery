@@ -62,6 +62,21 @@ for artifact in artifacts:
 No filesystem, no clock, no network. The same strings produce the same bytes on any machine,
 which is what makes the fingerprint worth comparing at all.
 
+!!! note "If your project wires steps"
+
+    A project with a `steps:` document needs the step manifests too, and those are
+    caller-assembled for the same reason the specs are — bloomery reads no registry from
+    disk. Pass the one that was in force:
+
+    ```python
+    artifacts = compile_project(project, target="sqlmesh", dialect="duckdb",
+                                catalog=catalog, steps=registry)
+    ```
+
+    Without it the compile refuses rather than guessing: *"no step 'resolve_customers' is
+    registered, and the registry is empty"*. Reproducing a past artifact set means
+    reproducing the manifests as they stood, not only the specs.
+
 ## 3. Compare
 
 Two fingerprints that match mean the definitions did not move, and the number came from the
