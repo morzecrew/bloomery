@@ -2189,6 +2189,29 @@ def test_timeline_refuses_a_node_no_version_carries(capsys: pytest.CaptureFixtur
     assert "did you mean" not in err
 
 
+def test_rendering_a_timeline_of_absences_says_so() -> None:
+    """`render_timeline` is public and the command refuses this case before
+    reaching it, so the branch is reachable only here — which is why it is
+    tested here rather than marked unreachable.
+
+    "Nothing moved" would be a wrong answer about a node that was never
+    present, and the three no-change reasons are three different facts.
+    """
+    walk = bloomery.Timeline(
+        node="metric.nope",
+        entries=(
+            bloomery.TimelineEntry(label="a", present=False),
+            bloomery.TimelineEntry(label="b", present=False),
+        ),
+        changes=(),
+    )
+
+    printed = render.render_timeline(walk)
+
+    assert "this node is in none of these versions" in printed
+    assert "no definition change" not in printed
+
+
 def test_timeline_reports_boundaries_in_version_order_not_node_order() -> None:
     """The value's ordering is version order first, node within a boundary
     (RFC 0069 §5.1), and the rendering must not re-sort it.
