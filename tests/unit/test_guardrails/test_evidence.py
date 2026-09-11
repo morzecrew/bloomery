@@ -21,6 +21,7 @@ from bloomery.errors import GuardrailError, InsufficientEvidence
 from bloomery.guardrails import evidence as guard
 from bloomery.semantic import (
     BASIS_PROVENANCE,
+    DependencyBasis,
     MAX_DERIVATIONS,
     EvidenceGrade,
     Provenance,
@@ -245,7 +246,7 @@ def test_the_rule_reports_every_weak_basis_when_no_route_is_strong(
     basis exists at all."""
 
     monkeypatch.setitem(guard.BASIS_PROVENANCE, "entity_key", Provenance.DERIVED)
-    monkeypatch.setitem(guard.BASIS_PROVENANCE, "transitive", Provenance.DERIVED)
+    monkeypatch.setitem(guard.BASIS_PROVENANCE, "one_to_one", Provenance.DERIVED)
 
     assert guard.weak_bases([{"entity_key"}]) == ("entity_key",)
     # A route mixing a declared hop with a derived one is still weak: the
@@ -271,9 +272,9 @@ def test_a_route_list_at_the_cap_is_not_refused(monkeypatch: pytest.MonkeyPatch)
     """
 
     monkeypatch.setitem(guard.BASIS_PROVENANCE, "entity_key", Provenance.DERIVED)
-    monkeypatch.setitem(guard.BASIS_PROVENANCE, "transitive", Provenance.DERIVED)
+    monkeypatch.setitem(guard.BASIS_PROVENANCE, "one_to_one", Provenance.DERIVED)
 
-    weak = [{"entity_key"}, {"transitive"}][:MAX_DERIVATIONS]
+    weak = [{"entity_key"}, {"one_to_one"}][:MAX_DERIVATIONS]
     assert len(weak) == MAX_DERIVATIONS
     assert guard.weak_bases(weak) == ()
     # One route below the cap still reports, so the abstention above is the
@@ -322,6 +323,18 @@ def test_open_is_not_a_requirement() -> None:
     )
     with pytest.raises(Exception, match="Input should be 'locked' or 'assumed'"):
         load_project(sources)
+
+
+def test_the_synthetic_bases_these_tests_use_are_real_ones() -> None:
+    """`monkeypatch.setitem` adds a key that was not there, so a test naming a
+    basis the vocabulary has dropped keeps passing while testing a fiction.
+
+    That is not hypothetical: `transitive` left `DependencyBasis` in T-0041 and
+    these tests named it. This asserts the two they now monkeypatch are members
+    the compiler still knows.
+    """
+
+    assert {"entity_key", "one_to_one"} <= {basis.value for basis in DependencyBasis}
 
 
 def test_every_basis_grades_and_the_guard_reads_that_grade() -> None:

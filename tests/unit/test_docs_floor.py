@@ -270,6 +270,61 @@ def test_the_dialect_refusal_still_exists_for_a_dialect_without_the_capability()
     assert "NULL-on-failure cast" in str(excinfo.value)
 
 
+def test_the_documented_evidence_refusal_quotes_the_template() -> None:
+    """A documented message is a hand-copy of a string that lives in `src`, and
+    nothing tied the two together.
+
+    That is not a hypothetical class. The same page drifted from this template
+    twice inside one PR series: once when the refusal was restructured in
+    review from one leaf per (measure, column) to one per column, and once when
+    it named a dependency basis that a later change deleted (`logs/T-0041.md`).
+    Both survived a self-audit and a round of review, because re-reading a page
+    against a string in another file is exactly what a reader does not do.
+
+    The literal segments between the placeholders are the part a reader sees
+    and the part a restructure moves. Whitespace is normalized on both sides
+    because the page wraps the example to its column width, so a segment that
+    is one line in the source spans two in the docs.
+    """
+    from bloomery.guardrails.evidence import MESSAGE  # noqa: PLC0415
+
+    page = " ".join((DOCS / "concepts" / "what-bloomery-proves.md").read_text().split())
+    segments = [
+        " ".join(segment.split())
+        for segment in re.split(r"\{\w+\}", MESSAGE)
+        if len(segment.strip()) >= 15
+    ]
+
+    assert len(segments) >= 3, "the template stopped having quotable prose between its slots"
+
+    missing = [segment for segment in segments if segment not in page]
+    assert not missing, (
+        "what-bloomery-proves.md no longer quotes the refusal it documents; "
+        f"missing: {missing}"
+    )
+
+
+def test_the_documented_refusal_check_would_notice_a_restructure() -> None:
+    """The control for the test above, which would otherwise pass just as well
+    on a page that quotes nothing and a template with no long segments.
+
+    Asserted against a template edited the way a real restructure edits one —
+    a clause reworded — rather than against a garbage string, so it fails for
+    the reason the guard exists rather than because the input was absurd.
+    """
+    from bloomery.guardrails.evidence import MESSAGE  # noqa: PLC0415
+
+    page = " ".join((DOCS / "concepts" / "what-bloomery-proves.md").read_text().split())
+    restructured = MESSAGE.replace("rest on column", "depends on the column")
+    segments = [
+        " ".join(segment.split())
+        for segment in re.split(r"\{\w+\}", restructured)
+        if len(segment.strip()) >= 15
+    ]
+
+    assert [segment for segment in segments if segment not in page]
+
+
 def test_every_claim_block_is_represented_in_the_table() -> None:
     """D11's completeness trigger: an admonition asserting a refusal must name
     an error class, and that (page, class) pair must be in :data:`CLAIMS`.

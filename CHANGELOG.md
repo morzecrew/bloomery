@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Composition is no longer a dependency basis.** `DependencyBasis` had five
+  members and one of them, `transitive`, could never be produced: a derivation
+  carries the steps it composed, each with its own basis, so nothing was left
+  for a composed step to claim. It is gone, and the rule that names a
+  composition is unchanged — R005 is reached from a derivation having more than
+  one step rather than from any basis.
+
+  Nothing an author writes changes, and nothing about what the compiler admits
+  changes: transitive closure is still admitted and still proved. What changes
+  is that a closed vocabulary stops naming a distinction the compiler does not
+  draw.
+
 - **A mart can require declared premises.** Every semantic fact carries a grade
   saying how bloomery obtained it — `LOCKED` if somebody wrote it down or it
   follows necessarily from something they did, `ASSUMED` if the compiler worked
