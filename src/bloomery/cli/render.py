@@ -565,7 +565,12 @@ def render_timeline(walk: Timeline) -> str:
                         delta.facet.value,
                         delta.field,
                         "" if delta.old is None else delta.old,
-                        "->",
+                        # A facet whose value has no compact spelling — a
+                        # filter is a tuple of records — renders as neither
+                        # side, and an arrow between two absences points at
+                        # nothing. The field name is the answer there, so the
+                        # row is the field and stops.
+                        "" if delta.old is None and delta.new is None else "->",
                         "" if delta.new is None else delta.new,
                     )
                     for delta in change.facets

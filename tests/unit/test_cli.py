@@ -2189,6 +2189,72 @@ def test_timeline_refuses_a_node_no_version_carries(capsys: pytest.CaptureFixtur
     assert "did you mean" not in err
 
 
+def test_timeline_reports_boundaries_in_version_order_not_node_order() -> None:
+    """The value's ordering is version order first, node within a boundary
+    (RFC 0069 §5.1), and the rendering must not re-sort it.
+
+    Pinned because sorting every change by node reads as tidier and passes a
+    test that only asks which nodes appear: v3's two changes bracket v1's when
+    the node is the key, which puts a later boundary above an earlier one and
+    makes the output a list of nodes rather than a history.
+    """
+    history = [
+        bloomery.SpecVersion(label=directory, project=project, catalog=catalog)
+        for directory in EVOLUTION
+        for project, catalog in [_load_version(directory)]
+    ]
+    printed = render.render_timeline(bloomery.timeline(history, "metric.gross_revenue"))
+    # A boundary line is indented two spaces; a facet row is indented six and
+    # carries an arrow of its own, which is why the indent rather than the
+    # arrow is what selects here.
+    boundaries = [
+        line.strip()
+        for line in printed.splitlines()
+        if line.startswith("  ") and not line.startswith("   ") and " -> " in line
+    ]
+
+    assert [line.split()[0].rsplit("/", 1)[-1] for line in boundaries] == [
+        "evolution_v1",
+        "evolution_v3",
+        "evolution_v3",
+    ]
+    # Within the one boundary that carries two, the node is the key.
+    assert boundaries[1].split()[3] < boundaries[2].split()[3]
+
+
+def test_timeline_reads_one_catalog_for_every_version(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """`--catalog` points every version at one shared catalog, which is the
+    shape a history of directories usually has: the specs evolve and the
+    vertical does not.
+
+    Pinned because the fixtures each carry their own `catalog.yaml`, so a
+    command that ignored the flag entirely answered identically on every other
+    test here (`logs/T-0046.md`).
+    """
+    shared = tmp_path / "shared.yaml"
+    shared.write_text((FIXTURES / "evolution_v1" / "catalog.yaml").read_text())
+
+    stripped = []
+    for step, source in enumerate(EVOLUTION[:2]):
+        into = tmp_path / f"v{step}"
+        into.mkdir()
+        for document in Path(source).glob("*.yaml"):
+            if document.name != "catalog.yaml":
+                (into / document.name).write_text(document.read_text())
+        stripped.append(str(into))
+
+    code, out, err = run(capsys, "timeline", *stripped, "--node", "metric.gross_revenue")
+    assert code == EXIT_REFUSED, "without a catalog these versions do not compile"
+
+    code, out, err = run(
+        capsys, "timeline", *stripped, "--catalog", str(shared), "--node", "metric.gross_revenue"
+    )
+    assert code == EXIT_OK, err
+    assert "order_item.unit_price" in out
+
+
 def test_timeline_json_is_the_whole_value(capsys: pytest.CaptureFixture[str]) -> None:
     """The JSON is the value the Python call returns, converted the same way —
     not a payload assembled beside it (RFC 0020 D4).
