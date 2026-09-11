@@ -1105,6 +1105,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#rename-a-metric-with-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Rename a metric with <code>id:</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-expandcontract-refusal" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1716,6 +1727,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#rename-a-metric-with-id" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Rename a metric with <code>id:</code>
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-expandcontract-refusal" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1862,8 +1884,8 @@ gate conditions for CI.</p>
 </tr>
 <tr>
 <td><code>RENAME</code></td>
-<td>Identity preserved via explicit annotation</td>
-<td><code>quantity</code> → <code>qty</code> with <code>renamed_from: quantity</code></td>
+<td>Identity preserved by a declaration</td>
+<td>a field's <code>renamed_from: quantity</code>; a metric whose <a href="../trace-lineage/#identity-when-the-name-is-not-it"><code>id:</code></a> is on both sides</td>
 </tr>
 <tr>
 <td><code>RESTATING</code></td>
@@ -1894,6 +1916,53 @@ once:</p>
 <p>The annotation is one-shot: land it, apply the migration, then remove it in the next
 version. A stale annotation — one whose old name never existed in the old IR — raises
 <code>RenameTargetMissing</code>, because it can no longer mean anything.</p>
+<h2 id="rename-a-metric-with-id">Rename a metric with <code>id:</code><a class="headerlink" href="#rename-a-metric-with-id" title="Permanent link">&para;</a></h2>
+<p><code>renamed_from</code> names a <em>field</em> inside its entity. A <strong>metric</strong> is a node, and a node's
+identity is the <a href="../trace-lineage/#identity-when-the-name-is-not-it"><code>id:</code></a> it was minted
+with — so the declaration is already there, and nothing has to be added at rename time:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">metrics</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">revenue_gross</span><span class="p">:</span><span class="w">            </span><span class="c1"># was gross_revenue</span>
+<span class="w">    </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mtr_7f3a9c</span><span class="w">          </span><span class="c1"># unchanged, and that is the whole declaration</span>
+</code></pre></div>
+<p><code>plan()</code> needs the ids to see it, and they are not in the IR — an <code>id:</code> is substituted
+into node ids and never lowered, so that a project adopting none compiles byte for byte.
+Hand them over beside the IRs:</p>
+<div class="highlight"><span class="filename">rename.py</span><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_project_ir</span><span class="p">,</span> <span class="n">load_catalog</span><span class="p">,</span> <span class="n">load_project</span><span class="p">,</span> <span class="n">node_labels</span><span class="p">,</span> <span class="n">plan</span>
+
+<span class="c1"># Each side is a whole version — its documents *and* its catalog. A metric</span>
+<span class="c1"># defined by a template lives in the catalog, so a rename can move text there</span>
+<span class="c1"># too, and one catalog read for both sides would describe neither.</span>
+<span class="n">old_project</span><span class="p">,</span> <span class="n">old_catalog</span> <span class="o">=</span> <span class="n">load_project</span><span class="p">(</span><span class="n">old_sources</span><span class="p">),</span> <span class="n">load_catalog</span><span class="p">(</span><span class="n">old_catalog_text</span><span class="p">)</span>
+<span class="n">new_project</span><span class="p">,</span> <span class="n">new_catalog</span> <span class="o">=</span> <span class="n">load_project</span><span class="p">(</span><span class="n">new_sources</span><span class="p">),</span> <span class="n">load_catalog</span><span class="p">(</span><span class="n">new_catalog_text</span><span class="p">)</span>
+
+<span class="n">migration</span> <span class="o">=</span> <span class="n">plan</span><span class="p">(</span>
+    <span class="n">build_project_ir</span><span class="p">(</span><span class="n">old_project</span><span class="p">,</span> <span class="n">catalog</span><span class="o">=</span><span class="n">old_catalog</span><span class="p">),</span>
+    <span class="n">build_project_ir</span><span class="p">(</span><span class="n">new_project</span><span class="p">,</span> <span class="n">catalog</span><span class="o">=</span><span class="n">new_catalog</span><span class="p">),</span>
+    <span class="n">old_labels</span><span class="o">=</span><span class="n">node_labels</span><span class="p">(</span><span class="n">old_project</span><span class="p">,</span> <span class="n">old_catalog</span><span class="p">),</span>
+    <span class="n">new_labels</span><span class="o">=</span><span class="n">node_labels</span><span class="p">(</span><span class="n">new_project</span><span class="p">,</span> <span class="n">new_catalog</span><span class="p">),</span>
+<span class="p">)</span>
+</code></pre></div>
+<p><code>bloomery plan old/ new/</code> does this for you. Pass no labels and you get the report you
+got before — a deletion and an addition — which is what keeps adopting an <code>id:</code> free.</p>
+<p>The report is then one change instead of five:</p>
+<div class="highlight"><pre><span></span><code>rename     metric:revenue_gross  renamed from 'gross_revenue'
+
+Renamed — what cited the old name
+  metric:revenue_gross  exposure:weekly_revenue_review, mart:order_items, metric:average_order_value
+</code></pre></div>
+<p><strong>A rename is not a restatement.</strong> Every number the metric reported still means what it
+meant, so there is no backfill and <code>restates_history</code> stays false. What a rename <em>does</em>
+break is everything that spells the old name, and that is the list rather than a
+severity: each of those documents has to be edited, and none of their figures moved.</p>
+<p>Two limits worth knowing:</p>
+<ul>
+<li><strong>Both sides must carry the same <code>id:</code>.</strong> Minting one only on the new side is a
+  deletion and an addition, and correctly so — nothing connects the two definitions.
+  Identity is declared here, never guessed from shape.</li>
+<li><strong>Metrics and steps only.</strong> A renamed canonical field still reads as a drop plus an
+  add: <code>plan()</code> diffs the IR, and the IR keeps no canonical-field record — the field
+  survives lowering as a string reference on the columns that link to it.</li>
+</ul>
 <h2 id="the-expandcontract-refusal">The expand/contract refusal<a class="headerlink" href="#the-expandcontract-refusal" title="Permanent link">&para;</a></h2>
 <p>The one semantic rule the differ enforces is that a <strong>contraction may not land while
 something still reads the contracted surface</strong>. Dropping or narrowing a field that a

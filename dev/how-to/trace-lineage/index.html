@@ -2002,6 +2002,23 @@ requirement.</p>
 <li><strong>Adopting nothing costs nothing.</strong> A project with no <code>id:</code> anywhere gets exactly the
   ids and exactly the artifacts it gets today.</li>
 </ul>
+<p><strong>You ask by the id and read the name.</strong> <code>--node</code> takes <code>metric.mtr_7f3a9c</code>, because that
+is what the graph calls the node; the printed walk shows <code>metric.gross_revenue</code>, because an
+opaque key is not what a name is for. <code>--format json</code> carries both — the nodes keep their
+ids and a <code>labels</code> object maps each to its readable spelling, so a script that keys on ids
+is untouched and one that renders a graph has something to render:</p>
+<div class="highlight"><pre><span></span><code><span class="gp">$ </span>bloomery<span class="w"> </span>lineage<span class="w"> </span>specs/<span class="w"> </span>--node<span class="w"> </span>metric.mtr_7f3a9c<span class="w"> </span>--format<span class="w"> </span>json
+<span class="go">{</span>
+<span class="go">  "labels": {"metric.mtr_7f3a9c": "metric.gross_revenue"},</span>
+<span class="go">  "nodes": [{"kind": "metric", "name": "metric.mtr_7f3a9c"}, ...]</span>
+<span class="go">}</span>
+</code></pre></div>
+<p>A did-you-mean is the exception and deliberately so: a suggestion exists to be retyped, so
+it comes back as the id <code>--node</code> accepts rather than as the name the walk prints.</p>
+<p>Where the ids pay is across versions: <a href="../evolve-a-spec/#rename-a-metric-with-id">renaming a metric</a>
+becomes one change in <code>plan()</code> instead of a deletion and an addition, and
+<a href="../trace-a-definition-over-time/">a definition's timeline</a> keeps one node across the
+boundary instead of showing a delete and an add.</p>
 <h2 id="it-returns-a-sub-dag-not-paths">It returns a sub-DAG, not paths<a class="headerlink" href="#it-returns-a-sub-dag-not-paths" title="Permanent link">&para;</a></h2>
 <p><code>Lineage.nodes</code> carries each node <strong>once</strong>, however many ways it is reachable, and
 <code>Lineage.edges</code> carries every connection between them. A node fed by two sources appears
