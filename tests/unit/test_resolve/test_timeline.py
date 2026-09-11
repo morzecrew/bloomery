@@ -260,6 +260,59 @@ def test_an_id_adopted_partway_through_matches_that_boundary_by_name() -> None:
     )
 
 
+def test_an_id_match_picks_up_the_new_name_it_found() -> None:
+    """After crossing a rename by id, the *name* carried forward has to be the
+    new one — every later lookup reads it.
+
+    Two entries cannot show this: a stale name finds no metric, which reads as
+    a definition that moved, which is the answer a rename gives anyway. It
+    takes a third entry and a project where the old name has been reused, which
+    is exactly when a stale name stops finding nothing and starts finding
+    somebody else's definition.
+    """
+
+    def metrics(renamed: str, reused_agg: str | None) -> dict[str, str]:
+        reused = (
+            ""
+            if reused_agg is None
+            else f"""
+  alpha:
+    grain: order
+    additivity: additive
+    agg: {reused_agg}
+    expr: "amount"
+"""
+        )
+        return {
+            "entity_model": ENTITY_MODEL,
+            "mapping": MAPPING,
+            "metrics": f"""
+metrics_version: 1
+metrics:
+  {renamed}:
+    id: mtr_7f3a9c
+    grain: order
+    additivity: additive
+    agg: sum
+    expr: "amount"
+{reused}""",
+        }
+
+    history = [
+        SpecVersion(label="a", project=load_project(metrics("alpha", None))),
+        SpecVersion(label="b", project=load_project(metrics("beta", "max"))),
+        SpecVersion(label="c", project=load_project(metrics("beta", "count"))),
+    ]
+
+    # `alpha` is the id-carrying metric in `a` and a *different* metric from
+    # `b` on. Asked by the id, the walk follows the id — and `beta` does not
+    # move between `b` and `c`, whatever `alpha` does.
+    assert shape(timeline(history, "metric.mtr_7f3a9c")) == (
+        (("a", True), ("b", True), ("c", True)),
+        (("a", "b", "id"),),
+    )
+
+
 def test_adopting_an_id_and_renaming_at_once_is_a_delete_and_an_add() -> None:
     """The case the rule cannot recover, asserted because a reader should find
     it written down rather than discover it. Nothing connects the two
