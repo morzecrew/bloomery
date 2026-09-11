@@ -1,0 +1,21 @@
+{
+  "id": "T-0046",
+  "spec": "rfcs/0069-spec-timeline.md",
+  "phase": "P3 — the CLI command and --format json. P2 (the facets) landed with RFC 0064 P1+P2 in #107 and is recorded rather than rebuilt. Also accepts the rows logs/T-0045.md proposed, into RFC 0064 and RFC 0069.",
+  "decisions": [
+    {"id": "RFC 0069 D1", "grade": "LOCKED",
+     "paths": ["src/bloomery/cli/__init__.py", "src/bloomery/cli/render.py"]},
+    {"id": "RFC 0069 D2", "grade": "LOCKED",
+     "paths": ["src/bloomery/cli/__init__.py"]},
+    {"id": "RFC 0069 D6", "grade": "ASSUMED",
+     "paths": ["src/bloomery/cli/__init__.py"]},
+    {"id": "RFC 0069 D7", "grade": "OPEN",
+     "paths": ["src/bloomery/cli/__init__.py"]},
+    {"id": "RFC 0069 D8", "grade": "OPEN",
+     "paths": ["src/bloomery/cli/__init__.py"]},
+    {"id": "RFC 0069 D11", "grade": "LOCKED",
+     "paths": ["src/bloomery/cli/__init__.py"]},
+    {"id": "RFC 0069 D13", "grade": "ASSUMED",
+     "paths": ["src/bloomery/cli/render.py", "src/bloomery/cli/serialize.py"]}
+  ]
+}
