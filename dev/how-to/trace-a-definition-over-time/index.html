@@ -12,34 +12,36 @@
         <meta name="author" content="Lev Litvinov">
       
       
-        <link rel="canonical" href="https://morzecrew.github.io/bloomery/dev/">
+        <link rel="canonical" href="https://morzecrew.github.io/bloomery/dev/how-to/trace-a-definition-over-time/">
       
       
+        <link rel="prev" href="../trace-lineage/">
       
-        <link rel="next" href="./get-started/introduction/">
+      
+        <link rel="next" href="../use-the-cli/">
       
       
         
       
       
-      <link rel="icon" href="./assets/favicon.svg">
+      <link rel="icon" href="../../assets/favicon.svg">
       <meta name="generator" content="zensical-0.0.57">
     
     
       
-        <title>Bloomery - Bloomery</title>
+        <title>Trace a definition over time - Bloomery</title>
       
     
     
       
         
       
-      <link rel="stylesheet" href="./assets/stylesheets/modern/main.5da3a30f.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.5da3a30f.min.css">
       
         
           
         
-        <link rel="stylesheet" href="./assets/stylesheets/modern/palette.812a03bb.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.812a03bb.min.css">
       
       
 
@@ -58,9 +60,9 @@
       
     
     
-      <link rel="stylesheet" href="./assets/palette.css">
+      <link rel="stylesheet" href="../../assets/palette.css">
     
-    <script>__md_scope=new URL(".",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    <script>__md_scope=new URL("../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
     
       
 
@@ -85,7 +87,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#bloomery" class="md-skip">
+        <a href="#trace-a-definition-over-time" class="md-skip">
           Skip to content
         </a>
       
@@ -103,9 +105,9 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="" title="Bloomery" class="md-header__button md-logo" aria-label="Bloomery" data-md-component="logo">
+    <a href="../.." title="Bloomery" class="md-header__button md-logo" aria-label="Bloomery" data-md-component="logo">
       
-  <img src="./assets/logo.svg" alt="Bloomery">
+  <img src="../../assets/logo.svg" alt="Bloomery">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
@@ -122,7 +124,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Bloomery
+              Trace a definition over time
             
           </span>
         </div>
@@ -204,11 +206,9 @@
   
   
   
-    
   
-  
-    <li class="md-tabs__item md-tabs__item--active">
-      <a href="" class="md-tabs__link">
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
         
   
   Home
@@ -229,7 +229,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="./get-started/introduction/" class="md-tabs__link">
+        <a href="../../get-started/introduction/" class="md-tabs__link">
           
   
   Get Started
@@ -251,7 +251,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="./concepts/specs-and-catalog/" class="md-tabs__link">
+        <a href="../../concepts/specs-and-catalog/" class="md-tabs__link">
           
   
   Concepts
@@ -266,14 +266,16 @@
   
   
   
+    
+  
   
     
       
     
     
     
-      <li class="md-tabs__item">
-        <a href="./how-to/emit-sqlmesh/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../emit-sqlmesh/" class="md-tabs__link">
           
   
   How-to
@@ -295,7 +297,7 @@
     
     
       <li class="md-tabs__item">
-        <a href="./reference/spec-schemas/" class="md-tabs__link">
+        <a href="../../reference/spec-schemas/" class="md-tabs__link">
           
   
   Reference
@@ -328,9 +330,9 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="" title="Bloomery" class="md-nav__button md-logo" aria-label="Bloomery" data-md-component="logo">
+    <a href="../.." title="Bloomery" class="md-nav__button md-logo" aria-label="Bloomery" data-md-component="logo">
       
-  <img src="./assets/logo.svg" alt="Bloomery">
+  <img src="../../assets/logo.svg" alt="Bloomery">
 
     </a>
     Bloomery
@@ -354,36 +356,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-  Home
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -398,38 +374,6 @@
   
 
       </a>
-      
-        
-
-
-<nav class="md-nav md-nav--secondary" aria-label="On this page">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      On this page
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#where-to-start" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Where to start
-      </span>
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -491,7 +435,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./get-started/introduction/" class="md-nav__link">
+      <a href="../../get-started/introduction/" class="md-nav__link">
         
   
   
@@ -518,7 +462,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./get-started/installation/" class="md-nav__link">
+      <a href="../../get-started/installation/" class="md-nav__link">
         
   
   
@@ -545,7 +489,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./get-started/quickstart/" class="md-nav__link">
+      <a href="../../get-started/quickstart/" class="md-nav__link">
         
   
   
@@ -572,7 +516,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./get-started/examples/" class="md-nav__link">
+      <a href="../../get-started/examples/" class="md-nav__link">
         
   
   
@@ -656,7 +600,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./concepts/specs-and-catalog/" class="md-nav__link">
+      <a href="../../concepts/specs-and-catalog/" class="md-nav__link">
         
   
   
@@ -683,7 +627,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./concepts/compile-pipeline/" class="md-nav__link">
+      <a href="../../concepts/compile-pipeline/" class="md-nav__link">
         
   
   
@@ -710,7 +654,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./concepts/determinism/" class="md-nav__link">
+      <a href="../../concepts/determinism/" class="md-nav__link">
         
   
   
@@ -737,7 +681,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./concepts/guardrails/" class="md-nav__link">
+      <a href="../../concepts/guardrails/" class="md-nav__link">
         
   
   
@@ -764,7 +708,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./concepts/what-bloomery-proves/" class="md-nav__link">
+      <a href="../../concepts/what-bloomery-proves/" class="md-nav__link">
         
   
   
@@ -791,7 +735,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./concepts/data-quality/" class="md-nav__link">
+      <a href="../../concepts/data-quality/" class="md-nav__link">
         
   
   
@@ -818,7 +762,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./concepts/wide-marts/" class="md-nav__link">
+      <a href="../../concepts/wide-marts/" class="md-nav__link">
         
   
   
@@ -845,7 +789,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./concepts/step-registry/" class="md-nav__link">
+      <a href="../../concepts/step-registry/" class="md-nav__link">
         
   
   
@@ -876,26 +820,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
@@ -912,7 +861,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
@@ -929,7 +878,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/emit-sqlmesh/" class="md-nav__link">
+      <a href="../emit-sqlmesh/" class="md-nav__link">
         
   
   
@@ -956,7 +905,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/emit-cube/" class="md-nav__link">
+      <a href="../emit-cube/" class="md-nav__link">
         
   
   
@@ -983,7 +932,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/emit-dbt/" class="md-nav__link">
+      <a href="../emit-dbt/" class="md-nav__link">
         
   
   
@@ -1010,7 +959,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/add-quality-rules/" class="md-nav__link">
+      <a href="../add-quality-rules/" class="md-nav__link">
         
   
   
@@ -1037,7 +986,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/plan-a-metric-request/" class="md-nav__link">
+      <a href="../plan-a-metric-request/" class="md-nav__link">
         
   
   
@@ -1064,7 +1013,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/evolve-a-spec/" class="md-nav__link">
+      <a href="../evolve-a-spec/" class="md-nav__link">
         
   
   
@@ -1091,7 +1040,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/evaluate-a-spec/" class="md-nav__link">
+      <a href="../evaluate-a-spec/" class="md-nav__link">
         
   
   
@@ -1118,7 +1067,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/reproduce-a-past-artifact-set/" class="md-nav__link">
+      <a href="../reproduce-a-past-artifact-set/" class="md-nav__link">
         
   
   
@@ -1145,7 +1094,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/close-an-open-decision/" class="md-nav__link">
+      <a href="../close-an-open-decision/" class="md-nav__link">
         
   
   
@@ -1172,7 +1121,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/declare-an-exposure/" class="md-nav__link">
+      <a href="../declare-an-exposure/" class="md-nav__link">
         
   
   
@@ -1199,7 +1148,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/merge-sources/" class="md-nav__link">
+      <a href="../merge-sources/" class="md-nav__link">
         
   
   
@@ -1226,7 +1175,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/resolve-identities/" class="md-nav__link">
+      <a href="../resolve-identities/" class="md-nav__link">
         
   
   
@@ -1253,7 +1202,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/trace-lineage/" class="md-nav__link">
+      <a href="../trace-lineage/" class="md-nav__link">
         
   
   
@@ -1277,10 +1226,36 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="./how-to/trace-a-definition-over-time/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Trace a definition over time
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1295,6 +1270,110 @@
   
 
       </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-assemble-the-history" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        1. Assemble the history
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-walk-one-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. Walk one node
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-the-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Reading the answer
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#renames-and-why-an-id-pays-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Renames, and why an <code>id:</code> pays here
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Renames, and why an id: pays here">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ask-by-the-spelling-your-oldest-entry-uses" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Ask by the spelling your oldest entry uses
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#naming-your-versions" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Naming your versions
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-it-does-not-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What it does not do
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1307,7 +1386,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./how-to/use-the-cli/" class="md-nav__link">
+      <a href="../use-the-cli/" class="md-nav__link">
         
   
   
@@ -1391,7 +1470,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./reference/spec-schemas/" class="md-nav__link">
+      <a href="../../reference/spec-schemas/" class="md-nav__link">
         
   
   
@@ -1418,7 +1497,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./reference/json-schema/" class="md-nav__link">
+      <a href="../../reference/json-schema/" class="md-nav__link">
         
   
   
@@ -1445,7 +1524,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./reference/transforms/" class="md-nav__link">
+      <a href="../../reference/transforms/" class="md-nav__link">
         
   
   
@@ -1472,7 +1551,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./reference/dialects/" class="md-nav__link">
+      <a href="../../reference/dialects/" class="md-nav__link">
         
   
   
@@ -1499,7 +1578,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./reference/errors/" class="md-nav__link">
+      <a href="../../reference/errors/" class="md-nav__link">
         
   
   
@@ -1526,7 +1605,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./reference/api/" class="md-nav__link">
+      <a href="../../reference/api/" class="md-nav__link">
         
   
   
@@ -1553,7 +1632,7 @@
   
   
     <li class="md-nav__item">
-      <a href="./reference/stability/" class="md-nav__link">
+      <a href="../../reference/stability/" class="md-nav__link">
         
   
   
@@ -1621,10 +1700,82 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#where-to-start" class="md-nav__link">
+  <a href="#1-assemble-the-history" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        Where to start
+        1. Assemble the history
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-walk-one-node" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        2. Walk one node
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-the-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Reading the answer
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#renames-and-why-an-id-pays-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Renames, and why an <code>id:</code> pays here
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Renames, and why an id: pays here">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ask-by-the-spelling-your-oldest-entry-uses" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Ask by the spelling your oldest entry uses
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#naming-your-versions" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Naming your versions
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-it-does-not-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        What it does not do
       </span>
     </span>
   </a>
@@ -1649,6 +1800,51 @@
   
 
 
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+    
+    
+    
+      <li class="md-path__item">
+        <a href="../emit-sqlmesh/" class="md-path__link">
+          
+  
+  <span class="md-ellipsis">
+    How-to
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
               
               <article class="md-content__inner md-typeset">
                 
@@ -1657,53 +1853,152 @@
   
 
 
-<h1 id="bloomery">Bloomery<a class="headerlink" href="#bloomery" title="Permanent link">&para;</a></h1>
-<p>The worst failure in a config-driven data platform is not a crash. It is a number that
-looks right and is wrong — an order-level shipping cost joined to line items and summed
-three times over, a net price subtracted from a gross cost, an average stored and then
-re-averaged. Every one of those passes syntax checks, type checks and code review,
-because nothing in the stack knows what the columns <em>mean</em>.</p>
-<p>Bloomery is an entity-first spec compiler that does know, and refuses. Declarative specs
-carry grains, units, tax bases and additivity classes; anything that would produce a
-plausible-but-wrong number is a compile error with a source path, not a warning. It is a
-pure function library — specs in, byte-reproducible SQL artifacts and query plans out,
-with no clock, no randomness, and no filesystem anywhere in the compile path.</p>
-<p>It does four things:</p>
-<ul>
-<li><strong>Compiles specs into artifacts</strong> — Catalog, EntityModel, Mapping, MetricSet, Marts
-  and StepSet documents become SQLMesh, dbt, and Cube models, audits, and MetricFlow
-  semantic manifests, with <a href="concepts/data-quality/">declarative data quality</a> —
-  cleansing, dedupe, quarantine and replay — lowered into the same pipeline.</li>
-<li><strong>Plans metric queries</strong> — a <code>MetricRequest</code> becomes SQL over wide, pre-joined
-  marts, with no execution and no join before an aggregate. Measures from different
-  grains are aggregated on their own marts and joined only afterwards, where every
-  requested dimension is provably the same dimension on each; where it is not, the
-  request is refused. Behind the stable request/plan contract sits an embedded,
-  render-only MetricFlow — pinned, driven entirely in-process, never connected to a
-  database.</li>
-<li><strong>Diffs spec versions</strong> — two compiled versions produce a plan in which every change
-  is classified (additive, widening, rename, restating, breaking), with backfill scope
-  and downstream impact computed from the dependency graph.</li>
-<li><strong>Assesses a spec</strong> — <code>evaluate()</code> returns everything knowable without touching data:
-  what is reachable, what is not and which leaf is missing, and every refusal with its
-  source path. Refusals come back as a <em>value</em>, so a draft mid-edit still reports what
-  it would give you.</li>
-</ul>
-<p>All four are reachable from a shell as well as from Python — see
-<a href="how-to/use-the-cli/">Use the CLI</a>.</p>
-<h2 id="where-to-start">Where to start<a class="headerlink" href="#where-to-start" title="Permanent link">&para;</a></h2>
-<p>New here? Read the <a href="get-started/introduction/">Introduction</a> for the problem bloomery
-removes, how the spec kinds fit together, and — just as important — what it deliberately
-does not do. Then work through the <a href="get-started/quickstart/">Quickstart</a>, which takes
-one small project from YAML to compiled artifacts to a planned query.</p>
-<p>If you would rather see it run than read about it, the four
-<a href="get-started/examples/">examples</a> are self-contained and execute everything they claim
-— including one that builds the same mart with SQLMesh and with dbt and compares the two
-row for row.</p>
-<p>For the model underneath, the <a href="concepts/specs-and-catalog/">Concepts</a> pages cover the
-domain model, the <a href="concepts/compile-pipeline/">compile pipeline</a>, the
-<a href="concepts/wide-marts/">wide-mart gold layer</a>, and the
-<a href="concepts/guardrails/">guardrails</a> that make fail-closed concrete.</p>
+<h1 id="trace-a-definition-over-time">Trace a definition over time<a class="headerlink" href="#trace-a-definition-over-time" title="Permanent link">&para;</a></h1>
+<p><a href="../trace-lineage/">Lineage</a> tells you what a metric is built from. It cannot tell you that
+its filter moved three weeks ago — and that is the other half of "why is this number
+different", asked about as often.</p>
+<p><code>timeline()</code> answers it. You hand it the spec sets as they stood, oldest first, and it
+reports which versions carried the node and which pairs of versions its definition moved
+between.</p>
+<div class="highlight"><pre><span></span><code><span class="n">timeline</span><span class="p">(</span><span class="n">history</span><span class="p">,</span> <span class="s2">"metric.gross_revenue"</span><span class="p">)</span>
+</code></pre></div>
+<p>Like <code>lineage()</code>, it reads no data, opens no connection and touches no warehouse. This is
+history of the <strong>spec</strong> — what your documents said, when.</p>
+<h2 id="1-assemble-the-history">1. Assemble the history<a class="headerlink" href="#1-assemble-the-history" title="Permanent link">&para;</a></h2>
+<p>This step is yours, for the reason it is yours in
+<a href="../reproduce-a-past-artifact-set/">reproduce a past artifact set</a>: only you know where your
+specs live. Fetch the text for each version you care about — a git revision, a row per
+release in a table, a directory per quarter — and keep them in the order you want reported.</p>
+<p><strong>bloomery never sorts your history.</strong> Order is positional: the sequence you supply is the
+sequence you get back, and nothing checks that the first entry is the oldest. That is
+deliberate — sorting would mean owning time zones, resolution, clock skew and the
+difference between a commit date and an effective date, over data bloomery did not produce
+and cannot see.</p>
+<p>So a reversed history produces a reversed timeline and no complaint. Order the sequence
+before you hand it over.</p>
+<h2 id="2-walk-one-node">2. Walk one node<a class="headerlink" href="#2-walk-one-node" title="Permanent link">&para;</a></h2>
+<div class="highlight"><span class="filename">timeline.py</span><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">bloomery</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpecVersion</span><span class="p">,</span> <span class="n">load_catalog</span><span class="p">,</span> <span class="n">load_project</span><span class="p">,</span> <span class="n">timeline</span>
+
+<span class="c1"># whatever step 1 returned: (label, sources, catalog_text) per version, oldest first</span>
+<span class="n">history</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">SpecVersion</span><span class="p">(</span>
+        <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span>
+        <span class="n">project</span><span class="o">=</span><span class="n">load_project</span><span class="p">(</span><span class="n">sources</span><span class="p">),</span>
+        <span class="n">catalog</span><span class="o">=</span><span class="n">load_catalog</span><span class="p">(</span><span class="n">catalog_text</span><span class="p">)</span> <span class="k">if</span> <span class="n">catalog_text</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">sources</span><span class="p">,</span> <span class="n">catalog_text</span> <span class="ow">in</span> <span class="n">versions</span>
+<span class="p">]</span>
+
+<span class="n">walk</span> <span class="o">=</span> <span class="n">timeline</span><span class="p">(</span><span class="n">history</span><span class="p">,</span> <span class="s2">"metric.gross_revenue"</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">walk</span><span class="o">.</span><span class="n">entries</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">label</span><span class="p">,</span> <span class="s2">"present"</span> <span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">present</span> <span class="k">else</span> <span class="s2">"absent"</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">change</span> <span class="ow">in</span> <span class="n">walk</span><span class="o">.</span><span class="n">changes</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">change</span><span class="o">.</span><span class="n">before</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">change</span><span class="o">.</span><span class="n">after</span><span class="si">}</span><span class="s2">  (matched by </span><span class="si">{</span><span class="n">change</span><span class="o">.</span><span class="n">matched_by</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
+</code></pre></div>
+<p>Every version is compiled, so a quarter of daily history is ninety compiles. The cost is
+yours and so is the choice: start coarse — one entry a month — and narrow only around the
+boundary you find.</p>
+<p>If a version's project wires steps, hand over the registry that was in force with it:
+<code>SpecVersion(label=..., project=..., catalog=..., steps=registry)</code>. Without it that version
+is refused rather than guessed at, exactly as an ordinary compile is.</p>
+<h2 id="reading-the-answer">Reading the answer<a class="headerlink" href="#reading-the-answer" title="Permanent link">&para;</a></h2>
+<p><strong><code>entries</code> has one row per version you supplied</strong>, present or absent. An absence keeps its
+place in the sequence, so you can see <em>which</em> version the node was missing from rather than
+only that it went missing somewhere.</p>
+<p><strong><code>changes</code> holds one row per pair of adjacent versions whose definition differs.</strong> A node
+that never moved gets an empty <code>changes</code> and a full <code>entries</code> — "this has not changed since
+March" is the answer, not a miss. A gap produces no change across it: the node was deleted
+and then added, and calling that a change would claim a definition moved across a version it
+was not in.</p>
+<p>Today a change says <em>that</em> the definition moved, not how. Naming the facet that moved — the
+grain, the filter, the unit — is the next phase of this work.</p>
+<h2 id="renames-and-why-an-id-pays-here">Renames, and why an <code>id:</code> pays here<a class="headerlink" href="#renames-and-why-an-id-pays-here" title="Permanent link">&para;</a></h2>
+<p>The node id is the name unless the node has adopted an <a href="../trace-lineage/#identity-when-the-name-is-not-it"><code>id:</code></a>.
+Across a history that difference is the whole feature:</p>
+<table>
+<thead>
+<tr>
+<th>The project</th>
+<th>A rename reads as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>No <code>id:</code></td>
+<td>a delete and an add — two nodes, one timeline each</td>
+</tr>
+<tr>
+<td><code>id:</code> on both sides</td>
+<td>one node across the boundary, <code>matched_by</code> is <code>id</code></td>
+</tr>
+</tbody>
+</table>
+<p>Nothing guesses. Matching two definitions by their <em>shape</em> would sometimes reconnect a
+rename and sometimes weld together two unrelated metrics, and a confidently wrong history is
+worse than an honest gap. If you want renames to survive, the remedy is a row in the spec.</p>
+<p><code>matched_by</code> is recorded <strong>per pair</strong>, not per timeline, because adoption is something that
+happens partway through: mint an id in April and the March boundary is matched by name while
+every boundary after it is matched by id. A pair matches by id only when <em>both</em> sides carry
+one, so adopting an id without renaming stays continuous — and adopting one <em>and</em> renaming in
+the same version reads as a delete and an add, because nothing connects the two definitions
+at all.</p>
+<h3 id="ask-by-the-spelling-your-oldest-entry-uses">Ask by the spelling your oldest entry uses<a class="headerlink" href="#ask-by-the-spelling-your-oldest-entry-uses" title="Permanent link">&para;</a></h3>
+<p>The node is found at the <strong>first entry that carries the spelling you asked for</strong>, and
+tracked forward from there. That is not symmetric, and the asymmetry is worth knowing before
+you read an answer:</p>
+<table>
+<thead>
+<tr>
+<th>You ask for</th>
+<th>Across an adoption partway through</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the <strong>name</strong></td>
+<td>spans it — the name is carried forward and each version translates it to whatever id it has</td>
+</tr>
+<tr>
+<td>the <strong>id</strong></td>
+<td>the versions <em>before</em> that id existed report <code>absent</code></td>
+</tr>
+</tbody>
+</table>
+<p>The walk reads your history once and in order, so it cannot attribute backwards: it has no
+way to know, at the first entry, that a spelling appearing three entries later belongs to
+the node it is looking at. The earliest entry it can answer about is the one where your
+spelling first appears.</p>
+<p>The same rule explains the other end. If your project adopted an <code>id:</code> <em>before</em> the window
+you are walking, <code>metric.gross_revenue</code> names no node in any of those versions and the whole
+timeline reads absent — ask <code>metric.mtr_7f3a9c</code> instead, which is also what <code>bloomery
+lineage</code> calls it.</p>
+<h2 id="naming-your-versions">Naming your versions<a class="headerlink" href="#naming-your-versions" title="Permanent link">&para;</a></h2>
+<p>The labels are yours. bloomery carries them into the result, renders them, and compares them
+for nothing — there is no format to satisfy, and <code>"before"</code> and <code>"after"</code> is a legitimate
+history of two entries.</p>
+<p>When you keep enough of them to want an order, use exactly one spelling:</p>
+<div class="highlight"><pre><span></span><code>2026-03-01T00:00:00Z
+</code></pre></div>
+<p>UTC, no offset, no fractional part. <strong>That form and only that form sorts lexicographically
+into chronological order</strong>, which is what lets whatever renders your timeline sort it without
+parsing anything. "ISO-8601" at large does not: <code>2026-03-01T00:00:00-01:00</code> sorts <em>before</em>
+<code>2026-03-01T00:00:00Z</code> and is an hour <em>later</em>, and a fractional part reorders against a whole
+second. Pick the narrow form once, in whatever writes your labels, and the sort is free
+forever.</p>
+<h2 id="what-it-does-not-do">What it does not do<a class="headerlink" href="#what-it-does-not-do" title="Permanent link">&para;</a></h2>
+<p><strong>It does not fetch anything.</strong> There is deliberately no <code>--as-of</code> and no history adapter —
+see <a href="../reproduce-a-past-artifact-set/">reproduce a past artifact set</a> for why the caller
+owns the store.</p>
+<p><strong>It does not interpolate.</strong> Supply March and June and the answer is "it changed between
+these two", never "it changed in April". If you need the day, supply the days.</p>
+<p><strong>It does not attribute a change to the data.</strong> A definition that moved is a definition that
+moved; whether the number moved <em>because</em> of it is a question about rows, and this reads no
+rows.</p>
+<p><strong>It is one node, not a query over the graph.</strong> "Every metric that changed in Q1" is a
+different question with a different cost. A loop over this function is the honest way to ask
+it today.</p>
 
 
 
@@ -1740,15 +2035,31 @@ domain model, the <a href="concepts/compile-pipeline/">compile pipeline</a>, the
       
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
+          
+          <a href="../trace-lineage/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Trace where a metric comes from">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Trace where a metric comes from
+              </div>
+            </div>
+          </a>
+        
         
           
-          <a href="./get-started/introduction/" class="md-footer__link md-footer__link--next" aria-label="Next: Introduction">
+          <a href="../use-the-cli/" class="md-footer__link md-footer__link--next" aria-label="Next: Use the CLI">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Introduction
+                Use the CLI
               </div>
             </div>
             <div class="md-footer__button md-icon">
@@ -1791,10 +2102,10 @@ domain model, the <a href="concepts/compile-pipeline/">compile pipeline</a>, the
     
       
       
-      <script id="__config" type="application/json">{"annotate":null,"base":".","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"./assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["search.highlight","navigation.footer","navigation.instant","navigation.instant.progress","navigation.tabs","navigation.sections","navigation.path","navigation.top","toc.follow","content.code.copy","content.code.select","content.code.annotate","content.tooltips"],"search":"../../assets/javascripts/workers/search.7d14d953.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="./assets/javascripts/bundle.49251538.min.js"></script>
+      <script src="../../assets/javascripts/bundle.49251538.min.js"></script>
       
     
   </body>

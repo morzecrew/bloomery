@@ -1331,6 +1331,33 @@
   
   
     <li class="md-nav__item">
+      <a href="../trace-a-definition-over-time/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  Trace a definition over time
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../use-the-cli/" class="md-nav__link">
         
   
@@ -1842,11 +1869,15 @@ data. Two that differ mean something in the specs changed, and <code>plan()</cod
 <p><code>plan()</code> takes two IRs and does not care where either came from, so comparing two instants
 needs nothing beyond step 1 run twice.</p>
 <h2 id="labels-if-you-keep-several">Labels, if you keep several<a class="headerlink" href="#labels-if-you-keep-several" title="Permanent link">&para;</a></h2>
-<p>When you hold more than two of these, name them so they sort: <strong>ISO-8601</strong>, <code>2026-03-01</code>,
-not <code>march</code> or <code>old</code>. bloomery does not read your labels and will not sort them for you —
-that is deliberate, because sorting them means owning time zones, resolution and clock skew
-over data it did not produce. Lexicographic ISO dates give you the order for free, in
-whatever renders them.</p>
+<p>When you hold more than two of these, name them so they sort: <code>2026-03-01T00:00:00Z</code> —
+UTC, no offset, no fractional part — not <code>march</code> or <code>old</code>. bloomery does not read your
+labels and will not sort them for you; that is deliberate, because sorting them means owning
+time zones, resolution and clock skew over data it did not produce.</p>
+<p>Exactly that spelling, rather than "ISO-8601" at large: only the narrow form sorts
+lexicographically into chronological order, because <code>2026-03-01T00:00:00-01:00</code> sorts
+<em>before</em> <code>2026-03-01T00:00:00Z</code> and is an hour <em>later</em>. Holding several of these is also
+what <a href="../trace-a-definition-over-time/">trace a definition over time</a> is for, and it reads
+the same labels.</p>
 <h2 id="what-this-is-not">What this is not<a class="headerlink" href="#what-this-is-not" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Not time travel for the warehouse.</strong> You get March's definitions. What data they read is
