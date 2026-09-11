@@ -99,9 +99,26 @@ one, so adopting an id without renaming stays continuous — and adopting one *a
 the same version reads as a delete and an add, because nothing connects the two definitions
 at all.
 
-You can ask by either spelling. `timeline(history, "metric.gross_revenue")` reaches the
-versions after the metric minted an id, and `timeline(history, "metric.mtr_7f3a9c")` reaches
-the versions before it had one.
+### Ask by the spelling your oldest entry uses
+
+The node is found at the **first entry that carries the spelling you asked for**, and
+tracked forward from there. That is not symmetric, and the asymmetry is worth knowing before
+you read an answer:
+
+| You ask for | Across an adoption partway through |
+| --- | --- |
+| the **name** | spans it — the name is carried forward and each version translates it to whatever id it has |
+| the **id** | the versions *before* that id existed report `absent` |
+
+The walk reads your history once and in order, so it cannot attribute backwards: it has no
+way to know, at the first entry, that a spelling appearing three entries later belongs to
+the node it is looking at. The earliest entry it can answer about is the one where your
+spelling first appears.
+
+The same rule explains the other end. If your project adopted an `id:` *before* the window
+you are walking, `metric.gross_revenue` names no node in any of those versions and the whole
+timeline reads absent — ask `metric.mtr_7f3a9c` instead, which is also what `bloomery
+lineage` calls it.
 
 ## Naming your versions
 
