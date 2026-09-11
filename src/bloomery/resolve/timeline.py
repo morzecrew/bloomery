@@ -13,10 +13,16 @@ saw. **The labels are opaque** (D1) — carried into the result, rendered, and
 compared for nothing. Ordering by parsing them would make this project the
 owner of timezone and resolution semantics over data it did not produce.
 
-**P1 reports *that* a definition moved, never how.** ``facets`` is present and
-empty; the delta vocabulary is RFC 0064's and is deliberately not restated here
-(D3), because two tables describing one thing is drift this corpus has already
-paid for.
+**What moved is RFC 0064's vocabulary and is not restated here** (D3): a
+:class:`~bloomery.FacetDelta` comes from :mod:`bloomery.resolve.facets`, which
+owns the table, and this walk decides only *which* pairs of versions to ask it
+about. Two tables describing one delta is drift this corpus has already paid
+for.
+
+**The answer is the root's closure, not the root** (RFC 0064 D4). A metric
+whose own definition never moved still changes when a dimension beneath it is
+redefined, and reporting the named node alone is the narrow answer ``git log``
+already gives badly. Every change names the node it is about.
 """
 
 from __future__ import annotations
@@ -35,7 +41,9 @@ from bloomery.errors import InvariantViolated
 # `tests/unit/test_signature_closure.py` calls `get_type_hints` on every
 # export and a guarded name fails it.
 from bloomery.resolve.build import StageProgress, pipeline
-from bloomery.resolve.graph import NodeKind
+from bloomery.resolve.facets import FacetDelta, facets
+from bloomery.resolve.graph import Node, NodeKind
+from bloomery.resolve.lineage import Direction, lineage
 from bloomery.spec import Catalog, Project
 from bloomery.spec.project import node_keys
 from bloomery.steps import EMPTY_REGISTRY, StepRegistry
@@ -177,23 +185,35 @@ class TimelineChange:
     Emitted only between entries that are **adjacent and both present**: a gap
     is a delete and an add, not a change spanning it, so nothing here ever
     claims a definition moved across a version the node was missing from.
+
+    **Emitted only where a facet moved.** RFC 0064 §6's first test is that a
+    pure rename attributes nothing, and that is what makes it true: identity —
+    ``name``, ``ref``, ``id`` — belongs to no facet, so a node that was only
+    renamed crosses its boundary with nothing to report. Before the facets
+    existed this walk compared whole records and reported that rename as a
+    definition change (``logs/T-0045.md``).
     """
 
+    #: The node this change is about, spelled with the **name** the later
+    #: version gives it — ``metric.gross_revenue`` even where the graph calls
+    #: it ``metric.mtr_7f3a9c``.
+    #:
+    #: The name rather than the id because the id is what makes a node
+    #: *trackable* and the name is what makes it readable, and a node that
+    #: adopts an id partway through a history would otherwise change its
+    #: spelling mid-answer. It is usually the root and is not always: a change
+    #: anywhere on the root's dependency closure is reported here (RFC 0064
+    #: D4), which is the half that makes the answer correct rather than local.
+    node: str
     #: The label of the earlier of the two versions.
     before: str
     #: The label of the later one.
     after: str
     #: How this boundary was crossed (D12).
     matched_by: MatchedBy
-    #: What changed, in RFC 0064's vocabulary — **empty in P1** (D3, D13).
-    #:
-    #: Typed as ``object`` on purpose: the element type is RFC 0064's and
-    #: naming one here is exactly what D3 forbids, since two tables describing
-    #: one delta is the drift this corpus has paid for before. The field exists
-    #: from P1 rather than appearing in P2 so the JSON a consumer reads grows a
-    #: value instead of changing shape — §9 notes a UI pins this earlier than a
-    #: library usually wants.
-    facets: tuple[object, ...] = ()
+    #: What changed, in RFC 0064's vocabulary (D3) — never empty, because an
+    #: empty delta is not a change.
+    facets: tuple[FacetDelta, ...] = ()
 
 
 # ....................... #
@@ -219,7 +239,10 @@ class Timeline:
     node: str
     #: One per history entry, in the order supplied (D1, D13).
     entries: tuple[TimelineEntry, ...]
-    #: Between adjacent present entries only, in the same order.
+    #: Between adjacent present entries only, in the same order — and within
+    #: one boundary, sorted by the node each is about, since RFC 0064 D4 puts
+    #: the whole of the root's upstream closure in scope and a boundary can
+    #: therefore carry several.
     changes: tuple[TimelineChange, ...]
 
 
@@ -337,9 +360,10 @@ def _definition(kind: NodeKind, spelling: str, ir: ProjectIR, catalog: Catalog |
       canonical-field record anywhere in ``ProjectIR``; the field survives
       lowering only as ``ColumnIR.canonical``, a string reference. The spec
       model is the only record of one that exists, so it is what gets compared.
-      Its ``id`` is blanked first: RFC 0062's id is *identity*, not definition,
-      and leaving it in would make minting one read as a redefinition — which
-      no other kind does, because no other kind's record retains it.
+      It is the one kind whose record retains RFC 0062's ``id``, and minting
+      one is identity rather than redefinition — which is why the facet table
+      excludes ``id`` for every kind rather than this arm blanking it for the
+      only kind that has one (:data:`~bloomery.resolve.facets._IDENTITY`).
     - **source column** — **nothing**. A source column is a bronze path; it has
       no definition beyond its existence, and presence is the whole of what can
       change about it. Forced rather than chosen.
@@ -377,8 +401,7 @@ def _definition(kind: NodeKind, spelling: str, ir: ProjectIR, catalog: Catalog |
         case NodeKind.CANONICAL_FIELD:
             if catalog is None:  # pragma: no cover — no catalog, no canonical node
                 return None
-            field = catalog.canonical_fields.get(spelling)
-            return None if field is None else field.model_copy(update={"id": None})
+            return catalog.canonical_fields.get(spelling)
         case NodeKind.SOURCE_COLUMN:  # pragma: no branch — the table is total
             return None
 
@@ -418,14 +441,17 @@ def _compile(version: SpecVersion) -> tuple[Graph, ProjectIR]:
 
 def _locate(
     spelling: str,
-    kind: NodeKind,
-    graph: Graph,
+    present: frozenset[str],
     ids: dict[str, str],
     held: _Held | None,
 ) -> tuple[str, str | None] | None:
     """The node's authored name and adopted id in this version, or ``None``.
 
-    ``ids`` is this version's name-to-``id:`` map for the kind, from
+    ``present`` is the set of this kind's node ids **as this version spells
+    them**, minus their prefix — from the whole graph when the root is being
+    found, and from the root's closure for every other node, which is what
+    scopes a closure member to the versions the root actually depended on it
+    in. ``ids`` is this version's name-to-``id:`` map for the kind, from
     :func:`~bloomery.spec.project.node_keys` — the same map the graph built its
     node ids from.
 
@@ -438,9 +464,6 @@ def _locate(
     entry reads as a delete and an add.
     """
 
-    present = frozenset(
-        _kind_and_spelling(node.name)[1] for node in graph.nodes if node.kind is kind
-    )
     by_id = {adopted: name for name, adopted in ids.items()}
 
     if held is None:
@@ -474,6 +497,160 @@ def _locate(
 # ....................... #
 
 
+def _scope(nodes: tuple[Node, ...]) -> dict[NodeKind, frozenset[str]]:
+    """Per kind, the node ids ``nodes`` carries with their prefix removed.
+
+    One function for two callers with different sets: the whole graph, which is
+    where the root is found, and the root's upstream walk, which is where every
+    other node is tracked. Written once rather than twice because the two must
+    read a node id the same way or a node would be findable in one and not the
+    other.
+    """
+
+    spellings: dict[NodeKind, set[str]] = {}
+
+    for one in nodes:
+        spellings.setdefault(one.kind, set()).add(_kind_and_spelling(one.name)[1])
+
+    return {kind: frozenset(names) for kind, names in spellings.items()}
+
+
+# ....................... #
+
+
+#: The inverse of :data:`_KIND_BY_PREFIX`. An entity field has no prefix and so
+#: no row, which :func:`_node_id` reads as the identity.
+_PREFIX_BY_KIND: Final[dict[NodeKind, str]] = {
+    kind: prefix for prefix, kind in _KIND_BY_PREFIX.items()
+}
+
+
+def _node_id(kind: NodeKind, spelling: str) -> str:
+    """A node id from its kind and spelling — :func:`_kind_and_spelling`
+    backwards."""
+
+    prefix = _PREFIX_BY_KIND.get(kind)
+    return spelling if prefix is None else f"{prefix}.{spelling}"
+
+
+# ....................... #
+
+
+def _advance(
+    held: dict[tuple[NodeKind, str], _Held],
+    scope: dict[NodeKind, frozenset[str]],
+    ids: dict[NodeKind, dict[str, str]],
+    version: SpecVersion,
+    ir: ProjectIR,
+    index: int,
+) -> tuple[dict[tuple[NodeKind, str], _Held], list[TimelineChange]]:
+    """One version's closure, matched against the last one's.
+
+    Two passes and one rule. Every node held from before is looked for in this
+    version's scope by :func:`_locate` — the same identity rule the root uses,
+    not a second one, because a closure member is a node like any other and two
+    matching rules in one walk is a defect waiting for a fixture that tells
+    them apart. What the first pass did not claim is new: either the closure
+    grew or the node was added, and both start a hold at this index.
+
+    **A hold the first pass did not match is dropped, and the root's is not.**
+    The asymmetry is real and it is not observable, which is why it is written
+    down rather than removed: the root is *searched for* by the one spelling
+    the caller supplied, so clearing its identity would lose it across a rename
+    it was away for, while every other node is *enumerated* out of the scope
+    and is found again whatever it is called. A dropped hold could only differ
+    by emitting a change on its return, and the adjacency rule below forbids
+    that — the hold it would have carried is older than the previous index.
+
+    A change is emitted where the node was held at the **immediately** previous
+    index and a facet moved. Adjacency is the index rather than "the last time
+    we saw it" for the reason the root's own rule gives: a node absent from a
+    middle version was deleted and added, and one change spanning the gap would
+    claim a definition moved across a version it was not in. A closure member
+    is absent whenever the root stopped depending on it, which is the same
+    fact from the other end.
+    """
+
+    carried: dict[tuple[NodeKind, str], _Held] = {}
+    changes: list[TimelineChange] = []
+
+    # What the first pass matched, spelled as this version's graph spells it,
+    # so the second pass does not look a node up twice. **A cost guard, not a
+    # correctness one** — dropping it is behaviour-neutral, because the second
+    # pass would build an identical hold under the identical key and emits no
+    # change of its own. It is kept because the lookup it saves is
+    # `_definition`, which scans the IR once per node per version, and the
+    # sweep that diagnosed the mutant equivalent is the reason that is written
+    # here rather than discovered by the next reader (`logs/T-0045.md`).
+    claimed: set[tuple[NodeKind, str]] = set()
+
+    for (kind, _was_named), previous in held.items():
+        found = _locate(previous.name, scope.get(kind, frozenset()), ids.get(kind, {}), previous)
+
+        if found is None:
+            continue
+
+        name, node_id = found
+        claimed.add((kind, ids.get(kind, {}).get(name, name)))
+        definition = _definition(kind, name, ir, version.catalog)
+
+        if previous.index == index - 1:
+            moved = facets(previous.definition, definition)
+            if moved:
+                # D5/D12 stated once, here, rather than inferred from which
+                # branch of `_locate` fired: a pair matches by id only when
+                # both sides carry one, and the same id at that.
+                matched_by = (
+                    MatchedBy.ID
+                    if previous.node_id is not None and previous.node_id == node_id
+                    else MatchedBy.NAME
+                )
+                changes.append(
+                    TimelineChange(
+                        node=_node_id(kind, name),
+                        before=previous.label,
+                        after=version.label,
+                        matched_by=matched_by,
+                        facets=moved,
+                    )
+                )
+
+        carried[kind, name] = _Held(
+            index=index,
+            label=version.label,
+            name=name,
+            node_id=node_id,
+            definition=definition,
+        )
+
+    for kind, spellings in scope.items():
+        kind_ids = ids.get(kind, {})
+        by_id = {adopted: name for name, adopted in kind_ids.items()}
+
+        for spelling in sorted(spellings):
+            if (kind, spelling) in claimed:
+                continue
+
+            name = by_id.get(spelling, spelling)
+            carried[kind, name] = _Held(
+                index=index,
+                label=version.label,
+                name=name,
+                node_id=kind_ids.get(name),
+                definition=_definition(kind, name, ir, version.catalog),
+            )
+
+    # Sorted here rather than left in `held`'s insertion order, which carries
+    # across versions and would make one boundary's report depend on the order
+    # nodes entered the closure several versions earlier.
+    changes.sort(key=lambda one: one.node)
+
+    return carried, changes
+
+
+# ....................... #
+
+
 def timeline(history: Iterable[SpecVersion], node: str) -> Timeline:
     """The versions ``node`` had across ``history``, and what moved (§5.1).
 
@@ -493,51 +670,53 @@ def timeline(history: Iterable[SpecVersion], node: str) -> Timeline:
     version spells it. An id adopted partway through a history is matched from
     either side (D12), so asking by name reaches a node that has since minted
     an id, and asking by id reaches the versions before it existed.
+
+    **What comes back is the root's upstream closure** (RFC 0064 D4), each
+    change naming the node it is about. A metric whose own definition never
+    moved still changes when a dimension two hops beneath it is redefined, and
+    an answer about the named node alone is the one `git log` already gives
+    badly. :attr:`Timeline.entries` stays the *root's* presence: a closure
+    member joining or leaving the closure is the root's ``inputs`` moving, and
+    a second presence axis would answer a question nobody asked.
     """
 
     kind, spelling = _kind_and_spelling(node)
-    namespace = _ID_NAMESPACE.get(kind)
 
     entries: list[TimelineEntry] = []
     changes: list[TimelineChange] = []
-    held: _Held | None = None
+    held: dict[tuple[NodeKind, str], _Held] = {}
+    root_key: tuple[NodeKind, str] | None = None
 
     for index, version in enumerate(history):
         graph, ir = _compile(version)
-        ids = {} if namespace is None else node_keys(version.project, version.catalog)[namespace]
+        keys = node_keys(version.project, version.catalog)
+        ids = {kind_: keys[namespace] for kind_, namespace in _ID_NAMESPACE.items()}
+        kind_ids = ids.get(kind, {})
 
-        found = _locate(spelling, kind, graph, ids, held)
+        # The root is found against the *whole* graph, and everything else
+        # against its closure — which is why this lookup cannot be folded into
+        # `_advance`: there is no closure to search until the root is located,
+        # and a root outside its own graph has none at all.
+        found = _locate(
+            spelling,
+            _scope(graph.nodes).get(kind, frozenset()),
+            kind_ids,
+            None if root_key is None else held.get(root_key),
+        )
         entries.append(TimelineEntry(label=version.label, present=found is not None))
 
         if found is None:
+            # Every hold keeps its index, so nothing carries a change across
+            # this version — the root's own gap rule, applied to its closure
+            # by leaving the closure undefined rather than by clearing it.
             continue
 
-        name, node_id = found
-        definition = _definition(kind, name, ir, version.catalog)
+        name, _node_id_of_root = found
+        root = Node(kind=kind, name=_node_id(kind, kind_ids.get(name, name)))
+        scope = _scope(lineage(graph, root, Direction.UPSTREAM).nodes)
 
-        # Adjacency is the index, not "the last one we saw": a node missing
-        # from a middle entry is a delete and an add, and eliding to one change
-        # that spans the gap would report a definition moving across a version
-        # it was not in.
-        if held is not None and held.index == index - 1 and definition != held.definition:
-            # D5/D12 stated once, here, rather than inferred from which branch
-            # of `_locate` fired: a pair matches by id only when both sides
-            # carry one, and the same id at that.
-            matched_by = (
-                MatchedBy.ID
-                if held.node_id is not None and held.node_id == node_id
-                else MatchedBy.NAME
-            )
-            changes.append(
-                TimelineChange(before=held.label, after=version.label, matched_by=matched_by)
-            )
-
-        held = _Held(
-            index=index,
-            label=version.label,
-            name=name,
-            node_id=node_id,
-            definition=definition,
-        )
+        held, boundary = _advance(held, scope, ids, version, ir, index)
+        changes.extend(boundary)
+        root_key = (kind, name)
 
     return Timeline(node=node, entries=tuple(entries), changes=tuple(changes))

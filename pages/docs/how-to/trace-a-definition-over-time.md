@@ -5,8 +5,8 @@ its filter moved three weeks ago — and that is the other half of "why is this 
 different", asked about as often.
 
 `timeline()` answers it. You hand it the spec sets as they stood, oldest first, and it
-reports which versions carried the node and which pairs of versions its definition moved
-between.
+reports which versions carried the node, which pairs of versions something moved between,
+and what moved — named in the vocabulary your specs are written in.
 
 ```python
 timeline(history, "metric.gross_revenue")
@@ -52,8 +52,31 @@ for entry in walk.entries:
     print(entry.label, "present" if entry.present else "absent")
 
 for change in walk.changes:
-    print(f"{change.before} -> {change.after}  (matched by {change.matched_by})")
+    print(f"{change.before} -> {change.after}  {change.node}")
+    for delta in change.facets:
+        print(f"    {delta.facet}: {delta.field}  {delta.old} -> {delta.new}")
 ```
+
+which prints, in full, over the five-version project this documentation is built from:
+
+```text title="what it prints"
+v1 present
+v2 present
+v3 present
+v4 present
+v5 present
+v1 -> v2  order_item.unit_price
+    body: expr  shop__order_lines: CAST(price AS DECIMAL(10, 2)) -> shop__order_lines: CAST(price AS DECIMAL(12, 4))
+    unit: type  decimal(10,2) -> decimal(12,4)
+v3 -> v4  order_item.qty
+    metadata: renamed_from  quantity -> None
+v3 -> v4  order_item.unit_price
+    body: expr  shop__order_lines: CAST(price AS DECIMAL(12, 4)) -> shop__order_lines: CAST(total / qty AS DECIMAL(12, 4))
+    body: recipe_id  shop__order_lines: direct -> shop__order_lines: from_total
+```
+
+`gross_revenue` is what was asked for and it appears nowhere: its own definition is
+identical in all five versions, and every line above is a node beneath it.
 
 Every version is compiled, so a quarter of daily history is ninety compiles. The cost is
 yours and so is the choice: start coarse — one entry a month — and narrow only around the
@@ -75,8 +98,59 @@ March" is the answer, not a miss. A gap produces no change across it: the node w
 and then added, and calling that a change would claim a definition moved across a version it
 was not in.
 
-Today a change says *that* the definition moved, not how. Naming the facet that moved — the
-grain, the filter, the unit — is the next phase of this work.
+**Every change names the node it is about**, and it is often not the one you asked for —
+see [What moved, and where](#what-moved-and-where) below.
+
+## What moved, and where
+
+### The answer covers what the node is built from
+
+A metric whose own definition never moved still reports a different number when a dimension
+beneath it is redefined. So the walk covers the node's **upstream closure** — everything
+`lineage(..., direction="upstream")` reaches from it — and each change names the node it is
+about:
+
+```text
+v3 -> v4  order_item.unit_price
+    body: expr       shop__order_lines: CAST(price AS ...) -> shop__order_lines: CAST(total / qty AS ...)
+    body: recipe_id  shop__order_lines: direct -> shop__order_lines: from_total
+```
+
+`metric.gross_revenue` is what was asked for and its own record is identical in every
+version; the answer is two hops beneath it. Reporting only the node you named would be the
+narrow answer `git log` already gives.
+
+Upstream only, never downstream. A mart that carries your metric as a measure is not part of
+what the metric *is*, so a change to it is not an answer to why the metric moved — ask about
+the mart.
+
+### The facets
+
+`facets` is never empty: a change with nothing to report is not a change. Each entry names
+the facet, the field, and both values where a value has a short spelling.
+
+| Facet | What moved |
+| --- | --- |
+| `grain` | which rows the definition describes — the grain, the key, the dimensions a rollup keeps |
+| `filter` | a metric's declared filter |
+| `unit` | what a value is expressed in — its type, unit, tax basis, currency |
+| `inputs` | what it is wired to — the fields it reads, a mart's measures, a step's relations |
+| `body` | an expression or a recipe changed |
+| `additivity` | how values combine — the aggregate, the additivity class, the window, the ratio |
+| `quality` | which rows survive a rule — quality, dedupe, quarantine, asserts, `required` |
+| `storage` | materialization, partitioning |
+| `runtime` | what runs a step — its version, determinism, runtime lock, seed |
+| `metadata` | something a reader reads and no number depends on |
+
+`old` and `new` are `None` where the value has no short spelling — a mart's whole column
+list, say. The field name is the answer there; rendering a record list into a string would
+be the text diff this deliberately is not.
+
+**A rename is not a definition change.** A node whose only difference is what it is called
+crosses its boundary with nothing reported, because identity belongs to no facet. Renaming a
+metric *another* metric reads does move that other metric's `inputs`, though — what it reads
+is now spelled differently, and the walk reports what it sees rather than guessing that the
+two spellings are one thing.
 
 ## Renames, and why an `id:` pays here
 
@@ -152,6 +226,10 @@ these two", never "it changed in April". If you need the day, supply the days.
 moved; whether the number moved *because* of it is a question about rows, and this reads no
 rows.
 
-**It is one node, not a query over the graph.** "Every metric that changed in Q1" is a
-different question with a different cost. A loop over this function is the honest way to ask
-it today.
+**It is one node's closure, not a query over the graph.** "Every metric that changed in Q1"
+is a different question with a different cost. A loop over this function is the honest way to
+ask it today.
+
+**It does not say what a change means.** `additivity: additive -> semi_additive` says a
+property the compiler tracks moved. Whether that made a number wrong is a judgement about
+your business, and the facet is deliberately not worded as a verdict.
