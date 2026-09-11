@@ -74,6 +74,7 @@ from bloomery import (
     lineage,
     load_catalog,
     load_project,
+    node_labels,
     plan,
     project_fingerprint,
     resolve,
@@ -90,7 +91,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping as AbcMapping
     from collections.abc import Sequence
 
-    from bloomery import Catalog, Project, ProjectIR
+    from bloomery import Catalog, Lineage, Project, ProjectIR
 
 # ----------------------- #
 
@@ -215,9 +216,22 @@ def _compile(arguments: argparse.Namespace) -> int:
 
 
 def _plan(arguments: argparse.Namespace) -> int:
-    old = _load_ir(arguments.old, arguments.catalog)
-    new = _load_ir(arguments.new, arguments.catalog)
-    result = plan(old, new)
+    """``bloomery plan`` — the migration report for two spec directories.
+
+    Loads each side's `Project` rather than only its IR, because a node rename
+    is invisible in an IR: RFC 0062 P1 keeps the authored `id:` out of it, so
+    the identity `plan()` needs travels beside the IR as a label map
+    (`logs/T-0044.md`). A project that adopted no id passes two empty maps and
+    gets exactly the report it got before.
+    """
+    old_project, old_catalog = _load(arguments.old, arguments.catalog)
+    new_project, new_catalog = _load(arguments.new, arguments.catalog)
+    result = plan(
+        build_project_ir(old_project, catalog=old_catalog),
+        build_project_ir(new_project, catalog=new_catalog),
+        old_labels=node_labels(old_project, old_catalog),
+        new_labels=node_labels(new_project, new_catalog),
+    )
 
     if arguments.format == "json":
         _emit(result, as_json=True)
@@ -338,13 +352,42 @@ def _lineage(arguments: argparse.Namespace) -> int:
         Direction(arguments.direction),
         max_depth=arguments.max_depth,
     )
+    labels = node_labels(project, catalog)
 
     if arguments.format == "json":
-        _emit(walk, as_json=True)
+        _emit(_lineage_payload(walk, labels), as_json=True)
     else:
-        _emit(render.render_lineage(walk), as_json=False)
+        _emit(render.render_lineage(walk, labels), as_json=False)
 
     return EXIT_OK
+
+
+# ....................... #
+
+
+def _lineage_payload(walk: Lineage, labels: AbcMapping[str, str]) -> dict[str, object]:
+    """The walk as JSON, plus the labels (RFC 0062 §5.4).
+
+    Every field of :class:`~bloomery.Lineage` under the key it already had, and
+    one more: a script that keyed on ``nodes[i].name`` before keeps working,
+    and one that wants to *show* a node now has the name to show. Built field
+    by field rather than by dumping the value and merging, so
+    ``test_the_lineage_payload_is_the_whole_walk`` can hold this against
+    ``Lineage``'s own fields and fail when one is added rather than dropping it
+    silently.
+
+    ``labels`` is empty for a project that adopted no id, and an empty object
+    is the honest answer there: every node id is already its name.
+    """
+
+    return {
+        "root": walk.root,
+        "direction": walk.direction,
+        "nodes": walk.nodes,
+        "edges": walk.edges,
+        "truncated": walk.truncated,
+        "labels": dict(labels),
+    }
 
 
 # ....................... #
