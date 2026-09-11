@@ -1,0 +1,19 @@
+{
+  "id": "T-0042",
+  "spec": "rfcs/0068-caller-assembled-spec-history.md",
+  "phase": "One change: the rejection (landed), the test pinning the strings-in entry point, and the how-to.",
+  "decisions": [
+    {"id": "RFC 0068 D1", "grade": "LOCKED",
+     "paths": ["src/bloomery/spec/project.py", "src/bloomery/cli/io.py"]},
+    {"id": "RFC 0068 D2", "grade": "LOCKED",
+     "paths": ["src/bloomery/cli/__init__.py"]},
+    {"id": "RFC 0068 D3", "grade": "LOCKED",
+     "paths": ["rfcs/INDEX.md", "rfcs/RETIRED.md"]},
+    {"id": "RFC 0068 D4", "grade": "ASSUMED",
+     "paths": ["tests/unit/**"]},
+    {"id": "RFC 0068 D5", "grade": "ASSUMED",
+     "paths": ["pages/docs/how-to/**"]},
+    {"id": "RFC 0068 D6", "grade": "OPEN",
+     "paths": ["examples/**"]}
+  ]
+}

@@ -132,3 +132,50 @@ def test_every_extracted_page_and_document_exists() -> None:
     for page, _title, document in EXTRACTED:
         assert (DOCS / page).is_file(), page
         assert (FIXTURES / document).is_file(), document
+
+
+# ....................... #
+# A snippet that claims to run must run (RFC 0068 §6)
+
+
+def test_the_reproduce_recipe_actually_runs() -> None:
+    """The how-to's compile block is executed, not read.
+
+    RFC 0068 §6 asks only that the block be "checked against the library's
+    actual signatures". Executing it is strictly stronger — it catches a wrong
+    keyword *and* a recipe that stopped working — and it is affordable only
+    because the page splits fetching from compiling: the fetch half is a `git
+    show` or a `SELECT`, chosen per store and unrunnable here, while the
+    compile half is self-contained (logs/T-0042.md).
+
+    This is the page a reader opens mid-incident. A recipe that has drifted is
+    worse there than anywhere else, because the reader has no attention left to
+    debug it.
+    """
+    from bloomery.cli import io  # noqa: PLC0415 — the CLI's door, standing in for the caller's store
+
+    sources, catalog_text = io.read_spec_directory(str(FIXTURES / "ecom_basic"))
+    block = _fenced(DOCS / "how-to" / "reproduce-a-past-artifact-set.md", "reproduce.py")
+
+    # `sources` and `catalog_text` are what step 1 of the page returns; the
+    # block is run exactly as printed, with nothing else in scope.
+    scope: dict[str, object] = {"sources": sources, "catalog_text": catalog_text}
+    exec(compile(block, "reproduce.py", "exec"), scope)  # noqa: S102 — the page's own text is the fixture
+
+    artifacts = scope["artifacts"]
+    assert artifacts, "the page's recipe compiled nothing"
+
+
+def test_the_recipe_check_can_actually_fail() -> None:
+    """The control for the test above, in the shape this file already uses.
+
+    A recipe drifting from the API raises rather than returning something
+    wrong, so the guard is only worth having if a broken block is seen as
+    broken — asserted against a keyword the signature does not have, which is
+    the failure the check exists for.
+    """
+    broken = "from bloomery import load_project\nload_project(specs=sources)\n"
+
+    with pytest.raises(TypeError):
+        exec(compile(broken, "broken.py", "exec"), {"sources": {}})  # noqa: S102
+
