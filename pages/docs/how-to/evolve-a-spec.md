@@ -33,7 +33,7 @@ Every diffable difference maps to exactly one `ChangeClass`:
 |---|---|---|
 | `ADDITIVE` | Nothing existing moves | A new optional `discount` column; a new metric |
 | `WIDENING` | Type widened per the assignability lattice | `unit_price: decimal(10,2)` → `decimal(12,4)` |
-| `RENAME` | Identity preserved via explicit annotation | `quantity` → `qty` with `renamed_from: quantity` |
+| `RENAME` | Identity preserved by a declaration | a field's `renamed_from: quantity`; a metric whose [`id:`](trace-lineage.md#identity-when-the-name-is-not-it) is on both sides |
 | `RESTATING` | Same shape, different meaning | `unit_price` switches recipe from `direct` to `from_total` — history must be recomputed |
 | `BREAKING` | Drop / narrow / grain / key / SCD change | A metric removed; `scd: type1` → `type2` |
 
@@ -62,6 +62,65 @@ qty: {type: int, canonical: quantity, renamed_from: quantity}
 The annotation is one-shot: land it, apply the migration, then remove it in the next
 version. A stale annotation — one whose old name never existed in the old IR — raises
 `RenameTargetMissing`, because it can no longer mean anything.
+
+## Rename a metric with `id:`
+
+`renamed_from` names a *field* inside its entity. A **metric** is a node, and a node's
+identity is the [`id:`](trace-lineage.md#identity-when-the-name-is-not-it) it was minted
+with — so the declaration is already there, and nothing has to be added at rename time:
+
+```yaml
+metrics:
+  revenue_gross:            # was gross_revenue
+    id: mtr_7f3a9c          # unchanged, and that is the whole declaration
+```
+
+`plan()` needs the ids to see it, and they are not in the IR — an `id:` is substituted
+into node ids and never lowered, so that a project adopting none compiles byte for byte.
+Hand them over beside the IRs:
+
+```python title="rename.py"
+from bloomery import build_project_ir, load_catalog, load_project, node_labels, plan
+
+# Each side is a whole version — its documents *and* its catalog. A metric
+# defined by a template lives in the catalog, so a rename can move text there
+# too, and one catalog read for both sides would describe neither.
+old_project, old_catalog = load_project(old_sources), load_catalog(old_catalog_text)
+new_project, new_catalog = load_project(new_sources), load_catalog(new_catalog_text)
+
+migration = plan(
+    build_project_ir(old_project, catalog=old_catalog),
+    build_project_ir(new_project, catalog=new_catalog),
+    old_labels=node_labels(old_project, old_catalog),
+    new_labels=node_labels(new_project, new_catalog),
+)
+```
+
+`bloomery plan old/ new/` does this for you. Pass no labels and you get the report you
+got before — a deletion and an addition — which is what keeps adopting an `id:` free.
+
+The report is then one change instead of five:
+
+```text
+rename     metric:revenue_gross  renamed from 'gross_revenue'
+
+Renamed — what cited the old name
+  metric:revenue_gross  exposure:weekly_revenue_review, mart:order_items, metric:average_order_value
+```
+
+**A rename is not a restatement.** Every number the metric reported still means what it
+meant, so there is no backfill and `restates_history` stays false. What a rename *does*
+break is everything that spells the old name, and that is the list rather than a
+severity: each of those documents has to be edited, and none of their figures moved.
+
+Two limits worth knowing:
+
+- **Both sides must carry the same `id:`.** Minting one only on the new side is a
+  deletion and an addition, and correctly so — nothing connects the two definitions.
+  Identity is declared here, never guessed from shape.
+- **Metrics and steps only.** A renamed canonical field still reads as a drop plus an
+  add: `plan()` diffs the IR, and the IR keeps no canonical-field record — the field
+  survives lowering as a string reference on the columns that link to it.
 
 ## The expand/contract refusal
 

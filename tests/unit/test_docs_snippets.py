@@ -190,6 +190,45 @@ def test_the_timeline_recipe_actually_runs() -> None:
     assert [entry.label for entry in walk.entries] == [f"v{step}" for step in range(1, 6)]
 
 
+def test_the_rename_recipe_actually_runs() -> None:
+    """The rename how-to's block is executed against a real pair (RFC 0062 §7).
+
+    It is the block most worth running of the three: it names five symbols and
+    two keyword arguments, one of which — the label maps — exists precisely
+    because the obvious call does not see a rename at all. A reader who copies
+    it and gets a deletion and an addition has been told the feature does not
+    work.
+    """
+    import re  # noqa: PLC0415
+
+    from bloomery.cli import io  # noqa: PLC0415 — the CLI's door, standing in for the caller's store
+
+    old_sources, catalog_text = io.read_spec_directory(str(FIXTURES / "ecom_basic"))
+    old_sources = {
+        **old_sources,
+        "metrics": old_sources["metrics"].replace(
+            "  gross_revenue:\n", "  gross_revenue:\n    id: mtr_7f3a9c\n", 1
+        ),
+    }
+    pattern = re.compile(r"\bgross_revenue\b")
+    new_sources = {name: pattern.sub("revenue_gross", text) for name, text in old_sources.items()}
+    assert catalog_text is not None
+
+    block = _fenced(DOCS / "how-to" / "evolve-a-spec.md", "rename.py")
+    scope: dict[str, object] = {
+        "old_sources": old_sources,
+        "new_sources": new_sources,
+        "old_catalog_text": catalog_text,
+        "new_catalog_text": pattern.sub("revenue_gross", catalog_text),
+    }
+    exec(compile(block, "rename.py", "exec"), scope)  # noqa: S102 — the page's own text is the fixture
+
+    migration = scope["migration"]
+    assert [(c.change_class.value, c.subject) for c in migration.changes] == [
+        ("rename", "metric:revenue_gross")
+    ]
+
+
 def test_the_recipe_check_can_actually_fail() -> None:
     """The control for the test above, in the shape this file already uses.
 

@@ -124,6 +124,28 @@ Three things are worth knowing before you adopt it:
 - **Adopting nothing costs nothing.** A project with no `id:` anywhere gets exactly the
   ids and exactly the artifacts it gets today.
 
+**You ask by the id and read the name.** `--node` takes `metric.mtr_7f3a9c`, because that
+is what the graph calls the node; the printed walk shows `metric.gross_revenue`, because an
+opaque key is not what a name is for. `--format json` carries both — the nodes keep their
+ids and a `labels` object maps each to its readable spelling, so a script that keys on ids
+is untouched and one that renders a graph has something to render:
+
+```console
+$ bloomery lineage specs/ --node metric.mtr_7f3a9c --format json
+{
+  "labels": {"metric.mtr_7f3a9c": "metric.gross_revenue"},
+  "nodes": [{"kind": "metric", "name": "metric.mtr_7f3a9c"}, ...]
+}
+```
+
+A did-you-mean is the exception and deliberately so: a suggestion exists to be retyped, so
+it comes back as the id `--node` accepts rather than as the name the walk prints.
+
+Where the ids pay is across versions: [renaming a metric](evolve-a-spec.md#rename-a-metric-with-id)
+becomes one change in `plan()` instead of a deletion and an addition, and
+[a definition's timeline](trace-a-definition-over-time.md) keeps one node across the
+boundary instead of showing a delete and an add.
+
 ## It returns a sub-DAG, not paths
 
 `Lineage.nodes` carries each node **once**, however many ways it is reachable, and

@@ -5,11 +5,16 @@
   byte-exact opt-out ([`logs/T-0032.md`](../logs/T-0032.md)). D6 is settled there — a
   write-once `id:`, because RFC 0063 reads history backwards and an annotation only exists
   in the current spec — and D4 too: partial adoption is allowed and only a collision is
-  refused. **P2 (`plan()`'s second `RENAME` producer) and P3 (`lineage` and `explain`
-  carrying both id and name) are unscheduled** and are what hold this document open.
-  Execution's findings and the rows it proposes are in the same log; nothing below has been
-  amended to agree with what was built — §9's "until `check` lands" reads as written, and
-  the log records that `check` turned out not to be a place checks live.
+  refused. **P2 and P3 have landed** ([`logs/T-0044.md`](../logs/T-0044.md)): a metric or
+  step whose id is on both sides under different names is one `RENAME` carrying the list of
+  what cited the old name, and `lineage` prints the name while `--format json` carries both.
+  **The `explain` half of §5.4 is struck** — `Explanation` holds no node id and is built
+  from the IR, which holds none either — and P2 reaches **metric and step renames only**,
+  because `plan()` has no canonical-field pass and cannot have one. What holds this
+  document open now is the four rows execution proposes in that log, which are the author's
+  to accept. Execution's findings are in both logs; nothing below has been amended to agree
+  with what was built — §9's "until `check` lands" reads as written, and the log records
+  that `check` turned out not to be a place checks live.
 - **Scope:** A stable identifier on every node kind in `NODE_ID_PREFIXES`, minted once and
   never derived from the name, with the name demoted to a display label. One optional spec
   field, one change to node-id construction, one widened classification in `plan()`. No
