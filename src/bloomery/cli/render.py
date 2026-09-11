@@ -26,7 +26,15 @@ from bloomery import Direction, EvidenceGrade, Stage
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from bloomery import Lineage, OpenDecision, Plan, SemanticPlan, SpecEvidence, UnreachableMetric
+    from bloomery import (
+        Lineage,
+        OpenDecision,
+        Plan,
+        SemanticPlan,
+        SpecEvidence,
+        Timeline,
+        UnreachableMetric,
+    )
     from bloomery.errors import BloomeryError
 
 # ----------------------- #
@@ -37,6 +45,7 @@ __all__ = [
     "render_evidence_grades",
     "render_lineage",
     "render_plan",
+    "render_timeline",
 ]
 
 #: A project that adopted no `id:` has no label to print, and every lookup
@@ -489,5 +498,80 @@ def render_lineage(walk: Lineage, labels: Mapping[str, str] = _NO_LABELS) -> str
     if walk.truncated:
         lines.append("")
         lines.append("  truncated: --max-depth stopped the walk; there is more beyond this")
+
+    return "\n".join(lines)
+
+
+# ....................... #
+
+
+def render_timeline(walk: Timeline) -> str:
+    """``bloomery timeline``'s human output: the versions, then what moved.
+
+    Two blocks, because the value answers two questions and a reader arrives
+    with one of them. **Which versions carried this** is the entries, one line
+    each in the order supplied — never sorted, because RFC 0069 D1 says this
+    project does not read a label, and sorting them would be reading them.
+    **What moved** is the changes, each naming the node it is about.
+
+    The node ids are printed as they arrive. A change already carries the
+    *name* spelling of the node it names, and the heading is the spelling the
+    reader typed — relabelling that would answer a question they did not ask,
+    and there are N versions here, each with its own label map.
+
+    **A timeline with no changes prints that it has none**, for the reason
+    :func:`render_lineage` prints an empty walk: "this has not moved since
+    March" is the answer a reader came for at least as often as the other, and
+    an empty stdout reads as a command that failed. Which of the three reasons
+    it has none is stated, because "nothing moved" and "there was nothing to
+    compare" are different facts and only one of them is about the node.
+    """
+
+    versions = len(walk.entries)
+    changes = len(walk.changes)
+    present = sum(1 for entry in walk.entries if entry.present)
+    counted = (
+        f"{versions} version{'' if versions == 1 else 's'},"
+        f" {changes} change{'' if changes == 1 else 's'}"
+    )
+    lines = [f"{walk.node}  ({counted})", ""]
+
+    lines.extend(
+        _table([(entry.label, "present" if entry.present else "absent") for entry in walk.entries])
+    )
+
+    if not walk.changes:
+        lines.append("")
+        if present == 0:
+            # Absent everywhere is the command's refusal rather than a
+            # rendering — but this function is public and a caller can build
+            # the value, so it says what it sees rather than claiming nothing
+            # moved about a node that was never there.
+            lines.append("  this node is in none of these versions")
+        elif present == 1:
+            lines.append("  one version carries this node — there is nothing to compare it to")
+        else:
+            lines.append("  no definition change across these versions")
+        return "\n".join(lines)
+
+    lines.append("")
+
+    for change in walk.changes:
+        lines.append(f"  {change.before} -> {change.after}  {change.node}  ({change.matched_by})")
+        lines.extend(
+            _table(
+                [
+                    (
+                        delta.facet.value,
+                        delta.field,
+                        "" if delta.old is None else delta.old,
+                        "->",
+                        "" if delta.new is None else delta.new,
+                    )
+                    for delta in change.facets
+                ],
+                indent="      ",
+            )
+        )
 
     return "\n".join(lines)

@@ -86,6 +86,45 @@ If a version's project wires steps, hand over the registry that was in force wit
 `SpecVersion(label=..., project=..., catalog=..., steps=registry)`. Without it that version
 is refused rather than guessed at, exactly as an ordinary compile is.
 
+## From the command line
+
+Everything above is also one command, which takes the directories positionally the way
+`plan` takes two:
+
+```bash
+bloomery timeline q1/ q2/ q3/ --node metric.gross_revenue
+```
+
+It prints the versions, then what moved:
+
+```text
+metric.gross_revenue  (3 versions, 1 change)
+
+  q1/  present
+  q2/  present
+  q3/  present
+
+  q1/ -> q2/  order_item.unit_price  (name)
+      body  expr  CAST(price AS DECIMAL(10, 2))  ->  CAST(price AS DECIMAL(12, 4))
+      unit  type  decimal(10,2)                  ->  decimal(12,4)
+```
+
+One line per version, then one block per change: which two versions it sits between, which
+node moved, how the two were matched, and a row per facet. A facet whose value has no short
+spelling — a filter is a list of records — prints the field and stops.
+
+The label of each version is **the directory string as you typed it** — not resolved, not
+shortened, not sorted. Name your directories so the order you want falls out of a glob and
+`bloomery timeline history/*/ --node ...` does the rest.
+
+`--format json` emits the value this page's Python returns, whole, facets included — that
+is the shape a UI reads.
+
+Two things the command cannot do that the Python API can. It passes no step registry, so a
+project wiring `steps:` is refused exactly as `bloomery compile` refuses it. And it reads
+directories, so a history that lives in git revisions or a table is one you assemble in
+Python.
+
 ## Reading the answer
 
 **`entries` has one row per version you supplied**, present or absent. An absence keeps its
