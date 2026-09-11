@@ -1,8 +1,10 @@
 # RFC 0064 — Definition supersession and change attribution
 
-- **Status:** 📝 Draft — depends on [RFC 0062](0062-stable-node-identity.md) for identity
-  and [RFC 0063](0063-as-of-compile.md) for the two spec sets it compares. Last of the
-  three-document history sequence.
+- **Status:** 📝 Draft — depends on [RFC 0062](0062-stable-node-identity.md) for identity,
+  and on having two spec sets to compare. RFC 0063 was where those were to come from; it
+  was rejected and retired at `074a571`, and [RFC 0068](0068-caller-assembled-spec-history.md)
+  puts the caller in charge of assembling them instead — which changes where the pair comes
+  from and nothing about the pair. Last of the three-document history sequence.
 - **Scope:** A `supersedes` edge between two versions of the same node, and the command that
   reads it: given a metric and two instants, state what about its definition changed and what
   that reaches. One new edge kind in the lineage graph, one new command surface. No spec
