@@ -1962,13 +1962,19 @@ replaced.</p>
 <p>The default is <code>assumed</code>, which is what every project does today — leaving the key out is
 byte-for-byte the same as writing it. There is no <code>open</code>: that would mean "accept
 anything", which is the absence of the annotation rather than a third setting.</p>
-<p>When a premise is weaker than the mart asked for, the refusal names the consumer, the
-measure, the fact, and how the compiler got it:</p>
-<div class="highlight"><pre><span></span><code>mart 'statutory_revenue' requires 'locked'; measure 'net_revenue' rests on column
-'customer_tier', whose derivation is derived — the compiler reached it by 'transitive'
-rather than from anything an author wrote (RFC 0065 §5.1). Fix: declare the relationship
-that carries 'customer_tier', or set 'requires_evidence: assumed' on this mart
+<p>When a premise is weaker than the mart asked for, the refusal names the consumer, its
+measures, the column, and how the compiler reached it:</p>
+<div class="highlight"><pre><span></span><code>mart 'statutory_revenue' requires 'locked'; its measures ('net_revenue') rest on column
+'customer_tier', which the compiler reached by '&lt;basis&gt;' rather than from anything an
+author wrote (RFC 0065 §5.1). Fix: declare the relationship that carries
+'customer_tier', or set 'requires_evidence: assumed' on this mart
 </code></pre></div>
+<p><strong>No project reaches that refusal today</strong>, which is why the basis above is a placeholder
+rather than a name you could grep for. Every way the compiler currently believes a
+dependency is something an author declared, or follows necessarily from one — an entity's
+key determining its own columns is the second kind. A weaker premise arrives when facts
+start coming from <em>another</em> project's artifacts, and the requirement is here first so a
+mart can be strict before there is anything to be strict about.</p>
 <p><strong>Use it on few marts.</strong> A finance mart feeding a statutory report is the case it exists
 for: someone signs that number, and "the compiler worked it out" is not an answer they can
 give a regulator. An exploration mart is the counter-example — it wants whatever compiles,
