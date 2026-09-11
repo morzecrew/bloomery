@@ -950,3 +950,20 @@ def test_a_node_that_left_the_closure_carries_no_change_across_the_gap() -> None
 
     assert [entry.present for entry in walk.entries] == [False, False, True, True, False]
     assert {(change.before, change.after) for change in walk.changes} == {("v3", "v4")}
+
+
+def test_the_same_history_walked_twice_answers_identically() -> None:
+    """RFC 0064 §6's last test: the version graph is derived per invocation and
+    persisted nowhere (D5).
+
+    Written as *equality of two answers* rather than as "no file was written",
+    because the second is what a reader would check and the first is what would
+    actually break. A cache keyed wrongly, a held map leaking across calls, a
+    set iterated into the output — each of them produces two different answers
+    from one history, and none of them writes a file.
+    """
+    once = timeline(evolution(), "metric.gross_revenue")
+    again = timeline(evolution(), "metric.gross_revenue")
+
+    assert once == again
+    assert attributed(once) == attributed(again)

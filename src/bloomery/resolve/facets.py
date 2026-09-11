@@ -259,7 +259,7 @@ def _render(value: object) -> str | None:
             return value.sql
         case str():
             # `StrEnum` lands here too, and `str()` is what makes the member
-            # its declared spelling rather than `Unit.MINOR`.
+            # its declared spelling — `currency` rather than `Unit.CURRENCY`.
             return str(value)
         case bool() | int() | Decimal():
             return str(value)

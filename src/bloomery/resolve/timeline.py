@@ -553,6 +553,15 @@ def _advance(
     them apart. What the first pass did not claim is new: either the closure
     grew or the node was added, and both start a hold at this index.
 
+    **A hold the first pass did not match is dropped, and the root's is not.**
+    The asymmetry is real and it is not observable, which is why it is written
+    down rather than removed: the root is *searched for* by the one spelling
+    the caller supplied, so clearing its identity would lose it across a rename
+    it was away for, while every other node is *enumerated* out of the scope
+    and is found again whatever it is called. A dropped hold could only differ
+    by emitting a change on its return, and the adjacency rule below forbids
+    that — the hold it would have carried is older than the previous index.
+
     A change is emitted where the node was held at the **immediately** previous
     index and a facet moved. Adjacency is the index rather than "the last time
     we saw it" for the reason the root's own rule gives: a node absent from a
