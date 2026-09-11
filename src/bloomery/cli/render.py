@@ -15,7 +15,8 @@ from __future__ import annotations
 
 import textwrap
 from collections import Counter
-from typing import TYPE_CHECKING
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Final
 
 # At run time because :func:`render_evidence` compares against ``COMPLETE``:
 # the stage decides whether the counts below it are totals or a prefix, which
@@ -23,7 +24,7 @@ from typing import TYPE_CHECKING
 from bloomery import Direction, EvidenceGrade, Stage
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from bloomery import Lineage, OpenDecision, Plan, SemanticPlan, SpecEvidence, UnreachableMetric
     from bloomery.errors import BloomeryError
@@ -37,6 +38,10 @@ __all__ = [
     "render_lineage",
     "render_plan",
 ]
+
+#: A project that adopted no `id:` has no label to print, and every lookup
+#: falls through to the node id — which is then the name (RFC 0062 D3).
+_NO_LABELS: Final[Mapping[str, str]] = MappingProxyType({})
 
 
 def _table(rows: Sequence[tuple[str, ...]], *, indent: str = "  ") -> list[str]:
@@ -380,6 +385,19 @@ def render_plan(plan: Plan) -> str:
         lines.append("Downstream metrics")
         lines.extend(_table([(name,) for name in plan.downstream_impact]))
 
+    cited = [
+        (change.subject, ", ".join(change.citations)) for change in plan.changes if change.citations
+    ]
+
+    if cited:
+        lines.append("")
+        # Its own section rather than a wider `detail` column: a rename's
+        # citation list is as long as the project makes it, and a table cell
+        # that grows with the project takes every other row's alignment with
+        # it (RFC 0062 §5.3).
+        lines.append("Renamed — what cited the old name")
+        lines.extend(_table(cited))
+
     # Last, because it is the section a reader acts on rather than reads:
     # everything above says what changes, and this says who to tell.
     if plan.affected_exposures:
@@ -393,8 +411,16 @@ def render_plan(plan: Plan) -> str:
 # ....................... #
 
 
-def render_lineage(walk: Lineage) -> str:
+def render_lineage(walk: Lineage, labels: Mapping[str, str] = _NO_LABELS) -> str:
     """``bloomery lineage``'s human output: a deterministic **edge list**.
+
+    ``labels`` is :func:`~bloomery.node_labels` for the project walked, and
+    every id is printed through it (RFC 0062 §5.4): a reader sees
+    ``metric.gross_revenue`` where the project adopted ``id: mtr_7f3a9c``,
+    because the name is what a person reads and the id is what a script keys
+    on. ``--format json`` carries both, so nothing is lost by not printing it
+    here. A project that adopted no id passes an empty map and every lookup
+    falls through to the id, which is the name.
 
     One line per edge, in :attr:`Lineage.edges` order, aligned on the widest
     source. Not a tree — RFC 0031 D1 returns a sub-DAG, and a tree cannot draw
@@ -422,7 +448,7 @@ def render_lineage(walk: Lineage) -> str:
     ``truncated`` is stated whenever it is set, because a bounded answer that
     does not say it is bounded is the failure RFC 0022 D5 names.
     """
-    heading = f"{walk.root.name}  ({walk.direction.value})"
+    heading = f"{labels.get(walk.root.name, walk.root.name)}  ({walk.direction.value})"
 
     if not walk.edges:
         if walk.direction is Direction.BOTH:
@@ -448,7 +474,16 @@ def render_lineage(walk: Lineage) -> str:
 
     lines = [
         heading,
-        *_table([(edge.src.name, f"--{edge.label}-->", edge.dst.name) for edge in walk.edges]),
+        *_table(
+            [
+                (
+                    labels.get(edge.src.name, edge.src.name),
+                    f"--{edge.label}-->",
+                    labels.get(edge.dst.name, edge.dst.name),
+                )
+                for edge in walk.edges
+            ]
+        ),
     ]
 
     if walk.truncated:

@@ -867,7 +867,7 @@ def test_an_unlistable_directory_is_a_usage_error(tmp_path: Path) -> None:
     if os.geteuid() == 0:  # pragma: no cover — CI runs unprivileged
         pytest.skip("root ignores the permission bits this test sets")
     directory = tmp_path / "specs"
-    directory.mkdir()
+    directory.mkdir(parents=True)
     (directory / "entity_model.yaml").write_text("spec_version: 1\n")
     directory.chmod(0o000)
     try:
@@ -1036,7 +1036,17 @@ def test_lineage_both_merges_the_two_walks(capsys: pytest.CaptureFixture[str]) -
 
 
 def test_lineage_json_matches_the_python_call(capsys: pytest.CaptureFixture[str]) -> None:
-    """The JSON surface is the value, not a rendering of it."""
+    """The JSON surface is the value, not a rendering of it — **plus** the one
+    thing the value cannot hold.
+
+    `labels` is a property of the *project*, not of the walk: a `Lineage`
+    carries `Node`s, and a name on one would make two nodes of the same id
+    unequal and reach `Graph`'s sort and `topo_order` (RFC 0062 §5.4,
+    `logs/T-0044.md`). So it rides beside the value rather than inside it, and
+    the promise this test exists for is unchanged in the direction that
+    matters: every field the Python call returns is here, under the key it
+    already had. A script reading `nodes[i].name` is untouched.
+    """
     project, catalog = load_fixture("ecom_basic")
     resolution = bloomery.resolve(project, catalog)
     expected = as_json_value(
@@ -1046,10 +1056,11 @@ def test_lineage_json_matches_the_python_call(capsys: pytest.CaptureFixture[str]
             bloomery.Direction.UPSTREAM,
         )
     )
-    assert (
-        _json(capsys, "lineage", ECOM, "--node", "metric.gross_revenue", "--format", "json")
-        == expected
-    )
+    payload = _json(capsys, "lineage", ECOM, "--node", "metric.gross_revenue", "--format", "json")
+
+    # `ecom_basic` adopts no `id:`, so there is nothing to label and the empty
+    # object is the honest answer: every node id there is already its name.
+    assert payload == {**expected, "labels": {}}
 
 
 def test_lineage_json_downstream_carries_the_exposure(
@@ -1938,3 +1949,137 @@ def test_a_fact_reached_only_through_a_premise_is_still_listed() -> None:
 
 def _judgement(name: str) -> SemanticJudgement:
     return SemanticJudgement("SafeRollup", (("of", name),))
+
+
+# ....................... #
+# Node identity on the surfaces a person and a script read (RFC 0062 P3, §5.4)
+
+
+def _adopted(tmp_path: Path, *, metric: str = "gross_revenue", mint: str = "mtr_7f3a9c") -> str:
+    """`ecom_basic` on disk with one metric carrying an `id:`."""
+    directory = tmp_path / "specs"
+    directory.mkdir(parents=True)
+
+    for path in (FIXTURES / "ecom_basic").glob("*.yaml"):
+        text = path.read_text()
+        if path.stem == "metrics":
+            anchor = f"  {metric}:\n"
+            assert anchor in text
+            text = text.replace(anchor, f"{anchor}    id: {mint}\n", 1)
+        (directory / path.name).write_text(text)
+
+    return str(directory)
+
+
+def test_lineage_prints_the_name_where_the_project_adopted_an_id(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """§5.4: a reader sees `gross_revenue`, a script keys on `mtr_7f3a9c`.
+
+    The node is *asked for* by id, because the id is what the graph calls it —
+    and answered in names, because an opaque key is not what the name is for.
+    """
+    directory = _adopted(tmp_path)
+    code, out, err = run(capsys, "lineage", directory, "--node", "metric.mtr_7f3a9c")
+
+    assert code == EXIT_OK, err
+    assert "metric.gross_revenue" in out
+    assert "mtr_7f3a9c" not in out
+
+    # From `average_order_value`, which composes it, so the adopted node is a
+    # *source* rather than the root or a destination. An upstream walk from the
+    # node itself never puts it in the left-hand column, so rendering only one
+    # side of an edge reads identically there — and did, until this second walk.
+    code, out, err = run(capsys, "lineage", directory, "--node", "metric.average_order_value")
+
+    assert code == EXIT_OK, err
+    assert "metric.gross_revenue" in out
+    assert "mtr_7f3a9c" not in out
+
+
+def test_lineage_json_carries_the_labels(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The machine half of the same sentence. The ids are where they were, and
+    the names ride beside them — so a consumer that renders a graph has
+    something to render, and one that keys on ids is untouched."""
+
+    payload = _json(
+        capsys,
+        "lineage",
+        _adopted(tmp_path),
+        "--node",
+        "metric.mtr_7f3a9c",
+        "--format",
+        "json",
+    )
+
+    assert isinstance(payload, dict)
+    assert payload["labels"] == {"metric.mtr_7f3a9c": "metric.gross_revenue"}
+    assert payload["root"] == {"kind": "metric", "name": "metric.mtr_7f3a9c"}
+
+
+def test_the_lineage_payload_is_the_whole_walk() -> None:
+    """The payload is built field by field, so a field added to `Lineage` would
+    be dropped from `--format json` silently — RFC 0020 D4's exact failure,
+    since the promise is that the CLI is not a lossier surface.
+
+    Held against the dataclass rather than against a list written beside it.
+    """
+    from bloomery.cli import _lineage_payload  # noqa: PLC0415
+
+    project, catalog = load_fixture("ecom_basic")
+    resolution = bloomery.resolve(project, catalog)
+    walk = bloomery.lineage(
+        resolution.graph,
+        bloomery.Node(kind=bloomery.NodeKind.METRIC, name="metric.gross_revenue"),
+        bloomery.Direction.UPSTREAM,
+    )
+
+    fields = {field.name for field in dataclasses.fields(walk)}
+
+    assert set(_lineage_payload(walk, {})) == fields | {"labels"}
+
+
+def test_a_mistyped_node_is_suggested_by_id_not_by_label(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The walk is read and a suggestion is *typed*, so they take different
+    spellings. A did-you-mean printing `metric.gross_revenue` for a project
+    that adopted an id would offer a string `--node` does not accept."""
+
+    code, _out, err = run(
+        capsys, "lineage", _adopted(tmp_path), "--node", "metric.mtr_7f3a9d"
+    )
+
+    assert code == EXIT_REFUSED
+    assert "metric.mtr_7f3a9c" in err
+    assert "gross_revenue" not in err
+
+
+def test_plan_prints_what_cited_a_renamed_node(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The section §5.3 asks for, on the command a person actually runs.
+
+    Its own heading rather than a wider `detail` column: the list is as long as
+    the project makes it, and a cell that grows with the project takes every
+    other row's alignment with it.
+    """
+    import re  # noqa: PLC0415
+
+    old = _adopted(tmp_path / "old")
+    new_root = tmp_path / "new"
+    new_root.mkdir()
+    target = new_root / "specs"
+    target.mkdir()
+    pattern = re.compile(r"\bgross_revenue\b")
+    for path in Path(old).glob("*.yaml"):
+        (target / path.name).write_text(pattern.sub("revenue_gross", path.read_text()))
+
+    code, out, err = run(capsys, "plan", old, str(target))
+
+    assert code == EXIT_OK, err
+    assert "rename" in out
+    assert "Renamed — what cited the old name" in out
+    assert "metric:average_order_value" in out

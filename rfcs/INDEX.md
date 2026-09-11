@@ -43,7 +43,8 @@ Two consequences worth knowing:
   happened to it — and it is retired with the last of its dependants. 0037 is the one
   today: 0039, 0042 and 0053 still reason in its grain vocabulary. 0038 and 0040 were the
   other two and are gone, retired with 0058 — the last dependant of each, which is the
-  rule working rather than an exception to it.
+  rule working rather than an exception to it. 0062 is the second: 0064 and 0069 argue in
+  its identity vocabulary.
   This is not a licence to keep a document because something cites it — prose citations are
   precisely what `RETIRED.md` exists to keep followable.
 
@@ -95,7 +96,7 @@ know it has a companion recording where it turned out to be wrong.
 | [0059](0059-multi-project-composition.md) | Multi-project composition | 📝 Draft | One project reading another's published surface: what may cross the boundary, and what a fingerprint means once something does. |
 | [0060](0060-replay-on-a-historical-entity.md) | Replay on a historical entity | 📝 Draft | Replay writes past the framework that owns a type 2 relation's versions, so a recovered row lands invisible; the pair is refused until a route through the framework exists. |
 | [0061](0061-declared-input-currency-for-conversion.md) | Declared input currency for conversion | 🚧 In progress | A conversion asserts what currency its column holds and nothing checks it, so the wrong rate is reachable from four characters; the input gets a declaration and a proof rule that reads it. |
-| [0062](0062-stable-node-identity.md) | Stable node identity across renames | 🚧 In progress | A node id minted once and never derived from the name, so a rename relabels a vertex instead of deleting one node and adding another. |
+| [0062](0062-stable-node-identity.md) | Stable node identity across renames | ✅ Complete | A node id minted once and never derived from the name, so a rename relabels a vertex instead of deleting one node and adding another. |
 | [0064](0064-definition-supersession.md) | Definition supersession and change attribution | 📝 Draft | An edge between two versions of one node carrying what changed in spec vocabulary, so "why did this number move" is answered above the level of a text diff. |
 | [0065](0065-consumer-evidence-strictness.md) | Consumer-declared evidence strictness | 🚧 In progress | A minimum evidence grade a mart or exposure requires of the facts beneath it, projected from RFC 0039's provenance and refused at compile time. |
 | [0068](0068-caller-assembled-spec-history.md) | Caller-assembled spec history | 📝 Draft | Compiling a past spec set needs no feature — the caller hands bloomery the text and the compiler has no notion of time; why there is no `--as-of`, and what ships instead. |
@@ -114,6 +115,6 @@ know it has a companion recording where it turned out to be wrong.
 ✅ and ❌ are transient: a row reaching either status is retired in the same change, so a
 steady-state table holds only 📝 and 🚧 rows — **except a ✅ root of a live sequence**, which
 stays until its last dependant is retired, for the reason the retirement section above
-gives. Such a row says so in its own status line. 0037 is the one today. Do
-not relabel it 🚧: nothing about it is in progress, and the exception is about what other
+gives. Such a row says so in its own status line. 0037 and 0062 are the two today. Do
+not relabel either 🚧: nothing about it is in progress, and the exception is about what other
 documents still need, not about what it has left to do.

@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A renamed metric is one change, not a deletion and an addition.** Where a
+  metric or step carries an [`id:`](https://morzecrew.github.io/bloomery/how-to/trace-lineage/)
+  on both sides, `plan()` reports a single `RENAME` carrying the list of what
+  cited the old name — the metrics whose definition reads it, the marts that
+  carry it as a measure, and the exposures that declare it, on the new
+  `Change.citations`. A rename is not a restatement: no backfill is scheduled
+  and `restates_history` stays false, because every number the metric reported
+  still means what it meant.
+
+  The identity is not in the IR, deliberately — an `id:` is substituted into
+  node ids and never lowered, so a project adopting none compiles byte for
+  byte — so it travels beside the IRs. `node_labels(project, catalog)` is new
+  and public, and `plan()` takes `old_labels=` / `new_labels=`, both defaulted:
+  **pass nothing and the report is exactly what it was.** `bloomery plan old/
+  new/` passes them for you.
+
+  Metrics and steps only. A renamed canonical field still reads as a drop plus
+  an add, because `plan()` diffs the IR and the IR keeps no canonical-field
+  record.
+
+### Changed
+
+- **`bloomery lineage` prints the name where a project adopted an `id:`.** The
+  walk asked for as `metric.mtr_7f3a9c` now reads `metric.gross_revenue`; the
+  id is what the graph calls the node and the name is what a person reads.
+  `--format json` carries both — every field it carried before, under the key
+  it had, plus a `labels` object mapping each adopted id to its readable
+  spelling. A did-you-mean still answers in ids, because a suggestion exists to
+  be retyped.
+
 - **`timeline()` — one node across a series of spec sets.** `lineage()` answers
   what a node depends on at one instant; nothing answered how it has changed.
   `timeline(history, node)` takes an ordered sequence of `SpecVersion` entries

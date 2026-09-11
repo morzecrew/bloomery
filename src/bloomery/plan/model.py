@@ -65,6 +65,22 @@ class Change:
     detail: str
     old: str | None = None
     new: str | None = None
+    #: What names the **old** node, for a node :attr:`ChangeClass.RENAME` and
+    #: empty for every other change (RFC 0062 §5.3). Sorted, in this class's
+    #: own ``<kind>:<name>`` grammar.
+    #:
+    #: A rename is not a breaking change to the graph — the vertex is
+    #: relabelled, and every number it reported still means what it meant. It
+    #: *is* a breaking change to whatever cites the old name, and this is that
+    #: list rather than a severity, because a severity would say the same thing
+    #: about a consumer that has to be edited as about one whose figures moved.
+    #:
+    #: It names what the compiler can see: the metrics whose definition reads
+    #: this one, the marts that carry it as a measure, and the exposures that
+    #: declare it. A dashboard, a runbook or a decision row cites a node too
+    #: and is outside the project, which is why the list is what it is rather
+    #: than everything §2 imagines.
+    citations: tuple[str, ...] = ()
 
 
 # ....................... #

@@ -86,6 +86,7 @@ from bloomery.resolve import (
     TimelineEntry,
     build_project_ir,
     lineage,
+    node_labels,
     resolve,
     timeline,
 )
@@ -208,6 +209,7 @@ __all__ = [
     "lineage",
     "load_catalog",
     "load_project",
+    "node_labels",
     "plan",
     "project_fingerprint",
     "register_emitter",

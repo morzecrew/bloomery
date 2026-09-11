@@ -95,6 +95,7 @@ unit-tested per branch):
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from decimal import Decimal
@@ -112,7 +113,7 @@ from bloomery.typing import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Sequence
 
     from bloomery.ir import (
         ColumnIR,
@@ -1726,6 +1727,267 @@ def _metric_pair(old_m: MetricIR, new_m: MetricIR, acc: _Acc) -> None:
 # ....................... #
 
 
+#: The node-id prefixes of the two kinds `plan()` can report a rename for
+#: (RFC 0062 §5.3). `node_keys` mints ids for three — `metric`, `canonical` and
+#: `step` — and this diff has no canonical-field pass and cannot have one:
+#: `ProjectIR` holds no canonical record at all, the field surviving lowering
+#: only as `ColumnIR.canonical`, a string reference. A renamed canonical field
+#: is therefore unreachable here whatever else changes, and that is a fact
+#: about what the IR *is* rather than about what this function reads
+#: (``logs/T-0044.md``).
+_METRIC_PREFIX: Final = "metric."
+_STEP_PREFIX: Final = "step."
+
+#: A caller that passes no labels gets exactly today's report, which is what
+#: keeps every existing call site working and RFC 0062 D3 true.
+_NO_LABELS: Final[Mapping[str, str]] = MappingProxyType({})
+
+
+def _renames(
+    old_labels: Mapping[str, str], new_labels: Mapping[str, str], prefix: str
+) -> dict[str, str]:
+    """Old name to new name, for the nodes of one kind whose id outlived a
+    rename (RFC 0062 §5.3).
+
+    Identity is **declared, never inferred** (D1): the only thing compared is
+    the id, and a node whose id is absent on either side is not a rename
+    candidate at all. No name similarity, no shape matching — a wrong guess
+    here rewrites history rather than raising.
+
+    The id is read as an opaque key (D2): it is a dict lookup and a string
+    equality, and nothing splits it, parses it or orders by it.
+    """
+
+    renamed: dict[str, str] = {}
+
+    for node_id, was in old_labels.items():
+        if not node_id.startswith(prefix):
+            continue
+        now = new_labels.get(node_id)
+        if now is not None and now != was:
+            # Both sides of the map are node ids — the label is the node spelled
+            # with its name — and this diff's subjects are bare names, so the
+            # prefix comes off here rather than at every use.
+            renamed[was.removeprefix(prefix)] = now.removeprefix(prefix)
+
+    return renamed
+
+
+# ....................... #
+
+
+def _citations(ir: ProjectIR, metric: str) -> tuple[str, ...]:
+    """What names ``metric`` in ``ir`` — the list a rename's report carries
+    instead of a severity (RFC 0062 §5.3).
+
+    Read off the **old** IR, because the citations that matter are of the old
+    name: after the rename nothing cites it, which is the whole reason a reader
+    needs the list.
+
+    ``depends_on`` holds the names of canonical fields as well as of metrics,
+    so a canonical field sharing a renamed metric's name would be cited here
+    for a rename that did not touch it. That ambiguity is the IR's — the same
+    collection feeds :func:`_downstream_impact` — and naming a consumer that
+    turns out to be unaffected is the cheaper failure of the two.
+    """
+
+    cited = {f"metric:{one.name}" for one in ir.metrics if metric in one.depends_on}
+    cited |= {f"mart:{one.name}" for one in ir.marts if metric in one.measures}
+    # `rollup:`, not `mart:` — a rollup's *node* id is `mart.<name>` because
+    # both are gold relations under one prefix (RFC 0067 §5.1), but this list
+    # is in `Change`'s grammar, and `_diff_rollups` reports one as
+    # `rollup:<name>`. Taking the node spelling would hand a reader a citation
+    # matching no subject in the same report.
+    cited |= {f"rollup:{one.name}" for one in ir.rollups if metric in one.measures}
+    cited |= {f"exposure:{one.name}" for one in ir.exposures if metric in one.metrics}
+
+    return tuple(sorted(cited))
+
+
+# ....................... #
+
+
+def _canonical_names(ir: ProjectIR) -> frozenset[str]:
+    """Every canonical field this project links, read off the columns that
+    link to one.
+
+    `ProjectIR` holds no canonical-field record — the field survives lowering
+    only as `ColumnIR.canonical` — so this is the whole of what the IR knows
+    about the catalog's vocabulary, and it is enough for the one question
+    :func:`_relabel_metric` asks: is this `depends_on` entry a canonical leaf
+    rather than a composed metric?
+    """
+
+    return frozenset(
+        column.canonical
+        for entity in ir.entities
+        for column in entity.columns
+        if column.canonical is not None
+    )
+
+
+# ....................... #
+
+
+def _relabel_metric(
+    metric: MetricIR, renames: Mapping[str, str], canonical: frozenset[str]
+) -> MetricIR:
+    """One metric with every reference to a renamed metric reading its new
+    name — including its own.
+
+    ``depends_on`` is ``sorted({*requires, *requires_metrics})``: the canonical
+    leaves and the composed metrics, with the kinds collapsed. So a metric
+    sharing a canonical field's name would drag every *unrelated* metric's
+    canonical dependency through the rename map — renaming a metric `quantity`
+    rewrote `gross_revenue`'s canonical `quantity` too, and reported it as
+    restating, which is a backfill scheduled for a metric the rename never
+    touched.
+
+    ``canonical`` is the set of canonical names the project links, recovered
+    from the entity columns that name them, and an entry in it is left alone.
+    What that cannot recover is an entry that is **both** — a canonical field
+    and a metric of one name, both depended on by one metric — because the IR
+    collapsed them into a single string. That metric still reports a change it
+    did not have; nothing after the collapse can tell the two apart.
+    """
+
+    ratio = metric.ratio
+    derived = metric.derived
+
+    return replace(
+        metric,
+        name=renames.get(metric.name, metric.name),
+        depends_on=tuple(
+            sorted(one if one in canonical else renames.get(one, one) for one in metric.depends_on)
+        ),
+        ratio=(
+            ratio
+            if ratio is None
+            else replace(
+                ratio,
+                numerator=renames.get(ratio.numerator, ratio.numerator),
+                denominator=renames.get(ratio.denominator, ratio.denominator),
+            )
+        ),
+        derived=(
+            derived
+            if derived is None
+            else replace(
+                derived,
+                inputs=tuple(
+                    replace(one, metric=renames.get(one.metric, one.metric))
+                    for one in derived.inputs
+                ),
+            )
+        ),
+    )
+
+
+# ....................... #
+
+
+def _relabel(ir: ProjectIR, metrics: Mapping[str, str], steps: Mapping[str, str]) -> ProjectIR:
+    """``ir`` read in the *new* naming (RFC 0062 §5.3).
+
+    A rename relabels a vertex, so the honest diff is between two IRs that
+    agree about what the node is called — and then the ordinary passes report
+    what actually moved, which for a pure rename is nothing. Suppressing the
+    drop, the add, and every consumer's shadow of them afterwards would be the
+    same answer reached by subtraction, in as many places as there are passes.
+
+    Every collection this touches is sorted by the value it rewrote, so each is
+    re-sorted: a substituted name that left its tuple unordered would compare
+    unequal to the new side's ordered one and report a change that is the sort
+    rather than the spec.
+
+    ``_relabel_metric`` is the deep half and ``measures`` is a flat name list,
+    and `test_a_rename_is_the_only_change_it_reports` sweeps the whole fixture
+    corpus so a reference field added later fails there rather than quietly
+    reporting a rename as a restatement.
+
+    **Exposures and unreachable metrics are deliberately not relabelled**, and
+    the omission is stated here rather than left as two dead arms. Nothing reads
+    the *old* IR's copies of either: :func:`_citations` reads the exposures
+    before this runs, which is why it is called there, and both
+    :func:`_affected_exposures` and :func:`_diff_metrics`'s unreachable lookup
+    read the new IR. Arms for them were written and survived a sabotage sweep
+    because they changed no answer at all — this list was drawn from the IR's
+    fields rather than from what the diff reads. A pass that ever diffs either
+    needs them, and this paragraph is what says so.
+    """
+
+    if not metrics and not steps:
+        return ir
+
+    relabelled = replace(
+        ir,
+        metrics=tuple(
+            sorted(
+                (_relabel_metric(one, metrics, _canonical_names(ir)) for one in ir.metrics),
+                key=lambda one: one.name,
+            )
+        ),
+        marts=tuple(
+            replace(one, measures=tuple(sorted(metrics.get(m, m) for m in one.measures)))
+            for one in ir.marts
+        ),
+        rollups=tuple(
+            replace(one, measures=tuple(sorted(metrics.get(m, m) for m in one.measures)))
+            for one in ir.rollups
+        ),
+        steps=tuple(
+            sorted(
+                (replace(one, ref=steps.get(one.ref, one.ref)) for one in ir.steps),
+                key=lambda one: one.ref,
+            )
+        ),
+    )
+    _refuse_collisions(relabelled)
+
+    return relabelled
+
+
+# ....................... #
+
+
+def _refuse_collisions(relabelled: ProjectIR) -> None:
+    """Refuse a rename that lands on a name the old project already used.
+
+    Renaming `a` to `b` while `b` is deleted in the same version leaves two
+    nodes called `b` in the relabelled IR, and every pass below keys by name —
+    so one silently wins, and *which* one is an artefact of tuple order. §4
+    names the shape: "Two metrics becoming one is a different change with a
+    different report, and conflating it with a rename is how a real semantic
+    change gets classified as cosmetic."
+
+    Checked after the substitution rather than against the rename map, so a
+    legitimate chain — `a` to `b` while `b` becomes `c` — passes, and every
+    shape that actually collides is caught whatever produced it.
+
+    Reporting this properly means keying the whole diff by identity rather than
+    by name, which is a change to what `plan()` *is*. Refusing is the honest
+    answer until someone wants that (``logs/T-0044.md``).
+    """
+
+    for label, names in (
+        ("metric", [one.name for one in relabelled.metrics]),
+        ("step", [one.ref for one in relabelled.steps]),
+    ):
+        collided = sorted({name for name in names if names.count(name) > 1})
+        if collided:
+            msg = (
+                f"a rename lands on a name this version already used: {label} "
+                f"{', '.join(repr(name) for name in collided)} names two nodes once the "
+                "rename is applied. That is a merge, not a rename (RFC 0062 §4) — and the "
+                "two have different histories, so reporting either as the other is wrong. "
+                "Fix: land the rename and the deletion in separate versions"
+            )
+            raise PlanError(msg)
+
+
+# ....................... #
+
+
 def _diff_metrics(old: ProjectIR | None, new: ProjectIR, acc: _Acc) -> None:
     old_map = {metric.name: metric for metric in old.metrics} if old is not None else {}
     new_map = {metric.name: metric for metric in new.metrics}
@@ -2174,7 +2436,13 @@ def _sort_key(change: Change) -> tuple[str, str, str, str, str, str]:
 # ....................... #
 
 
-def plan(old: ProjectIR | None, new: ProjectIR) -> Plan:
+def plan(
+    old: ProjectIR | None,
+    new: ProjectIR,
+    *,
+    old_labels: Mapping[str, str] = _NO_LABELS,
+    new_labels: Mapping[str, str] = _NO_LABELS,
+) -> Plan:
     """Diff two project IRs into a classified :class:`Plan` (RFC 0007).
 
     ``plan(None, new)`` is the initial deploy — everything ADDITIVE with an
@@ -2185,6 +2453,23 @@ def plan(old: ProjectIR | None, new: ProjectIR) -> Plan:
     :class:`RenameTargetMissing` on a stale ``renamed_from`` annotation (D3)
     and :class:`ContractViolation` on an expand/contract breach (D5) — every
     other change, BREAKING included, is classified and returned.
+
+    **The two label maps are how a node rename becomes visible** (RFC 0062
+    §5.3). Each is :func:`~bloomery.node_labels` for its side — node id to the
+    name a reader knows it by — and a node whose id is on both sides under
+    different names is reported as one :attr:`ChangeClass.RENAME` carrying the
+    list of what cited the old name, rather than as a deletion and an addition
+    with every consumer's shadow of them.
+
+    They are arguments rather than IR fields because the IR does not retain the
+    authored ``id:``: RFC 0062 P1 substitutes it while building node ids and
+    keeps only names, since a field there would move every fingerprint in the
+    corpus and break that document's D3. Passing nothing is the default and
+    reproduces today's report exactly, which is what keeps adoption free.
+
+    Only **metric** and **step** renames are reported. `node_keys` mints ids
+    for canonical fields too, and this diff has no canonical pass because the
+    IR has no canonical record — see :data:`_METRIC_PREFIX`.
     """
 
     if old is not None and old.bloomery_ir_version != new.bloomery_ir_version:
@@ -2195,6 +2480,38 @@ def plan(old: ProjectIR | None, new: ProjectIR) -> Plan:
         raise PlanError(msg)
 
     acc = _Acc()
+    renamed_metrics = _renames(old_labels, new_labels, _METRIC_PREFIX)
+    renamed_steps = _renames(old_labels, new_labels, _STEP_PREFIX)
+
+    if old is not None:
+        # Before the relabelling, which is what makes the citations readable:
+        # after it the old IR names the new metric, and nothing cites the name
+        # the reader is asking about.
+        acc.changes.extend(
+            Change(
+                None,
+                f"metric:{now}",
+                ChangeClass.RENAME,
+                f"renamed from {was!r}",
+                old=was,
+                new=now,
+                citations=_citations(old, was),
+            )
+            for was, now in sorted(renamed_metrics.items())
+        )
+        acc.changes.extend(
+            Change(
+                None,
+                f"step:{now}",
+                ChangeClass.RENAME,
+                f"renamed from {was!r}",
+                old=was,
+                new=now,
+                citations=(),
+            )
+            for was, now in sorted(renamed_steps.items())
+        )
+        old = _relabel(old, renamed_metrics, renamed_steps)
     _diff_entities(old, new, acc)
     _diff_metrics(old, new, acc)
     _diff_marts(old, new, acc)
