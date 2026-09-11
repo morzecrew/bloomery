@@ -21,6 +21,7 @@ from bloomery.resolve.graph import (
     exposure_node,
     mart_node,
     metric_node,
+    node_labels,
     source_column_node,
     step_node,
 )
@@ -531,6 +532,71 @@ def test_an_unadopted_project_keys_every_node_by_name() -> None:
 
     assert ids == {"metric": {}, "canonical": {}, "step": {}}
     assert key("gross_revenue", ids["metric"]) == "gross_revenue"
+
+
+def test_an_unadopted_project_has_no_labels() -> None:
+    """The other side of D3, and the reason every caller reads this map as
+    ``labels.get(node_id, node_id)``: with nothing adopted there is nothing to
+    look up, and the node id *is* the name."""
+
+    assert node_labels(*load_fixture("ecom_basic")) == {}
+
+
+def test_a_label_maps_the_node_id_back_to_the_name() -> None:
+    """§5.4's half that a person reads. The map is keyed by the id the graph
+    actually minted, so a caller holding a `Node` can look it up without
+    knowing how the id was built."""
+
+    project, catalog = _with_metric_ids(gross_revenue="mtr_7f3a9c")
+
+    assert node_labels(project, catalog) == {"metric.mtr_7f3a9c": "metric.gross_revenue"}
+
+
+def test_the_labels_invert_exactly_what_the_graph_minted() -> None:
+    """Every adopted node, in every kind that can adopt — and the ids are
+    taken from the graph rather than from the spec, so the inversion is checked
+    against what was actually built (D2: the id is substituted whole).
+
+    Two kinds here and the third below, because `node_keys` files three and a
+    label map that covered metrics alone would be silently right on every
+    fixture this repository happens to have — `ecom_basic` wires no step.
+    """
+    sources = fixture_sources("ecom_basic")
+    sources["metrics"] = sources["metrics"].replace(
+        "  gross_revenue:\n", "  gross_revenue:\n    id: mtr_7f3a9c\n", 1
+    )
+    catalog_text = (FIXTURES / "ecom_basic" / "catalog.yaml").read_text().replace(
+        "  unit_price:\n", "  unit_price:\n    id: cf_9b2e14\n", 1
+    )
+    project, catalog = load_project(sources), load_catalog(catalog_text)
+    labels = node_labels(project, catalog)
+    minted = {node.name for node in build_graph(project, catalog, effective_metrics(project, catalog)).nodes}
+
+    assert labels == {
+        "metric.mtr_7f3a9c": "metric.gross_revenue",
+        "canonical.cf_9b2e14": "canonical.unit_price",
+    }
+    assert set(labels) <= minted, "a label for an id the graph never built"
+
+
+def test_a_step_ref_is_labelled_by_its_ref() -> None:
+    """The third kind, and the one whose *name* is not called a name.
+
+    A step node is keyed by `ref` (`step_node`'s own rule: a version bump does
+    not move where a step sits), so the label is `step.<ref>` — not the `use:`
+    spelling, and not `ref@version`.
+    """
+    sources = fixture_sources("identity_resolution")
+    assert "    id:" not in sources["steps"]
+    sources["steps"] = sources["steps"].replace(
+        "  - use: resolve_customers@4\n", "  - use: resolve_customers@4\n    id: stp_44c1\n", 1
+    )
+    project = load_project(sources)
+    catalog_text = (FIXTURES / "identity_resolution" / "catalog.yaml").read_text()
+
+    assert node_labels(project, load_catalog(catalog_text)) == {
+        "step.stp_44c1": "step.resolve_customers"
+    }
 
 
 def test_an_adopted_id_replaces_the_name_in_the_node_id() -> None:

@@ -15,14 +15,13 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Final
 
+from bloomery.spec.catalog import Catalog
 from bloomery.spec.mapping import ALIAS_BOUND, RecipeFieldMapping
-from bloomery.spec.project import key, node_keys
+from bloomery.spec.project import Project, key, node_keys
 
 if TYPE_CHECKING:
     from bloomery.resolve.metrics import EffectiveMetric
-    from bloomery.spec.catalog import Catalog
     from bloomery.spec.mapping import Mapping
-    from bloomery.spec.project import Project
 
 # ----------------------- #
 
@@ -37,6 +36,7 @@ __all__ = [
     "exposure_node",
     "mart_node",
     "metric_node",
+    "node_labels",
     "source_column_node",
     "step_node",
 ]
@@ -416,6 +416,52 @@ def _mart_edges(project: Project, ids: dict[str, dict[str, str]]) -> list[Edge]:
     )
 
     return edges
+
+
+# ....................... #
+
+
+def node_labels(project: Project, catalog: Catalog | None) -> dict[str, str]:
+    """Node id to the **same node spelled with its name**, for every node that
+    adopted an `id:` (RFC 0062 §5.4).
+
+    Both sides are node ids: `metric.mtr_7f3a9c` maps to `metric.gross_revenue`
+    and not to `gross_revenue`. A bare name would make an adopted node the only
+    one in a lineage walk without a kind prefix, so the edge list would read
+    `canonical.quantity --requires--> gross_revenue` — two spellings in one
+    column, which is harder to read than either. The label is what the id would
+    have been had the project adopted nothing, which is also what makes it
+    substitutable wherever an id appears.
+
+    The inverse of what :func:`~bloomery.spec.project.node_keys` does for the
+    builders above, and built **with those builders** rather than by joining a
+    prefix to a string: an id is minted by exactly one function per kind, so
+    inverting it anywhere else is a second spelling that can drift from the
+    first. A kind whose constructor moves takes this with it.
+
+    Only adopted nodes appear. A project that mints no id gets an empty map,
+    and every caller reads it as ``labels.get(node_id, node_id)`` — so the
+    unadopted case costs a lookup and no branch (D3).
+
+    Names rather than ids are what a person reads: `metric.mtr_7f3a9c` is a
+    key, and printing it where `metric.gross_revenue` belongs trades the
+    readability the name exists for against a property only tooling needs. The
+    machine surfaces carry both.
+    """
+
+    ids = node_keys(project, catalog)
+
+    return {
+        **{
+            metric_node(adopted).name: metric_node(name).name
+            for name, adopted in ids["metric"].items()
+        },
+        **{
+            canonical_field_node(adopted).name: canonical_field_node(name).name
+            for name, adopted in ids["canonical"].items()
+        },
+        **{step_node(adopted).name: step_node(ref).name for ref, adopted in ids["step"].items()},
+    }
 
 
 # ....................... #

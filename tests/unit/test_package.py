@@ -102,6 +102,7 @@ def test_public_api_surface() -> None:
         "lineage",
         "load_catalog",
         "load_project",
+        "node_labels",
         "plan",
         "project_fingerprint",
         "register_emitter",
