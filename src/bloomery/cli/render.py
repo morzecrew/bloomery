@@ -58,19 +58,47 @@ def _table(rows: Sequence[tuple[str, ...]], *, indent: str = "  ") -> list[str]:
 
     Unpadded because trailing whitespace on the last column is invisible in a
     terminal and very visible in a diff of captured output.
+
+    **A cell is one line.** A value carrying a newline — a metric's ``expr:``
+    written as a YAML block scalar reaches :func:`render_timeline` as one — is
+    flattened to a single spaced line first. Passed through, it would emit one
+    row as several, and the column widths are computed with ``len`` over the
+    whole cell, so every other row is padded to the longest *embedded* line and
+    the table stops being one. Only a cell that carries one is touched, so
+    every existing caller's bytes are unchanged; whitespace runs collapse
+    because the alternative is a row of ragged indentation from the source
+    document. The exact value is what ``--format json`` is for.
     """
 
     if not rows:
         return []
 
-    widths = [max(len(row[index]) for row in rows) for index in range(len(rows[0]))]
+    flattened = [tuple(_one_line(cell) for cell in row) for row in rows]
+    widths = [max(len(row[index]) for row in flattened) for index in range(len(flattened[0]))]
     lines: list[str] = []
 
-    for row in rows:
+    for row in flattened:
         cells = [cell.ljust(widths[index]) for index, cell in enumerate(row[:-1])]
         lines.append((indent + "  ".join([*cells, row[-1]])).rstrip())
 
     return lines
+
+
+# ....................... #
+
+
+def _one_line(cell: str) -> str:
+    """``cell`` with any line break collapsed into single spaces.
+
+    Left alone unless it carries one: collapsing unconditionally would also
+    fold a deliberate run of spaces inside a cell, and no caller that is
+    correct today should have its output move for a defect it does not have.
+    """
+
+    if not any(character in cell for character in "\n\r\t"):
+        return cell
+
+    return " ".join(cell.split())
 
 
 # ....................... #

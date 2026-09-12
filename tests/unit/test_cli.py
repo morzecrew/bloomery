@@ -2189,6 +2189,56 @@ def test_timeline_refuses_a_node_no_version_carries(capsys: pytest.CaptureFixtur
     assert "did you mean" not in err
 
 
+def test_a_facet_value_with_a_newline_stays_one_row() -> None:
+    """A metric's `expr:` written as a YAML block scalar reaches the renderer
+    carrying newlines, and a table cell is one line.
+
+    Passed through, one facet emits three rows *and* the column widths are
+    computed with `len` over the whole cell — so every other row is padded to
+    the longest embedded line and the table stops being a table. Fixed in
+    `_table` rather than in this renderer: the cell is shared by every command
+    that prints one.
+    """
+    walk = bloomery.Timeline(
+        node="metric.x",
+        entries=(
+            bloomery.TimelineEntry(label="a", present=True),
+            bloomery.TimelineEntry(label="b", present=True),
+        ),
+        changes=(
+            bloomery.TimelineChange(
+                node="metric.x",
+                before="a",
+                after="b",
+                matched_by=bloomery.MatchedBy.NAME,
+                facets=(
+                    bloomery.FacetDelta(
+                        bloomery.Facet.BODY, "expr", "CASE\n  WHEN paid THEN amount\nEND", "amount"
+                    ),
+                    bloomery.FacetDelta(bloomery.Facet.GRAIN, "grain", "order", "order_item"),
+                ),
+            ),
+        ),
+    )
+
+    printed = render.render_timeline(walk)
+    facet_rows = [line for line in printed.splitlines() if line.startswith("      ")]
+
+    assert len(facet_rows) == 2, printed
+    assert "CASE WHEN paid THEN amount END" in printed
+    # The second row is padded to the first cell's *collapsed* width, not to
+    # the width of a line that no longer exists.
+    assert "grain  grain  order                           ->  order_item" in printed
+
+
+def test_a_table_cell_without_a_newline_is_untouched() -> None:
+    """Only a cell carrying a line break is collapsed. Folding every run of
+    spaces would move the bytes of callers that have no defect, and a renderer
+    whose output moves for someone else's fix is a golden diff nobody can
+    explain."""
+    assert render._table([("a  b", "c")]) == ["  a  b  c"]  # noqa: SLF001
+
+
 def test_rendering_a_timeline_of_absences_says_so() -> None:
     """`render_timeline` is public and the command refuses this case before
     reaching it, so the branch is reachable only here — which is why it is
