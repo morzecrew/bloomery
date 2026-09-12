@@ -1579,6 +1579,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#advisories-are-not-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Advisories are not errors
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#source_path" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1779,6 +1790,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advisories-are-not-errors" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Advisories are not errors
+      </span>
+    </span>
+  </a>
   
 </li>
       
@@ -2438,6 +2460,44 @@ through a suggestion — the primary contract stays the message and, for
 <p><code>nearest_supported</code> is the <code>Op</code> <em>value</em> rather than the member, because <code>bloomery.errors</code>
 imports nothing. <code>Op</code> is a <code>StrEnum</code>, so <code>refusal.nearest_supported == Op.LIKE</code> holds and
 <code>Op(refusal.nearest_supported)</code> round-trips.</p>
+<h2 id="advisories-are-not-errors">Advisories are not errors<a class="headerlink" href="#advisories-are-not-errors" title="Permanent link">&para;</a></h2>
+<p>Some findings are worth saying and not worth refusing over. Those are <strong>advisories</strong>:
+<code>evaluate()</code> returns them on <code>SpecEvidence.advisories</code>, sorted and deduplicated, and no
+exception is raised. They are a separate channel from the hierarchy above — nothing here
+is ever raised, and nothing above is ever reported as an advisory.</p>
+<p>The bar is deliberately high, and it is the same sentence in three parts: <strong>the spec is
+legal, the compiled artifacts are correct, and there is still something you would want to
+know.</strong> Anything where the numbers could be wrong stays a refusal. bloomery does not
+soften "refuse rather than answer wrongly", and an advisory standing where a refusal
+belongs is a defect in bloomery, not a convenience.</p>
+<p>Branch on <code>code</code>, never on the message: the vocabulary below is a closed, reviewed list
+and each addition is a change someone signed off, while message text is prose that
+improves between releases.</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Raised when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>inexact_division</code></td>
+<td>A catalog recipe's <code>expr:</code> divides. The <code>divide</code> <em>transform</em> is marked so PostgreSQL and Trino keep it in exact decimal arithmetic, but a recipe's expression is parsed SQL carrying no marker — so the division happens in binary floating point and is narrowed back to the declared decimal, on every engine rather than only on DuckDB. Where the division must be exact, use a <code>divide</code>/<code>multiply</code> transform chain instead</td>
+</tr>
+</tbody>
+</table>
+<p>Advisories carry a <code>source_path</code> under the same rules as an error's, below.</p>
+<p>Two channels advisories are deliberately <strong>not</strong>:</p>
+<ul>
+<li><strong>Log records.</strong> bloomery emits nothing at <code>WARNING</code> — that severity belongs here, and
+  a finding that was only logged is a finding a caller who configured no handler never
+  received. See <a href="../stability/#logger-names">stability</a> for the logger hierarchy.</li>
+<li><strong><code>DeprecationWarning</code>.</strong> A spelling on its way out is announced through Python's
+  <code>warnings</code> module under <code>BloomeryDeprecationWarning</code>, so a suite run with <code>-W error</code>
+  sees it. That is a statement about the <em>library's</em> surface; an advisory is a statement
+  about <em>your spec</em>.</li>
+</ul>
 <h2 id="source_path"><code>source_path</code><a class="headerlink" href="#source_path" title="Permanent link">&para;</a></h2>
 <p>Every error carries an optional <code>source_path</code> — a dotted/bracketed address into the
 authored document, prefixed with the document's name (the key you passed to

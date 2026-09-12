@@ -1581,6 +1581,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#logger-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Logger names
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1748,6 +1759,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Deep imports carry no promise
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logger-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Logger names
       </span>
     </span>
   </a>
@@ -1977,6 +1999,64 @@ declared <code>__all__</code>, it can move or disappear in a minor release. Two 
 <p>One name is public because <em>generated code</em> imports it. Step wrappers that bloomery emits
 into your repository contain <code>from bloomery.steps import assert_step_contract</code>, so that
 path is a promise like any other.</p>
+<h3 id="logger-names">Logger names<a class="headerlink" href="#logger-names" title="Permanent link">&para;</a></h3>
+<p>bloomery emits records under a <code>bloomery</code> logger hierarchy, and <strong>the names are the
+promise</strong> — not the messages, which are prose and improve between releases. Nothing
+should ever branch on the text of a record.</p>
+<table>
+<thead>
+<tr>
+<th>Logger</th>
+<th>What it narrates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bloomery</code></td>
+<td>The root. Configure here to catch everything</td>
+</tr>
+<tr>
+<td><code>bloomery.spec</code></td>
+<td>Document parsing</td>
+</tr>
+<tr>
+<td><code>bloomery.resolve</code></td>
+<td>The resolution walk, and the stages that follow it into an IR</td>
+</tr>
+<tr>
+<td><code>bloomery.guardrails</code></td>
+<td>The guardrail stage</td>
+</tr>
+<tr>
+<td><code>bloomery.emit</code></td>
+<td>Per-target artifact counts</td>
+</tr>
+<tr>
+<td><code>bloomery.runtime</code></td>
+<td>Manifest hydration</td>
+</tr>
+<tr>
+<td><code>bloomery.planner</code></td>
+<td>The request-time delegation boundary</td>
+</tr>
+</tbody>
+</table>
+<p>The library attaches a <code>NullHandler</code> to <code>bloomery</code> and does nothing else: no handler of
+its own, no format, and no level. That last one is deliberate and it is what makes tuning
+work — a logger the library pinned to a level would ignore yours:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+
+<span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">"bloomery"</span><span class="p">)</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">"bloomery"</span><span class="p">)</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">())</span>
+</code></pre></div>
+<p><code>INFO</code> is one record per stage per compile — bounded, and safe to leave on. <code>DEBUG</code> adds
+per-artifact and per-request detail and is unbounded. There is <strong>no <code>WARNING</code></strong>: findings
+about your spec are <a href="../errors/#advisories-are-not-errors">advisories</a>, carried on the
+value <code>evaluate()</code> returns, because a finding that was only logged is one a caller who
+configured no handler never received.</p>
+<p>Records carry no timestamp of bloomery's making. Compilation reads no clock (it is a pure
+function of your specs), so a record is timestamped only if the handler <em>you</em> installed
+adds one — and artifacts are byte-identical whether anyone is listening or not.</p>
 <h2 id="spec-yaml">Spec YAML<a class="headerlink" href="#spec-yaml" title="Permanent link">&para;</a></h2>
 <p>Every spec document declares its version, and the key also says which kind of document it
 is:</p>
@@ -2159,6 +2239,16 @@ reinterpret one.</p>
    guarantee — skips the warning and relies on the changelog, which is why the
    changelog is the channel that is always there.</li>
 </ol>
+<p>The warning's category is <code>BloomeryDeprecationWarning</code>, a <code>DeprecationWarning</code> exported
+from <code>bloomery.errors</code>, so you can target bloomery precisely without silencing your other
+dependencies:</p>
+<div class="highlight"><pre><span></span><code><span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">"error"</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="n">bloomery</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">BloomeryDeprecationWarning</span><span class="p">)</span>
+</code></pre></div>
+<p>bloomery emits each spelling's warning <strong>best-effort once per process</strong>. That is the whole
+contract: the guard is unsynchronized, so two threads reaching a spelling's first use at
+the same moment may each emit, and no guard here can show a warning your own <code>ignore</code>
+filter hides. If you need a hard once, your filter configuration is what gives it to you —
+it deduplicates delivery regardless of how often bloomery emits.</p>
 <p>Nothing in the current release is deprecated; this section is the mechanism, recorded
 before it is needed rather than invented mid-removal.</p>
 <h3 id="the-installed-version">The installed version<a class="headerlink" href="#the-installed-version" title="Permanent link">&para;</a></h3>
