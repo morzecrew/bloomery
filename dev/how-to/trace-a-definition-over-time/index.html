@@ -1310,6 +1310,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#from-the-command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        From the command line
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reading-the-answer" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1761,6 +1772,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#from-the-command-line" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        From the command line
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#reading-the-answer" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2000,6 +2022,34 @@ boundary you find.</p>
 <p>If a version's project wires steps, hand over the registry that was in force with it:
 <code>SpecVersion(label=..., project=..., catalog=..., steps=registry)</code>. Without it that version
 is refused rather than guessed at, exactly as an ordinary compile is.</p>
+<h2 id="from-the-command-line">From the command line<a class="headerlink" href="#from-the-command-line" title="Permanent link">&para;</a></h2>
+<p>Everything above is also one command, which takes the directories positionally the way
+<code>plan</code> takes two:</p>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>timeline<span class="w"> </span>q1/<span class="w"> </span>q2/<span class="w"> </span>q3/<span class="w"> </span>--node<span class="w"> </span>metric.gross_revenue
+</code></pre></div>
+<p>It prints the versions, then what moved:</p>
+<div class="highlight"><pre><span></span><code>metric.gross_revenue  (3 versions, 1 change)
+
+  q1/  present
+  q2/  present
+  q3/  present
+
+  q1/ -&gt; q2/  order_item.unit_price  (name)
+      body  expr  CAST(price AS DECIMAL(10, 2))  -&gt;  CAST(price AS DECIMAL(12, 4))
+      unit  type  decimal(10,2)                  -&gt;  decimal(12,4)
+</code></pre></div>
+<p>One line per version, then one block per change: which two versions it sits between, which
+node moved, how the two were matched, and a row per facet. A facet whose value has no short
+spelling — a filter is a list of records — prints the field and stops.</p>
+<p>The label of each version is <strong>the directory string as you typed it</strong> — not resolved, not
+shortened, not sorted. Name your directories so the order you want falls out of a glob and
+<code>bloomery timeline history/*/ --node ...</code> does the rest.</p>
+<p><code>--format json</code> emits the value this page's Python returns, whole, facets included — that
+is the shape a UI reads.</p>
+<p>Two things the command cannot do that the Python API can. It passes no step registry, so a
+project wiring <code>steps:</code> is refused exactly as <code>bloomery compile</code> refuses it. And it reads
+directories, so a history that lives in git revisions or a table is one you assemble in
+Python.</p>
 <h2 id="reading-the-answer">Reading the answer<a class="headerlink" href="#reading-the-answer" title="Permanent link">&para;</a></h2>
 <p><strong><code>entries</code> has one row per version you supplied</strong>, present or absent. An absence keeps its
 place in the sequence, so you can see <em>which</em> version the node was missing from rather than

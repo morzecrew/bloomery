@@ -1315,10 +1315,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-eight-commands" class="md-nav__link">
+  <a href="#the-nine-commands" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The eight commands
+        The nine commands
       </span>
     </span>
   </a>
@@ -1352,6 +1352,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Planning a change
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tracing-one-node-over-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Tracing one node over time
       </span>
     </span>
   </a>
@@ -1727,10 +1738,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#the-eight-commands" class="md-nav__link">
+  <a href="#the-nine-commands" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        The eight commands
+        The nine commands
       </span>
     </span>
   </a>
@@ -1764,6 +1775,17 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         Planning a change
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tracing-one-node-over-time" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Tracing one node over time
       </span>
     </span>
   </a>
@@ -1955,13 +1977,14 @@ than "nothing unreachable".</p>
 <p>A project that wires a <code>steps:</code> document reports the unwired step here, because the CLI
 passes no registry — see <a href="#compiling">Steps are the one thing the CLI cannot wire</a> below.
 <code>bloomery compile</code> on the same project refuses for the same reason.</p>
-<h2 id="the-eight-commands">The eight commands<a class="headerlink" href="#the-eight-commands" title="Permanent link">&para;</a></h2>
+<h2 id="the-nine-commands">The nine commands<a class="headerlink" href="#the-nine-commands" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>bloomery compile     &lt;dir&gt; [--target sqlmesh] [--dialect duckdb] [--catalog F] [--out DIR]
 bloomery plan        &lt;old-dir&gt; &lt;new-dir&gt; [--catalog F] [--format table|json]
 bloomery resolve     &lt;dir&gt; [--catalog F] [--format table|json]
 bloomery check       &lt;dir&gt; [--catalog F] [--format table|json]
 bloomery lineage     &lt;dir&gt; --node ID [--direction upstream|downstream|both] [--max-depth N]
                            [--catalog F] [--format table|json]
+bloomery timeline    &lt;dir&gt;... --node ID [--catalog F] [--format table|json]
 bloomery explain     &lt;dir&gt; --metrics a,b [--by x,y] [--where JSON] [--grain month]
                            [--limit N] [--policy 'dim op value'] [--dialect duckdb]
                            [--format table|json]
@@ -2036,6 +2059,31 @@ Downstream metrics
 <p>Both directories are compiled to IR and diffed. The breaking count is the number you
 decide on; the rest is context. See <a href="../evolve-a-spec/">evolve a spec</a> for what each
 change class means.</p>
+<h2 id="tracing-one-node-over-time">Tracing one node over time<a class="headerlink" href="#tracing-one-node-over-time" title="Permanent link">&para;</a></h2>
+<p><code>plan</code> compares two spec sets. <code>timeline</code> takes as many as you have, and reports one node
+across all of them:</p>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>timeline<span class="w"> </span>q1/<span class="w"> </span>q2/<span class="w"> </span>q3/<span class="w"> </span>--node<span class="w"> </span>metric.gross_revenue
+</code></pre></div>
+<p>The directories are positional and <strong>the order you give is the order reported</strong> — nothing
+is sorted, and no directory name is parsed. The label printed for each version is the
+string you typed, so name your directories so that the order you want falls out of the
+glob:</p>
+<div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>timeline<span class="w"> </span>history/*/<span class="w"> </span>--node<span class="w"> </span>metric.gross_revenue
+</code></pre></div>
+<p>There is no manifest file and no <code>--as-of</code>, for the same reason there is no <code>--steps</code>:
+the moment bloomery reads a list of versions it owns what a history <em>is</em>, and that is
+yours.</p>
+<p>The answer covers what the node is <strong>built from</strong>, so a metric whose own definition never
+moved still reports the field beneath it that did — each change naming the node it is
+about. See <a href="../trace-a-definition-over-time/">trace a definition over time</a> for how to read
+the facets.</p>
+<p>A node absent from <em>some</em> versions is an answer and prints as <code>absent</code>. A node absent from
+<strong>every</strong> version is refused with exit <code>1</code>: node ids differ between versions when a project
+adopts an <code>id:</code>, so that means the spelling is wrong for this window. There is no
+did-you-mean, because suggestions need one graph and this has one per version — run
+<code>bloomery lineage &lt;dir&gt; --node ...</code> against a single directory to get one.</p>
+<p>A project that wires <code>steps:</code> is refused here exactly as <code>compile</code> refuses it, and for the
+same reason. The Python API takes a registry per version.</p>
 <h2 id="explaining-a-request">Explaining a request<a class="headerlink" href="#explaining-a-request" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>bloomery<span class="w"> </span>explain<span class="w"> </span>specs/<span class="w"> </span>--metrics<span class="w"> </span>gross_revenue<span class="w"> </span>--by<span class="w"> </span>ordered_month<span class="w"> </span>--limit<span class="w"> </span><span class="m">5</span>
 </code></pre></div>
