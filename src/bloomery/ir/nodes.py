@@ -782,6 +782,22 @@ class CoverageIR:
 
 
 @dataclass(frozen=True, slots=True)
+class GrantsIR:
+    """Who may read a relation (RFC 0055 §5.3).
+
+    A record rather than a bare tuple so that "no role may select" and "no
+    opinion" stay different values: ``GrantsIR(select=())`` is the first and
+    ``None`` is the second (D6). A tuple alone would collapse them into an
+    empty sequence that reads as both.
+    """
+
+    select: tuple[str, ...]
+
+
+# ....................... #
+
+
+@dataclass(frozen=True, slots=True)
 class EntityIR:
     """One silver entity: key in authored order (it is meaningful), columns
     sorted by name, audits sorted by (kind, column).
@@ -834,6 +850,9 @@ class EntityIR:
     #: verifies. Appended with a default so a positional construction keeps
     #: binding what it bound before.
     owner: str | None = None
+    #: Who may read this relation (RFC 0055 §5.3), or ``None`` for "bloomery
+    #: has no opinion and the warehouse's grants stand" (D6).
+    grants: GrantsIR | None = None
 
 
 # ....................... #
@@ -1164,6 +1183,9 @@ class MartIR:
     #: verifies. Appended with a default so a positional construction keeps
     #: binding what it bound before.
     owner: str | None = None
+    #: Who may read this relation (RFC 0055 §5.3), or ``None`` for "bloomery
+    #: has no opinion and the warehouse's grants stand" (D6).
+    grants: GrantsIR | None = None
 
 
 # ....................... #

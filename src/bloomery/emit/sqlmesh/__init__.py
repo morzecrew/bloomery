@@ -97,6 +97,7 @@ from bloomery.ir import (
     AuditIR,
     DateDimensionIR,
     EntityIR,
+    GrantsIR,
     Layer,
     MartIR,
     Materialization,
@@ -132,7 +133,8 @@ _ENVELOPE = jinja2.Template(
 MODEL (
   name {{ name }},
   kind {{ kind }},{% if owner %}
-  owner {{ owner }},{% endif %}
+  owner {{ owner }},{% endif %}{% if grants %}
+  grants ({{ grants }}),{% endif %}
   grain ({{ grain }}){% if depends_on %},
   depends_on ({{ depends_on }}){% endif %}{% if partitioned_by %},
   partitioned_by ({{ partitioned_by }}){% endif %}{% if audits %},
@@ -425,6 +427,31 @@ def _partitioned_by(specs: tuple[PartitionSpec, ...]) -> str:
 # ....................... #
 
 
+def _grants_clause(grants: GrantsIR | None, ctx: EmitContext) -> str:
+    """A grants block as SQLMesh spells it, or the empty string for none.
+
+    ``"select" = ('role_a', 'role_b')`` — the permission name **quoted**, which
+    is not decoration: `select` is a SQL keyword, and the unquoted spelling
+    SQLMesh's own examples suggest is a SQLGlot parse error before SQLMesh ever
+    sees it. Verified by loading the emitted block through SQLMesh rather than
+    by reading its documentation (logs/T-0050.md).
+
+    An empty grantee tuple is emitted rather than skipped: SQLMesh reads
+    ``grants ("select" = ())`` as ``{'select': []}`` and an absent property as
+    ``None``, so D6's distinction between "no role may select" and "bloomery
+    has no opinion" survives into the target instead of being flattened here.
+    """
+
+    if grants is None:
+        return ""
+
+    grantees = ", ".join(ctx.dialect.render(text_literal(role)) for role in grants.select)
+    return f'"select" = ({grantees})'
+
+
+# ....................... #
+
+
 def _owner_clause(owner: str | None, ctx: EmitContext) -> str:
     """An owner as a SQL string literal, or the empty string for none.
 
@@ -482,6 +509,7 @@ def _mart_artifact(mart: MartIR, ir: ProjectIR, ctx: EmitContext) -> EmittedArti
         # or they would ship as artifacts nothing ever executes.
         audits=", ".join(mart_assert_name(mart, clause) for clause in mart.asserts),
         owner=_owner_clause(mart.owner, ctx),
+        grants=_grants_clause(mart.grants, ctx),
         select=ctx.dialect.render(mart_select(mart, ctx)),
     )
     return EmittedArtifact.create(
@@ -936,6 +964,11 @@ def _reject_artifact(entity: EntityIR, ctx: EmitContext) -> EmittedArtifact:
         # The reject table is the *same* entity's second artifact rather than a
         # second node, so carrying its owner is not the inheritance D2 refuses.
         owner=_owner_clause(entity.owner, ctx),
+        # ...and its grants for a sharper reason than symmetry: a reject row is
+        # this entity's data that failed a rule, so a reject table left open
+        # while the silver table is closed publishes exactly the rows an author
+        # restricted.
+        grants=_grants_clause(entity.grants, ctx),
         select=ctx.dialect.render(reject_select(entity, ctx)),
     )
     return EmittedArtifact.create(
@@ -1083,6 +1116,7 @@ class SQLMeshEmitter:
                 partitioned_by=_partitioned_by(entity.partition_by),
                 audits=", ".join(filter(None, (audits, *coverage))),
                 owner=_owner_clause(entity.owner, ctx),
+                grants=_grants_clause(entity.grants, ctx),
                 select=ctx.dialect.render(entity_select(entity, ctx)),
             )
             artifacts.append(

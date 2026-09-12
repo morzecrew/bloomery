@@ -492,3 +492,180 @@ def test_a_classified_column_no_mart_projects_has_no_cube_surface() -> None:
     classification still reaches dbt."""
     assert "model/cubes" not in " ".join(classified("cube"))
     assert "classification" in classified("dbt")["models/schema.yml"]
+
+
+# ....................... #
+# `grants` (RFC 0055 §5.3)
+
+
+def granted(target: str, select: str = "[analyst]") -> dict[str, str]:
+    model = entity_model(None).replace(
+        "    fields:\n", f"    grants: {{select: {select}}}\n    fields:\n", 1
+    )
+    return {
+        a.path: a.content
+        for a in compile_project(
+            load_project({"entity_model": model, "mapping": MAPPING}),
+            target=target,
+            dialect="duckdb",
+        )
+    }
+
+
+def test_grants_reach_sqlmesh_in_a_form_sqlmesh_reads_back() -> None:
+    """Asserted by loading the emitted block through SQLMesh rather than by
+    matching text.
+
+    The permission name has to be *quoted*: `select` is a SQL keyword, so
+    `grants (select = (...))` — the spelling SQLMesh's own examples suggest —
+    is a SQLGlot parse error before SQLMesh ever sees it. A text assertion
+    would have passed on the broken spelling.
+    """
+    from sqlglot import parse
+    from sqlmesh.core.model import load_sql_based_model
+
+    content = granted("sqlmesh", "[analyst, \"role o'brien\"]")["models/silver/event.sql"]
+    model = load_sql_based_model(parse(content, read="duckdb"), dialect="duckdb")
+    assert model.grants == {"select": ["analyst", "role o'brien"]}
+
+
+def test_grants_reach_a_dbt_model_config() -> None:
+    schema = yaml.safe_load(granted("dbt")["models/schema.yml"])
+    assert schema["models"] == [{"name": "event", "config": {"grants": {"select": ["analyst"]}}}]
+
+
+def test_an_empty_grant_list_is_not_an_absent_block() -> None:
+    """D6, at both targets that apply grants.
+
+    `{select: []}` says no role may select; no block at all says bloomery has
+    no opinion and the warehouse's grants stand. Emitting the first as the
+    second would revoke nothing while looking like it did — so the emitted
+    artifacts have to keep them apart, and SQLMesh's own reader is what says
+    whether they do: `{}` for an empty grant against `None` for absence.
+    """
+    from sqlglot import parse
+    from sqlmesh.core.model import load_sql_based_model
+
+    empty = granted("sqlmesh", "[]")["models/silver/event.sql"]
+    assert load_sql_based_model(parse(empty, read="duckdb"), dialect="duckdb").grants == {
+        "select": []
+    }
+
+    absent = artifacts("sqlmesh", owner=None)["models/silver/event.sql"]
+    assert load_sql_based_model(parse(absent, read="duckdb"), dialect="duckdb").grants is None
+
+    assert yaml.safe_load(granted("dbt", "[]")["models/schema.yml"])["models"] == [
+        {"name": "event", "config": {"grants": {"select": []}}}
+    ]
+
+
+def test_a_grants_block_with_no_select_is_refused() -> None:
+    """`select` is required rather than defaulted, so `grants: {}` cannot
+    become a third state meaning neither "no opinion" nor "no role"."""
+    from bloomery.errors import SpecParseError
+
+    model = entity_model(None).replace("    fields:\n", "    grants: {}\n    fields:\n", 1)
+    with pytest.raises(SpecParseError) as excinfo:
+        load_project({"entity_model": model, "mapping": MAPPING})
+    assert excinfo.value.source_path == "entity_model: entities.event.grants.select"
+
+
+def test_the_reject_table_carries_its_entity_grants() -> None:
+    """Sharper than the owner case: a reject row is this entity's data that
+    failed a rule, so a reject table left open while the silver table is closed
+    publishes exactly the rows an author restricted."""
+    model = """\
+spec_version: 1
+entities:
+  event:
+    grain: one row per event
+    key: [event_id]
+    grants: {select: [analyst]}
+    quarantine: {retention: 90d}
+    dedupe: {keep: latest_by, field: _ingested_at, tie_break: [_load_id]}
+    fields:
+      event_id: {type: string, required: true}
+      kind: {type: string, required: true}
+"""
+    mapping = """\
+mapping_version: 1
+target: event
+source: raw__events
+key:
+  event_id: {from: "$.id"}
+fields:
+  kind: {from: "$.kind"}
+unmapped: ["$._ingested_at", "$._load_id", "$._source_row_id"]
+"""
+    emitted = {
+        a.path: a.content
+        for a in compile_project(
+            load_project({"entity_model": model, "mapping": mapping}),
+            target="sqlmesh",
+            dialect="duckdb",
+        )
+    }
+    reject = next(content for path, content in emitted.items() if "reject" in path)
+    assert 'grants ("select" = (\'analyst\'))' in reject
+
+
+@pytest.mark.parametrize("node", ["entity", "mart"])
+def test_cube_refuses_grants_rather_than_dropping_them(node: str) -> None:
+    """D5. Cube reads relations it does not own, so a grant there would be a
+    restriction in a file that restricts nothing — and dropping it silently
+    would let a project believe a restriction it declared is in force on every
+    target it compiles for.
+
+    Both node kinds, because an entity has no cube of its own: a per-cube check
+    would pass a project whose silver relations are restricted and say nothing.
+    """
+    from bloomery.errors import UnsupportedByTarget
+
+    sources = dict(fixture_sources("ecom_basic"))
+    if node == "entity":
+        sources["entity_model"] = sources["entity_model"].replace(
+            "  order_item:\n", "  order_item:\n    grants: {select: [analyst]}\n", 1
+        )
+    else:
+        sources["marts"] = sources["marts"].replace(
+            "marts:\n  order_items:", "marts:\n  order_items:\n    grants: {select: [analyst]}", 1
+        )
+    catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
+
+    with pytest.raises(UnsupportedByTarget, match="which Cube cannot apply"):
+        compile_project(load_project(sources), target="cube", dialect="duckdb", catalog=catalog)
+
+    # ...and the targets that do apply them still compile, which is what says
+    # the refusal is Cube's rather than a project-wide ban.
+    for target in ("sqlmesh", "dbt"):
+        compile_project(load_project(sources), target=target, dialect="duckdb", catalog=catalog)
+
+
+# ....................... #
+# Seeds (D7)
+
+
+@pytest.mark.parametrize(
+    "written", ["seeds:\n  countries: {}\n", "seeds:\n", "seeds: []\n"], ids=["mapping", "bare", "list"]
+)
+def test_seeds_are_refused_by_name(written: str) -> None:
+    """A permanent refusal, not a gap — and the message has to say so.
+
+    Every value, including none at all: `seeds:` with nothing after it is still
+    someone asking for seeds, and typing the field as `... | None` would have
+    sent that spelling down the `None` branch without running the validator.
+    """
+    from bloomery.errors import SpecParseError
+
+    with pytest.raises(SpecParseError) as excinfo:
+        load_project({"entity_model": f"spec_version: 1\n{written}entities: {{}}\n"})
+
+    assert excinfo.value.source_path == "entity_model: seeds"
+    assert "refused, permanently, and not missing" in str(excinfo.value)
+    assert "RFC 0003" in str(excinfo.value)
+
+
+def test_a_project_without_seeds_is_unaffected() -> None:
+    """The control for a key that exists only to refuse: its presence in the
+    model must not make an ordinary document harder to write."""
+    assert load_project({"entity_model": entity_model(None), "mapping": MAPPING}) is not None

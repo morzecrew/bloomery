@@ -1055,6 +1055,15 @@ def _schema_entry(entity: EntityIR, name: str, ctx: EmitContext) -> dict[str, ob
     if entity.owner is not None:
         entry["meta"] = {"owner": entity.owner}
 
+    if entity.grants is not None:
+        # In the schema entry rather than `dbt_project.yml`, which is the other
+        # place dbt reads a `+grants` config from. Both work; this one keeps a
+        # node's three annotations in one document instead of naming the same
+        # model in two files, and it is where the owner above already is
+        # (logs/T-0050.md). An empty list is emitted rather than skipped — that
+        # is D6, and dbt reads `{select: []}` as "no role", not as silence.
+        entry["config"] = {"grants": {"select": list(entity.grants.select)}}
+
     if model_tests:
         entry["data_tests"] = model_tests
 
@@ -1086,6 +1095,30 @@ def _schema_entry(entity: EntityIR, name: str, ctx: EmitContext) -> dict[str, ob
 # ....................... #
 
 
+def _mart_metadata_entry(mart: MartIR, ctx: EmitContext) -> dict[str, object]:
+    """A mart's `schema.yml` entry — the metadata half only.
+
+    A mart carries no schema entry otherwise: its tests are singular tests of
+    their own and its columns are the entity columns it flattened. So this
+    entry exists exactly when there is metadata to put in it, and the quality
+    mart and rollups — which have no authored node — never have any.
+    """
+
+    _namespace, relation = ctx.naming.relation(mart.name, Layer.GOLD)
+    entry: dict[str, object] = {"name": relation}
+
+    if mart.owner is not None:
+        entry["meta"] = {"owner": mart.owner}
+
+    if mart.grants is not None:
+        entry["config"] = {"grants": {"select": list(mart.grants.select)}}
+
+    return entry
+
+
+# ....................... #
+
+
 def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
     models: list[object] = []
     snapshots: list[object] = []
@@ -1099,6 +1132,7 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
         if (
             not entity.audits
             and entity.owner is None
+            and entity.grants is None
             and all(column.classification is None for column in entity.columns)
         ):
             continue
@@ -1116,9 +1150,9 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
     # otherwise, so one appears only for a mart that declares an owner; the
     # quality mart and rollups have no authored node and so never do.
     models.extend(
-        {"name": ctx.naming.relation(mart.name, Layer.GOLD)[1], "meta": {"owner": mart.owner}}
+        _mart_metadata_entry(mart, ctx)
         for mart in ir.marts
-        if mart.owner is not None
+        if mart.owner is not None or mart.grants is not None
     )
 
     if not models and not snapshots:

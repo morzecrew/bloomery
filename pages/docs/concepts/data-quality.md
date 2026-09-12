@@ -271,6 +271,13 @@ trivial now and a legal problem in eighteen months. `redact:` removes JSONPaths 
 intersects a path the mapping reads: you cannot both require a field and destroy it,
 because replay would have nothing left to re-run against.
 
+That refusal is also why `redact:` is not how you say "this column is sensitive". It
+decides what a **reject row** keeps, and a column the entity actually publishes can never
+be listed there. Saying a published column is sensitive is
+[`classification:`](../how-to/annotate-a-spec.md#classification-what-a-column-holds), which
+is a property of the column rather than a rule about one artifact — the two compose, and
+neither is a substitute for the other.
+
 !!! note "bloomery emits the replay merge; it never runs it"
 
     Compilation produces a `replay/<entity>.sql` artifact holding the `MERGE` statements

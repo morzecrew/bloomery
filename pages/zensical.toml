@@ -47,6 +47,7 @@ nav = [
         "how-to/reproduce-a-past-artifact-set.md",
         "how-to/close-an-open-decision.md",
         "how-to/declare-an-exposure.md",
+        "how-to/annotate-a-spec.md",
         "how-to/merge-sources.md",
         "how-to/resolve-identities.md",
         "how-to/trace-lineage.md",

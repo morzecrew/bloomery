@@ -533,6 +533,48 @@ def _view_artifact(mart: MartIR, ctx: EmitContext) -> EmittedArtifact:
 # ....................... #
 
 
+def _refuse_grants(ir: ProjectIR) -> None:
+    """Refuse a project declaring grants when the target is Cube (D5).
+
+    Refused rather than dropped, which is the whole of the decision. Cube reads
+    relations it does not own — it issues queries against a warehouse someone
+    else creates — so it has no mechanism to apply a grant with. Emitting the
+    block anyway would put a restriction in a file that never restricts
+    anything, and dropping it silently would let a project believe a
+    restriction it declared is in force on every target it compiles for. That
+    is the silent degradation RFC 0008 D3 exists to prevent.
+
+    By existence and project-wide, like the refusal below it: a grant on an
+    *entity* has no cube of its own, so a per-cube check would pass a project
+    whose silver relations are restricted and say nothing.
+    """
+
+    for entity in ir.entities:  # sorted by name on ProjectIR
+        if entity.grants is not None:
+            msg = (
+                f"entity {entity.name!r} declares grants:, which Cube cannot apply — it "
+                "reads relations it does not own, so a grant emitted here would be a "
+                "restriction in a file that restricts nothing (RFC 0055 D5). Fix: compile "
+                "this project for SQLMesh or dbt, which do apply grants, and keep Cube for "
+                "the semantic layer over relations those targets have already restricted"
+            )
+            raise UnsupportedByTarget(msg)
+
+    for mart in ir.marts:
+        if mart.grants is not None:
+            msg = (
+                f"mart {mart.name!r} declares grants:, which Cube cannot apply — it reads "
+                "relations it does not own, so a grant emitted here would be a restriction "
+                "in a file that restricts nothing (RFC 0055 D5). Fix: compile this project "
+                "for SQLMesh or dbt, which do apply grants, and keep Cube for the semantic "
+                "layer over relations those targets have already restricted"
+            )
+            raise UnsupportedByTarget(msg)
+
+
+# ....................... #
+
+
 def _refuse_time_shaped(ir: ProjectIR) -> None:
     """Refuse the two RFC 0034 forms Cube has no measure shape for (D11).
 
@@ -590,6 +632,7 @@ class CubeEmitter:
         content ending in exactly one newline (RFC 0003 §5.5 rule 5). A
         project without marts emits nothing — Cube has no silver surface."""
 
+        _refuse_grants(ir)
         _refuse_time_shaped(ir)
         owners = measure_owners(ir)
         artifacts: list[EmittedArtifact] = []

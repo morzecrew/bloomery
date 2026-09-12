@@ -63,6 +63,7 @@ from bloomery.ir import (
     ExposureKind,
     FreshnessIR,
     FxRatesIR,
+    GrantsIR,
     Materialization,
     MetricFilterIR,
     MetricInputIR,
@@ -1286,6 +1287,7 @@ def _build_entity(
         partition_by=partition_specs(entity.partition_by),
         columns=columns,
         owner=entity.owner,
+        grants=GrantsIR(select=entity.grants.select) if entity.grants is not None else None,
         sources=tuple(_filled(source, columns) for _columns, source in built),
         audits=(),  # populated by the guardrail stage: assert: lowering + reconcile (RFC 0006)
         # Stages 3–6 (RFC 0016 §5.4): dedupe, field rules, row rules, route.

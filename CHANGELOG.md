@@ -50,6 +50,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   column marked `public` that is not reads exactly like one that is. It is also
   never a place for a secret *value*: it names a column, it never carries one.
 
+- **`grants:` on an entity or a mart**, and it is the one annotation here with a
+  consequence: `grants: {select: [analyst]}` is *applied* — by SQLMesh at
+  creation, by dbt on every run — so being wrong changes who can read data.
+  An entity's `<entity>__reject` table is granted with it, because a reject row
+  is that entity's data that failed a rule.
+
+  **An empty list is not an absent block.** `{select: []}` says no role may
+  select; no `grants:` at all says bloomery has no opinion and your warehouse's
+  grants stand. What the empty list promises is bounded by the adapter, though:
+  dbt reconciles on every run, SQLMesh applies at creation, and a warehouse may
+  carry privileges across a replace regardless — so it is a statement about the
+  framework-managed grant set, never about every privilege the object holds.
+
+  **Cube refuses it.** Cube reads relations it does not own, so a grant there
+  would be a restriction in a file that restricts nothing. Compiling a granted
+  project for Cube fails rather than dropping the block.
+
+- **`seeds:` is refused, permanently, and says so.** A seed is a table of data
+  in your repository and bloomery reads no files while compiling, so the rows
+  would have to live in a spec — which would make the spec a data file. The key
+  now exists in order to be refused: writing it gets a message naming the
+  reason, rather than "Extra inputs are not permitted", which reads like a key
+  that might arrive in a later release.
+
+- **A how-to for all three**, at
+  [Say who owns a thing, what it holds, and who may read it](how-to/annotate-a-spec.md).
+
 - **bloomery narrates what it is doing, and says what it noticed.** Two
   additions to the observational surface, both under the rule that compilation
   stays a pure function.
