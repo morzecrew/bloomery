@@ -83,7 +83,7 @@ from bloomery.typing import BoolType, StringType, parse_type
 if TYPE_CHECKING:
     from bloomery.ir import EntityIR, ProjectIR
     from bloomery.spec.entity import Entity, Relationship
-    from bloomery.spec.mapping import Mapping
+    from bloomery.spec.mapping import Freshness, Mapping
     from bloomery.spec.project import Project
 
 # ----------------------- #
@@ -412,25 +412,26 @@ def _check_freshness_agreement(project: Project) -> list[GuardrailError]:
     relations are the same partition.
     """
 
-    declared: dict[str, list[Mapping]] = {}
+    # Pairs rather than mappings, so the threshold is carried out of the one
+    # place that established it is there. Keeping ``Mapping`` alone put an
+    # ``if m.freshness`` on every read below — a condition this loop's own
+    # filter makes unfalsifiable, which reads to the next person as a case that
+    # can happen.
+    declared: dict[str, list[tuple[Mapping, Freshness]]] = {}
 
     for mapping in sorted(project.mappings, key=lambda m: m.source):
         if mapping.freshness is not None:
-            declared.setdefault(mapping.source, []).append(mapping)
+            declared.setdefault(mapping.source, []).append((mapping, mapping.freshness))
 
     errors: list[GuardrailError] = []
 
-    for relation, mappings in sorted(declared.items()):
-        thresholds = {
-            (m.freshness.warn_after, m.freshness.error_after) for m in mappings if m.freshness
-        }
-        if len(thresholds) < 2:
+    for relation, pairs in sorted(declared.items()):
+        if len({(block.warn_after, block.error_after) for _mapping, block in pairs}) < 2:
             continue
         spelled = ", ".join(
-            f"{mapping_doc(m)} says warn_after {m.freshness.warn_after}, error_after "
-            f"{m.freshness.error_after}"
-            for m in mappings
-            if m.freshness
+            f"{mapping_doc(mapping)} says warn_after {block.warn_after}, error_after "
+            f"{block.error_after}"
+            for mapping, block in pairs
         )
         msg = (
             f"bronze relation {relation!r} is given more than one freshness threshold: "
@@ -440,7 +441,7 @@ def _check_freshness_agreement(project: Project) -> list[GuardrailError]:
             "applies to a merged entity's rules). Fix: make them agree, or leave the "
             "threshold on one mapping and drop it from the others"
         )
-        errors.append(GuardrailError(msg, source_path=f"{mapping_doc(mappings[0])}: freshness"))
+        errors.append(GuardrailError(msg, source_path=f"{mapping_doc(pairs[0][0])}: freshness"))
 
     return errors
 

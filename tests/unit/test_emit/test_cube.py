@@ -36,7 +36,7 @@ from bloomery.ir import (
 )
 from bloomery.naming import DefaultNaming, PrefixNaming
 from bloomery.typing import DateType, DecimalType, LogicalType, StringType
-from support.compiling import compile_fixture
+from support.compiling import compile_fixture, load_fixture
 
 pytestmark = pytest.mark.unit
 
@@ -800,3 +800,23 @@ def test_every_measure_a_pre_aggregation_names_is_one_its_cube_defines() -> None
                 for member in cast("list[str]", block["measures"])
             }
             assert named <= defined, f"{artifact.path}: {named - defined} not defined"
+
+
+def test_a_declared_freshness_threshold_reaches_nothing_here() -> None:
+    """RFC 0057 D6, the Cube half.
+
+    Cube models no source either — its world starts at the silver relations a
+    cube reads — so there is no artifact being approximated and nothing to
+    refuse. Asserted against a project that actually declares a threshold, for
+    the reason the SQLMesh sibling gives: silence about a feature and ignorance
+    of it produce the same bytes.
+    """
+    project, _catalog = load_fixture("quality_precedence")
+    # As on the SQLMesh side: a fixture that dropped its threshold would leave
+    # this green while proving nothing.
+    assert any(mapping.freshness is not None for mapping in project.mappings)
+
+    artifacts = compile_fixture("quality_precedence", target="cube", dialect="postgres")
+
+    assert artifacts, "the fixture stopped compiling for Cube"
+    assert not [a.path for a in artifacts if "freshness" in a.content]

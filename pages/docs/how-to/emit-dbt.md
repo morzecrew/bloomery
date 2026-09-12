@@ -97,16 +97,16 @@ freshness: {warn_after: 6h, error_after: 24h}
 
 which reaches `models/sources.yml` as dbt's own vocabulary:
 
-```yaml
-- name: shopify__order_lines
-  loaded_at_field: CAST(_ingested_at AS TIMESTAMP)
-  freshness:
-    warn_after:
-      count: 6
-      period: hour
-    error_after:
-      count: 24
-      period: hour
+```yaml title="the emitted table entry"
+  - name: shopify__order_lines
+    loaded_at_field: CAST(_ingested_at AS TIMESTAMP)
+    freshness:
+      warn_after:
+        count: 6
+        period: hour
+      error_after:
+        count: 24
+        period: hour
 ```
 
 **`dbt build` does not run this.** `dbt source freshness` does, as its own command in

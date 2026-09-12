@@ -45,6 +45,7 @@ from bloomery.ir import (
     StepKind,
 )
 from bloomery.naming import DefaultNaming, PrefixNaming
+from bloomery.spec.quality import RETENTION_PATTERN
 from bloomery.typing import DecimalType, IntType, LogicalType, StringType
 from support.compiling import (
     FIXTURES,
@@ -1159,3 +1160,23 @@ def test_the_loaded_at_field_is_cast_and_not_the_bare_column() -> None:
     tables = cast("list[dict[str, object]]", document["sources"][0]["tables"])  # type: ignore[index]
 
     assert tables[0]["loaded_at_field"] == "CAST(_ingested_at AS TIMESTAMP)"
+
+
+def test_every_unit_the_spec_grammar_admits_reaches_a_dbt_period() -> None:
+    """Totality against the pattern, not against a list beside it.
+
+    `duration_hours` has this test on the spec side; without one here, a unit
+    added to `RETENTION_PATTERN` would parse, order correctly, reach the
+    emitter and raise `KeyError` there — a crash at emit for a spec value the
+    parser accepted, and reachable only by whoever declared that unit first.
+
+    The pattern's own character class is the source, so the two cannot drift.
+    """
+    units = re.search(r"\[([a-z]+)\]", RETENTION_PATTERN)
+
+    assert units is not None
+    for unit in units.group(1):
+        document = _sources_document(_with_freshness("orders", f"1{unit}", f"2{unit}"))
+        tables = cast("list[dict[str, object]]", document["sources"][0]["tables"])  # type: ignore[index]
+        after = cast("dict[str, object]", tables[0]["freshness"])["warn_after"]
+        assert cast("dict[str, object]", after)["period"] in {"minute", "hour", "day"}

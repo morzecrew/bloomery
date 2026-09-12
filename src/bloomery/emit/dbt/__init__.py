@@ -1178,9 +1178,10 @@ def _sources_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None
     #
     # The threshold is keyed by the *physical* relation, which is the grain dbt
     # gives it — one table entry per relation, however many mappings read it.
-    # Two mappings disagreeing about one relation is refused at the guardrail
-    # stage (RFC 0057 D2a), so the last writer here can only ever be writing
-    # what the others already said.
+    # The first threshold seen wins, and D2a is what makes that safe rather
+    # than arbitrary: two mappings disagreeing about one relation are refused at
+    # the guardrail stage, so there is at most one threshold to see. A silent
+    # sibling must not erase it, which is why this is `or` and not assignment.
     for entity in ir.entities:
         for origin in entity.sources:
             namespace, relation = ctx.naming.relation(origin.relation, Layer.BRONZE)
