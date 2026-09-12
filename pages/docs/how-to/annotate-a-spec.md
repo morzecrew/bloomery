@@ -44,6 +44,11 @@ It reaches whichever slot each target has for that kind of node:
 The blanks are objects that do not exist rather than metadata that was dropped: Cube emits
 no entities, and a metric has no model of its own in either SQL target.
 
+**The MetricFlow manifest carries no owner yet.** A semantic model there has an `owners`
+list and it would be the natural fourth column of that table; what it should hold — the
+entity's owner, the metric's, or both — is a question about the manifest's shape rather
+than about this annotation, and it is open.
+
 **It does not inherit.** A mart over an owned entity has no owner until you write one, and
 a metric instantiating a catalog template does not take the template's. An owner nobody
 wrote should not look like one somebody did — so `metric_templates:` has no `owner:` key
