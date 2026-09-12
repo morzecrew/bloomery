@@ -1013,6 +1013,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#source-freshness" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Source freshness
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#schema-tests" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1744,6 +1755,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#source-freshness" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Source freshness
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#schema-tests" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1960,7 +1982,7 @@ list below says exactly which cells are still unequal.</p>
 <tr>
 <td><code>models/sources.yml</code></td>
 <td>config</td>
-<td>Every bronze relation the entities read</td>
+<td>Every bronze relation the entities read, with any declared freshness thresholds</td>
 </tr>
 <tr>
 <td><code>models/silver/&lt;entity&gt;.sql</code></td>
@@ -2033,6 +2055,42 @@ list below says exactly which cells are still unequal.</p>
 </code></pre></div>
 <p>Strategy is <code>check</code> over all columns, because the specs declare no updated-at marker
 and a <code>timestamp</code> strategy would have to invent one.</p>
+<h2 id="source-freshness">Source freshness<a class="headerlink" href="#source-freshness" title="Permanent link">&para;</a></h2>
+<p>A mapping can declare when its bronze relation counts as stale:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">mapping_version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">shopify__order_lines</span>
+<span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_line</span>
+<span class="nt">freshness</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">warn_after</span><span class="p">:</span><span class="w"> </span><span class="nv">6h</span><span class="p p-Indicator">,</span><span class="nt"> error_after</span><span class="p">:</span><span class="w"> </span><span class="nv">24h</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p>which reaches <code>models/sources.yml</code> as dbt's own vocabulary:</p>
+<div class="highlight"><span class="filename">the emitted table entry</span><pre><span></span><code><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">shopify__order_lines</span>
+<span class="w">    </span><span class="nt">loaded_at_field</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CAST(_ingested_at AS TIMESTAMP)</span>
+<span class="w">    </span><span class="nt">freshness</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">warn_after</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">count</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">6</span>
+<span class="w">        </span><span class="nt">period</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hour</span>
+<span class="w">      </span><span class="nt">error_after</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">count</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">24</span>
+<span class="w">        </span><span class="nt">period</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hour</span>
+</code></pre></div>
+<p><strong><code>dbt build</code> does not run this.</strong> <code>dbt source freshness</code> does, as its own command in
+your schedule. Nothing bloomery emits can put it there, and a threshold nobody runs looks
+exactly like one that passes — so if the command is not in the schedule, the block is
+inert.</p>
+<p>Three things the emitted entry decides for you:</p>
+<ul>
+<li><strong>The column is <code>_ingested_at</code></strong>, and the threshold is refused on a mapping whose entity
+  declares neither <code>quarantine:</code> nor <code>dedupe:</code>. Only those make the ingestion metadata
+  mandatory, so without one the check would name a column that may not exist.</li>
+<li><strong>It is cast.</strong> <code>_ingested_at</code> is a landing column and may be text; handed the bare name,
+  dbt refuses the check at run time with <em>expected a timestamp value</em>. An uncastable value
+  fails the check loudly rather than silently reading as no data — the blocking ingestion
+  audit is what names the offending rows.</li>
+<li><strong>Durations are the <code>quarantine.retention</code> grammar</strong> — <code>6h</code>, <code>24h</code>, <code>90d</code>, <code>2w</code>. dbt has
+  no week <code>period</code>, so <code>2w</code> is emitted as fourteen days.</li>
+</ul>
+<p>Only dbt gets this. SQLMesh and Cube model no source object, so there is nothing there to
+attach a threshold to.</p>
 <h2 id="schema-tests">Schema tests<a class="headerlink" href="#schema-tests" title="Permanent link">&para;</a></h2>
 <p><code>assert:</code> clauses land in <code>models/schema.yml</code>: <code>not_null</code> and <code>enum</code> map to dbt's
 builtin <code>not_null</code> and <code>accepted_values</code> tests; <code>min</code>, <code>max</code>, <code>regex</code>, and the

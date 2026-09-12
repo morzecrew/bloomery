@@ -1610,6 +1610,17 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#freshness" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Freshness
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#keyfield" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2325,6 +2336,17 @@
   
     <nav class="md-nav" aria-label="Mapping (mapping_version)">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#freshness" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Freshness
+      </span>
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#keyfield" class="md-nav__link">
@@ -3500,6 +3522,12 @@ that compares NULL keys on two engines out of three.</p>
 <td>no (<code>[]</code>)</td>
 <td>The explicitly unmapped tail</td>
 </tr>
+<tr>
+<td><code>freshness</code></td>
+<td>Freshness</td>
+<td>no (absent)</td>
+<td>Staleness thresholds for <code>source</code></td>
+</tr>
 </tbody>
 </table>
 <p>An entity that uses <code>quarantine:</code> or <code>dedupe:</code> requires the bronze ingestion-metadata
@@ -3509,6 +3537,54 @@ mapping states they exist by listing them in <code>unmapped:</code>; their absen
 blocking audit: none of the three may be null, <code>_source_row_id</code> must be unique per
 source row, and <code>_ingested_at</code> must cast to timestamp. The audit is emitted only for
 dialects with <code>TRY_CAST</code>; on the others the entity is <code>UnsupportedByTarget</code>.</p>
+<h3 id="freshness">Freshness<a class="headerlink" href="#freshness" title="Permanent link">&para;</a></h3>
+<p>A staleness threshold for the mapping's bronze relation. bloomery emits it; the framework
+measures it — <code>dbt source freshness</code> runs <code>SELECT MAX(_ingested_at)</code>, and nothing in the
+compiler reads a clock or touches data.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>warn_after</code></td>
+<td>duration</td>
+<td>yes</td>
+<td>The age at which the source is reported stale</td>
+</tr>
+<tr>
+<td><code>error_after</code></td>
+<td>duration</td>
+<td>yes</td>
+<td>The age at which staleness fails the check</td>
+</tr>
+</tbody>
+</table>
+<p>Durations are the same closed grammar as <code>quarantine.retention</code> — <code>6h</code>, <code>24h</code>, <code>90d</code>,
+<code>2w</code>. Both keys are required and neither is defaulted: a source with no <code>freshness:</code> block
+gets no threshold at all, because a guessed one would emit an assertion nobody made.</p>
+<p><code>error_after</code> earlier than <code>warn_after</code> is refused at parse — the warning could never
+fire. Equal values are accepted; both thresholds then trip together.</p>
+<p>Two more refusals come from the guardrail stage, and both follow from one sentence: <strong>a
+threshold is a statement about the relation, not about the mapping that carries it.</strong></p>
+<ul>
+<li>A <code>freshness:</code> block on a mapping whose target entity declares neither <code>quarantine:</code>
+  nor <code>dedupe:</code> is refused. Only those blocks make <code>_ingested_at</code> mandatory, so without
+  one the emitted <code>loaded_at_field</code> would name a column that may not exist — the project
+  compiles clean and the framework errors when it runs.</li>
+<li>Two mappings giving <strong>different</strong> thresholds to one bronze relation are refused, naming
+  both. The emitted <code>sources.yml</code> holds one entry per relation, so one of them would be
+  silently dropped. Equal thresholds collapse and are not a conflict; a mapping that
+  declares none is not disagreeing with one, so a relation read by a declaring mapping and
+  a silent one is fine.</li>
+</ul>
+<p>Only dbt emits anything for a threshold. SQLMesh and Cube model no source object, so
+there is nothing there to attach one to and nothing is refused.</p>
 <h3 id="keyfield">KeyField<a class="headerlink" href="#keyfield" title="Permanent link">&para;</a></h3>
 <table>
 <thead>

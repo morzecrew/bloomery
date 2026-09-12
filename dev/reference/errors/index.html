@@ -2290,6 +2290,14 @@ addressed message inside the same batched aggregate:</p>
 <td>A side outside the closed shape, an undeclared entity, an unknown column, sides keyed on different columns, or a duplicate check name</td>
 </tr>
 <tr>
+<td>Freshness with no ingestion contract</td>
+<td>A <code>freshness:</code> block on a mapping whose target entity declares neither <code>quarantine:</code> nor <code>dedupe:</code> — only those make <code>_ingested_at</code> mandatory, so the emitted <code>loaded_at_field</code> would name a column that may not exist and the check would error at run time on a project that compiled clean</td>
+</tr>
+<tr>
+<td>Freshness thresholds that disagree</td>
+<td>Two mappings giving one bronze relation different <code>freshness:</code> thresholds, named on both sides — <code>sources.yml</code> holds one entry per relation, so one would be silently dropped. Equal thresholds collapse, and a mapping that declares none is making no statement about the relation rather than disagreeing</td>
+</tr>
+<tr>
 <td>Reserved metric name</td>
 <td>A project metric colliding with one the quality mart owns (<code>quality_rows_evaluated</code>, <code>quality_rows_failed</code>, <code>quality_rows_quarantined</code>, <code>quality_rows_deduped</code>, <code>quality_quarantine_rate</code>) — one flat namespace, and two definitions of one name is a silent winner, not a merge</td>
 </tr>

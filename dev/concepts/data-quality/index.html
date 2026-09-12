@@ -887,6 +887,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#every-check-here-is-about-rows-that-arrived" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Every check here is about rows that arrived
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-conservation-law" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1826,6 +1837,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#every-check-here-is-about-rows-that-arrived" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Every check here is about rows that arrived
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#the-conservation-law" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2256,6 +2278,30 @@ a <code>Plan</code> carries a <code>replay_scope</code> alongside its <code>back
 real: relaxing <code>quarantine</code> to <code>flag</code> frees rows that are sitting in the reject table,
 <em>not</em> in bronze's incremental window, so a backfill alone would leave them quarantined
 forever.</p>
+<h2 id="every-check-here-is-about-rows-that-arrived">Every check here is about rows that arrived<a class="headerlink" href="#every-check-here-is-about-rows-that-arrived" title="Permanent link">&para;</a></h2>
+<p>That is worth saying out loud, because the most expensive production failure in an
+analytics stack is not a wrong number — it is a right number computed over yesterday's
+data. Every rule, audit and reject on this page judges the rows a run received. None of
+them can say anything about the rows that did not.</p>
+<p>Freshness is the other axis, and it is a <strong>declaration</strong> rather than a check bloomery
+runs:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># on a mapping, beside the relation it reads</span>
+<span class="nt">freshness</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">warn_after</span><span class="p">:</span><span class="w"> </span><span class="nv">6h</span><span class="p p-Indicator">,</span><span class="nt"> error_after</span><span class="p">:</span><span class="w"> </span><span class="nv">24h</span><span class="p p-Indicator">}</span>
+</code></pre></div>
+<p>bloomery emits the threshold; the framework runs the query that measures it. That split
+is not a limitation to work around — a compiler that read a clock or scanned a table
+would not be a pure function of its specs, and everything else on this page depends on
+it being one.</p>
+<p>Two consequences worth knowing before you declare one:</p>
+<ul>
+<li>It is refused on an entity that declares neither <code>quarantine:</code> nor <code>dedupe:</code>. Those are
+  what make the bronze ingestion metadata mandatory, and the freshness check reads
+  <code>_ingested_at</code>. The dependency is real rather than bureaucratic: without it the check
+  would name a column that may not exist.</li>
+<li>Nothing bloomery emits makes anyone <em>run</em> it. On dbt that is <code>dbt source freshness</code>, a
+  separate command from <code>dbt build</code>. A threshold nobody runs is indistinguishable from
+  one that passes.</li>
+</ul>
 <h2 id="the-conservation-law">The conservation law<a class="headerlink" href="#the-conservation-law" title="Permanent link">&para;</a></h2>
 <p>Every bronze row lands in exactly one of three places: the entity, an unresolved reject,
 or the deduped count. If that holds, rows cannot vanish — and rows vanishing is the
