@@ -44,7 +44,8 @@ Two consequences worth knowing:
   today: 0039, 0042 and 0053 still reason in its grain vocabulary. 0038 and 0040 were the
   other two and are gone, retired with 0058 — the last dependant of each, which is the
   rule working rather than an exception to it. 0062 is the second: 0064 and 0069 argue in
-  its identity vocabulary.
+  its identity vocabulary. 0069 is the third: 0064's remaining phase argues in its walk's
+  vocabulary, `TimelineChange` being where that document's facets live.
   This is not a licence to keep a document because something cites it — prose citations are
   precisely what `RETIRED.md` exists to keep followable.
 
@@ -100,7 +101,7 @@ know it has a companion recording where it turned out to be wrong.
 | [0064](0064-definition-supersession.md) | Definition supersession and change attribution | 🚧 In progress | An edge between two versions of one node carrying what changed in spec vocabulary, so "why did this number move" is answered above the level of a text diff. |
 | [0065](0065-consumer-evidence-strictness.md) | Consumer-declared evidence strictness | 🚧 In progress | A minimum evidence grade a mart or exposure requires of the facts beneath it, projected from RFC 0039's provenance and refused at compile time. |
 | [0068](0068-caller-assembled-spec-history.md) | Caller-assembled spec history | 📝 Draft | Compiling a past spec set needs no feature — the caller hands bloomery the text and the compiler has no notion of time; why there is no `--as-of`, and what ships instead. |
-| [0069](0069-spec-timeline.md) | Spec timeline | 🚧 In progress | Lineage answers what a node depends on and nothing answers how it has changed; one node across N caller-supplied spec sets, with bloomery never parsing an instant. |
+| [0069](0069-spec-timeline.md) | Spec timeline | ✅ Complete | Lineage answers what a node depends on and nothing answers how it has changed; one node across N caller-supplied spec sets, with bloomery never parsing an instant. |
 
 ## Status legend
 
@@ -115,6 +116,6 @@ know it has a companion recording where it turned out to be wrong.
 ✅ and ❌ are transient: a row reaching either status is retired in the same change, so a
 steady-state table holds only 📝 and 🚧 rows — **except a ✅ root of a live sequence**, which
 stays until its last dependant is retired, for the reason the retirement section above
-gives. Such a row says so in its own status line. 0037 and 0062 are the two today. Do
+gives. Such a row says so in its own status line. 0037, 0062 and 0069 are the three today. Do
 not relabel either 🚧: nothing about it is in progress, and the exception is about what other
 documents still need, not about what it has left to do.

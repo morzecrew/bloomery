@@ -70,7 +70,7 @@ from bloomery.semantic import (
     SemanticPlan,
 )
 from bloomery.cli.io import CliIoError, read_spec_directory, write_files
-from bloomery.cli import render
+from bloomery.cli import io, render
 from bloomery.cli.render import (
     render_check,
     render_evidence,
@@ -134,6 +134,13 @@ def _json(capsys: pytest.CaptureFixture[str], *argv: str) -> object:
         ("schema",),
         ("schema", "--kind", "metrics"),
         ("plan", str(FIXTURES / "evolution_v1"), str(FIXTURES / "evolution_v2")),
+        (
+            "timeline",
+            str(FIXTURES / "evolution_v1"),
+            str(FIXTURES / "evolution_v2"),
+            "--node",
+            "metric.gross_revenue",
+        ),
         ("explain", ECOM, "--metrics", "gross_revenue", "--by", "ordered_month"),
     ],
     ids=lambda argv: "-".join(part for part in argv if not part.startswith("/")),
@@ -919,6 +926,7 @@ def test_there_is_no_execution_command() -> None:
         "resolve",
         "check",
         "lineage",
+        "timeline",
         "explain",
         "schema",
         "fingerprint",
@@ -2083,3 +2091,305 @@ def test_plan_prints_what_cited_a_renamed_node(
     assert "rename" in out
     assert "Renamed — what cited the old name" in out
     assert "metric:average_order_value" in out
+
+
+# ....................... #
+# timeline (RFC 0069 P3)
+
+
+EVOLUTION = [str(FIXTURES / f"evolution_v{step}") for step in range(1, 6)]
+
+
+def test_timeline_reports_what_moved_beneath_the_node_asked_for(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The command's whole reason, on the corpus's own five-version project.
+
+    `gross_revenue` is defined identically in all five versions and its number
+    still changed twice, so every line under the heading names a node beneath
+    it. A command that printed the metric and stopped would be the answer
+    `git log` already gives.
+    """
+    code, out, err = run(capsys, "timeline", *EVOLUTION, "--node", "metric.gross_revenue")
+
+    assert code == EXIT_OK, err
+    assert "metric.gross_revenue  (5 versions, 3 changes)" in out
+    assert "order_item.unit_price" in out
+    assert "body  expr" in out
+    # The node asked for appears as the heading and never as a change.
+    assert out.count("metric.gross_revenue") == 1
+
+
+def test_timeline_labels_each_version_with_the_directory_as_typed(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """D1: bloomery never reads a label, so the label can only be what the
+    caller supplied — here the directory string, verbatim, not resolved, not
+    basenamed, not sorted."""
+    code, out, err = run(
+        capsys, "timeline", EVOLUTION[1], EVOLUTION[0], "--node", "metric.gross_revenue"
+    )
+
+    assert code == EXIT_OK, err
+    lines = [line.strip() for line in out.splitlines() if "evolution_v" in line]
+    # Reversed in, reversed out: the order given is the order reported (D1).
+    assert lines[0].startswith(EVOLUTION[1])
+    assert lines[1].startswith(EVOLUTION[0])
+
+
+def test_timeline_prints_that_a_node_never_moved(capsys: pytest.CaptureFixture[str]) -> None:
+    """A node that never changed is a result, not a miss (D4) — and an empty
+    stdout reads as a command that failed."""
+    code, out, err = run(
+        capsys, "timeline", EVOLUTION[0], EVOLUTION[0], "--node", "order_item.quantity"
+    )
+
+    assert code == EXIT_OK, err
+    assert "no definition change across these versions" in out
+
+
+def test_timeline_says_when_one_version_has_nothing_to_compare_to(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """One directory is a legal invocation and its answer is not "no change" —
+    there was no comparison. Saying so is the difference between a node that
+    held still and a question that was never asked."""
+    code, out, err = run(capsys, "timeline", EVOLUTION[0], "--node", "metric.gross_revenue")
+
+    assert code == EXIT_OK, err
+    assert "nothing to compare it to" in out
+
+
+def test_timeline_reports_the_version_a_node_was_missing_from(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An absence keeps its position (D13), which is what tells a deleted node
+    from a renamed one. `net_revenue` is absent from v1, v2 and v5."""
+    code, out, err = run(capsys, "timeline", *EVOLUTION, "--node", "metric.net_revenue")
+
+    assert code == EXIT_OK, err
+    rows = [line.split()[-1] for line in out.splitlines() if "evolution_v" in line and " " in line]
+    assert rows[:5] == ["absent", "absent", "present", "present", "absent"]
+
+
+def test_timeline_refuses_a_node_no_version_carries(capsys: pytest.CaptureFixture[str]) -> None:
+    """D7, decided for the command: absent from *some* versions is the answer,
+    absent from all of them is a spelling to retype.
+
+    The refusal offers no did-you-mean and says where one can be had. That is
+    the cost of N graphs rather than one: building suggestions here means
+    compiling every version twice, which is the cost §9 already names as the
+    feature's main risk.
+    """
+    code, out, err = run(capsys, "timeline", *EVOLUTION, "--node", "metric.nope")
+
+    assert code == EXIT_REFUSED
+    assert "in any of the 5 version(s)" in err
+    assert "bloomery lineage" in err
+    assert "did you mean" not in err
+
+
+def test_a_facet_value_with_a_newline_stays_one_row() -> None:
+    """A metric's `expr:` written as a YAML block scalar reaches the renderer
+    carrying newlines, and a table cell is one line.
+
+    Passed through, one facet emits three rows *and* the column widths are
+    computed with `len` over the whole cell — so every other row is padded to
+    the longest embedded line and the table stops being a table. Fixed in
+    `_table` rather than in this renderer: the cell is shared by every command
+    that prints one.
+    """
+    walk = bloomery.Timeline(
+        node="metric.x",
+        entries=(
+            bloomery.TimelineEntry(label="a", present=True),
+            bloomery.TimelineEntry(label="b", present=True),
+        ),
+        changes=(
+            bloomery.TimelineChange(
+                node="metric.x",
+                before="a",
+                after="b",
+                matched_by=bloomery.MatchedBy.NAME,
+                facets=(
+                    bloomery.FacetDelta(
+                        bloomery.Facet.BODY, "expr", "CASE\n  WHEN paid THEN amount\nEND", "amount"
+                    ),
+                    bloomery.FacetDelta(bloomery.Facet.GRAIN, "grain", "order", "order_item"),
+                ),
+            ),
+        ),
+    )
+
+    printed = render.render_timeline(walk)
+    facet_rows = [line for line in printed.splitlines() if line.startswith("      ")]
+
+    assert len(facet_rows) == 2, printed
+    assert "CASE WHEN paid THEN amount END" in printed
+    # The second row is padded to the first cell's *collapsed* width, not to
+    # the width of a line that no longer exists.
+    assert "grain  grain  order                           ->  order_item" in printed
+
+
+def test_every_line_the_timeline_renders_is_one_line() -> None:
+    """The heading and the boundary line are built outside `_table`, so
+    flattening the cells did not cover them.
+
+    Not hypothetical for the labels: a directory name may contain a newline
+    and the command passes the path through verbatim (D1), so
+    `bloomery timeline $'q1\nq2' …` reaches this. `matched_by` is deliberately
+    not flattened — it is a two-member enum, and a guard against a value the
+    type cannot hold is a guard nothing can reach.
+    """
+    walk = bloomery.Timeline(
+        node="metric.a\nmetric.b",
+        entries=(
+            bloomery.TimelineEntry(label="q1\nq2", present=True),
+            bloomery.TimelineEntry(label="q3", present=True),
+        ),
+        changes=(
+            bloomery.TimelineChange(
+                node="order.x\ny",
+                before="q1\nq2",
+                after="q3",
+                matched_by=bloomery.MatchedBy.NAME,
+                facets=(bloomery.FacetDelta(bloomery.Facet.GRAIN, "grain", "a", "b"),),
+            ),
+        ),
+    )
+
+    printed = render.render_timeline(walk)
+
+    # One heading, one blank, two entries, one blank, one boundary, one facet.
+    assert len(printed.splitlines()) == 7, printed
+    assert printed.startswith("metric.a metric.b  (2 versions, 1 change)")
+    assert "  q1 q2 -> q3  order.x y  (name)" in printed
+
+
+def test_a_table_cell_without_a_newline_is_untouched() -> None:
+    """Only a cell carrying a line break is collapsed. Folding every run of
+    spaces would move the bytes of callers that have no defect, and a renderer
+    whose output moves for someone else's fix is a golden diff nobody can
+    explain."""
+    assert render._table([("a  b", "c")]) == ["  a  b  c"]  # noqa: SLF001
+
+
+def test_rendering_a_timeline_of_absences_says_so() -> None:
+    """`render_timeline` is public and the command refuses this case before
+    reaching it, so the branch is reachable only here — which is why it is
+    tested here rather than marked unreachable.
+
+    "Nothing moved" would be a wrong answer about a node that was never
+    present, and the three no-change reasons are three different facts.
+    """
+    walk = bloomery.Timeline(
+        node="metric.nope",
+        entries=(
+            bloomery.TimelineEntry(label="a", present=False),
+            bloomery.TimelineEntry(label="b", present=False),
+        ),
+        changes=(),
+    )
+
+    printed = render.render_timeline(walk)
+
+    assert "this node is in none of these versions" in printed
+    assert "no definition change" not in printed
+
+
+def test_timeline_reports_boundaries_in_version_order_not_node_order() -> None:
+    """The value's ordering is version order first, node within a boundary
+    (RFC 0069 §5.1), and the rendering must not re-sort it.
+
+    Pinned because sorting every change by node reads as tidier and passes a
+    test that only asks which nodes appear: v3's two changes bracket v1's when
+    the node is the key, which puts a later boundary above an earlier one and
+    makes the output a list of nodes rather than a history.
+    """
+    history = [
+        bloomery.SpecVersion(label=directory, project=project, catalog=catalog)
+        for directory in EVOLUTION
+        for project, catalog in [_load_version(directory)]
+    ]
+    printed = render.render_timeline(bloomery.timeline(history, "metric.gross_revenue"))
+    # A boundary line is indented two spaces; a facet row is indented six and
+    # carries an arrow of its own, which is why the indent rather than the
+    # arrow is what selects here.
+    boundaries = [
+        line.strip()
+        for line in printed.splitlines()
+        if line.startswith("  ") and not line.startswith("   ") and " -> " in line
+    ]
+
+    assert [line.split()[0].rsplit("/", 1)[-1] for line in boundaries] == [
+        "evolution_v1",
+        "evolution_v3",
+        "evolution_v3",
+    ]
+    # Within the one boundary that carries two, the node is the key.
+    assert boundaries[1].split()[3] < boundaries[2].split()[3]
+
+
+def test_timeline_reads_one_catalog_for_every_version(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """`--catalog` points every version at one shared catalog, which is the
+    shape a history of directories usually has: the specs evolve and the
+    vertical does not.
+
+    Pinned because the fixtures each carry their own `catalog.yaml`, so a
+    command that ignored the flag entirely answered identically on every other
+    test here (`logs/T-0046.md`).
+    """
+    shared = tmp_path / "shared.yaml"
+    shared.write_text((FIXTURES / "evolution_v1" / "catalog.yaml").read_text())
+
+    stripped = []
+    for step, source in enumerate(EVOLUTION[:2]):
+        into = tmp_path / f"v{step}"
+        into.mkdir()
+        for document in Path(source).glob("*.yaml"):
+            if document.name != "catalog.yaml":
+                (into / document.name).write_text(document.read_text())
+        stripped.append(str(into))
+
+    code, out, err = run(capsys, "timeline", *stripped, "--node", "metric.gross_revenue")
+    assert code == EXIT_REFUSED, "without a catalog these versions do not compile"
+
+    code, out, err = run(
+        capsys, "timeline", *stripped, "--catalog", str(shared), "--node", "metric.gross_revenue"
+    )
+    assert code == EXIT_OK, err
+    assert "order_item.unit_price" in out
+
+
+def test_timeline_json_is_the_whole_value(capsys: pytest.CaptureFixture[str]) -> None:
+    """The JSON is the value the Python call returns, converted the same way —
+    not a payload assembled beside it (RFC 0020 D4).
+
+    Held against `Timeline`'s own fields so that a field added there and not
+    emitted fails here rather than being dropped silently, and against the
+    `facets` a change carries, which is the half a UI reads (RFC 0069 D14).
+    """
+    payload = _json(
+        capsys, "timeline", *EVOLUTION, "--node", "metric.gross_revenue", "--format", "json"
+    )
+    assert isinstance(payload, dict)
+
+    history = [
+        bloomery.SpecVersion(label=directory, project=project, catalog=catalog)
+        for directory in EVOLUTION
+        for project, catalog in [_load_version(directory)]
+    ]
+
+    assert payload == as_json_value(bloomery.timeline(history, "metric.gross_revenue"))
+    assert {field.name for field in dataclasses.fields(bloomery.Timeline)} <= set(payload)
+    assert payload["changes"][0]["facets"], "a change carries its facets, which is what P2 added"
+
+
+def _load_version(directory: str) -> tuple[bloomery.Project, bloomery.Catalog | None]:
+    sources, catalog_text = io.read_spec_directory(directory)
+    return (
+        bloomery.load_project(sources),
+        bloomery.load_catalog(catalog_text) if catalog_text is not None else None,
+    )

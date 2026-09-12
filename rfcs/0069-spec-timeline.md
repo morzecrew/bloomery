@@ -1,15 +1,18 @@
 # RFC 0069 — Spec timeline
 
-- **Status:** 🚧 In progress — §12's P1 has landed: `SpecVersion`, `Timeline`,
-  `timeline()`, identity matching per adjacent pair and absence with a position, with
-  `facets` present and empty. **P2 (the facets) is unscheduled** and cannot start before
-  [RFC 0064](0064-definition-supersession.md), which is unstarted; **P3 (the CLI command and
-  `--format json`) is unscheduled** and depends on nothing. Execution's findings and the two
-  rows it proposes are in [`logs/T-0043.md`](../logs/T-0043.md) — §5.1's dataclass could not
-  build an IR, and §12's "IR equality per node" is undefined for two of the seven node
-  kinds; nothing below has been amended to agree with what was built. Depends on
-  [RFC 0062](0062-stable-node-identity.md) P1 for identity (landed); assumes
-  [RFC 0068](0068-caller-assembled-spec-history.md)'s answer to where history comes from.
+- **Status:** ✅ Complete — all three phases have landed. P1 the value and the walk; P2
+  the facets, with [RFC 0064](0064-definition-supersession.md) P1+P2, which is the document
+  that owns them; P3 `bloomery timeline`, positional directories and `--format json`.
+  **Retained rather than retired, at the author's instruction**, and it is a root of a live
+  sequence in the sense [`INDEX.md`](INDEX.md) describes: RFC 0064 is still in progress and
+  argues in this document's vocabulary — its rows 9 and 13 say the `supersedes` edge *is*
+  `TimelineChange` and that the command surface is this one. Execution's findings and the
+  rows it proposed are in [`logs/T-0043.md`](../logs/T-0043.md),
+  [`logs/T-0045.md`](../logs/T-0045.md) and [`logs/T-0046.md`](../logs/T-0046.md); rows 14
+  and 9's neighbours were appended from them, and nothing below has been amended to agree
+  with what was built. Depends on [RFC 0062](0062-stable-node-identity.md) P1 for identity;
+  assumes [RFC 0068](0068-caller-assembled-spec-history.md)'s answer to where history comes
+  from.
 - **Scope:** A second walk over a project, beside lineage. `lineage()` answers "what does
   this depend on"; `timeline()` answers "how has this changed". One value type, one pure
   function, one N-ary CLI command, and a rule that bloomery never parses an instant. No
@@ -356,7 +359,8 @@ says nothing about ordering teaches the wrong habit by example.
 | 10 | `ASSUMED` | **The recommended label is `YYYY-MM-DDTHH:MM:SSZ` — UTC, no offset, no fractional part — and not "ISO-8601" at large; supersedes 9.** Only that form sorts lexicographically into chronological order: `2026-03-01T00:00:00-01:00` sorts before `2026-03-01T00:00:00Z` and is an hour later, and a fractional part reorders against a whole second. Row 9's reasoning is unchanged and its claim was too wide. Still a convention and still enforced nowhere, because row 1 says bloomery does not read the labels. |
 | 11 | `LOCKED` | **A history entry carries the `Project`, not the `ProjectIR`.** The IR does not retain the authored `id:` — RFC 0062 substitutes it while building node ids and keeps only names, because a field in the IR would move every fingerprint and break that document's D3. A timeline handed only IRs cannot match by id, which makes row 5 unimplementable; taking the spec side fixes it at the source, and the IR P2 needs is derivable from the same pair. Locked because reversing it silently reduces identity to name matching, which is the failure this feature exists to avoid. |
 | 12 | `ASSUMED` | **Matching is decided per adjacent pair and recorded on the change, and a pair matches by id only when both sides carry one.** Adoption is something that happens partway through a history, so one per-timeline answer would have to lie about one side of it. Adopting an id without renaming stays continuous; adopting one *and* renaming in the same entry reads as a delete and an add, which is the honest answer rather than a shape-matching guess. |
-| 13 | `ASSUMED` | **The value carries one entry per history entry, present or absent, and `facets` exists from P1 as an empty tuple.** An absence with a position says which entry the node was missing from rather than only that something was missing; and a field that grows a value rather than appearing in P2 keeps the JSON shape stable across phases, which §9 notes a UI pins earlier than a library usually wants. |
+| 13 | `ASSUMED` | **Partly superseded by 14.** **The value carries one entry per history entry, present or absent, and `facets` exists from P1 as an empty tuple.** An absence with a position says which entry the node was missing from rather than only that something was missing; and a field that grows a value rather than appearing in P2 keeps the JSON shape stable across phases, which §9 notes a UI pins earlier than a library usually wants. |
+| 14 | `ASSUMED` | **Row 13's shape promise holds and its value promise does not; supersedes 13 on that half alone.** `facets` is present and is a tuple in every phase, so the JSON a consumer reads never changes shape — but it is never *empty*, because RFC 0064 row 10 makes an empty delta mean "not a change" and the row is not emitted. Row 13's first reading — a pure rename reported as a change carrying nothing — is the wrong answer to RFC 0064 §6. The absence half of row 13 is unchanged. See `logs/T-0045.md`. |
 
 ## 12. Phasing
 

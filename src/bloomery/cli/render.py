@@ -26,7 +26,15 @@ from bloomery import Direction, EvidenceGrade, Stage
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from bloomery import Lineage, OpenDecision, Plan, SemanticPlan, SpecEvidence, UnreachableMetric
+    from bloomery import (
+        Lineage,
+        OpenDecision,
+        Plan,
+        SemanticPlan,
+        SpecEvidence,
+        Timeline,
+        UnreachableMetric,
+    )
     from bloomery.errors import BloomeryError
 
 # ----------------------- #
@@ -37,6 +45,7 @@ __all__ = [
     "render_evidence_grades",
     "render_lineage",
     "render_plan",
+    "render_timeline",
 ]
 
 #: A project that adopted no `id:` has no label to print, and every lookup
@@ -49,19 +58,47 @@ def _table(rows: Sequence[tuple[str, ...]], *, indent: str = "  ") -> list[str]:
 
     Unpadded because trailing whitespace on the last column is invisible in a
     terminal and very visible in a diff of captured output.
+
+    **A cell is one line.** A value carrying a newline — a metric's ``expr:``
+    written as a YAML block scalar reaches :func:`render_timeline` as one — is
+    flattened to a single spaced line first. Passed through, it would emit one
+    row as several, and the column widths are computed with ``len`` over the
+    whole cell, so every other row is padded to the longest *embedded* line and
+    the table stops being one. Only a cell that carries one is touched, so
+    every existing caller's bytes are unchanged; whitespace runs collapse
+    because the alternative is a row of ragged indentation from the source
+    document. The exact value is what ``--format json`` is for.
     """
 
     if not rows:
         return []
 
-    widths = [max(len(row[index]) for row in rows) for index in range(len(rows[0]))]
+    flattened = [tuple(_one_line(cell) for cell in row) for row in rows]
+    widths = [max(len(row[index]) for row in flattened) for index in range(len(flattened[0]))]
     lines: list[str] = []
 
-    for row in rows:
+    for row in flattened:
         cells = [cell.ljust(widths[index]) for index, cell in enumerate(row[:-1])]
         lines.append((indent + "  ".join([*cells, row[-1]])).rstrip())
 
     return lines
+
+
+# ....................... #
+
+
+def _one_line(cell: str) -> str:
+    """``cell`` with any line break collapsed into single spaces.
+
+    Left alone unless it carries one: collapsing unconditionally would also
+    fold a deliberate run of spaces inside a cell, and no caller that is
+    correct today should have its output move for a defect it does not have.
+    """
+
+    if not any(character in cell for character in "\n\r\t"):
+        return cell
+
+    return " ".join(cell.split())
 
 
 # ....................... #
@@ -489,5 +526,96 @@ def render_lineage(walk: Lineage, labels: Mapping[str, str] = _NO_LABELS) -> str
     if walk.truncated:
         lines.append("")
         lines.append("  truncated: --max-depth stopped the walk; there is more beyond this")
+
+    return "\n".join(lines)
+
+
+# ....................... #
+
+
+def render_timeline(walk: Timeline) -> str:
+    """``bloomery timeline``'s human output: the versions, then what moved.
+
+    Two blocks, because the value answers two questions and a reader arrives
+    with one of them. **Which versions carried this** is the entries, one line
+    each in the order supplied — never sorted, because RFC 0069 D1 says this
+    project does not read a label, and sorting them would be reading them.
+    **What moved** is the changes, each naming the node it is about.
+
+    The node ids are printed as they arrive. A change already carries the
+    *name* spelling of the node it names, and the heading is the spelling the
+    reader typed — relabelling that would answer a question they did not ask,
+    and there are N versions here, each with its own label map.
+
+    **A timeline with no changes prints that it has none**, for the reason
+    :func:`render_lineage` prints an empty walk: "this has not moved since
+    March" is the answer a reader came for at least as often as the other, and
+    an empty stdout reads as a command that failed. Which of the three reasons
+    it has none is stated, because "nothing moved" and "there was nothing to
+    compare" are different facts and only one of them is about the node.
+    """
+
+    versions = len(walk.entries)
+    changes = len(walk.changes)
+    present = sum(1 for entry in walk.entries if entry.present)
+    counted = (
+        f"{versions} version{'' if versions == 1 else 's'},"
+        f" {changes} change{'' if changes == 1 else 's'}"
+    )
+    lines = [f"{_one_line(walk.node)}  ({counted})", ""]
+
+    lines.extend(
+        _table([(entry.label, "present" if entry.present else "absent") for entry in walk.entries])
+    )
+
+    if not walk.changes:
+        lines.append("")
+        if present == 0:
+            # Absent everywhere is the command's refusal rather than a
+            # rendering — but this function is public and a caller can build
+            # the value, so it says what it sees rather than claiming nothing
+            # moved about a node that was never there.
+            lines.append("  this node is in none of these versions")
+        elif present == 1:
+            lines.append("  one version carries this node — there is nothing to compare it to")
+        else:
+            lines.append("  no definition change across these versions")
+        return "\n".join(lines)
+
+    lines.append("")
+
+    for change in walk.changes:
+        # Every value here is the caller's: two labels, which are whatever
+        # the history was assembled from, and a node id. A label carrying a
+        # newline is not hypothetical — a directory name may contain one, and
+        # the command passes the path through verbatim (D1) — so the two
+        # lines this renderer builds outside `_table` flatten their parts the
+        # way a table cell does. `matched_by` is not among them: it is a
+        # two-member enum, and flattening it would be a guard against a value
+        # the type cannot hold.
+        lines.append(
+            f"  {_one_line(change.before)} -> {_one_line(change.after)}"
+            f"  {_one_line(change.node)}  ({change.matched_by})"
+        )
+        lines.extend(
+            _table(
+                [
+                    (
+                        delta.facet.value,
+                        delta.field,
+                        "" if delta.old is None else delta.old,
+                        # A facet whose value has no compact spelling — a
+                        # filter is a tuple of records — renders as neither
+                        # side, and an arrow between two absences points at
+                        # nothing. The field name is the answer there, so the
+                        # row is the field and stops.
+                        "" if delta.old is None and delta.new is None else "->",
+                        "" if delta.new is None else delta.new,
+                    )
+                    for delta in change.facets
+                ],
+                indent="      ",
+            )
+        )
 
     return "\n".join(lines)

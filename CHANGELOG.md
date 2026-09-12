@@ -39,6 +39,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   spelling. A did-you-mean still answers in ids, because a suggestion exists to
   be retyped.
 
+- **`bloomery timeline` — one node across a series of spec directories.** The walk that
+  had only a Python entry point now has a command:
+
+  ```bash
+  bloomery timeline q1/ q2/ q3/ --node metric.gross_revenue
+  ```
+
+  The directories are positional and in the order given, exactly as `plan` takes
+  two, and each version's label is the directory string as typed — nothing is
+  sorted and no name is parsed, so name your directories such that a glob
+  produces the order you want. `--format json` emits the value whole, facets
+  included, which is the shape a UI reads.
+
+  A node absent from *some* versions prints as `absent`; absent from **every**
+  version is refused with exit `1`, because node ids differ between versions
+  when a project adopts an `id:` and that means the spelling is wrong for this
+  window. The refusal carries no did-you-mean: suggestions need one graph and a
+  timeline has one per version, so `bloomery lineage <dir> --node ...` on a
+  single directory is where one can be had.
+
+  There is no manifest file and no `--steps`, for the same reason there is no
+  `--as-of`: reading a list of versions, or a registry, is owning something the
+  caller owns. A project wiring `steps:` is refused here exactly as `bloomery
+  compile` refuses it. See
+  [Trace a definition over time](https://morzecrew.github.io/bloomery/how-to/trace-a-definition-over-time/).
+
 - **A timeline says what moved, and where.** A change between two versions now
   carries the facets that moved — `grain`, `filter`, `unit`, `inputs`, `body`,
   `additivity`, `quality`, `storage`, `runtime`, `metadata` — each naming the

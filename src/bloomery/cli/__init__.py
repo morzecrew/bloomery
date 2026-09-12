@@ -63,6 +63,7 @@ from bloomery import (
     RowPolicy,
     SpecEvidence,
     SpecKind,
+    SpecVersion,
     Stage,
     Target,
     TimeGrain,
@@ -79,6 +80,7 @@ from bloomery import (
     project_fingerprint,
     resolve,
     spec_json_schema,
+    timeline,
 )
 from bloomery.cli import io, render, serialize
 from bloomery.dialects import get_dialect
@@ -388,6 +390,61 @@ def _lineage_payload(walk: Lineage, labels: AbcMapping[str, str]) -> dict[str, o
         "truncated": walk.truncated,
         "labels": dict(labels),
     }
+
+
+# ....................... #
+
+
+def _timeline(arguments: argparse.Namespace) -> int:
+    """``bloomery timeline`` — how one node has changed across N spec sets.
+
+    The directories are positional and in the order given, exactly as ``plan``
+    takes two (RFC 0069 D6), and **the label of each version is the directory
+    string as typed**. Nothing parses it (D1): a reader who wants a
+    chronological order names their directories so that one falls out, which is
+    what D10's recommended label spelling is for.
+
+    **No ``--steps``**, for the reason ``resolve`` gives: a ``StepRegistry`` is
+    a caller-assembled compile input (RFC 0017 §5.3), so a project wiring a
+    ``steps:`` document is refused here exactly as ``compile`` refuses it. The
+    Python API takes one per version and is where such a history is walked.
+
+    Every version is compiled, so this costs what the history is long — the one
+    cost RFC 0069 §9 names, landing on the caller who is also the only party
+    able to choose the resolution they need.
+    """
+    history = [
+        SpecVersion(label=directory, project=project, catalog=catalog)
+        for directory in arguments.directories
+        for project, catalog in [_load(directory, arguments.catalog)]
+    ]
+    walk = timeline(history, arguments.node)
+
+    if not any(entry.present for entry in walk.entries):
+        # D7, decided for the command and not for `timeline()` itself: a node
+        # absent from *some* versions is the answer, and absent from all of
+        # them is a spelling the reader should retype. No did-you-mean —
+        # suggestions need a graph and this has one per version, so offering
+        # them means compiling everything twice or calling one version's
+        # spellings the project's. See `logs/T-0046.md`.
+        msg = (
+            f"no node named {arguments.node!r} in any of the"
+            f" {len(walk.entries)} version(s) given. Node ids differ between versions when a"
+            " project adopts an `id:`, so ask by the spelling the version you care about"
+            " uses — `bloomery lineage <dir> --node ...` on one directory names the nodes"
+            " it has"
+        )
+        raise UnknownMember(msg)
+
+    if arguments.format == "json":
+        # The whole value, not a payload built beside it: `SpecEncoder`
+        # converts a frozen dataclass structurally, so every field `Timeline`
+        # grows reaches a consumer without this function naming it.
+        _emit(walk, as_json=True)
+    else:
+        _emit(render.render_timeline(walk), as_json=False)
+
+    return EXIT_OK
 
 
 # ....................... #
@@ -779,6 +836,27 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_format(lineage_parser)
     lineage_parser.set_defaults(run=_lineage)
+
+    timeline_parser = commands.add_parser(
+        "timeline", help="how one node has changed across a series of spec directories"
+    )
+    timeline_parser.add_argument(
+        "directories",
+        nargs="+",
+        metavar="DIR",
+        help="spec directories, oldest first — the order given is the order reported",
+    )
+    timeline_parser.add_argument(
+        "--node",
+        required=True,
+        help="node id, e.g. metric.gross_revenue or order_item.unit_price",
+    )
+    timeline_parser.add_argument(
+        "--catalog",
+        help="catalog document for every version (default: catalog.yaml in each directory)",
+    )
+    _add_format(timeline_parser)
+    timeline_parser.set_defaults(run=_timeline)
 
     explain_parser = commands.add_parser("explain", help="plan one metric request; print SQL")
     _add_spec_directory(explain_parser)

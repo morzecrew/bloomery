@@ -262,3 +262,36 @@ def test_the_recipe_check_can_actually_fail() -> None:
     with pytest.raises(TypeError):
         exec(compile(broken, "broken.py", "exec"), {"sources": {}})  # noqa: S102
 
+
+def test_the_timeline_commands_shape_is_what_the_command_prints() -> None:
+    """The CLI sample on the timeline page is the one block that cannot be
+    executed — it names directories a reader will have and this repo does not.
+
+    So its *shape* is pinned instead, against a real run: the heading's
+    counted parenthetical, a presence row, and an indented facet row carrying
+    a facet and a field. A page that shows a format the command stopped
+    printing is trusted and wrong, which is the failure the executed blocks
+    above exist to prevent (`logs/T-0046.md`).
+    """
+    from bloomery.cli import main  # noqa: PLC0415 — the CLI is the subject here
+
+    versions = [str(FIXTURES / f"evolution_v{step}") for step in range(1, 6)]
+    printed = io_module.StringIO()
+
+    with redirect_stdout(printed):
+        code = main(("timeline", *versions, "--node", "metric.gross_revenue"))
+
+    assert code == 0
+    out = printed.getvalue()
+    page = (DOCS / "how-to" / "trace-a-definition-over-time.md").read_text()
+
+    assert re.search(r"^metric\.gross_revenue {2}\(5 versions, 3 changes\)$", out, re.M)
+    assert re.search(r"^ {2}\S+ {2}present$", out, re.M)
+    assert re.search(r"^ {2}\S+ -> \S+ {2}\S+ {2}\(name\)$", out, re.M)
+    assert re.search(r"^ {6}body {2}expr {2}.+ {2}-> {2}.+$", out, re.M)
+
+    # The same four shapes, in the page's own sample.
+    assert re.search(r"^metric\.gross_revenue {2}\(3 versions, 1 change\)$", page, re.M)
+    assert re.search(r"^ {2}q1/ {2}present$", page, re.M)
+    assert re.search(r"^ {2}q1/ -> q2/ {2}\S+ {2}\(name\)$", page, re.M)
+    assert re.search(r"^ {6}body {2}expr {2}.+ {2}-> {2}.+$", page, re.M)

@@ -58,7 +58,7 @@ A project that wires a `steps:` document reports the unwired step here, because 
 passes no registry — see [Steps are the one thing the CLI cannot wire](#compiling) below.
 `bloomery compile` on the same project refuses for the same reason.
 
-## The eight commands
+## The nine commands
 
 ```text
 bloomery compile     <dir> [--target sqlmesh] [--dialect duckdb] [--catalog F] [--out DIR]
@@ -67,6 +67,7 @@ bloomery resolve     <dir> [--catalog F] [--format table|json]
 bloomery check       <dir> [--catalog F] [--format table|json]
 bloomery lineage     <dir> --node ID [--direction upstream|downstream|both] [--max-depth N]
                            [--catalog F] [--format table|json]
+bloomery timeline    <dir>... --node ID [--catalog F] [--format table|json]
 bloomery explain     <dir> --metrics a,b [--by x,y] [--where JSON] [--grain month]
                            [--limit N] [--policy 'dim op value'] [--dialect duckdb]
                            [--format table|json]
@@ -162,6 +163,42 @@ Downstream metrics
 Both directories are compiled to IR and diffed. The breaking count is the number you
 decide on; the rest is context. See [evolve a spec](evolve-a-spec.md) for what each
 change class means.
+
+## Tracing one node over time
+
+`plan` compares two spec sets. `timeline` takes as many as you have, and reports one node
+across all of them:
+
+```bash
+bloomery timeline q1/ q2/ q3/ --node metric.gross_revenue
+```
+
+The directories are positional and **the order you give is the order reported** — nothing
+is sorted, and no directory name is parsed. The label printed for each version is the
+string you typed, so name your directories so that the order you want falls out of the
+glob:
+
+```bash
+bloomery timeline history/*/ --node metric.gross_revenue
+```
+
+There is no manifest file and no `--as-of`, for the same reason there is no `--steps`:
+the moment bloomery reads a list of versions it owns what a history *is*, and that is
+yours.
+
+The answer covers what the node is **built from**, so a metric whose own definition never
+moved still reports the field beneath it that did — each change naming the node it is
+about. See [trace a definition over time](trace-a-definition-over-time.md) for how to read
+the facets.
+
+A node absent from *some* versions is an answer and prints as `absent`. A node absent from
+**every** version is refused with exit `1`: node ids differ between versions when a project
+adopts an `id:`, so that means the spelling is wrong for this window. There is no
+did-you-mean, because suggestions need one graph and this has one per version — run
+`bloomery lineage <dir> --node ...` against a single directory to get one.
+
+A project that wires `steps:` is refused here exactly as `compile` refuses it, and for the
+same reason. The Python API takes a registry per version.
 
 ## Explaining a request
 
