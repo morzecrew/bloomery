@@ -124,9 +124,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   too. `a; b` parses, and every one of these expressions is spliced into a
   larger one rather than executed — the trailing statement lands inside the
   cast the column is wrapped in, `CAST(total / qty; DROP TABLE x AS
-  DECIMAL(12, 4))`, which no parser will read back. The quality guardrail
-  already refused this for an entity's `expression` rule; it is now the rule at
-  every door.
+  DECIMAL(12, 4))`, which no parser will read back. A whole statement fails the
+  same way — `SELECT 1` is valid SQL and splices to `CAST(SELECT 1 AS
+  DECIMAL(12, 4))` — so an `expr:` is held to SQLGlot's expression grammar and
+  a `SELECT`, `INSERT` or `DELETE` is refused by name. The quality guardrail
+  already refused the multi-statement half for an entity's `expression` rule;
+  it is now the rule at every door.
 
   A step registry's `sql_macro` body is guarded the same way, at the point it
   is read: a registry is assembled by the caller in Python rather than authored

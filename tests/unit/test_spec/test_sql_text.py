@@ -10,10 +10,15 @@ of those call sites.
 
 from __future__ import annotations
 
+import re
+
 import pytest
+
+from sqlglot import exp, parse_one
 
 from bloomery import load_catalog, load_project
 from bloomery.errors import SpecParseError
+from support.compiling import FIXTURES
 
 pytestmark = pytest.mark.unit
 
@@ -206,3 +211,55 @@ def test_a_second_statement_is_refused_on_every_field() -> None:
         load_project({"metrics": metrics(expr="a; b")})
     with pytest.raises(SpecParseError):
         load_project({"metrics": metrics(derived="a; b")})
+
+
+@pytest.mark.parametrize(
+    ("statement", "named"),
+    [("SELECT 1", "SELECT"), ("INSERT INTO t VALUES (1)", "INSERT"), ("DELETE FROM t", "DELETE")],
+)
+def test_a_statement_is_refused(statement: str, named: str) -> None:
+    """A `Block` was the special case; a statement is the general one.
+
+    `SELECT 1` parses to a perfectly good `Select` and splices to
+    `CAST(SELECT 1 AS DECIMAL(12, 4))`, which fails exactly the way `a; b`
+    did. The scalar check is a re-parse into a `Condition` — SQLGlot's own
+    name for the expression grammar — and the message names the statement it
+    found, because "not an expression" without saying what it *is* leaves the
+    author guessing (PR #111 review).
+    """
+    with pytest.raises(SpecParseError) as excinfo:
+        load_catalog(catalog(recipe=statement))
+    assert f"a {named} statement, not an expression" in str(excinfo.value)
+
+
+def test_the_scalar_check_does_not_replace_the_block_check() -> None:
+    """Both, not one.
+
+    The review that produced the scalar check also asked for the `Block` check
+    to be removed in its favour. It cannot be: `parse_one("a; b",
+    into=exp.Condition)` returns a `Block` rather than raising, so the scalar
+    check alone admits the multi-statement case. Asserted on SQLGlot directly
+    rather than through the validator, because that is the fact the two-check
+    structure rests on — and if a future SQLGlot makes the scalar check
+    sufficient, this is the test that says so.
+    """
+    assert isinstance(parse_one("a; b", into=exp.Condition), exp.Block)
+
+
+def test_every_expression_the_corpus_owns_is_a_scalar_expression() -> None:
+    """The scalar check is a *narrowing*, so the thing worth pinning is what
+    it does not narrow away.
+
+    Every `expr:` authored in the fixture corpus, parsed the way the validator
+    parses it. A refusal here means a legal expression was made illegal, which
+    no unit test over hand-written inputs would catch.
+    """
+    authored = set()
+    for path in (FIXTURES).rglob("*.yaml"):
+        text = path.read_text()
+        authored.update(re.findall(r'expr:\s*"([^"]+)"', text))
+        authored.update(re.findall(r"expr:\s*'([^']+)'", text))
+
+    assert len(authored) > 20, "corpus scan found almost nothing — the regex stopped matching"
+    for expression in sorted(authored):
+        parse_one(expression, into=exp.Condition)

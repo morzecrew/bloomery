@@ -140,7 +140,9 @@ something reached it, and it did so by crashing rather than refusing.
 Single, because an expression is spliced into a larger one rather than executed. `a; b`
 parses perfectly well and then lands its second statement *inside* the cast the column is
 wrapped in — `CAST(total / qty; DROP TABLE x AS DECIMAL(12, 4))` — which is not merely
-wrong output but text no parser will read back.
+wrong output but text no parser will read back. A whole statement fails the same way:
+`SELECT 1` is valid SQL and splices to `CAST(SELECT 1 AS DECIMAL(12, 4))`, so an `expr:`
+must be an expression rather than a query.
 
 ```
 Value error, not parseable SQL: Error tokenizing 'SELECT 'ab'. Bloomery parses

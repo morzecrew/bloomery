@@ -200,6 +200,28 @@ def _parses_as_sql(expr: str) -> str:
     The quality guardrail reached the same refusal from the same reasoning for
     an expression rule (RFC 0016 D95); this is that rule at the door the other
     four fields come through.
+
+    A ``Block`` is the special case of that; a **statement** is the general
+    one. ``SELECT 1`` parses to a perfectly good ``Select`` and splices to
+    ``CAST(SELECT 1 AS DECIMAL(12, 4))``, which fails identically, so the
+    scalar check is :func:`~sqlglot.parse_one` into a
+    :class:`~sqlglot.expressions.Condition` — SQLGlot's own name for the
+    expression grammar. Measured against every authored expression the fixture
+    corpus owns: 0 of 39 refused, and every shape a macro body takes — casts,
+    ``CASE``, window functions, a scalar subquery — parses to the identical
+    node and the identical SQL (PR #111 review).
+
+    Both checks, not one. ``into=exp.Condition`` returns a ``Block`` for
+    ``a; b`` rather than refusing it, so dropping the ``Block`` check on the
+    strength of the scalar one reintroduces exactly the case above.
+
+    Bare first and the scalar check second, rather than the other way round,
+    because ``into=`` replaces SQLGlot's syntax errors with its own: ``((a)``
+    reports ``Expecting ). Line 1, Col: 4`` bare and ``Failed to parse '((a)'
+    into <class 'sqlglot.expressions.core.Condition'>`` under ``into=``. The
+    first tells an author where the mistake is; the second leaks a Python
+    class path into a spec refusal. So the second parse's message is never
+    shown — only the fact that it failed is used.
     """
 
     try:
@@ -219,6 +241,17 @@ def _parses_as_sql(expr: str) -> str:
             "expression"
         )
         raise ValueError(msg)
+
+    try:
+        parse_one(expr, into=exp.Condition)
+    except (SqlglotError, RecursionError):
+        msg = (
+            f"a {parsed.key.upper()} statement, not an expression. These are spliced into "
+            "a larger expression rather than executed, so a statement lands inside the "
+            "cast the column is wrapped in and the artifact does not parse at all. Fix: "
+            "write the expression itself, without the surrounding statement"
+        )
+        raise ValueError(msg) from None
 
     return expr
 

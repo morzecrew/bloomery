@@ -457,3 +457,13 @@ def test_a_multi_statement_macro_body_is_refused() -> None:
     with pytest.raises(StepError, match="more than one statement") as excinfo:
         build(CALL, registry(body="SPLIT_PART(:email, '@', 2); DROP TABLE x"))
     assert "extract_domain@1" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("body", ["SELECT 1", "DELETE FROM t"], ids=["select", "delete"])
+def test_a_statement_macro_body_is_refused(body: str) -> None:
+    """The registry door's half: a body of `SELECT 1` parses to a good
+    `Select` and splices to `CAST(SELECT 1 AS TEXT)`, which fails the same way
+    a second statement does. The message names the statement it found."""
+    with pytest.raises(StepError, match="statement rather than an expression") as excinfo:
+        build(CALL, registry(body=body))
+    assert "extract_domain@1" in str(excinfo.value)

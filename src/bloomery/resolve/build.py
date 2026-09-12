@@ -726,6 +726,26 @@ def _macro_parts(
         )
         raise StepError(msg, source_path=source_path)
 
+    # A `Block` is the special case; a statement is the general one. A body of
+    # `SELECT 1` parses to a good `Select` and splices to `CAST(SELECT 1 AS
+    # TEXT)`, which fails identically — so the scalar check is a re-parse into
+    # a `Condition`, SQLGlot's own name for the expression grammar. Every shape
+    # a macro body takes (casts, CASE, window functions, a scalar subquery)
+    # parses to the identical node and SQL under it. Its *message* is never
+    # shown: `into=` replaces SQLGlot's syntax errors with one naming a Python
+    # class, which is why the bare parse above is what reports them.
+    try:
+        parse_one(body, into=exp.Condition)
+    except (SqlglotError, RecursionError):
+        msg = (
+            f"field references step {use!r}, whose registered macro body is a "
+            f"{parsed.key.upper()} statement rather than an expression. The body is "
+            "spliced into the consuming column (RFC 0017 §5.1) rather than executed, so "
+            "it lands inside the cast the column is wrapped in and the artifact does not "
+            "parse at all"
+        )
+        raise StepError(msg, source_path=source_path) from None
+
     _refuse_body_disagreement(use, manifest, parsed, source_path=source_path)
 
     return manifest, parsed
