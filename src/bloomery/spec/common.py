@@ -2,7 +2,7 @@
 
 Hosts the strict :class:`SpecModel` base, the source-path conversion from
 Pydantic ``loc`` tuples to dotted/bracketed authored-document addresses, the
-shared grammars (type strings, partition specs, JSONPath-lite) and shared
+shared grammars (type strings, partition specs, JSONPath-lite, SQL expressions) and shared
 sub-models (:class:`RatioSpec`, :class:`SemiAdditivePolicy`), and the strict
 YAML loader that rejects duplicate keys (RFC 0002 D5).
 
@@ -20,6 +20,8 @@ from typing import Annotated, Any, Literal, cast
 import yaml
 from pydantic import AfterValidator, BaseModel, ConfigDict, StringConstraints
 from pydantic import ValidationError as PydanticValidationError
+from sqlglot import parse_one
+from sqlglot.errors import SqlglotError
 
 from bloomery.errors import BloomeryError, SpecParseError
 
@@ -46,6 +48,7 @@ __all__ = [
     "RatioSpec",
     "SemiAdditivePolicy",
     "SpecModel",
+    "SqlText",
     "StepUse",
     "TypeString",
     "USE_PATTERN",
@@ -155,11 +158,55 @@ def _reject_reserved_relation(name: str) -> str:
 # ....................... #
 
 
+def _parses_as_sql(expr: str) -> str:
+    """Refuse an authored expression SQLGlot cannot parse.
+
+    Shape, like every other grammar here: whether the text *is* an expression,
+    never what it means. What it references, whether the operands share a unit
+    and whether the result is boolean-shaped are all decided downstream, by
+    stages that can see the entity.
+
+    Here rather than at the dozen ``parse_one`` calls that consume these
+    strings, because one authored field feeds several of them — a recipe's
+    ``expr`` is parsed by the IR builder, the grain guardrail and the
+    arithmetic guardrail — and a guard per call site refuses one mistake in
+    three different voices, none of them naming the document it was written
+    in. Refused at the parse stage, an unparseable expression is one batched
+    :class:`~bloomery.errors.SpecParseError` at the authored address.
+
+    :class:`~sqlglot.errors.SqlglotError`, not ``ParseError``: ``TokenError``
+    is its *sibling*, so an unterminated string literal (``SELECT 'abc``)
+    walks straight through a ``ParseError``-only handler — which is exactly
+    how these expressions reached the compile boundary as raw SQLGlot
+    exceptions before this existed (`bloomery.resolve.steps` documents the
+    same trap at its own door).
+    """
+
+    try:
+        parse_one(expr)
+    except SqlglotError as exc:
+        msg = (
+            f"not parseable SQL: {exc!s:.120}. Bloomery parses authored expressions at "
+            "load, so this is refused here rather than by an engine reading the artifact"
+        )
+        raise ValueError(msg) from None
+
+    return expr
+
+
+# ....................... #
+
+
 TypeString = Annotated[str, StringConstraints(pattern=TYPE_STRING_PATTERN)]
 PartitionSpecString = Annotated[str, StringConstraints(pattern=PARTITION_SPEC_PATTERN)]
 JsonPath = Annotated[str, StringConstraints(pattern=JSONPATH_PATTERN)]
 CurrencyCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")]
 MemberName = Annotated[str, AfterValidator(_reject_reserved_member)]
+
+#: An authored SQL expression — a recipe body, a metric expression, a
+#: derived metric's formula. Proved parseable at load; everything about what
+#: it *means* is decided downstream.
+SqlText = Annotated[str, AfterValidator(_parses_as_sql)]
 
 #: A bare lower-snake identifier — the shape a name must have to be safe in a
 #: context that does not quote it. Two such contexts exist, and they are

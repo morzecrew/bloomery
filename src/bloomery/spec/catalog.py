@@ -21,6 +21,7 @@ from bloomery.spec.common import (
     RelationName,
     SemiAdditivePolicy,
     SpecModel,
+    SqlText,
     TypeString,
 )
 from bloomery.spec.metrics import CumulativeSpec, DerivedSpec, MetricFilter
@@ -45,7 +46,7 @@ class Recipe(SpecModel):
 
     id: str
     requires: tuple[str, ...]
-    expr: str | None = None
+    expr: SqlText | None = None
 
 
 # ....................... #
@@ -197,7 +198,7 @@ class MetricTemplate(SpecModel):
     grain: str | None = None
     additivity: AdditivityName
     agg: str | None = None
-    expr: str | None = None
+    expr: SqlText | None = None
     ratio: RatioSpec | None = None
     semi_additive: SemiAdditivePolicy | None = None
     #: The time-shaped forms merge like every other template value (RFC 0034):

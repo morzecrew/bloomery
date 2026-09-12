@@ -412,3 +412,29 @@ def test_a_non_numeric_value_for_a_numeric_parameter_is_refused() -> None:
     assert parameter_literal("12", "decimal(12,4)").sql() == "12"
     # ...and the string branch never needed this, because it quotes.
     assert parameter_literal("1 OR 1=1", "string").sql() == "'1 OR 1=1'"
+
+
+# ....................... #
+# The body itself has to be SQL
+
+
+@pytest.mark.parametrize(
+    "body",
+    ["SELECT 'abc", "SPLIT_PART(:email,"],
+    ids=["tokenizer", "parser"],
+)
+def test_an_unparseable_macro_body_is_a_step_error(body: str) -> None:
+    """A registry is assembled by the caller in Python, not authored as a
+    document, so the spec layer's ``SqlText`` never sees this body — it is the
+    one door where the parse has to be guarded at the call site.
+
+    Both spellings, because they raise *different* SQLGlot classes:
+    ``TokenError`` is ``ParseError``'s sibling under ``SqlglotError``, and a
+    handler narrowed to the latter lets an unterminated string through as a
+    raw SQLGlot exception. Before this guard existed both crossed the compile
+    boundary, which RFC 0002 forbids.
+    """
+    with pytest.raises(StepError, match="does not parse as SQL") as excinfo:
+        build(CALL, registry(body=body))
+    assert "extract_domain@1" in str(excinfo.value)
+    assert excinfo.value.source_path is not None

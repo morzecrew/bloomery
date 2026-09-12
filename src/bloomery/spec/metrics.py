@@ -37,6 +37,7 @@ from bloomery.spec.common import (
     RatioSpec,
     SemiAdditivePolicy,
     SpecModel,
+    SqlText,
 )
 
 # ----------------------- #
@@ -237,7 +238,7 @@ class DerivedSpec(SpecModel):
     parsed expression, which lives a layer up.
     """
 
-    expr: str
+    expr: SqlText
     inputs: dict[MemberName, MetricInputSpec] = Field(min_length=1)
 
     # ....................... #
@@ -346,7 +347,7 @@ class Metric(SpecModel):
     grain: str | None = None
     additivity: AdditivityName | None = None
     agg: str | None = None
-    expr: str | None = None
+    expr: SqlText | None = None
     ratio: RatioSpec | None = None
     semi_additive: SemiAdditivePolicy | None = None
     cumulative: CumulativeSpec | None = None

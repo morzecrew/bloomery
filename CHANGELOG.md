@@ -101,6 +101,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **An authored expression that is not SQL is refused when the document loads.**
+  A recipe's `expr:`, a metric's `expr:`, a metric template's and a derived
+  metric's are parsed by the loader now, so a typo is one batched
+  `SpecParseError` at the authored address — `catalog:
+  canonical_fields.unit_price.recipes[0].expr` — instead of a raw SQLGlot
+  exception thrown out of `build_project_ir` three stages later, past the
+  `except BloomeryError` a caller was told was enough.
+
+  Two consequences worth stating. The refusal does not wait for the expression
+  to be *reached*, so a recipe no mapping chooses, a template no metric
+  instantiates and a metric no mart makes reachable are all parsed too — a
+  project carrying an unparseable one of those compiled before and is refused
+  now. And an unterminated string literal is refused with everything else:
+  SQLGlot raises `TokenError` there rather than `ParseError`, which is how
+  these expressions escaped the one door that was already guarded. The
+  stability reference states this as the second of two ways a `spec_version: 1`
+  document that loaded before can stop loading, with the test a third case
+  would have to pass.
+
+  A step registry's `sql_macro` body is guarded the same way, at the point it
+  is read: a registry is assembled by the caller in Python rather than authored
+  as a document, so the loader never sees it. It refuses as a `StepError`
+  naming the `ref@version`, which is the class the neighbouring refusals about
+  step bodies already use.
+
 - `SpecEvidence` gains `advisories` as its **last** field. Every field has a
   default, so a positional construction keeps binding exactly what it bound
   before; appending is what makes that true, and a regression test pins it.
