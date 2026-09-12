@@ -29,3 +29,6 @@ fields:
     quality:
       - {rule: in_set, values: [open, closed], on_fail: quarantine}
 unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
+# RFC 0057: the entity dedupes and quarantines, so `_ingested_at` is mandatory
+# here — which is exactly what a freshness threshold needs to key on.
+freshness: {warn_after: 6h, error_after: 24h}

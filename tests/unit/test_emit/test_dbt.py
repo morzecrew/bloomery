@@ -30,6 +30,7 @@ from bloomery.ir import (
     DedupeIR,
     Determinism,
     EntityIR,
+    FreshnessIR,
     Materialization,
     OnFail,
     ProjectIR,
@@ -1014,3 +1015,147 @@ def test_the_other_targets_emit_nothing_and_refuse_nothing(target: Target) -> No
     assert artifacts
     assert not [a for a in artifacts if "exposure" in a.path]
     assert not [a for a in artifacts if "weekly_revenue_review" in a.content]
+
+
+# ....................... #
+# Declared source freshness (RFC 0057 §5.3)
+
+
+def _sources_document(*entities: EntityIR) -> dict[str, object]:
+    artifacts = DbtEmitter().emit(ProjectIR(entities=entities), _ctx())
+    artifact = next(a for a in artifacts if a.path == "models/sources.yml")
+    return cast("dict[str, object]", yaml.safe_load(artifact.content))
+
+
+def _with_freshness(relation: str, warn_after: str, error_after: str) -> EntityIR:
+    return replace(
+        _entity(name=relation),
+        sources=(
+            replace(
+                _SOURCE,
+                relation=relation,
+                freshness=FreshnessIR(warn_after=warn_after, error_after=error_after),
+            ),
+        ),
+    )
+
+
+def test_a_declared_threshold_reaches_the_table_entry() -> None:
+    """dbt's own spelling: a `{count, period}` object per threshold, and the
+    column its query takes the max of."""
+    document = _sources_document(_with_freshness("orders", "6h", "24h"))
+
+    assert document["sources"] == [
+        {
+            "name": "bronze",
+            "schema": "bronze",
+            "tables": [
+                {
+                    "name": "orders",
+                    "loaded_at_field": "CAST(_ingested_at AS TIMESTAMP)",
+                    "freshness": {
+                        "warn_after": {"count": 6, "period": "hour"},
+                        "error_after": {"count": 24, "period": "hour"},
+                    },
+                }
+            ],
+        }
+    ]
+
+
+def test_a_week_is_emitted_as_days() -> None:
+    """dbt's `period` enum is minute/hour/day and has no week, while the spec
+    grammar it shares with `quarantine.retention` has one.
+
+    Converting here rather than narrowing the spec keeps one spelling of a
+    duration across the surface (D3) — the target's vocabulary is the
+    emitter's problem, met at the boundary with the target.
+    """
+    document = _sources_document(_with_freshness("orders", "2w", "4w"))
+    tables = cast("list[dict[str, object]]", document["sources"][0]["tables"])  # type: ignore[index]
+
+    assert tables[0]["freshness"] == {
+        "warn_after": {"count": 14, "period": "day"},
+        "error_after": {"count": 28, "period": "day"},
+    }
+
+
+def test_a_source_with_no_threshold_carries_neither_key() -> None:
+    """The half that keeps every existing project byte-identical.
+
+    A `loaded_at_field` on a source with no threshold would be inert in dbt and
+    would still name a column the entity may not require — and an empty
+    `freshness: {}` reads as a threshold that failed to render.
+    """
+    document = _sources_document(_entity())
+
+    assert document["sources"] == [
+        {"name": "bronze", "schema": "bronze", "tables": [{"name": "src"}]}
+    ]
+
+
+def test_one_relation_declared_and_silent_emits_the_threshold() -> None:
+    """Two entities reading one relation, one declaring and one not (D2c).
+
+    The mapping that says nothing is not disagreeing, so its silence must not
+    erase the other's threshold — which is what a plain `dict` assignment in
+    relation order would do, in whichever direction the entities happened to
+    sort.
+    """
+    silent = replace(_entity(name="audit"), sources=(replace(_SOURCE, relation="orders"),))
+    document = _sources_document(_with_freshness("orders", "6h", "24h"), silent)
+    tables = cast("list[dict[str, object]]", document["sources"][0]["tables"])
+
+    assert len(tables) == 1
+    assert tables[0]["loaded_at_field"] == "CAST(_ingested_at AS TIMESTAMP)"
+
+
+def test_a_declared_threshold_survives_a_silent_entity_sorting_first() -> None:
+    """The same claim with the entities the other way round.
+
+    Both orders are asserted because the bug this guards against is
+    order-dependent and the IR sorts entities by name — one of the two
+    orderings passes with a plain overwrite, which is exactly the shape that
+    makes a single-direction test read as proof.
+    """
+    silent = replace(_entity(name="aaa"), sources=(replace(_SOURCE, relation="orders"),))
+    document = _sources_document(silent, _with_freshness("orders", "6h", "24h"))
+    tables = cast("list[dict[str, object]]", document["sources"][0]["tables"])
+
+    assert tables[0]["loaded_at_field"] == "CAST(_ingested_at AS TIMESTAMP)"
+
+
+def test_the_freshness_keys_follow_the_table_name() -> None:
+    """Key order in the emitted document, which is read by people too.
+
+    `name` first, then dbt's own `loaded_at_field` / `freshness` spelling. The
+    document parses in any order; only one of them looks like the thing it was
+    copied from.
+    """
+    artifacts = DbtEmitter().emit(
+        ProjectIR(entities=(_with_freshness("orders", "6h", "24h"),)), _ctx()
+    )
+    content = next(a for a in artifacts if a.path == "models/sources.yml").content
+
+    assert content.index("- name: orders") < content.index("loaded_at_field")
+    assert content.index("loaded_at_field") < content.index("freshness:")
+
+
+def test_the_loaded_at_field_is_cast_and_not_the_bare_column() -> None:
+    """`_ingested_at` is a bronze landing column: RFC 0016 D21 requires it to
+    exist, and what asserts it is a timestamp is a generated audit that
+    `TRY_CAST`s it — so it may legitimately be text.
+
+    Handed the bare name, dbt refuses the check at run time — *expected a
+    timestamp value ... received value of type 'str'* — on a project that
+    compiled clean, which is the failure §5.2's refusal exists to prevent met
+    one layer down. Reproduced in `tests/e2e/test_dbt_quality.py` before this
+    was written; asserted here so the cheap tier keeps it.
+
+    Rendered through the dialect, like every other expression this emitter
+    writes, rather than formatted as a literal string.
+    """
+    document = _sources_document(_with_freshness("orders", "6h", "24h"))
+    tables = cast("list[dict[str, object]]", document["sources"][0]["tables"])  # type: ignore[index]
+
+    assert tables[0]["loaded_at_field"] == "CAST(_ingested_at AS TIMESTAMP)"

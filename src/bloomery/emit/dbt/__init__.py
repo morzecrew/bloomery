@@ -116,6 +116,8 @@ Artifacts:
 
 from __future__ import annotations
 
+from typing import Final
+
 import jinja2
 import yaml
 from sqlglot import exp
@@ -170,6 +172,7 @@ from bloomery.ir import (
     AuditIR,
     DateDimensionIR,
     EntityIR,
+    FreshnessIR,
     Layer,
     MartIR,
     Materialization,
@@ -1093,16 +1096,96 @@ def _schema_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
 # ....................... #
 
 
+#: dbt's freshness ``period`` vocabulary, and what each unit of the spec's
+#: duration grammar becomes in it. **There is no week**, so ``2w`` is emitted as
+#: fourteen days — the conversion lives here, at the boundary with the target,
+#: rather than narrowing a grammar ``quarantine.retention`` shares (RFC 0057 D3;
+#: logs/T-0047.md).
+_DBT_PERIOD: Final[dict[str, tuple[int, str]]] = {
+    "h": (1, "hour"),
+    "d": (1, "day"),
+    "w": (7, "day"),
+}
+
+
+def _dbt_after(duration: str) -> dict[str, object]:
+    """``"6h"`` -> ``{"count": 6, "period": "hour"}``, ``"2w"`` -> 14 days.
+
+    ``count`` before ``period`` because that is dbt's own spelling in its
+    documentation, and the emitted document is read by people as well as
+    parsers. Both key orders parse; only one of them looks like the thing it
+    was copied from.
+    """
+
+    multiplier, period = _DBT_PERIOD[duration[-1]]
+
+    return {"count": int(duration[:-1]) * multiplier, "period": period}
+
+
+def _freshness_entry(freshness: FreshnessIR | None, ctx: EmitContext) -> dict[str, object]:
+    """The two keys a dbt table entry gains for a declared threshold, or
+    nothing at all (RFC 0057 §5.3).
+
+    The column is ``_ingested_at``, and it is safe to name unconditionally
+    precisely because the guardrail refused every configuration where it is not
+    required: a threshold is admitted only on a mapping whose entity
+    quarantines or dedupes, and RFC 0016 D21 makes all three ingestion columns
+    mandatory there.
+
+    **It is emitted cast, not bare** (``logs/T-0047.md``). ``_ingested_at`` is a
+    bronze landing column, and D21 requires it to *exist*; what asserts it is a
+    timestamp is a generated audit that ``TRY_CAST``s it, which is why every
+    other emitted reference to it goes through a cast too. Handed the bare
+    name, dbt refuses the check at run time — *expected a timestamp value ...
+    received value of type 'str'* — on a project that compiled clean, which is
+    the failure §5.2's refusal exists to prevent, met one layer down.
+    ``loaded_at_field`` is interpolated into the adapter's
+    ``SELECT MAX(...)``, so an expression is what it takes.
+
+    A plain cast rather than the audit's ``TRY_CAST``: an uncastable value must
+    fail the freshness check loudly, and the blocking ingestion audit —
+    mandatory on exactly the entities where a threshold is admitted — is what
+    already names the offending rows.
+
+    An empty dict for an absent block, so the caller merges rather than
+    branches — and so ``sources.yml`` for a project that declares nothing is
+    byte-identical to what it was before this key existed (D5).
+    """
+
+    if freshness is None:
+        return {}
+
+    loaded_at = exp.cast(exp.column("_ingested_at"), exp.DataType.build("TIMESTAMP"))
+
+    return {
+        "loaded_at_field": ctx.dialect.render(loaded_at),
+        "freshness": {
+            "warn_after": _dbt_after(freshness.warn_after),
+            "error_after": _dbt_after(freshness.error_after),
+        },
+    }
+
+
+# ....................... #
+
+
 def _sources_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None:
-    relations_by_namespace: dict[str, set[str]] = {}
+    relations_by_namespace: dict[str, dict[str, FreshnessIR | None]] = {}
 
     # One ``source()`` per mapping (RFC 0024 D20): a merged entity reads every
     # relation its branches do, and a sources.yml naming only the first would
     # leave dbt unable to resolve the rest.
+    #
+    # The threshold is keyed by the *physical* relation, which is the grain dbt
+    # gives it — one table entry per relation, however many mappings read it.
+    # Two mappings disagreeing about one relation is refused at the guardrail
+    # stage (RFC 0057 D2a), so the last writer here can only ever be writing
+    # what the others already said.
     for entity in ir.entities:
         for origin in entity.sources:
             namespace, relation = ctx.naming.relation(origin.relation, Layer.BRONZE)
-            relations_by_namespace.setdefault(namespace, set()).add(relation)
+            tables = relations_by_namespace.setdefault(namespace, {})
+            tables[relation] = tables.get(relation) or origin.freshness
 
     if not relations_by_namespace:
         return None
@@ -1113,7 +1196,10 @@ def _sources_artifact(ir: ProjectIR, ctx: EmitContext) -> EmittedArtifact | None
             {
                 "name": namespace,
                 "schema": namespace,
-                "tables": [{"name": table} for table in sorted(tables)],
+                "tables": [
+                    {"name": table} | _freshness_entry(tables[table], ctx)
+                    for table in sorted(tables)
+                ],
             }
             for namespace, tables in sorted(relations_by_namespace.items())
         ],

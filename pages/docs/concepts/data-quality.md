@@ -309,6 +309,36 @@ real: relaxing `quarantine` to `flag` frees rows that are sitting in the reject 
 *not* in bronze's incremental window, so a backfill alone would leave them quarantined
 forever.
 
+## Every check here is about rows that arrived
+
+That is worth saying out loud, because the most expensive production failure in an
+analytics stack is not a wrong number — it is a right number computed over yesterday's
+data. Every rule, audit and reject on this page judges the rows a run received. None of
+them can say anything about the rows that did not.
+
+Freshness is the other axis, and it is a **declaration** rather than a check bloomery
+runs:
+
+```yaml
+# on a mapping, beside the relation it reads
+freshness: {warn_after: 6h, error_after: 24h}
+```
+
+bloomery emits the threshold; the framework runs the query that measures it. That split
+is not a limitation to work around — a compiler that read a clock or scanned a table
+would not be a pure function of its specs, and everything else on this page depends on
+it being one.
+
+Two consequences worth knowing before you declare one:
+
+- It is refused on an entity that declares neither `quarantine:` nor `dedupe:`. Those are
+  what make the bronze ingestion metadata mandatory, and the freshness check reads
+  `_ingested_at`. The dependency is real rather than bureaucratic: without it the check
+  would name a column that may not exist.
+- Nothing bloomery emits makes anyone *run* it. On dbt that is `dbt source freshness`, a
+  separate command from `dbt build`. A threshold nobody runs is indistinguishable from
+  one that passes.
+
 ## The conservation law
 
 Every bronze row lands in exactly one of three places: the entity, an unresolved reject,
