@@ -102,7 +102,7 @@ class AdvisoryCode(StrEnum):
 # ....................... #
 
 
-@dataclass(frozen=True, slots=True, order=True)
+@dataclass(frozen=True, slots=True)
 class Advisory:
     """One compile-time finding that is not a refusal (RFC 0033 §5.1).
 
@@ -111,12 +111,14 @@ class Advisory:
     important is ever *only* logged (D5) — which is also why no record in this
     library is emitted at ``WARNING``: that severity belongs here.
 
-    ``order=True`` with the fields in this order makes the dataclass's own
-    comparison the sort key §5.1 declares — ``(code, source_path, message)`` —
-    so ordering cannot drift from the documented rule by someone sorting with a
-    different lambda. ``source_path`` is optional and sorts as the empty string
-    through :func:`_advisory_key`, the way a refusal's missing path already
-    does on this type's siblings.
+    **Deliberately not orderable.** An earlier version carried ``order=True``
+    on the claim that the dataclass's own comparison *was* §5.1's sort key. It
+    was not: the declared key is ``(code, source_path, message)`` and the field
+    order is ``(code, message, source_path)``, so the two disagreed whenever
+    two advisories shared a code — and comparing a ``None`` source path against
+    a string raised ``TypeError`` on a perfectly legal pair. Sorting goes
+    through :func:`_advisory_key`, which is where the rule is stated and the
+    only place it is applied (PR #110 review).
     """
 
     #: What kind of finding this is, from the closed vocabulary.

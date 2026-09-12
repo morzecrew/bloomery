@@ -211,6 +211,48 @@ def test_an_unreadable_recipe_expression_is_not_an_advisory_and_not_a_crash() ->
 # Ordering and identity (§5.1)
 
 
+def test_advisories_are_not_directly_orderable() -> None:
+    """`Advisory` carries no `order=True`, deliberately (PR #110 review).
+
+    It used to, on the claim that the dataclass's own comparison *was* §5.1's
+    key. It was not — the declared key is `(code, source_path, message)` and
+    the field order is `(code, message, source_path)`, so the two disagreed
+    whenever two advisories shared a code, and comparing a `None` source path
+    against a string raised `TypeError` on a legal pair.
+
+    Not orderable at all is the honest state: there is one ordering rule, it
+    lives in `_advisory_key`, and `sorted()` without a key now says so loudly
+    instead of answering differently from the documentation.
+
+    **Both source paths are set**, deliberately. A pair with a `None` path
+    raises `TypeError` under `order=True` too — comparing `None` with a string
+    — so a test built on that pair passes in both worlds and pins nothing. This
+    pair is the one the old code compared *successfully* and wrongly, so it is
+    the one that tells the two apart: putting `order=True` back makes this
+    comparison succeed, and this assertion fail.
+    """
+    one = _advisory(AdvisoryCode.INEXACT_DIVISION, "zzz", "catalog: a")
+    other = _advisory(AdvisoryCode.INEXACT_DIVISION, "aaa", "catalog: b")
+
+    with pytest.raises(TypeError):
+        _ = one < other  # type: ignore[operator]
+
+
+def test_the_documented_key_disagrees_with_field_order_and_the_key_wins() -> None:
+    """The half that makes the removal necessary rather than tidy.
+
+    These two sort one way by `(code, source_path, message)` and the other way
+    by the dataclass's field order. A type that answers both questions answers
+    one of them wrongly, and nothing at the call site says which.
+    """
+    later_path_first_message = _advisory(AdvisoryCode.INEXACT_DIVISION, "aaa", "catalog: b")
+    earlier_path_last_message = _advisory(AdvisoryCode.INEXACT_DIVISION, "zzz", "catalog: a")
+
+    ordered = _sorted_advisories([later_path_first_message, earlier_path_last_message])
+
+    assert ordered == (earlier_path_last_message, later_path_first_message)
+
+
 def test_advisories_sort_by_code_then_path_then_message() -> None:
     """The declared total key. Fed in reverse so a stable sort cannot pass by
     accident."""

@@ -92,6 +92,44 @@ def test_a_different_spelling_still_warns() -> None:
     assert len(caught) == 2
 
 
+def test_every_call_site_fails_under_warnings_as_errors() -> None:
+    """The spelling is recorded **after** the warning, and the order matters
+    here and nowhere else (PR #110 review).
+
+    Under `-W error` `warnings.warn` raises. Recording first counted a warning
+    that had been converted into an exception as delivered, so a suite whose
+    second test hit the same spelling got silence — one failing test pointing
+    at one call site, where every deprecated call site should fail. That is the
+    whole reason a `-W error` suite exists.
+    """
+    raised = 0
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", BloomeryDeprecationWarning)
+        for _ in range(3):
+            try:
+                warn_deprecated("thing:", replacement="other:", removed_in="0.9.0")
+            except BloomeryDeprecationWarning:
+                raised += 1
+
+    assert raised == 3
+
+
+def test_the_guard_still_bounds_a_delivered_warning() -> None:
+    """The other side of the same order, and the one it must not have cost.
+
+    Under an ordinary filter the warning is delivered rather than raised, the
+    spelling is recorded, and the second call is silent — which is the whole
+    point of the guard.
+    """
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        for _ in range(3):
+            warn_deprecated("thing:", replacement="other:", removed_in="0.9.0")
+
+    assert len(caught) == 1
+
+
 def test_a_callers_ignore_filter_wins() -> None:
     """The half of the contract bloomery does not control, stated as a test.
 
@@ -112,28 +150,31 @@ def test_best_effort_is_the_whole_contract_under_a_race() -> None:
 
     The guard is an unsynchronized `set`, so threads reaching a spelling's
     *first* use concurrently may each emit. This asserts the tolerated range —
-    at least one, never zero — rather than exactly one, because asserting
-    exactly one would make the suite flaky against behaviour the RFC
-    deliberately allows, and asserting two would demand a race that usually
-    does not happen.
+    at least one — rather than exactly one, because asserting exactly one would
+    make the suite flaky against behaviour the RFC deliberately allows, and
+    asserting two would demand a race that usually does not happen.
+
+    **One `catch_warnings`, in the main thread, before any worker starts.**
+    `catch_warnings` replaces `warnings.showwarning` and the filter list, both
+    of which are process-global, and the stdlib documents it as not
+    thread-safe: eight nested managers in eight threads restore each other's
+    state, so the capture itself — not the code under test — is what would
+    flake (PR #110 review). Appending to the recorded list from several threads
+    is fine; installing eight capturers is not.
     """
     start = threading.Barrier(8)
-    seen: list[int] = []
-    lock = threading.Lock()
 
     def race() -> None:
         start.wait()
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            warn_deprecated("racy:", replacement="other:", removed_in="0.9.0")
-        with lock:
-            seen.append(len(caught))
+        warn_deprecated("racy:", replacement="other:", removed_in="0.9.0")
 
-    threads = [threading.Thread(target=race) for _ in range(8)]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        threads = [threading.Thread(target=race) for _ in range(8)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
 
-    assert sum(seen) >= 1
-    assert len(seen) == 8
+    assert len(caught) >= 1
+    assert all(issubclass(entry.category, BloomeryDeprecationWarning) for entry in caught)

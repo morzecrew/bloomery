@@ -13,11 +13,14 @@ listens.
 from __future__ import annotations
 
 import logging
+import pathlib
 
 import pytest
 
 from bloomery import build_project_ir, compile_project
 from support.compiling import load_fixture
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 pytestmark = pytest.mark.unit
 
@@ -42,6 +45,31 @@ def test_the_package_installs_exactly_one_null_handler() -> None:
     record for the caller, and any other kind would write somewhere the caller
     did not ask for.
     """
+    handlers = logging.getLogger("bloomery").handlers
+
+    assert len(handlers) == 1
+    assert type(handlers[0]) is logging.NullHandler
+
+
+def test_reloading_the_package_does_not_add_another_handler() -> None:
+    """A *logger* outlives a module (PR #110 review).
+
+    `importlib.reload` re-runs the package body against the same
+    process-global logger, so the plain stdlib spelling accumulates one handler
+    per reload — 1, 2, 4 — and the exactly-one contract above quietly stops
+    holding. Reloading a library is unusual and legitimate; "unusual" is not a
+    reason to let an invariant be false.
+
+    Without this the guard was unguarded: removing it broke nothing, because
+    every other test in this file imports once.
+    """
+    import importlib
+
+    import bloomery
+
+    for _ in range(3):
+        importlib.reload(bloomery)
+
     handlers = logging.getLogger("bloomery").handlers
 
     assert len(handlers) == 1
@@ -93,19 +121,48 @@ def test_no_record_is_emitted_at_warning_or_above(caplog: pytest.LogCaptureFixtu
 def test_a_compile_narrates_every_stage(caplog: pytest.LogCaptureFixture) -> None:
     """§4's INFO budget: one record per stage per compile, bounded.
 
-    This asserts the *count* and the *names*, never the text. A stage that
+    This asserts the *names* and the count, never the text. A stage that
     stopped narrating would be invisible to a caller who turned INFO on for
     exactly that reason.
+
+    **`load_project` and `compile_project`, not `build_project_ir`.** An
+    earlier version used the builder and asserted two names — but the builder
+    parses no documents and emits no artifacts, so `bloomery.spec` and
+    `bloomery.emit` sat outside a test whose name claimed every stage
+    (PR #110 review). The whole path is what the four names describe, so the
+    whole path is what runs here.
     """
-    project, catalog = load_fixture("ecom_basic")
+    project, catalog = _loaded_inside(caplog)
 
     with caplog.at_level(logging.INFO, logger="bloomery"):
-        build_project_ir(project, catalog=catalog)
+        compile_project(project, target="dbt", dialect="postgres", catalog=catalog)
 
     assert {record.name for record in caplog.records} == {
+        "bloomery.spec",
         "bloomery.resolve",
         "bloomery.guardrails",
+        "bloomery.emit",
     }
+
+
+def _loaded_inside(caplog: pytest.LogCaptureFixture) -> tuple[object, object]:
+    """`ecom_basic` parsed **through `load_project`** with capture already on,
+    so the `bloomery.spec` record lands inside the window.
+
+    `load_fixture` also calls `load_project`, but it runs before the `at_level`
+    block and its record is therefore invisible — which is how the narrower
+    version of the test above passed while asserting two of four names.
+    """
+    from bloomery import load_catalog, load_project
+    from support.compiling import fixture_sources
+
+    directory = ROOT / "tests" / "fixtures" / "ecom_basic"
+    catalog = load_catalog((directory / "catalog.yaml").read_text())
+
+    with caplog.at_level(logging.INFO, logger="bloomery"):
+        project = load_project(dict(fixture_sources("ecom_basic")))
+
+    return project, catalog
 
 
 def test_the_info_budget_does_not_scale_with_the_project(
@@ -123,10 +180,12 @@ def test_the_info_budget_does_not_scale_with_the_project(
         project, catalog = load_fixture(name)
         caplog.clear()
         with caplog.at_level(logging.INFO, logger="bloomery"):
-            build_project_ir(project, catalog=catalog)
+            compile_project(project, target="dbt", dialect="postgres", catalog=catalog)
         counts.append(len(caplog.records))
 
     assert counts[0] == counts[1]
+    # And it is not zero on both, which would make the equality vacuous.
+    assert counts[0] > 0
 
 
 def test_a_hydration_miss_narrates_at_debug_and_not_at_info(

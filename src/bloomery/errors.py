@@ -1049,14 +1049,23 @@ def warn_deprecated(spelling: str, *, replacement: str, removed_in: str) -> None
     ``stacklevel=3`` so the warning points at the caller of the deprecated
     surface rather than at this function or at its immediate caller inside
     bloomery — the line a reader has to edit.
+
+    **The spelling is recorded after the warning, not before**, and the order
+    is load-bearing under ``-W error``. There, :func:`warnings.warn` raises;
+    recording first meant the guard counted a warning that was *converted into
+    an exception* as delivered, so a suite whose second test hit the same
+    spelling got silence instead of a second failure — one failing test
+    pointing at one call site, where ten call sites are deprecated. Recording
+    after makes a raised warning not count, which is what a ``-W error`` suite
+    is asking for (PR #110 review).
     """
 
     if spelling in _WARNED:
         return
 
-    _WARNED.add(spelling)
     warnings.warn(
         f"{spelling} is deprecated and will be removed in {removed_in}; use {replacement}",
         BloomeryDeprecationWarning,
         stacklevel=3,
     )
+    _WARNED.add(spelling)

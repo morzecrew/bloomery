@@ -147,7 +147,16 @@ except ImportError:  # pragma: no cover - only in a source tree that was never b
 # `basicConfig` is banned outright under `src/bloomery` by the same
 # `banned-api` table that bans the clock (`pyproject.toml`), so this posture is
 # a gate rather than a convention.
-logging.getLogger("bloomery").addHandler(logging.NullHandler())
+#
+# Guarded because a *logger* outlives a module. `importlib.reload(bloomery)`
+# re-runs this line against the same process-global logger, so the plain
+# stdlib spelling accumulates one handler per reload — 1, 2, 4 — and breaks the
+# exactly-one contract this package asserts about itself. Reloading a library
+# is unusual and legitimate (notebooks do it), and "unusual" is not a reason to
+# let an invariant be false (PR #110 review).
+_root_logger = logging.getLogger("bloomery")
+if not any(isinstance(handler, logging.NullHandler) for handler in _root_logger.handlers):
+    _root_logger.addHandler(logging.NullHandler())
 
 __all__ = [
     "Advisory",
