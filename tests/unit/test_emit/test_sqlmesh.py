@@ -869,3 +869,28 @@ def test_a_rollup_partitioned_on_a_column_it_dropped_is_refused() -> None:
             "    materialization: incremental_by_partition\n"
             "    partition_by: [years(ordered_year)]\n"
         )
+
+
+def test_a_declared_freshness_threshold_reaches_nothing_here() -> None:
+    """RFC 0057 D6, pinned as a decision rather than left as an absence.
+
+    A bronze relation is a name in a `FROM` clause on this target — SQLMesh has
+    no source object to attach a threshold to, so emitting nothing is not a
+    degradation and is deliberately **not** a refusal (the RFC 0056 D4 rule for
+    exposures, applied again).
+
+    A golden cannot make this claim: an artifact set that never mentions
+    freshness looks identical whether the emitter considered it or never saw
+    it. `multi_source_quality` declares a threshold, so this compiles a project
+    that has one and asserts the artifacts are silent about it and that nothing
+    was refused.
+    """
+    project, _catalog = load_fixture("multi_source_quality")
+    # The corpus has to reach the feature, or this abstains rather than passes:
+    # a fixture that dropped its threshold would keep this green forever.
+    assert any(mapping.freshness is not None for mapping in project.mappings)
+
+    artifacts = compile_fixture("multi_source_quality", dialect="duckdb")
+
+    assert artifacts, "the fixture stopped compiling for SQLMesh"
+    assert not [a.path for a in artifacts if "freshness" in a.content]

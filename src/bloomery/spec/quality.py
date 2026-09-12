@@ -27,7 +27,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping as AbcMapping
 from decimal import Decimal
-from typing import Annotated, ClassVar, Literal, NoReturn, Self, cast
+from typing import Annotated, ClassVar, Final, Literal, NoReturn, Self, cast
 
 from pydantic import AfterValidator, Discriminator, Field, StringConstraints, model_validator
 
@@ -69,6 +69,7 @@ __all__ = [
     "ReferentialRule",
     "RetentionDuration",
     "RuleName",
+    "duration_hours",
     "UniqueRule",
 ]
 
@@ -132,6 +133,28 @@ CODEPOINT_ITEM_PATTERN = r"^U\+[0-9A-F]{4,6}(-U\+[0-9A-F]{4,6})?$"
 RuleName = Annotated[str, StringConstraints(pattern=RULE_NAME_PATTERN)]
 RetentionDuration = Annotated[str, StringConstraints(pattern=RETENTION_PATTERN)]
 CodepointItem = Annotated[str, StringConstraints(pattern=CODEPOINT_ITEM_PATTERN)]
+
+#: Hours per unit of :data:`RETENTION_PATTERN`. Exhaustive over the grammar by
+#: construction: :func:`duration_hours` indexes it, so a unit added to the
+#: pattern without a row here raises rather than being read as some default.
+_HOURS_PER_UNIT: Final[dict[str, int]] = {"h": 1, "d": 24, "w": 24 * 7}
+
+
+def duration_hours(duration: str) -> int:
+    """``"6h"`` -> 6, ``"90d"`` -> 2160, ``"2w"`` -> 336.
+
+    The grammar's units are all whole numbers of hours, which is what makes an
+    integer the right carrier: no rounding, and no float anywhere near a value
+    that reaches the IR (RFC 0003).
+
+    Here rather than beside a caller because the grammar is here. RFC 0057 D3
+    reuses this spelling for ``freshness:``, and two orderings of one duration
+    string — one per feature — is exactly the divergence sharing the validator
+    was meant to prevent.
+    """
+
+    return int(duration[:-1]) * _HOURS_PER_UNIT[duration[-1]]
+
 
 # ....................... #
 # The portable regex subset (RFC 0016 §5.3, D5) — an allowlist scanner

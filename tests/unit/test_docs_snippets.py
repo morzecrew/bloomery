@@ -295,3 +295,38 @@ def test_the_timeline_commands_shape_is_what_the_command_prints() -> None:
     assert re.search(r"^ {2}q1/ {2}present$", page, re.M)
     assert re.search(r"^ {2}q1/ -> q2/ {2}\S+ {2}\(name\)$", page, re.M)
     assert re.search(r"^ {6}body {2}expr {2}.+ {2}-> {2}.+$", page, re.M)
+
+
+def test_the_emitted_freshness_block_is_what_dbt_gets() -> None:
+    """The dbt how-to shows the `sources.yml` entry a declared threshold
+    produces, and it is retyped rather than extracted — so it is a claim about
+    emitted bytes with nothing behind it.
+
+    `multi_source_quality` declares exactly the block the page shows, on
+    exactly the relation it names, which makes the page checkable against a
+    real compile rather than against a second copy of the same prose. The
+    fingerprint header and the sibling relation are outside the entry, so the
+    comparison is the entry alone.
+    """
+    artifacts = {a.path: a for a in compile_fixture("multi_source_quality", target="dbt")}
+    emitted = artifacts["models/sources.yml"].content
+    start = emitted.index("  - name: shopify__order_lines")
+    end = emitted.index("  - name: woo__order_lines")
+    entry = emitted[start:end]
+
+    claimed = _fenced(DOCS / "how-to" / "emit-dbt.md", "the emitted table entry")
+
+    assert _significant(entry) == _significant(claimed)
+
+
+def test_the_freshness_snippet_check_can_actually_fail() -> None:
+    """The control the test above needs. Comparing the page against the wrong
+    relation's entry must not pass — otherwise a comparison that silently
+    matched nothing would read as agreement."""
+    artifacts = {a.path: a for a in compile_fixture("multi_source_quality", target="dbt")}
+    emitted = artifacts["models/sources.yml"].content
+    other = emitted[emitted.index("  - name: woo__order_lines") :]
+
+    claimed = _fenced(DOCS / "how-to" / "emit-dbt.md", "the emitted table entry")
+
+    assert _significant(other) != _significant(claimed)

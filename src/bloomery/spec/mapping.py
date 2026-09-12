@@ -17,7 +17,7 @@ from pydantic import Discriminator, Field, Tag, model_validator
 from pydantic.json_schema import SkipJsonSchema
 
 from bloomery.spec.common import CurrencyCode, JsonPath, MemberName, SpecModel
-from bloomery.spec.quality import FieldQualityRule
+from bloomery.spec.quality import FieldQualityRule, RetentionDuration, duration_hours
 from bloomery.spec.steps import ParameterValue, StepUse
 
 # ----------------------- #
@@ -27,6 +27,7 @@ __all__ = [
     "CurrencyColumn",
     "CurrencyIn",
     "FieldMapping",
+    "Freshness",
     "KeyField",
     "MacroFieldMapping",
     "Mapping",
@@ -244,6 +245,61 @@ FieldMapping = Annotated[
 ALIAS_BOUND = (RecipeFieldMapping, MacroFieldMapping)
 
 
+class Freshness(SpecModel):
+    """``freshness: {warn_after: 6h, error_after: 24h}`` — the thresholds at
+    which this mapping's bronze relation counts as stale (RFC 0057 §5.1).
+
+    **A declaration, never a measurement** (D1). bloomery emits the numbers;
+    ``dbt source freshness`` runs the ``SELECT MAX(_ingested_at)`` that finds
+    out. Nothing here reads a clock or touches data, which is what makes a
+    threshold expressible at all under RFC 0003.
+
+    **A statement about the relation, not about the mapping that carries it**
+    (D2c). That sentence decides the two cross-mapping rules in
+    :mod:`bloomery.guardrails.quality`: two mappings of one relation may not
+    disagree, and one that says nothing is not disagreeing.
+
+    Durations are ``quarantine.retention``'s grammar (D3) — ``6h``, ``24h``,
+    ``90d`` — so one spelling of a duration covers the whole spec surface. The
+    grammar admits weeks and dbt's ``period`` enum does not; the emitter lowers
+    a week to seven days rather than the spec refusing a unit ``retention:``
+    accepts.
+    """
+
+    warn_after: RetentionDuration
+    error_after: RetentionDuration
+
+    # ....................... #
+
+    @model_validator(mode="after")
+    def _error_is_not_before_warn(self) -> Self:
+        """``error_after`` below ``warn_after`` is refused (D4).
+
+        An error threshold that fires before its warning makes the warning
+        unreachable — a spec that means something other than what it says.
+        Parse rather than guardrail because it is a shape question inside one
+        block, answerable from the document alone (RFC 0002 D4).
+
+        **Equal is admitted, deliberately.** D4 refuses ``error_after``
+        *below* ``warn_after``; at equality both fire together and the warning
+        is superseded rather than unreachable, which is not the state D4
+        describes. Refusing it would be a wider rule than the locked one.
+        """
+
+        if duration_hours(self.error_after) < duration_hours(self.warn_after):
+            msg = (
+                f"freshness error_after ({self.error_after}) is sooner than warn_after "
+                f"({self.warn_after}), so the warning can never fire — the source would go "
+                "straight to error (RFC 0057 §5.1). Fix: make error_after the later of the two"
+            )
+            raise ValueError(msg)
+
+        return self
+
+
+# ....................... #
+
+
 class Mapping(SpecModel):
     """One (source, target entity) mapping document (``mapping_version``)."""
 
@@ -273,6 +329,15 @@ class Mapping(SpecModel):
     mapping_version: Literal[1]
     source: str
     target: str
+    #: The staleness thresholds for ``source`` (RFC 0057 §5.1). At the document
+    #: root beside ``source:`` because that is where the relation this mapping
+    #: reads is named — §5.1's YAML hangs it off a ``sources:`` list, and no
+    #: such list exists on any spec model (logs/T-0047.md).
+    #:
+    #: Absent by default and never guessed (D5): a source with no block gets no
+    #: ``freshness:`` in the emitted ``sources.yml``, because a defaulted six
+    #: hours would emit an assertion nobody made.
+    freshness: Freshness | None = None
     key: dict[str, KeyField]
     fields: dict[MemberName, FieldMapping] = Field(default_factory=dict)
     unmapped: tuple[JsonPath, ...] = ()

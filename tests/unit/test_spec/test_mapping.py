@@ -267,3 +267,95 @@ def test_document_is_absent_from_the_exported_schema() -> None:
 
     assert "document" not in schema["properties"]
     assert "document" not in schema["required"]
+
+
+# ....................... #
+# Declared source freshness (RFC 0057 §5.1)
+
+
+def _with_freshness(block: str) -> Mapping:
+    return parse(HAPPY + f"freshness: {block}\n")
+
+
+def test_a_mapping_declares_no_freshness_by_default() -> None:
+    """No block means no threshold, never a guessed one (D5).
+
+    A defaulted six hours would emit an assertion nobody made, on every source
+    in every project that never thought about arrival times.
+    """
+    assert parse(HAPPY).freshness is None
+
+
+@pytest.mark.parametrize(
+    ("warn_after", "error_after"),
+    [
+        ("6h", "24h"),
+        ("1h", "1w"),
+        ("1w", "90d"),  # a week is sooner than 90 days: the pair is ordered by duration
+        ("6h", "6h"),
+    ],
+)
+def test_an_ordered_pair_parses(warn_after: str, error_after: str) -> None:
+    """Including the equal pair, which D4 does not refuse.
+
+    D4 refuses `error_after` *below* `warn_after`. At equality both fire
+    together and the warning is superseded rather than unreachable, which is
+    not the state D4 describes — refusing it would be a wider rule than the
+    locked one.
+
+    `1w` against `90d` is here because it is the case a *lexical* comparison
+    gets wrong: "1w" sorts after "90d" as text while being 1992 hours sooner,
+    so a string comparison would refuse this legal pair.
+    """
+    freshness = _with_freshness(f"{{warn_after: {warn_after}, error_after: {error_after}}}")
+
+    assert freshness is not None
+    assert (freshness.freshness.warn_after, freshness.freshness.error_after) == (  # type: ignore[union-attr]
+        warn_after,
+        error_after,
+    )
+
+
+@pytest.mark.parametrize(
+    ("warn_after", "error_after"),
+    [("24h", "6h"), ("1w", "1d"), ("2d", "47h")],
+)
+def test_an_error_threshold_before_its_warning_is_refused(warn_after: str, error_after: str) -> None:
+    """D4, at parse: an unreachable warning is a spec that means something
+    other than what it says.
+
+    `2d` against `47h` is the pair that makes this a *duration* comparison and
+    not a string one — 47 hours is an hour short of two days, and neither the
+    number nor the unit alone says so.
+    """
+    with pytest.raises(SpecParseError) as excinfo:
+        _with_freshness(f"{{warn_after: {warn_after}, error_after: {error_after}}}")
+
+    assert "never fire" in str(excinfo.value)
+    assert excinfo.value.source_path == "mappings/orders: freshness"
+
+
+def test_freshness_speaks_the_retention_grammar_and_no_other() -> None:
+    """D3: one spelling of a duration across the spec surface.
+
+    Months are the case that matters — `RETENTION_PATTERN` excludes them
+    because a window that means something different in February is a legal
+    problem, and a freshness key that admitted `1m` would reintroduce the unit
+    the shared grammar exists to keep out.
+    """
+    with pytest.raises(SpecParseError):
+        _with_freshness("{warn_after: 1m, error_after: 2m}")
+
+
+def test_both_thresholds_are_required() -> None:
+    """Neither half is defaulted from the other.
+
+    A `warn_after` alone would need an `error_after` invented for it, and an
+    invented threshold is the assertion nobody made that D5 refuses at the
+    level of the whole block.
+    """
+    with pytest.raises(SpecParseError):
+        _with_freshness("{warn_after: 6h}")
+
+    with pytest.raises(SpecParseError):
+        _with_freshness("{error_after: 24h}")

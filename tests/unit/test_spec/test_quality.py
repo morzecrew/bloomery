@@ -4,6 +4,7 @@ the portable regex subset, and the closed retention grammar."""
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 
 import pytest
@@ -23,6 +24,7 @@ from bloomery.spec import (
     SimpleFieldMapping,
 )
 from bloomery.spec.common import validate_document
+from bloomery.spec.quality import RETENTION_PATTERN, duration_hours
 from bloomery.spec.quality import PORTABLE_REGEX_REJECTED
 
 pytestmark = pytest.mark.unit
@@ -510,6 +512,38 @@ def test_retention_grammar_accepts(retention: str) -> None:
     entity = entity_model(f"    quarantine: {{retention: {retention}}}\n").entities["e"]
     assert entity.quarantine is not None
     assert entity.quarantine.retention == retention
+
+
+@pytest.mark.parametrize(
+    ("duration", "hours"),
+    [("1h", 1), ("12h", 12), ("1d", 24), ("90d", 2160), ("1w", 168), ("99999d", 2399976)],
+)
+def test_duration_hours_orders_the_grammar(duration: str, hours: int) -> None:
+    """The ordering RFC 0057 D4 compares by, and the count dbt's ``period``
+    is derived from.
+
+    An ``int``, deliberately. Every unit the grammar admits is a whole number
+    of hours, so there is nothing to round — and no float goes anywhere near a
+    value that reaches the IR (RFC 0003).
+    """
+    assert duration_hours(duration) == hours
+
+
+def test_every_unit_the_grammar_admits_has_an_hour_count() -> None:
+    """Totality against the pattern rather than against a list written beside
+    it.
+
+    A unit added to ``RETENTION_PATTERN`` with no row in the table would make
+    :func:`duration_hours` raise ``KeyError`` on a legal spec value — a parse
+    crash rather than a refusal, and reachable only from whichever feature
+    happened to compare two durations first. The pattern's own character class
+    is the source here so the two cannot drift apart.
+    """
+    units = re.search(r"\[([a-z]+)\]", RETENTION_PATTERN)
+
+    assert units is not None
+    for unit in units.group(1):
+        assert duration_hours(f"1{unit}") >= 1
 
 
 @pytest.mark.parametrize(

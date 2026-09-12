@@ -397,3 +397,52 @@ def test_the_two_targets_reject_tables_agree_row_for_row(tmp_path: pathlib.Path)
     assert from_dbt[0][first_seen] != from_dbt[0][last_seen], (
         "the re-delivery did not separate first_seen from last_seen — nothing was preserved"
     )
+
+
+# ....................... #
+# Declared source freshness (RFC 0057 §6)
+
+
+def test_the_emitted_threshold_is_one_dbt_can_actually_run(tmp_path: pathlib.Path) -> None:
+    """``dbt source freshness``, executed — the leg no golden and no parse can
+    stand in for.
+
+    A parse validates the *shape* of a ``sources.yml`` entry. A well-formed
+    threshold on a ``loaded_at_field`` of the wrong type passes that and fails
+    only when something runs ``SELECT MAX(...)`` against the column, which is
+    exactly the failure a compiler emitting the threshold has to not cause.
+
+    The seeded ``_ingested_at`` is a fixed 2024 timestamp, so the verdict is
+    deterministically ``error`` against a 24-hour bound — and *that is the
+    assertion*, because a run that could not read the column produces no
+    verdict at all. What is being proved is that dbt reached a judgement, and
+    that the age it judged came from the column bloomery named.
+    """
+    database = tmp_path / "warehouse.duckdb"
+    _seed(database)
+    _write_project(tmp_path, database)
+
+    result = _dbt(tmp_path, "source", "freshness")
+
+    # Not `result.success`: the seed is deliberately stale, so a green run here
+    # would mean the threshold was never evaluated.
+    nodes = {node.node.name: node for node in result.result}
+    assert "shopify__order_lines" in nodes, sorted(nodes)
+    verdict = nodes["shopify__order_lines"]
+    assert verdict.status == "error", verdict
+    assert str(verdict.max_loaded_at).startswith("2024-03-10"), verdict.max_loaded_at
+
+
+def test_the_relation_with_no_threshold_is_not_checked(tmp_path: pathlib.Path) -> None:
+    """The legacy shop declares none, so dbt has nothing to evaluate for it.
+
+    Without this the test above passes on a compiler that put a threshold on
+    every source — which is the assertion nobody made that D5 refuses.
+    """
+    database = tmp_path / "warehouse.duckdb"
+    _seed(database)
+    _write_project(tmp_path, database)
+
+    result = _dbt(tmp_path, "source", "freshness")
+
+    assert {node.node.name for node in result.result} == {"shopify__order_lines"}

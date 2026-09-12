@@ -20,3 +20,7 @@ fields:
     quality:
       - {rule: unique, on_fail: fail}
 unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
+# A week, which dbt's `period` enum cannot spell — the emitted entry carries
+# fourteen days. The spec grammar is `quarantine.retention`'s (RFC 0057 D3) and
+# the conversion belongs to the target, not to the spec surface.
+freshness: {warn_after: 2w, error_after: 4w}

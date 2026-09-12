@@ -53,7 +53,7 @@ for artifact in artifacts:
 | Path | Kind | What it is |
 |---|---|---|
 | `dbt_project.yml` | config | Minimal scaffold so `dbt parse` has a project |
-| `models/sources.yml` | config | Every bronze relation the entities read |
+| `models/sources.yml` | config | Every bronze relation the entities read, with any declared freshness thresholds |
 | `models/silver/<entity>.sql` | model | One model per SCD type 1 entity, with a `{{ config(...) }}` header |
 | `snapshots/<entity>_snapshot.sql` | model | One snapshot per SCD type 2 entity (replaces its silver model) |
 | `models/gold/mart_<name>.sql`, `models/gold/dim_date.sql` | model | The same gold SELECTs SQLMesh emits |
@@ -83,6 +83,51 @@ FROM bronze.crm__customers
 
 Strategy is `check` over all columns, because the specs declare no updated-at marker
 and a `timestamp` strategy would have to invent one.
+
+## Source freshness
+
+A mapping can declare when its bronze relation counts as stale:
+
+```yaml
+mapping_version: 1
+source: shopify__order_lines
+target: order_line
+freshness: {warn_after: 6h, error_after: 24h}
+```
+
+which reaches `models/sources.yml` as dbt's own vocabulary:
+
+```yaml title="the emitted table entry"
+  - name: shopify__order_lines
+    loaded_at_field: CAST(_ingested_at AS TIMESTAMP)
+    freshness:
+      warn_after:
+        count: 6
+        period: hour
+      error_after:
+        count: 24
+        period: hour
+```
+
+**`dbt build` does not run this.** `dbt source freshness` does, as its own command in
+your schedule. Nothing bloomery emits can put it there, and a threshold nobody runs looks
+exactly like one that passes — so if the command is not in the schedule, the block is
+inert.
+
+Three things the emitted entry decides for you:
+
+- **The column is `_ingested_at`**, and the threshold is refused on a mapping whose entity
+  declares neither `quarantine:` nor `dedupe:`. Only those make the ingestion metadata
+  mandatory, so without one the check would name a column that may not exist.
+- **It is cast.** `_ingested_at` is a landing column and may be text; handed the bare name,
+  dbt refuses the check at run time with *expected a timestamp value*. An uncastable value
+  fails the check loudly rather than silently reading as no data — the blocking ingestion
+  audit is what names the offending rows.
+- **Durations are the `quarantine.retention` grammar** — `6h`, `24h`, `90d`, `2w`. dbt has
+  no week `period`, so `2w` is emitted as fourteen days.
+
+Only dbt gets this. SQLMesh and Cube model no source object, so there is nothing there to
+attach a threshold to.
 
 ## Schema tests
 

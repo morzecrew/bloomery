@@ -84,6 +84,13 @@ unit-tested per branch):
   ``<entity>__reject`` model while changing no entity row. See
   :func:`_reject_schema_changes` for the classification and why it reports
   nothing on an entity with no ``quarantine:`` block.
+- **A ``freshness:`` threshold is metadata** (RFC 0057). Declaring, changing or
+  dropping one changes when a framework complains about *arrival*, never what
+  a stored number means and never which rows the entity holds — ADDITIVE, with
+  no backfill and no replay, on the same reading that makes ``retention``
+  metadata. Reported rather than passed over in silence because it does change
+  an emitted artifact (``models/sources.yml``), which is the D60 discipline: a
+  stored or emitted fact no other subject reports gets a subject of its own.
 - **``reconcile`` changes are RESTATING at the check, never at an entity.** A
   reconcile check materializes its own model over history (§5.3), so changing
   or removing one changes every historical row of that model — but it routes
@@ -119,6 +126,7 @@ if TYPE_CHECKING:
         ColumnIR,
         DedupeIR,
         EntityIR,
+        FreshnessIR,
         MartIR,
         MetricFilterIR,
         MetricIR,
@@ -1425,6 +1433,60 @@ def _reject_schema_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
 # ....................... #
 
 
+def _freshness_changes(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
+    """Declared staleness thresholds, per bronze relation (RFC 0057 §5.1).
+
+    ADDITIVE in every direction. A threshold governs when ``dbt source
+    freshness`` complains that rows did not arrive; it routes no row, stores no
+    value and invalidates nothing already built, so neither a backfill nor a
+    replay has anything to do about one.
+
+    Over the relations **both sides share**, deliberately. A relation added or
+    removed is already reported at the entity subject by
+    :func:`_source_set_changes`, and reporting its threshold beside it would
+    say twice, in two vocabularies, that a mapping arrived.
+    """
+
+    old_map = {source.relation: source.freshness for source in old_e.sources}
+    new_map = {source.relation: source.freshness for source in new_e.sources}
+
+    for relation in sorted(old_map.keys() & new_map.keys()):
+        before, after = old_map[relation], new_map[relation]
+        if before == after:
+            continue
+        acc.changes.append(
+            Change(
+                new_e.name,
+                f"freshness:{relation}",
+                ChangeClass.ADDITIVE,
+                "declared source freshness changed — when the framework calls this relation "
+                "stale, not what any stored value means",
+                old=_render_freshness(before),
+                new=_render_freshness(after),
+            )
+        )
+
+
+# ....................... #
+
+
+def _render_freshness(freshness: FreshnessIR | None) -> str:
+    """``"warn 6h / error 24h"``, or ``"none"`` where no threshold is declared.
+
+    ``"none"`` rather than an empty string for the reason RFC 0057 D5 keeps the
+    default absent at all: a blank reads as a value that failed to render,
+    where the *absence* of a threshold is the thing being reported.
+    """
+
+    if freshness is None:
+        return "none"
+
+    return f"warn {freshness.warn_after} / error {freshness.error_after}"
+
+
+# ....................... #
+
+
 def _reconcile_definition(check: ReconcileIR) -> tuple[str, str, str, str]:
     return (check.left, check.right, str(check.tolerance), str(check.on_fail))
 
@@ -1579,6 +1641,7 @@ def _entity_pair(old_e: EntityIR, new_e: EntityIR, acc: _Acc) -> None:
     _dedupe_changes(old_e, new_e, acc)
     _quarantine_changes(old_e, new_e, acc)
     _reject_schema_changes(old_e, new_e, acc)
+    _freshness_changes(old_e, new_e, acc)
     renames = _rename_map(old_e, new_e)
     renamed_targets = set(renames.values())
     old_cols = {column.name: column for column in old_e.columns}

@@ -23,3 +23,7 @@ fields:
     quality:
       - {rule: in_enum, on_fail: quarantine}
 unmapped: ["$._load_id", "$._ingested_at", "$._source_row_id"]
+# RFC 0057 §5.1. On this branch only: `tests/e2e/test_dbt_quality.py` seeds the
+# platform shop's bronze relation and leaves the legacy one empty, and a
+# freshness check over an empty relation measures nothing.
+freshness: {warn_after: 6h, error_after: 24h}
