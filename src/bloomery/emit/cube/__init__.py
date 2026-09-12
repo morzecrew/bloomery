@@ -549,27 +549,20 @@ def _refuse_grants(ir: ProjectIR) -> None:
     whose silver relations are restricted and say nothing.
     """
 
-    for entity in ir.entities:  # sorted by name on ProjectIR
-        if entity.grants is not None:
-            msg = (
-                f"entity {entity.name!r} declares grants:, which Cube cannot apply — it "
-                "reads relations it does not own, so a grant emitted here would be a "
-                "restriction in a file that restricts nothing (RFC 0055 D5). Fix: compile "
-                "this project for SQLMesh or dbt, which do apply grants, and keep Cube for "
-                "the semantic layer over relations those targets have already restricted"
-            )
-            raise UnsupportedByTarget(msg)
+    granted = [
+        *((f"entity {entity.name!r}") for entity in ir.entities if entity.grants is not None),
+        *((f"mart {mart.name!r}") for mart in ir.marts if mart.grants is not None),
+    ]
 
-    for mart in ir.marts:
-        if mart.grants is not None:
-            msg = (
-                f"mart {mart.name!r} declares grants:, which Cube cannot apply — it reads "
-                "relations it does not own, so a grant emitted here would be a restriction "
-                "in a file that restricts nothing (RFC 0055 D5). Fix: compile this project "
-                "for SQLMesh or dbt, which do apply grants, and keep Cube for the semantic "
-                "layer over relations those targets have already restricted"
-            )
-            raise UnsupportedByTarget(msg)
+    if granted:
+        msg = (
+            f"{granted[0]} declares grants:, which Cube cannot apply — it reads relations "
+            "it does not own, so a grant emitted here would be a restriction in a file "
+            "that restricts nothing (RFC 0055 D5). Fix: compile this project for SQLMesh "
+            "or dbt, which do apply grants, and keep Cube for the semantic layer over "
+            "relations those targets have already restricted"
+        )
+        raise UnsupportedByTarget(msg)
 
 
 # ....................... #

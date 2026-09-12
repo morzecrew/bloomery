@@ -1,6 +1,10 @@
 metrics_version: 1
 metrics:
   gross_revenue:
+    # On a metric a mart actually carries, so the Cube measure's `meta.owner`
+    # is pinned by the golden. `order_count` is no mart's measure, so an owner
+    # there would reach no artifact at all.
+    owner: finance-reporting@example.com
     template: gross_revenue
   order_count:
     grain: order

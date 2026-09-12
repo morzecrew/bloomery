@@ -204,7 +204,15 @@ def test_measure_meta_propagates_additivity_and_grain() -> None:
     assert measure["name"] == "gross_revenue"
     assert measure["type"] == "sum"
     assert measure["sql"] == "unit_price * quantity"
-    assert measure["meta"] == {"additivity": "additive", "grain": "order_item"}
+    # The owner is the fixture's, not this test's subject — asserted in full
+    # rather than by subset because `meta` is the whole of what a Cube consumer
+    # reads about a measure, and a key appearing there unnoticed is exactly
+    # what an exact comparison is for (RFC 0055 §5.1).
+    assert measure["meta"] == {
+        "additivity": "additive",
+        "owner": "finance-reporting@example.com",
+        "grain": "order_item",
+    }
 
 
 def test_semi_additive_measure_carries_its_policy_in_meta() -> None:

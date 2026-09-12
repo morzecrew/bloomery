@@ -4,6 +4,12 @@ entities:
   event:
     grain: one row per event
     key: [event_id]
+    # RFC 0055 §5.3. Here rather than on `ecom_basic` because Cube refuses a
+    # granted project (D5) and `ecom_basic` has a Cube golden; `minimal` is in
+    # the dbt-parse tier, which is the only thing that can say whether dbt
+    # accepts the emitted `config: grants:` block.
+    grants:
+      select: [analyst, reverse_etl]
     fields:
       event_id: {type: string, required: true}
       kind: {type: string}

@@ -9,6 +9,8 @@ node actually has rather than a flat list of three.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 import yaml
 
@@ -46,6 +48,37 @@ key:
 fields:
   kind: {from: "$.kind"}
 """
+
+
+#: The corpus's flagship project now *carries* the three annotations, so a test
+#: that needs an un-annotated baseline has to make one rather than assume the
+#: fixture is plain. That assumption is what broke when the annotations landed
+#: in `ecom_basic`, and it broke loudly only because YAML refuses a duplicate
+#: key — a fixture gaining an annotation the other way round would have made
+#: these comparisons quietly compare nothing.
+_ANNOTATION_LINE = re.compile(r"^ *(owner|grants|classification):.*\n( +select:.*\n)?", re.M)
+_INLINE_CLASSIFICATION = re.compile(r", classification: [a-z]+")
+
+
+def unannotated(sources: dict[str, str]) -> dict[str, str]:
+    """The same project with every RFC 0055 annotation taken back out.
+
+    Asserted to have removed something: a stripper that silently matches
+    nothing turns every before/after comparison below into a comparison of a
+    project with itself, which passes and proves nothing.
+    """
+    # Only the documents this RFC annotates. `owner:` is not its word alone —
+    # a dbt exposure has carried a *required* one since RFC 0056, and stripping
+    # that made the project unloadable rather than un-annotated.
+    annotated_kinds = {"entity_model", "marts", "metrics"}
+    stripped = {
+        name: _INLINE_CLASSIFICATION.sub("", _ANNOTATION_LINE.sub("", text))
+        if name in annotated_kinds
+        else text
+        for name, text in sources.items()
+    }
+    assert stripped != sources, "the corpus fixture carries no annotation to strip"
+    return stripped
 
 
 def _sql_body(content: str) -> str:
@@ -115,14 +148,8 @@ def test_the_annotation_moves_no_sql_anywhere_in_a_project(target: str) -> None:
     false on this corpus and would pass for the wrong reason.
     """
     catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
-    plain = dict(fixture_sources("ecom_basic"))
-    annotated = dict(plain)
-    annotated["entity_model"] = annotated["entity_model"].replace(
-        "  order_item:\n", "  order_item:\n    owner: BLOOMERY_OWNER_MARKER\n", 1
-    )
-    annotated["marts"] = annotated["marts"].replace(
-        "marts:\n  order_items:", "marts:\n  order_items:\n    owner: BLOOMERY_OWNER_MARKER", 1
-    )
+    annotated = dict(fixture_sources("ecom_basic"))
+    plain = unannotated(annotated)
 
     def sql_bodies(sources: dict[str, str]) -> dict[str, str]:
         emitted = compile_project(
@@ -147,11 +174,8 @@ def test_the_annotation_removes_nothing(target: str) -> None:
     be there with it.
     """
     catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
-    plain = dict(fixture_sources("ecom_basic"))
-    annotated = dict(plain)
-    annotated["marts"] = annotated["marts"].replace(
-        "marts:\n  order_items:", "marts:\n  order_items:\n    owner: BLOOMERY_OWNER_MARKER", 1
-    )
+    annotated = dict(fixture_sources("ecom_basic"))
+    plain = unannotated(annotated)
 
     def lines(sources: dict[str, str]) -> dict[str, list[str]]:
         return {
@@ -194,45 +218,37 @@ def test_an_entity_with_no_quality_rules_still_gets_a_schema_file() -> None:
 
 
 def test_a_mart_owner_reaches_all_three_targets() -> None:
-    sources = dict(fixture_sources("ecom_basic"))
-    sources["marts"] = sources["marts"].replace(
-        "marts:\n  order_items:", "marts:\n  order_items:\n    owner: analytics", 1
-    )
     catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
-    loaded = load_project(sources)
+    loaded = load_project(fixture_sources("ecom_basic"))
+    declared = "analytics@example.com"
 
     sqlmesh = {
         a.path: a.content
         for a in compile_project(loaded, target="sqlmesh", dialect="duckdb", catalog=catalog)
     }
-    assert "owner 'analytics'" in sqlmesh["models/gold/mart_order_items.sql"]
+    assert f"owner '{declared}'" in sqlmesh["models/gold/mart_order_items.sql"]
 
     dbt = {
         a.path: a.content
         for a in compile_project(loaded, target="dbt", dialect="duckdb", catalog=catalog)
     }
     entries = yaml.safe_load(dbt["models/schema.yml"])["models"]
-    assert {"name": "mart_order_items", "meta": {"owner": "analytics"}} in entries
+    assert {"name": "mart_order_items", "meta": {"owner": declared}} in entries
 
     cube = {
         a.path: a.content
         for a in compile_project(loaded, target="cube", dialect="duckdb", catalog=catalog)
     }
     document = yaml.safe_load(cube["model/cubes/order_items.yml"])
-    assert document["cubes"][0]["meta"] == {"owner": "analytics"}
+    assert document["cubes"][0]["meta"] == {"owner": declared}
 
 
 def test_a_metric_owner_reaches_cube_alone() -> None:
     """A metric has no SQLMesh model and no dbt schema entry of its own, so a
     Cube measure's `meta` is the only owner slot it has."""
-    sources = dict(fixture_sources("ecom_basic"))
-    sources["metrics"] = sources["metrics"].replace(
-        "  gross_revenue:\n    template: gross_revenue",
-        "  gross_revenue:\n    template: gross_revenue\n    owner: metrics-guild",
-        1,
-    )
     catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
-    loaded = load_project(sources)
+    loaded = load_project(fixture_sources("ecom_basic"))
+    declared = "finance-reporting@example.com"
 
     cube = {
         a.path: a.content
@@ -240,11 +256,11 @@ def test_a_metric_owner_reaches_cube_alone() -> None:
     }
     measures = yaml.safe_load(cube["model/cubes/order_items.yml"])["cubes"][0]["measures"]
     revenue = next(m for m in measures if m["name"] == "gross_revenue")
-    assert revenue["meta"]["owner"] == "metrics-guild"
+    assert revenue["meta"]["owner"] == declared
 
     for target in ("sqlmesh", "dbt"):
         emitted = compile_project(loaded, target=target, dialect="duckdb", catalog=catalog)
-        assert not any("metrics-guild" in a.content for a in emitted)
+        assert not any(declared in a.content for a in emitted)
 
 
 def test_the_reject_table_carries_its_entity_owner() -> None:
@@ -294,13 +310,16 @@ def test_an_owner_is_not_inherited_by_a_mart(): # noqa: ANN201
     """D2. A mart over an owned entity has no owner of its own — silent
     inheritance makes an owner nobody wrote look like one somebody did."""
     sources = dict(fixture_sources("ecom_basic"))
-    sources["entity_model"] = sources["entity_model"].replace(
-        "  order_item:\n", "  order_item:\n    owner: ingestion\n", 1
-    )
+    # The entity keeps its owner; the mart's is taken away. A mart over an
+    # owned entity must then have *none* — not the entity's.
+    sources["marts"] = _ANNOTATION_LINE.sub("", sources["marts"])
+    assert sources["marts"] != fixture_sources("ecom_basic")["marts"]
+
     catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
     ir = build_project_ir(load_project(sources), catalog)
 
-    assert next(e for e in ir.entities if e.name == "order_item").owner == "ingestion"
+    owned = next(e for e in ir.entities if e.name == "order")
+    assert owned.owner == "commerce-platform@example.com"
     assert all(mart.owner is None for mart in ir.marts)
 
 
@@ -446,15 +465,14 @@ def test_pii_and_secret_leave_cubes_api_surface_and_internal_does_not() -> None:
     from what Cube serves without removing it from the relation — and
     `internal` is deliberately still served, because "internal" is a statement
     about who should read a column, not one Cube can enforce."""
-    sources = dict(fixture_sources("ecom_basic"))
-    sources["entity_model"] = sources["entity_model"].replace(
-        "      customer_id: {type: string", "      customer_id: {classification: pii, type: string", 1
-    )
     catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
     emitted = {
         a.path: a.content
         for a in compile_project(
-            load_project(sources), target="cube", dialect="duckdb", catalog=catalog
+            load_project(fixture_sources("ecom_basic")),
+            target="cube",
+            dialect="duckdb",
+            catalog=catalog,
         )
     }
     dimensions = yaml.safe_load(emitted["model/cubes/order_items.yml"])["cubes"][0]["dimensions"]
@@ -472,15 +490,14 @@ def test_a_classification_does_not_remove_the_column_from_the_relation() -> None
     """`public: false` is Cube's API surface, not the warehouse. The column is
     still selected — a classification that dropped it would be masking, which
     §4 refuses in as many words."""
-    sources = dict(fixture_sources("ecom_basic"))
-    sources["entity_model"] = sources["entity_model"].replace(
-        "      customer_id: {type: string", "      customer_id: {classification: pii, type: string", 1
-    )
     catalog = load_catalog((FIXTURES / "ecom_basic" / "catalog.yaml").read_text())
     emitted = {
         a.path: a.content
         for a in compile_project(
-            load_project(sources), target="sqlmesh", dialect="duckdb", catalog=catalog
+            load_project(fixture_sources("ecom_basic")),
+            target="sqlmesh",
+            dialect="duckdb",
+            catalog=catalog,
         )
     }
     assert "order_customer_id" in emitted["models/gold/mart_order_items.sql"]

@@ -551,3 +551,46 @@ def test_the_snapshot_materializes_the_interval_under_the_names_the_ir_owns(
     assert {"valid_from", "valid_to"} <= columns
     assert "dbt_valid_from" not in columns
     assert "dbt_valid_to" not in columns
+
+
+def test_dbt_reads_the_annotations_it_was_given(tmp_path: pathlib.Path) -> None:
+    """RFC 0055's metadata, read back off dbt's own manifest.
+
+    A green ``parse`` is not enough here, and this module already knows why:
+    parse validates the *shape* of a ``schema.yml`` entry and will accept
+    entries whose contents mean nothing to it. So the assertion is on the
+    manifest — the node dbt built — which is the only thing that says a
+    `config: grants:` block reached dbt's model config rather than sitting in
+    the file being ignored.
+
+    Both annotated fixtures, because they carry different halves: `minimal`
+    has the grants and `ecom_basic` has the owner and the column
+    classification.
+    """
+    import json
+
+    for fixture, assertions in (
+        ("minimal", ("grants",)),
+        ("ecom_basic", ("owner", "classification")),
+    ):
+        root = tmp_path / fixture
+        root.mkdir()
+        _write_project(root, fixture)
+        assert _run(root, "parse").success
+
+        manifest = json.loads((root / "target" / "manifest.json").read_text())
+        nodes = manifest["nodes"]
+
+        if "grants" in assertions:
+            event = next(n for n in nodes.values() if n["name"] == "event")
+            assert event["config"]["grants"] == {"select": ["analyst", "reverse_etl"]}
+
+        if "owner" in assertions:
+            order = next(n for n in nodes.values() if n["name"] == "order")
+            assert order["meta"]["owner"] == "commerce-platform@example.com"
+            mart = next(n for n in nodes.values() if n["name"] == "mart_order_items")
+            assert mart["meta"]["owner"] == "analytics@example.com"
+
+        if "classification" in assertions:
+            order = next(n for n in nodes.values() if n["name"] == "order")
+            assert order["columns"]["customer_id"]["meta"] == {"classification": "pii"}
